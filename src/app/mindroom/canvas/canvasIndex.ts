@@ -34,9 +34,10 @@ export const recordCanvasEvent = (
   event: MatrixEvent
 ): Promise<void> | undefined => {
   const sender = event.getSender();
-  if (!sender || event.isRedacted() || !event.getId()?.startsWith('$')) {
-    return undefined;
-  }
+  const eventId = event.getId();
+  if (!sender || !eventId?.startsWith('$')) return undefined;
+  // A canvas can also turn up already deleted, in history loaded after a missed deletion.
+  if (event.isRedacted()) return forgetCanvas(canvasSessionId(mx), eventId);
   if (event.isRedaction()) {
     const redacted = event.event.redacts ?? event.getContent().redacts;
     return typeof redacted === 'string' ? forgetCanvas(canvasSessionId(mx), redacted) : undefined;

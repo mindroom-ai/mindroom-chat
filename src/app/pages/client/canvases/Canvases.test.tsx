@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   recordEvent: vi.fn(),
   requestOpen: vi.fn(),
+  cancelOpen: vi.fn(),
   rooms: new Map<string, { membership: string; name: string }>(),
   pinEvents: new WeakMap<object, MatrixEvent>(),
 }));
@@ -77,6 +78,7 @@ vi.mock('../../../mindroom/canvas/canvasIndex', async (importOriginal) => ({
 }));
 vi.mock('../../../mindroom/canvas/useCanvasOpenRequest', () => ({
   requestCanvasOpen: mocks.requestOpen,
+  cancelCanvasOpen: mocks.cancelOpen,
 }));
 vi.mock('../../../components/page', () => {
   const Wrapper = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -141,6 +143,7 @@ beforeEach(() => {
     mocks.load,
     mocks.recordEvent,
     mocks.requestOpen,
+    mocks.cancelOpen,
   ].forEach((mock) => mock.mockReset());
   mocks.setAccountData.mockReset().mockResolvedValue({});
   mocks.load.mockResolvedValue(undefined);
@@ -189,6 +192,8 @@ describe('Canvases', () => {
     await recordCanvas(SESSION, entry({}));
     await recordCanvas(SESSION, entry({ canvasId: '$main', title: 'Main', threadId: undefined }));
     await render();
+    // Coming back to the page abandons an open it asked for earlier.
+    expect(mocks.cancelOpen).toHaveBeenCalledTimes(1);
     const row = (title: string) =>
       [...container.querySelectorAll('tbody tr')].find((tr) => tr.textContent?.includes(title))!;
     act(() =>
@@ -200,6 +205,7 @@ describe('Canvases', () => {
       (row('Plans').querySelectorAll('td')[3].querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenCalledTimes(1);
+    expect(mocks.cancelOpen).toHaveBeenCalledTimes(2);
     expect(mocks.navigateRoomThread).toHaveBeenCalledTimes(2);
     act(() =>
       (row('Main').querySelectorAll('td')[1].querySelector('button') as HTMLElement).click()
@@ -212,7 +218,18 @@ describe('Canvases', () => {
     await recordCanvas(SESSION, entry({}));
     mocks.pins = { canvases: [{ room_id: '!other:example.org', event_id: '$elsewhere' }] };
     await render();
-    const pin = () => container.querySelector('tbody tr button[aria-pressed]') as HTMLElement;
+    const pin = () => container.querySelector('tbody tr button[aria-pressed]') as HTMLButtonElement;
+    // The SDK settles a write once it has echoed back; this one waits until the test echoes it.
+    let echo: () => void = () => undefined;
+    mocks.setAccountData.mockImplementationOnce(
+      (_type: string, content: unknown) =>
+        new Promise<void>((resolve) => {
+          echo = () => {
+            mocks.pins = content;
+            resolve();
+          };
+        })
+    );
     act(() => pin().click());
     expect(mocks.setAccountData).toHaveBeenLastCalledWith(PINNED_CANVASES_TYPE, {
       canvases: [
@@ -220,8 +237,14 @@ describe('Canvases', () => {
         { room_id: '!room:example.org', event_id: '$canvas' },
       ],
     });
-    // The change shows before its write echoes back.
+    // The change shows at once, and no other change starts from it before it settles.
     expect(pin().getAttribute('aria-pressed')).toBe('true');
+    expect(pin().disabled).toBe(true);
+    act(() => pin().click());
+    expect(mocks.setAccountData).toHaveBeenCalledTimes(1);
+    await act(async () => echo());
+    expect(pin().getAttribute('aria-pressed')).toBe('true');
+    expect(pin().disabled).toBe(false);
     act(() => pin().click());
     expect(mocks.setAccountData).toHaveBeenLastCalledWith(PINNED_CANVASES_TYPE, {
       canvases: [{ room_id: '!other:example.org', event_id: '$elsewhere' }],

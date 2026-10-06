@@ -26,7 +26,7 @@ import {
   writePinnedCanvases,
   type PinnedCanvas,
 } from '../../../mindroom/canvas/pinnedCanvases';
-import { requestCanvasOpen } from '../../../mindroom/canvas/useCanvasOpenRequest';
+import { cancelCanvasOpen, requestCanvasOpen } from '../../../mindroom/canvas/useCanvasOpenRequest';
 import * as css from './Canvases.css';
 
 type CanvasList = { entries?: CanvasListEntry[]; savedIds: Set<string> };
@@ -59,22 +59,26 @@ const useCanvasList = (sessionId: string): CanvasList => {
   return list;
 };
 
-/** Pins from account data, showing a change at once while its write echoes back. */
+/**
+ * Pins from account data, showing a change at once. One write at a time: the SDK settles a write
+ * only once it has echoed back, so the next change starts from what the server holds.
+ */
 const usePinnedCanvases = () => {
   const mx = useMatrixClient();
   const pinEvent = useAccountData(PINNED_CANVASES_TYPE);
   const stored = useMemo(() => readPinnedCanvases(pinEvent?.getContent()), [pinEvent]);
   const [pending, setPending] = useState<PinnedCanvas[]>();
-  useEffect(() => setPending(undefined), [pinEvent]);
   const pins = pending ?? stored;
   const toggle = (entry: CanvasListEntry) => {
     const next = pins.some((pin) => pin.canvasId === entry.canvasId)
       ? pins.filter((pin) => pin.canvasId !== entry.canvasId)
       : [...pins, { roomId: entry.roomId, canvasId: entry.canvasId }];
     setPending(next);
-    writePinnedCanvases(mx, next).catch(() => setPending(undefined));
+    writePinnedCanvases(mx, next)
+      .catch(() => undefined)
+      .finally(() => setPending(undefined));
   };
-  return { pins, toggle };
+  return { pins, toggle, writing: !!pending };
 };
 
 export function Canvases() {
@@ -83,7 +87,9 @@ export function Canvases() {
   const mx = useMatrixClient();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const { entries, savedIds } = useCanvasList(canvasSessionId(mx));
-  const { pins, toggle } = usePinnedCanvases();
+  const { pins, toggle, writing } = usePinnedCanvases();
+  // Coming back here abandons a canvas this page asked a room to open.
+  useEffect(() => cancelCanvasOpen(), []);
 
   // A canvas pinned on another device may be missing here; it is fetched and listed once.
   const fetched = useRef(new Set<string>());
@@ -117,6 +123,7 @@ export function Canvases() {
   );
   const open = (entry: CanvasListEntry, canvas: boolean) => {
     if (canvas) requestCanvasOpen(entry.roomId, entry.canvasId);
+    else cancelCanvasOpen();
     if (entry.threadId) navigateRoomThread(entry.roomId, entry.threadId);
     else navigateRoom(entry.roomId);
   };
@@ -170,6 +177,7 @@ export function Canvases() {
                             radii="300"
                             variant={pinned ? 'Primary' : 'Background'}
                             aria-pressed={pinned}
+                            disabled={writing}
                             aria-label={t(
                               pinned ? 'mindroomUi.canvases.unpin' : 'mindroomUi.canvases.pin',
                               { title: entry.title }

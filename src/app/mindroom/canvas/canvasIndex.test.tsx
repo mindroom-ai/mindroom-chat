@@ -161,6 +161,19 @@ describe('recordCanvasEvent', () => {
     });
   });
 
+  it('forgets a canvas that turns up already deleted', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, request());
+    const deleted = request();
+    deleted.makeRedacted(
+      new MatrixEvent({ event_id: '$redaction', type: 'm.room.redaction', redacts: '$canvas' }),
+      { getMyMembership: () => 'join', currentState: { getStateEvents: () => null } } as never
+    );
+    expect(deleted.isRedacted()).toBe(true);
+    await recordCanvasEvent(mx, deleted);
+    expect(await listCanvases(SESSION)).toEqual([]);
+  });
+
   it('applies an update that arrives without its request, from the canvas agent only', async () => {
     const { mx } = fixture();
     await recordCanvasEvent(mx, request());

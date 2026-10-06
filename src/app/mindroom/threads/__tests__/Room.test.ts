@@ -656,13 +656,13 @@ describe('Room', () => {
     };
   };
 
-  it('opens the canvas the Canvases page asked for, filling the room', async () => {
-    const canvas = new MatrixEvent({
+  const listedCanvas = () =>
+    new MatrixEvent({
       event_id: '$listed',
       room_id: '!room:example.org',
       sender: '@mindroom_helper:example.org',
       type: 'm.room.message',
-      origin_server_ts: 1,
+      origin_server_ts: Date.now(),
       content: {
         msgtype: 'm.notice',
         body: 'Open this view.',
@@ -678,6 +678,9 @@ describe('Room', () => {
         },
       },
     });
+
+  it('opens the canvas the Canvases page asked for, filling the room', async () => {
+    const canvas = listedCanvas();
     roomState.loadedEvents.set('$listed', canvas);
     const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
     requestCanvasOpen('!room:example.org', '$listed');
@@ -688,6 +691,29 @@ describe('Room', () => {
     expect(roomState.canvasPanelProps?.expanded).toBe(true);
     expect(room.conversationShown()).toBe(false);
     await room.unmount();
+  });
+
+  it('does not expand a requested canvas that could not open during a call, when it opens later', async () => {
+    const canvas = listedCanvas();
+    roomState.loadedEvents.set('$listed', canvas);
+    roomState.callEmbed = { mock: 'active call' };
+    const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
+    requestCanvasOpen('!room:example.org', '$listed');
+    const view = await renderCanvasRoom();
+    await act(async () => undefined);
+    expect(view.canvasOpen()).toBe(false);
+    roomState.callEmbed = undefined;
+    await view.rerender();
+    expect(view.canvasOpen()).toBe(false);
+    // The agent shows it again after the call: it opens beside the conversation, as usual.
+    await act(async () => {
+      roomState.mxListeners.get('Room.timeline')?.(listedCanvas(), room, false, false, {
+        liveEvent: true,
+      });
+    });
+    expect(view.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    await view.unmount();
   });
 
   it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {

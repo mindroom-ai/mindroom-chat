@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestCanvasOpen, useCanvasOpenRequest } from './useCanvasOpenRequest';
+import { cancelCanvasOpen, requestCanvasOpen, useCanvasOpenRequest } from './useCanvasOpenRequest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -88,6 +88,20 @@ describe('useCanvasOpenRequest', () => {
     expect(first.open).not.toHaveBeenCalled();
     await act(async () => resolveSecond(canvas));
     expect(second.open).toHaveBeenCalledTimes(1);
+    act(() => second.root.unmount());
+  });
+
+  it('drops a request cancelled before the room opened it', async () => {
+    const resolve = deferred();
+    requestCanvasOpen(room.roomId, '$canvas');
+    const first = render();
+    // The user went back to the Canvases page, then chose only the conversation.
+    act(() => first.root.unmount());
+    cancelCanvasOpen();
+    const second = render();
+    await act(async () => resolve(canvas));
+    expect(loads.load).toHaveBeenCalledTimes(1);
+    expect(second.open).not.toHaveBeenCalled();
     act(() => second.root.unmount());
   });
 

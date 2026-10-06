@@ -247,6 +247,9 @@ export function Room() {
   const [expandCanvasId, setExpandCanvasId] = useState<string>();
   const openRequestedCanvas = useCallback(
     (event: MatrixEvent) => {
+      const action = uiActions.read(event);
+      // A canvas that cannot open now (during a call) must not expand when opened later.
+      if (!action || uiActions.unavailable(action)) return;
       setExpandCanvasId(event.getId());
       uiActions.activate(event);
     },

@@ -5,7 +5,6 @@ import {
   type CanvasListEntry,
   forgetCanvas,
   listCanvases,
-  MAX_LISTED_CANVASES,
   recordCanvas,
   recordCanvasUpdate,
   subscribeCanvasList,
@@ -69,27 +68,15 @@ describe('canvasIndexStore', () => {
     expect(await listCanvases('session-a')).toEqual([]);
   });
 
-  it('tells listeners of changes, not of writes that change nothing', async () => {
+  it('tells listeners of every write, since another tab may have made the change first', async () => {
     const listener = vi.fn();
     const unsubscribe = subscribeCanvasList(listener);
     await recordCanvas('session-a', entry());
     await recordCanvas('session-a', entry());
-    await forgetCanvas('session-a', '$missing');
-    expect(listener).toHaveBeenCalledTimes(1);
     await recordCanvasUpdate('session-a', '$canvas', AGENT, 'Plans v2', 2);
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
     unsubscribe();
     await forgetCanvas('session-a', '$canvas');
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it('forgets the canvases updated longest ago beyond its limit', async () => {
-    for (let index = 0; index <= MAX_LISTED_CANVASES; index += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await recordCanvas('session-a', entry({ canvasId: `$canvas-${index}`, updatedTs: index }));
-    }
-    const listed = await listCanvases('session-a');
-    expect(listed).toHaveLength(MAX_LISTED_CANVASES);
-    expect(listed.some((listedEntry) => listedEntry.canvasId === '$canvas-0')).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(3);
   });
 });

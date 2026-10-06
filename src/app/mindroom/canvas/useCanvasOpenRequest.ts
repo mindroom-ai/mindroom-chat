@@ -13,6 +13,10 @@ export const requestCanvasOpen = (roomId: string, canvasId: string): void => {
   request = { roomId, canvasId, at: Date.now() };
 };
 
+export const cancelCanvasOpen = (): void => {
+  request = undefined;
+};
+
 /**
  * Opens the canvas requested for this room once the room is ready and the canvas has loaded.
  * The room can remount while it settles its thread route, so the request is kept outside it
