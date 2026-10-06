@@ -2,7 +2,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
-import { MAudio, MFile, MVideo } from './MsgTypeRenderers';
+import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
 import { FileContent } from './content/FileContent';
 
 vi.mock('./content', () => ({
@@ -80,5 +80,29 @@ describe('file renderers', () => {
       })
     );
     expect(audio).toContain('Audio');
+  });
+});
+
+describe('MImage', () => {
+  it.each([
+    ['image/svg+xml', 'file'],
+    ['image/png', 'image'],
+  ])('renders an image declared as %s as %s content', (mimetype, renderedAs) => {
+    const renderer = create(
+      React.createElement(MImage, {
+        content: {
+          msgtype: MsgType.Image,
+          body: 'diagram',
+          url: 'mxc://example.org/diagram',
+          info: { mimetype },
+        },
+        renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
+        renderImageContent: () => React.createElement('div', { 'data-renderer': 'image' }),
+      })
+    );
+
+    expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"${renderedAs}"`);
+
+    renderer.unmount();
   });
 });
