@@ -19,17 +19,14 @@ export const useThreadScheduledStatus = (
     setRefreshVersion((version) => version + 1);
   }, []);
 
-  const scheduledStatus = useMemo(
-    () => {
-      // Timer ticks should invalidate Date.now() usage inside scheduled-status derivation.
-      void refreshVersion;
-      return getThreadScheduledStatus(
-        buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
-        threadRootId
-      );
-    },
-    [scheduledTaskEvents, threadRootId, refreshVersion]
-  );
+  const scheduledStatus = useMemo(() => {
+    // Timer ticks should invalidate Date.now() usage inside scheduled-status derivation.
+    void refreshVersion;
+    return getThreadScheduledStatus(
+      buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
+      threadRootId
+    );
+  }, [scheduledTaskEvents, threadRootId, refreshVersion]);
   const intervalMs =
     scheduledStatus.nextScheduledTs === undefined
       ? -1
