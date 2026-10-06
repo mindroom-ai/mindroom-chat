@@ -12,14 +12,18 @@
   The existing selection rules pick the title, and the shared state saves it to `thread_summaries`, so the overview card and the thread banner read it from the same place with no room view mounted.
   It runs only when the batch holds a summary notice, so a batch without one does no summary work, and it runs after the batch's cache write has started, so it cannot stop that write.
   Notices that the same batch shows as redacted are skipped, so redactions persisted with the batch still clear the title as in #405.
-  It is skipped when the write's cache lease was revoked, as the event write is, so clearing a room's offline content cannot be undone by a late repair.
+  It is skipped when the write's cache lease was revoked, as the event write is, so a repair that started before a room's offline content was cleared records no summary.
   Room cache writes need no change, because they leave out thread replies, which reach the thread writer.
 - This replaces the closed PR #323, which moved summary ownership into the cache store across 28 files and added a background repair cursor.
 - Tests: `threadSummaryPersistence.test.tsx`: a summary notice cached the way the sync engine writes a live event, or by a fetched history chunk that puts it outside the 32-event tail, reaches the shared state and the summary store with no room view mounted (both fail on `dev`).
   A batch without summary notices opens no `thread_summaries` transaction, and a write with a revoked lease records no summary.
   A stale unredacted copy of a notice next to its redaction does not become the title, in thread history and in a reconciler repair (the repair case fails without the redaction check).
   `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice.
-VALIDATION_PLACEHOLDER
+  It failed 3 of 3 runs on a `dev` build (the card showed the root and latest reply) and passed 3 of 3 with the fix, on a local Tuwunel stack in Chromium.
+- Validation: 6,431 of 6,435 unit tests pass; the 3 `xcodeCloudPostClone.test.ts` failures come from a shell script that needs `bash` in `/usr/bin` or `/bin`, which this NixOS host lacks, and one `canvasDocument.test.ts` case failed under a load average near 90 and passes with its file alone.
+  Typecheck, lint (0 errors, 18 existing warnings), production build, and Prettier on the touched files pass.
+  The live specs `cinny060-thread-summary-consistency`, `cinny061-thread-summary-cache-upgrade`, `cinny207-stop-emoji-redaction` and `offline-thread-overview` pass in Chromium; WebKit cannot start on this host.
+- Review: an independent review found no blockers; its findings added the lease check and the skip for notices without text, and named the two redaction gaps below.
 - Not changed:
   - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
   - The room view's own summary publishers are unchanged.
