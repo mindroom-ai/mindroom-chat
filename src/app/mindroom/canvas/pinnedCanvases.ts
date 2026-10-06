@@ -26,12 +26,35 @@ export const readPinnedCanvases = (content: unknown): PinnedCanvas[] => {
   });
 };
 
-export const writePinnedCanvases = async (
+const writes = new WeakMap<MatrixClient, Promise<void>>();
+
+/**
+ * Pins or unpins a canvas. Changes run one at a time per client, each from the pins the client
+ * holds then: the SDK settles a write only once it has echoed back, and skips one equal to what
+ * it holds, so overlapping writes would undo each other.
+ */
+export const setCanvasPinned = (
   mx: MatrixClient,
-  pins: PinnedCanvas[]
+  pin: PinnedCanvas,
+  pinned: boolean
 ): Promise<void> => {
-  await mx.setAccountData(
-    PINNED_CANVASES_TYPE as never,
-    { canvases: pins.map((pin) => ({ room_id: pin.roomId, event_id: pin.canvasId })) } as never
-  );
+  const task = (writes.get(mx) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(async () => {
+      const pins = readPinnedCanvases(
+        mx.getAccountData(PINNED_CANVASES_TYPE as never)?.getContent()
+      );
+      const listed = pins.some((known) => known.canvasId === pin.canvasId);
+      const next = pinned
+        ? [...pins, ...(listed ? [] : [pin])]
+        : pins.filter((known) => known.canvasId !== pin.canvasId);
+      await mx.setAccountData(
+        PINNED_CANVASES_TYPE as never,
+        {
+          canvases: next.map((known) => ({ room_id: known.roomId, event_id: known.canvasId })),
+        } as never
+      );
+    });
+  writes.set(mx, task);
+  return task;
 };

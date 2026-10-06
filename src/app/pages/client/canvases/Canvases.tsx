@@ -23,7 +23,7 @@ import { listSavedCanvasIds } from '../../../mindroom/canvas/canvasStateStore';
 import {
   PINNED_CANVASES_TYPE,
   readPinnedCanvases,
-  writePinnedCanvases,
+  setCanvasPinned,
   type PinnedCanvas,
 } from '../../../mindroom/canvas/pinnedCanvases';
 import { cancelCanvasOpen, requestCanvasOpen } from '../../../mindroom/canvas/useCanvasOpenRequest';
@@ -59,26 +59,42 @@ const useCanvasList = (sessionId: string): CanvasList => {
   return list;
 };
 
-/**
- * Pins from account data, showing a change at once. One write at a time: the SDK settles a write
- * only once it has echoed back, so the next change starts from what the server holds.
- */
+/** Pins from account data, showing each change here at once until its write settles. */
 const usePinnedCanvases = () => {
   const mx = useMatrixClient();
   const pinEvent = useAccountData(PINNED_CANVASES_TYPE);
   const stored = useMemo(() => readPinnedCanvases(pinEvent?.getContent()), [pinEvent]);
-  const [pending, setPending] = useState<PinnedCanvas[]>();
-  const pins = pending ?? stored;
+  const [wanted, setWanted] = useState(new Map<string, { pin: PinnedCanvas; pinned: boolean }>());
+  const pins = useMemo(
+    () => [
+      ...stored.filter((pin) => wanted.get(pin.canvasId)?.pinned !== false),
+      ...[...wanted.values()]
+        .filter(
+          (change) => change.pinned && !stored.some((pin) => pin.canvasId === change.pin.canvasId)
+        )
+        .map((change) => change.pin),
+    ],
+    [stored, wanted]
+  );
   const toggle = (entry: CanvasListEntry) => {
-    const next = pins.some((pin) => pin.canvasId === entry.canvasId)
-      ? pins.filter((pin) => pin.canvasId !== entry.canvasId)
-      : [...pins, { roomId: entry.roomId, canvasId: entry.canvasId }];
-    setPending(next);
-    writePinnedCanvases(mx, next)
+    const change = {
+      pin: { roomId: entry.roomId, canvasId: entry.canvasId },
+      pinned: !pins.some((pin) => pin.canvasId === entry.canvasId),
+    };
+    setWanted((current) => new Map(current).set(entry.canvasId, change));
+    setCanvasPinned(mx, change.pin, change.pinned)
       .catch(() => undefined)
-      .finally(() => setPending(undefined));
+      .finally(() =>
+        setWanted((current) => {
+          // A later click on the same canvas still waits for its own write.
+          if (current.get(entry.canvasId) !== change) return current;
+          const next = new Map(current);
+          next.delete(entry.canvasId);
+          return next;
+        })
+      );
   };
-  return { pins, toggle, writing: !!pending };
+  return { pins, toggle };
 };
 
 export function Canvases() {
@@ -87,7 +103,7 @@ export function Canvases() {
   const mx = useMatrixClient();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const { entries, savedIds } = useCanvasList(canvasSessionId(mx));
-  const { pins, toggle, writing } = usePinnedCanvases();
+  const { pins, toggle } = usePinnedCanvases();
   // Coming back here abandons a canvas this page asked a room to open.
   useEffect(() => cancelCanvasOpen(), []);
 
@@ -177,7 +193,6 @@ export function Canvases() {
                             radii="300"
                             variant={pinned ? 'Primary' : 'Background'}
                             aria-pressed={pinned}
-                            disabled={writing}
                             aria-label={t(
                               pinned ? 'mindroomUi.canvases.unpin' : 'mindroomUi.canvases.pin',
                               { title: entry.title }

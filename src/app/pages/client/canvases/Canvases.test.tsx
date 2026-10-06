@@ -32,11 +32,13 @@ const mocks = vi.hoisted(() => ({
   pinEvents: new WeakMap<object, MatrixEvent>(),
 }));
 
-vi.mock('../../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
+vi.mock('../../../hooks/useMatrixClient', () => {
+  // One client for the whole test, like the app's.
+  const client = {
     getSafeUserId: () => VIEWER,
     getHomeserverUrl: () => HOMESERVER,
     setAccountData: mocks.setAccountData,
+    getAccountData: () => (mocks.pins ? { getContent: () => mocks.pins } : undefined),
     getRoom: (roomId: string) => {
       const room = mocks.rooms.get(roomId);
       return room
@@ -48,8 +50,9 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
           }
         : null;
     },
-  }),
-}));
+  };
+  return { useMatrixClient: () => client };
+});
 vi.mock('../../../hooks/useAccountData', () => ({
   // Like the real hook, the same account data event is returned until it changes.
   useAccountData: (type: string) => {
@@ -214,14 +217,12 @@ describe('Canvases', () => {
     expect(mocks.navigateRoom).toHaveBeenCalledWith('!room:example.org');
   });
 
-  it('pins and unpins with room and event IDs in account data', async () => {
+  it('shows a pin change at once and writes it as room and event IDs, one after another', async () => {
     await recordCanvas(SESSION, entry({}));
     mocks.pins = { canvases: [{ room_id: '!other:example.org', event_id: '$elsewhere' }] };
-    await render();
-    const pin = () => container.querySelector('tbody tr button[aria-pressed]') as HTMLButtonElement;
-    // The SDK settles a write once it has echoed back; this one waits until the test echoes it.
+    // The SDK settles a write once it has echoed back; these wait until the test echoes them.
     let echo: () => void = () => undefined;
-    mocks.setAccountData.mockImplementationOnce(
+    mocks.setAccountData.mockImplementation(
       (_type: string, content: unknown) =>
         new Promise<void>((resolve) => {
           echo = () => {
@@ -230,25 +231,29 @@ describe('Canvases', () => {
           };
         })
     );
+    await render();
+    const pin = () => container.querySelector('tbody tr button[aria-pressed]') as HTMLElement;
     act(() => pin().click());
+    expect(pin().getAttribute('aria-pressed')).toBe('true');
+    // Unpinned again before the pin echoed back.
+    act(() => pin().click());
+    expect(pin().getAttribute('aria-pressed')).toBe('false');
+    await act(async () => undefined);
+    expect(mocks.setAccountData).toHaveBeenCalledTimes(1);
     expect(mocks.setAccountData).toHaveBeenLastCalledWith(PINNED_CANVASES_TYPE, {
       canvases: [
         { room_id: '!other:example.org', event_id: '$elsewhere' },
         { room_id: '!room:example.org', event_id: '$canvas' },
       ],
     });
-    // The change shows at once, and no other change starts from it before it settles.
-    expect(pin().getAttribute('aria-pressed')).toBe('true');
-    expect(pin().disabled).toBe(true);
-    act(() => pin().click());
-    expect(mocks.setAccountData).toHaveBeenCalledTimes(1);
     await act(async () => echo());
-    expect(pin().getAttribute('aria-pressed')).toBe('true');
-    expect(pin().disabled).toBe(false);
-    act(() => pin().click());
+    expect(mocks.setAccountData).toHaveBeenCalledTimes(2);
     expect(mocks.setAccountData).toHaveBeenLastCalledWith(PINNED_CANVASES_TYPE, {
       canvases: [{ room_id: '!other:example.org', event_id: '$elsewhere' }],
     });
+    expect(pin().getAttribute('aria-pressed')).toBe('false');
+    await act(async () => echo());
+    expect(pin().getAttribute('aria-pressed')).toBe('false');
   });
 
   it('fetches and lists a canvas pinned on another device, once', async () => {
