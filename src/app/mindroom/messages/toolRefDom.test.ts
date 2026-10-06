@@ -1,5 +1,6 @@
+import { Element, htmlToDOM } from 'html-react-parser';
 import { describe, expect, it } from 'vitest';
-import { getRenderedMindroomToolRefs } from './toolRefDom';
+import { getRenderedMindroomToolRefs, getToolRefPrefixFromElement } from './toolRefDom';
 
 const indexesOf = (html: string) =>
   getRenderedMindroomToolRefs(html).toolBlocks.map(({ index, toolName }) => [index, toolName]);
@@ -46,5 +47,33 @@ describe('getRenderedMindroomToolRefs', () => {
         '<p>🔧 <code>x</code> [1]</p><pre><code>🔧 `x` [1]</code></pre><p>🔧 <code>🔧</code> [2]</p>'
       )
     ).toMatchObject({ iconCount: 4, toolBlockIconCount: 3 });
+  });
+});
+
+describe('getToolRefPrefixFromElement', () => {
+  const elementOf = (html: string) => htmlToDOM(html)[0] as Element;
+  const prefixOf = (html: string) => {
+    const prefix = getToolRefPrefixFromElement(elementOf(html));
+    return prefix && { html: prefix.html, trailing: prefix.trailingChildren.length };
+  };
+
+  it('finds the marker without parsing every prefix of a long paragraph', () => {
+    expect(prefixOf('<p>🔧 <code>a</code> [1] ⏳ tail</p>')).toEqual({
+      html: '🔧 <code>a</code> [1] ⏳ ',
+      trailing: 1,
+    });
+    expect(prefixOf('<p> 🔧 <code>a</code><span> [2]</span><br>tail</p>')).toEqual({
+      html: ' 🔧 <code>a</code> [2]',
+      trailing: 1,
+    });
+    expect(prefixOf('<p>🔧 <code>a</code><span> [1]x</span></p>')).toBeUndefined();
+
+    // Parsing each prefix scanned it again, so one long paragraph froze every viewer.
+    const longText = elementOf(`<p>🔧 ${'&lt;code&gt;x🔧 '.repeat(5_000)}</p>`);
+    const manyChildren = elementOf(`<p>🔧 ${'<code>x</code>'.repeat(5_000)}</p>`);
+    const start = performance.now();
+    expect(getToolRefPrefixFromElement(longText)).toBeUndefined();
+    expect(getToolRefPrefixFromElement(manyChildren)).toBeUndefined();
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });

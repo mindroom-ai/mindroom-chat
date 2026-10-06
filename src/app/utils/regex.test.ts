@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { createInsideUrlTest, execOutsideUrl, JUMBO_EMOJI_REG } from './regex';
+import { createInsideUrlTest, execOutsideUrl, JUMBO_EMOJI_REG, URL_REG } from './regex';
 
 // The lookbehind these helpers replace; V8 evaluates it in linear time, so it is the oracle.
 const FORMER_URL_LOOKBEHIND = /(?<!(https?|ftp|mailto|magnet):\/\/\S*)/y;
@@ -117,6 +117,25 @@ describe('JUMBO_EMOJI_REG', () => {
     expect(JUMBO_EMOJI_REG.test(`${':rocket: :white_check_mark: :tada: '.repeat(10)}ok`)).toBe(
       false
     );
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+});
+
+describe('URL_REG', () => {
+  it('drops trailing punctuation without rescanning it at every position', () => {
+    const text =
+      'See https://e.org/a_(b), http://x.y/z... (https://www.q.r/?s=t!) or https://a.b/c/';
+    expect(text.match(URL_REG)).toEqual([
+      'https://e.org/a_(b',
+      'http://x.y/z',
+      'https://www.q.r/?s=t',
+      'https://a.b/c',
+    ]);
+
+    // A lookbehind that repeated the punctuation class read the whole run back from every
+    // position the URL could end at, so a link followed by many dots froze the timeline.
+    const start = performance.now();
+    expect(`http://${'.'.repeat(100_000)}`.match(URL_REG)).toBeNull();
     expect(performance.now() - start).toBeLessThan(100);
   });
 });

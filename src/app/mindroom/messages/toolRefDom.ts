@@ -1,6 +1,7 @@
 import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import {
+  MINDROOM_TOOL_REF_HTML_REG_G,
   MINDROOM_TOOL_REF_ICON,
   MindroomToolRefParseResult,
   parseMindroomToolRefHtml,
@@ -41,7 +42,7 @@ export type ToolRefElementPrefix = {
 };
 
 type ToolRefMatchBoundary = {
-  html: string;
+  end: number;
   childIndex: number;
   textSplitIndex: number | undefined;
 };
@@ -76,6 +77,9 @@ export const parseToolRefIndexFromTextPrefix = (text: string): number | undefine
   return index;
 };
 
+// Matches the longest prefix of a text that trims to exactly one marker.
+const TOOL_REF_PREFIX_REG = new RegExp(`^\\s*(?:${MINDROOM_TOOL_REF_HTML_REG_G.source})\\s*`);
+
 export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
   if (!['p', 'div', 'li'].includes(element.name)) return undefined;
 
@@ -94,52 +98,44 @@ export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPre
     ]);
 
     return {
-      html: match.html,
+      html: html.slice(0, match.end),
       trailingChildren,
     };
   };
 
+  // The leading children a marker can span, and where each of them ends.
+  const childEnds: number[] = [];
   for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
     const child = element.children[childIndex];
 
     if (isDomTextNode(child)) {
-      for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
-        const candidate = `${html}${child.data.slice(0, splitIndex)}`;
-        if (parseMindroomToolRefHtml(candidate)) {
-          // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
-          bestMatch = {
-            html: candidate,
-            childIndex,
-            textSplitIndex: splitIndex,
-          };
-        }
-      }
-
       html += child.data;
     } else if (isDomElementNode(child) && child.name === 'code') {
       html += `<code>${extractTextFromChildren(child.children)}</code>`;
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
     } else if (isDomElementNode(child) && child.name === 'span') {
       html += extractTextFromChildren(child.children);
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
-    } else if (bestMatch) {
-      return buildPrefixResult(bestMatch);
     } else {
-      return undefined;
+      break;
+    }
+    childEnds.push(html.length);
+  }
+
+  // A prefix is a marker exactly when it ends between the marker's `]` and the end of this
+  // match, so one anchored match replaces parsing every prefix.
+  const match = TOOL_REF_PREFIX_REG.exec(html);
+  if (!match || !parseMindroomToolRefHtml(match[0])) return undefined;
+  const longest = match[0].length;
+  // The `]` comes before the optional pending icon and the trailing whitespace.
+  const shortest = match[0].trimEnd().length - (match[3]?.length ?? 0);
+
+  for (let childIndex = 0; childIndex < childEnds.length; childIndex += 1) {
+    const childStart = childIndex > 0 ? childEnds[childIndex - 1] : 0;
+    const isText = isDomTextNode(element.children[childIndex]);
+    // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
+    // Only a text child can be split.
+    const end = isText ? Math.min(childEnds[childIndex], longest) : childEnds[childIndex];
+    if (childStart <= end && shortest <= end && end <= longest) {
+      bestMatch = { end, childIndex, textSplitIndex: isText ? end - childStart : undefined };
     }
   }
 
