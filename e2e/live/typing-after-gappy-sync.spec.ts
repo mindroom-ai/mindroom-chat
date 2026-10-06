@@ -5,7 +5,7 @@ import {
   getSecondaryCredentials,
   hasPrimaryCredentials,
 } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
 import {
   createPrivateRoom,
   joinRoom,
@@ -13,7 +13,6 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
-  setAccountData,
 } from '../helpers/matrix';
 
 // A gappy (limited) sync resets the room's live timeline; the client must keep
@@ -31,25 +30,16 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
     loginToMatrix(homeserver, primary.username, primary.password),
     loginToMatrix(homeserver, secondary.username, secondary.password),
   ]);
-  const accountSettings = await matrixFetch<Record<string, unknown>>(
-    homeserver,
-    `/user/${encodeURIComponent(author.userId)}/account_data/io.mindroom.settings`,
-    { accessToken: author.accessToken }
-  ).catch((error: Error) => {
-    if (error.message.startsWith('Matrix API 404')) return {};
-    throw error;
-  });
   const roomId = await createPrivateRoom(homeserver, author.accessToken, {
     name: 'Gappy sync typing',
+    topic: 'Typing after a limited sync',
     invite: [reader.userId],
   });
   const roomPath = (path: string) => `/rooms/${encodeURIComponent(roomId)}${path}`;
+  let restoreSettings: (() => Promise<unknown>) | undefined;
 
   try {
-    await setAccountData(homeserver, author.accessToken, author.userId, 'io.mindroom.settings', {
-      ...accountSettings,
-      simpleMode: false,
-    });
+    restoreSettings = await setFullInterfaceModeForSession(homeserver, author);
     await joinRoom(homeserver, reader.accessToken, roomId);
     await matrixFetch(
       homeserver,
@@ -66,9 +56,6 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
       body: firstBody,
     });
 
-    await page.route('**/v1/local-mindroom/connections', (route) =>
-      route.fulfill({ json: { connections: [] } })
-    );
     await loginWithPassword(page, { homeserver, ...primary });
     await seedRoomOverviewState({ page, roomId, userId: author.userId, viewMode: 'classic' });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
@@ -90,7 +77,7 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
     await setTyping(false);
     await expect(typing).toHaveCount(0, { timeout: 40_000 });
 
-    // Miss more events than the sync timeline limit (20), so the next sync is limited.
+    // Miss more events than the sync timeline limit (20, `STARTUP_SYNC_TIMELINE_LIMIT`), so the next sync is limited.
     await page.context().setOffline(true);
     for (let index = 1; index <= 30; index += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -119,13 +106,7 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
     await expect(typing).toHaveCount(0, { timeout: 40_000 });
   } finally {
     const results = await Promise.allSettled([
-      setAccountData(
-        homeserver,
-        author.accessToken,
-        author.userId,
-        'io.mindroom.settings',
-        accountSettings
-      ),
+      restoreSettings?.(),
       ...[reader, author].map(async ({ accessToken }) => {
         await matrixFetch(homeserver, roomPath('/leave'), {
           method: 'POST',
