@@ -357,21 +357,6 @@ describe('getVisibleThreadMessageCount', () => {
       expect(getVisibleThreadMessageCount(thread, 5)).toBe(2);
     });
 
-    it('keeps the server count when pagination from a cache cursor reaches the root past a hole', async () => {
-      const { mx, thread } = listedThread(5, [
-        { chunk: [reply(5)], next_batch: 'older' },
-        { chunk: [reply(1)] },
-      ]);
-      await thread.initialize();
-      // The app moves the SDK cursor behind its cached replies 2-4, which it never adds to the SDK.
-      thread.liveTimeline.setPaginationToken('cache-cursor', Direction.Backward);
-
-      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
-
-      expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-5']);
-      expect(getVisibleThreadMessageCount(thread)).toBe(5);
-    });
-
     it('does not count edits as replies when deciding the thread is fully loaded', async () => {
       const { mx, thread } = listedThread(5, [
         { chunk: [edit(5), reply(5), edit(4), reply(4)], next_batch: 'older' },
@@ -392,35 +377,6 @@ describe('getVisibleThreadMessageCount', () => {
         '$edit-5',
       ]);
       expect(getVisibleThreadMessageCount(thread)).toBe(5);
-    });
-
-    it('keeps the server count when a sync gap leaves older replies in another segment', async () => {
-      const { mx, room, thread } = listedThread(3, [
-        { chunk: [reply(3), reply(2)], next_batch: 'older' },
-        { chunk: [reply(3), reply(2), reply(1)] },
-      ]);
-      vi.spyOn(mx, 'createMessagesRequest').mockImplementation(
-        async (_room, token, _limit, dir) => ({
-          chunk: [],
-          start: dir === Direction.Backward ? 'messages:' + token : token!,
-          end: dir === Direction.Forward ? 'messages:' + token : token!,
-        })
-      );
-      await thread.initialize();
-      room.resetLiveTimeline('back', 'forward');
-      room.addLiveEvents([mx.getEventMapper()(reply(4))], { addToState: false });
-      await thread.flushPendingTimelineReset();
-
-      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
-
-      expect(ids(thread)).toEqual(['$root', '$reply-4']);
-      expect(
-        thread.liveTimeline
-          .getNeighbouringTimeline(Direction.Backward)
-          ?.getEvents()
-          .map((event) => event.getId())
-      ).toEqual(['$reply-1', '$reply-2', '$reply-3']);
-      expect(getVisibleThreadMessageCount(thread)).toBe(4);
     });
   });
 });

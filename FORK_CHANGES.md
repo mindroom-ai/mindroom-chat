@@ -14,15 +14,10 @@
   On redaction the SDK drops the reply from the thread timeline and from its count, so a fully loaded thread stays fully loaded.
   Otherwise the largest of the loaded replies, the SDK's count and the caller's count is shown.
   `getThreadReplyCount` now uses `getVisibleThreadMessageCount` with the root's server count and the larger of the two fallback counts, and `buildThreadRecord` gives the card the larger of the cached count and that reply count, so the compact card, the thread badge, the recent threads list and the command palette get the count through one function.
-  This replaces PR #206, closed as overengineered; it keeps that PR's first idea (the larger of the loaded and the cached count) without persisted reply IDs or redaction markers.
-- Tests: `threadUtils.test.ts` checks that a window without the root, or one the SDK has not opened, keeps the larger count.
-  Its SDK cases use a real SDK `Thread`: after its first page it shows the server's count, after back-pagination loads the whole thread it counts the loaded replies exactly even when the caller passes a larger count, and a real `m.room.redaction` lowers that count.
-  They also cover the two holes that put the root first without every reply (pagination from a cache cursor, and a sync gap that keeps older replies in another segment) and edits that would pad a count of loaded events; each keeps the server's count.
-  `threadRecord.test.ts` checks that a partly loaded thread shows its total on the card and the badge, that a cached count does not hide the root's server count before the SDK has the thread, that the badge takes the larger fallback count as the card does, and that a fully loaded thread is exact on both after a redaction.
-  All but the fully loaded `threadRecord.test.ts` case fail on `dev`, and the hole and edit cases also fail with the root check alone.
-  The "merges canonical presentation and status data" test in `threadRecord.test.ts` loads 2 replies of an SDK thread of 99; it expected a count of 8 (from the summary) and an expected reply count of 2, which was this bug, and now expects 99 for both.
-- Validation: `npm test` passes 6,435 of 6,438 tests across 685 files; the other 3 are in `xcodeCloudPostClone.test.ts`, which runs `#!/bin/bash` scripts and fails on this NixOS host without `/bin/bash`, unrelated to this change.
-  Typecheck, the production build, lint (0 errors, 18 existing warnings) and Prettier on the touched files pass.
+- Tests: `threadUtils.test.ts` checks that a window without the root, or one the SDK has not opened, keeps the larger count, and, with a real SDK `Thread`, that a fully back-paginated thread is counted exactly (also after a real `m.room.redaction`) while a cache-cursor hole padded with edits keeps the server's count.
+  `threadRecord.test.ts` checks the card and the badge: a partly loaded thread shows its total, a cached count does not hide the root's server count, both take the larger fallback count, and a fully loaded thread is exact after a redaction.
+  All but the fully loaded cases fail on `dev`; the "merges canonical presentation and status data" fixture (2 loaded replies of a 99-reply SDK thread) now expects 99 instead of the buggy 8 and 2.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
 - Not changed:
   - A thread that is not fully loaded shows the largest count, which can run high, and it can stay that way for the whole session: once the app sets the SDK's backward token to `null` from its cache, the SDK never paginates to the root.
   - The server's `m.thread` count also counts tool approval responses (`io.mindroom.tool_approval_response`), which are thread events but not shown.
