@@ -16,7 +16,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import { loadCanvasEvent, recordCanvasEvent, useCanvasIndexRecorder } from './canvasIndex';
-import { listCanvases } from './canvasIndexStore';
+import { listCanvases, subscribeCanvasList } from './canvasIndexStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -175,6 +175,43 @@ describe('recordCanvasEvent', () => {
     expect(deleted.isRedacted()).toBe(true);
     await recordCanvasEvent(mx, deleted);
     expect(await listCanvases(SESSION)).toEqual([]);
+  });
+
+  it('leaves the store alone for deletions that cannot be of a canvas', async () => {
+    const { mx, timeline } = fixture();
+    await recordCanvasEvent(mx, request());
+    const reaction = (id: string) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: ROOM_ID,
+        sender: AGENT,
+        type: 'm.reaction',
+        content: {},
+      });
+    const redaction = (redacts: string) =>
+      new MatrixEvent({
+        event_id: `$redacts-${redacts}`,
+        room_id: ROOM_ID,
+        sender: AGENT,
+        type: 'm.room.redaction',
+        redacts,
+      });
+    const writes = vi.fn();
+    const unsubscribe = subscribeCanvasList(writes);
+    // Agents delete their stop-button reaction after every reply.
+    timeline.push(reaction('$stop'));
+    expect(recordCanvasEvent(mx, redaction('$stop'))).toBeUndefined();
+    const deletedReaction = reaction('$old-stop');
+    deletedReaction.makeRedacted(redaction('$old-stop'), {
+      getMyMembership: () => 'join',
+      currentState: { getStateEvents: () => null },
+    } as never);
+    expect(recordCanvasEvent(mx, deletedReaction)).toBeUndefined();
+    // A deletion of an event not in memory may be of a canvas.
+    await recordCanvasEvent(mx, redaction('$unknown'));
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(await listCanvases(SESSION)).toHaveLength(1);
+    unsubscribe();
   });
 
   it('applies an update that arrives without its request, from the canvas agent only', async () => {
