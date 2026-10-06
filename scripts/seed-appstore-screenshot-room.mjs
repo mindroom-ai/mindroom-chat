@@ -402,7 +402,7 @@ async function seedThread({ accessToken, roomId, thread, messages, senders, prim
   if (thread.scheduledAt) {
     // The client lists only scheduled tasks a MindRoom account wrote, as the backend runs only those.
     await sendStateEvent(
-      senders.router.accessToken,
+      senders[thread.summary.sender].accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       `appstore-fixture-${thread.id}`,
@@ -449,9 +449,7 @@ async function main() {
   for (const session of Object.values(agentSessions)) {
     await joinRoom(session.accessToken, roomId);
     await updateMemberProfile(session, roomId);
-  }
-  if (agentSessions.router) {
-    await grantStatePower(primarySession.accessToken, roomId, agentSessions.router.userId);
+    await grantStatePower(primarySession.accessToken, roomId, session.userId);
   }
 
   const senders = {
