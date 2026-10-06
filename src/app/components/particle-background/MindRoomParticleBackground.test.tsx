@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MindRoomParticleBackground } from './MindRoomParticleBackground';
 
@@ -22,7 +22,22 @@ vi.mock('./MindRoomParticleBackground.css', () => ({
   ParticleCanvas: 'particle-canvas',
 }));
 
+// `getContext` stands in for the browser's WebGL2: null when only software WebGL is available.
+const stubWebGL2 = (getContext: (type: string, attributes?: object) => unknown) =>
+  vi.stubGlobal('document', {
+    createElement: () => ({ getContext }),
+    documentElement: { classList: { contains: () => false } },
+  });
+
 describe('MindRoomParticleBackground', () => {
+  beforeEach(() => {
+    stubWebGL2(() => ({ getExtension: () => ({ loseContext: () => undefined }) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('keeps pointer interaction enabled for direct touch gestures', () => {
     let renderer: ReactTestRenderer;
 
@@ -59,5 +74,19 @@ describe('MindRoomParticleBackground', () => {
       pointerEvents: 'auto',
       touchAction: 'none',
     });
+  });
+
+  it('keeps the static background when WebGL2 runs only in software', () => {
+    const getContext = vi.fn(() => null);
+    stubWebGL2(getContext);
+    let renderer: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(<MindRoomParticleBackground />);
+    });
+
+    expect(getContext).toHaveBeenCalledWith('webgl2', { failIfMajorPerformanceCaveat: true });
+    expect(renderer!.root.findByType('div').props.className).toBe('particle-background');
+    expect(renderer!.root.findAllByType('canvas')).toHaveLength(0);
   });
 });

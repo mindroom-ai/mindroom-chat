@@ -33,6 +33,22 @@ export function resolveMindRoomParticleCount() {
   return DESKTOP_PARTICLE_COUNT;
 }
 
+/**
+ * Animate only where WebGL2 runs on a GPU. Software WebGL (SwiftShader in
+ * headless Chromium) draws every frame on the CPU, and the main thread waits
+ * to read each frame back, which delays the app starting behind the splash.
+ */
+export function canAnimateMindRoomParticles() {
+  const gl =
+    typeof document === 'undefined'
+      ? null
+      : document
+          .createElement('canvas')
+          .getContext('webgl2', { failIfMajorPerformanceCaveat: true });
+  gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  return gl !== null;
+}
+
 type MindRoomParticleBackgroundProps = {
   position?: 'absolute' | 'fixed';
   selfContained?: boolean;
@@ -42,6 +58,7 @@ export function MindRoomParticleBackground({
   position = 'absolute',
   selfContained = false,
 }: MindRoomParticleBackgroundProps) {
+  const animate = React.useMemo(canAnimateMindRoomParticles, []);
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
   const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
   const options = React.useMemo<ParticularDriftUserOptions>(
@@ -84,22 +101,24 @@ export function MindRoomParticleBackground({
       }
       aria-hidden="true"
     >
-      <ParticularDriftCanvas
-        className={css.ParticleCanvas}
-        imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
-        options={options}
-        style={
-          selfContained
-            ? {
-                width: '100%',
-                height: '100%',
-                opacity: 1,
-                pointerEvents: 'auto',
-                touchAction: 'none',
-              }
-            : undefined
-        }
-      />
+      {animate && (
+        <ParticularDriftCanvas
+          className={css.ParticleCanvas}
+          imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
+          options={options}
+          style={
+            selfContained
+              ? {
+                  width: '100%',
+                  height: '100%',
+                  opacity: 1,
+                  pointerEvents: 'auto',
+                  touchAction: 'none',
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
