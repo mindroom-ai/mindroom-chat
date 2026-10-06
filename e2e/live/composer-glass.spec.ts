@@ -153,8 +153,14 @@ for (const [themeId, width] of [
       const typingBar = typing.locator('..');
       const scrollBox = (await page.getByTestId('room-virtual-inner').boundingBox())!;
       await page.mouse.move(scrollBox.x + scrollBox.width / 2, 400);
-      await page.mouse.wheel(0, -180);
-      await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible();
+      // A short room may still be loading its older rows above the reader,
+      // so one wheel step need not leave the bottom yet.
+      await expect(async () => {
+        await page.mouse.wheel(0, -180);
+        await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible(
+          { timeout: 2_000 }
+        );
+      }).toPass({ timeout: 30_000 });
       await page.mouse.move(0, 0);
       await expect(page.getByRole('tooltip')).toHaveCount(0);
       await setTyping(true);
