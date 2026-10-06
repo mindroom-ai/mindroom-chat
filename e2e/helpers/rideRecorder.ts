@@ -25,6 +25,10 @@ export type RideFrame = {
   jumpPx: number;
   // Opt-in signed movement of a surviving visible anchor; positive means upward travel.
   visualDeltaPx?: number;
+  // Compositor rides: gapPx at this frame's offset over the PREVIOUS frame's
+  // rows, which is what the compositor shows before the main thread mounts
+  // more (undefined when the app wrote the scroll offset in between).
+  leadGapPx?: number;
   driven: number;
   threadCount: number;
   distFromBottom: number;
@@ -467,6 +471,7 @@ export const startRideSampling = (
 ): Promise<void> =>
   page.evaluate((sampleVisualTravel) => {
     const w = window as Window & {
+      __appScrollWrites?: unknown[];
       __rideSampling?: {
         stop: boolean;
         frames: {
@@ -476,6 +481,7 @@ export const startRideSampling = (
           gapPx: number;
           jumpPx: number;
           visualDeltaPx?: number;
+          leadGapPx?: number;
           threadCount: number;
           distFromBottom: number;
         }[];
@@ -502,10 +508,8 @@ export const startRideSampling = (
         (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
           .threadCount ?? -1
       );
-    const readGap = (): number => {
-      const rect = scroller.getBoundingClientRect();
-      const top = rect.top + rect.height * 0.1;
-      const bottom = rect.bottom - rect.height * 0.1;
+    type Span = { top: number; bottom: number };
+    const readCovering = (): Span[] => {
       const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
         tile.getBoundingClientRect()
       );
@@ -521,7 +525,15 @@ export const startRideSampling = (
           if (child !== list && r.bottom <= listTop + 0.5) covering.push(r);
         });
       }
+      return covering.map(({ top, bottom }) => ({ top, bottom }));
+    };
+    // scrollPx moves the spans as scrolling by that much would.
+    const readGap = (covering: Span[], scrollPx = 0): number => {
+      const rect = scroller.getBoundingClientRect();
+      const top = rect.top + rect.height * 0.1;
+      const bottom = rect.bottom - rect.height * 0.1;
       const tiles = covering
+        .map((r) => ({ top: r.top - scrollPx, bottom: r.bottom - scrollPx }))
         .filter((r) => r.bottom > top && r.top < bottom)
         .sort((a, b) => a.top - b.top);
       let cursor = top;
@@ -559,6 +571,7 @@ export const startRideSampling = (
         gapPx: number;
         jumpPx: number;
         visualDeltaPx?: number;
+        leadGapPx?: number;
         threadCount: number;
         distFromBottom: number;
       }[],
@@ -568,6 +581,8 @@ export const startRideSampling = (
     let anchor: Element | null = null;
     let anchorTop = 0;
     let lastScrollTop = scroller.scrollTop;
+    let lastWriteCount = w.__appScrollWrites?.length ?? 0;
+    let lastCovering: Span[] | undefined;
     let visualAnchor: Element | null = null;
     let visualAnchorTop = 0;
     const loop = () => {
@@ -599,14 +614,25 @@ export const startRideSampling = (
         visualAnchor = pickAnchor(true);
         visualAnchorTop = (visualAnchor?.getBoundingClientRect().top ?? viewportTop) - viewportTop;
       }
+      const covering = readCovering();
+      // An app write (a ledger settle) moves the offset in the same commit
+      // as the rows, so the compositor never showed the old rows there.
+      const writeCount = w.__appScrollWrites?.length ?? 0;
+      const leadGapPx =
+        lastCovering && writeCount === lastWriteCount
+          ? Math.round(readGap(lastCovering, scrollTop - lastScrollTop))
+          : undefined;
+      lastCovering = covering;
+      lastWriteCount = writeCount;
       lastScrollTop = scrollTop;
       state.frames.push({
         t: performance.now(),
         scrollTop,
         scrollHeight: scroller.scrollHeight,
-        gapPx: Math.round(readGap()),
+        gapPx: Math.round(readGap(covering)),
         jumpPx: Math.round(jumpPx),
         ...(sampleVisualTravel ? { visualDeltaPx } : {}),
+        leadGapPx,
         threadCount: readThreadCount(),
         distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       });

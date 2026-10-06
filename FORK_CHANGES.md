@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Assert row coverage, not raster speed, in the compositor ride (2026-10-06)
+
+- Report: `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts` failed most runs at `expect(blankFrames).toBe(0)` with one or a few blank screencast frames (3 of 4 runs on `dev` `e7a62ad1`, 1 of 2 before #422).
+- Root cause: the test, not the app. Each blank frame comes right after the fling moved 650-1,740 px in one frame (the harness's 4,500 px/s flicks build up to flings of 40,000-60,000 px/s; a ride travels 29,000-43,000 px for 7,000 px of finger travel). The rows there were mounted and laid out: around each blank frame the first mounted row started 1,600-2,600 px above the view, the blank band can stop mid-row (lines 0-17 of one reply blank, line 18 painted), and 16-33 ms later the same rows are painted. The software rasterizer had not painted them yet.
+  The same flicks over a static HTML page with no app code gave blank frames in 4 of 4 runs (5-41 frames each, up to 100% blank), as the 2026-09-20 entry found.
+- Fix: blank pixels are still captured, logged and attached, but no longer asserted. The ride sampler adds `leadGapPx`: the gap at each frame's scroll offset over the rows of the frame before, which is what the compositor shows before React mounts more rows; frames where the app wrote the offset (a ledger settle) are skipped. The test asserts it stays under the 120 px gap budget, and that at least 90% of frames were measured.
+  `gapPx` cannot see this: the virtualizer re-renders inside the scroll event, before the sampler reads the frame.
+- Tests: with the thread range buffer cut from two view heights to 0.2, `gapPx` stayed at 0-10 px while `leadGapPx` reached 159 px and failed the test (1 of 3 runs); with the buffer at 0 it failed 3 of 3 runs at 338-531 px.
+  Same `dev` build, runs interleaved: the old test failed 5 of 8 runs (1-6 blank frames each), the new one 0 of 8; four of its passing runs still captured 2-3 blank frames, with `leadGapPx` 0 in each.
+
 ### Hide "Catching up..." once the client has caught up (2026-10-06)
 
 - Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.

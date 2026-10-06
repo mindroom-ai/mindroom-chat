@@ -68,7 +68,7 @@ docker run --rm --init --network host --ipc host --user "$(id -u):$(id -g)" \
 ```
 
 Keep an external worker fixture JSON inside the mounted checkout or mount its path too.
-Known unresolved checks remain strict: native momentum blank frames on software graphics (also reproduced on static HTML).
+Software graphics leave rows unpainted for a frame or two during fast native flings, on static HTML too, so the compositor ride logs blank pixels and asserts row coverage where the fling lands instead.
 The scheduler does not relax assertions or add retries.
 Unit tests remain `npm test`; the scheduler's focused tests run through `npm run test:e2e:runner` in PR CI.
 
