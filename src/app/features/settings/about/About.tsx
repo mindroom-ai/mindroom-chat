@@ -26,6 +26,7 @@ import {
   type DeepTraceRuntimeStatus,
 } from '../../../mindroom/diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../../mindroom/diagnostics/diagnosticsExport';
+import { APP_RELEASE_VERSION } from '../../../../appVersion';
 
 type AboutProps = {
   requestClose: () => void;
@@ -214,9 +215,9 @@ export function About({ requestClose }: AboutProps) {
               </Box>
               <Box direction="Column" gap="300">
                 <Box direction="Column" gap="100">
-                  <Box gap="100" alignItems="End">
+                  <Box gap="100" alignItems="End" wrap="Wrap">
                     <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
-                    <Text size="T200">v4.12.6</Text>
+                    <Text size="T200">{APP_RELEASE_VERSION}</Text>
                   </Box>
                   <Text>{subtitle}</Text>
                 </Box>

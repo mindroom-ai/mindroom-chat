@@ -14,7 +14,7 @@ import buildConfig from './build.config';
 import { authenticationRecoveryAssets } from './scripts/authentication-recovery-assets.mjs';
 import { iosClientConfig } from './scripts/ios-client-config.mjs';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
-import { resolveBuildVersion } from './scripts/build-version.mjs';
+import { readReleaseVersion, resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
 
 const getBuildVersion = () => {
@@ -32,6 +32,7 @@ const getBuildVersion = () => {
 };
 
 const buildVersion = getBuildVersion();
+const releaseVersion = readReleaseVersion(process.env, path.resolve());
 
 function appVersionManifest() {
   return {
@@ -252,6 +253,7 @@ export default defineConfig({
   ],
   define: {
     __MINDROOM_BUILD_VERSION__: JSON.stringify(buildVersion),
+    __MINDROOM_RELEASE_VERSION__: JSON.stringify(releaseVersion),
   },
   optimizeDeps: {
     // The dependency scan misses imports from the dev service worker and from

@@ -19,6 +19,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.0
+        with:
+          fetch-depth: 0
+      - name: Resolve release version
+        id: release_version
+        run: |
+          # The release workflow tags dev commits while this job runs.
+          git fetch --force --tags origin
+          echo "version=$(node scripts/release-version.mjs)" >> "$GITHUB_OUTPUT"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3.6.0
       - name: Set up Docker Buildx
@@ -48,3 +56,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             MINDROOM_BUILD_VERSION=${{ github.sha }}
+            MINDROOM_RELEASE_VERSION=${{ steps.release_version.outputs.version }}

@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Show the release version in Settings → About (2026-10-06)
+
+- Problem: About showed a hard-coded `v4.12.6`, so it never said which MindRoom release (`v4.12.6-mindroom.180`) a client was built from.
+- Change: builds resolve a release version and About shows it (`APP_RELEASE_VERSION` from `__MINDROOM_RELEASE_VERSION__`); `MINDROOM_BUILD_VERSION`, the commit used by `version.json` and the update check, is unchanged.
+  `readReleaseVersion` in `scripts/build-version.mjs` uses `MINDROOM_RELEASE_VERSION` when set, else `git describe --tags --match "v<package version>-mindroom.*"`: the tag on HEAD, or the nearest one followed by the commits since it (`v4.12.6-mindroom.180-2-g1a2b3c4`), else `v<package version>` when no tag is reachable.
+- CI: the Android release job passes its tag; the dev Netlify deploy and the Docker branch publish fetch full history and refresh tags just before building, since the release workflow tags each dev commit while they run; Docker builds receive the version as a build argument (`scripts/release-version.mjs`) because their context excludes `.git`; the release Docker build passes its tag. Xcode Cloud already refreshes tags before `npm run build:ios`.
+- Limit: a dev build that starts before its commit is tagged (the release workflow queues behind a running Android publish) shows the previous tag with a commit suffix, which is what `git describe` reported at build time.
+- Tests: `src/buildVersion.test.ts` (override, described tag, fallback; a real Git repository for the tag on HEAD, a commit after it, and a tag for another base version) and `About.test.tsx` (About shows the release version; fails on `dev`).
+- Validation: the local build embeds `v4.12.6-mindroom.180`; a Playwright run against the local homeserver showed it in About on desktop and wrapped below the name at 390 px.
+
 ### Allow App Store submission of active TestFlight builds (2026-10-05)
 
 - Problem: fastlane's `ready_for_internal_testing?` accepts `READY_FOR_BETA_TESTING` but rejects an otherwise valid build already active in internal TestFlight.

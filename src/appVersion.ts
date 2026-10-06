@@ -2,9 +2,14 @@ import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 
 declare const __MINDROOM_BUILD_VERSION__: string;
+declare const __MINDROOM_RELEASE_VERSION__: string;
 
 export const APP_BUILD_VERSION =
   typeof __MINDROOM_BUILD_VERSION__ === 'string' ? __MINDROOM_BUILD_VERSION__ : 'development-build';
+export const APP_RELEASE_VERSION =
+  typeof __MINDROOM_RELEASE_VERSION__ === 'string'
+    ? __MINDROOM_RELEASE_VERSION__
+    : 'development-build';
 export const APP_VERSION_POLL_INTERVAL_MS = 5 * 60 * 1000;
 export const APP_VERSION_FETCH_TIMEOUT_MS = 5 * 1000;
 

@@ -140,6 +140,10 @@ vi.mock('../../../mindroom/diagnostics/diagnosticsExport', () => ({
   buildDiagnosticsExport: mocks.buildDiagnosticsExport,
 }));
 
+vi.mock('../../../../appVersion', () => ({
+  APP_RELEASE_VERSION: 'v4.12.6-mindroom.180',
+}));
+
 const diagnosticsTile = (renderer: ReactTestRenderer): ReactTestInstance =>
   renderer.root.findByProps({ 'data-setting-title': 'On-device diagnostics' });
 
@@ -196,6 +200,17 @@ describe('About diagnostics export', () => {
     const renderer = create(<About requestClose={vi.fn()} />);
 
     expect(diagnosticsTile(renderer).props['data-description']).toBe(description);
+    renderer.unmount();
+  });
+
+  it('shows the release version the client was built from', () => {
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    expect(
+      renderer.root
+        .findAllByType('span')
+        .some((text) => text.children[0] === 'v4.12.6-mindroom.180')
+    ).toBe(true);
     renderer.unmount();
   });
 
