@@ -20,7 +20,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 test.describe('live cinny-034 direct room timeline', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('direct rooms use the same compact room mode as normal rooms', async ({
+  test('a direct message between people shows the classic timeline over a stored compact mode', async ({
     page,
   }) => {
     test.slow();
@@ -65,7 +65,7 @@ test.describe('live cinny-034 direct room timeline', () => {
       primarySession.userId,
       directRoomId
     );
-    await sendRoomMessage(
+    const dmEventId = await sendRoomMessage(
       homeserver,
       primarySession.accessToken,
       directRoomId,
@@ -88,12 +88,15 @@ test.describe('live cinny-034 direct room timeline', () => {
 
     await page.goto(`/direct/${encodeURIComponent(directRoomId)}`);
 
-    await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('button', { name: /Open thread: CINNY-034 direct/ })).toBeVisible();
-    await expect(page.getByText(dmBody).first()).toBeVisible();
-    await expect(page.locator('[data-room-thread-overview="true"]')).toBeVisible();
-    await expect(page.getByText('No threads match current filters.')).toHaveCount(0);
+    await expect(page.locator(`[data-message-id="${dmEventId}"]`)).toContainText(dmBody, {
+      timeout: 30_000,
+    });
+    await expect(page.locator('[data-compact-room-view="true"]')).toHaveCount(0);
+    await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Open thread: CINNY-034 direct/ })).toHaveCount(
+      0
+    );
 
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-034-direct-room-compact');
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-034-direct-room-classic');
   });
 });

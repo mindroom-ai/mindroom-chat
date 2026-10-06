@@ -19,11 +19,20 @@ export const DEFAULT_ROOM_VIEW_MODE: RoomViewMode = 'compact';
 export const ROOM_VIEW_MODES: readonly RoomViewMode[] = ['compact', 'threaded', 'classic'];
 export const SIMPLE_ROOM_VIEW_MODES: readonly RoomViewMode[] = ['compact', 'threaded'];
 
-export const getAvailableRoomViewModes = (simpleMode: boolean): readonly RoomViewMode[] =>
-  simpleMode ? SIMPLE_ROOM_VIEW_MODES : ROOM_VIEW_MODES;
+/** A direct message between people offers no modes: it always shows the Classic timeline. */
+export const getAvailableRoomViewModes = (
+  simpleMode: boolean,
+  humanDirectRoom: boolean
+): readonly RoomViewMode[] => {
+  if (humanDirectRoom) return [];
+  return simpleMode ? SIMPLE_ROOM_VIEW_MODES : ROOM_VIEW_MODES;
+};
 
-export const isRoomViewModeAvailable = (mode: RoomViewMode, simpleMode: boolean): boolean =>
-  getAvailableRoomViewModes(simpleMode).includes(mode);
+export const isRoomViewModeAvailable = (
+  mode: RoomViewMode,
+  simpleMode: boolean,
+  humanDirectRoom: boolean
+): boolean => getAvailableRoomViewModes(simpleMode, humanDirectRoom).includes(mode);
 
 export const sanitizeRoomViewMode = (value: unknown): RoomViewMode => {
   // Legacy 'normal' (pre 2026-05-10 rename) intentionally falls through to the

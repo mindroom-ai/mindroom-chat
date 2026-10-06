@@ -2576,7 +2576,7 @@ describe('RoomTimeline', () => {
       ]);
     });
 
-    it('does not force direct rooms back to the message timeline in compact mode', async () => {
+    it('does not force a direct room with an agent back to the message timeline in compact mode', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       // The client is still on its initial catch-up.
       matrixClientMock.getSyncState.mockReturnValue('PREPARED');

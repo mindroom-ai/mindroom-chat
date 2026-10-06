@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Open direct messages with people in the Classic timeline (2026-10-06)
+
+- Problem: a direct message between two people used the same per-room view mode as agent rooms, so in the default Compact mode every message showed as a thread card with "Open thread", under the thread overview toolbar.
+  Since Simple Mode became the default, Classic cannot be chosen in Simple Mode, so a default user could never get a normal chat view in such a room.
+- Fix: `useRoomViewMode` decides in one place whether a room is a direct message between people: it is in `m.direct` (`mDirectAtom`) and no MindRoom agent is joined or invited (`hasActiveMindroomAgent`); it follows membership changes, listening only for direct rooms.
+  `resolveEffectiveRoomViewMode` shows such a room in Classic, also in Simple Mode, and `getAvailableRoomViewModes` offers it no modes, so the room, its header menu, room settings, and the Threads and Recently Opened lists agree, and the header menu and room settings show no mode choice there.
+  The stored per-room mode is never written: when an agent is invited or joins, the room returns to its stored mode.
+  A thread link into such a room keeps the existing Classic behavior: it opens the room timeline at the linked event or thread root.
+  This replaces the closed PR #159, which passed `hasMindroomAgents` down through the room components and needed a direct-room context in the settings modal; the owner's decisions were that a direct message with people shows Classic even in Simple Mode, and that only direct rooms without an agent are affected.
+- Tests: `useRoomViewMode.test.ts` renders the real hook with a jotai store and a client: a direct message between people shows Classic with no modes and keeps its stored mode, and returns to the stored mode once an agent is invited; a direct message with an agent and a room of people that is not direct keep their stored mode.
+  `resolveEffectiveRoomViewMode` and `getAvailableRoomViewModes` cover a direct message between people with and without Simple Mode.
+  The human-DM cases fail on `dev`.
+  `e2e/live/cinny034-direct-room-timeline.spec.ts` (a direct message between two accounts, stored as Compact) now expects the message in the Classic timeline with no compact view, overview, or "Open thread" button.
+  Run against the local Docker test homeserver with two new accounts, it passes with the fix and fails on `dev`.
+  Two unit tests of a direct room in Compact (`roomTimelineViewState.test.ts`, `RoomTimeline.cache.test.ts`) now name the case they cover, a direct room with an agent; their assertions are unchanged.
+- Validation: typecheck, lint (0 errors, 18 existing warnings), the production/PWA build, and Prettier on the touched files pass.
+  `npm test` passes 6,432 of 6,435 tests across 685 files with a 60 s test timeout (the host was heavily loaded, and with the default timeout unrelated tests timed out in a different set of files on each run); the 3 failures are `xcodeCloudPostClone.test.ts`, which runs `/bin/bash` scripts and this host has no `/bin/bash`.
+  Live, against the local Docker test homeserver: a thread link into a direct message between people opened the room timeline at the thread root, with the reply shown inline and no overview; inviting an agent then switched the open room back to its stored Threads mode, which opened that thread with its thread banner.
+- Not changed:
+  - Rooms of people that are not direct messages keep their view mode.
+  - Agents are detected from the members the client holds; the open room loads its full member list as before, and sidebar entries load none.
+
 ### Allow App Store submission of active TestFlight builds (2026-10-05)
 
 - Problem: fastlane's `ready_for_internal_testing?` accepts `READY_FOR_BETA_TESTING` but rejects an otherwise valid build already active in internal TestFlight.
