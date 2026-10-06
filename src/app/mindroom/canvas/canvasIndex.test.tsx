@@ -126,6 +126,7 @@ describe('recordCanvasEvent', () => {
         threadId: '$thread',
         agentUserId: AGENT,
         title: 'Plans',
+        revisionId: '$canvas',
         createdTs: 1,
         updatedTs: 1,
         shared: true,
@@ -212,6 +213,38 @@ describe('recordCanvasEvent', () => {
     expect(writes).toHaveBeenCalledTimes(1);
     expect(await listCanvases(SESSION)).toHaveLength(1);
     unsubscribe();
+  });
+
+  it('falls back to the surviving version when the update a row shows is deleted', async () => {
+    const { mx, timeline } = fixture();
+    const canvas = request();
+    canvas.makeReplaced(edit('Plans v2', { id: '$v2', ts: 7 }));
+    await recordCanvasEvent(mx, canvas);
+    expect((await listCanvases(SESSION))[0]).toMatchObject({
+      title: 'Plans v2',
+      revisionId: '$v2',
+    });
+    // Element can remove one version from a message's edit history; the SDK then shows the one before.
+    const surviving = request();
+    timeline.push(surviving);
+    await recordCanvasEvent(
+      mx,
+      new MatrixEvent({
+        event_id: '$removal',
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$v2',
+      })
+    );
+    expect(await listCanvases(SESSION)).toEqual([
+      expect.objectContaining({
+        canvasId: '$canvas',
+        title: 'Plans',
+        revisionId: '$canvas',
+        updatedTs: 1,
+      }),
+    ]);
   });
 
   it('applies an update that arrives without its request, from the canvas agent only', async () => {

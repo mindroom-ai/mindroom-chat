@@ -105,6 +105,7 @@ const entry = (overrides: Partial<CanvasListEntry>): CanvasListEntry => ({
   threadId: '$thread',
   agentUserId: AGENT,
   title: 'Plans',
+  revisionId: '$canvas',
   createdTs: Date.UTC(2026, 9, 1, 9),
   updatedTs: Date.UTC(2026, 9, 1, 9),
   shared: false,

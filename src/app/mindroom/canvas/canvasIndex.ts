@@ -20,7 +20,7 @@ import {
   readCanvasVersion,
   readChatUiAction,
 } from '../ui-actions/chatUiProtocol';
-import { forgetCanvas, recordCanvas, recordCanvasUpdate } from './canvasIndexStore';
+import { forgetCanvas, listCanvases, recordCanvas, recordCanvasUpdate } from './canvasIndexStore';
 
 export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
@@ -42,14 +42,12 @@ export const recordCanvasEvent = (
     deleted.getType() === EventType.RoomMessage &&
     isMindroomAgentUserIdForViewer(deleted.getSender() ?? '', mx.getSafeUserId());
   // A canvas can also turn up already deleted, in history loaded after a missed deletion.
-  if (event.isRedacted()) {
-    return maybeCanvas(event) ? forgetCanvas(canvasSessionId(mx), eventId) : undefined;
-  }
+  if (event.isRedacted()) return maybeCanvas(event) ? forgetDeleted(mx, eventId) : undefined;
   if (event.isRedaction()) {
     const redacted = event.event.redacts ?? event.getContent().redacts;
     if (typeof redacted !== 'string') return undefined;
     const target = mx.getRoom(event.getRoomId())?.findEventById(redacted);
-    return !target || maybeCanvas(target) ? forgetCanvas(canvasSessionId(mx), redacted) : undefined;
+    return !target || maybeCanvas(target) ? forgetDeleted(mx, redacted) : undefined;
   }
   const content = event.getOriginalContent<Record<string, unknown>>();
   const relation = event.getRelation();
@@ -60,21 +58,18 @@ export const recordCanvasEvent = (
       return undefined;
     }
     // The panel's rule for an update, held against the authority the listed request carries.
-    return recordCanvasUpdate(
-      canvasSessionId(mx),
-      relation.event_id,
-      event.getTs(),
-      (known) =>
-        readCanvasEdit(event, known.agentUserId, {
-          version: 1,
-          action: 'show_canvas',
-          requester_id: mx.getSafeUserId(),
-          agent_user_id: known.agentUserId,
-          room_id: known.roomId,
-          thread_id: known.threadId ?? null,
-          ...(known.shared ? { share_state: true } : {}),
-        })?.canvas.title
-    );
+    return recordCanvasUpdate(canvasSessionId(mx), relation.event_id, event.getTs(), (known) => {
+      const version = readCanvasEdit(event, known.agentUserId, {
+        version: 1,
+        action: 'show_canvas',
+        requester_id: mx.getSafeUserId(),
+        agent_user_id: known.agentUserId,
+        room_id: known.roomId,
+        thread_id: known.threadId ?? null,
+        ...(known.shared ? { share_state: true } : {}),
+      });
+      return version && { title: version.canvas.title, revisionId: version.revisionEventId };
+    });
   }
   if (!isRecord(content[CHAT_UI_ACTION_KEY])) return undefined;
   const room = mx.getRoom(event.getRoomId());
@@ -87,10 +82,27 @@ export const recordCanvasEvent = (
     ...(action.threadId ? { threadId: action.threadId } : {}),
     agentUserId: action.agentUserId,
     title: action.canvas.title,
+    revisionId: action.revisionEventId,
     createdTs: event.getTs(),
     updatedTs: shown?.getTs() ?? event.getTs(),
     shared: !!action.shareState,
   });
+};
+
+/**
+ * A deleted canvas leaves the list; a deleted update that a row shows falls back to the canvas's
+ * surviving version (Element can remove one version from a message's edit history).
+ */
+const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void> => {
+  const sessionId = canvasSessionId(mx);
+  await forgetCanvas(sessionId, deletedId);
+  const shown = (await listCanvases(sessionId)).find((entry) => entry.revisionId === deletedId);
+  const room = shown && mx.getRoom(shown.roomId);
+  const canvas = room ? await loadCanvasEvent(mx, room, shown.canvasId) : undefined;
+  if (!shown || !canvas) return;
+  // The surviving version is older than the row's, which recording alone would keep.
+  await forgetCanvas(sessionId, shown.canvasId);
+  await recordCanvasEvent(mx, canvas);
 };
 
 /** Keeps the Canvases page's list current with every canvas this client sees, on any route. */

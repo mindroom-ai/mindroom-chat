@@ -8,7 +8,8 @@ export type CanvasListEntry = {
   agentUserId: string;
   title: string;
   createdTs: number;
-  /** When the shown version was sent: the latest update, or the request itself. */
+  /** The event the shown version comes from, the latest update or the request, and when it was sent. */
+  revisionId: string;
   updatedTs: number;
   shared: boolean;
 };
@@ -65,22 +66,22 @@ export const recordCanvas = (sessionId: string, entry: CanvasListEntry): Promise
     const known = await store.get(entry.canvasId);
     await store.put(
       known && known.updatedTs > entry.updatedTs
-        ? { ...entry, title: known.title, updatedTs: known.updatedTs }
+        ? { ...entry, title: known.title, revisionId: known.revisionId, updatedTs: known.updatedTs }
         : entry
     );
   });
 
-/** Applies an update of a listed canvas when it is the newest seen and `titleFor` accepts it. */
+/** Applies an update of a listed canvas when it is the newest seen and `versionFor` accepts it. */
 export const recordCanvasUpdate = (
   sessionId: string,
   canvasId: string,
   ts: number,
-  titleFor: (known: CanvasListEntry) => string | undefined
+  versionFor: (known: CanvasListEntry) => { title: string; revisionId: string } | undefined
 ): Promise<void> =>
   write(sessionId, async (store) => {
     const known = await store.get(canvasId);
-    const title = known && ts >= known.updatedTs ? titleFor(known) : undefined;
-    if (known && title !== undefined) await store.put({ ...known, title, updatedTs: ts });
+    const version = known && ts >= known.updatedTs ? versionFor(known) : undefined;
+    if (known && version) await store.put({ ...known, ...version, updatedTs: ts });
   });
 
 export const forgetCanvas = (sessionId: string, canvasId: string): Promise<void> =>

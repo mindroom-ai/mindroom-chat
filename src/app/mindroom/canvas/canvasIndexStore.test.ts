@@ -22,6 +22,7 @@ const entry = (overrides: Partial<CanvasListEntry> = {}): CanvasListEntry => ({
   threadId: '$thread',
   agentUserId: AGENT,
   title: 'Plans',
+  revisionId: '$canvas',
   createdTs: 1,
   updatedTs: 1,
   shared: false,
@@ -40,17 +41,17 @@ describe('canvasIndexStore', () => {
   });
 
   it('never rolls a newer update back to an older copy of the request', async () => {
-    await recordCanvas('session-a', entry({ title: 'Plans v2', updatedTs: 5 }));
+    await recordCanvas('session-a', entry({ title: 'Plans v2', revisionId: '$v2', updatedTs: 5 }));
     await recordCanvas('session-a', entry({ title: 'Plans', updatedTs: 1, shared: true }));
     expect(await listCanvases('session-a')).toEqual([
-      entry({ title: 'Plans v2', updatedTs: 5, shared: true }),
+      entry({ title: 'Plans v2', revisionId: '$v2', updatedTs: 5, shared: true }),
     ]);
   });
 
   it('applies an update its check accepts, when it is the newest', async () => {
     await recordCanvas('session-a', entry({ updatedTs: 5 }));
     const check = vi.fn((known: CanvasListEntry) =>
-      known.title === 'Plans' ? 'Plans v2' : undefined
+      known.title === 'Plans' ? { title: 'Plans v2', revisionId: '$v2' } : undefined
     );
     await recordCanvasUpdate('session-a', '$canvas', 9, () => undefined);
     await recordCanvasUpdate('session-a', '$canvas', 4, check);
@@ -60,10 +61,14 @@ describe('canvasIndexStore', () => {
     expect(check).toHaveBeenCalledWith(entry({ updatedTs: 5 }));
     expect((await listCanvases('session-a'))[0]).toMatchObject({
       title: 'Plans v2',
+      revisionId: '$v2',
       updatedTs: 6,
     });
     // An update of a canvas not listed has nothing to apply to.
-    await recordCanvasUpdate('session-a', '$unknown', 7, () => 'Lost');
+    await recordCanvasUpdate('session-a', '$unknown', 7, () => ({
+      title: 'Lost',
+      revisionId: '$x',
+    }));
     expect(await listCanvases('session-a')).toHaveLength(1);
   });
 
@@ -78,7 +83,7 @@ describe('canvasIndexStore', () => {
     const unsubscribe = subscribeCanvasList(listener);
     await recordCanvas('session-a', entry());
     await recordCanvas('session-a', entry());
-    await recordCanvasUpdate('session-a', '$canvas', 2, () => 'Plans v2');
+    await recordCanvasUpdate('session-a', '$canvas', 2, () => ({ title: 'v2', revisionId: '$v2' }));
     expect(listener).toHaveBeenCalledTimes(3);
     unsubscribe();
     await forgetCanvas('session-a', '$canvas');
