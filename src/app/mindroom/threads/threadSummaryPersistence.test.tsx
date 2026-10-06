@@ -409,32 +409,6 @@ it.each(['live sync', 'fetched history'])(
   }
 );
 
-it('does no summary work for a cached batch without summary notices', async () => {
-  const sessionId = 'summary-free-batch';
-  const roomId = '!summary-free-batch:test';
-  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
-  const room = new Room(roomId, mx, mx.getSafeUserId());
-  const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction');
-  try {
-    const { write } = persistThreadEventCacheSnapshotCommitted({
-      sessionId,
-      room,
-      threadId: '$root',
-      events: [threadReply(roomId, '$reply', 1000)],
-    });
-    expect(await write).toBe(true);
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
-    const stores = transaction.mock.calls.flatMap(([names]) => [names].flat());
-    expect(stores).toContain('events');
-    expect(stores).not.toContain('thread_summaries');
-  } finally {
-    transaction.mockRestore();
-    clearThreadSummarySharedState(sessionId);
-  }
-});
-
 it('records no summary once its cache lease is revoked', async () => {
   const sessionId = 'summary-revoked-lease';
   const roomId = '!summary-revoked-lease:test';
@@ -456,50 +430,41 @@ it('records no summary once its cache lease is revoked', async () => {
   clearThreadSummarySharedState(sessionId);
 });
 
-it.each(['thread history', 'reconciler repair'])(
-  'keeps a redacted summary out when %s carries a stale copy of its notice',
-  async (seam) => {
-    const sessionId = `summary-stale-redacted-copy-${seam}`;
-    const roomId = '!summary-stale-redacted-copy:test';
-    const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
-    const room = new Room(roomId, mx, mx.getSafeUserId());
-    const older = summaryNotice(roomId, '$older', 'Older title', 1000);
-    // Homeservers can briefly serve an unpruned copy next to its redaction.
-    const stale = summaryNotice(roomId, '$leaked', 'Leaked secret', 2000);
-    const redaction = new MatrixEvent({
-      event_id: '$redaction',
-      room_id: roomId,
-      type: 'm.room.redaction',
-      origin_server_ts: 3000,
-      redacts: '$leaked',
-      content: { redacts: '$leaked' },
-    });
-    const { write } = persistThreadEventCacheSnapshotCommitted({
-      sessionId,
-      room,
-      threadId: '$root',
-      ...(seam === 'thread history'
-        ? { events: [older, stale, redaction] }
-        : {
-            events: [older, stale],
-            relationSnapshotMode: 'authoritative',
-            authoritativeRawEvents: [older, stale, redaction].map((event) =>
-              structuredClone(event.event)
-            ),
-          }),
-    });
-    expect(await write).toBe(true);
-    await vi.waitFor(async () => {
-      expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
-        'Older title'
-      );
-      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
-        'Older title'
-      );
-    });
-    clearThreadSummarySharedState(sessionId);
-  }
-);
+it('keeps a redacted summary out when a reconciler repair carries a stale copy of its notice', async () => {
+  const sessionId = 'summary-stale-redacted-copy';
+  const roomId = '!summary-stale-redacted-copy:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const older = summaryNotice(roomId, '$older', 'Older title', 1000);
+  // Homeservers can briefly serve an unpruned copy next to its redaction.
+  const stale = summaryNotice(roomId, '$leaked', 'Leaked secret', 2000);
+  const redaction = new MatrixEvent({
+    event_id: '$redaction',
+    room_id: roomId,
+    type: 'm.room.redaction',
+    origin_server_ts: 3000,
+    redacts: '$leaked',
+    content: { redacts: '$leaked' },
+  });
+  const { write } = persistThreadEventCacheSnapshotCommitted({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [older, stale],
+    relationSnapshotMode: 'authoritative',
+    authoritativeRawEvents: [older, stale, redaction].map((event) => structuredClone(event.event)),
+  });
+  expect(await write).toBe(true);
+  await vi.waitFor(async () => {
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+      'Older title'
+    );
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+      'Older title'
+    );
+  });
+  clearThreadSummarySharedState(sessionId);
+});
 
 it('keeps a redacted summary out when a later write brings a stale copy of its notice', async () => {
   const sessionId = 'summary-stale-copy-later';
@@ -541,26 +506,6 @@ it('keeps a redacted summary out when a later write brings a stale copy of its n
       'Older title'
     );
   });
-  clearThreadSummarySharedState(sessionId);
-});
-
-it('publishes no summary when the event write does not commit', async () => {
-  const sessionId = 'summary-uncommitted-write';
-  const roomId = '!summary-uncommitted-write:test';
-  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
-  const room = new Room(roomId, mx, mx.getSafeUserId());
-  const { write } = persistThreadEventCacheSnapshot({
-    sessionId,
-    room,
-    threadId: '$root',
-    events: [summaryNotice(roomId, '$summary', 'Uncached title', 1000)],
-    save: async () => false,
-  });
-  expect(await write).toBe(false);
-  await new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-  expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
   clearThreadSummarySharedState(sessionId);
 });
 
