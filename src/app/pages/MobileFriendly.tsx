@@ -8,6 +8,7 @@ import {
   INBOX_PATH,
   SPACE_PATH,
   THREADS_PATH,
+  CANVASES_PATH,
 } from './paths';
 
 type MobileFriendlyClientNavProps = {
@@ -19,12 +20,21 @@ export function MobileFriendlyClientNav({ children }: MobileFriendlyClientNavPro
   const directMatch = useMatch({ path: DIRECT_PATH, caseSensitive: true, end: true });
   const spaceMatch = useMatch({ path: SPACE_PATH, caseSensitive: true, end: true });
   const threadsMatch = useMatch({ path: THREADS_PATH, caseSensitive: true, end: true });
+  const canvasesMatch = useMatch({ path: CANVASES_PATH, caseSensitive: true, end: true });
   const exploreMatch = useMatch({ path: EXPLORE_PATH, caseSensitive: true, end: true });
   const inboxMatch = useMatch({ path: INBOX_PATH, caseSensitive: true, end: true });
 
   if (
     screenSize === ScreenSize.Mobile &&
-    !(homeMatch || directMatch || spaceMatch || threadsMatch || exploreMatch || inboxMatch)
+    !(
+      homeMatch ||
+      directMatch ||
+      spaceMatch ||
+      threadsMatch ||
+      canvasesMatch ||
+      exploreMatch ||
+      inboxMatch
+    )
   ) {
     return null;
   }

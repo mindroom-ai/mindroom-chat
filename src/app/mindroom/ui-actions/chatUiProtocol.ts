@@ -138,7 +138,7 @@ export type LatestCanvas = {
  * ones, thread backfill) without checking their sender, so this checks it again, and an edit may
  * change only the canvas itself; anything else keeps the original canvas.
  */
-const readCanvasEdit = (
+export const readCanvasEdit = (
   edit: MatrixEvent | null | undefined,
   sender: string,
   original: Record<string, unknown>

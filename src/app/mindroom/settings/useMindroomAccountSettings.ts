@@ -94,3 +94,6 @@ export const useSimpleMode = (): boolean => useMindroomAccountSettings().simpleM
 
 export const useExpandLongMessagesByDefault = (): boolean =>
   useMindroomAccountSettings().expandLongMessagesByDefault;
+
+export const useShowCanvasesInSidebar = (): boolean =>
+  useMindroomAccountSettings().showCanvasesInSidebar;

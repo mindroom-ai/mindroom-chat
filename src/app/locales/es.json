@@ -68,6 +68,8 @@
         "simpleModeDescription": "Oculta funciones avanzadas como la paleta de comandos y los filtros de hilos. Se sincroniza entre tus dispositivos.",
         "expandLongMessagesByDefault": "Expandir los mensajes largos de forma predeterminada",
         "expandLongMessagesByDefaultDescription": "Muestra completos los mensajes largos en lugar de plegarlos tras Mostrar mensaje completo. Se sincroniza entre tus dispositivos.",
+        "showCanvasesInSidebar": "Mostrar paneles interactivos en la barra lateral",
+        "showCanvasesInSidebarDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Se sincroniza entre tus dispositivos.",
         "saveFailed": "No se pudo guardar el cambio. Comprueba tu conexión e inténtalo de nuevo."
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "Inicio",
     "directMessages": "Mensajes directos",
     "threads": "Hilos",
+    "canvases": "Paneles interactivos",
     "inbox": "Bandeja de entrada",
     "exploreCommunity": "Explorar la comunidad",
     "addSpace": "Añadir espacio",
@@ -3019,6 +3022,22 @@
       "receiptData": "Mostrar los datos enviados al agente",
       "unlabeled": "Enviado",
       "notSent": "No enviado a {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Paneles interactivos",
+      "note": "Paneles interactivos que tus agentes crearon para ti y que este navegador ha visto. Los fijados aparecen en todos tus dispositivos.",
+      "empty": "Aún no hay paneles interactivos. Cuando un agente te muestre uno, aparecerá aquí.",
+      "pinned": "Fijado",
+      "canvas": "Panel",
+      "thread": "Hilo",
+      "agent": "Agente",
+      "room": "Sala",
+      "updated": "Actualizado",
+      "created": "Creado",
+      "pin": "Fijar {{title}}",
+      "unpin": "Desfijar {{title}}",
+      "shared": "Compartido con el agente",
+      "saved": "Tiene tus valores"
     }
   },
   "roomSchedules": {

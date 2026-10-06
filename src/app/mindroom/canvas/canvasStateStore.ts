@@ -63,3 +63,13 @@ export const saveCanvasState = async (
     db.close();
   }
 };
+
+/** The canvases this session holds saved state for. */
+export const listSavedCanvasIds = async (sessionId: string): Promise<string[]> => {
+  const db = await openStateDb(sessionId);
+  try {
+    return await db.getAllKeys('states');
+  } finally {
+    db.close();
+  }
+};

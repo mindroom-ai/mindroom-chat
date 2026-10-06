@@ -68,6 +68,8 @@
         "simpleModeDescription": "隐藏命令选项板和讨论串过滤器等高级功能。在您的设备之间同步。",
         "expandLongMessagesByDefault": "默认展开长消息",
         "expandLongMessagesByDefaultDescription": "完整显示长消息，而不是将其折叠为“显示完整消息”。此设置会在您的设备之间同步。",
+        "showCanvasesInSidebar": "在侧边栏显示交互式面板",
+        "showCanvasesInSidebarDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。此设置会在您的设备之间同步。",
         "saveFailed": "无法保存更改。检查您的连接并重试。"
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "首页",
     "directMessages": "私信",
     "threads": "讨论串",
+    "canvases": "交互式面板",
     "inbox": "收件箱",
     "exploreCommunity": "探索社区",
     "addSpace": "添加空间",
@@ -2965,6 +2968,22 @@
       "receiptData": "显示发送给代理的数据",
       "unlabeled": "已提交",
       "notSent": "未发送给 {{agent}}：{{label}}"
+    },
+    "canvases": {
+      "title": "交互式面板",
+      "note": "智能体为您创建、且此浏览器见过的交互式面板。已置顶的面板会显示在您的所有设备上。",
+      "empty": "还没有交互式面板。当智能体向您展示面板时，它会列在这里。",
+      "pinned": "已置顶",
+      "canvas": "面板",
+      "thread": "讨论串",
+      "agent": "智能体",
+      "room": "房间",
+      "updated": "更新时间",
+      "created": "创建时间",
+      "pin": "置顶 {{title}}",
+      "unpin": "取消置顶 {{title}}",
+      "shared": "已与智能体共享",
+      "saved": "包含您的输入"
     }
   },
   "roomSchedules": {

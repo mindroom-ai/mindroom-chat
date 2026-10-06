@@ -68,6 +68,8 @@
         "simpleModeDescription": "Blendet erweiterte Funktionen wie die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
         "expandLongMessagesByDefault": "Lange Nachrichten standardmäßig aufklappen",
         "expandLongMessagesByDefaultDescription": "Zeigt lange Nachrichten vollständig an, anstatt sie hinter „Mehr anzeigen“ einzuklappen. Wird zwischen deinen Geräten synchronisiert.",
+        "showCanvasesInSidebar": "Interaktive Panels in der Seitenleiste anzeigen",
+        "showCanvasesInSidebarDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Wird zwischen deinen Geräten synchronisiert.",
         "saveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "Startseite",
     "directMessages": "Direktnachrichten",
     "threads": "Threads",
+    "canvases": "Interaktive Panels",
     "inbox": "Posteingang",
     "exploreCommunity": "Community erkunden",
     "addSpace": "Space hinzufügen",
@@ -2965,6 +2968,22 @@
       "receiptData": "An den Agenten gesendete Daten anzeigen",
       "unlabeled": "Abgeschickt",
       "notSent": "Nicht an {{agent}} gesendet: {{label}}"
+    },
+    "canvases": {
+      "title": "Interaktive Panels",
+      "note": "Interaktive Panels, die deine Agenten für dich erstellt haben und die dieser Browser gesehen hat. Angeheftete erscheinen auf all deinen Geräten.",
+      "empty": "Noch keine interaktiven Panels. Wenn dir ein Agent eines zeigt, erscheint es hier.",
+      "pinned": "Angeheftet",
+      "canvas": "Panel",
+      "thread": "Thread",
+      "agent": "Agent",
+      "room": "Raum",
+      "updated": "Aktualisiert",
+      "created": "Erstellt",
+      "pin": "{{title}} anheften",
+      "unpin": "{{title}} lösen",
+      "shared": "Mit Agent geteilt",
+      "saved": "Enthält deine Werte"
     }
   },
   "roomSchedules": {

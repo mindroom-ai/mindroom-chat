@@ -18,11 +18,14 @@ export type MindroomAccountSettings = {
   simpleMode: boolean;
   /** Show long messages in full instead of folding them behind Show full message. */
   expandLongMessagesByDefault: boolean;
+  /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
+  showCanvasesInSidebar: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: MindroomAccountSettings = {
   simpleMode: true,
   expandLongMessagesByDefault: true,
+  showCanvasesInSidebar: true,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -44,6 +47,10 @@ export const sanitizeMindroomAccountSettings = (content: unknown): MindroomAccou
       typeof content.expandLongMessagesByDefault === 'boolean'
         ? content.expandLongMessagesByDefault
         : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault,
+    showCanvasesInSidebar:
+      typeof content.showCanvasesInSidebar === 'boolean'
+        ? content.showCanvasesInSidebar
+        : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar,
   };
 };
 

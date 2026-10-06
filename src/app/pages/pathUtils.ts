@@ -23,6 +23,7 @@ import {
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
   THREADS_PATH,
+  CANVASES_PATH,
   CREATE_PATH,
   CONNECT_PATH,
   ConnectPathSearchParams,
@@ -118,6 +119,8 @@ export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): stri
 };
 
 export const getThreadsPath = (): string => THREADS_PATH;
+
+export const getCanvasesPath = (): string => CANVASES_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string => {
   const params = {

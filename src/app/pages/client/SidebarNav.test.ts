@@ -6,6 +6,7 @@ import { SidebarNav } from './SidebarNav';
 
 const mocks = vi.hoisted(() => ({
   simpleMode: false,
+  showCanvases: true,
 }));
 
 vi.mock('folds', () => ({
@@ -39,6 +40,7 @@ vi.mock('./sidebar', () => ({
   UnverifiedTab: () => React.createElement('div', { 'data-tab': 'unverified' }),
   SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),
   ThreadsTab: () => React.createElement('div', { 'data-tab': 'threads' }),
+  CanvasesTab: () => React.createElement('div', { 'data-tab': 'canvases' }),
 }));
 
 vi.mock('./sidebar/CreateTab', () => ({
@@ -51,6 +53,7 @@ vi.mock('../../mindroom/sidebar/MindroomTab', () => ({
 
 vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
   useSimpleMode: () => mocks.simpleMode,
+  useShowCanvasesInSidebar: () => mocks.showCanvases,
 }));
 
 const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
@@ -68,6 +71,7 @@ const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boo
 describe('SidebarNav', () => {
   beforeEach(() => {
     mocks.simpleMode = false;
+    mocks.showCanvases = true;
   });
 
   it('shows Threads after Direct Messages and before spaces by default', () => {
@@ -93,6 +97,33 @@ describe('SidebarNav', () => {
     expect(hasTab(renderer, 'threads')).toBe(false);
 
     renderer.unmount();
+  });
+
+  it('shows Canvases after Threads where canvases are on, in Simple Mode too', () => {
+    const canvases = { mindroom: { canvas: { enabled: true } } };
+    const renderer = renderSidebarNav(canvases);
+    expect(
+      renderer.root
+        .findAll((node) => typeof node.props['data-tab'] === 'string')
+        .map((node) => node.props['data-tab'])
+        .slice(0, 5)
+    ).toEqual(['home', 'direct', 'threads', 'canvases', 'spaces']);
+    renderer.unmount();
+
+    const off = renderSidebarNav();
+    expect(hasTab(off, 'canvases')).toBe(false);
+    off.unmount();
+
+    mocks.simpleMode = true;
+    const simple = renderSidebarNav(canvases);
+    expect(hasTab(simple, 'canvases')).toBe(true);
+    simple.unmount();
+
+    // The user can turn the button off in Settings → General → Interface.
+    mocks.showCanvases = false;
+    const turnedOff = renderSidebarNav(canvases);
+    expect(hasTab(turnedOff, 'canvases')).toBe(false);
+    turnedOff.unmount();
   });
 
   it('keeps Explorer visible in the full interface regardless of the Simple Mode option', () => {
