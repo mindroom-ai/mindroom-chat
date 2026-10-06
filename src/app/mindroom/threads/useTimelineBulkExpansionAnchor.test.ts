@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   captureTimelineBulkExpansionAnchor,
   restoreTimelineBulkExpansionAnchor,
@@ -34,6 +34,12 @@ const makeScroller = ({
     getBoundingClientRect: () => rect(100, 900),
     querySelectorAll: () => messages,
   } as unknown as HTMLDivElement);
+
+let scrollPaddingTop = 0;
+beforeEach(() => {
+  scrollPaddingTop = 0;
+  vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: `${scrollPaddingTop}px` }));
+});
 
 describe('timeline bulk expansion anchor', () => {
   it('restores the same fully visible message after rows above it grow', () => {
@@ -100,5 +106,26 @@ describe('timeline bulk expansion anchor', () => {
     messageTop = 430;
     restoreTimelineBulkExpansionAnchor(scroller, anchor!);
     expect(scroller.scrollTop).toBe(2_322);
+  });
+
+  it('restores a message that fills the viewport below the sticky headers', () => {
+    // The thread header and banner cover the top 150px of the scroller.
+    scrollPaddingTop = 150;
+    let messageTop = -500;
+    const scroller = makeScroller({
+      messages: [
+        {
+          dataset: { messageId: '$tall' },
+          getBoundingClientRect: () => rect(messageTop, messageTop + 1_500),
+        },
+      ],
+    });
+
+    const anchor = captureTimelineBulkExpansionAnchor(scroller, 4);
+    expect(anchor).toMatchObject({ messageId: '$tall', top: 258 });
+
+    messageTop = 430;
+    restoreTimelineBulkExpansionAnchor(scroller, anchor!);
+    expect(scroller.scrollTop).toBe(2_172);
   });
 });
