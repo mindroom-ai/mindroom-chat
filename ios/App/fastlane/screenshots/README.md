@@ -1,81 +1,59 @@
 # App Store screenshots
 
-Drop PNG screenshots into per-locale folders (for example `en-US/`) and upload
-them with:
-
-```bash
-cd ios/App
-bundle exec fastlane ios upload_screenshots
-```
-
-`deliver` maps each image to a device class by its pixel dimensions, so exact
-sizes matter. Required current capture targets:
-
-| Device class            | Portrait size |
-| ----------------------- | ------------- |
-| iPhone 6.9"             | 1320 x 2868   |
-| iPad Pro 13" (required if iPad is supported) | 2064 x 2752 |
-
-Ordering: `deliver` sorts filenames alphabetically per device class, so use
-numeric prefixes (`0_iphone-6-9_light_personal-workspace.png`,
-`1_iphone-6-9_dark_mindroom-explained.png`, ...).
-
-The automated release set contains five different scenes per device class:
-
-| Order | Theme | Content |
-| ----- | ----- | ------- |
-| 0 | Light | Personal workspace overview |
-| 1 | Dark | MindRoom product explanation |
-| 2 | Light | Campground watcher with expanded tool calls |
-| 3 | Dark | Car research and negotiation shortlist |
-| 4 | Light | Household reminder batch |
-
-The theme is part of each filename, and the capture test rejects byte-identical
-screenshots within a device class. This prevents an unnoticed navigation or
-rendering failure from uploading duplicate release artwork.
-
-Automated capture, from the repository root:
+Generate the complete screenshot set from the repository root:
 
 ```bash
 npm run appstore:screenshots
 ```
 
-The command starts the local Docker Matrix fixture stack by default, provisions
-an isolated disposable account and room for each run, seeds a public-safe fake
-`Personal` room with Bas Nijholt as the user, downloads and uploads the public
-`nijho.lt` profile avatar at seed time, uploads AI agent avatars, and captures
-the required iPhone 6.9" and iPad 13" PNGs into `en-US/`. The fixture shows
-five distinct personal-agent examples across explicit light and dark themes: a
-daily workspace overview, Mind's public-safe markdown-formatted explanation of
-MindRoom, a campground watcher with expanded tool calls, car research, and a
-household reminder batch. It starts a fresh Vite server on an available port by
-default to avoid reusing stale local dependency caches.
+The command starts the local Docker Matrix stack, creates a disposable account and room for each run, and seeds the fictional Rivera household from [mindroom-ai/demo](https://github.com/mindroom-ai/demo).
+Sam Rivera talks to Hearth, Pantry, and Atlas using bundled avatars in `scripts/fixtures/appstore/avatars/`.
+No external profile download or demo checkout is required.
+The fixture and avatars are pinned to demo commit `fc39fb8a9e4af01c3c848e191f32c25b7da694a2`.
 
-To set up only the Matrix fixture without taking screenshots:
+| Order | Theme | Content |
+| ----- | ----- | ------- |
+| 0 | Light | Family workspace overview |
+| 1 | Dark | Vegetarian meal plan and grocery list |
+| 2 | Light | Home automation with expanded tool calls |
+| 3 | Dark | Lisbon weekend trip options |
+| 4 | Light | Reminder to call Rosa tomorrow at four |
+
+Capture uses UTC so the reminder text agrees with its 4:00 PM schedule on any host.
+The local test server enables legacy media downloads so this client can load avatars.
+Each summary counts the messages actually seeded.
+The test waits for visible images to finish loading and rejects duplicate captures within each device class.
+Scene IDs and filenames retain their original names for compatibility with the release preflight.
+
+| Device class | Portrait size |
+| ------------ | ------------- |
+| iPhone 6.9" | 1320 x 2868 |
+| iPad Pro 13" | 2064 x 2752 |
+
+Screenshots are written into `en-US/` and remain gitignored.
+Fastlane maps images to device classes by their exact dimensions and sorts filenames alphabetically within each class.
+The numeric prefixes keep the scenes in the order above.
+
+Upload the complete set from `ios/App`:
+
+```bash
+bundle exec fastlane ios upload_screenshots
+```
+
+The lane uses `overwrite_screenshots: true`, so populate both device classes before uploading.
+See [.docs/ios-fastlane.md](../../../../.docs/ios-fastlane.md) for release submission and authentication.
+
+To seed only the local fixture:
 
 ```bash
 npm run appstore:fixture
 ```
 
-Existing/live account capture is intentionally unsupported for App Store
-screenshots because it can expose private rooms, profiles, or existing account
-state. Use the local fixture path for release assets.
-
-The fixture intentionally gives each thread summary a topic-specific emoji and
-varied message counts, including one long-running watcher around 100 messages,
-so room overview screenshots look like an active personal workspace.
+Existing or live account capture is unsupported because it can expose private rooms and profiles.
+Setup errors stop capture before Playwright starts.
+The wrapper starts a fresh Vite server on an available port to avoid stale local builds.
 
 Manual simulator fallback:
-- Pick the matching device (for example iPhone 16 Pro Max for 6.9"), then
-  `xcrun simctl io booted screenshot shot.png`.
-- Fully automated capture via fastlane `snapshot` needs an Xcode UI-test
-  target, which this project does not have yet; see `.docs/ios-fastlane.md`.
 
-Screenshots are intentionally not committed (see `.gitignore`) to keep binary
-assets out of the repo; only this README and the locale folder placeholder are
-tracked.
-
-Because the lane runs `deliver` with `overwrite_screenshots: true`, populate
-the locale folders with the full screenshot set before running it — don't run
-it against an empty folder expecting existing App Store Connect screenshots to
-survive.
+- Pick the matching device, such as iPhone 16 Pro Max for 6.9 inches, then run `xcrun simctl io booted screenshot shot.png`.
+- Fastlane `snapshot` requires an Xcode UI-test target, which this project does not have yet.
