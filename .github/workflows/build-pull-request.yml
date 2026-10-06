@@ -44,6 +44,8 @@ jobs:
         run: npm run test
       - name: Test parallel browser runner
         run: npm run test:e2e:runner
+      - name: Test App Store screenshot fixture
+        run: node --test scripts/appstore-fixture.test.mjs
       - name: Test streaming stress seeder
         run: node --test scripts/seed-streaming-stress-room.test.mjs
       - name: Typecheck
