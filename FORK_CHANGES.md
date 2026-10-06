@@ -6,9 +6,9 @@
 
 - Problem: when a Space removed a room (its `m.space.child` event became invalid), `useBindRoomToParentsAtom` dispatched `DELETE` for the room, the action meant for a Space the user left.
   That deleted all of the room's parents and also removed the room as a parent of every other room.
-  So a room in two Spaces that one Space removed lost both, until reload: outside Simple Mode it showed in Home as a room in no Space, opening it from search or a notification went to Home instead of the other Space, and its unread count stopped counting toward that Space.
+  So a room in two Spaces that one Space removed lost both, until reload: it showed in Home as a room in no Space (outside Simple Mode), opening it from search or a notification went to Home instead of the other Space, and its unread count stopped counting toward that Space.
   A subspace removed from its parent Space did the same to its own rooms.
-  The Space's own room list in the sidebar reads `m.space.child` state directly, so it still listed the room.
+  The other Space's room list reads `m.space.child` state directly, so it still listed the room.
 - Fix: a new `REMOVE_PARENT` action in `src/app/state/room/roomToParents.ts` removes only the link from that Space to that room, and deletes the room's entry only when no parent is left; an invalidated `m.space.child` event now dispatches it.
   `DELETE` is still used when the user leaves a Space or the room is deleted.
   Salvaged from closed PR #135 and re-derived against `dev`.
