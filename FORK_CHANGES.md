@@ -16,7 +16,8 @@
   A room removed from one of two Spaces keeps the other, and a subspace removed from its parent stays the parent of its own rooms; both fail on `dev`.
   A room removed from its last Space loses its entry, and leaving a Space still removes it as a parent of every room; both pass before and after.
 - Validation: typecheck, production/PWA build, Prettier on the touched files, and lint (0 errors, 18 existing warnings) pass.
-  Full unit suite: 6,428 of 6,433 tests pass; the other 5 fail on this host without the change too: 3 `xcodeCloudPostClone` tests need `/bin/bash`, which this NixOS host lacks, and 2 `RoomTimeline` tests timed out under a load average above 100 and pass when run alone (all 170 tests in the affected files pass).
+  Full unit suite after rebasing onto `origin/dev`: 6,428 of 6,433 tests pass.
+  The other 5 do not touch this code: 3 `xcodeCloudPostClone` tests need `/bin/bash`, which this NixOS host lacks, and 2 `RoomTimeline` tests (which mock `roomToParents`) hit the 5 s timeout under a load average above 100 and pass with a longer timeout (all 91 tests in their files).
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
