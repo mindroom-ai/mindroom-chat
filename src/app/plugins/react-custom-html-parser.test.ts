@@ -646,6 +646,28 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(markup).toContain('Done');
   });
 
+  it('renders and copies a paragraph of many markers without recursing per marker', () => {
+    const count = 3_000;
+    const markers = Array.from({ length: count }, (_, index) => `🔧 <code>t</code> [${index + 1}]`);
+    const html = `<p>${markers.join('<br>')}<br>Done</p>`;
+    const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), {
+      formatted_body: html,
+    });
+
+    // Each marker used to parse the rest of its paragraph one level deeper,
+    // which overflowed the stack for a long paragraph.
+    const parsed = parse(html, opts) as React.ReactElement;
+    const shown = React.Children.toArray(parsed.props.children);
+    const toolBlocks = shown.filter(
+      (node) =>
+        React.isValidElement<{ parsedTools?: unknown }>(node) &&
+        Array.isArray(node.props.parsedTools)
+    );
+    expect(toolBlocks).toHaveLength(count);
+    expect(renderToStaticMarkup(shown[shown.length - 1] as React.ReactElement)).toBe('<p>Done</p>');
+    expect(getRenderedMindroomToolRefs(html).toolBlocks).toHaveLength(count);
+  });
+
   it('consumes pending hourglass as part of the marker and does not render it as trailing text', () => {
     const markup = renderWithToolTrace('<p>🔧 <code>tool3</code> [3] ⏳<br/>Waiting</p>', {
       'io.mindroom.tool_trace': {

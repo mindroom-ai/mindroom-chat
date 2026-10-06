@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Render a paragraph of tool markers without recursing per marker (2026-10-05)
+
+- Problem: when a paragraph held several tool markers one after another, for example separated by line breaks, the renderer showed the first and handed a copy of the rest of the paragraph back to `domToReact`, which handled the next marker the same way.
+  Each marker added a level of recursion and copied the rest of the paragraph again, so 1,000 markers took about 0.9 s, and the 2,400 that fit in one 64 KB event overflowed the stack, which replaced the client with the error page whenever the room was opened.
+  Copy followed the same chain recursively in `getRenderedMindroomToolRefs`: 2,400 markers took 0.75 s when the message menu opened, and 10,000 overflowed the stack.
+- Fix: `takeLeadingToolRefs` walks the markers that start a paragraph in one pass.
+  It joins each run of children a marker can span once and matches each marker from where the previous one ended, so the paragraph is scanned once.
+  `getToolRefPrefixFromElement` and copy use it, and the renderer gives each later marker its own block in a loop and renders what follows the last one once.
+  The rendered output and the copy result are unchanged.
+- Tests: `react-custom-html-parser.test.ts` renders and copies a paragraph of 3,000 markers; it fails on `dev` with `RangeError: Maximum call stack size exceeded`.
+  Randomized comparisons against the previous implementation (100,000 messages, about 14,000 with several markers in one paragraph) found no difference in the rendered markup, the copy result, or the first marker and what follows it.
+- Validation: typecheck, and ESLint and Prettier on the touched files pass.
+  2,400 or 50,000 markers in one paragraph now render as fast as the same number in separate paragraphs, and copy reads 50,000 in 0.16 s.
+
 ### Escape emote URLs in sent formatted bodies (2026-10-05)
 
 - Problem: the composer's HTML output wrote a custom emote's URL into the `src` attribute of its `<img data-mx-emoticon>` unescaped, while the shortcode in `alt` and `title` was escaped.
