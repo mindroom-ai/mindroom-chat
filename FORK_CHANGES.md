@@ -8,30 +8,19 @@
   Since Simple Mode became the default, Classic cannot be chosen in Simple Mode, so a default user could never get a normal chat view in such a room.
 - Fix: `useRoomViewMode` decides in one place whether a room is a direct message between people: it is in `m.direct` (`mDirectAtom`) and has no MindRoom agent.
   A room has an agent when one is joined or invited (`hasActiveMindroomAgent`), or when `m.direct` lists the room under an agent as its partner, unless that agent's loaded membership is `leave` or `ban`.
-  The `m.direct` partner covers an agent direct room whose agent member is not loaded yet: members are lazy loaded, and without it such a room showed Classic until its members loaded, and a thread link opened in that time was replaced by the room timeline route, losing the thread.
+  The partner rule is needed because members are lazy loaded: without it an agent direct room showed Classic until its members loaded, and a thread link opened in that time lost its thread.
   A direct room with three or more people and no agent also shows Classic.
-  The hook follows membership changes of direct rooms through one client listener shared by all its callers, since the Threads and Recently Opened lists render a card per thread; a room leaves that listener when its last hook unmounts.
+  The hook follows membership changes through one client listener shared by all its callers, since the Threads and Recently Opened lists render a card per thread.
   `resolveEffectiveRoomViewMode` shows such a room in Classic, also in Simple Mode, and `getAvailableRoomViewModes` offers it no modes, so the header menu and room settings show no mode choice there.
-  The room, its header menu, room settings, and the Threads and Recently Opened lists all read the mode through `useRoomViewMode`.
-  The stored per-room mode is never written (a UI action that switches Classic to Threads needs a joined agent, so it cannot run in such a room): when an agent is invited or joins, the room returns to its stored mode.
-  A thread link into such a room keeps the existing Classic behavior: it opens the room timeline at the linked event or thread root.
-  This replaces the closed PR #159, which passed `hasMindroomAgents` down through the room components and needed a direct-room context in the settings modal; the owner's decisions were that a direct message with people shows Classic even in Simple Mode, and that only direct rooms without an agent are affected.
+  The stored per-room mode is never written (a UI action that switches Classic to Threads needs a joined agent), so the room returns to it when an agent is invited or joins.
+  Thread links into such a room keep the existing Classic behavior: they open the room timeline at the linked event or thread root.
 - PR: [#426](https://github.com/mindroom-ai/mindroom-chat/pull/426).
-- Tests: `useRoomViewMode.test.ts` renders the real hook with a jotai store and a client: a direct message between people shows Classic with no modes and keeps its stored mode, and returns to the stored mode once an agent is invited; a direct message with an agent keeps its stored mode until the agent leaves; a room of people that is not direct keeps its stored mode and adds no client listener; two direct rooms share one listener, and a change in one leaves the other as it was.
-  A direct room whose `m.direct` partner is an agent with no loaded member keeps its stored mode (fails before the partner rule), and it shows Classic once that agent's membership is `leave` or `ban`.
-  A room stays in the shared listener while one of its hooks is mounted and leaves it after the last one unmounts.
-  `resolveEffectiveRoomViewMode` and `getAvailableRoomViewModes` cover a direct message between people with and without Simple Mode.
-  `e2e/live/cinny034-direct-room-timeline.spec.ts` (a direct message between two accounts, stored as Compact) now expects the message in the Classic timeline with no compact view, overview, or "Open thread" button, and the stored Compact mode kept.
-  Run against the local Docker test homeserver with two new accounts, it passes with the fix and fails on `dev`.
-  `roomTimelineViewState.test.ts` and `RoomTimeline.cache.test.ts` keep their direct room in Compact unchanged: those units receive the mode already resolved, and a direct room with an agent still resolves to Compact.
-- Validation: typecheck, lint (0 errors, 18 existing warnings), the production/PWA build, and Prettier on the touched files pass.
-  `npm test` passes 6,436 of 6,439 tests across 685 files with a 60 s test timeout; the 3 failures are `xcodeCloudPostClone.test.ts`, which runs `/bin/bash` scripts and this host has no `/bin/bash`.
-  With the default timeout, 3 room timeline tests timed out while the host was loaded, and they pass when rerun.
-  Live, against the local Docker test homeserver: a thread link into a direct message between people opened the room timeline at the thread root, with the reply shown inline and no overview; inviting an agent then switched the open room back to its stored Threads mode, which opened that thread with its thread banner.
-- Not changed:
-  - Rooms of people that are not direct messages keep their view mode.
-  - Agents are recognized by their `mindroom_` user ID prefix, as elsewhere in the room.
-- Known limit: an agent invited into a direct room whose `m.direct` partner is a person counts only once its member event is loaded (the open room loads its member list); until then the room shows Classic, so a thread link into it opens the room timeline at the thread root.
+- Tests: `useRoomViewMode.test.ts` (real hook, jotai store and client) covers a direct message between people, an agent invited later, an agent direct room until the agent leaves, a cold agent direct room named in `m.direct` and its `leave` or `ban`, a non-direct room of people, and the shared listener; the people and cold-agent cases fail without the fix.
+  `roomViewMode.test.ts` covers the resolution functions with and without Simple Mode.
+  `e2e/live/cinny034-direct-room-timeline.spec.ts` now expects a direct message between two accounts in the Classic timeline with no compact view, overview, or "Open thread" button; against the local Docker homeserver it passes with the fix and fails on `dev`.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+- Known limit: an agent invited into a direct room whose `m.direct` partner is a person counts only once its member event is loaded; until then the room shows Classic.
+  Agents are recognized by their `mindroom_` user ID prefix, as elsewhere in the app.
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 

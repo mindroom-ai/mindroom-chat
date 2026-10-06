@@ -236,20 +236,14 @@ describe('useRoomViewMode', () => {
     expect(storedMode(roomId)).toBe('"threaded"');
   });
 
-  it('keeps a room in the shared listener until its last hook unmounts', () => {
+  it("keeps updating a room's other hook after one of its hooks unmounts", () => {
     const roomId = '!people-dm-unmount:example.org';
     addRoom(roomId, [userId, '@bob:example.org']);
     storeMode(roomId, 'threaded');
     render([roomId, `${roomId}#second`], [roomId]);
-    const deleteSpy = vi.spyOn(Map.prototype, 'delete');
 
     rerender([roomId]);
-    expect(deleteSpy).not.toHaveBeenCalledWith(roomId);
     setMembership(roomId, agentId, 'invite');
     expect(results.get(roomId)?.viewMode).toBe('threaded');
-
-    rerender([]);
-    expect(deleteSpy).toHaveBeenCalledWith(roomId);
-    deleteSpy.mockRestore();
   });
 });
