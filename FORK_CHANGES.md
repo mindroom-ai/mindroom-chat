@@ -8,7 +8,7 @@
   Since Simple Mode became the default, Classic cannot be chosen in Simple Mode, so a default user could never get a normal chat view in such a room.
 - Fix: `useRoomViewMode` decides in one place whether a room is a direct message between people: it is in `m.direct` (`mDirectAtom`) and has no MindRoom agent.
   A room has an agent when one is joined or invited (`hasActiveMindroomAgent`), or when `m.direct` lists the room under an agent as its partner, unless that agent's loaded membership is `leave` or `ban`.
-  The `m.direct` partner covers an agent direct room whose agent member is not loaded yet: members are lazy loaded, and without it such a room showed Classic, which sent its thread links and sidebar thread entries to the room timeline for good.
+  The `m.direct` partner covers an agent direct room whose agent member is not loaded yet: members are lazy loaded, and without it such a room showed Classic until its members loaded, and a thread link opened in that time was replaced by the room timeline route, losing the thread.
   A direct room with three or more people and no agent also shows Classic.
   The hook follows membership changes of direct rooms through one client listener shared by all its callers, since the Threads and Recently Opened lists render a card per thread; a room leaves that listener when its last hook unmounts.
   `resolveEffectiveRoomViewMode` shows such a room in Classic, also in Simple Mode, and `getAvailableRoomViewModes` offers it no modes, so the header menu and room settings show no mode choice there.
