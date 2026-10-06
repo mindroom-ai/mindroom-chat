@@ -2958,7 +2958,7 @@
       "send": "Senden",
       "discard": "Verwerfen",
       "disclosure": "Erstellt von {{agent}}. Das Panel hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können das Panel verlassen.",
-      "disclosureShared": "Erstellt von {{agent}}, das deine Eingaben hier lesen kann. Das Panel hat keinen Zugriff auf dein Konto.",
+      "sharedNotice": "In diesem Raum gespeichert: {{agent}} und andere hier können deine Eingaben lesen.",
       "sending": "Wird an {{agent}} gesendet…",
       "sent": "An {{agent}} gesendet: {{label}}",
       "sendFailed": "Deine Antwort konnte nicht gesendet werden. Versuche es erneut.",

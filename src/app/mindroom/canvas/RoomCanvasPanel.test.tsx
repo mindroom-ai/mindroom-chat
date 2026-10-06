@@ -331,8 +331,11 @@ describe('RoomCanvasPanel', () => {
     render(request({ share_state: true }));
     expect(shares.enabled.at(-1)).toBe(true);
     expect(panels.props?.shared).toBe(true);
-    panels.props?.onSaveState?.({ json: '{"done":["tent"]}' });
-    panels.props?.onSaveState?.({ inputs: '{"#rate":"7"}' });
+    // The page's own saves before the user works in it are kept but not shared.
+    panels.props?.onSaveState?.({ json: '{"done":[]}' }, false);
+    expect(shares.saves).toEqual([]);
+    panels.props?.onSaveState?.({ json: '{"done":["tent"]}' }, true);
+    panels.props?.onSaveState?.({ inputs: '{"#rate":"7"}' }, true);
     expect(shares.saves.at(-1)).toEqual({ json: '{"done":["tent"]}', inputs: '{"#rate":"7"}' });
 
     act(() => root.unmount());
@@ -356,7 +359,7 @@ describe('RoomCanvasPanel', () => {
       inputs: '{"#rate":"7"}',
     });
     // Saving one part keeps the other.
-    panels.props?.onSaveState?.({ inputs: '{"#rate":"8"}' });
+    panels.props?.onSaveState?.({ inputs: '{"#rate":"8"}' }, true);
     expect(panels.props?.savedState?.()).toEqual({
       json: '{"slots":[1]}',
       inputs: '{"#rate":"8"}',

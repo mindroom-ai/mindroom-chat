@@ -603,7 +603,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
     },
   });
   await expect(frame.locator('#tent')).toBeVisible();
-  await expect(panel.getByText('which can read what you enter here')).toBeVisible();
+  await expect(panel.getByText('Saved in this room:', { exact: false })).toBeVisible();
   await frame.locator('#tent').check();
   await expect.poll(() => stateCopies(sharedId), { timeout: 15_000 }).toHaveLength(1);
   const [copy] = await stateCopies(sharedId);

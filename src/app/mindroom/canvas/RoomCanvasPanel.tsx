@@ -105,9 +105,10 @@ function LoadedCanvasPanel({
           : undefined
       }
       savedState={saved.read}
-      onSaveState={(change) => {
+      onSaveState={(change, byUser) => {
         saved.save(change);
-        share(saved.read());
+        // What the page saves before the user works in it (its defaults on another device) is not theirs to share.
+        if (byUser) share(saved.read());
       }}
       shared={!!action.shareState}
       onSelectVersion={(number) => {

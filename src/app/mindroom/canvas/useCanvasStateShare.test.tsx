@@ -48,12 +48,12 @@ afterEach(() => {
 });
 
 describe('useCanvasStateShare', () => {
-  it('shares the latest state once the user pauses, as a reference to the canvas', async () => {
+  it('shares the latest state once the user pauses for two seconds, as a reference to the canvas', async () => {
     render();
     share({ json: '{"done":[]}' });
     share({ json: '{"done":["tent"]}', inputs: '{"#rate":"7"}' });
     await act(async () => {
-      vi.advanceTimersByTime(4_999);
+      vi.advanceTimersByTime(1_999);
     });
     expect(sendEvent).not.toHaveBeenCalled();
     await act(async () => {
@@ -76,15 +76,15 @@ describe('useCanvasStateShare', () => {
     render();
     share({ json: '1' });
     await act(async () => {
-      vi.advanceTimersByTime(4_000);
+      vi.advanceTimersByTime(1_500);
     });
     share({ json: '2' });
     await act(async () => {
-      vi.advanceTimersByTime(4_000);
+      vi.advanceTimersByTime(1_500);
     });
     expect(sendEvent).not.toHaveBeenCalled();
     await act(async () => {
-      vi.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(500);
     });
     expect(sent().map(({ content }) => content.json)).toEqual(['2']);
   });
@@ -100,11 +100,11 @@ describe('useCanvasStateShare', () => {
     render(true);
     share({ json: '1' });
     await act(async () => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(2_000);
     });
     share({ json: '1' });
     await act(async () => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(2_000);
     });
     expect(sendEvent).toHaveBeenCalledTimes(1);
   });
@@ -134,7 +134,7 @@ describe('useCanvasStateShare', () => {
     const json = JSON.stringify({ notes: 'x'.repeat(50_000) });
     share({ json });
     await act(async () => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(2_000);
     });
     expect(sidecars.upload).toHaveBeenCalledWith(
       mx,
@@ -150,16 +150,53 @@ describe('useCanvasStateShare', () => {
     ]);
   });
 
+  it('sends one copy at a time, so a slow upload never lands after a newer copy', async () => {
+    let finishUpload: (content: Record<string, unknown>) => void = () => undefined;
+    sidecars.upload.mockReturnValue(
+      new Promise((resolve) => {
+        finishUpload = resolve;
+      })
+    );
+    render();
+    share({ json: JSON.stringify({ notes: 'x'.repeat(50_000) }) });
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+    share({ json: '"small"' });
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+    expect(sendEvent).not.toHaveBeenCalled();
+    await act(async () => {
+      finishUpload({ msgtype: 'm.file', 'm.relates_to': reference });
+    });
+    expect(sent().map(({ content }) => content.json ?? content.msgtype)).toEqual([
+      'm.file',
+      '"small"',
+    ]);
+  });
+
+  it('shares what is waiting when the tab is hidden, since a closing tab never unmounts', async () => {
+    render();
+    share({ json: '1' });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    visibility.mockRestore();
+    expect(sent().map(({ content }) => content.json)).toEqual(['1']);
+  });
+
   it('shares the same state again after a failed send', async () => {
     sendEvent.mockRejectedValueOnce(new Error('offline'));
     render();
     share({ json: '1' });
     await act(async () => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(2_000);
     });
     share({ json: '1' });
     await act(async () => {
-      vi.advanceTimersByTime(5_000);
+      vi.advanceTimersByTime(2_000);
     });
     expect(sendEvent).toHaveBeenCalledTimes(2);
   });

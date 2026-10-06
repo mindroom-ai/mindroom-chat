@@ -3012,7 +3012,7 @@
       "send": "Enviar",
       "discard": "Descartar",
       "disclosure": "Creado por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de este panel.",
-      "disclosureShared": "Creado por {{agent}}, que puede leer lo que escribas aquí. No puede acceder a tu cuenta.",
+      "sharedNotice": "Guardado en esta sala: {{agent}} y los demás aquí pueden leer lo que escribas.",
       "sending": "Enviando a {{agent}}…",
       "sent": "Enviado a {{agent}}: {{label}}",
       "sendFailed": "No se pudo enviar tu respuesta. Inténtalo de nuevo.",

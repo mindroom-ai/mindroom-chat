@@ -2958,7 +2958,7 @@
       "send": "发送",
       "discard": "丢弃",
       "disclosure": "由 {{agent}} 创建。它无法访问您的账户；您在此输入的内容可能会离开此面板。",
-      "disclosureShared": "由 {{agent}} 创建，它可以读取您在此输入的内容。它无法访问您的账户。",
+      "sharedNotice": "已保存在此房间：{{agent}} 和此处的其他人可以读取您输入的内容。",
       "sending": "正在发送给 {{agent}}…",
       "sent": "已发送给 {{agent}}：{{label}}",
       "sendFailed": "无法发送您的回复。请重试。",

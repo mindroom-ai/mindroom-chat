@@ -3012,7 +3012,7 @@
       "send": "Envoyer",
       "discard": "Supprimer",
       "disclosure": "Créé par {{agent}}. Ce panneau n’a pas accès à votre compte ; ce que vous saisissez ici peut en sortir.",
-      "disclosureShared": "Créé par {{agent}}, qui peut lire ce que vous saisissez ici. Ce panneau n’a pas accès à votre compte.",
+      "sharedNotice": "Enregistré dans ce salon : {{agent}} et les autres membres peuvent lire ce que vous saisissez.",
       "sending": "Envoi à {{agent}}…",
       "sent": "Envoyé à {{agent}} : {{label}}",
       "sendFailed": "Impossible d’envoyer votre réponse. Réessayez.",
