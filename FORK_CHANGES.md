@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Keep a reader at the top of a short room while its older rows load (2026-10-06)
+
+- Report: the live `composer-glass` spec started failing after PR #422 (5 of 8 runs; 0 of 4 before it): a 180 px wheel right after opening a short room never showed "Jump to Latest". #422 removed the 30 s "Catching up..." wait that had let the room finish loading first. Probing found a reader who scrolls to the top of a short room is sent back to the bottom when its older rows load.
+- Root cause, two parts:
+  - The room's scroll-to-bottom layout effect (`MindroomRoomTimeline.tsx`) depends on the latest row's index in the rendered window, so it ran again whenever that index moved. In a short room the whole history fits the window, so rows loaded above move the latest row's index and the effect pulled the reader back down, even when nothing new had asked for the bottom (it only needs one earlier request, such as opening the room or following a new message).
+  - The measurement-correction hook (`threadRenderUtils.ts`) let virtual-core apply a correction for rows folded above the reader as a scroll write even when it would scroll above the top. The browser clamps that write, so the correction was lost while the ledger still held the rows' estimated height, and the settle overshot (a write of 786 px for 314 px of rows, found by tracing every scroll write).
+- Fix: a scroll-to-bottom request keeps the latest row in view while rows load, until the reader scrolls (wheel, touch, pointer or key on the scroller, as the thread settle loop and room auto-fill already stop); then only a new request moves them. A correction that would scroll above the top is ledgered instead of written.
+  `composer-glass` keeps wheeling until "Jump to Latest" shows: a short room can still be loading its older rows above the reader, so one 180 px step need not leave the bottom.
+- Tests: `e2e/live/room-load-older-keeps-reader.spec.ts` (follow a new message, scroll to the top, older rows load: the reader stays up and "Jump to Latest" shows; fails 2 of 2 on `dev`, passes 2 of 2). `virtualizerIOSScrollContract.test.ts`: a correction that would scroll above the top is ledgered (fails without the hook change). `composer-glass` passes 6 of 6 with the fix.
+
 ### Hide "Catching up..." once the client has caught up (2026-10-06)
 
 - Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.
