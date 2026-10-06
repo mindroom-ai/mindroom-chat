@@ -1173,13 +1173,20 @@ export function RoomTimeline({
   // the reader scrolls; then only a new request moves them (rows loaded above
   // a reader at the top must not send them back to the bottom).
   const roomScrollToBottomLeftRef = useRef(0);
+  // A new view starts from its latest rows again, as a fresh request would.
+  const roomScrollToBottomViewKey = `${showCompactRoomView}|${roomOverviewOrderActive}|${showThreadRepliesInRoom}|${roomThreadFilterActive}`;
+  const roomScrollToBottomViewKeyRef = useRef(roomScrollToBottomViewKey);
+  if (roomScrollToBottomViewKeyRef.current !== roomScrollToBottomViewKey) {
+    roomScrollToBottomViewKeyRef.current = roomScrollToBottomViewKey;
+    roomScrollToBottomLeftRef.current = 0;
+  }
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (threadId || !scrollElement) return undefined;
     const leave = () => {
       roomScrollToBottomLeftRef.current = scrollToBottomRef.current.count;
     };
-    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    const events = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
     events.forEach((event) => scrollElement.addEventListener(event, leave, { passive: true }));
     return () => events.forEach((event) => scrollElement.removeEventListener(event, leave));
   }, [getScrollElement, scrollToBottomRef, threadId]);
