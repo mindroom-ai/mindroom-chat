@@ -22,6 +22,17 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: '' }).simpleMode).toBe(true);
   });
 
+  it('shows Canvases in the sidebar by default while preserving explicit booleans', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(true);
+    expect(sanitizeMindroomAccountSettings({}).showCanvasesInSidebar).toBe(true);
+    expect(
+      sanitizeMindroomAccountSettings({ showCanvasesInSidebar: false }).showCanvasesInSidebar
+    ).toBe(false);
+    expect(
+      sanitizeMindroomAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar
+    ).toBe(true);
+  });
+
   it('defaults long messages to expanded while preserving explicit booleans', () => {
     expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(true);
     expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(true);
@@ -43,6 +54,7 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: true, futureKey: 'x' })).toEqual({
       simpleMode: true,
       expandLongMessagesByDefault: true,
+      showCanvasesInSidebar: true,
     });
   });
 });

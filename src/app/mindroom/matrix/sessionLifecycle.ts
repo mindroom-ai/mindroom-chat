@@ -25,6 +25,7 @@ import { getAppBasePath } from '../../utils/basePath';
 import { removeCachedSpecVersions } from '../../state/cachedSpecVersions';
 import { stopMindroomSyncEngineForClient } from '../engine/mindroomSyncEngine';
 import { getCanvasStateDbName } from '../canvas/canvasStateStore';
+import { getCanvasIndexDbName } from '../canvas/canvasIndexStore';
 import {
   SessionCleanupContext,
   clearAppScopedCacheStorage,
@@ -143,6 +144,7 @@ const deleteSessionLocalData = async (
     deleteMindroomSessionCaches(session.sessionId),
     // Saved canvas state is the user's data rather than a cache, so only account removal deletes it.
     deleteNamedDatabase(getCanvasStateDbName(session.sessionId)),
+    deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
   ]);
   clearSessionScopedNativeState(session.sessionId);
 };
@@ -218,8 +220,9 @@ export const removeCurrentClientSessionAndReload = async (
   try {
     await Promise.all([
       clearMatrixClientStores(mx),
-      // Saved canvas state needs only the session ID, so it is deleted here too.
+      // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
       deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
+      deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
     ]);
     clearSessionScopedUiState(identity, clearUserScopedState);
   } finally {
