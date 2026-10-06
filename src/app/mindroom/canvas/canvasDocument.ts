@@ -195,7 +195,7 @@ const inputsScript = (inputs: string | undefined): string => `
       delete inputs[longest];
       json = JSON.stringify(inputs);
     }
-    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: json }, '*');
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: json, user: userActive() }, '*');
   };
   // Changes are kept a task later, once the page has handled them, so a restore cannot undo them;
   // buttons such as Reset change values without input events, so clicks count too.
@@ -228,6 +228,8 @@ const bridgeScript = (
   lineOffset: number,
   saved: CanvasSaved
 ): string => `(() => {
+  // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
+  const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
@@ -287,7 +289,7 @@ const bridgeScript = (
     if (json.length > ${CANVAS_STATE_MAX_LENGTH}) {
       throw new RangeError('mindroom.saveState holds at most ${CANVAS_STATE_MAX_LENGTH} characters of JSON.');
     }
-    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, json }, '*');
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, json, user: userActive() }, '*');
   };
   Object.defineProperty(window, 'mindroom', {
     value: Object.freeze({

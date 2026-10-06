@@ -58,7 +58,10 @@ export type CanvasPanelProps = {
   version?: { current: number; total: number };
   /** The canvas's saved state, read whenever a page loads, so it holds what the previous page saved. */
   savedState?: () => CanvasSaved;
-  onSaveState?: (change: CanvasSaved) => void;
+  /** `byUser` is false for what the page saves before the user has worked in it. */
+  onSaveState?: (change: CanvasSaved, byUser: boolean) => void;
+  /** The agent can read what the user does in the page, so the panel says so. */
+  shared?: boolean;
   onSelectVersion?: (current: number) => void;
 };
 
@@ -147,6 +150,7 @@ export function CanvasPanel({
   onSelectVersion,
   savedState,
   onSaveState,
+  shared = false,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -196,6 +200,8 @@ export function CanvasPanel({
   currentFrameKey.current = frameKey;
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
+  // Whether the user has worked in this page since it loaded; what the page saves before that is not theirs.
+  const used = useRef(false);
   const lastStageAt = useRef(0);
   const latest = useRef({ canvas, colorScheme, theme, onSaveState });
   latest.current = { canvas, colorScheme, theme, onSaveState };
@@ -206,6 +212,7 @@ export function CanvasPanel({
 
   useEffect(() => {
     touched.current = false;
+    used.current = false;
     lastStageAt.current = 0;
     setStaged(undefined);
     setSendError(false);
@@ -250,7 +257,9 @@ export function CanvasPanel({
 
   useEffect(() => {
     const handleBlur = () => {
-      if (document.activeElement === frameRef.current) touched.current = true;
+      if (document.activeElement !== frameRef.current) return;
+      touched.current = true;
+      used.current = true;
     };
     const handleMessage = (event: MessageEvent) => {
       const wrapper = frameRef.current?.contentWindow;
@@ -268,7 +277,9 @@ export function CanvasPanel({
       if (!frame || event.source !== frame) return;
       const saved = readCanvasState(event, frame);
       if (saved !== undefined) {
-        latest.current.onSaveState?.(saved);
+        // The page's own focus() cannot fake user activation; focus is the fallback where it is unknown.
+        const byUser = saved.user ?? (used.current || document.activeElement === frameRef.current);
+        latest.current.onSaveState?.(saved.change, byUser);
         return;
       }
       const error = readCanvasError(event, frame);
@@ -690,6 +701,11 @@ export function CanvasPanel({
               </Button>
             </Box>
           </div>
+        )}
+        {shared && (
+          <Text size="T200" priority="300" data-canvas-shared>
+            {t('mindroomUi.canvas.sharedNotice', { agent: agentName })}
+          </Text>
         )}
         <div role="status" data-canvas-status>
           {answer === 'failed' && lastAnswer ? (

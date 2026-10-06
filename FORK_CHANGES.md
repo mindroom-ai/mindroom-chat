@@ -11,6 +11,26 @@
 - Tests: `useTimelineBulkExpansionAnchor.test.ts` (a message filling the view under a 150 px header is restored below it, and a message whose top is under the header is not the anchor; each fails without its half of the fix).
   `long-message-expansion-default` measures its anchor from the same line; its collapse-from-a-tall-message check fails on `dev` (the message lands 175 px off, behind the banner) and passes with the fix (25 px, the same residual `dev` shows against its old line, inside the 40 px budget).
 
+### Let an agent read a canvas page's state without a Send button (2026-10-06)
+
+- Why: for pages whose choices matter later (a checklist ticked over days, a form filled in passing), users asked that the agent see them without an explicit Send; pushing every change into the conversation would cost the agent tokens on every turn, so the agent reads on demand instead.
+- A canvas request may carry `share_state: true` (backend `show_canvas(share_state=True)`). It is an authority field like `requester_id`, so an edit cannot start or stop sharing.
+  The panel shows, whatever its footer says, "Saved in this room: *agent* and others here can read what you enter.", and keeps the usual disclosure.
+- `useCanvasStateShare` keeps a copy of what the page saved (its `saveState` JSON and kept inputs) in the room once the user pauses for 2 s, and when the panel closes or the tab is hidden (a closing tab never unmounts).
+  Only saves after the user has clicked or typed in the page are shared: the bridge adds `navigator.userActivation.hasBeenActive`, which a page's own `focus()` cannot fake, to each state message, and `CanvasPanel` falls back to whether the frame took focus where a browser lacks it; so a page's defaults on another device, or its saves while loading, never replace the agent's copy.
+  Copies go one at a time through a queue per canvas that outlives the panel, so a slow sidecar upload cannot land after a newer copy, even across closing and reopening; an unchanged copy is not sent again, a failed one is sent with the next save, and its unsent local echo is discarded.
+  The copy is an `io.mindroom.canvas_state` event with an `m.reference` relation to the canvas, so the agent's `read_canvas_state` finds the newest with one `/relations` call; a copy too large for one event goes as a long-text sidecar, like a large answer.
+  It is not a message, so it starts no agent turn and stays out of the agent's conversation; in an encrypted room it is encrypted like any event, and it stays in the room's history.
+  Each copy is marked `msgtype: "m.notice"` (inline and as a sidecar preview), so the standard push rule keeps it from notifying the room, even under a room's "All messages" setting.
+  The timeline and the room's unread check now skip every `m.reference` relation, so a copy never shows (not even as an undecrypted placeholder) and never marks the room unread for other members, also when the canvas it refers to is not loaded.
+- Tests (removing each piece fails its test): `useCanvasStateShare.test.tsx` (waits for a pause, each save restarts the wait, nothing for an unshared canvas or the same state twice, shares on close and when the tab is hidden, one copy at a time behind a slow upload, sidecar keeps the reference, retry after a failed send), `CanvasPanel.test.tsx` (the notice, `byUser` before and after the user worked in the page), `RoomCanvasPanel.test.tsx` (only the user's saves shared, whole), `chatUiProtocol.test.ts` (parsed, kept through edits, an edit cannot start it), `roomTimelineEvents.test.ts` and `room.test.ts` (a reference is neither shown nor unread), and the backend contract's new `show_canvas/shared` case.
+  `e2e/agent-canvas.spec.ts`: ticking a box in a shared canvas leaves one copy referencing it, with the page's state and kept inputs, while an unshared canvas leaves none.
+- Validation: live with a real agent (GPT-6.1 Sol, backend mindroom-ai/mindroom#2709): asked for a camping checklist it could check without a Send button, it chose `share_state=True`; after three ticks it called `read_canvas_state` and answered "3 of 6 packed" with the right items, and the LLM request before the tool call held no state.
+- Not changed:
+  - A change made less than 2 s before logging out may not be shared, since logout stops the client first; one made just before closing the tab is sent when the tab hides, which the browser may cut short.
+  - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
+  - Two devices editing the same canvas share their own copies; the agent reads the newest.
+
 ### Drop a redacted thread summary from the thread title (2026-10-05)
 
 - Problem: after an `io.mindroom.thread_summary` notice was redacted, clients that had received it kept showing its text as the thread title in the overview and the thread banner, and kept it in the IndexedDB `thread_summaries` store across reloads until a newer summary replaced it.

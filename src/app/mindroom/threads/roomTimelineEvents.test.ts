@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mergeClassicRoomThreadReplyEntries, type TimelineEventEntry } from './roomTimelineEvents';
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  isRenderableEvent,
+  mergeClassicRoomThreadReplyEntries,
+  type TimelineEventEntry,
+} from './roomTimelineEvents';
 
 const makeEvent = (eventId: string, ts: number, threadRootId?: string) =>
   ({
@@ -131,5 +136,29 @@ describe('mergeClassicRoomThreadReplyEntries', () => {
     });
 
     expect(merged.map(({ event }) => event.getId())).toEqual(['$root', '$reply']);
+  });
+});
+
+describe('isRenderableEvent', () => {
+  it('never shows a reference, such as an encrypted copy of a canvas state not decrypted yet', () => {
+    const encryptedCopy = new MatrixEvent({
+      type: 'm.room.encrypted',
+      event_id: '$copy',
+      room_id: '!room:server',
+      sender: '@alice:server',
+      origin_server_ts: 1,
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'secret',
+        'm.relates_to': { rel_type: 'm.reference', event_id: '$canvas' },
+      },
+    });
+    const room = {} as Room;
+    expect(isRenderableEvent(encryptedCopy, room, undefined, new Set(), false, false, false)).toBe(
+      false
+    );
+    expect(isRenderableEvent(encryptedCopy, room, undefined, new Set(), true, false, false)).toBe(
+      true
+    );
   });
 });
