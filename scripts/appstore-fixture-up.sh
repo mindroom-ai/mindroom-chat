@@ -68,12 +68,13 @@ fi
 export E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-${SAFE_RUN_ID}:matrix.localhost"
 
 "${ROOT_DIR}/scripts/e2e-matrix-up.sh" >&2
-eval "$(
+account_environment="$(
   "${ROOT_DIR}/scripts/ensure-e2e-account.sh" \
     E2E \
     "appstorescreenshots${SAFE_RUN_ID}" \
     'Pwappstorescreenshots123!'
 )"
+eval "${account_environment}"
 export E2E_USERNAME E2E_PASSWORD
 
 node "${ROOT_DIR}/scripts/seed-appstore-screenshot-room.mjs" >&2

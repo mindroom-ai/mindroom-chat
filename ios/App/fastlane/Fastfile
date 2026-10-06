@@ -206,7 +206,11 @@ platform :ios do
       UI.user_error!("Build #{app_version} (#{build_number}) is #{build.processing_state}, not VALID.")
     end
     UI.user_error!("Build #{app_version} (#{build_number}) is expired.") if build.expired
-    unless build.ready_for_internal_testing?
+    # fastlane's predicate only accepts READY_FOR_BETA_TESTING, although a
+    # build already in TestFlight is also ready for App Store submission.
+    internal_state = build.build_beta_detail&.internal_build_state
+    unless build.ready_for_internal_testing? ||
+        internal_state == Spaceship::ConnectAPI::BuildBetaDetail::InternalState::IN_BETA_TESTING
       UI.user_error!("Build #{app_version} (#{build_number}) is not ready for testing or submission.")
     end
     if build.missing_export_compliance?
