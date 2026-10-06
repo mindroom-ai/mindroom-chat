@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Keep thread summaries from cached history without opening the thread (2026-10-06)
+
+- Report: a thread's summary title that was already in downloaded history could be missing from the room overview card until the user opened the thread.
+- Root cause: only room view code and the manual summary action wrote the shared summary state and its `thread_summaries` store (overview cache hydration, the live render controller, the open-thread publish controller and prefetch), and the overview reads only the newest 32 cached events of each thread (`OVERVIEW_CACHE_EVENT_LIMIT`).
+  A summary notice that reached the cache through engine write-through while its room was not open, or through a history fetch, got no summary record, so once 32 newer replies followed it nothing showed it on the card.
+  Opening the thread published it from the thread's loaded events, which is why that fixed it.
+- Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), passes the summary notices it persists to `storeThreadSummaryInState`.
+  The existing selection rules pick the title, and the shared state saves it to `thread_summaries`, so the overview card and the thread banner read it from the same place with no room view mounted.
+  It runs only when the batch holds a summary notice, so a batch without one does no summary work, and it runs after the batch's cache write has started, so it cannot stop that write.
+  Notices that the same batch shows as redacted are skipped, so redactions persisted with the batch still clear the title as in #405.
+  It is skipped when the write's cache lease was revoked, as the event write is, so clearing a room's offline content cannot be undone by a late repair.
+  Room cache writes need no change, because they leave out thread replies, which reach the thread writer.
+- This replaces the closed PR #323, which moved summary ownership into the cache store across 28 files and added a background repair cursor.
+- Tests: `threadSummaryPersistence.test.tsx`: a summary notice cached the way the sync engine writes a live event, or by a fetched history chunk that puts it outside the 32-event tail, reaches the shared state and the summary store with no room view mounted (both fail on `dev`).
+  A batch without summary notices opens no `thread_summaries` transaction, and a write with a revoked lease records no summary.
+  A stale unredacted copy of a notice next to its redaction does not become the title, in thread history and in a reconciler repair (the repair case fails without the redaction check).
+  `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice.
+VALIDATION_PLACEHOLDER
+- Not changed:
+  - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
+  - The room view's own summary publishers are unchanged.
+  - Two redaction gaps that predate this change remain: a stale unredacted copy fetched after its redaction was already saved, and a redaction that arrives while a room's first summary read is pending, can bring a redacted title back.
+    Room view writers could already hit both; background writes now can too.
+
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
 - Status: Rivera screenshot fixture implemented and independently reviewed.
@@ -1799,7 +1823,7 @@
   Those changes are complete; the no-thread mode stays owned by the render hook.
   Claude's final re-review approves the corrected implementation and validation record.
 - Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
-  The separate report of missing summaries remains under investigation.
+  The separate report of missing summaries is fixed in "Keep thread summaries from cached history without opening the thread" (2026-10-06).
 
 ### Jump to Latest in threads without waiting for older history (2026-09-25)
 

@@ -33,6 +33,7 @@ import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUt
 import { loadCachedEventAcrossRoomScopes } from './cacheStore/cacheStoreEvents';
 import { readRoomOfflineProgress, updateRoomOfflineProgress } from './cacheStore/cacheStoreMeta';
 import { collectEventAttachments } from '../messages/eventAttachments';
+import { getThreadSummaryInfosFromEventSources } from '../messages/threadSummary';
 import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -43,7 +44,7 @@ import {
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
-import { forgetRedactedThreadSummaries } from './threadSummaryState';
+import { forgetRedactedThreadSummaries, storeThreadSummaryInState } from './threadSummaryState';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectExplicitRedactedEventIds,
@@ -913,7 +914,8 @@ export const persistThreadEventCacheSnapshot = ({
 
   countCacheProbe('serializedEvents', rawEvents.length);
   // Fetched or backfilled copies can carry a redaction the live handler never saw.
-  forgetRedactedThreadSummaries(sessionId, room.roomId, collectExplicitRedactedEventIds(rawEvents));
+  const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
+  forgetRedactedThreadSummaries(sessionId, room.roomId, redactedEventIds);
   // CINNY-207 P2.3: health gate + failure surfacing moved into the
   // cacheStore save entry point (single choke point). This seam only
   // serializes and delegates.
@@ -941,6 +943,15 @@ export const persistThreadEventCacheSnapshot = ({
     : relationSnapshotMode === undefined
     ? save(...saveArgs)
     : save(...saveArgs, relationSnapshotMode);
+  // Record summary notices as they are cached, so a thread keeps its title
+  // when the notice is older than the cached tail the overview reads.
+  // Repair mode serializes copies of the raw events, so `events` can still
+  // hold a notice that this batch redacts.
+  const summaries = getThreadSummaryInfosFromEventSources(events).filter(
+    (info) => info?.summaryText && !(info.eventId && redactedEventIds.has(info.eventId))
+  );
+  if (summaries.length > 0 && (!writeLease || isCacheStoreWriteLeaseCurrent(writeLease)))
+    storeThreadSummaryInState(sessionId, room.roomId, threadId, ...summaries);
 
   return {
     rawEvents,

@@ -10,11 +10,15 @@ import {
   getThreadSummaryInfosFromEventSources,
 } from '../messages/threadSummary';
 import {
+  captureCacheStoreWriteLease,
   loadCachedThreadSummaries,
+  revokeRoomCacheStoreWrites,
   saveCachedThreadSummary,
   saveRoomEventsToCacheCommitted,
 } from './cacheStore';
 import {
+  loadLatestCachedThreadEventsBatch,
+  persistRoomChunkWithPreferLive,
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshotCommitted,
 } from './eventRepository';
@@ -338,6 +342,160 @@ it.each(['thread history', 'room backfill'])(
     expect(await write).toBe(true);
     expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
     expect((await loadCachedThreadSummaries(sessionId, roomId)).has('$root')).toBe(false);
+    clearThreadSummarySharedState(sessionId);
+  }
+);
+
+const threadReply = (roomId: string, id: string, timestamp: number) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: roomId,
+    sender: '@agent:example',
+    type: 'm.room.message',
+    origin_server_ts: timestamp,
+    content: {
+      msgtype: 'm.text',
+      body: id,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  });
+
+it.each(['live sync', 'fetched history'])(
+  'keeps a summary notice that reaches the cache through %s without opening the thread',
+  async (seam) => {
+    const sessionId = `summary-from-cache-${seam}`;
+    const roomId = '!summary-from-cache:test';
+    const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+    const room = new Room(roomId, mx, mx.getSafeUserId());
+    const notice = summaryNotice(roomId, '$summary', 'Cached title', 1000);
+    // No room view is mounted.
+    if (seam === 'live sync') {
+      // As the sync engine's write-through persists a live thread event.
+      await persistRoomChunkWithPreferLive({
+        mx,
+        sessionId,
+        room,
+        chunk: [notice.event],
+        mappedEvents: [notice],
+        roomTailLoaded: false,
+        threadId: '$root',
+      });
+    } else {
+      const replies = Array.from({ length: 40 }, (_, index) =>
+        threadReply(roomId, `$reply-${index}`, 2000 + index)
+      );
+      await persistRoomChunkWithPreferLive({
+        mx,
+        sessionId,
+        room,
+        chunk: [notice, ...replies].map((event) => event.event),
+      });
+      // The overview reads only the newest 32 cached events of a thread.
+      const tail = await loadLatestCachedThreadEventsBatch(sessionId, roomId, ['$root'], 32);
+      expect(tail.get('$root')?.events.map((event) => event.event_id)).not.toContain('$summary');
+    }
+
+    // The overview and the thread banner both read this state.
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+      'Cached title'
+    );
+    // After a reload it comes from the summary store.
+    await vi.waitFor(async () => {
+      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+        'Cached title'
+      );
+    });
+    clearThreadSummarySharedState(sessionId);
+  }
+);
+
+it('does no summary work for a cached batch without summary notices', async () => {
+  const sessionId = 'summary-free-batch';
+  const roomId = '!summary-free-batch:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction');
+  try {
+    const { write } = persistThreadEventCacheSnapshotCommitted({
+      sessionId,
+      room,
+      threadId: '$root',
+      events: [threadReply(roomId, '$reply', 1000)],
+    });
+    expect(await write).toBe(true);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    const stores = transaction.mock.calls.flatMap(([names]) => [names].flat());
+    expect(stores).toContain('events');
+    expect(stores).not.toContain('thread_summaries');
+  } finally {
+    transaction.mockRestore();
+    clearThreadSummarySharedState(sessionId);
+  }
+});
+
+it('records no summary for a write whose cache lease was revoked', async () => {
+  const sessionId = 'summary-revoked-lease';
+  const roomId = '!summary-revoked-lease:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
+  // For example, the room's offline content was cleared during a repair.
+  revokeRoomCacheStoreWrites(sessionId, roomId);
+  const { write } = persistThreadEventCacheSnapshotCommitted({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [summaryNotice(roomId, '$summary', 'Cleared title', 1000)],
+    writeLease,
+  });
+  expect(await write).toBe(false);
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
+  clearThreadSummarySharedState(sessionId);
+});
+
+it.each(['thread history', 'reconciler repair'])(
+  'keeps a redacted summary out when %s carries a stale copy of its notice',
+  async (seam) => {
+    const sessionId = `summary-stale-redacted-copy-${seam}`;
+    const roomId = '!summary-stale-redacted-copy:test';
+    const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+    const room = new Room(roomId, mx, mx.getSafeUserId());
+    const older = summaryNotice(roomId, '$older', 'Older title', 1000);
+    // Homeservers can briefly serve an unpruned copy next to its redaction.
+    const stale = summaryNotice(roomId, '$leaked', 'Leaked secret', 2000);
+    const redaction = new MatrixEvent({
+      event_id: '$redaction',
+      room_id: roomId,
+      type: 'm.room.redaction',
+      origin_server_ts: 3000,
+      redacts: '$leaked',
+      content: { redacts: '$leaked' },
+    });
+    const { write } = persistThreadEventCacheSnapshotCommitted({
+      sessionId,
+      room,
+      threadId: '$root',
+      ...(seam === 'thread history'
+        ? { events: [older, stale, redaction] }
+        : {
+            events: [older, stale],
+            relationSnapshotMode: 'authoritative',
+            authoritativeRawEvents: [older, stale, redaction].map((event) =>
+              structuredClone(event.event)
+            ),
+          }),
+    });
+    expect(await write).toBe(true);
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+      'Older title'
+    );
+    await vi.waitFor(async () => {
+      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+        'Older title'
+      );
+    });
     clearThreadSummarySharedState(sessionId);
   }
 );
