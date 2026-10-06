@@ -237,10 +237,15 @@ const isThreadOnlyRoomActivity = (room: Room, mEvent: MatrixEvent): boolean => {
   return isThreadReplyMessage || isThreadReplyRelatedEvent;
 };
 
-// References (a canvas's shared state, poll answers) never show in the timeline, whatever they refer to.
+// A reference that is not a message (a canvas's shared state, poll answers) never shows, whatever it
+// refers to, and neither does one still encrypted or that cannot be decrypted, so an encrypted copy
+// never shows as a placeholder. A message that carries a reference shows like any other.
+export const isHiddenReferenceEvent = (mEvent: MatrixEvent): boolean =>
+  mEvent.getRelation()?.rel_type === RelationType.Reference &&
+  (mEvent.getType() !== MessageEvent.RoomMessage || mEvent.isDecryptionFailure());
+
 const isHiddenRoomActivity = (room: Room, mEvent: MatrixEvent): boolean =>
-  mEvent.getRelation()?.rel_type === RelationType.Reference ||
-  isThreadOnlyRoomActivity(room, mEvent);
+  isHiddenReferenceEvent(mEvent) || isThreadOnlyRoomActivity(room, mEvent);
 
 export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const userId = mx.getUserId();

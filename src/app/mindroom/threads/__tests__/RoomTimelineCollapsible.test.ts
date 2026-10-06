@@ -424,6 +424,7 @@ vi.mock('../../../utils/room', () => ({
   ) => editedEvent?.getContent() ?? mEvent.getContent(),
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
+  isHiddenReferenceEvent: () => false,
   isMembershipChanged: () => false,
   logEditDebug: vi.fn(),
   reactionOrEditEvent: (mEvent: { getRelation: () => { rel_type?: string } | undefined }) => {
