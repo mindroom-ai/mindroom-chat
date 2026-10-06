@@ -14,8 +14,7 @@ import {
   Tooltip,
   TooltipProvider,
 } from 'folds';
-import { useStateEvents } from '../threads/useStateEvents';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from '../threads/scheduledTaskContract';
+import { useScheduledTaskEvents } from '../threads/useScheduledTaskEvents';
 import { getPendingRoomSchedules } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';
 import { stopPropagation } from '../../utils/keyboard';
@@ -30,7 +29,7 @@ export function RoomSchedulesButton({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const events = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
+  const events = useScheduledTaskEvents(room);
   const tasks = useMemo(() => getPendingRoomSchedules(events), [events]);
   const label = t('roomSchedules.openLabel', { total: tasks.length });
 

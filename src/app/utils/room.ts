@@ -558,8 +558,10 @@ export const getEditedEvent = (
 
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
   const relations = edits?.getRelations() ?? [];
+  // The SDK aggregates edits from every sender; only the original sender's may
+  // pick the shown edit or supply its metadata fallbacks.
   const candidateEdits = [...relations, replacingEvent, serializedReplacement].filter(
-    (editEvent): editEvent is MatrixEvent => !!editEvent
+    (editEvent): editEvent is MatrixEvent => isSameSenderEditEvent(mEvent, editEvent)
   );
   const latestEdit = getLatestEdit(mEvent, candidateEdits);
   logEditDebug('getEditedEvent:resolved', {

@@ -932,6 +932,7 @@ describe('renderMindroomMessageContent', () => {
     toolApprovalCardMock.mockReset();
 
     const renderer = await renderNode({
+      fromMindroomAgent: true,
       eventType: 'io.mindroom.tool_approval',
       roomId: '!room:example.org',
       eventId: '$approval',
@@ -970,10 +971,37 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('does not render an approval card from a sender that is not a MindRoom account', async () => {
+    toolApprovalCardMock.mockReset();
+
+    const renderer = await renderNode({
+      fromMindroomAgent: false,
+      eventType: 'io.mindroom.tool_approval',
+      roomId: '!room:example.org',
+      eventId: '$forged',
+      msgType: '',
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        requested_at: '2026-04-10T12:00:00Z',
+        expires_at: '2999-04-17T12:00:00Z',
+      },
+    });
+
+    expect(toolApprovalCardMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('broken');
+
+    renderer.unmount();
+  });
+
   it('keeps renderer thread scope available when a grant edit omits thread_id', async () => {
     toolApprovalCardMock.mockReset();
 
     const renderer = await renderNode({
+      fromMindroomAgent: true,
       eventType: 'io.mindroom.tool_approval',
       roomId: '!room:example.org',
       eventId: '$approval',

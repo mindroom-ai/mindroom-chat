@@ -427,6 +427,36 @@ describe('room edit helpers', () => {
     expect(resolvedContent['io.mindroom.stream_status']).toBe('streaming');
     expect(resolvedContent['io.mindroom.tool_trace']).toEqual(traceMetadata);
   });
+
+  it("never takes MindRoom metadata from another sender's edit", () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@mindroom_research:example.org');
+    const agentEdit = makeEditEvent(
+      '$agent-edit',
+      2000,
+      '$target',
+      '@mindroom_research:example.org'
+    );
+    const foreignEdit = makeEditEvent('$foreign-edit', 3000, '$target', '@mallory:example.org');
+    foreignEdit.getContent()['m.new_content']['com.mindroom.message_extras'] = {
+      version: 1,
+      sections: [{ title: 'Sign in', content_type: 'text/plain', content: 'https://evil' }],
+    };
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({
+          getRelations: () => [agentEdit, foreignEdit],
+        }),
+      },
+    } as any;
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+    const resolvedContent = getLatestMessageContent(targetEvent, editedEvent);
+
+    expect(editedEvent).toBe(agentEdit);
+    expect(resolvedContent.body).toBe('$agent-edit');
+    expect(resolvedContent['com.mindroom.message_extras']).toBeUndefined();
+    expect(agentEdit.getContent()['m.new_content']['com.mindroom.message_extras']).toBeUndefined();
+  });
 });
 
 describe('roomHaveUnread', () => {

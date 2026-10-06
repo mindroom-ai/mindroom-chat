@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Trust MindRoom metadata only from the accounts that send it (2026-10-05)
+
+- Report: the client read MindRoom metadata from whoever sent it, so any room member could make other members' clients show content MindRoom never sent.
+  - Another sender's `m.replace` of an edited message added its message extras, thread summary, canvas `ui_action` or `m.mentions` to that message: `getEditedEvent` picked the original sender's latest edit, then filled missing keys from every replacement, whoever sent it.
+  - A member could edit their own message with no "(edited)" marker by adding `io.mindroom.stream_status`, `io.mindroom.ai_run`, `io.mindroom.tool_trace` or the router voice-echo flag to it.
+  - `io.mindroom.tool_approval` events from anyone became pending requests, receipts and timed permissions in the approval bar and review dialog, and live cards in the room timeline.
+  - `com.mindroom.scheduled.task` state from any member with state power showed in the Schedules dialog, its badge and the thread scheduled indicators, with any owner.
+- Backend rules: approval cards come from the router account (`approval_transport.py`), scheduled-task state counts only from MindRoom's own bot accounts (`scheduling.py`), and agent stream metadata and voice echoes come from agents and the router.
+- Fix: edit candidates are limited to the original sender before the latest edit is chosen and before its metadata fallbacks are copied.
+  The edited-marker exemption, approval records and cards, and scheduled-task state now require a MindRoom account on the viewer's homeserver (`isMindroomAgentUserIdForViewer`, as for agent canvases and calls).
+  Scheduled-task readers share `useScheduledTaskEvents`.
+- Limits: agents on another homeserver than the viewer, and agents renamed away from the `mindroom_` prefix, now show "(edited)" on finished streams and their approval cards and schedules are not shown; `mindroom_` accounts on the viewer's own homeserver still pass, so operators must keep reserving that namespace.
+- Tests: `room.test.ts` (another sender's edit adds no metadata and leaves the agent's edit unchanged), `RenderMessageContent.test.ts` (a human or foreign-server sender with agent metadata or the voice-echo flag keeps "(edited)"), `renderMindroomMessageContent.test.ts` and `ThreadApprovalProvider.test.tsx` (cards from a member or a foreign-server agent are not cards or records), `useThreadScheduledTasks.test.ts` (tasks from a member or a foreign-server agent are not counted); each fails without its fix.
+  The live approval and schedule specs and the App Store seeder now send those events from a registered `mindroom_` account, and the schedules fixture uses one.
+
 ### Match MindRoom homeservers by hostname (2026-10-05)
 
 - Problem: `normalizeHomeserverName` in `src/app/mindroom/auth/authPolicy.ts` only stripped the scheme and trailing slashes, so `isMindroomHomeserver` suffix-matched the host plus the path.
