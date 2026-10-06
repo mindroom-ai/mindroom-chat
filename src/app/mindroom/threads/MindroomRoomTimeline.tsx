@@ -1174,12 +1174,14 @@ export function RoomTimeline({
   // a reader at the top must not send them back to the bottom).
   const roomScrollToBottomLeftRef = useRef(0);
   // A new view starts from its latest rows again, as a fresh request would.
+  // Reset on commit, before the effect below: an abandoned render must not.
   const roomScrollToBottomViewKey = `${showCompactRoomView}|${roomOverviewOrderActive}|${showThreadRepliesInRoom}|${roomThreadFilterActive}`;
   const roomScrollToBottomViewKeyRef = useRef(roomScrollToBottomViewKey);
-  if (roomScrollToBottomViewKeyRef.current !== roomScrollToBottomViewKey) {
+  useLayoutEffect(() => {
+    if (roomScrollToBottomViewKeyRef.current === roomScrollToBottomViewKey) return;
     roomScrollToBottomViewKeyRef.current = roomScrollToBottomViewKey;
     roomScrollToBottomLeftRef.current = 0;
-  }
+  }, [roomScrollToBottomViewKey]);
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (threadId || !scrollElement) return undefined;

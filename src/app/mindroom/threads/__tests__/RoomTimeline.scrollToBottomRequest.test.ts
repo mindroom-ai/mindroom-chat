@@ -11,6 +11,7 @@ import {
   makeRoom,
   roomTimelineVirtualizerState,
   scrollType,
+  virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
 
 const makeScroll = () => {
@@ -142,6 +143,66 @@ describe('RoomTimeline scroll-to-bottom request', () => {
     (room.getLiveTimeline().getEvents() as unknown[]).push(makeEvent('$c', { ts: 3 }));
     await act(async () => {
       room.__listeners.get('Room.TimelineRefresh')?.(room);
+      await flushAsyncWork();
+    });
+
+    expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
+    renderer!.unmount();
+  });
+
+  it('keeps the reader where they scrolled after a view switch that never commits', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    // A sibling suspends the threaded view, so React renders it but never commits.
+    function SuspendThreaded({ viewMode }: { viewMode: string }) {
+      if (viewMode === 'threaded') throw new Promise(() => {});
+      return null;
+    }
+    const Timeline = (props: Record<string, unknown>) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(RoomTimeline as never, props),
+        React.createElement(SuspendThreaded, props as { viewMode: string })
+      );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(Timeline as never);
+    const room = makeRoom({ liveEvents: [makeEvent('$a', { ts: 1 }), makeEvent('$b', { ts: 2 })] });
+    const scroll = makeScroll();
+    isTimelineAtLiveEndMock.mockReturnValue(false);
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          React.Suspense,
+          { fallback: null },
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' })
+        ),
+        {
+          unstable_isConcurrent: true,
+          createNodeMock: (element: { type: string }) =>
+            element.type === scrollType ? scroll.el : null,
+        }
+      );
+      await flushAsyncWork();
+    });
+    await act(async () => {
+      getClickableByText(renderer!, 'Jump to Latest').props.onClick();
+      await flushAsyncWork();
+    });
+    scroll.fire('wheel');
+    const switcher = () =>
+      renderer!.root.find((node) => typeof node.props.onViewModeChange === 'function');
+    await act(async () => {
+      React.startTransition(() => switcher().props.onViewModeChange('threaded'));
+      await flushAsyncWork();
+    });
+    await act(async () => {
+      switcher().props.onViewModeChange('classic');
+      await flushAsyncWork();
+    });
+    roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+
+    await act(async () => {
+      virtualPaginatorState.lastOptions?.onRangeChange({ start: 1, end: 2 });
       await flushAsyncWork();
     });
 
