@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Tighten the README's configuration and push notes (2026-10-06)
+
+- Status: implementation, review, and publication on `docs/readme-follow-ups`; follows the README rewrite in PR #397.
+- Problem: the Docker configuration example copied `config.mindroom.json` from a checkout, which someone running only the published image does not have; the push section read as if push were off, though the bundled config already enables it for MindRoom's own app and gateway; and the "App Store submission docs" list also held `ios-panels.md`, which is not a submission document.
+- Change: copy the starting configuration out of the image with `docker run --rm --entrypoint cat`, say the bundled config already enables push and that a fork sets its own bundle ID and gateway, show a placeholder bundle ID in the example, and relabel the list "iOS docs".
+- Validation: the image is `nginx:alpine` with the built `dist/` at `/app`, so `/app/config.json` is the bundled file; `config.mindroom.json` enables `push.ios` for `chat.mindroom.app`; review by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
 ### Keep the long-message expand/collapse anchor below the sticky headers (2026-10-05)
 
 - Report: after changing "Expand long messages by default" while reading inside a long message, that message's top landed behind the sticky thread banner (or the room header), so the reader saw its middle instead of its start.

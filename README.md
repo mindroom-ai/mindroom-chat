@@ -152,10 +152,10 @@ Each prefix excludes its exact path and descendants without excluding similarly 
 MindRoom Chat reads `config.json` from the root it is served from.
 Builds and the development server generate it from [`config.mindroom.json`](./config.mindroom.json), and iOS builds also apply [`config.mindroom.ios.json`](./config.mindroom.ios.json); the repository's `config.json` is Cinny's upstream sample, used only as a fallback by the end-to-end tests.
 With the Docker image, mount your own file at `/app/config.json`.
-A mounted file replaces the bundled configuration entirely, so start from a copy of `config.mindroom.json`:
+A mounted file replaces the bundled configuration entirely, so start from a copy of the image's own file (in a checkout, `config.mindroom.json` is the same starting point):
 
 ```bash
-cp config.mindroom.json my-config.json
+docker run --rm --entrypoint cat ghcr.io/mindroom-ai/mindroom-chat:latest /app/config.json > my-config.json
 docker run -p 8080:80 -v "$PWD/my-config.json:/app/config.json:ro" ghcr.io/mindroom-ai/mindroom-chat:latest
 ```
 
@@ -301,7 +301,7 @@ npx cap open ios
 
 Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
 
-App Store submission docs:
+iOS docs:
 
 - Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
 - Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
@@ -330,16 +330,17 @@ Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overr
 <summary><b>iOS push notifications (APNs + Matrix)</b></summary>
 
 Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher registration).
-To turn it on for a deployment:
+The bundled `config.mindroom.json` already turns `push.ios` on for MindRoom's own app (`chat.mindroom.app`) and push gateway.
+For your own app build:
 
-1. Configure `push.ios` in `config.mindroom.json`, which iOS builds bundle:
+1. Set your bundle ID and gateway in `push.ios` in `config.mindroom.json`, which iOS builds bundle:
 
 ```json
 {
   "push": {
     "ios": {
       "enabled": true,
-      "appId": "chat.mindroom.app",
+      "appId": "YOUR.BUNDLE.ID",
       "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
       "appDisplayName": "MindRoom Chat iOS",
       "deviceDisplayName": "MindRoom Chat iOS",
