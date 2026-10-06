@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
+import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import type { CanvasSaved } from './canvasDocument';
 import { contentBytes, MAX_CANVAS_RESPONSE_CONTENT_BYTES } from './canvasMessages';
 
@@ -9,6 +10,10 @@ export const CANVAS_STATE_EVENT_TYPE = 'io.mindroom.canvas_state';
 
 // Shared once the user pauses, so a drag or a typed sentence is one event, not one per change.
 const SHARE_AFTER_MS = 2000;
+
+// One queue per canvas, kept across panels, so a copy sent after the panel reopened can never land
+// before a slower one sent before it closed.
+const queues = new Map<string, Promise<void>>();
 
 /**
  * Keeps a copy of what a canvas keeps in its room, for a canvas whose request shares its state; the
@@ -27,8 +32,6 @@ export function useCanvasStateShare(
   useEffect(() => {
     latest.current = undefined;
     let shared: string | undefined;
-    // One copy at a time, so a slow upload can never land after a newer copy.
-    let sending = Promise.resolve();
     const publish = async () => {
       const saved = latest.current;
       const text = JSON.stringify([saved?.json, saved?.inputs]);
@@ -48,14 +51,26 @@ export function useCanvasStateShare(
               body: 'Canvas state',
               'm.relates_to': relation,
             });
-      await mx.sendEvent(room.roomId, CANVAS_STATE_EVENT_TYPE as never, event as never);
+      const txnId = mx.makeTxnId();
+      try {
+        await mx.sendEvent(room.roomId, CANVAS_STATE_EVENT_TYPE as never, event as never, txnId);
+      } catch (error) {
+        discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
+        throw error;
+      }
       shared = text;
     };
     const share = () => {
       window.clearTimeout(timer.current);
       timer.current = undefined;
-      // A copy that failed is sent again with the next save.
-      sending = sending.then(publish).catch(() => undefined);
+      // One copy at a time; a copy that failed is sent again with the next save.
+      const queued = (queues.get(canvasId) ?? Promise.resolve())
+        .then(publish)
+        .catch(() => undefined);
+      queues.set(canvasId, queued);
+      queued.then(() => {
+        if (queues.get(canvasId) === queued) queues.delete(canvasId);
+      });
     };
     shareNow.current = share;
     // Hiding or leaving the page shares what is still waiting, since a closing tab never unmounts.

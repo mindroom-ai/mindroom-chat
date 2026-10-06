@@ -277,10 +277,9 @@ export function CanvasPanel({
       if (!frame || event.source !== frame) return;
       const saved = readCanvasState(event, frame);
       if (saved !== undefined) {
-        latest.current.onSaveState?.(
-          saved,
-          used.current || document.activeElement === frameRef.current
-        );
+        // The page's own focus() cannot fake user activation; focus is the fallback where it is unknown.
+        const byUser = saved.user ?? (used.current || document.activeElement === frameRef.current);
+        latest.current.onSaveState?.(saved.change, byUser);
         return;
       }
       const error = readCanvasError(event, frame);

@@ -169,10 +169,13 @@ const toCanvasAgent = (canvas: CanvasTarget) => ({
 });
 
 /** Accept the page state or the control values this canvas frame saves; both are written back into the page as is. */
+/** What the page saved, and whether the user had clicked or typed in it (undefined where the browser cannot tell). */
+export type CanvasStateMessage = { change: CanvasSaved; user?: boolean };
+
 export const readCanvasState = (
   event: MessageEvent,
   frame: Window | null | undefined
-): CanvasSaved | undefined => {
+): CanvasStateMessage | undefined => {
   if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
   const message = event.data;
   if (!record(message) || message.type !== CANVAS_STATE_MESSAGE || message.version !== 1) {
@@ -186,7 +189,8 @@ export const readCanvasState = (
   } catch {
     return undefined;
   }
-  return { [part]: text };
+  const change = { [part]: text };
+  return typeof message.user === 'boolean' ? { change, user: message.user } : { change };
 };
 
 /** One error line a canvas may report; longer ones are cut. */

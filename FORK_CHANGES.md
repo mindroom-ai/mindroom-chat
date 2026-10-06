@@ -8,8 +8,8 @@
 - A canvas request may carry `share_state: true` (backend `show_canvas(share_state=True)`). It is an authority field like `requester_id`, so an edit cannot start or stop sharing.
   The panel shows, whatever its footer says, "Saved in this room: *agent* and others here can read what you enter.", and keeps the usual disclosure.
 - `useCanvasStateShare` keeps a copy of what the page saved (its `saveState` JSON and kept inputs) in the room once the user pauses for 2 s, and when the panel closes or the tab is hidden (a closing tab never unmounts).
-  Only saves after the user has worked in the page are shared (`CanvasPanel` passes `byUser`, sticky once the frame took focus), so a page's defaults on another device, or its saves while loading, never replace the agent's copy.
-  Copies go one at a time, so a slow sidecar upload cannot land after a newer copy; an unchanged copy is not sent again, and a failed one is sent with the next save.
+  Only saves after the user has clicked or typed in the page are shared: the bridge adds `navigator.userActivation.hasBeenActive`, which a page's own `focus()` cannot fake, to each state message, and `CanvasPanel` falls back to whether the frame took focus where a browser lacks it; so a page's defaults on another device, or its saves while loading, never replace the agent's copy.
+  Copies go one at a time through a queue per canvas that outlives the panel, so a slow sidecar upload cannot land after a newer copy, even across closing and reopening; an unchanged copy is not sent again, a failed one is sent with the next save, and its unsent local echo is discarded.
   The copy is an `io.mindroom.canvas_state` event with an `m.reference` relation to the canvas, so the agent's `read_canvas_state` finds the newest with one `/relations` call; a copy too large for one event goes as a long-text sidecar, like a large answer.
   It is not a message, so it starts no agent turn and stays out of the agent's conversation; in an encrypted room it is encrypted like any event, and it stays in the room's history.
   The timeline and the room's unread check now skip every `m.reference` relation, so a copy never shows (not even as an undecrypted placeholder) and never marks the room unread for other members, also when the canvas it refers to is not loaded.
@@ -17,7 +17,8 @@
   `e2e/agent-canvas.spec.ts`: ticking a box in a shared canvas leaves one copy referencing it, with the page's state and kept inputs, while an unshared canvas leaves none.
 - Validation: live with a real agent (GPT-6.1 Sol, backend mindroom-ai/mindroom#2709): asked for a camping checklist it could check without a Send button, it chose `share_state=True`; after three ticks it called `read_canvas_state` and answered "3 of 6 packed" with the right items, and the LLM request before the tool call held no state.
 - Not changed:
-  - A change made less than 2 s before logging out may not be shared, since logout stops the client first.
+  - A change made less than 2 s before logging out may not be shared, since logout stops the client first; one made just before closing the tab is sent when the tab hides, which the browser may cut short.
+  - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
   - Two devices editing the same canvas share their own copies; the agent reads the newest.
 
 ### Keep hearing room members after a gappy sync (2026-10-05)

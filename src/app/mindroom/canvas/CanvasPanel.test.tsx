@@ -280,9 +280,17 @@ describe('CanvasPanel', () => {
     focused.mockRestore();
     // Saved after the user worked in it, even once focus has moved on.
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"done":["tent"]}' });
+    // Where the browser can tell, its user activation wins: a page's own focus() is not the user.
+    await post({
+      type: 'mindroom.canvas.state',
+      version: 1,
+      json: '{"focused":true}',
+      user: false,
+    });
     expect(onSaveState.mock.calls).toEqual([
       [{ json: '{"defaults":true}' }, false],
       [{ json: '{"done":["tent"]}' }, true],
+      [{ json: '{"focused":true}' }, false],
     ]);
   });
 
