@@ -143,14 +143,20 @@ export const hasLoadedThreadReplyEvents = (
 };
 
 /**
- * The SDK puts the root first only once back-pagination reaches the thread's start.
- * The backward token does not prove it: the app sets it from its cache, whose
- * replies stay outside the SDK timeline.
+ * The SDK puts the root first once back-pagination reaches the thread's start,
+ * but the live timeline can still have a hole: the app moves the backward token
+ * to its cache's cursor without adding the cached replies, and after a sync gap
+ * older replies can stay in another segment. So it must also hold as many
+ * thread replies as the SDK counts; its edits and reactions are not replies.
  */
 const hasLoadedEveryThreadReply = (
   thread: VisibleThreadEventCollectionLike | null | undefined
 ): boolean =>
-  !!thread?.id && thread.events?.[0]?.getId() === thread.id && hasLoadedFirstThreadPage(thread);
+  !!thread?.id &&
+  !!thread.events &&
+  thread.events[0]?.getId() === thread.id &&
+  hasLoadedFirstThreadPage(thread) &&
+  getThreadReplyEventsForRoot(thread.events, thread.id).length >= (thread.length ?? 0);
 
 /**
  * A fully loaded thread is counted exactly, so redacting a reply lowers its count.

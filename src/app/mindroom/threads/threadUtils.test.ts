@@ -270,29 +270,55 @@ describe('getVisibleThreadMessageCount', () => {
       makeEvent('$reply-2', '$root', RelationType.Thread),
     ];
 
-    expect(getVisibleThreadMessageCount(makeSdkThread(replies, { length: 24 }))).toBe(24);
+    // Each window holds as many replies as the SDK counts; only the missing root or first page shows it is partial.
+    expect(getVisibleThreadMessageCount(makeSdkThread(replies, { length: 2 }), 24)).toBe(24);
     expect(
       getVisibleThreadMessageCount(
-        makeSdkThread([makeEvent('$root'), ...replies], { length: 24, initialEventsFetched: false })
+        makeSdkThread([makeEvent('$root'), ...replies], { length: 2, initialEventsFetched: false }),
+        24
       )
     ).toBe(24);
     expect(getVisibleThreadMessageCount({ events: replies, timeline: replies }, 24)).toBe(24);
   });
 
-  it('counts a fully loaded thread exactly, so a redacted reply lowers the count', () => {
-    const redactedReply = {
-      ...makeEvent('$reply-2', '$root', RelationType.Thread),
-      isRedacted: () => true,
-    };
-    const thread = makeSdkThread(
-      [makeEvent('$root'), makeEvent('$reply-1', '$root', RelationType.Thread), redactedReply],
-      { length: 2 }
-    );
-
-    expect(getVisibleThreadMessageCount(thread, 2)).toBe(1);
-  });
-
   describe('with an SDK thread', () => {
+    const roomId = '!room:example.org';
+    const message = (eventId: string, ts: number, content = {}) => ({
+      event_id: eventId,
+      room_id: roomId,
+      sender: '@agent:example.org',
+      type: 'm.room.message',
+      origin_server_ts: ts,
+      content: { msgtype: 'm.text', body: eventId, ...content },
+    });
+    const reply = (index: number) =>
+      message(`$reply-${index}`, index * 10, {
+        'm.relates_to': { rel_type: RelationType.Thread, event_id: '$root' },
+      });
+    const edit = (index: number) =>
+      message(`$edit-${index}`, index * 10 + 1, {
+        body: '* edited',
+        'm.new_content': { msgtype: 'm.text', body: 'edited' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: `$reply-${index}` },
+      });
+    /** An unopened listed thread whose server reports `count` replies; `pages` answer its /relations requests. */
+    const listedThread = (count: number, pages: { chunk: object[]; next_batch?: string }[]) => {
+      const root = {
+        ...message('$root', 0),
+        unsigned: { 'm.relations': { 'm.thread': { count, latest_event: reply(count) } } },
+      };
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root as never);
+      const fetchRelations = vi.spyOn(mx, 'fetchRelations');
+      pages.forEach((page) => fetchRelations.mockResolvedValueOnce(page as never));
+      const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });
+      mx.store.storeRoom(room);
+      room.processThreadRoots([mx.getEventMapper()(root)], true);
+      return { mx, room, thread: room.getThread('$root')! };
+    };
+    const ids = (thread: Thread) => thread.events.map((event) => event.getId());
+
     let serverSideSupport: FeatureSupport;
     beforeEach(() => {
       serverSideSupport = Thread.hasServerSideSupport;
@@ -303,47 +329,98 @@ describe('getVisibleThreadMessageCount', () => {
       vi.restoreAllMocks();
     });
 
-    it('counts the loaded replies exactly only once back-pagination reaches the root', async () => {
-      const roomId = '!room:example.org';
-      const message = (eventId: string, ts: number, content = {}) => ({
-        event_id: eventId,
-        room_id: roomId,
-        sender: '@agent:example.org',
-        type: 'm.room.message',
-        origin_server_ts: ts,
-        content: { msgtype: 'm.text', body: eventId, ...content },
-      });
-      const reply = (index: number) =>
-        message(`$reply-${index}`, index, {
-          'm.relates_to': { rel_type: RelationType.Thread, event_id: '$root' },
-        });
-      const root = {
-        ...message('$root', 0),
-        unsigned: { 'm.relations': { 'm.thread': { count: 3, latest_event: reply(3) } } },
-      };
-      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
-      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
-      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root as never);
-      vi.spyOn(mx, 'fetchRelations')
-        .mockResolvedValueOnce({ chunk: [reply(3)], next_batch: 'older' } as never)
-        .mockResolvedValueOnce({ chunk: [reply(2), reply(1)] } as never);
-      const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });
-      mx.store.storeRoom(room);
-      room.processThreadRoots([mx.getEventMapper()(root)], true);
-      const thread = room.getThread('$root')!;
+    it('counts the loaded replies exactly once back-pagination loads the whole thread', async () => {
+      const { mx, room, thread } = listedThread(3, [
+        { chunk: [reply(3)], next_batch: 'older' },
+        { chunk: [reply(2), reply(1)] },
+      ]);
 
       await thread.initialize();
-      expect(thread.events.map((event) => event.getId())).toEqual(['$reply-3']);
-      expect(getVisibleThreadMessageCount(thread)).toBe(3);
-      // The app sets the token from its cache, whose replies are not in the SDK timeline.
-      thread.liveTimeline.setPaginationToken(null, Direction.Backward);
+      expect(ids(thread)).toEqual(['$reply-3']);
       expect(getVisibleThreadMessageCount(thread)).toBe(3);
 
-      thread.liveTimeline.setPaginationToken('older', Direction.Backward);
       await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
-      vi.spyOn(thread.findEventById('$reply-2')!, 'isRedacted').mockReturnValue(true);
-      expect(thread.events[0].getId()).toBe('$root');
+      expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-2', '$reply-3']);
+      expect(getVisibleThreadMessageCount(thread)).toBe(3);
+
+      room.addLiveEvents(
+        [
+          mx.getEventMapper()({
+            ...message('$redaction', 100),
+            type: 'm.room.redaction',
+            redacts: '$reply-2',
+            content: { redacts: '$reply-2' },
+          }),
+        ],
+        { addToState: false }
+      );
       expect(getVisibleThreadMessageCount(thread)).toBe(2);
+    });
+
+    it('keeps the server count when pagination from a cache cursor reaches the root past a hole', async () => {
+      const { mx, thread } = listedThread(5, [
+        { chunk: [reply(5)], next_batch: 'older' },
+        { chunk: [reply(1)] },
+      ]);
+      await thread.initialize();
+      // The app moves the SDK cursor behind its cached replies 2-4, which it never adds to the SDK.
+      thread.liveTimeline.setPaginationToken('cache-cursor', Direction.Backward);
+
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+
+      expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-5']);
+      expect(getVisibleThreadMessageCount(thread)).toBe(5);
+    });
+
+    it('does not count edits as replies when deciding the thread is fully loaded', async () => {
+      const { mx, thread } = listedThread(5, [
+        { chunk: [edit(5), reply(5), edit(4), reply(4)], next_batch: 'older' },
+        { chunk: [edit(1), reply(1)] },
+      ]);
+      await thread.initialize();
+      thread.liveTimeline.setPaginationToken('cache-cursor', Direction.Backward);
+
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+
+      expect(ids(thread)).toEqual([
+        '$root',
+        '$reply-1',
+        '$edit-1',
+        '$reply-4',
+        '$edit-4',
+        '$reply-5',
+        '$edit-5',
+      ]);
+      expect(getVisibleThreadMessageCount(thread)).toBe(5);
+    });
+
+    it('keeps the server count when a sync gap leaves older replies in another segment', async () => {
+      const { mx, room, thread } = listedThread(3, [
+        { chunk: [reply(3), reply(2)], next_batch: 'older' },
+        { chunk: [reply(3), reply(2), reply(1)] },
+      ]);
+      vi.spyOn(mx, 'createMessagesRequest').mockImplementation(
+        async (_room, token, _limit, dir) => ({
+          chunk: [],
+          start: dir === Direction.Backward ? 'messages:' + token : token!,
+          end: dir === Direction.Forward ? 'messages:' + token : token!,
+        })
+      );
+      await thread.initialize();
+      room.resetLiveTimeline('back', 'forward');
+      room.addLiveEvents([mx.getEventMapper()(reply(4))], { addToState: false });
+      await thread.flushPendingTimelineReset();
+
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+
+      expect(ids(thread)).toEqual(['$root', '$reply-4']);
+      expect(
+        thread.liveTimeline
+          .getNeighbouringTimeline(Direction.Backward)
+          ?.getEvents()
+          .map((event) => event.getId())
+      ).toEqual(['$reply-1', '$reply-2', '$reply-3']);
+      expect(getVisibleThreadMessageCount(thread)).toBe(4);
     });
   });
 });

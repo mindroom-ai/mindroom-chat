@@ -263,7 +263,7 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
-  const resolvedFallbackReplyCount = fallbackReplyCount ?? fallbackMessageCount;
+  const resolvedFallbackReplyCount = Math.max(fallbackReplyCount ?? 0, fallbackMessageCount ?? 0);
   const recordReplyCount =
     (resolvedThreadRootEvent
       ? getThreadReplyCount(

@@ -162,13 +162,28 @@ describe('buildThreadRecord', () => {
     expect(record.status.replyCount).toBe(24);
   });
 
+  it('gives the badge the same count as the card when only fallback counts are known', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root' });
+    const room = makeRoom({ rootEvent });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      threadRootEvent: rootEvent,
+      fallbackReplyCount: 1,
+      fallbackMessageCount: 13,
+    });
+
+    expect(record.presentation.messageCount).toBe(13);
+    expect(record.status.replyCount).toBe(13);
+  });
+
   it('counts a fully loaded thread exactly on the card and the badge after a redaction', () => {
+    // The SDK drops a redacted reply from the thread and its count; the root's bundle and the cache still count it.
     const rootEvent = makeRootWithServerCount(2);
-    const [reply, redactedReply] = makeReplies(2);
-    vi.spyOn(redactedReply, 'isRedacted').mockReturnValue(true);
     const room = makeRoom({
       rootEvent,
-      thread: makeSdkThread(rootEvent, [rootEvent, reply, redactedReply], 2),
+      thread: makeSdkThread(rootEvent, [rootEvent, ...makeReplies(1)], 1),
     });
 
     const record = buildThreadRecord({ room, threadRootId: '$root', fallbackMessageCount: 2 });
