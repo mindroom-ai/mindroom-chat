@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Measure the long-message expansion anchor after the sync bar settles (2026-10-05)
+
+- Report: after PR #410, the live `long-message-expansion-default` spec still saw the anchored message land 25 px off after a collapse, inside its 40 px budget.
+- Root cause: the spec, not the anchor. The "Catching up..." bar (`client-sync-status`) sits above the whole app and hides only after the second sync, up to a 30 s long-poll later, moving the whole app up 25 px.
+  The spec took its anchor snapshot after a reload while the bar showed; the bar hid when the test opened Settings, before the toggle. A frame trace showed the anchor landing exactly on the app's reader line.
+- Fix: the spec waits for the bar to go after each page load, and its drift budget drops from 40 px to 2 px.
+- Validation: collapse drift 25 px in 3 of 3 runs before, 0 px in 3 of 3 after; the expand drift stays 0 px.
+  The bar's hide still moves the whole app by 25 px for a user; that is `SyncStatus` layout, separate from the anchor.
+
 ### Live test for typing after a gappy sync (2026-10-05)
 
 - Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.

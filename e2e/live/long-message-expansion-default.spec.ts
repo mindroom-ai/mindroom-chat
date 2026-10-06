@@ -31,7 +31,7 @@ const hasDeployedFixtureEnv =
 const DEPLOYED_BASE_URL = process.env.E2E_DEPLOYED_BASE_URL ?? 'http://127.0.0.1:28090';
 const SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 const REPLY_COUNT = 180;
-const ANCHOR_DRIFT_BUDGET_PX = 40;
+const ANCHOR_DRIFT_BUDGET_PX = 2;
 const MIN_RIDE_TRAVEL_PX = 5_000;
 
 type SeededThread = {
@@ -202,6 +202,9 @@ test.describe('live long-message expansion default', () => {
     );
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
+    // The "Catching up..." bar above the app hides after the second sync and
+    // moves the whole app with it, so measure anchors only once it is gone.
+    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
 
     const showMore = page.locator('[aria-label="Show full message"]');
     const showLess = page.locator('[aria-label="Show less"]');
@@ -272,6 +275,7 @@ test.describe('live long-message expansion default', () => {
     await page.reload();
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
+    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
     await expect(showMore).toHaveCount(0);
     await expect(showLess.first()).toBeVisible();
 
