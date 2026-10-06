@@ -22,7 +22,8 @@ vi.mock('./MindRoomParticleBackground.css', () => ({
   ParticleCanvas: 'particle-canvas',
 }));
 
-// `getContext` stands in for the browser's WebGL2: null when only software WebGL is available.
+// `getContext` stands in for the browser's WebGL2: null when the browser reports a major
+// performance caveat, as Chromium does for its software fallback.
 const stubWebGL2 = (getContext: (type: string, attributes?: object) => unknown) =>
   vi.stubGlobal('document', {
     createElement: () => ({ getContext }),
@@ -76,7 +77,7 @@ describe('MindRoomParticleBackground', () => {
     });
   });
 
-  it('keeps the static background when WebGL2 runs only in software', () => {
+  it('keeps the static background when the browser reports a WebGL2 performance caveat', () => {
     const getContext = vi.fn(() => null);
     stubWebGL2(getContext);
     let renderer: ReactTestRenderer;

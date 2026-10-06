@@ -2,15 +2,16 @@
 
 ## Runbook
 
-### Keep the particle animation off software WebGL (2026-10-06)
+### Keep the particle animation off Chromium's software WebGL (2026-10-06)
 
 - Report: `e2e/account-multitab.spec.ts` ("propagates logout fallback across tabs without crashing") failed once in a full live run: a second tab opened on `/home/` stayed on the startup splash for over 30 s.
 - Root cause: the splash and auth background animates up to 80 000 particles with WebGL2. Where WebGL2 is software (SwiftShader in headless Chromium, the live suite's browser), every frame is drawn on the CPU and the page's main thread waits to read it back, so the animation takes the main thread the starting app needs (IndexedDB load, crypto setup).
   In the failing trace the second tab's startup and the test's own page queries advanced only in bursts between stalls of about 5 s, five in a row; a Chrome trace of the same page with the browser's disk throttled shows the main thread blocked 4.1 s in `GLES2::ReadPixels` during a frame commit. The stalls grow with host load.
-- Fix: `MindRoomParticleBackground` renders the particle canvas only where a WebGL2 context with `failIfMajorPerformanceCaveat: true` can be created (a GPU); elsewhere it keeps the static gradient behind the canvas.
-- Tests: `MindRoomParticleBackground.test.tsx`: no canvas when only software WebGL2 is available (fails without the check).
+- Fix: `MindRoomParticleBackground` renders the particle canvas only where the browser creates a WebGL2 context with `failIfMajorPerformanceCaveat: true`, that is, where it reports no major performance caveat; elsewhere it keeps the static gradient behind the canvas.
+  Chromium rejects that context for its software fallback: SwiftShader (verified in the live suite's headless Chromium) and WARP (per Chromium's source).
+- Tests: `MindRoomParticleBackground.test.tsx`: no canvas when the browser reports a WebGL2 performance caveat (fails without the check).
 - Validation: second tab to its shell under host load, 4 runs each: 1.6–2.0 s with the fix, 4.1–5.4 s on `dev`; with 2 CPUs per browser, 1.6–1.9 s without the canvas against 8.2–9.0 s. `account-multitab.spec.ts` with 1 CPU per browser: 6 of 6 tests pass with the fix, 0 of 6 on `dev` (the first login exceeds its 30 s wait); with 1.5 CPUs and without a limit both pass.
-- Not changed: browsers with a GPU still animate.
+- Not changed: Chromium animates as before wherever it does not report the caveat. Firefox (by default, `webgl.disable-fail-if-major-performance-caveat`) and Safari ignore the attribute and animate as before, also when they render in software.
 - Side effect: headless screenshots of the auth and splash pages (`e2e/live/style-preview.spec.ts`) now show the static gradient.
 
 ### Hide "Catching up..." once the client has caught up (2026-10-06)

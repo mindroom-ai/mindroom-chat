@@ -34,9 +34,12 @@ export function resolveMindRoomParticleCount() {
 }
 
 /**
- * Animate only where WebGL2 runs on a GPU. Software WebGL (SwiftShader in
- * headless Chromium) draws every frame on the CPU, and the main thread waits
- * to read each frame back, which delays the app starting behind the splash.
+ * Animate only when the browser creates WebGL2 without reporting a major
+ * performance caveat. Chromium reports one for its software fallback
+ * (SwiftShader, as in headless Chromium, or WARP), which draws every frame on
+ * the CPU while the main thread waits to read each frame back, delaying the app
+ * starting behind the splash. Firefox (by default) and Safari ignore the
+ * attribute and animate as before.
  */
 export function canAnimateMindRoomParticles() {
   const gl =
