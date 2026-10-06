@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Type image blobs from an allowlist of raster image types (2026-10-05)
+
+- Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
+  An image declared as `image/svg+xml` therefore opened in a new tab as an SVG document on Chat's origin, not as an image.
+- Fix: `getImageBlobSafeMimeType` keeps the declared type only when it is in `IMAGE_MIME_TYPES` (JPEG, GIF, PNG, APNG, WebP, AVIF) and uses `application/octet-stream` otherwise.
+  Browsers sniff raster images in `<img>`, so images with a missing or nonstandard type still render, and opening one in a new tab downloads it.
+  Browsers do not sniff SVG in `<img>`, so `MImage` shows an `image/svg+xml` image as a file tile with a download button, as `MVideo` and `MAudio` do for media they cannot play.
+  `RenderMessageContent` passes `MImage` a tile without the caption, because the image branch already renders the caption after it.
+- Tests: `ImageContent.test.tsx` (an `image/svg+xml` image loads as `application/octet-stream`, a PNG keeps its type), `ThumbnailContent.test.tsx` (an SVG thumbnail loads as `application/octet-stream`), `MsgTypeRenderers.file.test.ts` (an `image/svg+xml` image renders as a file, a PNG as an image), and `RenderMessageContent.test.ts` (a captioned SVG image shows its caption once); each SVG case fails without its fix.
+
 ### Live test for typing after a gappy sync (2026-10-05)
 
 - Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.

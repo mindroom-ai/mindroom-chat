@@ -123,6 +123,10 @@ export const getBlobSafeMimeType = (mimeType: string) => {
   return type;
 };
 
+// Opened in a new tab, an image's blob URL is a document on the app's origin, so it may only carry an inert image type.
+export const getImageBlobSafeMimeType = (mimeType?: string) =>
+  mimeType && IMAGE_MIME_TYPES.includes(mimeType) ? mimeType : FALLBACK_MIMETYPE;
+
 export const safeFile = (f: File) => {
   const safeType = getBlobSafeMimeType(f.type);
   if (safeType !== f.type) {

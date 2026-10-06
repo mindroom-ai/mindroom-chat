@@ -9,6 +9,8 @@ import { ImageContent } from './ImageContent';
 const IMAGE_VIEWER_HISTORY_MARKER = '__cinnyImageViewer';
 
 const mocks = vi.hoisted(() => ({
+  downloadCachedAttachment: vi.fn(),
+  loadSrcCallback: undefined as (() => Promise<string>) | undefined,
   loadSrc: vi.fn(),
   srcState: {
     status: 'success',
@@ -226,7 +228,10 @@ vi.mock('../../../hooks/useAsyncCallback', async () => {
 
   return {
     ...actual,
-    useAsyncCallback: () => [mocks.srcState, mocks.loadSrc],
+    useAsyncCallback: (callback: () => Promise<string>) => {
+      mocks.loadSrcCallback = callback;
+      return [mocks.srcState, mocks.loadSrc];
+    },
   };
 });
 
@@ -237,6 +242,10 @@ vi.mock('../../../hooks/useBlobUrlCleanup', () => ({
 
 vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
+}));
+
+vi.mock('../../../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: mocks.downloadCachedAttachment,
 }));
 
 vi.mock('../../../utils/matrix', () => ({
@@ -252,10 +261,12 @@ describe('ImageContent', () => {
 
   const renderImageContent = ({
     autoOpen = false,
+    mimeType,
     store = createStore(),
     strict = false,
   }: {
     autoOpen?: boolean;
+    mimeType?: string;
     store?: ReturnType<typeof createStore>;
     strict?: boolean;
   }) => {
@@ -264,6 +275,7 @@ describe('ImageContent', () => {
       { store },
       React.createElement(ImageContent, {
         body: 'Test image',
+        mimeType,
         url: 'mxc://mindroom/image',
         renderImage: ({ onClick, ...props }) =>
           autoOpen
@@ -304,6 +316,7 @@ describe('ImageContent', () => {
       data: 'blob:image',
     };
     mocks.loadSrc.mockReset();
+    mocks.downloadCachedAttachment.mockReset();
   });
 
   afterEach(() => {
@@ -320,6 +333,23 @@ describe('ImageContent', () => {
     });
 
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['image/svg+xml', 'application/octet-stream'],
+    ['image/png', 'image/png'],
+  ])('loads an image declared as %s with blob type %s', async (declaredType, blobType) => {
+    mocks.downloadCachedAttachment.mockResolvedValue(new Blob(['image']));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:image');
+    renderImageContent({ mimeType: declaredType });
+
+    await mocks.loadSrcCallback?.();
+
+    expect(mocks.downloadCachedAttachment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mimeType: blobType }),
+      false
+    );
   });
 
   it('pushes one marked history entry when opening the viewer', () => {
