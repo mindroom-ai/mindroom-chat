@@ -26,8 +26,9 @@ export type RideFrame = {
   // Opt-in signed movement of a surviving visible anchor; positive means upward travel.
   visualDeltaPx?: number;
   // Compositor rides: gapPx at this frame's offset over the PREVIOUS frame's
-  // rows, which is what the compositor shows before the main thread mounts
-  // more (undefined when the app wrote the scroll offset in between).
+  // rows, a lower bound of what the compositor shows before the main thread
+  // mounts more (undefined when the app wrote the scroll offset in between,
+  // which only installScrollWriteProbe records).
   leadGapPx?: number;
   driven: number;
   threadCount: number;
@@ -509,10 +510,14 @@ export const startRideSampling = (
           .threadCount ?? -1
       );
     type Span = { top: number; bottom: number };
+    // Content hidden by its own or an ancestor's visibility, opacity or
+    // display paints nothing, so it covers nothing.
+    const shown = (el: Element) =>
+      el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
     const readCovering = (): Span[] => {
-      const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
-        tile.getBoundingClientRect()
-      );
+      const covering = Array.from(scroller.querySelectorAll('[data-index]'))
+        .filter(shown)
+        .map((tile) => tile.getBoundingClientRect());
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
       // that ends above the list's own box counts, so a missing row or a ledger
@@ -522,7 +527,7 @@ export const startRideSampling = (
         const listTop = list.getBoundingClientRect().top;
         Array.from(list.parentElement.children).forEach((child) => {
           const r = child.getBoundingClientRect();
-          if (child !== list && r.bottom <= listTop + 0.5) covering.push(r);
+          if (child !== list && r.bottom <= listTop + 0.5 && shown(child)) covering.push(r);
         });
       }
       return covering.map(({ top, bottom }) => ({ top, bottom }));

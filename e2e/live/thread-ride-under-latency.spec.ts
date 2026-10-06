@@ -314,7 +314,10 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     const gestureFrames = ride.frames.filter((frame) => frame.t <= gestureEnd);
     const intervals = gestureFrames.slice(1);
     const tracked = intervals.filter((frame) => Number.isFinite(frame.visualDeltaPx));
-    const leadTracked = intervals.filter((frame) => Number.isFinite(frame.leadGapPx));
+    // The coverage invariants include the tail: the last fling and late
+    // pagination commits land after gestureEnd.
+    const sampledIntervals = ride.frames.slice(1);
+    const leadTracked = sampledIntervals.filter((frame) => Number.isFinite(frame.leadGapPx));
     const maxLeadGapPx = Math.max(0, ...leadTracked.map((frame) => frame.leadGapPx ?? 0));
     const travelPx = tracked.reduce((sum, frame) => sum + (frame.visualDeltaPx ?? 0), 0);
     const releases = delivery.filter((event) => event.type === 'touchend');
@@ -398,7 +401,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // of raster starvation, so only a token minimum is required.
     expect(ride.frames.length).toBeGreaterThan(100);
     expect(tracked.length).toBeGreaterThanOrEqual(intervals.length * 0.9);
-    expect(leadTracked.length).toBeGreaterThanOrEqual(intervals.length * 0.9);
+    expect(leadTracked.length).toBeGreaterThanOrEqual(sampledIntervals.length * 0.9);
     expect(travelPx).toBeGreaterThanOrEqual(700);
     expect(inertiaPx).toBeGreaterThan(20);
     expect(delivery.every((event) => event.trusted)).toBe(true);
@@ -419,7 +422,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // rides own jump precision via driver-delta separation.
     // Blank PIXELS are logged and attached, not asserted: this host's
     // software rasterizer leaves mounted rows unpainted for a frame or two
-    // after a 600-1700px fling step, and the same flicks blank a static
+    // after a 650-1,740px fling step, and the same flicks blank a static
     // HTML page with no app code (runbook 2026-10-06).
     expect(maxLeadGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
