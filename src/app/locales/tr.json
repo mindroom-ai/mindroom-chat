@@ -68,6 +68,8 @@
         "simpleModeDescription": "Komut paleti ve konu filtreleri gibi gelişmiş özellikleri gizler. Cihazlarınız arasında eşitlenir.",
         "expandLongMessagesByDefault": "Uzun mesajları varsayılan olarak genişlet",
         "expandLongMessagesByDefaultDescription": "Uzun mesajları Tam mesajı göster düğmesinin arkasına katlamak yerine bütünüyle gösterir. Cihazlarınız arasında eşitlenir.",
+        "showCanvasesInSidebar": "Etkileşimli panelleri kenar çubuğunda göster",
+        "showCanvasesInSidebarDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Cihazlarınız arasında eşitlenir.",
         "saveFailed": "Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin."
       },
       "language": {

@@ -75,6 +75,11 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
   await page.setViewportSize({ width: 1600, height: 1000 });
   await loginWithPassword(page, { homeserver: homeserver!, username, password });
 
+  // The sidebar has no Canvases button until there is a canvas.
+  const canvasesButton = page.getByRole('button', { name: 'Canvases', exact: true });
+  await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+  await expect(canvasesButton).toHaveCount(0);
+
   // Canvases are listed as they arrive, without their room being open.
   const tripId = await showCanvas('Trip checklist', fixture.rootId);
   const briefingId = await showCanvas('Morning briefing', null);

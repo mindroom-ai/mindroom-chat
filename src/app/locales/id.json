@@ -68,6 +68,8 @@
         "simpleModeDescription": "Sembunyikan fitur lanjutan seperti palet perintah dan filter utas. Disinkronkan di semua perangkat Anda.",
         "expandLongMessagesByDefault": "Perluas pesan panjang secara default",
         "expandLongMessagesByDefaultDescription": "Tampilkan pesan panjang secara utuh tanpa meringkasnya di balik Tampilkan pesan lengkap. Disinkronkan di semua perangkat Anda.",
+        "showCanvasesInSidebar": "Tampilkan panel interaktif di bilah sisi",
+        "showCanvasesInSidebarDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Disinkronkan di semua perangkat Anda.",
         "saveFailed": "Perubahan tidak dapat disimpan. Periksa koneksi Anda dan coba lagi."
       },
       "language": {

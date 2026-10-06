@@ -68,6 +68,8 @@
         "simpleModeDescription": "コマンド パレットやスレッド フィルターなどの高度な機能を非表示にします。デバイス間で同期されます。",
         "expandLongMessagesByDefault": "長いメッセージをデフォルトで展開する",
         "expandLongMessagesByDefaultDescription": "長いメッセージを「メッセージ全体を表示」の後ろに折りたたむのではなく、完全に表示します。デバイス間で同期されます。",
+        "showCanvasesInSidebar": "サイドバーにインタラクティブパネルを表示する",
+        "showCanvasesInSidebarDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。デバイス間で同期されます。",
         "saveFailed": "変更を保存できませんでした。接続を確認して、もう一度試してください。"
       },
       "language": {

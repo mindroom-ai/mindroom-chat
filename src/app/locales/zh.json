@@ -68,6 +68,8 @@
         "simpleModeDescription": "隐藏命令选项板和讨论串过滤器等高级功能。在您的设备之间同步。",
         "expandLongMessagesByDefault": "默认展开长消息",
         "expandLongMessagesByDefaultDescription": "完整显示长消息，而不是将其折叠为“显示完整消息”。此设置会在您的设备之间同步。",
+        "showCanvasesInSidebar": "在侧边栏显示交互式面板",
+        "showCanvasesInSidebarDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。此设置会在您的设备之间同步。",
         "saveFailed": "无法保存更改。检查您的连接并重试。"
       },
       "language": {

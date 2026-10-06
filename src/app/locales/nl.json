@@ -68,6 +68,8 @@
         "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
         "expandLongMessagesByDefault": "Lange berichten standaard uitklappen",
         "expandLongMessagesByDefaultDescription": "Toont lange berichten volledig in plaats van ze achter ‘Meer tonen’ in te klappen. Gesynchroniseerd tussen je apparaten.",
+        "showCanvasesInSidebar": "Interactieve panelen in de zijbalk tonen",
+        "showCanvasesInSidebarDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."
       },
       "language": {

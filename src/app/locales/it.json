@@ -68,6 +68,8 @@
         "simpleModeDescription": "Nasconde le funzioni avanzate come la tavolozza dei comandi e i filtri dei thread. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "expandLongMessagesByDefault": "Espandi i messaggi lunghi per impostazione predefinita",
         "expandLongMessagesByDefaultDescription": "Mostra per intero i messaggi lunghi anziché comprimerli dietro Mostra messaggio completo. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
+        "showCanvasesInSidebar": "Mostra i pannelli interattivi nella barra laterale",
+        "showCanvasesInSidebarDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "saveFailed": "Impossibile salvare la modifica. Controlla la connessione e riprova."
       },
       "language": {

@@ -68,6 +68,8 @@
         "simpleModeDescription": "Masquez les fonctions avancées telles que la palette de commandes et les filtres de fils. Ce réglage est synchronisé sur vos appareils.",
         "expandLongMessagesByDefault": "Développer les messages longs par défaut",
         "expandLongMessagesByDefaultDescription": "Affichez les messages longs en entier au lieu de les replier derrière Afficher le message complet. Ce réglage est synchronisé sur vos appareils.",
+        "showCanvasesInSidebar": "Afficher les panneaux interactifs dans la barre latérale",
+        "showCanvasesInSidebarDescription": "Affichez un bouton pour les panneaux interactifs de vos agents dès que vous en avez un. Ce réglage est synchronisé sur vos appareils.",
         "saveFailed": "Impossible d'enregistrer la modification. Vérifiez votre connexion et réessayez."
       },
       "language": {

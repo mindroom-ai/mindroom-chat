@@ -6,6 +6,7 @@ import { SidebarNav } from './SidebarNav';
 
 const mocks = vi.hoisted(() => ({
   simpleMode: false,
+  showCanvases: true,
 }));
 
 vi.mock('folds', () => ({
@@ -52,6 +53,7 @@ vi.mock('../../mindroom/sidebar/MindroomTab', () => ({
 
 vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
   useSimpleMode: () => mocks.simpleMode,
+  useShowCanvasesInSidebar: () => mocks.showCanvases,
 }));
 
 const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
@@ -69,6 +71,7 @@ const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boo
 describe('SidebarNav', () => {
   beforeEach(() => {
     mocks.simpleMode = false;
+    mocks.showCanvases = true;
   });
 
   it('shows Threads after Direct Messages and before spaces by default', () => {
@@ -115,6 +118,12 @@ describe('SidebarNav', () => {
     const simple = renderSidebarNav(canvases);
     expect(hasTab(simple, 'canvases')).toBe(true);
     simple.unmount();
+
+    // The user can turn the button off in Settings → General → Interface.
+    mocks.showCanvases = false;
+    const turnedOff = renderSidebarNav(canvases);
+    expect(hasTab(turnedOff, 'canvases')).toBe(false);
+    turnedOff.unmount();
   });
 
   it('keeps Explorer visible in the full interface regardless of the Simple Mode option', () => {

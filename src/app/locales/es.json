@@ -68,6 +68,8 @@
         "simpleModeDescription": "Oculta funciones avanzadas como la paleta de comandos y los filtros de hilos. Se sincroniza entre tus dispositivos.",
         "expandLongMessagesByDefault": "Expandir los mensajes largos de forma predeterminada",
         "expandLongMessagesByDefaultDescription": "Muestra completos los mensajes largos en lugar de plegarlos tras Mostrar mensaje completo. Se sincroniza entre tus dispositivos.",
+        "showCanvasesInSidebar": "Mostrar paneles interactivos en la barra lateral",
+        "showCanvasesInSidebarDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Se sincroniza entre tus dispositivos.",
         "saveFailed": "No se pudo guardar el cambio. Comprueba tu conexión e inténtalo de nuevo."
       },
       "language": {

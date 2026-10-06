@@ -68,6 +68,8 @@
         "simpleModeDescription": "隱藏命令選項板和討論串篩選條件等高階功能。在您的裝置之間同步。",
         "expandLongMessagesByDefault": "預設展開長訊息",
         "expandLongMessagesByDefaultDescription": "完整顯示長訊息，而不是將其折疊為「顯示完整訊息」。此設定會在您的裝置之間同步。",
+        "showCanvasesInSidebar": "在側邊欄顯示互動式面板",
+        "showCanvasesInSidebarDescription": "有互動式面板後，顯示一個按鈕來查看代理程式為您建立的面板。此設定會在您的裝置之間同步。",
         "saveFailed": "無法儲存變更。檢查您的連線並重試。"
       },
       "language": {

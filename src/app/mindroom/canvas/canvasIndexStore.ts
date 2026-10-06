@@ -105,3 +105,12 @@ export const listCanvases = async (sessionId: string): Promise<CanvasListEntry[]
     db.close();
   }
 };
+
+export const hasCanvases = async (sessionId: string): Promise<boolean> => {
+  const db = await openIndexDb(sessionId);
+  try {
+    return (await db.count('canvases')) > 0;
+  } finally {
+    db.close();
+  }
+};

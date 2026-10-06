@@ -22,7 +22,10 @@ import {
 import { CreateTab } from './sidebar/CreateTab';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
-import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
+import {
+  useShowCanvasesInSidebar,
+  useSimpleMode,
+} from '../../mindroom/settings/useMindroomAccountSettings';
 
 export function SidebarNav({
   footer,
@@ -38,8 +41,9 @@ export function SidebarNav({
   const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
   const showThreads = !simpleMode && (sidebar?.showThreads ?? true);
-  // Canvases come from agents in any interface mode, so the list follows the deployment's switch.
-  const showCanvases = mindroom?.canvas?.enabled === true;
+  // Canvases come from agents in any interface mode; the user can still turn the button off.
+  const canvasesWanted = useShowCanvasesInSidebar();
+  const showCanvases = mindroom?.canvas?.enabled === true && canvasesWanted;
   const showExploreCommunity = simpleMode
     ? sidebar?.showExploreCommunityInSimpleMode ?? false
     : sidebar?.showExploreCommunity ?? true;

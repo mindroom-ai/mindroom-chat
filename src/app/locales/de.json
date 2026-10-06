@@ -68,6 +68,8 @@
         "simpleModeDescription": "Blendet erweiterte Funktionen wie die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
         "expandLongMessagesByDefault": "Lange Nachrichten standardmäßig aufklappen",
         "expandLongMessagesByDefaultDescription": "Zeigt lange Nachrichten vollständig an, anstatt sie hinter „Mehr anzeigen“ einzuklappen. Wird zwischen deinen Geräten synchronisiert.",
+        "showCanvasesInSidebar": "Interaktive Panels in der Seitenleiste anzeigen",
+        "showCanvasesInSidebarDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Wird zwischen deinen Geräten synchronisiert.",
         "saveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
       },
       "language": {

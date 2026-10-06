@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ClientEvent,
   Direction,
@@ -23,10 +23,12 @@ import {
 import {
   type CanvasListEntry,
   forgetCanvas,
+  hasCanvases,
   listCanvases,
   recordCanvas,
   recordCanvasUpdate,
   replaceDeletedVersion,
+  subscribeCanvasList,
 } from './canvasIndexStore';
 
 export const canvasSessionId = (mx: MatrixClient): string =>
@@ -117,6 +119,28 @@ const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void>
   // come in while the canvas loaded.
   if (entry) await replaceDeletedVersion(sessionId, deletedId, entry);
 };
+
+/** Whether this session lists any canvas, kept current as the list changes. */
+export function useHasListedCanvases(mx: MatrixClient): boolean {
+  const sessionId = canvasSessionId(mx);
+  const [listed, setListed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = () => {
+      hasCanvases(sessionId).then(
+        (value) => alive && setListed(value),
+        () => undefined
+      );
+    };
+    check();
+    const unsubscribe = subscribeCanvasList(check);
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, [sessionId]);
+  return listed;
+}
 
 /** Keeps the Canvases page's list current with every canvas this client sees, on any route. */
 export function useCanvasIndexRecorder(mx: MatrixClient, enabled: boolean): void {
