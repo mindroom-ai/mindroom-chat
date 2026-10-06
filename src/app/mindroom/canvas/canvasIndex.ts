@@ -120,26 +120,38 @@ const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void>
   if (entry) await replaceDeletedVersion(sessionId, deletedId, entry);
 };
 
+// The last answer per session: a remounted sidebar starts from it instead of popping the button in.
+const listedBySession = new Map<string, boolean>();
+
 /** Whether this session lists any canvas, kept current as the list changes. */
 export function useHasListedCanvases(mx: MatrixClient): boolean {
   const sessionId = canvasSessionId(mx);
-  const [listed, setListed] = useState(false);
+  const [listed, setListed] = useState<{ sessionId: string; value: boolean }>();
   useEffect(() => {
     let alive = true;
+    let timer: number | undefined;
     const check = () => {
       hasCanvases(sessionId).then(
-        (value) => alive && setListed(value),
+        (value) => {
+          listedBySession.set(sessionId, value);
+          if (alive) setListed({ sessionId, value });
+        },
         () => undefined
       );
     };
     check();
-    const unsubscribe = subscribeCanvasList(check);
+    // Sync can list many canvases at once; one count follows each burst.
+    const unsubscribe = subscribeCanvasList(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(check, 100);
+    });
     return () => {
       alive = false;
+      window.clearTimeout(timer);
       unsubscribe();
     };
   }, [sessionId]);
-  return listed;
+  return listed?.sessionId === sessionId ? listed.value : listedBySession.get(sessionId) ?? false;
 }
 
 /** Keeps the Canvases page's list current with every canvas this client sees, on any route. */

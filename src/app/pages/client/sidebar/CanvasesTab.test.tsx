@@ -58,10 +58,11 @@ const render = async (path = '/home/') => {
   await settle();
 };
 
+// Longer than the 100 ms the tab waits after list changes.
 const settle = () =>
   act(async () => {
     await new Promise((resolve) => {
-      setTimeout(resolve, 20);
+      setTimeout(resolve, 150);
     });
   });
 
@@ -93,6 +94,35 @@ describe('CanvasesTab', () => {
       })
     );
     await settle();
+    expect(tab()).not.toBeNull();
+  });
+
+  it('starts from the last answer when the sidebar mounts again', async () => {
+    await act(async () =>
+      recordCanvas(createSessionId(HOMESERVER, VIEWER), {
+        canvasId: '$canvas',
+        roomId: '!room:example.org',
+        agentUserId: '@mindroom_planner:example.org',
+        title: 'Plans',
+        revisionId: '$canvas',
+        createdTs: 1,
+        updatedTs: 1,
+        shared: false,
+      })
+    );
+    await render();
+    expect(tab()).not.toBeNull();
+    act(() => root?.unmount());
+    // No wait for IndexedDB: phones rebuild the sidebar on every navigation screen.
+    container = document.createElement('div');
+    root = createRoot(container);
+    act(() =>
+      root!.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <CanvasesTab />
+        </MemoryRouter>
+      )
+    );
     expect(tab()).not.toBeNull();
   });
 
