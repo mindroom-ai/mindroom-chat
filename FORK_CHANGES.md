@@ -18,11 +18,12 @@
   `threadRecord.test.ts` checks that a partly loaded thread shows its total on the card and the badge, that a cached count does not hide the root's server count before the SDK has the thread, and that a fully loaded thread is exact on both after a redaction.
   The partly loaded, cached-count and SDK thread cases fail on `dev`; the fully loaded cases pass on both and keep the exact count.
   The "merges canonical presentation and status data" test in `threadRecord.test.ts` loads 2 replies of an SDK thread of 99; it expected a count of 8 (from the summary) and an expected reply count of 2, which was this bug, and now expects 99 for both.
-- Validation: VALIDATION_PLACEHOLDER
+- Validation: `npm test` passes 6,432 of 6,435 tests across 685 files; the other 3 are in `xcodeCloudPostClone.test.ts`, which runs `#!/bin/bash` scripts and fails on this NixOS host without `/bin/bash`, unrelated to this change.
+  Typecheck, the production build, lint (0 errors, 18 existing warnings) and Prettier on the touched files pass.
 - Not changed:
   - Until a thread is fully loaded, its count can run high: the server's `m.thread` count also counts tool approval responses (`io.mindroom.tool_approval_response`), which are thread events but not shown.
   - It also runs high after a reply is redacted on a server whose `m.thread` count keeps counting redacted replies (Tuwunel before its `mindroom-tuwunel` fix; see "Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)").
-  - The overview cache hydration still counts at most 32 cached events; that count is now only one of the counts the largest is taken from.
+  - The overview cache hydration still counts at most 32 cached events; that count no longer hides a larger one.
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
