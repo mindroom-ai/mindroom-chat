@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Escape emote URLs in sent formatted bodies (2026-10-05)
+
+- Problem: the composer's HTML output wrote a custom emote's URL into the `src` attribute of its `<img data-mx-emoticon>` unescaped, while the shortcode in `alt` and `title` was escaped.
+  Emote URLs come from image packs in room state, so a pack URL containing `"` ended the attribute and the rest of the URL went into the sent `formatted_body` as markup.
+- Fix: `elementToCustomHtml` (`src/app/components/editor/output.ts`) escapes the URL with `sanitizeText`, as it already does for the shortcode; ordinary `mxc://` URLs are unchanged.
+- Tests: `emoticon.test.ts` checks that an emote URL containing `"` and tags serializes as one `<img>` with the escaped URL in `src`; it fails without the fix.
+
 ### Load power-tag icons only from mxc URLs (2026-10-05)
 
 - Problem: `getPowerTagIconSrc` returned any `icon.key` from `in.cinny.room.power_level_tags` that did not start with `mxc://` unchanged, and `PowerIcon` renders every non-emoji value as `<img src>`.
