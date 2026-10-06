@@ -333,7 +333,7 @@ Native iOS push plumbing is included in this fork (`@capacitor/push-notification
 The bundled `config.mindroom.json` already turns `push.ios` on for MindRoom's own app (`chat.mindroom.app`) and push gateway.
 For your own app build:
 
-1. Set your bundle ID and gateway in `push.ios` in `config.mindroom.json`, which iOS builds bundle:
+1. Set `appId` and `gatewayUrl` in `push.ios` in `config.mindroom.json`, which iOS builds bundle; `appId` is the ID your push gateway knows the app by, conventionally its bundle ID:
 
 ```json
 {
@@ -354,7 +354,7 @@ For your own app build:
 2. Rebuild and sync the iOS project after config or dependency changes: `npm run build:ios && npx cap sync ios`.
 3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
 4. Run the app on a physical iPhone and enable `Settings → Notifications → iOS Push Notifications` inside MindRoom Chat.
-5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
+5. Ensure your Matrix push gateway has an app entry named after the same `appId` that accepts APNs tokens for your app.
 
 `format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and message preview for unencrypted rooms.
 Omitting it uses the privacy-preserving `event_id_only` fallback.

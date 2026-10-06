@@ -53,37 +53,7 @@ Or open `ios/App/App.xcworkspace` directly in Xcode.
 
 ## iOS Push Notifications Setup (APNs + Matrix)
 
-This project includes native iOS push registration via Capacitor and Matrix pusher provisioning.
-
-1. Configure `config.json`:
-
-```json
-{
-  "push": {
-    "ios": {
-      "enabled": true,
-      "appId": "chat.mindroom.app",
-      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
-      "appDisplayName": "MindRoom Chat iOS",
-      "deviceDisplayName": "MindRoom Chat iOS",
-      "append": true,
-      "format": "full"
-    }
-  }
-}
-```
-
-2. Run `npx cap sync ios`.
-3. In Xcode, open `App` target → `Signing & Capabilities` and verify `Push Notifications` is present.
-4. Run on a physical iPhone (APNs does not fully validate in simulator).
-5. In-app, go to `Settings -> Notifications -> iOS Push Notifications` and enable it.
-
-Server-side requirement: your Matrix push gateway (for example Sygnal-compatible) must be configured
-to map this app/bundle/APNs environment and forward notifications to APNs.
-
-Full payloads are an explicit opt-in and provide sender and message previews for unencrypted rooms;
-omitting `format` uses the privacy-preserving `event_id_only` fallback. Encrypted-room pushes stay
-generic because the homeserver and push gateway cannot decrypt their message content.
+See [iOS push notifications](../README.md#native-apps) in the README, which owns the push setup: the bundled `config.mindroom.json`, the rebuild and sync steps, and the gateway requirements.
 
 ## Archive for TestFlight / App Store
 
