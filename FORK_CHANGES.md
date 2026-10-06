@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Live test for typing after a gappy sync (2026-10-05)
+
+- Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
+  The browser goes offline while 30 messages arrive (the sync timeline limit is 20), comes back on a `limited: true` sync, and another member's typing start and stop must still show.
+- Validation: passes on `dev` (2 of 2, 43 s); with #402's SDK line reverted it fails 2 of 2 at the typing check after the gap, after typing showed before it.
+
 ### Drop a redacted thread summary from the thread title (2026-10-05)
 
 - Problem: after an `io.mindroom.thread_summary` notice was redacted, clients that had received it kept showing its text as the thread title in the overview and the thread banner, and kept it in the IndexedDB `thread_summaries` store across reloads until a newer summary replaced it.
