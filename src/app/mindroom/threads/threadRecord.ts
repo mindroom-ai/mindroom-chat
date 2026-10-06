@@ -263,7 +263,10 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
-  const resolvedFallbackReplyCount = Math.max(fallbackReplyCount ?? 0, fallbackMessageCount ?? 0);
+  const resolvedFallbackReplyCount =
+    fallbackReplyCount === undefined && fallbackMessageCount === undefined
+      ? undefined
+      : Math.max(fallbackReplyCount ?? 0, fallbackMessageCount ?? 0);
   const recordReplyCount =
     (resolvedThreadRootEvent
       ? getThreadReplyCount(
@@ -272,9 +275,7 @@ export const buildThreadRecord = ({
           resolvedFallbackReplyCount,
           zeroReplyThreadRoot
         )
-      : undefined) ??
-    fallbackReplyCount ??
-    fallbackMessageCount;
+      : undefined) ?? resolvedFallbackReplyCount;
   const isKnownThreadRoot =
     (typeof recordReplyCount === 'number' && (recordReplyCount > 0 || zeroReplyThreadRoot)) ||
     typeof fallbackReplyCount === 'number' ||

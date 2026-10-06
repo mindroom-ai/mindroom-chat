@@ -341,7 +341,7 @@ describe('getVisibleThreadMessageCount', () => {
 
       await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
       expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-2', '$reply-3']);
-      expect(getVisibleThreadMessageCount(thread)).toBe(3);
+      expect(getVisibleThreadMessageCount(thread, 5)).toBe(3);
 
       room.addLiveEvents(
         [
@@ -354,7 +354,7 @@ describe('getVisibleThreadMessageCount', () => {
         ],
         { addToState: false }
       );
-      expect(getVisibleThreadMessageCount(thread)).toBe(2);
+      expect(getVisibleThreadMessageCount(thread, 5)).toBe(2);
     });
 
     it('keeps the server count when pagination from a cache cursor reaches the root past a hole', async () => {
