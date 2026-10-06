@@ -15,7 +15,7 @@ import { isRecord } from '../../utils/isRecord';
 import { isEventOrderedAfter } from '../../utils/room';
 import {
   CHAT_UI_ACTION_KEY,
-  readCanvas,
+  readCanvasEdit,
   readCanvasVersion,
   readChatUiAction,
 } from '../ui-actions/chatUiProtocol';
@@ -46,15 +46,25 @@ export const recordCanvasEvent = (
   const relation = event.getRelation();
   if (relation?.rel_type === RelationType.Replace) {
     const newContent = content['m.new_content'];
-    const update = isRecord(newContent) ? newContent[CHAT_UI_ACTION_KEY] : undefined;
-    const canvas = isRecord(update) && update.action === 'show_canvas' && readCanvas(update.canvas);
-    if (!canvas || !relation.event_id) return undefined;
+    // Only canvas updates reach the store; agents stream many other edits.
+    if (!relation.event_id || !isRecord(newContent) || !isRecord(newContent[CHAT_UI_ACTION_KEY])) {
+      return undefined;
+    }
+    // The panel's rule for an update, held against the authority the listed request carries.
     return recordCanvasUpdate(
       canvasSessionId(mx),
       relation.event_id,
-      sender,
-      canvas.title,
-      event.getTs()
+      event.getTs(),
+      (known) =>
+        readCanvasEdit(event, known.agentUserId, {
+          version: 1,
+          action: 'show_canvas',
+          requester_id: mx.getSafeUserId(),
+          agent_user_id: known.agentUserId,
+          room_id: known.roomId,
+          thread_id: known.threadId ?? null,
+          ...(known.shared ? { share_state: true } : {}),
+        })?.canvas.title
     );
   }
   if (!isRecord(content[CHAT_UI_ACTION_KEY])) return undefined;

@@ -70,19 +70,17 @@ export const recordCanvas = (sessionId: string, entry: CanvasListEntry): Promise
     );
   });
 
-/** Applies an update of a listed canvas, when its agent sent it and it is the newest seen. */
+/** Applies an update of a listed canvas when it is the newest seen and `titleFor` accepts it. */
 export const recordCanvasUpdate = (
   sessionId: string,
   canvasId: string,
-  sender: string,
-  title: string,
-  ts: number
+  ts: number,
+  titleFor: (known: CanvasListEntry) => string | undefined
 ): Promise<void> =>
   write(sessionId, async (store) => {
     const known = await store.get(canvasId);
-    if (known?.agentUserId === sender && ts >= known.updatedTs) {
-      await store.put({ ...known, title, updatedTs: ts });
-    }
+    const title = known && ts >= known.updatedTs ? titleFor(known) : undefined;
+    if (known && title !== undefined) await store.put({ ...known, title, updatedTs: ts });
   });
 
 export const forgetCanvas = (sessionId: string, canvasId: string): Promise<void> =>

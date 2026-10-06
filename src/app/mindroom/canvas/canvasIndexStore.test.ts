@@ -47,18 +47,23 @@ describe('canvasIndexStore', () => {
     ]);
   });
 
-  it('applies an update from the canvas agent when it is the newest', async () => {
+  it('applies an update its check accepts, when it is the newest', async () => {
     await recordCanvas('session-a', entry({ updatedTs: 5 }));
-    await recordCanvasUpdate('session-a', '$canvas', '@mallory:example.org', 'Forged', 9);
-    await recordCanvasUpdate('session-a', '$canvas', AGENT, 'Older', 4);
+    const check = vi.fn((known: CanvasListEntry) =>
+      known.title === 'Plans' ? 'Plans v2' : undefined
+    );
+    await recordCanvasUpdate('session-a', '$canvas', 9, () => undefined);
+    await recordCanvasUpdate('session-a', '$canvas', 4, check);
+    expect(check).not.toHaveBeenCalled();
     expect((await listCanvases('session-a'))[0]).toMatchObject({ title: 'Plans', updatedTs: 5 });
-    await recordCanvasUpdate('session-a', '$canvas', AGENT, 'Plans v2', 6);
+    await recordCanvasUpdate('session-a', '$canvas', 6, check);
+    expect(check).toHaveBeenCalledWith(entry({ updatedTs: 5 }));
     expect((await listCanvases('session-a'))[0]).toMatchObject({
       title: 'Plans v2',
       updatedTs: 6,
     });
     // An update of a canvas not listed has nothing to apply to.
-    await recordCanvasUpdate('session-a', '$unknown', AGENT, 'Lost', 7);
+    await recordCanvasUpdate('session-a', '$unknown', 7, () => 'Lost');
     expect(await listCanvases('session-a')).toHaveLength(1);
   });
 
@@ -73,7 +78,7 @@ describe('canvasIndexStore', () => {
     const unsubscribe = subscribeCanvasList(listener);
     await recordCanvas('session-a', entry());
     await recordCanvas('session-a', entry());
-    await recordCanvasUpdate('session-a', '$canvas', AGENT, 'Plans v2', 2);
+    await recordCanvasUpdate('session-a', '$canvas', 2, () => 'Plans v2');
     expect(listener).toHaveBeenCalledTimes(3);
     unsubscribe();
     await forgetCanvas('session-a', '$canvas');

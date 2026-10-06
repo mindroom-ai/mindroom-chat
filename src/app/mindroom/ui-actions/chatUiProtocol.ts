@@ -103,7 +103,7 @@ const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined =>
   return isMxc(value.url) ? { mxcUrl: value.url, size: value.size } : undefined;
 };
 
-export const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
+const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
   if (!record(value) || typeof value.title !== 'string') return undefined;
   const title = value.title.trim();
   if (!title || title.length > MAX_CANVAS_TITLE_LENGTH) return undefined;
@@ -138,7 +138,7 @@ export type LatestCanvas = {
  * ones, thread backfill) without checking their sender, so this checks it again, and an edit may
  * change only the canvas itself; anything else keeps the original canvas.
  */
-const readCanvasEdit = (
+export const readCanvasEdit = (
   edit: MatrixEvent | null | undefined,
   sender: string,
   original: Record<string, unknown>

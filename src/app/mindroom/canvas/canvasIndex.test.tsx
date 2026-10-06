@@ -52,7 +52,10 @@ const request = ({ id = '$canvas', ts = 1, extra = {} as Record<string, unknown>
     },
   });
 
-const edit = (title: string, { id = '$edit', ts = 2, sender = AGENT } = {}) =>
+const edit = (
+  title: string,
+  { id = '$edit', ts = 2, sender = AGENT, extra = {} as Record<string, unknown> } = {}
+) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM_ID,
@@ -65,7 +68,7 @@ const edit = (title: string, { id = '$edit', ts = 2, sender = AGENT } = {}) =>
       'm.new_content': {
         msgtype: 'm.notice',
         body: `Interactive panel: ${title}.`,
-        'io.mindroom.ui_action': metadata(title),
+        'io.mindroom.ui_action': metadata(title, extra),
       },
       'm.relates_to': { rel_type: 'm.replace', event_id: '$canvas' },
     },
@@ -178,6 +181,12 @@ describe('recordCanvasEvent', () => {
     const { mx } = fixture();
     await recordCanvasEvent(mx, request());
     await recordCanvasEvent(mx, edit('Forged', { id: '$forged', ts: 9, sender: '@m:example.org' }));
+    // The panel ignores an update that changes what the request is; so does the list.
+    await recordCanvasEvent(
+      mx,
+      edit('Moved', { id: '$moved', ts: 4, extra: { thread_id: '$elsewhere' } })
+    );
+    expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans', updatedTs: 1 });
     await recordCanvasEvent(mx, edit('Plans v2', { ts: 5 }));
     expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans v2', updatedTs: 5 });
   });
