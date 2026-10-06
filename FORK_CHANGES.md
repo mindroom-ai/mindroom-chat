@@ -8,7 +8,7 @@
 - Root cause: `useTimelineBulkExpansionAnchor` took the reader's top as 8 px below the scroller's top and ignored the sticky header and banner over it (the scroller's `scroll-padding-top`).
   For a message that fills the view, the anchor is its visible top, so the restore put the message's top on that line, under the glass. A message hidden under the headers also counted as visible.
 - Fix: the reader's top is 8 px below `scroll-padding-top`, the line the scroll ledger and explicit jumps already use.
-- Tests: `useTimelineBulkExpansionAnchor.test.ts` (a message filling the view under a 150 px header is restored below it; fails on `dev`).
+- Tests: `useTimelineBulkExpansionAnchor.test.ts` (a message filling the view under a 150 px header is restored below it, and a message whose top is under the header is not the anchor; each fails without its half of the fix).
   `long-message-expansion-default` measures its anchor from the same line; its collapse-from-a-tall-message check fails on `dev` (the message lands 175 px off, behind the banner) and passes with the fix (25 px, the same residual `dev` shows against its old line, inside the 40 px budget).
 
 ### Drop a redacted thread summary from the thread title (2026-10-05)

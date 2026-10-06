@@ -128,4 +128,25 @@ describe('timeline bulk expansion anchor', () => {
     restoreTimelineBulkExpansionAnchor(scroller, anchor!);
     expect(scroller.scrollTop).toBe(2_172);
   });
+
+  it('does not anchor a message whose top is under the sticky headers', () => {
+    scrollPaddingTop = 150;
+    const scroller = makeScroller({
+      messages: [
+        {
+          dataset: { messageId: '$under' },
+          getBoundingClientRect: () => rect(220, 320),
+        },
+        {
+          dataset: { messageId: '$tall' },
+          getBoundingClientRect: () => rect(330, 2_000),
+        },
+      ],
+    });
+
+    expect(captureTimelineBulkExpansionAnchor(scroller, 5)).toMatchObject({
+      messageId: '$tall',
+      top: 330,
+    });
+  });
 });
