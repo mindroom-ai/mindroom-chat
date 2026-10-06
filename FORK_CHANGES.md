@@ -4,13 +4,13 @@
 
 ### Hide "Catching up..." once the client has caught up (2026-10-06)
 
-- Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s.
-- Root cause: the catch-up rule (`isInitialClientCatchupInProgress`, copied in `SyncStatus`) waited for a sync whose previous state was already `Syncing`. The first sync after startup or a reconnect returns everything queued; the next is a full 30 s long-poll on a quiet account, so the rule ended one long-poll late.
+- Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.
+- Root cause: the catch-up rule (`isInitialClientCatchupInProgress`, copied in `SyncStatus` and `messageSearchScope`) waited for a sync whose previous state was already `Syncing`. The first sync after startup or a reconnect returns everything queued; the next is a full 30 s long-poll on a quiet account, so the rule ended one long-poll late.
   `SyncStatus` and `useInitialClientCatchup` also started from no state, ignoring the state the client was already in: the bar was missing after a cached load until the next sync event, and a room opened after startup deferred its empty overview until the next sync.
-- Fix: the client is caught up once a `Syncing` state's SDK data says `catchingUp: false` (the SDK keeps it true while the server still has to-device messages queued, so encrypted accounts with a key backlog stay "catching up" until it clears).
-  One hook, `useClientSyncStateData`, reads the client's current state on mount and follows `ClientEvent.Sync`; `SyncStatus`, `ClientRoot` and `useInitialClientCatchup` share it and the rule. `messageSearchScope` keeps its own copy of the old rule.
-- Tests: `SyncStatus.test.tsx` (the bar ends on the first caught-up sync, stays while to-device messages are queued, ends after a reconnect's catch-up, and shows the state the client is in at mount; the first and last fail on `dev`).
-  `RoomTimeline.cache.test.ts`: an already caught-up client shows the empty overview at once (fails on `dev`); three tests of the deferred overview now set the client in catch-up explicitly instead of relying on the hook ignoring its state.
+- Fix: the client is caught up once a `Syncing` state's SDK data says `catchingUp: false`. The SDK keeps it true while the server still has to-device messages queued, so an encrypted account with a key backlog now stays "catching up" until the backlog is drained (each of those polls returns at once); before, the second sync ended it.
+  One hook, `useClientSyncStateData`, reads the client's current state on mount and follows `ClientEvent.Sync`; `SyncStatus`, `ClientRoot`, `useInitialClientCatchup` and `MessageSearch` share it and the rule, and the search copy of the rule is deleted.
+- Tests: `SyncStatus.test.tsx` (the bar ends on the first caught-up sync after startup, stays while to-device messages are queued, ends after a reconnect's catch-up, and shows the state the client is in at mount; all but the queued case fail on `dev`).
+  `RoomTimeline.cache.test.ts`: an already caught-up client shows the empty overview at once (fails on `dev`); the deferred-overview tests now set the client in catch-up explicitly instead of relying on the hook ignoring its state.
 - Validation: live, cached reload: the bar showed 30 020 ms with 2 layout moves on `dev`, 157 ms with 1 move with the fix; fresh login unchanged.
 
 ### Link only http(s) registration terms URLs (2026-10-05)

@@ -1780,6 +1780,7 @@ describe('RoomTimeline', () => {
 
     it('shows a real zero-thread overview after initial client sync settles', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      matrixClientMock.getSyncState.mockReturnValue('PREPARED');
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
@@ -1794,9 +1795,10 @@ describe('RoomTimeline', () => {
         );
         await flushAsyncWork(5);
       });
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
 
       await act(async () => {
-        emitClientSync();
+        emitClientSync('SYNCING', 'PREPARED');
         await flushAsyncWork(2);
       });
 

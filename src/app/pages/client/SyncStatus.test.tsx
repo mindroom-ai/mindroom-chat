@@ -89,6 +89,16 @@ describe('SyncStatus', () => {
     expect(text()).toBe('Catching up...');
   });
 
+  it('stops catching up on the first sync after startup that has caught up', () => {
+    const { mx, emitSync } = createClient();
+    const text = render(mx);
+    emitSync(SyncState.Prepared, null);
+    expect(text()).toBe('Catching up...');
+
+    emitSync(SyncState.Syncing, SyncState.Prepared, false);
+    expect(text()).toBe('');
+  });
+
   it('stops catching up once the SDK has caught up, without waiting for another sync', () => {
     const { mx, emitSync } = createClient();
     const text = render(mx);

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, Box, Icon, Icons, config, Spinner, IconButton, Line, toRem } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -35,12 +35,11 @@ import { VirtualTile } from '../../components/virtualizer';
 import { shouldFetchNextMessageSearchPage } from './messageSearchPagination';
 import { getMessageSearchRenderState } from './messageSearchRenderState';
 import {
-  isInitialMessageSearchCatchupInProgress,
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
 import { flattenMessageSearchRows, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT } from './messageSearchRows';
-import { useSyncState } from '../../hooks/useSyncState';
+import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
 
 const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSearchParams =>
   useMemo(
@@ -84,13 +83,6 @@ export function MessageSearch({
   const [searchParams, setSearchParams] = useSearchParams();
   const searchPathSearchParams = useSearchPathSearchParams(searchParams);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
-  const [syncStateData, setSyncStateData] = useState<{
-    current: ReturnType<typeof mx.getSyncState>;
-    previous: ReturnType<typeof mx.getSyncState> | undefined;
-  }>({
-    current: mx.getSyncState(),
-    previous: undefined,
-  });
   const [implicitRoomsReady, setImplicitRoomsReady] = useState(false);
 
   const searchParamRooms = useMemo(() => {
@@ -119,26 +111,7 @@ export function MessageSearch({
     return undefined;
   }, [searchPathSearchParams.senders]);
   const hasExplicitRooms = !!normalizedSearchParamRooms;
-  const initialCatchupInProgress = useMemo(
-    () => isInitialMessageSearchCatchupInProgress(syncStateData),
-    [syncStateData]
-  );
-
-  useSyncState(
-    mx,
-    useCallback((current, previous) => {
-      setSyncStateData((state) => {
-        if (state.current === current && state.previous === previous) {
-          return state;
-        }
-
-        return {
-          current,
-          previous,
-        };
-      });
-    }, [])
-  );
+  const initialCatchupInProgress = useInitialClientCatchup(mx);
 
   useEffect(() => {
     const hasTerm = !!searchPathSearchParams.term;

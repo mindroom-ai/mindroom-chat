@@ -13,6 +13,11 @@ const readClientSyncStateData = (mx: MatrixClient | undefined): ClientSyncStateD
   catchingUp: mx?.getSyncStateData?.()?.catchingUp,
 });
 
+const keepIfSame =
+  (next: ClientSyncStateData) =>
+  (state: ClientSyncStateData): ClientSyncStateData =>
+    state.current === next.current && state.catchingUp === next.catchingUp ? state : next;
+
 // The client has caught up once a sync reports nothing left to catch up on.
 export const isInitialClientCatchupInProgress = ({
   current,
@@ -28,17 +33,13 @@ export const useClientSyncStateData = (mx: MatrixClient | undefined): ClientSync
   const [stateData, setStateData] = useState(() => readClientSyncStateData(mx));
 
   useEffect(() => {
-    setStateData(readClientSyncStateData(mx));
+    setStateData(keepIfSame(readClientSyncStateData(mx)));
   }, [mx]);
 
   useSyncState(
     mx,
     useCallback((current, _previous, data) => {
-      setStateData((state) =>
-        state.current === current && state.catchingUp === data?.catchingUp
-          ? state
-          : { current, catchingUp: data?.catchingUp }
-      );
+      setStateData(keepIfSame({ current, catchingUp: data?.catchingUp }));
     }, [])
   );
 
