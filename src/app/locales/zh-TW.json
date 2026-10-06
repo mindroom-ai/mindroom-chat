@@ -2958,6 +2958,7 @@
       "send": "傳送",
       "discard": "丟棄",
       "disclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此面板。",
+      "sharedNotice": "已儲存在此聊天室：{{agent}} 和此處的其他人可以讀取您輸入的內容。",
       "sending": "正在傳送給 {{agent}}…",
       "sent": "已傳送給 {{agent}}：{{label}}",
       "sendFailed": "無法傳送您的回覆。請重試。",

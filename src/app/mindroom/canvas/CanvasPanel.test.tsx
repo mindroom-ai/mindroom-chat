@@ -260,6 +260,40 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('what you enter here may leave this panel');
   });
 
+  it('tells the user, whatever else the footer shows, when the room can read what they enter', () => {
+    render({ shared: true });
+    expect(container.textContent).toContain(
+      'Saved in this room: Planner and others here can read what you enter.'
+    );
+    expect(container.textContent).toContain('what you enter here may leave this panel');
+  });
+
+  it("says whether a save follows the user's work in the page", async () => {
+    const onSaveState = vi.fn();
+    render({ onSaveState });
+    // Saved as the page loads: the user has not worked in it.
+    await post({ type: 'mindroom.canvas.state', version: 1, json: '{"defaults":true}' });
+    const focused = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(frame());
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    focused.mockRestore();
+    // Saved after the user worked in it, even once focus has moved on.
+    await post({ type: 'mindroom.canvas.state', version: 1, json: '{"done":["tent"]}' });
+    // Where the browser can tell, its user activation wins: a page's own focus() is not the user.
+    await post({
+      type: 'mindroom.canvas.state',
+      version: 1,
+      json: '{"focused":true}',
+      user: false,
+    });
+    expect(onSaveState.mock.calls).toEqual([
+      [{ json: '{"defaults":true}' }, false],
+      [{ json: '{"done":["tent"]}' }, true],
+      [{ json: '{"focused":true}' }, false],
+    ]);
+  });
+
   it('lets the page load libraries only when the deployment turns them on', () => {
     render();
     expect(frame().getAttribute('srcdoc')).not.toContain(CANVAS_LIBRARY_SOURCE);
@@ -807,8 +841,8 @@ describe('CanvasPanel', () => {
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2,3]}' }, {});
     await post({ type: 'mindroom.canvas.state', version: 1, inputs: '{"#rate":"7"}' });
     expect(onSaveState.mock.calls).toEqual([
-      [{ json: '{"slots":[1,2]}' }],
-      [{ inputs: '{"#rate":"7"}' }],
+      [{ json: '{"slots":[1,2]}' }, false],
+      [{ inputs: '{"#rate":"7"}' }, false],
     ]);
     expect(frame()).toBe(first);
     // Saving is not an answer, so the next page still loads at once, starting from that state.

@@ -24,7 +24,7 @@ type ExpectedAction =
   | { action: 'show_computer' }
   | { action: 'open_settings'; section: ChatUiSettingsSection }
   | { action: 'open_panel'; panel: 'members' }
-  | { action: 'show_canvas'; canvas: ChatUiCanvas };
+  | { action: 'show_canvas'; canvas: ChatUiCanvas; shareState?: true };
 
 const fixturePath =
   process.env.CHAT_UI_CONTRACT_FIXTURE ??
@@ -70,6 +70,15 @@ const expectedCases = new Map<string, ExpectedAction>();
       title: 'Choose a plan',
       html: '<form data-mindroom-label="Seats chosen"><input name="seats" value="3"><button>Continue</button></form>',
     },
+  });
+  // A canvas that shares its state keeps sharing through its updates.
+  expectedCases.set(`${scope}/show_canvas/shared`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      html: '<form data-mindroom-label="Seats chosen"><input name="seats" value="3"><button>Continue</button></form>',
+    },
+    shareState: true,
   });
 });
 

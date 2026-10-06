@@ -575,6 +575,48 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(frame.locator('#shown')).toHaveText('8');
   await page.screenshot({ path: testInfo.outputPath('canvas-kept-inputs.png') });
 
+  // A canvas that shares its state leaves a copy for the agent once the user pauses; others leave none.
+  const stateCopies = async (canvasId: string) =>
+    (
+      await matrixFetch<{
+        chunk: Array<{ type: string; sender: string; content: Record<string, unknown> }>;
+      }>(
+        homeserver!,
+        `/rooms/${encodeURIComponent(fixture.roomId)}/relations/${encodeURIComponent(
+          canvasId
+        )}/m.reference`,
+        { accessToken: agent.access_token, apiVersion: 'v1' }
+      )
+    ).chunk.filter((event) => event.type === 'io.mindroom.canvas_state');
+  expect(await stateCopies(ratesId)).toEqual([]);
+  const sharedId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.notice',
+    body: 'Interactive panel: Packing. Open it in MindRoom Chat to respond.',
+    'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
+    'io.mindroom.ui_action': {
+      ...action(
+        `<label><input type="checkbox" id="tent"> Tent</label>
+<script>document.getElementById('tent').addEventListener('change', (event) => mindroom.saveState({ tent: event.target.checked }));</script>`,
+        'Packing'
+      ),
+      share_state: true,
+    },
+  });
+  await expect(frame.locator('#tent')).toBeVisible();
+  await expect(panel.getByText('Saved in this room:', { exact: false })).toBeVisible();
+  await frame.locator('#tent').check();
+  await expect.poll(() => stateCopies(sharedId), { timeout: 15_000 }).toHaveLength(1);
+  const [copy] = await stateCopies(sharedId);
+  expect(copy.sender).toBe(viewer.user_id);
+  expect(copy.content).toEqual({
+    msgtype: 'm.notice',
+    version: 1,
+    json: '{"tent":true}',
+    inputs: '{"#tent":true}',
+    'm.relates_to': { rel_type: 'm.reference', event_id: sharedId },
+  });
+  await page.screenshot({ path: testInfo.outputPath('canvas-shared-state.png') });
+
   await new Promise((resolve) => {
     listener.close(resolve);
   });

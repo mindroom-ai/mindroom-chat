@@ -231,6 +231,8 @@ describe('readChatUiAction', () => {
         { thread_id: '$another' },
         { action: 'show_computer' },
         { canvas: { title: '', html: '' } },
+        // An edit cannot start sharing what the user does in a page that never said so.
+        { share_state: true },
       ].forEach((metadata) => {
         const original = makeUiEvent({ action: 'show_canvas', canvas });
         original.makeReplaced(canvasEdit({ canvas, ...metadata }));
@@ -239,6 +241,28 @@ describe('readChatUiAction', () => {
           revisionEventId: '$request',
         });
       });
+    });
+
+    it('tells the panel when a canvas shares its state, and keeps it through edits', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas, share_state: true });
+      original.makeReplaced(
+        canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' }, share_state: true })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        shareState: true,
+        revisionEventId: '$edit',
+      });
+      // An edit that drops sharing is no edit of this request.
+      const quiet = makeUiEvent({ action: 'show_canvas', canvas, share_state: true });
+      quiet.makeReplaced(canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' } }));
+      expect(readChatUiAction(quiet, viewerId, room)).toMatchObject({
+        shareState: true,
+        revisionEventId: '$request',
+      });
+      expect(
+        readChatUiAction(makeUiEvent({ action: 'show_canvas', canvas }), viewerId, room)
+      ).not.toHaveProperty('shareState');
     });
 
     it('never treats the edit event itself as a request', () => {
