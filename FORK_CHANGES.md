@@ -9,6 +9,12 @@
 - Change: copy the starting configuration out of the image with `docker run --rm --entrypoint cat`, say the bundled config already enables push and that a fork sets its own bundle ID and gateway, show a placeholder bundle ID in the example, say `appId` must be the app's bundle ID (as the preflight checks) and must match a gateway app entry for the build's APNs environment with `convert_device_token_to_hex: false`, since the app registers hex tokens, relabel the list "iOS docs", and replace the stale push section of `.docs/ios-build.md` (root `config.json`, no rebuild) with a link to the README.
 - Validation: the image is `nginx:alpine` with the built `dist/` at `/app`, so `/app/config.json` is the bundled file; `config.mindroom.json` enables `push.ios` for `chat.mindroom.app`; review by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
 
+### Live test for typing after a gappy sync (2026-10-05)
+
+- Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
+  The browser goes offline while 30 messages arrive (the sync timeline limit is 20), comes back on a `limited: true` sync, and another member's typing start and stop must still be heard.
+- Validation: passes on `dev` (2 of 2, 43 s); with #402's SDK line reverted it fails 2 of 2 at the typing check after the gap, after typing showed before it.
+
 ### Keep the long-message expand/collapse anchor below the sticky headers (2026-10-05)
 
 - Report: after changing "Expand long messages by default" while reading inside a long message, that message's top landed behind the sticky thread banner (or the room header), so the reader saw its middle instead of its start.
