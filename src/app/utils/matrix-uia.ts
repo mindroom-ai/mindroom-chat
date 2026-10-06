@@ -66,6 +66,9 @@ export const hasStageInFlows = (uiaFlows: UIAFlow[], stage: string) =>
 export const requiredStageInFlows = (uiaFlows: UIAFlow[], stage: string) =>
   uiaFlows.every((flow) => flow.stages.includes(stage));
 
+const isHttpUrl = (url: unknown): url is string =>
+  typeof url === 'string' && /^https?:\/\//i.test(url);
+
 export const getLoginTermUrl = (params: UIAParams): string | undefined => {
   const terms = params[AuthType.Terms];
   if (terms && 'policies' in terms && typeof terms.policies === 'object') {
@@ -74,10 +77,11 @@ export const getLoginTermUrl = (params: UIAParams): string | undefined => {
       if (terms.policies.privacy_policy === null) return undefined;
       const langToPolicy = terms.policies.privacy_policy as Record<string, any>;
       const url = langToPolicy.en?.url;
-      if (typeof url === 'string') return url;
+      if (isHttpUrl(url)) return url;
 
       const firstKey = Object.keys(langToPolicy)[0];
-      return langToPolicy[firstKey]?.url;
+      const fallbackUrl = langToPolicy[firstKey]?.url;
+      return isHttpUrl(fallbackUrl) ? fallbackUrl : undefined;
     }
   }
   return undefined;
