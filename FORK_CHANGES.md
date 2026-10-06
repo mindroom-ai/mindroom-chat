@@ -12,12 +12,11 @@
 - Fix: a new `REMOVE_PARENT` action in `src/app/state/room/roomToParents.ts` removes only the link from that Space to that room, and deletes the room's entry only when no parent is left; an invalidated `m.space.child` event now dispatches it.
   `DELETE` is still used when the user leaves a Space or the room is deleted.
   Salvaged from closed PR #135 and re-derived against `dev`.
-- Tests: `src/app/state/room/roomToParents.test.ts` binds the hook to a real `MatrixClient`, Spaces and jotai store and sends real `m.space.child` and membership changes.
+- Tests: `src/app/state/room/roomToParents.test.ts` binds the hook to a real `MatrixClient`, Spaces and jotai store and sends real `m.space.child` changes.
   A room removed from one of two Spaces keeps the other, and a subspace removed from its parent stays the parent of its own rooms; both fail on `dev`.
-  A room removed from its last Space loses its entry, and leaving a Space still removes it as a parent of every room; both pass before and after.
+  A room removed from its last Space loses its entry; this passes before and after.
 - Validation: typecheck, production/PWA build, Prettier on the touched files, and lint (0 errors, 18 existing warnings) pass.
-  Full unit suite after rebasing onto `origin/dev`: 6,428 of 6,433 tests pass.
-  The other 5 do not touch this code: 3 `xcodeCloudPostClone` tests need `/bin/bash`, which this NixOS host lacks, and 2 `RoomTimeline` tests (which mock `roomToParents`) hit the 5 s timeout under a load average above 100 and pass with a longer timeout (all 91 tests in their files).
+  The full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 

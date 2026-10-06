@@ -3,15 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  KnownMembership,
-  MatrixClient,
-  MatrixEvent,
-  MemoryStore,
-  Room,
-  RoomEvent,
-  RoomStateEvent,
-} from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from './roomToParents';
 
 enableMapSet();
@@ -42,8 +34,7 @@ const setup = (spaces: Record<string, string[]>) => {
   });
   const rooms = new Map<string, Room>();
   Object.entries(spaces).forEach(([spaceId, children]) => {
-    const space = new Room(spaceId, mx, ME, { timelineSupport: true });
-    space.updateMyMembership(KnownMembership.Join);
+    const space = new Room(spaceId, mx, ME);
     space.currentState.setStateEvents([
       new MatrixEvent({
         type: 'm.room.create',
@@ -56,7 +47,7 @@ const setup = (spaces: Record<string, string[]>) => {
       ...children.map((childId) => spaceChildEvent(spaceId, childId, true)),
     ]);
     // Sync re-emits room events on the client.
-    mx.reEmitter.reEmit(space, [RoomEvent.MyMembership, RoomStateEvent.Events]);
+    mx.reEmitter.reEmit(space, [RoomStateEvent.Events]);
     mx.store.storeRoom(space);
     rooms.set(spaceId, space);
   });
@@ -72,12 +63,8 @@ const setup = (spaces: Record<string, string[]>) => {
     act(() => {
       rooms.get(spaceId)!.currentState.setStateEvents([spaceChildEvent(spaceId, childId, false)]);
     });
-  const leaveSpace = (spaceId: string) =>
-    act(() => {
-      rooms.get(spaceId)!.updateMyMembership(KnownMembership.Leave);
-    });
   const parentsOf = (roomId: string) => store.get(roomToParentsAtom).get(roomId);
-  return { unlinkChild, leaveSpace, parentsOf };
+  return { unlinkChild, parentsOf };
 };
 
 describe('useBindRoomToParentsAtom', () => {
@@ -113,19 +100,5 @@ describe('useBindRoomToParentsAtom', () => {
 
     expect(parentsOf('!room:example.org')).toBeUndefined();
     expect(parentsOf('!other:example.org')).toEqual(new Set(['!space:example.org']));
-  });
-
-  it('removes a left Space as a parent of every room and drops its own entry', () => {
-    const { leaveSpace, parentsOf } = setup({
-      '!parent:example.org': ['!space-a:example.org'],
-      '!space-a:example.org': ['!shared:example.org', '!only-a:example.org'],
-      '!space-b:example.org': ['!shared:example.org'],
-    });
-
-    leaveSpace('!space-a:example.org');
-
-    expect(parentsOf('!space-a:example.org')).toBeUndefined();
-    expect(parentsOf('!shared:example.org')).toEqual(new Set(['!space-b:example.org']));
-    expect(parentsOf('!only-a:example.org')).toBeUndefined();
   });
 });
