@@ -20,7 +20,14 @@ import {
   readCanvasVersion,
   readChatUiAction,
 } from '../ui-actions/chatUiProtocol';
-import { forgetCanvas, listCanvases, recordCanvas, recordCanvasUpdate } from './canvasIndexStore';
+import {
+  type CanvasListEntry,
+  forgetCanvas,
+  listCanvases,
+  recordCanvas,
+  recordCanvasUpdate,
+  replaceDeletedVersion,
+} from './canvasIndexStore';
 
 export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
@@ -72,11 +79,17 @@ export const recordCanvasEvent = (
     });
   }
   if (!isRecord(content[CHAT_UI_ACTION_KEY])) return undefined;
+  const entry = readCanvasEntry(mx, event);
+  return entry && recordCanvas(canvasSessionId(mx), entry);
+};
+
+/** The row for a canvas request made for this user, at the version it shows. */
+const readCanvasEntry = (mx: MatrixClient, event: MatrixEvent): CanvasListEntry | undefined => {
   const room = mx.getRoom(event.getRoomId());
   const action = room ? readChatUiAction(event, mx.getSafeUserId(), room) : undefined;
   if (!room || action?.action !== 'show_canvas') return undefined;
   const shown = action.revisionEventId === action.eventId ? event : event.replacingEvent();
-  return recordCanvas(canvasSessionId(mx), {
+  return {
     canvasId: action.eventId,
     roomId: room.roomId,
     ...(action.threadId ? { threadId: action.threadId } : {}),
@@ -86,7 +99,7 @@ export const recordCanvasEvent = (
     createdTs: event.getTs(),
     updatedTs: shown?.getTs() ?? event.getTs(),
     shared: !!action.shareState,
-  });
+  };
 };
 
 /**
@@ -99,10 +112,10 @@ const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void>
   const shown = (await listCanvases(sessionId)).find((entry) => entry.revisionId === deletedId);
   const room = shown && mx.getRoom(shown.roomId);
   const canvas = room ? await loadCanvasEvent(mx, room, shown.canvasId) : undefined;
-  if (!shown || !canvas) return;
-  // The surviving version is older than the row's, which recording alone would keep.
-  await forgetCanvas(sessionId, shown.canvasId);
-  await recordCanvasEvent(mx, canvas);
+  const entry = canvas && readCanvasEntry(mx, canvas);
+  // Only while the row still shows the deleted version: a newer update or a deletion may have
+  // come in while the canvas loaded.
+  if (entry) await replaceDeletedVersion(sessionId, deletedId, entry);
 };
 
 /** Keeps the Canvases page's list current with every canvas this client sees, on any route. */

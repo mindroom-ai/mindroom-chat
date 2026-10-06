@@ -84,6 +84,16 @@ export const recordCanvasUpdate = (
     if (known && version) await store.put({ ...known, ...version, updatedTs: ts });
   });
 
+/** Replaces a row with its surviving version, if it still shows the deleted one. */
+export const replaceDeletedVersion = (
+  sessionId: string,
+  deletedId: string,
+  entry: CanvasListEntry
+): Promise<void> =>
+  write(sessionId, async (store) => {
+    if ((await store.get(entry.canvasId))?.revisionId === deletedId) await store.put(entry);
+  });
+
 export const forgetCanvas = (sessionId: string, canvasId: string): Promise<void> =>
   write(sessionId, (store) => store.delete(canvasId));
 

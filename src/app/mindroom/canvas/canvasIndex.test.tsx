@@ -247,6 +247,51 @@ describe('recordCanvasEvent', () => {
     ]);
   });
 
+  describe('when the update a row shows is deleted while its canvas loads from the server', () => {
+    const removal = (redacts: string) =>
+      new MatrixEvent({
+        event_id: `$removal-${redacts}`,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts,
+      });
+    const start = async () => {
+      const { mx, relations } = fixture();
+      const canvas = request();
+      canvas.makeReplaced(edit('Plans v2', { id: '$v2', ts: 7 }));
+      await recordCanvasEvent(mx, canvas);
+      let respond: () => void = () => undefined;
+      relations.mockReturnValue(
+        new Promise((resolve) => {
+          respond = () => resolve({ originalEvent: request(), events: [] });
+        })
+      );
+      const fallback = recordCanvasEvent(mx, removal('$v2'));
+      await settle();
+      return { mx, fallback, respond };
+    };
+
+    it('keeps a newer update that came in meanwhile', async () => {
+      const { mx, fallback, respond } = await start();
+      await recordCanvasEvent(mx, edit('Plans v3', { id: '$v3', ts: 9 }));
+      respond();
+      await fallback;
+      expect((await listCanvases(SESSION))[0]).toMatchObject({
+        title: 'Plans v3',
+        revisionId: '$v3',
+      });
+    });
+
+    it('does not bring back a canvas deleted meanwhile', async () => {
+      const { mx, fallback, respond } = await start();
+      await recordCanvasEvent(mx, removal('$canvas'));
+      respond();
+      await fallback;
+      expect(await listCanvases(SESSION)).toEqual([]);
+    });
+  });
+
   it('applies an update that arrives without its request, from the canvas agent only', async () => {
     const { mx } = fixture();
     await recordCanvasEvent(mx, request());
