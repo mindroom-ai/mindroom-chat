@@ -1,7 +1,7 @@
 # MindRoom iOS Releases with fastlane
 
 [fastlane](https://fastlane.tools) automates the App Store release flow.
-It complements the existing pipeline: a push to `dev` lets `auto-mindroom-release.yml` create a release tag, and Xcode Cloud builds and uploads the tagged commit through `ios/App/ci_scripts`.
+It complements the existing pipeline: a push to `dev` lets `auto-mindroom-release.yml` create a release tag, and the current Xcode Cloud workflow independently watches `dev` and builds and uploads that branch through `ios/App/ci_scripts`.
 Fastlane validates the uploaded build and local release assets, uploads version metadata and screenshots, preserves review access, selects the exact build, and submits it for review with manual release after approval.
 
 What fastlane owns in this repo:
