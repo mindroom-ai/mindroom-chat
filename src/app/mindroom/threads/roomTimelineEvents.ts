@@ -1,4 +1,4 @@
-import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
+import { EventTimeline, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMembershipChanged, reactionOrEditEvent } from '../../utils/room';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
@@ -51,6 +51,8 @@ export const isRenderableEvent = (
   if (mEvent.isRedacted() && !showHiddenEvents) return false;
   if (reactionOrEditEvent(mEvent)) return false;
   if (mEvent.isRedaction()) return false;
+  // A reference (a canvas's shared state) is never shown, even while it is still encrypted.
+  if (mEvent.getRelation()?.rel_type === RelationType.Reference && !showHiddenEvents) return false;
 
   if (mEvent.getType() === StateEvent.RoomMember) {
     const membershipChanged = isMembershipChanged(mEvent);

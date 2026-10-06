@@ -146,7 +146,7 @@ const canonicalBody = (
  */
 export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
 
-const contentBytes = (content: object): number =>
+export const contentBytes = (content: object): number =>
   new TextEncoder().encode(JSON.stringify(content)).length;
 
 /** The label the wire format uses for an answer without one; Chat shows a translated word instead. */

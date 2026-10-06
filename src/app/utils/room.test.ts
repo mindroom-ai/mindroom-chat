@@ -440,6 +440,29 @@ describe('roomHaveUnread', () => {
     expect(roomHaveUnread(mx, room)).toBe(false);
   });
 
+  it("ignores another member's reference, such as a canvas's shared state, even when its target is not loaded", () => {
+    const sharedState = new MatrixEvent({
+      content: { version: 1, 'm.relates_to': { rel_type: 'm.reference', event_id: '$canvas' } },
+      event_id: '$copy',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'io.mindroom.canvas_state',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [sharedState],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(false);
+  });
+
   it('keeps the unread fallback when the loaded main-timeline slice still contains visible activity', () => {
     const mainEvent = makeMessageEvent('$main', 1000, '@bob:example.org');
     const room = {

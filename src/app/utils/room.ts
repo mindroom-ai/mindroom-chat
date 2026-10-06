@@ -237,6 +237,11 @@ const isThreadOnlyRoomActivity = (room: Room, mEvent: MatrixEvent): boolean => {
   return isThreadReplyMessage || isThreadReplyRelatedEvent;
 };
 
+// References (a canvas's shared state, poll answers) never show in the timeline, whatever they refer to.
+const isHiddenRoomActivity = (room: Room, mEvent: MatrixEvent): boolean =>
+  mEvent.getRelation()?.rel_type === RelationType.Reference ||
+  isThreadOnlyRoomActivity(room, mEvent);
+
 export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const userId = mx.getUserId();
   if (!userId) return false;
@@ -244,7 +249,7 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const liveEvents = room.getLiveTimeline().getEvents();
   const latestVisibleMainEvent = [...liveEvents]
     .reverse()
-    .find((event) => !isThreadOnlyRoomActivity(room, event));
+    .find((event) => !isHiddenRoomActivity(room, event));
 
   if (latestVisibleMainEvent?.getSender() === userId) {
     return false;
@@ -255,7 +260,7 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
     const event = liveEvents[i];
     if (!event) return false;
     if (event.getId() === readUpToId) return false;
-    if (isThreadOnlyRoomActivity(room, event)) continue;
+    if (isHiddenRoomActivity(room, event)) continue;
     sawVisibleMainEvent = true;
     if (isNotificationEvent(event)) return true;
   }

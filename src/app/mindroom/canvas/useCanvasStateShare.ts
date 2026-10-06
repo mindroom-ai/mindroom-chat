@@ -2,16 +2,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import type { CanvasSaved } from './canvasDocument';
-import { MAX_CANVAS_RESPONSE_CONTENT_BYTES } from './canvasMessages';
+import { contentBytes, MAX_CANVAS_RESPONSE_CONTENT_BYTES } from './canvasMessages';
 
 /** A copy of a canvas's saved state for its agent, a reference to the canvas, read by `read_canvas_state`. */
 export const CANVAS_STATE_EVENT_TYPE = 'io.mindroom.canvas_state';
 
 // Shared once the user pauses, so a drag or a typed sentence is one event, not one per change.
 const SHARE_AFTER_MS = 2000;
-
-const contentBytes = (content: object): number =>
-  new TextEncoder().encode(JSON.stringify(content)).length;
 
 /**
  * Keeps a copy of what a canvas keeps in its room, for a canvas whose request shares its state; the
