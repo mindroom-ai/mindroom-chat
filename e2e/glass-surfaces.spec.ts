@@ -234,27 +234,28 @@ for (const theme of ['light', 'dark']) {
     await session.detach();
   });
 
-  test(`settings navigation shares the modal surface in ${theme}`, async ({ page }) => {
+  test(`settings navigation header frosts the list behind it in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
     const header = page.getByTestId('settings-nav-header');
     await expect(header).toBeVisible();
-    expect(
-      await header.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return {
-          background: style.backgroundColor,
-          image: style.backgroundImage,
-          filter: style.backdropFilter,
-          shadow: style.boxShadow,
-        };
-      })
-    ).toEqual({
-      background: 'rgba(0, 0, 0, 0)',
-      image: 'none',
-      filter: 'none',
-      shadow: 'none',
+    // The navigation list scrolls under this sticky header, so it keeps the
+    // flat frosted material of the other navigation headers.
+    const material = await header.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        alpha: Number(style.backgroundColor.split('/')[1]?.replace(')', '').trim()),
+        image: style.backgroundImage,
+        filter: style.backdropFilter,
+        shadow: style.boxShadow,
+        border: style.borderTopWidth,
+      };
     });
+    // The enclosing glass modal supplies the tint; its header only adds blur.
+    expect(material.alpha).toBe(0);
+    expect(material.filter).toContain('blur(');
+    expect(material.filter).not.toContain('url(');
+    expect(material).toMatchObject({ image: 'none', shadow: 'none', border: '0px' });
   });
 }
 
@@ -264,6 +265,16 @@ for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
   }) => {
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
     await page.getByRole('button', { name: 'Open settings sheet', exact: true }).click();
+    // Sample the settled sheet, not its entrance: WebKit keeps painting the
+    // backdrop's first, undimmed fade frame until its next rendering update.
+    await page.getByTestId('settings-sheet').evaluate((element) =>
+      Promise.all(
+        element
+          .closest('body > *')!
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished)
+      )
+    );
     const samples = [
       {
         boundaryTestId: 'settings-sheet',

@@ -1,7 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- Browser page translation moves React-owned text nodes into <font>
+         wrappers, and the next render crashes with NotFoundError on removeChild.
+         See the notranslate entry in FORK_CHANGES.md before removing. -->
+    <meta name="google" content="notranslate" />
     <base href="/" />
     <meta name="theme-color" content="#1A1A1A" />
     <meta name="color-scheme" content="dark light" />
@@ -138,6 +142,12 @@
     <script src="/runtime-config.js"></script>
     <script src="/authentication-recovery.js"></script>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- Agent canvases run in sandboxed srcdoc frames; this stops them navigating to other origins.
+         reCAPTCHA registration frames are the only other frames Chat embeds. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="frame-src 'self' https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/"
+    />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"

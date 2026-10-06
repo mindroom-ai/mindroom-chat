@@ -3,11 +3,31 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { expect, it, vi } from 'vitest';
-import { ThreadApprovalPermissions, ThreadApprovalQueue } from './ThreadApprovalControls';
+import {
+  ApprovalReviewGroup,
+  ThreadApprovalPermissions,
+  ThreadApprovalQueue,
+} from './ThreadApprovalControls';
 import { ThreadApprovals } from './ThreadApprovalProvider';
 import { parseToolApprovalContent } from './toolApproval';
 
 let current: ThreadApprovals;
+vi.mock('../../components/page', () => ({
+  PageScroll: ({
+    header,
+    children,
+    scrollRef,
+  }: {
+    header?: React.ReactNode;
+    children: React.ReactNode;
+    scrollRef?: React.RefObject<HTMLDivElement>;
+  }) => (
+    <div ref={scrollRef}>
+      {header}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => current }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
@@ -31,6 +51,7 @@ vi.mock('./ThreadApprovals.css', () => ({
   Stack: 'Stack',
   HistoryBody: 'HistoryBody',
   DialogBody: 'DialogBody',
+  DialogScroll: 'DialogScroll',
   Group: 'Group',
   Actions: 'Actions',
   Call: 'Call',
@@ -120,6 +141,73 @@ it.each(['review', 'permissions'] as const)(
       await act(async () => close.click());
       await vi.waitFor(() => expect(document.activeElement).toBe(composer));
       expect(trigger.isConnected).toBe(false);
+    } finally {
+      act(() => root.unmount());
+      document.body.replaceChildren();
+      vi.unstubAllGlobals();
+    }
+  }
+);
+
+it.each([
+  { calls: 2, submitted: 0, unapprovable: 0, approveAll: 2, denyAll: 2 },
+  { calls: 1, submitted: 0, unapprovable: 0, approveAll: 0, denyAll: 0 },
+  { calls: 2, submitted: 1, unapprovable: 0, approveAll: 0, denyAll: 0 },
+  { calls: 2, submitted: 0, unapprovable: 1, approveAll: 0, denyAll: 2 },
+])(
+  'offers bulk actions only for more than one actionable call: $calls calls, $submitted submitted, $unapprovable unapprovable',
+  async ({ calls, submitted, unapprovable, approveAll, denyAll }) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const records = Array.from({ length: calls }, (_, index) => ({
+      eventId: `$approval-${index}`,
+      sender: '@router:example.org',
+      wireStatus: 'pending' as const,
+      approval: parseToolApprovalContent('io.mindroom.tool_approval', {
+        approval_id: `call-${index}`,
+        tool_name: 'search',
+        agent_name: 'assistant',
+        status: 'pending',
+        approver_user_id: '@alice:example.org',
+        approvable: index >= unapprovable,
+        arguments: { index },
+        requested_at: '2026-09-12T12:00:00Z',
+        expires_at: '2999-09-12T12:00:00Z',
+      })!,
+    }));
+    current = {
+      roomId: '!room:example.org',
+      threadId: '$thread',
+      records,
+      now: Date.now(),
+      pendingEventIds: new Set(records.map((record) => record.eventId)),
+      loading: false,
+      refresh: () => undefined,
+      ingestTimeline: () => undefined,
+      actions: new Map(
+        records
+          .slice(0, submitted)
+          .map((record) => [record.eventId, { kind: 'decision', status: 'submitted' }] as const)
+      ),
+      submit: async () => undefined,
+    };
+    try {
+      await act(async () => root.render(<ApprovalReviewGroup records={records} />));
+      const labels = [...container.querySelectorAll('button')].map((button) => button.textContent);
+      expect(labels.filter((label) => label === 'Approve')).toHaveLength(
+        calls - submitted - unapprovable
+      );
+      expect(labels.filter((label) => label?.startsWith('Approve all'))).toEqual(
+        approveAll ? [`Approve all ${approveAll} once`] : []
+      );
+      expect(labels.filter((label) => label?.startsWith('Deny all'))).toEqual(
+        denyAll ? [`Deny all ${denyAll}`] : []
+      );
+      expect(container.textContent?.includes('Reason for denying all (optional)')).toBe(
+        denyAll > 0
+      );
     } finally {
       act(() => root.unmount());
       document.body.replaceChildren();

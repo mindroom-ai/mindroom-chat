@@ -67,6 +67,11 @@ export const MobilePanel = style({
   borderRadius: `${config.radii.R400} ${config.radii.R400} 0 0`,
   paddingBottom: 'env(safe-area-inset-bottom, 0px)',
 });
+export const Controls = style({
+  height: 'auto',
+  flexDirection: 'column',
+  alignItems: 'stretch',
+});
 export const Header = style({
   display: 'flex',
   alignItems: 'flex-start',
@@ -187,11 +192,7 @@ export const TextButton = style({
 export const Results = style({
   flex: '1 1 auto',
   minHeight: toRem(120),
-  overflowY: 'auto',
-  overscrollBehavior: 'contain',
-  scrollPaddingBlock: config.space.S100,
   padding: `${config.space.S100} ${config.space.S200} ${config.space.S200}`,
-  borderTop: `1px solid ${color.Surface.ContainerLine}`,
 });
 export const Group = style({ selectors: { '& + &': { marginTop: config.space.S200 } } });
 export const GroupTitle = style({

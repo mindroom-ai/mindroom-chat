@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
 
 export type MatrixSession = {
@@ -170,6 +171,30 @@ export const loginToMatrix = async (
     accessToken: body.access_token,
     userId: body.user_id,
   };
+};
+
+/**
+ * Registers a disposable MindRoom agent account. The client trusts MindRoom protocol events
+ * (approval cards, scheduled tasks) only from `mindroom_` accounts on the viewer's homeserver.
+ * Needs a server with open registration, such as the disposable e2e stack.
+ */
+export const registerAgentAccount = async (
+  homeserver: string,
+  name: string
+): Promise<MatrixSession> => {
+  const body = await matrixFetch<{ access_token: string; user_id: string }>(
+    homeserver,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        username: `mindroom_${name}_${randomUUID().replaceAll('-', '').slice(0, 12)}`,
+        password: randomUUID(),
+        auth: { type: 'm.login.dummy' },
+      }),
+    }
+  );
+  return { accessToken: body.access_token, userId: body.user_id };
 };
 
 export const createPrivateRoom = async (

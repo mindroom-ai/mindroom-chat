@@ -3,7 +3,10 @@ import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../
 import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
+  joinRoom,
   loginToMatrix,
+  matrixFetch,
+  registerAgentAccount,
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
@@ -47,24 +50,49 @@ test.describe('room schedules in the chat header', () => {
         created_by: userId,
       }),
     };
+    // The client lists only schedules a MindRoom account wrote, as the backend runs only those.
+    const agent = await registerAgentAccount(homeserver, 'scheduler');
+    const roomPath = `/rooms/${encodeURIComponent(roomId)}`;
+    const addAgent = async () => {
+      await matrixFetch(homeserver, `${roomPath}/invite`, {
+        method: 'POST',
+        accessToken,
+        body: JSON.stringify({ user_id: agent.userId }),
+      });
+      await joinRoom(homeserver, agent.accessToken, roomId);
+    };
+    const removeAgent = () =>
+      matrixFetch(homeserver, `${roomPath}/leave`, {
+        method: 'POST',
+        accessToken: agent.accessToken,
+        body: '{}',
+      });
+    await addAgent();
+    const powers = await matrixFetch<{ users: Record<string, number> }>(
+      homeserver,
+      `${roomPath}/state/m.room.power_levels`,
+      { accessToken }
+    );
+    await matrixFetch(homeserver, `${roomPath}/state/m.room.power_levels`, {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify({ ...powers, users: { ...powers.users, [agent.userId]: 50 } }),
+    });
     await sendStateEvent(
       homeserver,
-      accessToken,
+      agent.accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       'weekly-report',
       content
     );
+    await removeAgent();
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const trigger = page.getByRole('button', { name: 'Scheduled tasks (1)', exact: true });
     await expect(page.getByText('Schedule viewer integration test', { exact: true })).toBeVisible();
     await expect(trigger).toHaveCount(0);
-    const agentId = `@mindroom_schedule_fixture:${userId.slice(userId.indexOf(':') + 1)}`;
-    await sendStateEvent(homeserver, accessToken, roomId, 'm.room.member', agentId, {
-      membership: 'invite',
-      displayname: 'Schedule assistant',
-    });
+    await addAgent();
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
     await expect(dialog.getByText('Summarize the weekly report', { exact: true })).toBeVisible();
@@ -105,7 +133,7 @@ test.describe('room schedules in the chat header', () => {
     const workflow = JSON.parse(content.workflow);
     await sendStateEvent(
       homeserver,
-      accessToken,
+      agent.accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       'weekly-report',
@@ -120,7 +148,7 @@ test.describe('room schedules in the chat header', () => {
     await expect(dialog.locator('time[datetime="2026-09-16T12:00:00.000Z"]')).toBeVisible();
     await sendStateEvent(
       homeserver,
-      accessToken,
+      agent.accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       'weekly-report',
@@ -132,7 +160,7 @@ test.describe('room schedules in the chat header', () => {
     await expect(dialog.getByText('premium', { exact: true })).toHaveCount(0);
     await sendStateEvent(
       homeserver,
-      accessToken,
+      agent.accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       'weekly-report',
@@ -146,9 +174,7 @@ test.describe('room schedules in the chat header', () => {
       page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true })
     ).toBeVisible();
     await page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true }).click();
-    await sendStateEvent(homeserver, accessToken, roomId, 'm.room.member', agentId, {
-      membership: 'leave',
-    });
+    await removeAgent();
     await expect(page.getByRole('button', { name: /^Scheduled tasks \(/ })).toHaveCount(0);
     await expect(dialog).toHaveCount(0);
   });

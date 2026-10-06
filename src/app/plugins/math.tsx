@@ -134,40 +134,54 @@ type LinkSpan = ReturnType<typeof findLinks>[number];
 const getUrlMatches = (text: string, linkifyOpts?: LinkifyOpts): LinkSpan[] =>
   findLinks(text, linkifyOpts).filter((match) => match.isLink && match.type === 'url');
 
-const getDisplayLatexAt = (text: string, index: number): LatexMatch | undefined => {
-  if (
-    index + 1 >= text.length ||
-    text[index] !== '$' ||
-    text[index + 1] !== '$' ||
-    isEscaped(text, index) ||
-    !isLineStart(text, index)
-  ) {
-    return undefined;
-  }
-
-  for (let cursor = index + 2; cursor + 1 < text.length; cursor += 1) {
-    if (text[cursor] === '`' && !isEscaped(text, cursor)) return undefined;
-
+/**
+ * Returns a matcher for display math opening at a position of `text`; test positions in
+ * increasing order. A scan that fails at a backtick or the end of the text passed no closing
+ * `$$`, so later openers before that point fail without scanning again. Otherwise every line of
+ * unclosed `$$` openers rescans the rest of the text.
+ */
+const createDisplayLatexMatcher = (text: string): ((index: number) => LatexMatch | undefined) => {
+  let failsBefore = 0;
+  return (index) => {
     if (
-      text[cursor] === '$' &&
-      text[cursor + 1] === '$' &&
-      !isEscaped(text, cursor) &&
-      isLineEnd(text, cursor + 2)
+      index < failsBefore ||
+      index + 1 >= text.length ||
+      text[index] !== '$' ||
+      text[index + 1] !== '$' ||
+      isEscaped(text, index) ||
+      !isLineStart(text, index)
     ) {
-      const latex = normalizeDisplayLatex(text.slice(index + 2, cursor));
-      if (latex.trim().length === 0) return undefined;
-
-      return {
-        fullMatch: text.slice(index, cursor + 2),
-        latex,
-        start: index,
-        end: cursor + 2,
-        displayMode: true,
-      };
+      return undefined;
     }
-  }
 
-  return undefined;
+    for (let cursor = index + 2; cursor + 1 < text.length; cursor += 1) {
+      if (text[cursor] === '`' && !isEscaped(text, cursor)) {
+        failsBefore = cursor;
+        return undefined;
+      }
+
+      if (
+        text[cursor] === '$' &&
+        text[cursor + 1] === '$' &&
+        !isEscaped(text, cursor) &&
+        isLineEnd(text, cursor + 2)
+      ) {
+        const latex = normalizeDisplayLatex(text.slice(index + 2, cursor));
+        if (latex.trim().length === 0) return undefined;
+
+        return {
+          fullMatch: text.slice(index, cursor + 2),
+          latex,
+          start: index,
+          end: cursor + 2,
+          displayMode: true,
+        };
+      }
+    }
+
+    failsBefore = text.length;
+    return undefined;
+  };
 };
 
 const findCodeFenceClose = (text: string, index: number): number => {
@@ -205,8 +219,9 @@ export const findInlineLatexMatch = (text: string): LatexMatch | undefined => {
 };
 
 export const findDisplayLatexBlockMatch = (text: string): LatexMatch | undefined => {
+  const getDisplayLatexAt = createDisplayLatexMatcher(text);
   for (let index = 0; index < text.length; index += 1) {
-    const match = getDisplayLatexAt(text, index);
+    const match = getDisplayLatexAt(index);
     if (match) return match;
   }
 
@@ -219,6 +234,7 @@ export const tokenizeTextWithLatex = (
 ): LatexTextSegment[] => {
   const segments: LatexTextSegment[] = [];
   const urlMatches = getUrlMatches(text, linkifyOpts);
+  const getDisplayLatexAt = createDisplayLatexMatcher(text);
   let textStart = 0;
   let index = 0;
   let urlMatchIndex = 0;
@@ -288,7 +304,7 @@ export const tokenizeTextWithLatex = (
       continue;
     }
 
-    const displayMatch = getDisplayLatexAt(text, index);
+    const displayMatch = getDisplayLatexAt(index);
     if (displayMatch) {
       pushText(displayMatch.start);
       segments.push({

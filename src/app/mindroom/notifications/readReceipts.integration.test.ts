@@ -40,13 +40,11 @@ const setupRoom = async () => {
       },
     },
   });
-  vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root.event);
-  // Hold initial history loading so this exercises the real summary-only SDK state.
-  vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(() => new Promise(() => {}));
   room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
   const thread = room.createThread('$root', root, [], false);
+  // An unopened thread keeps the real summary-only SDK state: its history loads when opened.
   await vi.waitFor(() => expect(thread.replyToEvent?.getId()).toBe('$reply'));
-  await vi.waitFor(() => expect(mx.paginateEventTimeline).toHaveBeenCalledOnce());
+  expect(thread.initialEventsFetched).toBe(false);
   // Establish prior threaded-receipt use so the SDK's legacy-client migration
   // heuristic does not treat every subsequently loaded reply as already read.
   room.addReceipt(

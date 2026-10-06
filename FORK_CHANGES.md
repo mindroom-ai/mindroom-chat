@@ -13,8 +13,7 @@
 - Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
 - Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
 - Qodo review caught obsolete optional-agent fallback paths; agent registration failures now propagate directly, with an executable failure regression.
-- Ready PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
-- Next: address CI or AI review findings, then merge after approval.
+- PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
 
 ### App Store update 4.12.320 (2026-10-01)
 
@@ -34,6 +33,1394 @@
 - The account holder accepted the updated program agreement, and App Store Connect confirmed the Free Apps Agreement active from October 1, 2026.
 - Clean rebuild 314 (`5e0311df-20ed-4d51-acb3-bb0d9dc140e5`) archived, exported, uploaded, and finished TestFlight processing as `4.12.320 (314)`, ready for submission.
 - No application, signing-key, or CI change was needed to clear the agreement gate.
+
+### Hide "Catching up..." once the client has caught up (2026-10-06)
+
+- Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.
+- Root cause: the catch-up rule (`isInitialClientCatchupInProgress`, copied in `SyncStatus` and `messageSearchScope`) waited for a sync whose previous state was already `Syncing`. The first sync after startup or a reconnect returns everything queued; the next is a full 30 s long-poll on a quiet account, so the rule ended one long-poll late.
+  `SyncStatus` and `useInitialClientCatchup` also started from no state, ignoring the state the client was already in: the bar was missing after a cached load until the next sync event, and a room opened after startup deferred its empty overview until the next sync.
+- Fix: the client is caught up once a `Syncing` state's SDK data says `catchingUp: false`. The SDK keeps it true while the server still has to-device messages queued, so an encrypted account with a key backlog now stays "catching up" until the backlog is drained (each of those polls returns at once); before, the second sync ended it.
+  One hook, `useClientSyncStateData`, reads the client's current state on mount and follows `ClientEvent.Sync`; `SyncStatus`, `ClientRoot`, `useInitialClientCatchup` and `MessageSearch` share it and the rule, and the search copy of the rule is deleted.
+- Tests: `SyncStatus.test.tsx` (the bar ends on the first caught-up sync after startup, stays while to-device messages are queued, ends after a reconnect's catch-up, and shows the state the client is in at mount; all but the queued case fail on `dev`).
+  `RoomTimeline.cache.test.ts`: an already caught-up client shows the empty overview at once (fails on `dev`); the deferred-overview tests now set the client in catch-up explicitly instead of relying on the hook ignoring its state.
+- Validation: live, cached reload: the bar showed 30 020 ms with 2 layout moves on `dev`, 157 ms with 1 move with the fix; fresh login unchanged.
+
+### List every canvas on a Canvases page, with pins on all devices (2026-10-06)
+
+- Why: canvases were only reachable from the message that showed them, so a page used every day (a landing page with upcoming meetings, a checklist) had to be found again in its thread; users asked for one place listing them, where they can pin the ones they use.
+- Where canvases are on (`mindroom.canvas.enabled`), the sidebar gets a Canvases button (in Simple Mode too) once there is a canvas to find: one listed here or one pinned, and it stays while its page is open. Settings → General → Interface has "Show Canvases in the sidebar" (`showCanvasesInSidebar` in `io.mindroom.settings`, on by default, synced across devices; offered only where canvases are on) to turn it off.
+  The button opens `/canvases/`: a table of the canvases agents made for this user, pinned ones first, then by last update, with the thread (named as the sidebar's Threads list names it: its summary, or its first message), the room, the agent, when each was updated and created, and whether it is shared with its agent or holds the user's values here.
+  Its title opens the canvas in its thread, filling the room, at its latest version; the thread name opens that thread and the room name the room, both without the canvas.
+- The list is kept per session in its own IndexedDB database (`mindroom-canvas-index::<session>`), deleted at logout like the saved canvas state.
+  It is not bounded: an entry is a few hundred bytes, and a bound would drop old pinned canvases (fetched again, then dropped again).
+  Every write tells the page to re-read the list, also one that changed nothing, since another tab of the session may have written the change first.
+  `useCanvasIndexRecorder` fills it with every canvas this browser receives, on any route: it listens to sync's `ClientEvent.Event` (which also reports an update or deletion of a canvas whose thread is not loaded, events no timeline takes), timelines (history and threads loaded later), decryption and applied edits.
+  An update renames its row only when it is newer and the panel would accept it (`readCanvasEdit`, held against the authority the listed request carries: its agent, room, thread, requester and sharing), and an older copy of a request never rolls a row back; a deletion removes it, as does a copy that turns up already deleted (history loaded after a missed deletion).
+  Each row keeps the event its shown version comes from (`revisionId`); when that update is deleted (Element's edit history can remove one version), the row is rebuilt from the canvas's surviving version, loaded or fetched.
+- Pins are account data, `io.mindroom.pinned_canvases` `{ canvases: [{ room_id, event_id }] }`, with IDs only since account data is not encrypted and titles are.
+  A pinned canvas this browser has not seen is fetched with its newest valid update and listed.
+  Pin changes are queued per client (`setCanvasPinned`) and each is written from the pins the client holds once the one before has echoed back, because the SDK settles a write only then and skips one equal to what it holds; overlapping writes lost or undid pins, also across leaving and reopening the page. The page shows each change at once.
+- Opening leaves a request for the room (`requestCanvasOpen`, forgotten after 30 s, and cancelled when the user comes back to the page or chooses only a conversation) and navigates to the thread; `useCanvasOpenRequest` in the room loads the canvas (the loaded copy, or the server's with its newest update applied) once the thread is ready, opens it through the room's usual UI action path, and expands it; a canvas that cannot open then (during a call) is not expanded when it opens later.
+  The request lives outside the room because the room remounts while thread routing settles the route, which a history state or component state would not survive (found live).
+- Tests (removing each piece fails its test): `canvasIndexStore.test.ts` (per session, no rollback, updates only when accepted and newer, deletion, listeners on every write), `canvasIndex.test.tsx` (what is listed and ignored, a copy that is already deleted, the shown update deleted, the shown update, updates the panel would reject, updates and deletions reported only by sync, canvases loaded before the recorder started, off when canvases are, loading at the newest valid update), `useCanvasOpenRequest.test.tsx` (once, only when ready and for its room, after a remount, cancelled, forgotten when stale or unloadable), `pinnedCanvases.test.ts` (IDs only, one change at a time from the latest pins, after a failure), `Canvases.test.tsx` (order, rooms left, cells with the thread's name, navigation and cancelling, a pin change shown at once and written after the one before, a pin from another device fetched once), `CanvasesTab.test.tsx` (hidden until a canvas is listed or pinned, kept while its page is open), `mindroomAccountSettings.test.ts` and `MindroomInterfaceSettings.test.tsx` (the setting and its switch, only where canvases are on), `SidebarNav.test.ts` (also turned off) and `Room.test.ts` (the room opens the requested canvas expanded, but not one that could not open during a call).
+  `e2e/agent-canvas-list.spec.ts`: no Canvases button before the first canvas, canvases are listed without opening their room, an update renames and moves its row, a pin moves a row to the top and is stored as IDs, list and pin survive a reload, a title opens its canvas expanded in its thread, the thread's name opens the thread, a room name opens the conversation, a deletion removes its row, and logout deletes the list.
+- Validation: live with a real agent (GPT-6.1 Sol, backend main `eedafc4ad`): in an encrypted room its canvas was listed as it arrived; in an unencrypted room it showed "Lunch plan", which was listed without its room being opened, its in-place update renamed the row "Dinner plan", and the title opened version 2 of 2 expanded in its thread (the live run found the room remounting while settling the thread route, which is why the open request lives outside the room).
+- Not changed:
+  - Only canvases this browser has received are listed; a new device starts with recent ones and the pinned ones it can read, and old canvases appear once their thread is opened.
+  - A pinned canvas in an encrypted room that this device cannot decrypt is not listed.
+
+### Link only http(s) registration terms URLs (2026-10-05)
+
+- Problem: the "Terms and Conditions" link on the registration form used the homeserver's `m.login.terms` privacy policy URL as-is, without checking its scheme.
+- Fix: `getLoginTermUrl` in `src/app/utils/matrix-uia.ts` returns only URLs that start with `http://` or `https://`, for both the `en` policy and the first-language fallback; any other value gives no URL, so the form shows no terms link, as for a server without terms.
+- Validation: `src/app/utils/matrix-uia.test.ts` checks that an `https` URL is returned and that a `javascript:` URL under `en` or another language gives no URL; the two `javascript:` cases fail before the fix and pass after.
+  `npm run typecheck`, and ESLint and Prettier on the touched files pass.
+
+### Show messages that carry an `m.reference` relation (2026-10-06)
+
+- Problem: to keep a canvas's shared state copies out of view, PR #408 made the timeline and the room's unread check skip every event with an `m.reference` relation.
+  That also hid ordinary `m.room.message` events carrying one, which any member can send and which MindRoom agents still read as part of the thread, so Chat users could not see them and the room did not turn unread.
+- Fix: `isHiddenReferenceEvent` (`src/app/utils/room.ts`), used by `isRenderableEvent` and `roomHaveUnread`, hides a reference only when it is not an `m.room.message`, is still encrypted, or could not be decrypted.
+  Canvas state copies are `io.mindroom.canvas_state` events, so they stay hidden, also while encrypted or undecryptable.
+- Tests: `roomTimelineEvents.test.ts` (a message that carries a reference shows, an undecryptable reference does not) and `room.test.ts` (another member's message that carries a reference counts as unread); both fail without the fix.
+
+### Render a paragraph of tool markers without recursing per marker (2026-10-05)
+
+- Problem: when a paragraph held several tool markers one after another, for example separated by line breaks, the renderer showed the first and handed a copy of the rest of the paragraph back to `domToReact`, which handled the next marker the same way.
+  Each marker added a level of recursion and copied the rest of the paragraph again, so 1,000 markers took about 0.9 s, and the 2,400 that fit in one 64 KB event overflowed the stack, which replaced the client with the error page whenever the room was opened.
+  Copy followed the same chain recursively in `getRenderedMindroomToolRefs`: 2,400 markers took 0.75 s when the message menu opened, and 10,000 overflowed the stack.
+- Fix: `takeLeadingToolRefs` walks the markers that start a paragraph in one pass.
+  It joins each run of children a marker can span once and matches each marker from where the previous one ended, so the paragraph is scanned once.
+  `getToolRefPrefixFromElement` and copy use it, and the renderer gives each later marker its own block in a loop and renders what follows the last one once.
+  The rendered output and the copy result are unchanged.
+- Tests: `react-custom-html-parser.test.ts` renders and copies a paragraph of 3,000 markers; it fails on `dev` with `RangeError: Maximum call stack size exceeded`.
+  Randomized comparisons against the previous implementation (100,000 messages, about 14,000 with several markers in one paragraph) found no difference in the rendered markup, the copy result, or the first marker and what follows it.
+- Validation: typecheck, and ESLint and Prettier on the touched files pass.
+  2,400 or 50,000 markers in one paragraph now render as fast as the same number in separate paragraphs, and copy reads 50,000 in 0.16 s.
+
+### Escape emote URLs in sent formatted bodies (2026-10-05)
+
+- Problem: the composer's HTML output wrote a custom emote's URL into the `src` attribute of its `<img data-mx-emoticon>` unescaped, while the shortcode in `alt` and `title` was escaped.
+  Emote URLs come from image packs in room state, so a pack URL containing `"` ended the attribute and the rest of the URL went into the sent `formatted_body` as markup.
+- Fix: `elementToCustomHtml` (`src/app/components/editor/output.ts`) escapes the URL with `sanitizeText`, as it already does for the shortcode; ordinary `mxc://` URLs are unchanged.
+- Tests: `emoticon.test.ts` checks that an emote URL containing `"` and tags serializes as one `<img>` with the escaped URL in `src`; it fails without the fix.
+
+### Load power-tag icons only from mxc URLs (2026-10-05)
+
+- Problem: `getPowerTagIconSrc` returned any `icon.key` from `in.cinny.room.power_level_tags` that did not start with `mxc://` unchanged, and `PowerIcon` renders every non-emoji value as `<img src>`.
+  A tag icon set to an `https://` URL in the room state therefore made every viewer's client fetch that URL directly from the other server, wherever the tag showed (messages, profiles, the pin menu, notifications, and the permissions pages).
+  The tag editor only writes `mxc://` uploads or emoji, so such a key can only come from a hand-written state event.
+- Fix: a non-`mxc://` key is returned only when it matches `JUMBO_EMOJI_REG`, the same check `PowerIcon` uses to render it as text; any other key gets no icon.
+- Tests: `useMemberPowerTag.test.ts` checks that an emoji key is kept and an `https://` key gives no icon; it fails without the fix.
+
+### Open only http(s) account management URLs (2026-10-05)
+
+- Problem: the device dashboard and device delete buttons in Settings > Devices, the cross-signing reset in the verification menu, and the provider portal buttons in account deactivation passed the homeserver's `account_management_uri` (or the `issuer` fallback) to `window.open` without checking its scheme.
+  A `javascript:` URL in the auth metadata therefore ran as script on Chat's origin instead of opening a page.
+- Fix: `getAccountManagementUrl` in `src/app/hooks/useAccountManagement.ts` builds the URL for all four call sites and returns `undefined` for a URL that does not start with `http://` or `https://`; the button then does nothing.
+- Validation: `src/app/hooks/useAccountManagement.test.ts` pins that a `javascript:` `account_management_uri` or `issuer` yields no URL; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass.
+
+### Open the server chip's homeserver with noopener (2026-10-05)
+
+- Problem: the profile server chip's "Open in Browser" item called `window.open` without window features.
+  Unlike a `target="_blank"` link, `window.open` does not imply `noopener`, so the homeserver page it opened kept a `window.opener` reference to the Chat tab and could navigate that tab to another page.
+- Fix: the item passes `noopener,noreferrer`, as the other `window.open` calls in `ConnectPage` and `LocalMindroom` do.
+- Tests: `UserChips.clipboard.test.tsx` checks that the item opens `https://<server>` in a new tab with `noopener,noreferrer`; it fails without the fix.
+
+### Type image blobs from an allowlist of raster image types (2026-10-05)
+
+- Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
+  An image declared as `image/svg+xml` therefore opened in a new tab as an SVG document on Chat's origin, not as an image.
+- Fix: `getImageBlobSafeMimeType` keeps the declared type only when it is in `IMAGE_MIME_TYPES` (JPEG, GIF, PNG, APNG, WebP, AVIF) and uses `application/octet-stream` otherwise.
+  Browsers sniff raster images in `<img>`, so images with a missing or nonstandard type still render, and opening one in a new tab downloads it.
+  Browsers do not sniff SVG in `<img>`, so `MImage` shows an `image/svg+xml` image as a file tile with a download button, as `MVideo` and `MAudio` do for media they cannot play.
+  `RenderMessageContent` passes `MImage` a tile without the caption, because the image branch already renders the caption after it.
+- Tests: `ImageContent.test.tsx` (an `image/svg+xml` image loads as `application/octet-stream`, a PNG keeps its type), `ThumbnailContent.test.tsx` (an SVG thumbnail loads as `application/octet-stream`), `MsgTypeRenderers.file.test.ts` (an `image/svg+xml` image renders as a file, a PNG as an image), and `RenderMessageContent.test.ts` (a captioned SVG image shows its caption once); each SVG case fails without its fix.
+
+### Measure the long-message expansion anchor without the sync bar (2026-10-05)
+
+- Report: after PR #410, the live `long-message-expansion-default` spec still saw the anchored message land 25 px off after a collapse, inside its 40 px budget.
+- Root cause: the spec, not the anchor. The "Catching up..." bar (`client-sync-status`) sits above the whole app and hides only after the second sync, up to a 30 s long-poll later, moving the whole app up 25 px.
+  The spec took its anchor snapshot after a reload while the bar showed; the bar hid when the test opened Settings, before the toggle. A frame trace showed the anchor landing exactly on the app's reader line.
+- Fix: the spec hides the bar for every page it loads (as `thread-banner-height-anchor` does), and its drift budget drops from 40 px to 2 px.
+  Waiting for the bar to go was not enough: on a cached load it can appear only after the first network sync.
+- Validation: collapse drift 25 px in 3 of 3 runs before; 0 px in 5 of 5 runs waiting for the bar and 3 of 3 with it hidden; the expand drift stays 0 px.
+  The bar's hide still moves the whole app by 25 px for a user; that is `SyncStatus` layout, separate from the anchor.
+
+### Tighten the README's configuration and push notes (2026-10-06)
+
+- Status: implementation, review, and publication on `docs/readme-follow-ups`; follows the README rewrite in PR #397.
+- Problem: the Docker configuration example copied `config.mindroom.json` from a checkout, which someone running only the published image does not have; the push section read as if push were off, though the bundled config already enables it for MindRoom's own app and gateway; and the "App Store submission docs" list also held `ios-panels.md`, which is not a submission document.
+- Change: copy the starting configuration out of the image with `docker run --rm --entrypoint cat`, say the bundled config already enables push and that a fork sets its own bundle ID and gateway, show a placeholder bundle ID in the example, say `appId` must be the app's bundle ID (as the preflight checks) and must match a gateway app entry for the build's APNs environment with `convert_device_token_to_hex: false`, since the app registers hex tokens, relabel the list "iOS docs", and replace the stale push section of `.docs/ios-build.md` (root `config.json`, no rebuild) with a link to the README.
+- Validation: the image is `nginx:alpine` with the built `dist/` at `/app`, so `/app/config.json` is the bundled file; `config.mindroom.json` enables `push.ios` for `chat.mindroom.app`; review by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
+### Live test for typing after a gappy sync (2026-10-05)
+
+- Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
+  The browser goes offline while 30 messages arrive (the sync timeline limit is 20), comes back on a `limited: true` sync, and another member's typing start and stop must still be heard.
+- Validation: passes on `dev` (2 of 2, 43 s); with #402's SDK line reverted it fails 2 of 2 at the typing check after the gap, after typing showed before it.
+
+### Keep the long-message expand/collapse anchor below the sticky headers (2026-10-05)
+
+- Report: after changing "Expand long messages by default" while reading inside a long message, that message's top landed behind the sticky thread banner (or the room header), so the reader saw its middle instead of its start.
+- Root cause: `useTimelineBulkExpansionAnchor` took the reader's top as 8 px below the scroller's top and ignored the sticky header and banner over it (the scroller's `scroll-padding-top`).
+  For a message that fills the view, the anchor is its visible top, so the restore put the message's top on that line, under the glass. A message hidden under the headers also counted as visible.
+- Fix: the reader's top is 8 px below `scroll-padding-top`, the line the scroll ledger and explicit jumps already use.
+- Tests: `useTimelineBulkExpansionAnchor.test.ts` (a message filling the view under a 150 px header is restored below it, and a message whose top is under the header is not the anchor; each fails without its half of the fix).
+  `long-message-expansion-default` measures its anchor from the same line; its collapse-from-a-tall-message check fails on `dev` (the message lands 175 px off, behind the banner) and passes with the fix (25 px, the same residual `dev` shows against its old line, inside the 40 px budget).
+
+### Let an agent read a canvas page's state without a Send button (2026-10-06)
+
+- Why: for pages whose choices matter later (a checklist ticked over days, a form filled in passing), users asked that the agent see them without an explicit Send; pushing every change into the conversation would cost the agent tokens on every turn, so the agent reads on demand instead.
+- A canvas request may carry `share_state: true` (backend `show_canvas(share_state=True)`). It is an authority field like `requester_id`, so an edit cannot start or stop sharing.
+  The panel shows, whatever its footer says, "Saved in this room: *agent* and others here can read what you enter.", and keeps the usual disclosure.
+- `useCanvasStateShare` keeps a copy of what the page saved (its `saveState` JSON and kept inputs) in the room once the user pauses for 2 s, and when the panel closes or the tab is hidden (a closing tab never unmounts).
+  Only saves after the user has clicked or typed in the page are shared: the bridge adds `navigator.userActivation.hasBeenActive`, which a page's own `focus()` cannot fake, to each state message, and `CanvasPanel` falls back to whether the frame took focus where a browser lacks it; so a page's defaults on another device, or its saves while loading, never replace the agent's copy.
+  Copies go one at a time through a queue per canvas that outlives the panel, so a slow sidecar upload cannot land after a newer copy, even across closing and reopening; an unchanged copy is not sent again, a failed one is sent with the next save, and its unsent local echo is discarded.
+  The copy is an `io.mindroom.canvas_state` event with an `m.reference` relation to the canvas, so the agent's `read_canvas_state` finds the newest with one `/relations` call; a copy too large for one event goes as a long-text sidecar, like a large answer.
+  It is not a message, so it starts no agent turn and stays out of the agent's conversation; in an encrypted room it is encrypted like any event, and it stays in the room's history.
+  Each copy is marked `msgtype: "m.notice"` (inline and as a sidecar preview), so the standard push rule keeps it from notifying the room, even under a room's "All messages" setting.
+  The timeline and the room's unread check now skip every `m.reference` relation, so a copy never shows (not even as an undecrypted placeholder) and never marks the room unread for other members, also when the canvas it refers to is not loaded.
+- Tests (removing each piece fails its test): `useCanvasStateShare.test.tsx` (waits for a pause, each save restarts the wait, nothing for an unshared canvas or the same state twice, shares on close and when the tab is hidden, one copy at a time behind a slow upload, sidecar keeps the reference, retry after a failed send), `CanvasPanel.test.tsx` (the notice, `byUser` before and after the user worked in the page), `RoomCanvasPanel.test.tsx` (only the user's saves shared, whole), `chatUiProtocol.test.ts` (parsed, kept through edits, an edit cannot start it), `roomTimelineEvents.test.ts` and `room.test.ts` (a reference is neither shown nor unread), and the backend contract's new `show_canvas/shared` case.
+  `e2e/agent-canvas.spec.ts`: ticking a box in a shared canvas leaves one copy referencing it, with the page's state and kept inputs, while an unshared canvas leaves none.
+- Validation: live with a real agent (GPT-6.1 Sol, backend mindroom-ai/mindroom#2709): asked for a camping checklist it could check without a Send button, it chose `share_state=True`; after three ticks it called `read_canvas_state` and answered "3 of 6 packed" with the right items, and the LLM request before the tool call held no state.
+- Not changed:
+  - A change made less than 2 s before logging out may not be shared, since logout stops the client first; one made just before closing the tab is sent when the tab hides, which the browser may cut short.
+  - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
+  - Two devices editing the same canvas share their own copies; the agent reads the newest.
+
+### Drop a redacted thread summary from the thread title (2026-10-05)
+
+- Problem: after an `io.mindroom.thread_summary` notice was redacted, clients that had received it kept showing its text as the thread title in the overview and the thread banner, and kept it in the IndexedDB `thread_summaries` store across reloads until a newer summary replaced it.
+- Root cause: the shared summary state and its `thread_summaries` records did not know which event a title came from, so neither the live redaction handler nor the redaction scrub could clear them, and the stored title kept winning over the thread's remaining summaries.
+  In an open thread the banner also read matrix-js-sdk's latest reply, an unredacted copy until the SDK re-fetches the root, and nothing re-rendered the banner when it did.
+- Fix: a summary taken from a Matrix event (or a manual save) records its `eventId` in the shared state and the cache record.
+  The engine's live redaction handler drops matching titles from the shared state (`forgetRedactedThreadSummaries`), and the redaction scrub deletes matching `thread_summaries` records, so readers fall back to the thread's remaining summaries or the root preview.
+  The room and thread snapshot writers in `eventRepository.ts` drop them too when they persist redaction evidence, because a redaction that fell in a sync gap reaches the client only through gap fill or a thread fetch, never through the live handler.
+  `ThreadContextBanner` re-renders on its thread's `ThreadEvent.Update`.
+- Tests: `threadSummaryPersistence.test.tsx` caches a summary, redacts it through the engine write-through and the real cache scrub, and checks that memory and disk drop it and that the older summary then becomes the title (fails on `dev` and without either the state or the scrub change), and checks that a redacted copy of the notice persisted through the room or the thread snapshot writer drops the loaded title (each case fails without its writer's call); `ThreadContextBanner.test.ts` swaps the SDK's latest reply and emits `ThreadEvent.Update` (fails without the subscription); `threadSummaryActions.test.ts` checks that a manual save records its event id.
+  A local live check against Tuwunel (Chromium) redacted the newest of two summaries with the thread open and with the client closed: the banner, the overview card, and the stored record fell back to the older summary, also after a reload; on `dev` the redacted text stayed in the card and the stored record in both cases, and in the open thread's banner.
+
+### Trust MindRoom metadata only from the accounts that send it (2026-10-05)
+
+- Report: the client read MindRoom metadata from whoever sent it, so any room member could make other members' clients show content MindRoom never sent.
+  - Another sender's `m.replace` of an edited message added its message extras, thread summary, canvas `ui_action` or `m.mentions` to that message: `getEditedEvent` picked the original sender's latest edit, then filled missing keys from every replacement, whoever sent it.
+  - A member could edit their own message with no "(edited)" marker by adding `io.mindroom.stream_status`, `io.mindroom.ai_run`, `io.mindroom.tool_trace` or the router voice-echo flag to it.
+  - `io.mindroom.tool_approval` events from anyone became pending requests, receipts and timed permissions in the approval bar and review dialog, and live cards in the room timeline.
+  - `com.mindroom.scheduled.task` state from any member with state power showed in the Schedules dialog, its badge and the thread scheduled indicators, with any owner.
+- Backend rules: approval cards come from the router account (`approval_transport.py`), scheduled-task state counts only from MindRoom's own bot accounts (`scheduling.py`), and agent stream metadata and voice echoes come from agents and the router.
+- Fix: edit candidates are limited to the original sender before the latest edit is chosen and before its metadata fallbacks are copied.
+  The edited-marker exemption, approval records and cards, and scheduled-task state now require a MindRoom account on the viewer's homeserver (`isMindroomAgentUserIdForViewer`, as for agent canvases and calls).
+  Scheduled-task readers share `useScheduledTaskEvents`.
+- Limits: agents on another homeserver than the viewer, and agents renamed away from the `mindroom_` prefix, now show "(edited)" on finished streams and their approval cards and schedules are not shown; `mindroom_` accounts on the viewer's own homeserver still pass, so operators must keep reserving that namespace.
+- Tests: `room.test.ts` (another sender's edit adds no metadata and leaves the agent's edit unchanged), `RenderMessageContent.test.ts` (a human or foreign-server sender with agent metadata or the voice-echo flag keeps "(edited)"), `renderMindroomMessageContent.test.ts` and `ThreadApprovalProvider.test.tsx` (cards from a member or a foreign-server agent are not cards or records), `useThreadScheduledTasks.test.ts` (tasks from a member or a foreign-server agent are not counted); each fails without its fix.
+  The live approval and schedule specs and the App Store seeder now send those events from a registered `mindroom_` account, and the schedules fixture uses one.
+
+### Match MindRoom homeservers by hostname (2026-10-05)
+
+- Problem: `normalizeHomeserverName` in `src/app/mindroom/auth/authPolicy.ts` only stripped the scheme and trailing slashes, so `isMindroomHomeserver` suffix-matched the host plus the path.
+  A base URL such as `https://example.org/x.matrix.mindroom.chat` counted as a MindRoom tenant, and on iOS the Apple provider then took the native Apple exchange, which posts the Apple credential to that base URL.
+- Fix: `normalizeHomeserverName` parses the server as a URL (adding `https://` to bare server names) and returns its hostname, or an empty string when it does not parse, so the exact `mindroom.chat` match and the dot-bounded `.matrix.mindroom.chat` suffix match apply to the hostname only.
+- Validation: `src/app/mindroom/auth/authPolicy.test.ts` pins that a path ending in the tenant suffix does not match; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass; `npm test` fails only in `xcodeCloudPostClone.test.ts`, which needs `/bin/bash`, and one `useRoomInputSendSessionController.test.ts` case, which also fails on `dev`.
+
+### Keep one message from freezing or crashing the client for everyone (2026-10-05)
+
+- Problem: five message render paths could freeze the client, or replace it with the error page, for everyone who viewed one message.
+  - URL previews: `URL_REG` ended in a lookbehind that repeated its punctuation class, so it read a run of punctuation back from every position a URL could end at; `http://` followed by 100,000 dots took 3.4 s.
+  - Reply fallbacks: `trimReplyFromBody` let every `> ` end the quoted sender and, with the `m` flag, every line start a fallback, and each try rescanned the rest; a 40 KB line of `> ` pairs took 1.2 s, and 8,000 quote lines with no closing blank line took 0.8 s.
+    The `m` flag also matched a quote later in the body and then sliced that match's length off the start of the body.
+  - Display math: `tokenizeTextWithLatex` and `findDisplayLatexBlockMatch` rescanned to the end of the text from every line-start `$$` with no closing `$$`; 64 KB of `$$x` lines took about 3 s in each.
+  - Tool markers: `getToolRefPrefixFromElement` ran the marker regex over every prefix of a paragraph's leading children; a 64 KB paragraph took 2 s, and one with 20,000 `<code>` children took 6 s.
+  - File events: `MFile`, `MVideo` and `MAudio` passed `filename`, `body` and `info.mimetype` on unchecked, so a number or object threw in `FileHeader`, `FileContent` or the audio player, and the error page replaced the whole app until the event was redacted.
+- Fix:
+  - `URL_REG` checks only the character before the end: a repeated class ends at a position exactly when that character is in the class.
+  - `trimReplyFromBody` matches only at the start of the body, and the quoted sender ends at the first `> `, the only split that can match; a fallback at the start of the body is trimmed as before.
+  - Each text gets one display-math matcher, which remembers where a scan that reached a backtick or the end of the text stopped; a later opener before that point cannot close either and fails without scanning.
+  - `getToolRefPrefixFromElement` joins the leading children once and runs one anchored marker match; the marker prefixes are exactly those that end between the marker's `]` and the end of that match, so it takes the longest one that ends inside a text child or after another child, as before.
+  - The file renderers use `filename` or `body` only when it is a string, else their existing fallback name, and `MFile` uses `info.mimetype` only when it is a string, else `application/octet-stream`; `MVideo` and `MAudio` already normalized the MIME type.
+  - The URL, reply-fallback and file-field changes are in code inherited from Cinny and stay self-contained, so they can be offered upstream unchanged.
+- Tests: `regex.test.ts` (`URL_REG`), `room.test.ts` (`trimReplyFromBody`, including a quote later in the body that stays), the new `math.test.ts` (both display-math scans, including an opener after a code span), `toolRefDom.test.ts` (`getToolRefPrefixFromElement` on markers with a pending icon, a split `<span>` and a long paragraph), and the new `MsgTypeRenderers.file.test.ts` (file, video and audio events with a numeric `body`, an object `filename` and a numeric MIME type, through the real `FileHeader` and `FileContent`).
+  Each fails on `dev`: the four scans exceed their time limits and the file event throws `mimeType.lastIndexOf is not a function`.
+  Randomized comparisons against the previous implementations (300,000 URL texts, 500,000 reply bodies, 100,000 math texts and 40,000 marker paragraphs) found no difference apart from that quote later in the body.
+- Validation: typecheck, the production build, and ESLint and Prettier on the touched files pass.
+  The full unit suite passes except the four tests that also fail on unchanged `dev` on this host: three `xcodeCloudPostClone` tests (no `/bin/bash`) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+
+### Keep hearing room members after a gappy sync (2026-10-05)
+
+- Report: found while reviewing PR #399. After a gappy (`limited`) sync, for example when a backgrounded tab or a sleeping phone catches up, the client stopped hearing typing for everyone already in the room until reload; an agent that started typing showed nothing.
+- Root cause: matrix-js-sdk `EventTimelineSet.resetLiveTimeline`. With timeline support and a forward token (mindroom-chat sets `timelineSupport: true` and no `canResetEntireTimeline`, so every gappy sync takes this path), the new live timeline got `fork()`, a clone of the room state with new `RoomMember` objects.
+  Sync forwards a member's `Typing`, `Name`, `PowerLevel` and `Membership` events to the client when the live state first emits `NewMember` for it, and the clone emitted those before anything listened, so the new members stayed silent. The clone also dropped each member's typing state.
+  Anything else subscribed to the live `RoomState` itself kept listening to the old one, too: the SDK store's user tracking (`MemoryStore.storeRoom`) and the app's `useRoomState`, which feeds thread tags and scheduled-task status.
+  The function's own comment says the live state moves to the new live timeline so its listeners stay attached, and the full-reset path (`forkLive`) does that. Upstream `b33a47e253` (2017, "Fix member events breaking on timeline reset, 2") moved it on both paths; the 2018 lazy-loading refactor `88f2f62945` brought the clone back on this one, and upstream `develop` (v43) still has it.
+- Fix: the SDK patch uses `forkLive` on both paths, so the new live timeline keeps the live state and its members, and the old timeline gets the copy, as on the full-reset path. One line in `src` and `lib`, upstreamable as is; upstream's `should reset the legacy timeline fields` spec would then expect no `CurrentStateUpdated` with timeline support either.
+  The typing recheck from #399 is now needed only for rooms we left, and its comment says so.
+- Tests: `typingMembers.test.tsx` replaces #399's test of the replaced members: after a gappy-sync reset a typing agent stays shown, and its stop and next start are heard (fails without the SDK change).
+
+### Keep the values of a canvas page's sliders and fields without the page saving them (2026-10-05)
+
+- Why: sliders and numbers reset when the user switched versions, reopened the panel or reloaded Chat, unless the agent's page happened to call `mindroom.saveState`; users expect a page's controls to keep their values.
+- What is kept: the value of every `input`, `select` and `textarea` with an `id` or `name` (key `#id`, else the name, `name=value` for a checkbox, and the group's name for radio buttons, which keeps the checked button's value), shared by every version of the canvas and matched by that key, so values also survive the agent's updates (the agreed design).
+  Never kept: password, file, hidden and button inputs; a field that was a password once (a `MutationObserver`, started before the page's scripts, notes every type change away from `password`, so revealing it cannot keep it); a field whose `autocomplete`, or its form's, has the token `off` or a password token (one such radio button declines its whole group); and a value longer than `CANVAS_INPUT_MAX_LENGTH` (32 K characters of JSON), which is left to `saveState`.
+  If all kept values together would pass the 256 K limit, the longest are dropped, so the others are still kept.
+- Restore: once the page's scripts and `DOMContentLoaded` handlers have run, the bridge gives each control its kept value one at a time, finding the live control again each time, because pages redraw their other controls when one changes (React's controlled inputs, a list rebuilt from the page's own state, select-all boxes).
+  The controls are scanned once, and again only when the page has replaced the one about to be restored, so a page with thousands of fields restores in a fraction of a second.
+  A value is set through the element's native setter (so React sees it) and followed by `input` and `change`; a checkbox or radio button gets a dispatched `click`, the event frameworks listen to for them, which also reaches a disabled one. A checkbox whose kept value is not a choice, and a select lacking the kept option, are left as they are. Nothing the restore causes is kept again, and after each restore the bridge looks once more for controls the page drew in response (a field a kept checkbox reveals), which get their kept values too, at any depth; such a control is never kept at its default in the pass that drew it.
+- Keeping: from then on, `input`, `change` and click events (buttons such as Reset change values without events) are collected and handled one task later, once the page has handled them, so restoring a control drawn later cannot undo what the page did with the user's change. Then the values that changed since the page loaded are kept, merged into those kept before, and sent as `inputs` JSON in the existing `mindroom.canvas.state` message.
+  Only changed values are kept, so a control the user never touched cannot replace a value kept in another version (an option or radio button this version lacks), and nothing is kept before the restore, so a page's own startup events cannot overwrite kept values.
+  A control the page draws later, such as the next step of a form, gets its kept value when the bridge first sees it (on the next event, or right after a click), unless one of the user's own (trusted) events in that batch changed it first; an event the page fires itself never counts as the user's change.
+- Chat keeps the values with the page's saved state: the stored record, `useCanvasSavedState` and `readCanvasState` now carry `{ json, inputs }`; same limit, write batching, eviction and logout deletion. Records saved before this change still load.
+- `canvasFrameWindow` reads the canvas frame only when the cross-origin wrapper holds one: reading a missing frame index of a cross-origin window throws, which the far more frequent control messages hit while a new page was being built (`Failed to read an indexed property [0] from 'Window'`).
+- Tests (removing each piece fails its test; the new restore cases also fail on the earlier two-phase restore):
+  - `canvasDocument.test.ts` runs the bridge in JSDOM: named controls (including select-multiple, checkbox and radio group) come back with redraw events, and none for a control already showing its value; values a version cannot show stay kept; a radio choice survives a version with only part of its group; startup events, also one fired before the page listens; controls drawn later (restored, the user's first change kept, the page's own event not); pages that write their state into every control, select-all boxes, lists rebuilt on each change, disabled checkboxes and radio buttons (also one the page enables later from its own state), a page that redraws when a later control is restored after the user's change, a checkbox whose kept value is not a choice, and fields restored checkboxes reveal, also nested; buttons; passwords revealed at startup or on a field drawn later; `autocomplete` as whole tokens, in any case, on a form or on one radio button; long texts and the overall limit; the native setter; `canvasFrameWindow` with an empty cross-origin wrapper.
+  - `canvasMessages.test.ts`, `canvasStateStore.test.ts`, `useCanvasSavedState.test.tsx` (both parts written as one), `CanvasPanel.test.tsx`, `RoomCanvasPanel.test.tsx` (saving one part keeps the other).
+  - `e2e/agent-canvas.spec.ts`: a slider page that saves nothing keeps its value across a Chat reload, **Load update**, and a switch to the earlier version.
+- Validation: typecheck, lint, the e2e spec and the full unit suite pass (except the three `xcodeCloudPostClone` tests that need `/bin/bash`, which fail on unchanged `dev` on this host too).
+  Live with a real agent (GPT-6.1 Sol, backend with mindroom-ai/mindroom#2697): its mortgage calculator gave its sliders ids and used no `saveState`; values set by the user survived the agent's update that added a slider, the earlier version, and a Chat reload, and the page redrew its payment from them.
+- Not changed:
+  - Controls without an `id` or `name`, and values a script sets with no `input`, `change` or click around it (a timer), are not kept; a control a timer draws shows its default until the next event restores it.
+  - A control whose key means something else in another version gets that version's value (browsers clamp ranges; a select keeps its own choice when it lacks the kept option). Agents are told to give such a field a new `id`.
+  - Radio buttons and checkboxes without a `value` attribute share the value `on`, so a group of them keeps no choice.
+  - Each change sends every kept value; Chat still writes at most once every 500 ms.
+  - Events that a page, a widget or a test tool dispatches are not trusted, so they never count as the user's change on a control drawn later; browser tests should use real clicks and typing.
+
+### Rewrite the README around the product (2026-10-05)
+
+- Status: implementation, review, and publication on `docs/readme-product-first`; PR #397 tracks the change.
+- Problem: the README opened as a fork description and went straight into App Store and TestFlight steps, so visitors learned little about what MindRoom Chat is for or how to get it, and several carried-over instructions had gone stale.
+- Change: lead with the product (tagline, the MindRoom film, where to get the app, a gallery and feature list), keep the Cinny foundation and attribution, and regroup every earlier self-hosting, configuration, development, native-app, and release instruction, collapsing the long operator sections.
+  The configuration section now names the served `config.json` and its source `config.mindroom.json`, shows how to mount one into the Docker image, and documents the canvas and computer switches; the TestFlight notes follow `scripts/ios-ci-version.mjs`.
+- Validation: rendered on GitHub in light and dark, a line-by-line comparison against the previous README, and review rounds by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
+### Let a wheel that starts as the ledger settles move the view (2026-10-05)
+
+- Report: on desktop WebKit, a wheel scroll could fail to start while older thread history landed above the reader.
+  PR #394 saw the same race with a banner fold (`thread-banner-overlay` on WebKit failed 3 of 4 runs), and #385 now folds every row inserted above the reader, so these settles are common.
+- Root cause: the ledger settle waits for `waitForScrollQuiescence`, which only saw scroll events, sampled `scrollTop` and touches.
+  A wheel's first scroll event comes a frame or more after the wheel, so a quiet window that ended in between let the settle write `scrollTop`, and WebKit cancels a wheel scroll that a write lands on before its first step.
+  A live run on WebKit without any harness caught it: wheel 154 ms after the fold, settle write 1 ms later, the view did not move. Chromium applies the wheel from the new offset and keeps it.
+- Fix: a wheel on the scroller counts as the first event of the scroll it starts: it restarts the quiet window and, where `scrollend` exists, opens the scroll session that only the scroll's `scrollend` (or the stale TTL) closes, so a first step delayed by a heavy frame is covered too.
+  A wheel that cannot move the scroller does not count: sideways, into the top or bottom edge (the bottom with 1 px of tolerance for fractional zoom), a zoom (ctrl+wheel or pinch, which `usePinchToZoom` cancels later), or one a scrollable descendant consumes (a collapsed code block, the inline editor); a wheel that chains past such a descendant counts.
+  Each of those would otherwise hold the settle until the session's stale TTL, about 1.5 s after the last wheel, and a reader pushing at the top still gets the settle that reveals the rows folded in above.
+  The settle design is unchanged; touch-only iOS scrolling has no wheel events.
+- Tests: `scrollQuiescence.test.ts` (a wheel holds the wait until its scroll's `scrollend`, or restarts the window without `scrollend`; a wheel into the top edge, sideways, at a fractional bottom edge, zooming, or consumed by a scrollable descendant does not; one chained past it does).
+  `e2e/live/thread-wheel-at-settle.spec.ts` (Chromium and WebKit, `playwright.thread-wheel-settle.config.ts`) holds older pages, lets one land above the reader and ends the settle's quiet window right after a wheel's dispatch, the timing of the live run above; the wheel must move the view. WebKit fails on the base (the view moves 0 px) and passes with the fix.
+
+### Keep "X is typing…" while the server still reports typing (2026-10-05)
+
+- Report: "X is typing…" disappeared about 5 s after it appeared even though the sender kept typing; during a long MindRoom agent turn users thought the agent had stopped.
+- Root cause: `typingMembers.ts` deleted every typing receipt `TYPING_TIMEOUT_MS` (5 s) after it arrived.
+  The backend refreshes typing with a 30 s timeout well before it lapses, and Tuwunel sends a new `m.typing` for each refresh, but the SDK emits `RoomMember.typing` only when a member's state flips, so the client never heard from the member again and the indicator stayed hidden.
+  Live on `dev`: a typing PUT with `timeout: 30000`, refreshed every 10 s, hid after 5.2 s; a 15 s PUT hid after 5.6 s, before the server had timed it out.
+- Fix: the 5 s check now keeps a receipt while the SDK's current room member is still typing and checks again later; typing off and the server's timeout both arrive as a flip and delete it at once, as before.
+  The check remains for one purpose: a gappy (`limited`) sync resets the live timeline and replaces the room's members with fresh ones whose typing changes the client no longer hears; without the check such a receipt would stay until reload.
+  It renews only while we are joined, because a room we left or were kicked from gets no more `m.typing`, and the binder resets its receipts when it unmounts (for example on Add account), so no check keeps running for a left room or an old client.
+- Tests: `typingMembers.test.tsx` uses the real SDK room: a member stays across 30 s of refreshes and goes when `m.typing` drops them (fails on `dev`); a member is dropped after a gappy-sync reset (fails with the check removed or with the captured, replaced member read instead of the room's current one); a left room and an unmounted binder leave no receipt and no pending check (each fails without its guard).
+  `composer-glass` no longer re-sends typing before **Drop Typing Status** (the previous entry's workaround for the 5 s expiry); its check after the click now fails if the button does nothing, which on `dev` passed because the notice hid by itself.
+
+### Keep the panel rim sharp behind scrolling titles in Chromium (2026-10-05)
+
+- Report: in dark themes, the top-left of the "Review tool calls" dialog looked hazy: along the title's left and right edges the panel's 1px rim turned into a soft band about 10 px wide, and the rim stopped where the title ended.
+  The same happens in every floating glass panel with a scrolling title (dialogs, `Modal` sheets such as the thread filters, menus).
+- Root cause: `PageScroll` puts the title in a sticky wrapper with `z-index: 1`, so it paints after the panel's rim (`::before`, `z-index: auto`).
+  The flat title has its own `backdrop-filter: blur(3px)`, and Chromium includes the rim in that backdrop, so the title blurs the rim and covers the crisp copy.
+  With the title's blur turned off the rim was crisp again (pixels `67 42 29 29…` instead of `48 46 44 40 36 33 31 30`).
+  WebKit already drew it crisp beside the title.
+- Fix: `glassScrollPanel` lifts the rim to `z-index: 2` on panels that hold a flat title.
+  These panels are already `isolation: isolate`, so the rim stays inside them; it is a 1px masked ring with `pointer-events: none`.
+  The rule is kept to `glassScrollPanel` rather than the shared material, so glass cards in the timeline gain no `:has()` rule to recheck while streaming.
+  Visible change in every engine: the text viewer ("View source", text file previews) now shows the rim like every other glass modal; before, the `PageScroll` box with its opaque canvas painted over the rim, so that panel had only its border.
+  The rim also covers the outer 1px of the inset scrollbar's focus ring where the track meets the edge; the rim is nearly transparent there.
+- Tests: `e2e/dialog-menu-glass.spec.ts` "scrolling titles leave the panel rim sharp" opens the filters sheet once its entrance animation ends and samples one row of the title: the rim column must differ from the title 24 px in by more than 60 (the rim is drawn), and the title 3 px in must match it within 9 (no smear).
+  Without the fix it fails on the rim (difference 48, three of three runs); with the rim hidden it fails too (3); with the fix it passes (189).
+  It runs in dark only: silver's rim is too close to its background to tell drawn from smeared.
+- Validation: the glass suite passes in Chromium (50 passed, 25 live specs skipped without Matrix credentials) and in WebKit in the Playwright 1.58.2 container (48 passed, 27 skipped); after the test was tightened, `dialog-menu-glass.spec.ts` passes in both (9 passed, the silver case skipped).
+  Typecheck, lint, build and the glass and approval unit tests pass.
+  Before and after screenshots of the approval dialog were taken from a throwaway fixture.
+
+### Calm the approval buttons and drop the bulk row for a single call (2026-10-05)
+
+- Report: the "Review tool calls" dialog felt loud (solid pastel green, red and purple buttons), and a group with one call still showed "Approve all 1 once", "Deny all 1" and a "Reason for denying all" field that repeat the call's own Approve and Deny.
+  Inline approval cards in a thread render the same group with one record (`MindroomToolApprovalCard`), so every inline card had that row too.
+- Fix: approval buttons use folds `fill="Soft"` with `outlined`: Approve is Success, Deny and Confirm deny are Critical, Approve any arguments is Warning, and the timed "Allow for N minutes"/"Auto-approve for N minutes" buttons and Cancel are neutral Secondary (no more purple).
+  Stop auto-approval in `ApprovalGrantStatus` is Critical Soft as well.
+  `ApprovalReviewGroup` shows "Deny all" and its reason only when more than one call is still actionable (`available.length > 1`), and "Approve all" only when more than one is approvable (`approvable.length > 1`), so a group whose other calls were already decided, or cannot be approved here, does not offer "all 1" either.
+  A group with no actionable calls (another approver's, or all sent) no longer shows the bulk buttons disabled; the row also unmounts once a bulk click sends, so focus falls to the document body, as with the per-call buttons; Tab returns into the dialog.
+  The timed permission buttons stay, since they are not per call.
+- Decision: neutral buttons use Secondary `Soft`, not `None` outlined.
+  In the dark themes `Secondary.Container` equals the group's `SurfaceVariant.Container`, so they read as bordered pills; `None` outlined draws a full-contrast `Secondary.Main` border, which compared harsher in both themes and with `prefers-contrast: more`.
+- Tests: `ThreadApprovalControls.test.tsx` renders groups of 2 calls, 1 call, 2 calls with one submitted, and 2 calls with one unapprovable, and checks the exact bulk labels and the reason field for each; the last three fail on the base, and the unapprovable one fails with the approve gate loosened to `> 0`.
+  The glass fixture's approval group (`e2e/fixtures/MessageGlass.tsx`) uses the new fills.
+- Validation: typecheck, lint (0 errors), build and the approval unit tests pass.
+  The full unit run has 4 failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` that fail the same way on the base commit.
+  Screenshots of the dialog (1 and 2 calls, dark and light, denying) and the inline card were taken from a throwaway fixture that stubbed the approvals context; it was not committed.
+
+### Keep Recently Opened and the compact overview on the same rows after a thread visit (2026-10-05)
+
+- Report: like the room list (#366), Recently Opened and the compact room overview should be where the reader left them after opening a thread and going back.
+- Reproduced in the local Docker Matrix stack (Chromium):
+  - Recently Opened lost its position on every unmount (a phone thread open and Back, a switch between Home, Direct Messages and spaces, a collapse and expand): 152 px before, 0 after.
+    On a desktop where the panel stays mounted it kept its offset.
+  - The compact overview already restored its pixel offset across the keyed timeline remount (#165), and when only the visited thread re-sorted, the cards below it stayed put (the cards above it shift down into its old slot).
+    When another thread moved above the cards in view during the visit (agents replying elsewhere, a new thread), every card in view was one card lower on return.
+- Fix: `useScrollAnchorMemory` (`src/app/mindroom/scroll/scrollAnchorMemory.ts`) restores a plain scroll list by its rows, not its offset.
+  Rows carry `data-scroll-anchor` (`roomId|threadId` in Recently Opened, the root id in the compact overview).
+  On unmount it saves the offset and each row in view with its top relative to the viewport; on the next mount each saved row that is still rendered proposes the scroll position that puts it back, and the list takes the position most rows agree on (ties go to the one nearest the saved offset).
+  So a row that moved, such as the visited thread now sorting first, is outvoted even when it was the first row in view.
+  With no saved row rendered it restores the saved offset; a list left at the top stays at the top, where threads that moved up show.
+  It waits for `ready` (rows rendered), and re-applies on resizes of the viewport and of `contentRef` while the rows it placed move together (on a phone the header padding settles from 54 to 120 px after the restore), following the rows a write placed rather than voting again (until a saved row renders, each step votes).
+  It stops for good once the reader scrolls (a scroll event away from its last write, even if they come back), those rows move apart (a card in view leaving under the unresolved filter), or rows already in the list change order (a thread below the view sorting first), so a change the reader saw is not undone by a later resize.
+  This replaces the compact overview's clamped-restore retry; a list that unmounts without its rows (before they render, or after they all went) keeps the earlier snapshot.
+  The owner holds the memory: Recently Opened keeps one per account at module level, and the compact overview keeps using the room view's per-room map (so a position still does not outlive the room view).
+- Recently Opened's list moved into `RecentlyOpenedList` (keyed by account), which mounts with the list's `Scroll`, so a collapse saves and an expand restores; its rows sit in a content `div` it passes as `contentRef`, like the compact overview, so rows that render after the restore are followed too.
+- Tests: `scrollAnchorMemory.test.ts` drives the hook against a jsdom viewport that clamps like a browser: remount, a moved row (also as the first row in view), the tie-break, top stays top, the offset fallback, majority over nearest, late rows until the reader scrolls, rows added above, a tie that would flip after rows load above, a row in view leaving, a row sorting past the others, scrolling away and back, waiting for rows, unmounting before rows, unmounting after the rows went, separate keys; its `ResizeObserver` stub fires only the element that resized.
+  Removing the vote, the tie-break, the following, observing `contentRef`, the top rule, any of the three stops, or the before-rows guard each fails it, and so does `CompactRoomView` not passing `contentRef`.
+  `CompactRoomView` and `RoomView` tests keep their remount, retry and history/native exit coverage on the new memory; `RecentlyOpenedNavCategory` covers a collapse and expand, and rows rendering after it (its `Scroll` mock now forwards the ref); `RecentThreadEntry` and `CompactRoomView` pin the anchor keys.
+  Live: `compact-scroll-memory.spec.ts` opens a card, has its thread and the last thread in the list get replies, and returns by Back and by the exit button on desktop and by Back on a phone; `sidebar-scroll-memory.spec.ts` covers Recently Opened across a desktop collapse and a phone thread open.
+  Against the previous code both fail (cards and rows 90 px off); both pass now, as do `sidebar-scroll-memory`, `cinny015-thread-exit-scroll`, `cinny073-recent-threads-mobile` and `compact-thread-cards`.
+  The compact spec clicks with `page.mouse`, because a locator click first scrolls a card the glass header overlaps, which moved the overview 30 px before it was left.
+- Validation: typecheck, build and lint pass (18 existing warnings on `dev`); `npm test` passes apart from the four `xcodeCloudPostClone` and `useRoomInputSendSessionController` failures that fail the same way on `dev`.
+  The two live specs passed twice more after the review fixes, and again with `cinny015-thread-exit-scroll` after rebasing onto `dev` at #394.
+  After the Qodo fixes, typecheck, lint, build and `npm test` (same four failures) were rerun, and `compact-scroll-memory`, `sidebar-scroll-memory`, `cinny073-recent-threads-mobile` (row pitch with the new content `div`), `cinny015-thread-exit-scroll` and `compact-thread-cards` passed 12 of 12.
+- Review: an independent subagent review found that the first version kept re-applying the saved rows on every resize until the reader scrolled, so a card leaving in view made the list jump a card (reproduced: 300 to 260 px); the follow now stops when the placed rows move apart.
+  It also found the `Scroll` mock dropping the ref; the mock forwards it and the collapse test covers the wiring.
+  Re-review approved with nits: a tie could flip during the follow and end it early, so later steps now follow the placed rows; its note that the collapse test shares module memory with the file's other tests needs no change, because the test scrolls the list itself before collapsing.
+  PR review, round 1: GPT-6 Astra approved, noting that scrolling away and back left the follow on; Opus 5.5 found the blocker that a re-sort with no resize left it on, so the next resize moved the rows back (300 to 340 px), and that no test separated the vote from nearest-wins or checked `contentRef` was observed.
+  The follow now also ends on a reader scroll event and on a change in row order, and the tests cover all three.
+  Round 2: both approved; Opus's note that the vote still runs after an offset fallback is now in the comment, and its other notes (strict `scrollTop` equality, carried over from the old compact code; the phone Recently Opened step not separating vote from pixel restore) need no change.
+  Qodo then found that Recently Opened did not pass `contentRef` (rows rendering after a clamped restore were not followed) and that a list emptied before it unmounted saved over the earlier snapshot; both fixed with tests that fail without them, and its two style notes (shared settle helper for the live specs, the unreachable null checks) need no change.
+- Not addressed:
+  - A re-sort that arrives while the reader is looking at the list (no remount) still moves the rows in view; that is live scroll anchoring, not restore.
+  - The thread exit button has no accessible name, so the live spec finds it from the Thread View label like `cinny015`.
+  - WebKit and the native iOS shell were not run.
+
+### Keep a thread reader in place when the thread banner changes height (2026-10-04)
+
+- Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
+  The previous entry listed this as not covered.
+- Root cause: the banner (`ThreadContextBanner` in `ThreadTimelineHeader`) is sticky but sits in the scroll content above the rows, and the thread scroller has native scroll anchoring off, so nothing held the reader against it.
+  Most of its changes never reach the timeline's render or commit: tags, resolution, pins and scheduled tasks are the banner's own state, and wrapping commits nothing; only a summary arrives with a timeline commit.
+  The header's ResizeObserver sees every change, but only after layout: by then a shrink at the bottom has clamped the scroll, and a ledger margin written there resizes the scroll content the inset scrollbar already observed in that loop ("ResizeObserver loop completed with undelivered notifications", a page error in WebKit; checked in Chromium and WebKit).
+- Fix: the header keeps its last height while the banner resizes inside it, so no row moves when the banner does.
+  Its next-frame update, which already published `scroll-padding-top`, now reads the scroll offset, sets the new height and reports the change (`holdThreadBannerResize`), all before that frame's layout.
+  When the reader has a row (the previous entry's anchor), the offset moves by the change, as native scroll anchoring would; written from the offset read first, it cannot be clamped at the bottom.
+  A reader above the first row sees the banner push the content, as with Load Older.
+  A reader at the very top (`scrollTop` 0, whose anchor is the root) is left there, and the write clears the settle-discard watch and reseeds the boundary baseline, as a settle does.
+  The change is written at once rather than folded into the ledger: a fold's settle at rest landed after a scroll the reader started meanwhile, cancelling a wheel scroll that had not moved yet in WebKit, or, once that waited, leaving a reader who scrolled to the top 11 px short of it (`thread-banner-overlay` on WebKit failed 3 of 4 runs).
+  A banner change during iOS momentum would stop it; the banner changes rarely and not in response to scrolling.
+  The reader's line (`scroll-padding-top`) now changes in the same frame as the rows, so the commit after a banner resize no longer reads a stale inset (review note N1); the first commit after opening still reads the header-only inset.
+- Tests: `ThreadTimelineHeader.test.tsx` (keeps its height until the frame, then sets height and padding and reports the change, with the offset from before and the new height already set); `timelineScrollLedgerController.test.ts` (a reader with a row is held both ways with no ledger debt; a reader above the rows is not).
+  `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 22 px).
+  It hides the "Catching up" sync bar, which goes with the sync that brings the change and would move the scroller during the check.
+
+### Opt the app out of browser page translation (notranslate, 2026-10-05)
+
+- Report: a user on Dutch Chrome kept losing the whole app to react-router's error page with `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.` on a thread.
+  The first report came in August; the fix (#209) was never merged and was stranded when `dev` was rebuilt on 2026-09-13, so no build had it.
+- Root cause: Chrome's page translator moves React-owned text nodes into injected `<font>` wrappers; React's next render removes the original node from a parent that no longer holds it and throws (facebook/react#11538).
+  Streaming replies edit messages constantly, so a translated thread crashes quickly.
+  The screenshot proves translation was on: the stack's `at` was rendered as `op` and `bij`, and the heading was react-router's English `Unexpected Application Error!` in Dutch.
+- Fix: `index.html` sets `translate="no"` on `<html>` and adds `<meta name="google" content="notranslate">`; `src/indexHtml.test.ts` pins both.
+- Cost: users can no longer machine-translate message content in the browser.
+  The UI itself is localized through the language picker (17 locales); `i18n.ts` writes only `lang` and `dir` on the root, so the attribute stays.
+  Exempting message bodies would not help, because they are the nodes that crash.
+- Validation: `src/indexHtml.test.ts` passes and fails with either marker stripped; typecheck, build (both markers in `dist/index.html`), lint and prettier pass.
+
+### Move rows in the same frame as an applied scroll correction (2026-10-04)
+
+- Report: `long-message-expansion-default` failed about 1 run in 6 at its fold-anchor check (listed in `docs/testing.md` as known unresolved): after turning "expand long messages" off, the anchor message read 609, 634 or 659 px from where it was.
+- Root cause, found by logging every correction, scroll write and React commit around the toggle: rows above the reader remount folded and shrink 634 px, and on desktop virtual-core applies those corrections as scroll writes inside the ResizeObserver callback, while the rows they move render only in React's next task, after the browser has painted.
+  For that frame (15-200 ms on the test host) the reader's view sits 634 px off, and the check read it there; the 609/659 readings add a 25 px "Catching up…" banner that left between the check's two reads.
+  Rows later in the same batch are reported at their positions from before the batch, so one whose row above had just been corrected was judged in view; its shrink was neither applied nor ledgered, and the view jumped 634 px up until the bulk-expansion anchor loop put it back.
+- Fix: the timeline controller sums the corrections applied since its last render and renders the moved rows in a microtask, before the paint; until then the correction hook judges rows against the offset minus that sum, the layout virtual-core still reports.
+- Tests: `virtualizerIOSScrollContract.test.ts` folds two rows in one batch against the real virtual-core and requires both corrections; `timelineScrollLedgerController.commit.test.tsx` requires the render one microtask after an applied correction and the judgement to return to the live offset after it.
+  Live, the spec passed 26 of 26 runs against 18 of 26 on the base, interleaved under the same load.
+
+### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
+
+- Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
+  Tightening the new live spec to 1 px found that the reader still slid 48 px when the Load Older chip went with the last page, including a reader looking at the root.
+- Root cause: the thread scroller disables native scroll anchoring, so the ledger must hold the reader against changes above them, and it did not.
+  It folded inserted rows only under a request-owned DOM anchor capture, so pages of the opening history chain, reconciled pages and other bands slid the reader once the opening pin let go.
+  It ignored the content between the banner and the rows (load error, Load Older), whose removal moves every row.
+  And the measurement-correction hook judges "above the viewport" in virtual-core's offsets, which ignore the content above the list; with Load Older showing, that line sits the chip's height below the reader's, so a reply measured just below the reader's row could be corrected without being folded, and each correction put the next reply "above" too (a cascade of thousands of pixels, found by instrumentation).
+- Fix: the ledger records the reader's first visible row after every commit and scroll and folds the height of any rows a later render adds above it, whoever added them, like native scroll anchoring.
+  The reader's view starts below the sticky headers (the scroller's `scroll-padding-top`, as explicit jumps already use), and the row there is found from the list's offset in the scroll content; above the first row there is none.
+  The measurement-correction hook judges whether a row is above the reader against that same line; once Load Older is gone this matches `dev`'s judgement.
+  The content between the banner and the rows is priced like a row: a render that changes what it shows folds all of its committed height (so nothing can read layout and clamp the scroll first), and the commit folds whatever it then shows before paint.
+  The request capture, its anchor sequence, the commit-time recapture retries and the DOM anchor helper are removed; Load Older keeps only its request lock, the opening-pin hand-off and the wait for scroll rest.
+- Rows above the reader now stay unmeasured more often (the reader is no longer pushed through them), which exposed a stale offset in the same hook: right after a programmatic scroll (a reply-quote jump), virtual-core's cached `scrollOffset` lags the element until the next scroll event, so corrections were applied as scroll writes from the old offset and dragged the view back.
+  The hook now judges against the scroller's live `scrollTop` and has virtual-core apply the correction from it by folding the difference into its pending adjustments.
+  It leaves virtual-core's cached offset alone: overwriting it made virtual-core drop the write's own scroll event as already seen, losing the backward direction that routes corrections into the ledger during a scroll; that made the known `long-message-expansion-default` fold-anchor check fail in 5 of 10 runs (1 of 6 after this change, 1 of 12 on `dev`).
+- Height changes of the thread banner itself are held too; see "Keep a thread reader in place when the thread banner changes height".
+- Tests: `threadScrollLedger.test.ts` covers rows added above or below the reader, the root, removed rows and a lost anchor; `timelineScrollLedgerController.test.ts` covers the painted row, a scroll that commits nothing, the sticky-header inset, the content above the rows going, shrinking, growing or being in view, and corrections judged against the reader's top, including in the commit that drops Load Older; `virtualizerIOSScrollContract.test.ts` pins the live-offset judgement and correction, the write's scroll event, and the reader-top judgement against the real virtualizer; `RoomTimeline.cache.test.ts` now requires a band that lands without Load Older to fold (it previously pinned the drift).
+  `e2e/live/thread-open-chain-prepend-anchor.spec.ts` holds the thread's older pages until after a Load Older click, a wheel scroll, or a scroll to the root, then requires the reader's row (for the root, with the reader's line 20 px into it) to stay within 1 px while every page lands and the chip goes.
+
+### Give compact thread cards' text the full card width (2026-10-05)
+
+- Report: on a phone the compact room view wasted space.
+  Every card reserved a leading slot for the unread dot (indenting the title against the preview), the touch menu button reserved `3rem` at the end of every row, the reply-count pill sat beside the preview and cut it short, and long relative times (`2 dgn geleden`) wrapped titles.
+- Unread threads now show a primary accent edge on the card's leading side and a primary, bold time; the dot and its reserved slot are gone.
+  The card carries `data-thread-unread="true"` for tests in place of the old `data-thread-unread-dot` element.
+- The time is compact (`now`, `5m`, `3h`, `2d`, then the date after a week, with the year for earlier years) via `formatCompactRelativeTime` and `useRelativeTime(ts, 'compact')`; other surfaces keep the `2d ago` form.
+  The time's tooltip and the card's accessible label give the full timestamp.
+- The preview row holds only the preview (plus pending/failed send state).
+  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model); the full label stays in its tooltip and the card's accessible label.
+- Titles clamp at two lines (full title in the tooltip and accessible label).
+  "Resolved by" joins the last row with a check icon instead of taking its own line (a long name ends in an ellipsis); avatars, tags, streaming state and the schedule share that row.
+- On touch layouts the menu button sits at the end of the last row, and only that row reserves room for it (`32px`), so the title and preview rows use the full width.
+  The reservation applies inside the compact view's card shell only; the global Threads page shows the same card without a menu button.
+- Tags use the shared `ThreadTagPill`, so a tag has the same color on the card as in the thread bar; the card's own copy of the hash gave a different hue for some names.
+- The unused `compactThreadCard.unreadMessages` and `compactThreadCard.lastActivity` strings were removed from every locale; the latter's only caller passed `timestamp` to a `{{time}}` placeholder.
+- Alternatives explored for the PR, kept on local branches: `alt/compact-card-inbox-list` (flat rows with dividers, two-line preview) and `alt/compact-card-dense` (two rows per card); the chosen design combines the first layout with the dense variant's unread edge and time.
+- Fixture: `e2e/fixtures/compact-thread-cards.html` renders the production card in the compact view's shell with realistic agent threads (`?lang=`, `?theme=dark`); `e2e/compact-thread-cards.spec.ts` checks at 390 px that title and preview start at the content edge, the preview reaches the content end, the menu button is centered on the last row, only unread cards have the accent edge, and a long resolver name ends in an ellipsis inside the card.
+- Tests: unit tests cover the compact formatter (boundaries, earlier years, Dutch), the hook's compact ticking, the count formatting, and the card's unread marker, time, reply count and resolved byline.
+  `compact-resolve-hover` now asserts the menu button sits inside the last row's reserved room and is centered on it (also in RTL); `thread-bootstrap-requests` and `threads` read the count from the accessible name; `thread-unread-receipts` reads `data-thread-unread`.
+- Not changed: on touch the 40 px menu button extends 8 px above the 24 px last row, so its transparent tap area covers the bottom 4 px at the end of the preview row; making it smaller would shrink the touch target, and making the row taller would give back height.
+- Validation: typecheck, build and lint pass; `npm test` passes apart from four failures in `xcodeCloudPostClone` and `useRoomInputSendSessionController` that fail the same way on `dev`.
+  `compact-thread-cards`, `streaming-cards`, `compact-card-display-names`, `compact-resolve-hover` (desktop and Dutch touch), `thread-bootstrap-requests`, `thread-unread-receipts` and `threads` pass on Chromium against a disposable Tuwunel.
+- Review: GPT-6 Astra approved the first round; Opus 5.5 found the `threads` spec still reading `0 replies` from the card text, plus the byline ellipsis (also found by Qodo), the Threads page padding and a doc example, all fixed.
+  Both approved the second round; Opus's note that the date tests used UTC noon (the next local day from UTC+12) is fixed with local dates, checked from `Pacific/Kiritimati` to `Pacific/Pago_Pago`.
+
+### Approve scheduled tool calls exactly or for any arguments (2026-10-04)
+
+- Pairs with mindroom-ai/mindroom#2633, where an agent can schedule an approval-gated tool call and MindRoom posts its approval card when the call is scheduled (`approval_target: scheduled_call`).
+- Pending scheduling cards show the send time from `scheduled_for`.
+- When the card lists `scheduled_scope_options`, the named approver gets **Approve this exact call** and **Approve any arguments**, with a warning that the broader scope lets the agent make one call to that tool with whatever it decides, within the send window from `scheduled_window_seconds`.
+  The scope buttons appear only when that window is a whole number of minutes, so the warning never states an invented window.
+- Approval responses carry `scheduled_scope` (`exact_arguments` or `any_arguments`); the action capability check allows only a scope the card offered, only for the named approver, and never together with a timed-approval duration.
+  Scheduling cards never offer timed approvals, because the approval belongs to one scheduled call rather than the thread.
+- Resolved scheduling cards show the send time and the approved scope from the card edit's `scheduled_scope`; send-time receipts with `scheduled_approval` provenance show who approved the call while scheduling it, when, the scheduled time, and the scope.
+  Times are parsed like approval expiries, so backend timestamps with microseconds display correctly.
+- Code lives in `src/app/mindroom/messages/` (`toolApproval.ts`, `approvalActions.ts`, `ApprovalDecisionControls.tsx`, `ApprovalSchedule.tsx`, `approvalScheduleText.ts`, `ApprovalReceipt.tsx`); the strings in the 16 non-English catalogs are machine-authored.
+- Validation: the new `scheduledToolApproval.test.ts` and the scheduled-card case in `ApprovalReviewCall.test.tsx`, all 809 tests in `src/app/mindroom/messages` plus `src/app/i18n.test.ts`, typecheck, touched-file ESLint, and the production build pass.
+  The full Vitest run passes 6,047 of 6,051 tests; the 4 failures are the `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` cases that also fail on `origin/dev`.
+- Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
+- Next: integrate together with mindroom-ai/mindroom#2633.
+
+### Remove the private computer deployment preset (2026-10-05)
+
+- The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
+  The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
+- Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
+  Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
+  All 6,172 unit tests in 661 files pass, along with typecheck, lint (17 existing warnings), web build and iOS build.
+  The generated iOS config has an empty computer URL, and its shipping text assets contain no private deployment URL or preset text.
+  Independent review and CI are required before the user-authorized squash merge.
+
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
+### Scope the invite menu live spec's user directory to its own users (2026-10-04)
+
+- Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
+  The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
+- Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
+  It now expects its own `Mind`, not any `@mindroom_mind` user.
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
+
+### Allow local HTTP computer services (2026-10-05)
+
+- Follow-up to merged Chat #384 and backend #2680, requested for MindRoom servers hosted on a local network without TLS.
+  The existing URL field and explicit Save accept HTTP for loopback, literal RFC 1918 IPv4 addresses, and IPv6 unique-local addresses (fc00::/7).
+  Public IPs and DNS names still require HTTPS; credentials, paths, queries and fragments remain refused.
+  The settings form explains that HTTP leaves sign-in and computer traffic unencrypted before Save; no extra setting or backend API is added.
+- A disposable iOS 26.2 simulator running the shipping native shell reached the Mac’s RFC 1918 LAN IP over HTTP with actual native-origin preflight and a bearer header, then exchanged data over WebSocket.
+  Shipping ATS settings were unchanged; only the copied test artifact’s index page was replaced by a transport probe with dummy credentials.
+  Physical-device verification is unavailable because no iPhone is connected, and the local Xcode platform remains incomplete.
+- Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
+  This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
+  The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
+
+### Call agents from the thread you are in (2026-10-04)
+
+- Why: **Call** on an agent profile opened a new call room and moved the user into it, so the call was cut off from its conversation and the agent joined knowing nothing about it.
+- The room header has a phone button (room view and open thread, not in call rooms) for joined MindRoom agents on the viewer's homeserver whose presence advertises `📞 Voice calls` (`getAgentCallCandidates`, sorted by name).
+  It follows `User.lastPresenceTs`, because MindRoom toggles calls by changing the status message, which `User.presence` does not report.
+  In a thread with a confirmed root, only agents that sent the root or a loaded reply count (`keepThreadSenders`), so the button appears once one replies.
+  One candidate is called directly and several open a menu; no candidate, MatrixRTC or WebRTC hides the button, and another active call disables it with the reason as tooltip.
+  A failed start opens a dismissible notice under the button, because phones have no hover; the error describes the button only while the notice is open, and closing the menu or notice returns focus to the button.
+- The profile's **Call** stays; it stamps the open thread when the profile's room is the selected room, and otherwise the room.
+- Both entry points share `useStartAgentCall` (microphone, find or create the room, re-invite the agent, stamp the origin, start), which runs one start at a time, never replaces a call that became active meanwhile, and never navigates.
+  The `CallStatus` bar shows the call and, while the call room is not open, the backend's failure notices (`useCallFailureNotice`) as a dismissible row.
+  The history scan ignores notices at or before the newest event in the room when the call started (`CallEmbed.startedAfterTs`, a server timestamp, so a wrong device clock cannot hide a current notice), because the reused room keeps earlier calls' notices; notices delivered live always count.
+- Each caller has one permanent call room per agent, never shared between users.
+  `findAgentCallRoom` picks my joined call room whose `io.mindroom.agent_call` state I sent with `ephemeral: false`, me as creator and this agent; after a first-call race on two devices, both pick the oldest.
+  `createAgentVoiceRoom` creates it when missing, mutes it with the existing push-rule setter, and archives it with the per-user `io.mindroom.archived` account data, so it stays out of room lists and badges while the bar can still open it.
+  Before every call `prepareAgentCallRoom` re-invites the agent unless it is joined or invited and rewrites the state with this call's origin; the call starts only after that write succeeds.
+  On hang-up, and when a start gives up after stamping, Chat rewrites the state without `origin` (`clearAgentCallOrigin`); for my permanent rooms it always does, since the cached state may not show the stamp yet.
+  Writes per room are serialized, so a late clear cannot erase a newer stamp.
+  Permanent rooms are never kicked, left or forgotten; legacy `ephemeral: true` rooms keep their teardown and are not archived.
+  A start on a second device of mine joins the running call, which keeps its brief.
+- Contract: `io.mindroom.agent_call` gains an optional `origin: { room_id, thread_id }` (`thread_id` is `null` for the main timeline or a local-echo root), `version` stays `1`, and an older backend ignores it.
+  The backend trusts only an origin sent by the creator and sole caller, re-checks access, and reads it when the agent joins (https://github.com/mindroom-ai/mindroom/pull/2684); realtime calls need a fresh backend session per call (https://github.com/mindroom-ai/mindroom/pull/2689).
+- Known limits: call rooms stay findable in search and on the Archived page; a crash before the origin clear lets a manual join reuse the last origin; the thread filter sees only loaded events.
+- Files: `calls/` (`agentCall.ts`, `useStartAgentCall.ts`, `agentCallCandidates.ts`, `useCallFailureNotice.ts`, `AgentCallHeaderButton.tsx`, `AgentCallButton.tsx`), `threads/MindroomRoomViewHeader.tsx`, `components/user-profile/UserRoomProfile.tsx`, `features/call-status/CallStatus.tsx`, `features/call/CallView.tsx`, `plugins/call/CallEmbed.ts`, and four `mindroomUi.calls.agentCallHeaderButton` strings in all 17 catalogs; tests sit beside the code.
+- Validation: unit tests, typecheck, production build, ESLint and Prettier; the live check against a disposable Tuwunel (one-agent button, two-agent menu, the no-microphone notice at phone width) predates the permanent rooms.
+
+### Enable native canvases and computer panels safely (2026-10-04)
+
+- Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
+  Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
+  Android's modern bridge already checks the frame; the legacy fallback now fails closed, and synchronous cookie/HTTP/SystemBars interfaces are never registered.
+  A native main-document page-commit hook preserves Android viewport inset handling.
+- Configuration: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
+  The ordinary build still disables canvases and has no computer API URL.
+  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled; computers stay off until a compatible service is selected in Settings or through the optional `MINDROOM_IOS_COMPUTER_API_URL` build default.
+  Xcode Cloud, Fastlane, phone builds, and native build documentation use the iOS build.
+  Native startup reads the bundled asset before mounting the router, so an older cached config cannot hide the new switches on the first launch after upgrading.
+  The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
+  The canvas's sandbox and CSP are unchanged.
+  Phones already use a full-screen canvas and unmount the underlying conversation.
+- Validation so far: 6,115 unit tests in 659 files pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+  Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
+  The local Xcode 26.6 compiler has an incomplete platform upgrade, so CI built the app with Xcode 26.2 and the installed CoreSimulator tools ran it locally on iOS 26.2.
+- Native regression resources are generated from the shipping canvas document builder and outer app CSP.
+  Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
+  A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
+  Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
+  The [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37250210887) built the full shipping app and passed all 26 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
+  The native origin test observed `capacitor://localhost` on actual preflight and bearer-header requests with shipping ATS settings.
+  The fixture waits for the initial boot before loading another document, avoiding a cold-start navigation race.
+  CI archives the unsigned arm64 simulator app before running native tests.
+- Full app acceptance passed on the disposable iPhone 17 Pro / iOS 26.2 simulator: real Chart.js rendering and touch interaction, Matrix version updates and previous-version selection, canvas error reporting, and real worker computer control/typing/resume.
+  The Matrix error report's agent mention and originating thread were checked on the disposable server.
+  The agent browser snapshot and input readback both contained `native-ios-control` after resume.
+  Screenshots are under `docs/screenshots/ios-app-*`; test credentials stayed in private fixture state and app data.
+- Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
+  The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
+  Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
+  Operators still need to add the native literal to the computer service's deployment allowlist.
+- AI review confirmed the lab service must not be bundled as an active default before backend rollout.
+  Computers remain opt-in; deploy backend PR #2680 and update the allowlist, then select the service in Settings → General → Computers or configure the optional build default.
+- User-requested in-app configuration is implemented: a device-only computer URL override with a MindRoom Lab preset, explicit Save, blank-to-disable, and reset-to-deployment-default controls.
+  URL validation reuses the HTTPS/loopback origin boundary and refuses credential-bearing URLs, paths, queries, and fragments.
+  Persistence failures leave the active service unchanged and show feedback.
+  Backend changes close the old panel/session and reset control ownership; a focused hook test checks stale callbacks cannot lock the new service.
+  All 17 locales include the new settings group, including the chosen backend's short-lived sign-in token disclosure.
+  Independent computer review approved the implementation after correcting save confirmation and reset display, and strengthening the stale-callback test.
+- Independent native screenshot review caught a clipped canvas version control under a long title.
+  The title can now shrink while controls keep their width; the browser regression checks all controls at 320px before and after selecting a long-title version.
+  Independent bridge review approved the layout and fixture changes.
+  The user completed Xcode first-launch setup; CoreSimulator now reports the required version and the disposable device boots normally.
+  Xcode still reports a missing iOS 26.5 platform, and the local native build fails before compilation.
+  Final CI built the shipping app successfully; all 26 native tests pass.
+  That final app ran locally with an empty bundled computer default; native Settings selected the fixture service, persisted across installation/relaunch, and controlled the worker through native keyboard input and Resume.
+  Fresh screenshots cover the settings preset, Chart.js touch tooltip, unclipped version controls, current error delivery, and computer control/resume.
+  The focused browser canvas and settings-driven worker computer tests both pass.
+- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) and [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) are merged.
+  Updated Chat head passed CI, including the native tests, and fresh Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved it before merge.
+  Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
+  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
+  A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.
+  Navigation attack tests use explicit clicks to preserve a deterministic rendered-page assertion.
+  The command-palette fixture uses the browser platform's shortcut modifier.
+  Canvas, UI actions, command palette, and the real worker-computer spec all pass after focused reruns.
+  The combined latest results cover 142 passing jobs; three unchanged WebKit jobs still fail on this Mac: glass-surfaces and members-header-glass assume button Tab navigation, and room-glass-overlays measures geometry about 6.5 px away from its expected position.
+  Independent review approved each logical implementation and fixture step.
+  Independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved both implementation heads.
+  User authorized merging both PRs, then adding private LAN HTTP support in a separate follow-up.
+  The latest dev merge preserves the canvas-state Runbook entry; only that document conflicted.
+  Integration validation passes all 6,135 unit tests, typecheck, lint (17 existing warnings), and the iOS web build.
+  Computers require the documented backend deployment and a configured service through Settings or the optional build default.
+
+### Let canvas pages keep their own state on this device (2026-10-04)
+
+- Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
+  A canvas runs with an opaque origin, so its own `localStorage` and IndexedDB are unavailable.
+- Pages read `window.mindroom.state` (the JSON value last saved, or `undefined`), which is set before their scripts run, and call `window.mindroom.saveState(value)`.
+  `saveState` throws for a value that is not JSON or whose JSON is longer than 256 K characters (`CANVAS_STATE_MAX_LENGTH`); Chat checks the message again (`readCanvasState`).
+  The page parses the saved JSON from an escaped string, so saved text cannot close the script and every JSON value, `__proto__` keys included, comes back as saved.
+- State belongs to the canvas (its request event ID), so every version and every agent update starts from it; it stays on this device and is never sent to the room or the agent.
+  A page that wants the agent to see it sends it with `mindroom.submit`.
+- `useCanvasSavedState` reads the state before the page starts (the panel shows loading until then) and keeps the latest save in memory, writing to IndexedDB at most every 500 ms and when the panel unmounts.
+  Saving never rebuilds the frame; every page `CanvasPanel` shows (an update, **Load update**, a version switch, even one with the same HTML) and **Reload panel** embed the latest state.
+  If the read fails (no IndexedDB, or a lost connection), the page starts without state and saves stay in memory, so they cannot overwrite what is stored.
+- `canvasStateStore.ts` keeps one IndexedDB database per session, `mindroom-canvas-state::<session>`, which holds the states of at most 100 canvases and forgets the ones saved longest ago; each save sorts after all others, even if the clock went back.
+  Saved state is the user's data rather than a cache, so **Clear cache and reload** keeps it and only removing the account deletes it (`deleteSessionLocalData` in `sessionLifecycle.ts`, and the no-device-ID fallback in `removeCurrentClientSessionAndReload`).
+  The account is removed from the session list before its data is deleted, and the hook drops pending saves for a session no longer listed, so a late write cannot recreate the database.
+- Tests (removing each fix fails its test):
+  - `canvasStateStore.test.ts`: one state per canvas and session, the limit (also after the clock went back), a failed write that rejects once without an unhandled rejection.
+  - `useCanvasSavedState.test.tsx`: the read, a failed read, quick saves written once, the unmount write (which a panel reopened at once reads), no write after the account is removed.
+  - `canvasDocument.test.ts`: `</script>` and a `__proto__` key round-trip; `canvasMessages.test.ts`: the message checks.
+  - `CanvasPanel.test.tsx`: a save does not reload the page; the next page and a same-HTML revision start from the latest state. `RoomCanvasPanel.test.tsx`: the page waits for the read.
+  - `initMatrix.test.ts`: account removal deletes the database, also without a device ID; clearing caches keeps it even when the browser lists it.
+  - `e2e/agent-canvas.spec.ts` types into a page that saves, reloads Chat, and sees the text again, then again after an agent update.
+- Validation: typecheck, lint and the e2e spec pass; the full unit suite passes except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they fail on unchanged `dev` on this host too).
+  Live with a real agent (GPT-6.1 Sol, backend with mindroom-ai/mindroom#2683): asked for a packing checklist that remembers ticks, it used `mindroom.state` and `saveState` unprompted; ticks survived a Chat reload and the agent's update that added an item.
+- Not changed:
+  - A save in the last half second before the browser closes the tab can be lost, since a page unload does not unmount React.
+  - Two tabs showing the same canvas keep separate copies; the last save wins, and a tab sees the other's saves only when its panel opens again.
+  - The page waits for the read with no time limit; a read that never settles would leave the canvas loading. Not seen: the 2026-10-02 iOS stalls hit the cache database while other databases kept working, and this one opens a connection per operation.
+- Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
+
+### Unify scrolling settings and dialog headers (2026-10-04)
+
+- Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
+  Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+  Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
+- `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
+  Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  Neutral titles inside glass panels use the enclosing tint without adding a second pale band; native blur and opaque accessibility fallbacks remain.
+  Panels with scrolling titles paint their backdrop filter on a separate decorative layer so Chromium does not apply the enclosing tint twice; a pixel regression also verifies that header blur still paints.
+  The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+  Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
+  Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
+- Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
+  Sticky search controls remain below the title.
+  The image-pack editor's unsaved-changes bar also follows the measured title height, and text viewers keep their background across the full viewport, including short files.
+  Fixed JSON/event editors retain their existing internal text scrolling.
+- Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
+  Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
+  `playwright.glass.config.ts` includes the new browser specs.
+  Header tint assertions distinguish inherited panel tint from standalone chrome; hover comparisons clear prior panel illumination and wait for pointer paint before comparing pixels.
+
+### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
+
+- Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.
+  Only the typing dots (a compositor animation) still moved; two app switches did not help, and the app stayed frozen until it was force-quit about 68 s later.
+  The flight recorder's last beat is the resume's `visible` checkpoint, and the deep trace ends 0.9 s later with the catch-up `/sync` request, a tap on the timeline and an unchanged thread render sample.
+  The native log has two more background/foreground switches with no `lifecycle.*` event from the page, so the main thread blocked about 1–2 s after the resume, when a catch-up `/sync` usually arrives, and never ran again.
+- Where it hangs: matrix-js-sdk's `EventTimelineSet.compareEventOrdering` follows `getNeighbouringTimeline` forwards and then backwards, with no visited set, until it meets the other event's segment; on a cycle of segment links that segment is not on, it never returns.
+  Every new live thread event reaches it synchronously: `Thread.onTimelineEvent` adds a local echo receipt for the sender, and `RoomReceipts` orders it against the sender's previous receipt.
+  While both events sit in one segment the comparison returns early; a limited `/sync` after a suspension gives the thread a new live segment that is not linked to the old ones, so the first agent event after the resume walks the whole chain.
+- Root cause: the reconcile's SDK injection (#370, `addFetchedEventsToThread` in `engine/reconciler.ts`) prepended every fetched event older than the live segment's start to the live segment.
+  After a sync gap and one history page, the live segment is linked after an older segment holding only the latest page from before the gap, so history older than that page landed in the live segment, on the newer side of the page.
+  After the next gap, a history page for the older segment held events of the now non-live segment, whose newer side was already linked, so `addEventsToTimeline` set the older segment's backward link and then threw `timeline already has a neighbouring timeline`, leaving a backward cycle.
+  `threadSyncGapReopen.test.ts` reproduces the freeze with the real client, the real `scheduleReconcile`, Tuwunel's token semantics and the thread view's first-segment pagination (gap, page, reconcile, page, gap, page, page): before this change the second page throws, and the agent's next streamed reply then walks the cycle without end in its receipt.
+- Earlier cycles came from other sources: the 2026-07-20 production stack overflow in `getFirstLinkedTimeline`, and the root context request fixed by #362 (2026-10-02).
+  The 2026-10-02 freeze 0.8 s after a send, from a build without #362 and attributed to regexes as "a likely cause, not a confirmed one", fits the same hang: the sent reply's echo from the server adds a receipt when it lands in the thread.
+- Fix:
+  - The reconcile adds to the live segment only the fetched events newer (by `origin_server_ts`) than every event an older segment holds: replies from a gap still go there, while older history, including a late edit of an older reply and a page from deep in the history that overlaps no segment, reaches the render through `onRepaired`, as for an unopened thread, and SDK pagination places it in the SDK thread.
+    It first applies a deferred sync-gap reset, which adding an event applies anyway, so it reads the segments the events go into.
+    With a single segment it backfills as #370 did.
+  - SDK patch (`src/models/event-timeline-set.ts` and `lib`): `addEventsToTimeline` refuses a join that would form a cycle and a join whose existing segment already has a neighbour on that side, logs it, and goes on with the rest of the page, as it already does for a join that would splice in the live segment.
+    The conflict used to set one link and throw, dropping the rest of the page; that one-sided link is what closed the cycle above.
+  - `compareEventOrdering`, and the app's `getThreadTailEvents` (`src/app/utils/thread.ts`, run for every thread card's streaming and last-activity state), stop at a segment they have already visited, so a cycle from a source not yet known cannot freeze the app.
+- Ruled out: an audit of the message render path in JavaScriptCore (Bun and Playwright WebKit) found no loop that never ends; its super-linear cases (linkifyjs, the inline Markdown link rule, the 🔧 marker scan, `trimReplyFromBody`, Prism's Markdown title rule) need single runs of tens of KB.
+  The engine, gap-recovery, pagination, IndexedDB-retry and resume paths all wait on a timer, the network or IndexedDB between passes.
+- Tests:
+  - `threadSyncGapReopen.test.ts` runs that sequence, expects the replies in order with no refused join, then delivers the agent's next reply after another gap and expects it in the live segment with the agent's receipt moved to it from the older segment; with only the SDK patch the replies come out of order, with only the reconcile change it passes, and with neither it throws at the cycle.
+    A second case starts with a gap whose window holds no thread event, so the thread's reset is still deferred when the reconcile runs; it fails without applying that reset first.
+  - `matrixSdkTimelineCycles.test.ts` drives the SDK's `EventTimelineSet` through a simulated gap (`resetLiveTimeline`) and a misordered history page, a join that conflicts with an existing neighbour, and a comparison across an existing two-segment cycle; `thread.test.ts` adds a backward cycle.
+    A neighbour-read limit turns a hang into a failure; each fails before the change, and removing the cycle check, the neighbour check or a visited set fails its own test.
+  - `reconciler.sdkThread.test.ts` checks every event in each segment after a deferred reset (history stays out of the new live segment), an empty live segment after a gap (the gap's replies go in, and `lastReply()` is the newest), a fetched page from deep in the history, and a late edit of a reply in the older segment; the reconciler on `dev` fails all four, removing the boundary fails all four, and removing the reset fails the first.
+  - Four `reconciler.test.ts` thread stubs gained `flushPendingTimelineReset`, `eventIdToTimeline` and `getTimelines`.
+- Validation: the patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` and reproduces the patched tree byte for byte.
+  Typecheck, the production build and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (6,080 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+- Not changed:
+  - The SDK's other unbounded walks, `TimelineWindow.getEvents` and `Room.getOrCreateFilteredTimelineSet`, which this app does not call.
+  - With a single segment the reconcile still backfills as #370 did, which assumes the fetched history ends where the segment starts; a saved scan position that resumes deep in the history can leave a hole that later pages fill out of order inside that segment (no cycle).
+  - The boundary trusts `origin_server_ts` order; history older than an older segment but stamped later (clock skew between servers) would still be prepended to the live segment.
+  - `findAndReplace` never advances past an empty match, and `makeHighlightRegex` (`react-custom-html-parser.tsx`) keeps empty terms, so a room-search query with two spaces in a row loops forever when a room name contains it (`Search.tsx`, `AddExisting.tsx`); message search builds its highlights with the same function from the server's terms.
+- Next: record refused joins in the deep trace so an export names any other page that would form a cycle, and flush the deep trace when a `/sync` response arrives so an export shows whether it came before a freeze.
+
+### Let users switch between a canvas's versions (2026-10-04)
+
+- Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.
+  Updates are already Matrix edits, so every version stays on the server.
+- The panel header shows `‹ Version n of m ›` once a canvas has more than one version; an earlier version shows "This is an earlier version." with **Show latest**.
+  A new update while the user views an earlier version only raises the count; on the latest version, updates follow as before (including **Load update** for unsent work).
+  Picking a version is the user's choice, so it replaces the page at once, like **Load update**; switching is disabled while an answer waits for **Send** or is sending, because that answer belongs to the shown version.
+  An answer from an earlier version names that version's revision, which the agent is already told how to read.
+- `useCanvasVersions` lists the request and its edits from `mx.relations` (decrypts in encrypted rooms, drops other senders' edits; 50 per page, at most 10 pages, newest kept), sorted in Matrix edit order, each held to the same rules as the latest edit (`readCanvasVersion`, which now shares `readCanvasEdit` with `readLatestCanvas`).
+  It loads when the panel opens and after each update, except for a canvas never updated; until then, or if the server cannot answer, the original and latest versions are offered.
+  Deleted IDs are remembered, so a history load that started before a deletion cannot bring the version back, and choosing a version compares with the shown revision, so every listed version stays reachable.
+  A deleted version leaves the list at once (redactions on `RoomEvent.Timeline`, which also sees deletions of edits the client never loaded); if it was chosen, the panel falls back to the latest.
+  While an update waits behind **Load update**, the switcher is hidden, because its numbers describe the waiting update rather than the page shown.
+- Tests: `RoomCanvasPanel.test.tsx` (paging, forged edits, choosing, staying on a chosen version, following the latest again, fallback), `CanvasPanel.test.tsx` (controls, locking, loading a chosen version over unsent work).
+  `e2e/agent-canvas.spec.ts` goes back to the first step after an update and returns to the latest.
+- Next: no further work.
+
+### Let users send a canvas page's errors to its agent, and tell pages the color scheme (2026-10-04)
+
+- Why: an agent that writes a canvas cannot see it; a typo or a blocked library left the user a blank or broken panel and told the agent nothing (feedback from a live agent).
+  Claude artifacts solve this with "Try fixing with Claude".
+- The canvas bridge reports uncaught errors, unhandled rejections, failed loads, and loads the policy blocks, to the panel as `mindroom.canvas.error` messages (`canvasDocument.ts`).
+  Lines count from the start of the agent's markup: `buildCanvasPage` measures the line breaks of Chat's own head and the bridge subtracts them.
+  A blocked load also fails; its failure is reported a moment later only if the policy did not report it, so it appears once, as blocked.
+  The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text, read from at most the first 600 characters; `readCanvasError`), shows them, and offers **Tell <agent>**.
+  Only listed errors are remembered, so a page throwing endlessly costs at most five lines between reports.
+  Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`, which shares the mention and reply with answers through `toCanvasAgent`).
+  The panel follows the report's local echo: "Sending…", then "Sent", or the usual Retry/Delete when it fails; a deleted report is offered again.
+  One report at a time, as with answers: while a report is sending or failed, new errors keep collecting and **Tell** waits; a deleted report's errors return to the list.
+  A report still sending or failed counts toward the five lines, so the list never grows past five.
+  An error already sent is not offered again for the same page; a new page starts empty.
+  Error reports bypass the answer throttle and never stage an answer or hold back an update.
+- `window.mindroom.colorScheme` is `light` or `dark`, the scheme the page was shown in, for choices the theme variables cannot make (chart palettes).
+- Backend: the tool brief names the report format and `colorScheme` (mindroom-ai/mindroom companion PR).
+- Tests: `canvasMessages.test.ts` (parsing, cutting, the report's content), `canvasDocument.test.ts` (listeners before agent scripts, the scheme), `CanvasPanel.test.tsx` (report, dedupe, five-error cap, other windows, new page).
+  `e2e/agent-canvas.spec.ts` shows a page that throws and loads a blocked script: the panel lists both, **Tell** sends the report mentioning the agent, and the page reads its scheme.
+- Next: no further work; a preview tool that renders a page and returns a screenshot to the agent remains an idea.
+
+### Replace the compact card's status dot with an unread dot (2026-10-04)
+
+- The compact thread card no longer leads with a colored attention dot. It was red ("needs attention") whenever someone other than the viewer sent the last message, which in agent rooms is almost every unresolved thread, so the dot carried no signal and its meaning was not discoverable.
+- The leading slot now shows the existing primary-colored unread dot only on unread threads, the inbox convention, and is reserved on read cards so titles stay aligned. The separate "unread" label in the metadata row is gone.
+- The "Resolved by" byline now shows on every layout instead of only touch layouts, since the hover title on the old dot was the only desktop place it appeared. Resolved cards keep their green card styling.
+- `data-attention-state` moved to the card button as a non-visual hook; the attention state still feeds the card's accessible label. The unused `compactThreadCard.unread` and `compactThreadCard.threadStatus` strings were removed from every locale.
+- Validation: unit tests, typecheck, build and lint pass; before and after screenshots (390 px and desktop) were taken against a disposable Tuwunel with one unread, one read, one waiting and one resolved thread. Live `compact-card-display-names` and `thread-unread-receipts` pass on Chromium; `perf-large-room-streaming` (only its selector changed) was not rerun.
+
+### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
+
+- The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.
+- Members who cannot unpin see a static solid pin labelled "Pinned" for assistive technology, in place of the old text.
+- The pin stays in view on short screens while the thread is pinned, as the text did; the unpinned Pin button is still hidden there.
+- Unit tests and the live `pinned-threads` spec assert the solid pin and the absence of the word; the live spec captures admin and member banner screenshots for the PR.
+
+### Let canvases load libraries from jsDelivr when a deployment allows it (2026-10-04)
+
+- Why: an agent drawing a chart, diagram, or formula had to inline every library, or redraw it by hand in SVG; Claude artifacts load libraries from CDNs.
+- `mindroom.canvas.libraries: true` in `config.json` lets canvas pages load scripts, styles, and fonts from `https://cdn.jsdelivr.net/npm/` (`CANVAS_LIBRARY_SOURCE`), which serves any npm package at a version, including ES modules through `/+esm`.
+  Absent or false keeps the policy unchanged, and `config.mindroom.json` ships it off.
+  Fetch, images, frames, other jsDelivr paths such as `/gh/`, and other CDNs stay blocked; there is no `unsafe-eval`.
+- Opting in matters for privacy: opening a page that uses a library tells jsDelivr the viewer's IP address and which file they load, and a page can put data in the addresses it requests.
+  Library code runs in the same sandbox as the agent's own code, so it gains no access to Chat or the account; libraries that evaluate strings (Alpine, Vue in-page templates) do not run.
+- `canvasPolicy(libraries)` builds both policies: the wrapper document's and the canvas page's.
+  The canvas frame inherits the wrapper's policy on top of its own, so both must allow the source; with a strict wrapper the live check's library stays blocked.
+- The backend tells an agent about the source only when its `chat_ui` entry sets `enable_canvas_libraries` (mindroom-ai/mindroom companion PR).
+- Tests: `canvasDocument.test.ts` pins the three widened directives and every other directive unchanged; `CanvasPanel.test.tsx` covers the switch.
+  `e2e/agent-canvas.spec.ts` serves stand-in files for jsDelivr and unpkg URLs: with the switch off nothing is requested, and with it on the `/npm/` script and stylesheet apply while `/gh/` and unpkg are never requested.
+  Chat starts from its cached configuration, so the check clears it before reloading with the new setting.
+
+### Fix the failures found by a full live-suite run on `dev` (2026-10-03)
+
+- Ran every spec/project job with `npm run test:e2e:parallel -- --jobs 8` against `7990feb6` (143 jobs, 388 cases, Playwright 1.58.2 container, disposable Tuwunel, worker-computer fixture from backend `750ccb58`).
+  The first run had 18 failing jobs; each was reproduced in isolation, bisected where it was a regression, and fixed at its root cause.
+- Product fixes:
+  - Favicon requests leaked the chat origin as `Referer` to DuckDuckGo when a second icon for an already-loaded host mounted (an edited link, a new message).
+    React 18 applies DOM props in JSX order, and Chromium starts a memory-cached image request as soon as `src` is set, before the later `referrerPolicy` exists.
+    `SiteIcon` now sets `referrerPolicy`, `loading` and `decoding` before `src`; a unit test pins the order.
+  - The homeserver reachability check (#359) showed a false red "Connection Lost!" banner in WebKit on every reload or navigation.
+    WebKit fails the in-flight `/sync` at `beforeunload`, before `pagehide`, so the visibility guard passed and the follow-up `/versions` check was refused while unloading.
+    Failures of requests in flight when the page started to leave no longer count, and a check cut off that way is not retried; a counter, not a flag, keeps a cancelled navigation from disabling the check.
+  - Opening a thread and reading older replies jumped the reader (#298, CINNY-070).
+    The room's offline history page calls the recovery listeners, and `useThreadGapRecovery` appended up to 200 cached replies older than the reader's loaded span without a scroll anchor.
+    Recovery now restores only replies inside or after the loaded span plus edits, reactions and redactions; older history stays behind Load Older, whose pagination keeps the anchor.
+  - Settings navigation headers keep their own frosted material again (the flat, borderless glass of the other navigation headers).
+    Since #296 they inherited the transparent modal material, and at short heights the scrolled navigation list drew over the "Settings" title; the live header checks that caught it were documented as stale.
+    The fixture check now asserts the frosted material instead of transparency.
+    Every navigation header also ended 8 px short of its viewport: folds' size-300 `Scroll` pads its inline end for an overlay scrollbar whenever the native one measures 0 px, which the hidden-scrollbar navigation viewport always does, so a strip of the list or modal showed beside the header (#296 had hidden it with transparency).
+    The header now spans that padding and adds it to its own end padding, so its contents stay put; the live header check asserts the header spans the viewport's full width.
+    Lobby and Explore page headers had the same 16 px gap from folds' default `Scroll` and get the same treatment through a variable that `PageScrollHeader` sets for `PageHeader`.
+  - Rows that first mount at rest are re-read in the existing pre-paint microtask (closes the at-rest half of the rows-mounted-at-rest item under "Not covered" in the 2026-10-03 fast-scroll entry).
+    virtual-core measured the thread root in its ref before `CollapsibleMessage` dropped its first-pass pill (78 instead of 68 px), the row unmounted before ResizeObserver reported it, and a later remount during a scroll reused the stale size, leaving a 10 px gap for a frame.
+- Test and tooling fixes (each verified to still fail on the defect it guards where one exists):
+  - Fixtures for `audio-player` and `glass-surfaces` create their client with a `userId`; attachment downloads (#298) call `getSafeUserId()`, so playback silently never started.
+  - `cinny069` asserted that cards stay empty while thread loads are blocked, which stopped holding when cards started showing the synced bundled reply (#309); it now holds new replies away from the page and requires the resume refresh to deliver them to every card.
+  - `cinny077` counted the offline history page (#298) as a second timeline back-pagination; it now counts timeline pages (with `from`) and the offline page separately.
+  - `following-glass` waits for the initial catch-up long poll like `composer-glass` already did.
+  - `message-disclosure-overlay` scrolls relative to the measured message instead of the timeline start, which late history prepends shifted.
+  - `account-storage` waits for the post-logout reload before navigating.
+  - `space-header-glass` ignores page errors only while its own navigation leaves the signed-in page: WebKit reports the cancelled `/sync` long poll and requests refused during unload as page errors, which the old blur failure had hidden.
+  - `glass-surfaces` waits for the settings overlay's entrance animations before sampling contrast; WebKit screenshots painted the undimmed first frame under load.
+  - The ride recorders count the thread banner and loading chip above the virtual list as content, so the compositor-flick gap budget (120 px) measures real blank bands again.
+  - The scheduler runs `device-pairing` against the development server, and `docs/testing.md` starts that server with `MINDROOM_E2E_PROVISIONING_URL` so pairing accounts resolve to its own origin.
+  - Vite prebundles `workbox-precaching`, `workbox-routing` and `@vanilla-extract/recipes/createRuntimeFn`; discovering them on first use re-optimized dependencies and reloaded every open page, which failed whichever spec first reached the development server.
+- Validation: typecheck, lint, prettier and the unit suite pass except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they pass in the Ubuntu Playwright image).
+  The last full live suite, rebased on `1d8af50d`, passed 141 of 145 jobs.
+  Of the other four, `glass-surfaces` had `net::ERR_NETWORK_CHANGED` in its traces (other Docker workloads on the host changing networks) and passed on rerun, `page-header-glass` led to the Lobby and Explore header fix and then passed, and `long-message-expansion-default` (immediate fold-anchor displacement) and the compositor-flick blank-frame check in `thread-ride-under-latency` are the failures `docs/testing.md` already lists as unresolved on software rendering; the fold-anchor check passed on rerun.
+  Earlier runs also saw jobs time out at login together while every Matrix request was about ten times slower; they passed on rerun.
+  `perf-thread-streaming` passed in that run but fails intermittently on the thread drift below.
+- Not covered:
+  - Rows that mount during a non-smooth programmatic scroll are still measured by virtual-core in the ref and can show the 10 px first-pass gap for a frame.
+  - Settings shows "Catching up..." for one full 30-second long poll after a cached start on a quiet account, even though the first `timeout=0` sync already caught up.
+  - The offline history page re-downloads the same newest page the timeline just fetched, using the automatic allowance on metered connections.
+  - A thread reader drifted by thousands of pixels when the opening history chain landed after Load Older or a scroll gesture; fixed in the 2026-10-04 entry above.
+
+### Add one-click bug reports (2026-10-03)
+
+- Every message menu has **Report a bug**; one click builds a JSON report and sends it to the administrators named in the homeserver's client well-known (`io.mindroom.bug_reports.admins`).
+  The item is not shown in the state-event menu.
+- The report goes to the reporter's private room with the administrators (`io.mindroom.bug_reports` room type, unencrypted, ID kept in account data), as a summary message with the JSON attached in its thread, and the app opens that thread so the reporter can add details.
+- The stored room is reused only while the reporter is joined, its join rule is `invite`, its history visibility is not `world_readable`, and every other joined or invited member is a current administrator (members are loaded first, since the sync lazy-loads them); otherwise the report goes to a new room and the account data is replaced, without kicking anyone or leaving the old room.
+  Removing an administrator therefore moves future reports to new rooms but does not revoke the reports they already received.
+  Missing administrators are re-invited with `Promise.allSettled`; the report fails only when no administrator is in the room and none can be invited.
+  This also runs right after room creation, because Tuwunel creates the room even when an invite fails.
+- Administrators' clients join these rooms automatically, only when the inviter is on their own homeserver and the administrator is listed in that homeserver's well-known and runs MindRoom Chat; bot and `matrix-mcp` accounts accept the invite manually.
+- The item downloads the JSON instead when the admins list is missing, empty, or invalid, and while the well-known is still loading.
+- The menu closes and opens the report thread outside the send `try`, so a failure there never offers a duplicate report.
+  The item uses a flag icon, not the moderation **Report** item's warning icon; its error label stays truncated, because the folds `MenuItem` has a fixed height and wrapping would need a layout change.
+- The report holds the target IDs and a permalink, the events around the message with their original content, latest edit (`latestEdit`) and send status, client state, and the existing diagnostics payload (`buildDiagnosticsPayload`, split out of `buildDiagnosticsExport`).
+  A thread report holds the root plus the newest 200 replies (or the 200 ending at an older selected reply) and counts the rest in `omittedEventCount`; a main-timeline report holds the 50 events up to the message.
+  `m.replace` edit events are left out of `events` (each event carries its latest edit as `latestEdit`); reactions are kept.
+  Reports from encrypted rooms are stored decrypted in the unencrypted report room.
+- The JSON (compact, no indentation) is uploaded before the summary is sent, so a failed upload leaves nothing in the report room.
+  An upload that returns no `content_uri` fails the report.
+- Code lives in `src/app/mindroom/bug-reports/`; operator setup is in `docs/bug-reports.md`; the strings in the 16 non-English catalogs are machine-authored.
+- Validation: the bug-report unit tests, i18n coverage, architecture tests, typecheck, lint, and build pass.
+  `npx vitest run src/app/mindroom src/app/i18n.test.ts` has 4 failures, all in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`, which fail identically on `origin/dev` (23af0945).
+  Live check: `e2e/bug-report.spec.ts` passes against Docker Tuwunel (reporter and admin accounts, intercepted well-known), including the admin auto-join, the administrator reading the first report's root event, and the second report reusing the same room.
+- Simplification pass: reuse also rejects a `world_readable` room, `useBugReportAdmins` and `getReporterName` own the admin list and the reporter name, `waitForJoinedRoom` moved to `src/app/mindroom/matrix/`, and tests now pin an invite without a create event and the auto-join effect; validation (same 4 baseline failures, 17 baseline lint warnings) and `e2e/bug-report.spec.ts` on an isolated Docker stack pass again.
+- Next: add `io.mindroom.bug_reports` to a deployment's well-known and confirm a report from an iPhone reaches the administrator's client without an invite prompt.
+
+### Send large canvas answers as long-text sidecars (2026-10-03)
+
+- Why: a canvas answer was capped at 8 KiB of data, too small for a document the user edits in a canvas.
+  Matrix limits an event to 64 KiB, and an answer carries its data up to three times (body, formatted body, metadata), so the cap was not about Matrix alone.
+- Answers now carry up to 512 KiB of data (`canvasMessages.ts`).
+  An answer that fits one event (40,000-byte content budget) is sent as before.
+  A larger one is sent the way MindRoom's backend sends long replies: the whole content is uploaded as JSON, encrypted in encrypted rooms, and the event is an `m.file` preview marked `io.mindroom.long_text` version 2 (`matrix_event_content_json`) with the summary line, the mention, the reply relation, and the answer's metadata without its data.
+  512 KiB keeps the uploaded file under MindRoom's 2 MiB sidecar download limit even when escaping triples the data.
+- Reuse: the writer sits next to the reader.
+  `messages/longText.ts` adds `withMindroomLongTextSidecarMetadata`, so the format constants stay in one module.
+  `messages/longTextSidecarUpload.ts` builds the sidecar from the existing upload helpers: `createMindroomRoomUploadItems` (encrypts when needed), `uploadContent`, and `getFileMsgContent`.
+- Panel: the answer is uploaded first, then its preview is handed to the SDK as before, so the status and Retry/Delete follow its local echo.
+  The panel shows "Sending…" and keeps Send disabled during the upload; if the upload fails, the snapshot stays for another try.
+  Until the preview is handed to the SDK, the page still holds the user's work: an update arriving during the upload waits behind "Load update" with the snapshot kept, so a failed upload can be tried again.
+  Discard during the upload cancels the answer; discarding a newer snapshot (after "Load update") leaves the committed upload alone, and an upload that finishes late never sends a discarded answer or clears a newer snapshot.
+  Answer text must be valid text: MindRoom refuses a file holding a lone surrogate, so the bridge refuses such data and labels, and a long label is cut between characters.
+- Timeline: a canvas-answer sidecar shows as the receipt once its downloaded content passes `readCanvasResponse`, judged with the event's own reply relation (as MindRoom does), through `CanvasResponseSidecarReceipt` and the existing `useMindroomLongTextResolvedContent`; until then, or if it does not pass, it shows as ordinary long text.
+  A receipt claims only what the agent reads, and Chat's long-text reader accepts more file shapes (nested content, event snapshots) and sizes (32 MiB) than MindRoom's (top-level content, 2 MiB).
+  `parseMindroomLongTextJsonSidecar` therefore records, as a non-enumerable symbol on the parsed object, whether the file was the content itself and its size; the receipt requires the file to be the content itself, within 2 MiB, without `m.new_content` (MindRoom reads any replacement in the file as the message), and valid text throughout (MindRoom refuses a file with a lone surrogate anywhere).
+  The text check walks with its own stack and treats nesting deeper than 1,000 levels as unreadable, so a hostile file cannot crash rendering.
+  The preview body ends with `[Message continues in attached file]`, as MindRoom's own long replies do, for anyone who sees only the preview.
+  `shouldForceCollapsibleMessageOverflow` no longer forces "Show more" on canvas answers, which render as one-line receipts; this also fixes long in-event answers.
+- Backend: no code change; MindRoom already dispatches a user's sidecar preview through the text pipeline with the downloaded content (`prepare_file_sidecar_text_event`).
+  Its tool brief and docs state the new limit (mindroom-ai/mindroom companion PR).
+- Tests:
+  - `longTextSidecarUpload.test.ts` uploads through the real helpers in plain and encrypted rooms and parses the result back with Chat's reader, decrypting the ciphertext with real WebCrypto.
+  - `canvasMessages.test.ts` covers the new cap and the preview.
+  - `CanvasPanel.test.tsx` uploads, then sends the preview on a real SDK client and room, and covers a failed upload, Discard during the upload, an update during the upload (held, then sent or kept after a failure), and discarding an answer on a newer page.
+  - `renderMindroomMessageContent.test.ts` covers the receipt after download, the fallback before it, the event's relation winning over the file's, and no receipt for nested, oversized, replaced, malformed, or 100,000-level-deep files.
+  - `RoomTimelineCollapsible.test.ts` covers the receipt not being forced to fold.
+  - `e2e/agent-canvas.spec.ts` sends a 122 KB answer, then downloads the uploaded file and checks the full text and the receipt.
+- Review: Claude Opus 5.5 and GPT-6 Astra reviewed both PRs; they found the reader mismatch, the size mismatch, the Discard race, the lone surrogate, and the missing preview note; a second round found the `m.new_content` gap, the label cut, the work lost when an upload failed after an update, Discard of a newer snapshot cancelling the upload, and the unbounded text check; all fixed above.
+- Live (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel received a 138 KB edited draft from a canvas and quoted its last three words, which exist only at the very end; the turn's prompt was about 31,000 tokens.
+
+### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
+
+- Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.
+  A reconcile is meant to be a cheap no-op when the cache already matches the server.
+- Reproduced in the local Docker Matrix stack with the same 480-reply thread (480 same-sender edits, 48 reactions, two redacted replies): after a cold open had cached the whole thread, a reopen still fetched 13 pages and repaired.
+  Temporary logging showed two causes: the only divergence was 466 `m.replace` events missing from the cache, and the scan expected 480 replies but could find 478.
+- Root cause fixed here: the cache folds a same-sender edit into the target it stores (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new, so every thread with streamed edits diverged on every reconcile.
+- Fix: `detectDivergence` skips a fetched same-sender edit whose cached target is redacted or already carries it or a newer edit (`isEditKnownToRevision` in `eventRevision.ts`).
+  A newer edit, and an uncached edit from another sender (which the cache keeps as its own record, also for a redacted target), still diverge.
+  A fetched edit that has itself been redacted loses its relation when the reconciler maps it (`makeRedacted`), so it still diverges once; the repair stores it as its own record, and later opens find it cached.
+- Measured after the fix in the same reproduction: the reopen ends with `repaired: false`, so it no longer re-hydrates or injects anything, and shows no long task beyond the app's startup.
+- Not fixed here: the 480-versus-478 shortfall still makes that reopen page to the thread's start, because Tuwunel only ever adds to a thread root's `m.thread` count and keeps counting replies after they are redacted (`update_thread_bundle_raw` in `mindroom-tuwunel`), while `/relations` returns them without their thread relation.
+  That count belongs to the homeserver, so it is fixed in `mindroom-tuwunel` rather than worked around here; the 2026-07-10 comment claiming that recording the server-confirmed start stops the repeat drain is corrected, since nothing reads it for that.
+- Tests: `reconciler.foldedEdits.test.ts`: carried, superseded, bundled and root edits are known, as are edits of a redacted target; a newer edit, another sender's edit (also of a redacted target) and a missed reply to a redacted root are repaired.
+
+### Show agent-made interactive canvases beside the conversation (2026-10-03)
+
+- Agents can show an agent-made web page (dashboard, report, slides, menu, form, multi-step flow) in a right-side Canvas panel and read the user's answer.
+  It is a lighter alternative to the Computer panel's remote desktop.
+  The backend tool is `chat_ui.show_canvas(title, html=None, path=None, canvas_event_id=None)` (mindroom-ai/mindroom#2618); `path` names an HTML file in the agent's workspace, such as slides the agent keeps editing.
+- Wire contract: an ordinary `m.notice` whose `io.mindroom.ui_action` (version 1) carries `action: "show_canvas"` and either `canvas: {title, html}` or, for pages too large for the event, `canvas: {title, document: {mimetype: "text/html", size, url | file}}`.
+  Uploaded pages are at most 4 MiB; `file` is the encrypted-attachment descriptor used in encrypted rooms.
+  `useCanvasPage` downloads them through the attachment repository (media authentication, byte cap, decryption, IndexedDB cache) and the panel shows loading and failure states.
+  Older clients ignore the unknown action and show the fallback text.
+  An update is an `m.replace` edit whose `m.new_content` carries the new canvas.
+  `readChatUiAction` keeps authority on the original event and accepts the applied replacement only when it comes from the original sender (checked again, because the SDK applies server-bundled edits without that check) and its authority fields are unchanged.
+  Every other action still rejects edited originals.
+  The action reports the event whose content it shows as `revisionEventId`.
+- Rendering (`mindroom/canvas/`): the page runs in a canvas frame, `<iframe sandbox="allow-scripts allow-forms" srcdoc>` with an opaque origin and explicit Permissions-Policy denials.
+  A CSP meta tag comes before any agent markup: `default-src 'none'`, inline script and style only, `data:`/`blob:` media, and `'none'` for `connect-src`, `form-action`, `frame-src`, `worker-src`, and `base-uri`.
+  Where a frame may navigate is decided by its parent's `frame-src`, and Chat's own policy must admit Chat's origin (Element Call) and reCAPTCHA, so a canvas framed directly by Chat could navigate itself there and send data in the URL.
+  The panel's frame therefore holds a wrapper document (same sandbox and policy, so `frame-src 'none'`) whose only script creates the canvas frame; every navigation of the canvas frame is refused before a request leaves, in Chromium, Firefox, and WebKit.
+  The bridge posts to `parent.parent`, and the panel accepts answers only from the canvas frame (`canvasFrameWindow`).
+  `index.html` adds an app-wide `frame-src 'self'` meta policy (plus the reCAPTCHA frame origins used by registration) as an outer layer; Element Call's same-origin frame still loads.
+  The wrapper reports a second load of the canvas frame (Chromium and WebKit replace a refused navigation with an error page; Firefox keeps the page), and a second load of the wrapper itself is treated the same way: the panel replaces the frame with a reload prompt.
+  The bridge removes WebRTC constructors before agent code runs, as defense in depth only.
+  The panel header names the agent, and the footer says the canvas cannot access the account while input may leave the panel.
+- Design: Chat's live theme is resolved from the page's computed styles (`canvasTheme.ts`) and injected as `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, and `--mr-font`, with complete light and dark fallbacks; the default body uses them, so pages match light and dark mode.
+  On tablets and desktops the panel sits in a `ResizablePanel` (now with a configurable maximum, 1,600 px for canvases) and an **Expand** button gives it the room's whole column.
+  The expanded canvas unmounts the conversation rather than hiding it, so a hidden timeline cannot mark new messages read.
+  Phones keep the full-screen panel; the panel keeps the same component tree on every screen size (`ResizablePanel` renders no box of its own there), so rotating a phone or resizing a window never reloads the page or drops a staged answer.
+  The theme is re-read a frame after a theme switch, because the theme manager applies the new classes after the panel's own effects, and Chat's web font is followed by the system font stack because the canvas cannot load web fonts.
+  A failed download offers **Retry**, and a downloaded page always replaces the loading state of its own revision.
+- Calls: the Element Call widget API listens on the whole window and trusted any message naming the widget, so a canvas could have driven an active call (send or redact events through the call's capabilities, unmute media).
+  `CallEmbed` now restricts the call transport to same-origin messages (`strictOriginCheck`), and no canvas runs while any call is active: a starting call closes the canvas and canvas requests explain that the call must end first.
+- Answering: interaction inside the page sends nothing.
+  `window.mindroom.submit(data, {label})` and native form submits only stage a snapshot, at most one per 100 ms (checked before parsing), with JSON of at most 8 KiB.
+  Host chrome shows "Send to <agent>: <label>" with the exact data, and only **Send**, armed 500 ms after staging, sends it.
+  A pending snapshot stays frozen until Send or Discard, so a script cannot swap what the user is reviewing.
+  Once sent, the message belongs to the SDK and the timeline: the panel keeps only the answer's local echo object (the SDK forgets the transaction ID when the server's copy arrives) and shows its status through `useLocalEchoStatus` (`messages/`, `useSyncExternalStore` on the echo's `Status` event, so a change before it subscribes is not missed).
+  Sending, queued, and encrypting show as sending; `SENT` and `null` as sent (so a sync gap cannot leave it "sending"); a failure shows the timeline's own `FailedSendActions` (Retry and Delete, named for the answer) inside the panel's live region, which matters on phones and with Expand, where the conversation is unmounted.
+  A retry or deletion started in the timeline shows in the panel because both act on the same echo object.
+  The panel holds one unresolved answer at a time: Send stays disabled while the last answer is sending or failed, and that answer's status and actions stay across a new page until it is sent or deleted.
+  If the SDK refuses a send outright, the snapshot stays for another try.
+  The answer is a user `m.text` that mentions the agent and replies in the canvas thread, with body `<agent> Canvas response (<canvas>, revision <revision>): <label>` plus the JSON, and `io.mindroom.canvas_response {version, canvas_event_id, canvas_revision_event_id, agent_user_id, label, data}`.
+  Data is serialized as Matrix canonical JSON (sorted keys); numbers that are not safe integers are sent as text, because homeservers refuse them in unencrypted events.
+  The data appears three times and HTML escaping can multiply it, so an answer whose content would exceed 40,000 bytes leaves the JSON out of `formatted_body`, and if it still would, sends no formatted body at all; the mention pill shows at most 100 characters of the agent's display name.
+  Together with the 8 KiB data cap and 200-character label, this keeps answers under the 64 KiB event limit once encrypted.
+  An answer without a label is sent with the label `Submitted` (part of the canonical body) but shown in the panel and receipt with a translated word.
+  The agent reads the answer as its next turn through the existing message pipeline.
+- Timeline: `renderMindroomMessageContent` shows such a message as a one-line receipt (expandable to the JSON, label capped at 200 characters) only when the body equals the canonical body regenerated from the metadata; anything else renders as ordinary text.
+  Canvas notices keep their **Open panel** button when edited.
+- Updates: a new revision loads at once unless the user focused the frame since it loaded or since their last send; then the panel keeps the current page and offers **Load update**.
+  Each revision is decided once, and a new revision drops a pending snapshot; a sent answer's status clears with the new page, while one still sending or failed stays until it is sent or deleted.
+  The theme is fixed per displayed revision, so switching themes does not discard unsent work.
+- Room integration: `useRoomCanvasState` owns the open canvas per conversation; Canvas, Computer, and Members share the right-hand slot and opening one closes the others.
+  The header's Members button treats an open canvas like an open computer: Members shows as closed, and one click replaces the canvas with Members.
+  Nothing else closes a canvas for Members, so crossing the phone/tablet breakpoint (which switches which saved Members setting applies) keeps it open.
+  On phones the canvas covers the conversation, which is unmounted, as with Expand.
+  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel; a copy is followed only when the UI-action parser accepts its edit and that edit comes after the shown one in Matrix edit order (timestamp, then event ID), so the page never rolls back. A deletion that lands on another copy closes the panel too.
+  Host text is translated in all 17 locales (`mindroomUi.canvas.*`).
+  The shared desktop/mobile panel layout moved to `sidebar/SidePanel.css.ts`.
+- Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`, and agents get `show_canvas` only when their `chat_ui` entry sets `enable_show_canvas: true`.
+  The code default and the shipped `config.mindroom.json` keep them off until the owner accepts the residual risks below.
+  When off, the notice keeps its fallback text and its button explains that interactive panels are turned off.
+  The native apps never run canvases: Capacitor's iOS message handler accepts plugin calls from every frame without checking the sender, so a canvas could open URLs or sign-in sheets; the button says panels are not available in the app yet.
+  Automatic opening still follows `mindroom.uiActions.autoOpenFromHomeservers`.
+- Residual risks before enabling: WebRTC/STUN traffic (Chromium and WebKit in the spikes; no page policy can block it) can leak what a user types into a canvas, and removing the constructors can likely be bypassed through a nested frame.
+  DNS prefetch was not tested.
+  A busy canvas script can slow the Chat tab in engines that do not isolate sandboxed frames.
+- Design: two independent plans (Claude Opus 5.5 and GPT-6 Astra) were debated to consensus.
+  Rejected for v1: a custom response event with backend ingress, acknowledgements, and journal changes (the mentioned `m.text` already has durable delivery, routing, authorization, and E2EE); a declarative-only runtime without agent JavaScript; continuous state sync.
+  Pages hosted in Matrix media were deferred in that debate and added later for pages too large for the event (see the wire contract above).
+  Spikes in Chromium, Firefox, and WebKit confirmed the sandbox, the CSP, navigation containment by the embedder's `frame-src` (as a header and as the app's meta tag), and the WebRTC residual.
+- Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `RoomCanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy and wrapper, bridge validation, canonical JSON, receipts and the content budget, staging, frozen snapshots, delivery status on a real SDK client and room (sent, the server's copy arriving, failure with Retry and Delete, timeline-started retries and deletions, an immediate failure, a status change before the hook subscribes, one unresolved answer at a time (and Send free again after a sent one), a refused send after a sent answer, a failure across a new page, an outright refusal), updates, escapes, edits on other event copies, foreign-sender edits, call exclusion, breakpoints, phones, the native apps, and routing.
+  The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
+  `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch` or an image, no navigation reaching Chat's own origin or reCAPTCHA (it fails if the wrapper allows navigation), a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
+- Live end-to-end (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel, with this production build in Chromium, showed a lunch-order canvas that opened automatically, received "Sushi", updated the same canvas in place to a drink step, received "Tea" (citing the edit as its revision), and replied "Your lunch order is Sushi with Tea."
+  This passed in an unencrypted room and in an end-to-end encrypted managed room.
+  The same agent built a SaaS operations dashboard (KPI cards with sparklines, SVG line, bar, and donut charts, a sortable table) that used the theme variables and reflowed to six columns when expanded.
+  It wrote a six-slide deck to `slides/deck.html`, showed it by path, and after a requested edit refreshed it in place; the panel offered **Load update** because the user was presenting.
+  A 42 KB customer report and, in the encrypted room, a 32 KB inventory report arrived as uploaded media and rendered after download and decryption.
+  After the review fixes (wrapper frame, opt-in backend option), the lunch flow passed again in both rooms with the agent's `chat_ui` entry set to `enable_show_canvas: true`.
+- Review: an independent review found the call widget exposure, a broken retry against the real SDK, canonical-JSON failures, foreign-sender edits applied by the SDK, a stale revision ID, and the reCAPTCHA frame regression; all are fixed above.
+  A second review of the dashboard work found the breakpoint remount, the stale theme after a switch, Expand on tablets, and read receipts from the hidden conversation; all are fixed above.
+  Uploaded pages extend the original inline-only design at the owner's request.
+  Cross-model reviews of the whole PR by GPT-6 Astra and Claude Opus 5.5 found the navigation to Chat's own origin and reCAPTCHA, overlapping sends across revisions, a timeline retry shown as sent too early, a phone rotation closing the canvas, the iOS plugin bridge, the answer size, a failed answer stranded by an update, the phone overlay over a mounted conversation, edits landing on another event copy, and untranslated host text; all are fixed above.
+  GPT-6 Astra's re-check of those fixes confirmed the wrapper and found that a failed answer stopped following its echo, that a copy could roll the page back to an older edit, that a long display name broke the answer budget, that a late failure still marked a newer revision as worked on, that unlabeled answers showed English, and that the header's Members button needed two clicks after a rotation; all are fixed above.
+  The panel's own delivery state (transaction-guarded send state, its own retry, an in-flight snapshot) kept producing races, so it was replaced by the SDK's echo as the single source of truth; an independent Claude Opus 5.5 evaluation of that plan added the one-unresolved-answer rule, `SENT` as sent, keeping a failure across pages, the subscription through `useSyncExternalStore`, and the live region.
+  A final round (GPT-6 Astra and a Claude Opus 5.5 verification of its own findings) found that copies with a rejected or same-millisecond edit were ranked wrongly, that an update arriving mid-send could still strand a failure, and that a deletion on another copy kept the panel open; all are fixed above.
+- Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
+
+### Batch the approval provider's thread rescans (2026-10-03)
+
+- Report: after the 2026-10-03 reconcile-freeze fix below, a reconcile that added a long thread's history to the SDK thread still cost about 0.8 s on the main thread, mostly `mergeThreadApprovalEvents` in `ActiveThreadApprovalProvider`.
+- Root cause: the provider rescanned on every room `ThreadEvent.New`, `ThreadEvent.Update` and `ThreadEvent.NewReply`, and on every client `MatrixEventEvent.Replaced`.
+  A rescan copies the room's live timeline and the whole SDK thread into a queued `setHistory` merge, and the SDK emits `ThreadEvent.Update` once per event it adds to a thread, so adding about 1000 events queued about 1000 merges of about 1000 events each.
+- Fix: those signals queue at most one pending rescan, which runs in a later task (`setTimeout` 0, cleared when the effect is torn down).
+  The initial scan and the per-event `ingest` of a replaced event stay synchronous.
+- Measured in the Docker reproduction (production build, a reopen whose reconcile repairs 1007 events into a 30-event SDK thread): the reconcile's busy run went from 820 ms (two tasks of about 400 ms) to 349 ms of SDK event emission plus a separate 215 ms task serializing the repair write; `mergeThreadApprovalEvents` no longer shows in the profile.
+- Tests: `ThreadApprovalProvider.test.tsx` emits bursts of 100 `ThreadEvent.Update`s and then `ThreadEvent.NewReply`s and expects one rescan per burst that ingests the thread's approvals, and expects no rescan after unmounting with one queued.
+
+### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
+
+- Report: an iPhone export showed the whole app frozen for about 16 s right after a long thread opened (481 replies plus their edits and reactions); taps and text selection queued behind it.
+  The deep trace put the freeze between the reconcile's last `/relations` page and `thread.reconcile.complete` (`performance.event_loop_stall` 15876 ms), while the SDK thread grew from 31 to 909 events.
+- Reproduced in the local Docker Matrix stack (Chromium, production build): a thread with 480 replies, 480 `m.replace` edits and 48 reactions, the SDK thread holding its latest 30 events after a cold open, and a reconcile that fetched 1007 events in 13 pages gave an 8621 ms long task and 1687 IndexedDB transactions.
+- Root cause: the reconciler appended its whole fetched batch with `thread.addEvents(allMapped, false)`.
+  The SDK inserted each older reply by timestamp and announced it as `ThreadEvent.NewReply`, and added each older edit or reaction at the end of the timeline as a live `RoomEvent.Timeline` (`liveEvent: true`).
+  Every `NewReply` ran `setSupplementalThreadEvents`, which re-hydrates the whole render fallback with linear `findEventById` lookups (87% of the profile), and every live event was written through to IndexedDB again (about four transactions each).
+  The append also raised the SDK thread's `replyCount` once per older reply and set a local echo read receipt per event.
+  The 2026-07-04 note that `toStartOfTimeline=false` is correct because reconcile fetches the tail no longer holds: a reconcile that pages past the overlap fetches the thread's whole history.
+- Fix: `addFetchedEventsToThread` (`reconciler.ts`) adds events older than the SDK thread's earliest event as backfill, newest first (`toStartOfTimeline` true), so the SDK announces none of them; an opened thread with an empty window takes the whole batch as backfill.
+  Events at or after the window's start, and every event of a window that already starts at the root, are still appended, so genuinely new replies keep their `NewReply`.
+  An unopened thread (`initialEventsFetched` false) is left alone: loading its first page resets its timeline and replays buffered relations as new events, and newest-first edits would defeat the patched replay buffer's newest-edit dedupe.
+  The repaired batch reaches the render through `onRepaired` in every case.
+- Measured after the fix with the same reproduction: the longest task is 402 to 434 ms over two runs, and the reconcile opens 72 to 78 IndexedDB transactions.
+  The remaining reconcile cost (about 0.8 s split across tasks) is mostly the SDK's one `ThreadEvent.Update` per added event, on each of which `ActiveThreadApprovalProvider` rescans the room and thread (`mergeThreadApprovalEvents`).
+- Not addressed here: the reconcile still repaired on every open of such a thread; the entry above fixes the repair, and `mindroom-tuwunel` the thread count that kept it paging.
+- Tests: `reconciler.sdkThread.test.ts` drives a real SDK thread: history older than the window adds no `NewReply` or live events and ends in timeline order; events newer than the window are still appended with `NewReply` and become `lastReply()`; an empty window takes everything as backfill; an unopened thread is left untouched while `onRepaired` still fires.
+  All four fail on the previous reconciler, and backfilling everything, dropping the unopened-thread guard, or appending into an empty window each fails its own case.
+
+### Measure rows that mount during a fast scroll before they paint (2026-10-03)
+
+- Report: scrolling up very fast through a long thread briefly draws one message's text over another.
+- Reproduced in the local Docker Matrix stack (Chromium, production build) with a 240-reply thread of tables, code blocks, lists, long paragraphs and one-liners, scrolled upward 600 to 3,000 px per frame so that rows mount inside the viewport, as in a phone fling while the main thread is busy.
+  The previous code painted overlapping rows in 1 to 22 sampled frames per ride (up to 154 px, a table reply estimated as one line) and gaps of up to 50 px between rows.
+  Wheel scrolling on desktop, also at 4× CPU throttling, mounted rows in the buffer above the viewport and showed no overlap.
+- Root cause: virtual-core's `measureElement` measures an attached row only while `isScrolling` is false.
+  During a scroll the row keeps its content estimate until virtual-core's ResizeObserver reports it, and that `resizeItem` notifies react-virtual without `flushSync`, so React commits the corrected offsets after the browser has painted the row at its real height and the rows after it at estimated positions.
+  Estimates are deliberately biased low (round 11), so this mostly shows as overlap.
+  The 2026-07-05 note that rows "still measure immediately (ResizeObserver path measures during live scroll)" holds, but that path commits a frame late.
+- Fix: `createScrollMountMeasurement` (`batchedMeasurementRef.ts`) is the measure callback of the timeline's virtual tiles.
+  A row attached during a reader's scroll is measured in a microtask inside `flushSync`: after React has flushed the synchronous updates its own mount queued, and before the browser paints.
+  A first version measured in the ref callback itself; it measured fresh one-line rows before `CollapsibleMessage` dropped its first-pass overflow pill, which left 10 px gaps for a frame.
+  Remounted rows reuse their cached size, as at rest, so they do not force layout.
+  Programmatic scrolls keep virtual-core's own measurement window; its `scrollState` is private and read through a cast, and a unit test pins the behaviour against the real core.
+  Corrections still pass through `shouldAdjustScrollPositionOnItemSizeChange`, so dropped corrections fold into the ledger and iOS gets no new scroll writes.
+- Measured after the fix with the same rides: no overlap and no gap in any run; frame-time p95 stayed within run-to-run noise (67 ms in most runs of this harness, on both builds).
+- Tests: `batchedMeasurementRef.test.ts` drives the real virtualizer: a row attached during a scroll is measured before the next task (virtual-core alone leaves it unmeasured), at the height it settles on after its own nested update; removed rows are skipped, cached rows are not read again, a smooth `scrollToIndex` still limits measurement to its target window, and an iOS correction above the viewport folds into the ledger without a scroll write.
+  `batchedMeasurementRef.commit.test.tsx` renders a real `useVirtualizer` list and expects the corrected tile offsets in the DOM one microtask after rows mount during a scroll; without `flushSync` they wait for a scheduled render.
+  `e2e/live/thread-fast-scroll-overlap.spec.ts` checks every seam between adjacent tiles in animation frames and from a late ResizeObserver during a 1,500 px-per-frame ride; it fails on the previous code and passes with the fix.
+  The parallel runner runs it serially with the other timing-sensitive specs.
+- Validation: typecheck, build, prettier and lint pass; the full unit suite passes except the four tests that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+  Eleven live scroll specs give the same results on `dev` and this branch except the new spec (154 px overlap on `dev`); both fail the same known cases (`cinny070`, `cinny077`, and two `thread-ride-under-latency` cases, one only in full-suite order).
+- Two independent reviews found no correctness issue; their findings and those from CodeRabbit and Qodo are addressed.
+- Not covered:
+  - Rows that change height after mounting (an image loading, an edit) still re-render after paint through ResizeObserver.
+  - Rows that mount at rest or during a non-smooth programmatic scroll are still measured by virtual-core in the ref, before a fresh `CollapsibleMessage` drops its first-pass pill, so they can show the 10 px gap for a frame; this mostly affects overscan rows.
+  - A remounted row whose content changed while it was unmounted keeps its stale cached size until ResizeObserver reports it.
+  - WebKit (Playwright WebKit cannot launch on this NixOS host) and the native iOS shell were not run.
+
+### Stop rewriting every thread root to IndexedDB on each overview (2026-10-02)
+
+- An iPhone export from build `4233114f` shows the page reloading 2.6 s after the user sent a new thread root, with the app in the foreground.
+  The next page recorded `storage.indexeddb_loss_reload` (`reload_ms_ago` 200), and `deepTraceHealth.lastFailure` is a `flush` `UnknownError` 1 ms before the reload: WebKit closed every IndexedDB connection, so its networking process had exited, and the #349 sentinel reloaded.
+  The deep trace flushes every 500 ms, yet nothing after the send's `PUT` start was committed, so IndexedDB had stopped committing about 2 s before the loss.
+  There was no native memory warning or WebContent termination.
+  In the 20 s before, the user had gone back from a 474-reply thread to the room overview and opened an overview again.
+- The same export has a second loss 240 ms after the app was hidden, 8 s after an overview was shown, and an earlier session whose heartbeat stopped 1 s after a send until the app was force-quit 40 s later.
+- Measurement (Playwright against a local Tuwunel, production build in iOS mode, with IndexedDB, Web Storage, Blob, MessagePort and fetch calls instrumented): the send itself is light (26-31 transactions, 29 KB), but the overview scales with the room's thread count.
+  In a 500-thread room in WebKit the first overview took 2,774 transactions and 9,909 requests (5,928/s at peak), transactions waited 646 ms on average, and each return from a thread took 550 transactions and read 8.7 MB.
+  On iOS all of this passes through WebKit's networking process.
+- Causes:
+  - The SDK adds every listed root to its thread lists (`room.threadsTimelineSets`) as a live event, and again whenever the thread gets a reply.
+    The engine took each one for a new room event and saved it with four transactions: 90 listed threads caused 120 saves.
+  - Every overview mount read all cached roots (`loadCachedThreadRootsForRoom`) and wrote every listed root again, one transaction each, although nothing had changed.
+- Fix:
+  - `mindroomSyncEngine` ignores timeline events from the SDK's thread lists.
+    Roots that arrive in the room timeline, thread replies, and the roots the overview saves are unaffected.
+  - The user's own thread roots reached the room cache only through those list events: the SDK confirms a sent event by updating its local echo in place (`RoomEvent.LocalEchoUpdated`), only a thread timeline announces it again, and the pending echo is not saved.
+    The engine now saves a confirmed local echo like a live event, unless a timeline already delivered it confirmed (thread events) or it is a redaction (the Redaction channel covers those), so the user's own room messages reach the room cache once, when the server confirms them.
+  - `useRoomThreadList` restores the cached roots of a room once per page load (again after a failed read), and keeps a hash of each saved root revision across mounts, so a mount writes only new or changed roots.
+    The revision includes the decrypted type and decryption failure of the root and its edit, because encrypted events serialize as their ciphertext, and a root whose decryption is running when it is listed is saved when the decryption finishes, if the overview is still shown.
+    The revisions belong to the room's cache write lease, so a cleared room cache gets every root again.
+- Measured in Chromium with the same setup (500 threads, 2 replies each), before and after:
+
+  | Phase | Transactions | IndexedDB requests | Read |
+  | --- | --- | --- | --- |
+  | First overview | 3,297 / 1,214 | 16,728 / 15,925 | 7.8 / 9.7 MB |
+  | Back to the overview | 531 / 28 | 5,782 / 3,018 | 12.4 / 7.0 MB |
+  | Relaunch into the overview | 4,893 / 1,005 | 16,513 / 7,765 | 17.3 / 13.4 MB |
+
+  Call stacks after the fix: the first overview's remaining writes are the one-time deep-history crawl of a fresh account (`deepHistoryJob`, one transaction per thread per page) and the first save of each listed root.
+- Tests: `threadListLiveWrites.test.ts` drives a real client and room through `loadRoomThreads` and a new reply (120 and 2 saves before the change), checks that room events and thread replies still reach the write-through, confirms an own root through its remote echo, and expects one save for a confirmed own thread reply.
+  `mindroomSyncEngine.test.ts` checks which echo updates are saved.
+  `useRoomThreadList.test.tsx` checks one cached-root read per room (and a retry after a failed read).
+  `useRoomThreadList.cache.test.tsx` shows the overview repeatedly against real IndexedDB and expects writes only for the first mount, an edited root, and after `clearRoomCachedContent`; a second case lists a root while it decrypts and one whose decryption failed and later succeeds.
+  Two cases pass before the change and guard the new paths: the own root (saved before by the list events) and the single save of an own thread reply (the echo was not saved before).
+  The other cases fail before the change, and the lease check, the wait for decryption, the root's decryption failure in the revision, the confirmed-echo save, its deduplication and its redaction skip each fail a case when removed.
+- Validation: typecheck (application and changed tests), build, and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (5,805 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+- Review: an independent review found no thread-list emission that carries a real room event, and found two regressions in the first version, both fixed above: encrypted listed roots kept their ciphertext revision, and own thread roots no longer reached the room cache.
+  A second review found that the first confirmed-echo save stored own thread events twice (8 instead of 4 transactions per reply) and ran redaction cleanup a third time; both fixed above.
+  Known limits: a root counts as saved when its write is issued, so a write aborted by an IndexedDB loss, or a wipe that bumps no lease (another tab's room cleanup, the corruption self-heal, a closed connection), is not repeated until the next page load, which writes every listed root again.
+  Threads cached between mounts but missing from the SDK (for example by deep history while the server list is incomplete) are not restored until the next page load.
+  A listed root whose key arrives after it was listed is saved again only on the next overview mount; the list events used to give it a write lease, so the engine saved it on decryption.
+- Not proven: the export cannot show why the networking process exited, and the bursts above are the heaviest traffic found, not a confirmed trigger.
+- Next:
+  - Each page load still writes every listed root once, because the server's root (with fresh `unsigned` fields) never matches the cached copy byte for byte; a revision key built from the event, its replacement and its thread summary would avoid that.
+  - Returning to an overview still reads about 7 MB (`loadCachedThreadOverviewRecords`).
+  - Before the recovery reload, keep the deep trace's unwritten tail (in localStorage) so the next export shows the seconds before a loss.
+
+### Record cache database stalls in the deep trace (2026-10-02)
+
+- The iPhone export behind #362 shows every thread cache read hanging for the rest of the session after a 17-minute suspension (15 `thread.cache.start`, 3 `thread.cache.read`), with no error, no IndexedDB loss reload, and no storage events at all.
+  The deep trace's own IndexedDB connection, opened before the suspension, kept writing throughout, so the stall was specific to the cache database; the trace cannot tell whether opening it or a transaction stopped.
+  The open's reconcile waits for that read, and its own scan and repair use the same database.
+- `cacheStore/cacheStoreTrace.ts` records only operations still running after 5 s, so a healthy session adds little: a transaction in flight when iOS suspends the app can report a stall on resume, which its `duration_ms` and the lifecycle events tell apart.
+  - `storage.cache.transaction_stalled`: mode (`readwrite`), one `true` field per store in scope, and how many transactions were open on the same account's cache database (`open`, `open_readwrite`) and the age of the oldest (`oldest_open_ms`), which shows a read waiting behind a write.
+  - `storage.cache.transaction_settled`: how a stalled transaction ended (`duration_ms`, `aborted`).
+  - `storage.cache.open_stalled` and `storage.cache.open_settled` (`duration_ms`, `ok`, `blocked`) for `openCacheStore`, including its legacy wipe.
+  - `storage.cache.close` (`version_change`) when the browser or another tab closes the connection.
+- Every cache transaction starts on the connection from `openCacheStore`, so the connection's `transaction` method is wrapped there once; callers are unchanged.
+  The wrapper resolves the inherited method on each call, so tests that spy on `IDBDatabase.prototype.transaction` still reach the cache's transactions.
+  It tracks a transaction only while the deep trace records (`isDeepTraceRecording`), so sessions without it pay one check per transaction.
+- Tests: `cacheStoreTrace.test.ts` holds transactions open past the threshold with fake-indexeddb, and covers fast transactions, counts across two accounts' databases, a disabled trace, a closed connection, and an `openCacheStore` call whose open stalls and is then blocked; `deepTrace.test.ts` checks the new names are exported.
+  The stalled-transaction, per-account, disabled-trace, close, stalled-open and allow-list tests each fail with their wiring, scope, check or allow-list entry removed.
+- Validation: typecheck, build, eslint and prettier pass; the full suite passes except the four tests that already fail on `dev` here (three Xcode Cloud script tests need `/bin/bash`, and the caption send-failure test).
+- Next: with deep trace enabled, an export after the next stall names the blocking operation; fix that cause rather than adding timeouts.
+
+### Keep the navigation panel's scroll position when it is shown again (2026-10-02)
+
+- Report: after scrolling down the room list and opening a thread from the left sidebar, the room list is back at the top.
+- Reproduced in the local Docker Matrix stack (Chromium): on a phone-width layout the panel was at 563 px before opening a thread and at 0 after going back; on desktop, Home was at 0 after switching to a space and back.
+  Opening a thread or room whose panel stays mounted (same Home or Space panel on desktop) already kept the position; this did not reproduce locally.
+- Root cause: the Home, Direct and Space panels unmount whenever another view replaces them (every room or thread open on mobile, every switch between Home, Direct Messages and spaces, and the desktop collapse toggle), and the position lived only in the unmounted scroll element.
+  On remount, each panel's TanStack room virtualizer scrolls its new viewport to `initialOffset` (default 0) when it attaches, after child effects have run.
+  The previous thread-only restore carried the offset in `location.state` and was overwritten the same way on every remount; it only took effect while the panel stayed mounted, where nothing had moved.
+- Fix: `useNavVirtualizer` (`src/app/mindroom/sidebar/navScrollMemory.ts`) wraps the panels' `useVirtualizer`.
+  When a panel unmounts it stores the virtualizer's last observed offset and `takeSnapshot()` measurements in memory per account and panel (`home`, `direct`, or the space id; `SpaceProvider` is keyed by space, so a panel's key never changes); the next mount passes them back as `initialOffset` and `initialMeasurementsCache`, TanStack's documented restore path.
+  Restored measurements matter: with only the offset, Home rows estimated at 38 px settle to their real height and move the list by about 20 px, and Space rows estimated at 0 px leave too little height to scroll to the offset.
+  The snapshot seeds only the first layout, so a list that empties and refills (a collapsed Rooms category) is not reseeded with older sizes.
+  When the panel's content now fits, the browser clamps the restore to 0 without a scroll event, and the virtualizer kept rendering rows for the remembered offset; the hook dispatches a scroll event when the viewport and the virtualizer disagree after mount.
+  The `location.state` restore in `ThreadNavCategory` and `ThreadNavItem` is removed, so browser Back and Forward no longer move a panel that stayed mounted.
+- Tests: `navScrollMemory.test.ts` drives the real virtualizer against a jsdom viewport that clamps like a browser: remount restore, per-account and per-panel separation, and a remembered offset that no longer fits; removing `initialOffset` or the scroll-event resync each fails it.
+  `e2e/live/sidebar-scroll-memory.spec.ts` covers desktop thread opens, a desktop space switch and back, and mobile thread and room opens and back, within 1 px of the position after the virtualizer settles; against the previous code it fails at the space switch.
+  Its rooms sort last in Home so they stay rendered in an account shared with other live specs.
+- Validation: on the final code the live spec passed five of six runs against one dev server and one account, and the sixth lost its module requests to `net::ERR_NETWORK_CHANGED` before the sidebar rendered.
+  Typecheck, build and lint pass (17 existing warnings); the full suite passes except the same four tests that fail without this change.
+  An independent review found no blockers; its fixes are the clamp resync, seeding only the first layout, frame-settled e2e capture, and sort-last fixture rooms.
+- Not addressed:
+  - Outside Simple Mode, a Home thread in a room that belongs to a space opens that space (`getRoomPath`), so the Space panel replaces Home and opens at its own remembered position; this is routing, not scroll, and is unchanged.
+  - Space rows keep the default index keys, so restored sizes follow positions; if the hierarchy changed while the panel was unmounted, rows re-measure when rendered and scrolling up through them can shift slightly.
+  - WebKit (Playwright WebKit cannot launch on this NixOS host) and the native iOS shell were not run.
+    If the jump still happens on desktop while the panel stays mounted, it has a different cause, and the next step is a reproduction from that device.
+
+### Code blocks in the T3 Code style (2026-10-02)
+
+- Message code blocks now follow T3 Code's design: one surface without a separate header bar, a quiet header row with the language as a colored icon (named in a tooltip and announced as "Language: sh"), and icon-only actions with tooltips.
+  The actions are a line-wrap toggle, the existing expand/collapse for long blocks, and copy, which swaps to a check after a confirmed copy.
+  Filename fences (```` ```Greeting.tsx ````) show the icon and the filename; languages without an icon show their name, and fences without a language show `text`, as in T3 Code.
+- Lines wrap by default, matching T3 Code's default; the toggle restores horizontal scrolling for the block.
+  A block counts as long, and collapses, past 14 lines or, while wrapped, past 1,120 characters, so one long minified line no longer wraps into an uncollapsed wall.
+- The language icons are the built-in file icons of `@pierre/trees` 1.0.0-beta.4 (Apache-2.0), the set T3 Code uses, vendored as path data in `codeBlockLanguageIconPaths.ts`: 28 language icons plus the generic file icon for unknown filenames, with T3 Code's light and dark tints.
+  The package itself is not added: it needs React 18.3 and a Preact beta.
+  The toolbar glyphs are Lucide's `Copy`, `Check`, `TextWrap`, `ChevronsUpDown`, and `ChevronsDownUp` (ISC, with Feather portions under MIT), inlined in `CodeBlockIcons.tsx`.
+  Both license texts sit beside them in `CODE_BLOCK_ICONS_LICENSES.md`.
+- In dark themes message blocks drop their border; the composer's code block keeps it because the input field shares the block's tint.
+- The header uses logical padding, so it mirrors correctly in Arabic; the code itself stays left-to-right.
+  Hover tints apply only on hover-capable pointers, so a tap does not leave a button looking pressed, and touch screens get 32 px buttons with 4 px gaps.
+- Action labels are translated in all 17 catalogs under `messageCodeBlock`; `Expand`, `Collapse`, and `Copied` reuse the wording of existing settings controls.
+- `e2e/fixtures/code-blocks.html?theme=<light|silver|dark|midnight|butter>` renders sample fences in any theme for visual checks.
+- Syntax highlighting of fenced code had been off since the KaTeX change (`92ea6bb7`): it wrapped the text of `pre > code` in a fragment, so the code replacer never received the plain string it hands to Prism.
+  Fenced code text now stays a string again, except in a block containing a search match, which shows the match highlights instead of syntax colors.
+  Emoji inside fenced code are no longer enlarged, as before `92ea6bb7` and in upstream Cinny.
+- Streaming fixes for the highlighter:
+  - A streamed edit erased Prism's tokens, because React rewrites the element's text that Prism had replaced; the highlighter now remounts per edit, keyed by the language and code text (as `TextViewer` keys it by text).
+  - It highlights in a layout effect, so a streamed edit never paints uncolored code when a busy commit pushes effects to a later task.
+  - Prism now loads in manual mode (`prismManual.ts`), so it no longer runs `highlightAll()` over the document when its chunk loads, which rewrote React-owned code such as search results.
+- Tests: unit coverage for the header, wrap toggle, long-line collapse, copy feedback, icon resolution, and the Prism hand-off with and without a search match.
+  `e2e/code-blocks.spec.ts` checks the icon tint, copy, manual mode, and highlighting across streamed edits that arrive outside input events after a 20 ms commit.
+  It fails with 0 tokens after an edit without the remount, with 2 uncolored frames using a passive effect, and on manual mode without `prismManual.ts`.
+
+
+### Collapse copied gaps before tool calls and mark the tool-call copy as its own button (2026-10-02)
+
+- Copy Text and Copy Text with Tool Calls left several blank lines between paragraphs of agent replies.
+  The backend appends every marker as `"\n\n🔧 \`tool\` [N]\n\n"` to the reply text (`_format_tool_marker` in `tool_system/events.py`, appended by the stream presentations' `start_tool`), so text that already ends in blank lines leaves a wide gap before the marker; the renderer collapses it, but the copy kept it.
+  `replaceToolMarkerLines` skipped blank lines after a marker but kept every blank line before one, contrary to its own contract that a marker never leaves a gap wider than one blank line.
+- Fix: blank lines before a marker are dropped before its replacement, so both copies leave exactly one blank line where a marker stood.
+  Bodies without displayed markers still copy byte-for-byte.
+- The side action looked like a second trailing icon of the Copy Text row (`T` then `>_`), and its hover was only a faint gray square.
+  A vertical divider now separates it from the row, and it uses the accent color (`Primary`, no fill), whose hover shows a tinted square, so the hovered target is unambiguous.
+  The labelled touch-screen row is unchanged.
+- Tests: two `messageCopyText.test.ts` cases with wide gaps before markers (plain-body fallback and `formatted_body`) fail without the fix.
+  `Message.test.ts` mocks the new `MessageCopyActions.css` module like its other style modules.
+- Validation: unit tests, typecheck, build, lint (0 errors, 17 existing warnings), and the Chromium copy spec (pointer and touch) pass; the four known failures (three `xcodeCloudPostClone` tests need `/bin/bash`, the caption send-failure test) are unchanged.
+  Light and dark fixture screenshots of the idle, Copy Text hover, and side-action hover states were compared before and after.
+- Next: the backend could avoid stacking its marker padding on the reply's own trailing blank lines.
+
+### Render long whitespace-free text and runs of shortcodes without freezing (2026-10-02)
+
+- An iPhone export from build `4233114f` records a freeze in an open thread: about 0.8 s after the user sent a reply, the flight recorder's 2-second heartbeat stopped (last beat 01:58:37 UTC), and the app stayed frozen until it was force-quit 40 s later.
+  The deep trace ends with the send's `PUT`, the `/sync` response that arrived with it and the next `/sync` request.
+  It is flushed every 500 ms and records no message content, so it cannot show what ran during the freeze.
+- Chromium did not reproduce a freeze: a live run that opens a thread from the overview, sends, and has a second user answer with 30 streamed edits never blocked longer than 170 ms.
+  Audits of the thread, send and patched SDK paths found no loop that never yields.
+- WebKit can block for tens of seconds while rendering messages.
+  The inline Markdown rules and the emoji scaling of every text node used the lookbehind `(?<!(https?|ftp|mailto|magnet):\/\/\S*)` to leave URLs alone, and JavaScriptCore rescans the whole whitespace-free run behind every position for it.
+  The cost grows with the square of the run for emoji, and with its cube through the Markdown parser, which reruns every rule on the text around each match.
+  JavaScriptCore (Bun) against V8: 3.5 kB of comma-separated paths through the Markdown parser took 12.6 s against 2 ms, 2 kB of compact JSON 2.1 s against 0.7 ms, and the emoji scan of 32 kB of base64 3.8 s against 0.3 ms.
+  In Playwright WebKit, a thread reply whose code block holds a 38 kB line of JSON blocked the page for 12.6 s.
+  The body-only preview that MindRoom sends for a reply over the event size limit, holding 4.6 kB of paths, blocked it for 59.1 s.
+- That fits an iOS-only freeze while an agent answers, but the export cannot show whether the reply held such text, so this is a likely cause, not a confirmed one.
+- `createInsideUrlTest` (`src/app/utils/regex.ts`) scans the text once and reports whether a position follows a URL scheme in the same whitespace-free run, which is what the lookbehind tested.
+  The inline rules take their first match outside URLs through `execOutsideUrl`, which continues after the whitespace that ends a URL, because every position before it follows the scheme too.
+  `findAndReplace` can skip matches, which emoji scaling and Markdown escaping use for matches inside URLs; with a regex that is not global it now stops after the first match instead of looping (no caller passes one).
+  JavaScriptCore now takes 23 ms for the paths, 7 ms for the JSON and 0.8 ms for the base64; the two WebKit cases block for at most 144 ms and 160 ms.
+- `JUMBO_EMOJI_REG` let a `:shortcode:` token contain whitespace and colons, so when a body did not match, the ten allowed tokens could be split among more shortcodes in millions of ways: thirty shortcodes followed by text took 8.4 s in both V8 and JavaScriptCore.
+  A shortcode token now excludes both, like the shortcodes Cinny creates (spaces become dashes), so it matches in one way and the check takes 0.1 ms.
+  Bodies with more than ten shortcodes, or with whitespace or a colon inside one, are no longer shown as jumbo emoji, the same as bodies with more than ten emoji.
+- Tests: the new check agrees with the old lookbehind, evaluated in V8, at every position of fixed texts and 500 generated ones, most of which contain URLs.
+  Markdown markers, escapes and emoji inside URLs stay literal as before, and a URL followed by 40,000 underscores is matched in linear time (3.6 s when every position of the URL is retried).
+  A source check rejects lookbehinds that repeat `\S`, `\w`, `\d`, `.` or a negated class, and fails on the old code.
+  `JUMBO_EMOJI_REG` matches one to ten emoji or shortcodes, rejects the bodies above, and rejects thirty shortcodes followed by text within 100 ms.
+  `e2e/live/long-unbroken-text.spec.ts` (run with `playwright.long-unbroken-text.config.ts`, WebKit in the Playwright 1.58.2 container) covers both live cases and fails in WebKit before the fix.
+- An independent review compared the old and new parsers, escaping and emoji scaling on 160,000 generated inputs and found no difference.
+  It found the retry of every URL position, generated texts without URLs, a missing room topic in the live spec and a loose source check; all are fixed.
+- Not changed: `HTTP_URL_PATTERN`'s lookbehind for trailing punctuation is quadratic only in a run of punctuation after a URL, in both engines.
+- Validation: typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass.
+  5,782 unit tests pass after merging current `dev`; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
+- Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
+  Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
+
+### Keep thread history reachable after a collapsed sync gap (2026-10-02)
+
+- An iPhone export from build `4233114f` shows a thread reopening with its root and 2 of 41 replies after the app was suspended for 17 minutes while an agent replied.
+  The resumed `/sync` was limited: the open thread's live segment went to 0 events, and every later open logged `thread.latest.complete` with `snapshot_complete: false` and no backward token, so no older replies were requested.
+  Cache reads stalled for the rest of that session (15 `thread.cache.start`, 3 `thread.cache.read`), so neither the cached snapshot nor the reconcile that waits for it filled the thread.
+  The first reopen still rendered 37 replies, most likely from the in-memory open seed, and then saved its 5-event SDK slice as the new seed.
+- Root cause: the MindRoom Tuwunel collapses superseded edits in `/sync` (`mindroom_compact_edits_enabled`, on by default in the Helm chart).
+  A limited window of a streamed reply's edits shrinks to its newest edit, and `prev_batch` points at that edit.
+  Each thread converts the gap's `prev_batch` with `/messages?dir=f&limit=1`; nothing follows the newest event, so Tuwunel omits `end`, and the SDK stored the missing token as `null`, which marks the thread's new segment as the start of its history.
+  Reproduced against a local `mindroom-tuwunel` with compact edits enabled: the limited sync holds one event and the conversion returns only `start`.
+- With the token kept, a second defect blocked the history: every open called `getThreadTimeline`, which adds the root's context to the segment holding the root (or a new one) by prepending the first reply page newest first.
+  Once the gap has turned the old live segment into a non-live one, the first of those replies that it already holds makes it the older neighbour of the root's segment, although its replies are newer: a cycle when the root was loaded by an earlier open, or a link to an empty segment when a shown card had loaded only the latest page.
+  The next history page from the new live segment then throws `timeline already has a neighbouring timeline`, and the linked chain loses either everything behind the live segment (1 of 41 replies) or the live segment itself (40 of 41).
+- Fix:
+  - SDK patch (`src/models/thread.ts` and `lib`): the conversion falls back to `start` (the boundary itself, per the spec equal to `from`) when `/messages` omits `end`.
+  - `runThreadOpenSdkBootstrap` requests the root context only when the thread has no loaded events in any segment; otherwise backward pagination of the live segment reaches the root.
+    A root-only thread is still filled by the relations fallback that follows, and opening a loaded thread no longer sends `/context`, two `/relations` and an `/event` request first.
+    `thread.sdk.ready` records `context_requested`.
+- Tests: `matrixSdkThreadSyncGaps.test.ts` covers the conversion.
+  `threadSyncGapReopen.test.ts` drives a real client against a transport with Tuwunel's token semantics through a limited sync collapsed to one streamed edit, after an earlier open and after a shown card's initialization, then reopens: with the SDK fix reverted both load no history, with the context always requested both miss replies, and with the context skipped only for a loaded root the shown-card case still fails.
+  Thread timeline-set mocks gained `getTimelines`; tests that loaded or stalled a thread with loaded events through `getThreadTimeline` now use the relations fallback or a pending `initialize()`.
+- Validation: the real SDK and open path against a local `mindroom-tuwunel` with compact edits reopened none of the 41 replies before and all of them after.
+  Typecheck, build and lint pass; the full suite passes except four tests that also fail without this change (three Xcode Cloud script tests need `/bin/bash`, absent on the NixOS host, and the caption send-failure test in `useRoomInputSendSessionController.test.ts`).
+  The patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` with all 32 patched files byte-identical; two independent review passes found no blockers.
+- Not addressed: the stalled cache reads.
+  The deep trace records no storage operations, and the reconcile only starts after the cache read settles, so a stalled IndexedDB also stops the network repair; the next step is to record cache read stalls and let the open's reconcile start without them.
+
+### Preserve the selected space when opening threads (2026-10-01)
+
+- Reproduced in the hosted Chrome tab: opening a thread from a space's sidebar navigated to `/home/...` and replaced the space's room list.
+  Simple mode's early return in `useRoomNavigate` ignored the selected space.
+- Room navigation now preserves the selected space when it contains the destination room, including descendants of nested spaces, before applying the Home/Direct fallback.
+  This shared path covers sidebar threads, Recently Opened, room overview threads, and focused events.
+- Qodo review confirmed an unreachable selected-parent fallback and browser fixtures that overwrote local account preferences.
+  Removed the redundant fallback; fixtures now preserve all preferences and restore the original account settings in `finally`.
+- Validation on current `dev`: all 5,684 unit tests, application and changed-test typechecks, production build, formatting, and lint pass with the existing 17 warnings.
+  Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
+  A follow-up run alongside the build hit the unchanged gap-fill checkpoint timing test; its 26 tests and a subsequent full suite passed without concurrent build/browser work.
+
+### Load threads when they are shown, not when they are listed (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows about 800 `GET /rooms/{id}/event` and 170-320 `/relations` requests in the first minute of every session.
+  Opening the overview of the 523-thread room started about 540 requests within 9 ms; GET latency reached p50 3.3 s and p90 14 s, and a message send queued behind them failed when the connection dropped.
+  The deep trace records no URLs; the request pairs (each root request followed by a `/relations` request when it completes) and the local measurements below identify the source.
+- Root cause: every SDK `Thread` ran its network initialization when it was created: it fetched its root ("Always fetch the root event, even if we already have it") and then the first page of replies.
+  The app creates threads in bulk: the overview restores every cached root (`restoreCachedRoomThreads`, and the cache grows with every listed root), pages `/threads` to the end, and the saved-sync replay creates a thread for every thread in each room's 500-event window.
+  Each initialization also reset the thread's timeline, which the room re-emits to every thread; each thread took it for a room sync gap and fetched its root again, so a listed thread cost two root requests and a page.
+- Rule: a thread loads (root and first page) only when the app opens it or shows its card; live events, including a catch-up `/sync`, never load it.
+  Until then its root's thread summary stands in, so only threads on screen send requests.
+- SDK patch (`patches/matrix-js-sdk+41.7.0.patch`, `src/models/thread.ts`, `room.ts`, `client.ts` and their `lib` builds):
+  - A thread defers its network initialization until `Thread.initialize()`; until then it processes the summary (reply count, latest reply, participation) locally and fetches only a missing root, and no encrypted edits.
+  - Unopened threads append live replies and buffer edits for the first page, as the SDK does while loading; only the newest edit of each reply is kept.
+    A redaction of a buffered edit or reaction (`Room.takeBufferedThreadRelation`) removes it from that buffer and from the reaction counts.
+  - An edit of a reply that the thread knows only from the summary finds that reply (`Room.findUnopenedThreadReply`) instead of fetching it once per edit.
+  - `/threads` responses refresh the summary of known unopened threads (`Room.processListedThreadRoots`), unless the thread already shows a newer reply or a live reply with the same timestamp, so cached cards upgrade without a root request.
+  - A thread ignores timeline resets of other threads; only a room gap invalidates its root.
+    Unopened threads coalesce room sync gaps like untouched initialized ones.
+  - A failed first page returns the thread to the unopened state, keeping its buffered edits, so later events neither reset its timeline nor reject.
+- App:
+  - `useInitializeShownThread` initializes the thread of a compact card, thread indicator or sidebar entry once the card has been on screen for 500 ms (one shared `IntersectionObserver`; thread lists render every card) and the client has finished its first live `/sync`, and again after a reconnect if that failed.
+    Initialization is idempotent, so re-renders and remounts send nothing more; a card rendered before its thread exists waits for `ThreadEvent.New`.
+  - The thread open materializes a recorded sync gap, then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
+    For the same reason, the compact overview does not treat that empty token as complete history when it decides whether a thread with a deleted root has replies left.
+  - Unread state and activity use the newest of the loaded replies and the summary's latest reply.
+- Counts of threads that are never shown can drift from the server (for example replies that arrived inside a sync gap); showing the thread loads the server count.
+- The first `/sync` started 108 s after boot in session `4bbace3b`.
+  `startClient` replays the saved sync and only then sends `/pushrules`, `/filter` and `/sync` one after another; replayed threads' requests went out first, and the overview added about 540 more at 18 s.
+  From 33 s until the app was hidden at 74 s no Matrix request succeeded; seven message sends failed together at 49 s.
+  The last request sent before that stall (33.5 s) is consistent with the filter request, and `/sync` started about 4 s after the app returned at 117 s.
+  With this fix the replay sends only missing roots ahead of `/sync`; the replay-before-sync ordering and the network stall itself are unchanged.
+- Measurements, production Chromium build against local Tuwunel, 120-thread room on a phone-sized viewport showing 6 cards (`e2e/live/thread-bootstrap-requests.spec.ts` phases, before → after; root and `/relations` requests in that room):
+
+  | Phase | Root requests | `/relations` | All Matrix requests |
+  | --- | ---: | ---: | ---: |
+  | Overview open after login | 240 → 6 | 120 → 6 | 382 → 35 |
+  | Reopen after a sync gap (catch-up `/sync`) | 240 → 6 | 120 → 6 | 379 → 33 |
+  | Cold start, before the first `/sync` | 121 → 1 | 30 → 0 | 164 → 14 |
+  | Cold start, total | 361 → 7 | 120 → 6 | 500 → 34 |
+  | Opening a thread whose card was not shown | 1 → 2 | 4 → 5 | 6 → 8 |
+
+  The real-SDK unit tests count 300 requests before and none after for 100 restored roots, 270 and only the four `/threads` pages for 90 listed roots, and none for a catch-up `/sync` with a new reply and an edit in each of 40 threads.
+- Tests: `matrixSdkThreadBootstrapRequests.test.ts` drives a real client through its fetch transport, and `useInitializeShownThread.test.tsx` covers the live-sync wait, the dwell, off-screen cards, remounts, reconnects, counts and unread state; each change has a case that fails when it is reverted.
+  The live spec checks the per-phase bounds and that a shown card's count goes from 26 to 27 messages with a live reply.
+  Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
+  When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
+- Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
+- Validation: 5,743 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+  Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with every patched file byte-identical to the tested tree.
+  The live spec passes in Chromium and WebKit, 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
+  `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.
+- Next: in the next iOS export, check that a session's first minute has no request bursts and that `/sync` starts within seconds of boot.
+
+### Show when the homeserver cannot be reached (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a message that never sent and no sign of a connection problem.
+  The session started from the cached client shell at 17:15:39; after 17:15:59 no Matrix request got a response, and at 17:16:15 seven PUTs, including the message send and typing notifications, failed with network errors (no HTTP status).
+  The first `/sync` request had not started yet; it began around 17:17:27, after the app had been in the background from 17:16:40 to 17:17:23.
+- `SyncStatus` derived its banners only from the SDK sync state, which becomes `Reconnecting` or `Error` only when one of the sync loop's own requests fails (its startup requests, `/sync`, or the `/versions` keepalive).
+  While those are pending, as the startup requests were here, failures of other requests leave the state unchanged, so nothing was shown.
+- `createMatrixClient` now wraps the client's fetch with `homeserverReachability.ts`.
+  When a request fails at the network level, it checks `/_matrix/client/versions` right away, bypassing the HTTP cache and waiting at most 8 s.
+  The homeserver is unreachable when nothing, the check included, was answered while the check ran.
+  Any HTTP response, error statuses included, marks it reachable again; while it is unreachable the check repeats every 5 s, so the banner also clears when nothing else is sent.
+  `SyncStatus` shows the existing "Connection Lost!" banner while it is unreachable, ahead of "Catching up..."; the SDK's "Connection Lost! Reconnecting..." keeps precedence.
+- A one-off failure while the homeserver still answers, such as a single failed endpoint, shows nothing.
+  Aborted requests (intentional aborts and the SDK's local timeouts, which the sync loop reports itself) do not count, nor do requests or checks during which the page was hidden at any point.
+  WebKit fails requests that were in flight while the app was suspended, and those failures arrive around resume without saying anything about the server.
+  A check that started while the page was visible and got no answer before it was hidden is ignored, and a fresh check runs once the page is shown again, so an outage that began before backgrounding is still detected after resume without another app request.
+  Checks repeat only while `SyncStatus` is mounted, so clients used for login or token refresh send at most one check per failure.
+- Not changed: why the first `/sync` started late is a separate fix, and a request that hangs without failing shows nothing until it fails.
+  Any HTTP response counts as reachable, including responses from other origins (such as the OIDC issuer) and 502/503/504 from the reverse proxy, so a dead homeserver behind a working proxy shows no banner before `/sync` starts; once it syncs, the SDK keepalive reports it.
+- Validation: unit tests cover each rule and fail when it is removed; two `SyncStatus` tests and the `createMatrixClient` test fail before the change.
+  `e2e/connection-status.spec.ts` (Chromium) reloads into the cached shell while homeserver reads get no answer and writes fail, as in the export.
+  Before the change no banner appears; after it "Connection Lost!" appears once the writes fail and the check gets no answer, and clears once the held requests are answered.
+  A second case fails only sends while everything else works, waits for the check to be answered, and checks that the banner never appeared; it fails against a build that shows the banner without the check.
+  Typecheck, build, changed-file lint and prettier pass; full-suite results are in the pull request.
+- Next: on an iPhone, confirm that the banner appears when sending with the homeserver unreachable, clears when it is reachable again, and does not appear after resuming the app with a working connection.
+
+### Recover messages that failed to send (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a new thread root that stayed "not sent" for good.
+  Its `PUT /send` failed after 10.26 s at the same instant as six typing `PUT`s, and no network response arrived between 17:16:00 and 17:17:30, so the connection had dropped for a while.
+  The six typing failures were reported as `error.unhandled_rejection`.
+- `createClient` uses `new MatrixScheduler()`, whose retry algorithm calls `calculateRetryBackoff(err, attempts, false)`: it retries server errors and rate limits but returns `-1` for `ConnectionError`, so one network error marked the message `NOT_SENT`.
+  The client had no way to send it again: failed messages showed only a small warning icon, and a failed new thread root left the thread showing "Replies are available after this message is confirmed." with no composer.
+- `createMatrixClient` now uses `MessageSendScheduler`, which also retries connection errors with the SDK's backoff (2, 4, 8 and 16 s) and the same transaction ID, so the server drops a copy that already arrived.
+  Client errors, aborts and oversized events still fail at once, and messages stay queued in order.
+  A message is only sent within one minute of being queued (by its send or a Retry), also when it waits behind a slow message or iOS suspends the app, because a late `stop` or other command could surprise an agent; there is deliberately no resend after reconnecting.
+  When `/sync` delivers the server's copy while a retry waits or a request is in flight (an earlier response was lost), the event counts as sent, also if that request then fails; otherwise the SDK fails to mark the confirmed event as sending again and stalls the queue, or gives up and rejects the delivered message and every message queued behind it.
+  Sharing an encrypted room's key happens before the scheduler; the Rust crypto layer already retries those requests after connection errors with the same backoff.
+- A message whose retries ran out now shows "Not sent" with Retry and Delete below it (`FailedSendActions`, from `TimelineMessageBody` for the message or its failed edit).
+  Retry calls `resendEvent`, which reuses the event, its transaction ID and, in encrypted rooms, its ciphertext; Delete calls `cancelPendingEvent`.
+  In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, also when posting is no longer allowed, and the root row leaves them to the footer.
+  Deleting that root leaves the thread through the same history exit, but without remembering it for swipe-forward or focusing it in the room.
+- A failed composer send now has one way to try again.
+  Composer paths that keep the content for their own retry (text returned to the composer, staged attachments, the voice recorder) discard the unsent echo, as thread summary actions already did.
+  A new thread root that the compact overview opened as a thread is not returned to the composer, so its echo keeps Retry and Delete.
+- The model picker no longer resends a failed `!model` command itself; that fallback dated from the scheduler without retries and would have opened a second window, so a failed command now reports the selection as unconfirmed.
+- Typing notices ignore failures instead of leaving unhandled rejections.
+- The new Retry and Delete strings are machine-authored for the 16 non-English catalogs; "Not sent" reuses the existing indicator string.
+- Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting or in-flight message, giving up at 54 s when each attempt takes 10 s to fail as on the iPhone, stopping after an iOS suspension (also for a queued message), no retry after a 403, no second `!model` send, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
+  Another test pins the SDK behavior that a copy arriving through `/sync` replaces an unsent echo.
+  Results of the full suites are in the pull request.
+- Not covered:
+  - Unsent echoes are not persisted with chronological pending events, so a failed root disappears after a reload and can drop out of the room timeline after a limited `/sync`; text that returned to the composer survives in its draft.
+  - The composer ignores Enter while its previous message is still sending, which can now last up to the retry window during an outage.
+  - A failed edit offers both Save in the still open editor and Retry once the editor closes; the latest edit wins either way.
+  - The window starts after encryption, so a key share held up by a suspension can still be followed by a send.
+  - No browser check against a homeserver yet; after deploy, send a message with the network off, wait about a minute, then retry and delete a failed new thread root.
+
+### Keep persisting the deep trace after a failed IndexedDB write (2026-10-02)
+
+- An iPhone export from build `57e4c56e` reports `deepTraceHealth.status` `memory-only`, with a `flush` failure (`UnknownError`) 24 ms after the app returned to the foreground.
+  Session `71cb6120`'s persisted trace ends just before its first background, and the following six minutes, including the user's first failed message send, were recorded only in the memory tail.
+  That tail keeps 1,000 events, about the last 7 s at this session's request rate, and it was lost when the app was force-quit.
+- WebKit aborts IndexedDB writes in flight when it suspends the app (`UnknownError` on resume) and closes every connection for good when it loses its IndexedDB server.
+  Both sessions in the export stop persisting right before a background, without the `lifecycle.hidden` event whose flush was then in flight.
+  No recovery reload from #349 followed, so the connection itself stayed open and only the write was aborted.
+- The recorder treated one failed write as permanent: it dropped the pending queue and stayed memory-only until the page reloaded or tracing was turned off and on.
+- A failed write now releases the recorder's connection, puts the failed batch back at the front of the queue, and retries on a new connection after 1, 2 and 4 s.
+  Flushes requested by recorded events meanwhile, including ones that waited on the failed write, wait for that retry; an export or opt-out still writes at once, and an export that waited on the failed write retries it before reading.
+  A successful write or clear resets the count; a fourth consecutive failure makes the recorder memory-only as before, so unusable storage is not retried in a loop.
+  A failed transaction stores nothing, so the batch is written once and in order, and batches committed before it are not written again.
+  If the pending queue overflows meanwhile, its oldest events go first, starting with the failed batch, and are counted as dropped as before.
+  While a retry is pending the status stays `recording`, and `deepTraceHealth.lastFailure` keeps the failure until the trace is cleared, so exports still show it.
+- Tests: unit regressions cover a write aborted on a live connection and a connection closed by the browser (the failed batch and later events are written once and in order after the delay, not before it), the 1, 2 and 4 s retries ending memory-only, an export that waited on the failed write, and the count reset after a successful write or clear; the aborted-write, closed-connection, export and bounded-retry tests fail before the change.
+  `e2e/diagnostics-storage-fallback.spec.ts` now expects the trace to recover after a real Chromium connection close, and its export with failing storage still carries the memory tail and the latest failure; it fails before the change.
+- Validation: the 96 diagnostics unit tests, the Chromium spec above, typecheck, build, lint (0 errors, the existing 17 warnings) and prettier pass.
+  The full unit suite passes apart from the three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and one `useRoomInputSendSessionController` caption test, which fail the same way on unchanged `dev`.
+- Not covered: after a real IndexedDB server loss the #349 sentinel reloads the page, so the failed batch and the events recorded until the reload are still lost, as #350 notes.
+  A commit that reached disk just before such a loss could be written again after it; the repeated `sequence` would show it.
+  Playwright WebKit was not run on this host.
+- Review: an independent review found an unpinned count reset, a missing reset on clear, and Runbook overstatements, all fixed.
+  Qodo and CodeRabbit found that an export waiting on a failed write skipped it, now fixed; Sourcery's note on events recorded during a clear describes the existing, documented clear behavior.
+- Next: in the next iOS export after a background resume, confirm the persisted trace continues past the resume, with `lastFailure` near a `scene.foreground`.
 
 ### Flatten the Members drawer header (2026-10-01)
 

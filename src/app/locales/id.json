@@ -3,6 +3,16 @@
     "label": "Tabel yang dapat digulir",
     "scrollHint": "Gulir secara horizontal"
   },
+  "messageCodeBlock": {
+    "actions": "Tindakan blok kode",
+    "code": "Kode",
+    "language": "Bahasa: {{language}}",
+    "copy": "Salin kode",
+    "copied": "Disalin",
+    "wrap": "Bungkus baris",
+    "expand": "Perluas",
+    "collapse": "Ciutkan"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " mengubah nama ruang"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "Sembunyikan fitur lanjutan seperti palet perintah dan filter utas. Disinkronkan di semua perangkat Anda.",
         "expandLongMessagesByDefault": "Perluas pesan panjang secara default",
         "expandLongMessagesByDefaultDescription": "Tampilkan pesan panjang secara utuh tanpa meringkasnya di balik Tampilkan pesan lengkap. Disinkronkan di semua perangkat Anda.",
+        "showCanvasesInSidebar": "Tampilkan panel interaktif di bilah sisi",
+        "showCanvasesInSidebarDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Disinkronkan di semua perangkat Anda.",
         "saveFailed": "Perubahan tidak dapat disimpan. Periksa koneksi Anda dan coba lagi."
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "Pratinjau URL",
         "urlPreviewEncrypted": "Pratinjau URL di ruang terenkripsi",
         "showHiddenEvents": "Tampilkan peristiwa tersembunyi"
+      },
+      "computers": {
+        "sectionTitle": "Komputer",
+        "apiUrl": "URL layanan komputer",
+        "description": "Pilih backend MindRoom tepercaya; backend menerima token masuk berumur pendek. Disimpan di perangkat ini. Kosongkan untuk menonaktifkan komputer.",
+        "save": "Simpan layanan komputer",
+        "reset": "Gunakan bawaan aplikasi",
+        "invalidUrl": "Masukkan origin tanpa kredensial, jalur, kueri, atau fragmen. Gunakan HTTPS, atau HTTP dengan localhost atau alamat IP LAN privat.",
+        "httpNotice": "HTTP tidak mengenkripsi proses masuk atau lalu lintas komputer Anda. Gunakan hanya pada jaringan lokal tepercaya.",
+        "saveFailed": "Layanan komputer tidak dapat disimpan di perangkat ini.",
+        "saved": "Layanan komputer disimpan."
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "Beranda",
     "directMessages": "Pesan langsung",
     "threads": "Utas",
+    "canvases": "Panel interaktif",
     "inbox": "Kotak masuk",
     "exploreCommunity": "Jelajahi komunitas",
     "addSpace": "Tambahkan space",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "Browser Anda tidak mendukung WebRTC.",
         "endCurrentCall": "Akhiri panggilan Anda saat ini terlebih dahulu.",
         "failedToStart": "Gagal memulai panggilan."
+      },
+      "agentCallHeaderButton": {
+        "call": "Panggil agen",
+        "callAgent": "Panggil {{name}}",
+        "chooseAgent": "Pilih agen untuk dipanggil",
+        "close": "Tutup"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "Batal",
         "autoApproveMinutes_one": "Setujui otomatis selama {{count}} menit",
         "autoApproveMinutes_other": "Setujui otomatis selama {{count}} menit",
-        "denyCallReasonOptional": "Alasan menolak panggilan {{number}} (opsional)"
+        "denyCallReasonOptional": "Alasan menolak panggilan {{number}} (opsional)",
+        "approveExactCall": "Setujui panggilan persis ini",
+        "approveAnyArguments": "Setujui argumen apa pun",
+        "anyArgumentsWarning": "Dengan argumen apa pun, agen dapat melakukan satu panggilan {{tool}} dengan isi pilihannya, dalam {{minutes}} menit dari waktu terjadwal."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Persetujuan otomatis aktif",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "Waktu kedaluwarsa tetap awal: {{timestamp}}",
         "toolAndServer": "Alat: {{tool}} · Server: {{server}}",
         "tool": "Alat: {{tool}}",
-        "reason": "Alasan: {{reason}}"
+        "reason": "Alasan: {{reason}}",
+        "approvedWhenScheduledByAt": "Disetujui saat dijadwalkan oleh {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Disetujui saat dijadwalkan oleh {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Dijadwalkan untuk {{timestamp}}",
+        "approvedExactArguments": "Disetujui untuk argumen persis ini",
+        "approvedAnyArguments": "Disetujui untuk argumen apa pun pada alat ini"
       },
       "approvalReviewCall": {
         "pending": "menunggu",
@@ -2480,6 +2520,12 @@
         "copyText": "Salin teks",
         "copyTextWithToolCalls": "Salin teks dengan panggilan alat",
         "copyLink": "Salin tautan"
+      },
+      "bugReport": {
+        "report": "Laporkan bug",
+        "download": "Unduh laporan bug",
+        "sending": "Mengirim laporan…",
+        "failed": "Tidak dapat mengirim laporan. Coba lagi."
       },
       "messageInspectionActions": {
         "readReceipts": "Tanda dibaca",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "Pesan gagal dikirim",
         "notSent": "Belum dikirim"
       },
+      "failedSendActions": {
+        "retry": "Coba lagi",
+        "delete": "Hapus"
+      },
       "aiRunDisplay": {
         "inputTokens": "masuk {{formattedCount}}",
         "outputTokens": "keluar {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "Tidak ada utas"
       },
       "compactThreadCard": {
-        "streaming": "mengalir",
-        "unreadMessages": "Pesan belum dibaca",
-        "unread": "belum dibaca",
-        "threadStatus": "Status utas: {{status}}",
-        "lastActivity": "Aktivitas terakhir {{time}}"
+        "streaming": "mengalir"
       },
       "mindroomCallChatView": {
         "chat": "Obrolan",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "Lihat komputer",
       "openMembers": "Buka anggota",
+      "openCanvas": "Buka panel",
+      "canvasDisabled": "Panel interaktif dinonaktifkan di aplikasi ini.",
+      "canvasDuringCall": "Akhiri panggilan untuk membuka panel interaktif.",
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
       "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
+    },
+    "canvas": {
+      "panelLabel": "Panel interaktif",
+      "fromAgent": "Panel interaktif dari {{agent}}",
+      "expand": "Perluas panel",
+      "close": "Tutup panel",
+      "resize": "Ubah ukuran panel",
+      "updated": "{{agent}} memperbarui panel ini.",
+      "loadUpdate": "Muat pembaruan",
+      "version": "Versi {{current}} dari {{total}}",
+      "previousVersion": "Versi sebelumnya",
+      "nextVersion": "Versi berikutnya",
+      "earlierVersion": "Ini versi sebelumnya.",
+      "showLatest": "Tampilkan terbaru",
+      "loading": "Memuat panel…",
+      "loadFailed": "Panel ini tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "escaped": "Panel ini mencoba keluar dari sandbox-nya dan telah dihentikan.",
+      "reload": "Muat ulang panel",
+      "pageError": "Halaman ini melaporkan kesalahan.",
+      "tellAgent": "Beri tahu {{agent}}",
+      "errorsSent": "Kesalahan dikirim ke {{agent}}.",
+      "errorsNotSent": "Kesalahan tidak dapat dikirim ke {{agent}}.",
+      "sendTo": "Kirim ke {{agent}}:",
+      "changeAnswer": "Untuk mengubah jawaban, buang jawaban ini terlebih dahulu.",
+      "data": "Data",
+      "send": "Kirim",
+      "discard": "Buang",
+      "disclosure": "Dibuat oleh {{agent}}. Panel ini tidak dapat mengakses akun Anda; apa yang Anda masukkan di sini dapat keluar dari panel ini.",
+      "sharedNotice": "Disimpan di ruangan ini: {{agent}} dan orang lain di sini dapat membaca apa yang Anda masukkan.",
+      "sending": "Mengirim ke {{agent}}…",
+      "sent": "Terkirim ke {{agent}}: {{label}}",
+      "sendFailed": "Tidak dapat mengirim respons Anda. Coba lagi.",
+      "receiptData": "Tampilkan data yang dikirim ke agen",
+      "unlabeled": "Terkirim",
+      "notSent": "Tidak terkirim ke {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Panel interaktif",
+      "note": "Panel interaktif yang dibuat agen Anda untuk Anda dan sudah dilihat browser ini. Panel yang disematkan muncul di semua perangkat Anda.",
+      "empty": "Belum ada panel interaktif. Saat agen menampilkan panel untuk Anda, panel itu muncul di sini.",
+      "pinned": "Disematkan",
+      "canvas": "Panel",
+      "thread": "Utas",
+      "agent": "Agen",
+      "room": "Ruang",
+      "updated": "Diperbarui",
+      "created": "Dibuat",
+      "pin": "Sematkan {{title}}",
+      "unpin": "Lepas sematan {{title}}",
+      "shared": "Dibagikan dengan agen",
+      "saved": "Berisi nilai Anda"
     }
   },
   "roomSchedules": {

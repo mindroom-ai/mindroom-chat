@@ -19,7 +19,10 @@ for (const [themeId, width, simpleMode] of [
   test(`space header overlays scrolling rooms in ${themeId}`, async ({ page }, testInfo) => {
     test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
     const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
+    let leavingPage = false;
+    page.on('pageerror', (error) => {
+      if (!leavingPage) errors.push(error.message);
+    });
     const homeserver = getHomeserver();
     test.skip(
       !['localhost', '127.0.0.1', '[::1]'].includes(new URL(homeserver).hostname),
@@ -77,7 +80,11 @@ for (const [themeId, width, simpleMode] of [
       const synced = page.waitForResponse(
         (response) => response.url().includes('/sync?') && response.status() === 200
       );
-      await page.goto(`/${encodeURIComponent(spaceId)}/`);
+      // Leaving the signed-in page cancels its /sync long poll; WebKit reports
+      // that cancelled load, and requests refused while unloading, as page errors.
+      leavingPage = true;
+      await page.goto(`/${encodeURIComponent(spaceId)}/`, { waitUntil: 'commit' });
+      leavingPage = false;
       await synced;
       const panel = page.getByTestId('resizable-page-nav');
       const header = panel.locator('header').filter({ hasText: 'MindRoom' });
@@ -165,9 +172,11 @@ for (const [themeId, width, simpleMode] of [
         .getByRole('button', { name: 'General', exact: true })
         .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
         .locator('header');
-      await expectFloatingNavHeader(settingsHeader);
+      await expectFloatingNavHeader(settingsHeader, { inheritsPanelTint: true });
       await page.setViewportSize({ width, height: 240 });
-      const settingsScroll = await expectFloatingNavHeader(settingsHeader);
+      const settingsScroll = await expectFloatingNavHeader(settingsHeader, {
+        inheritsPanelTint: true,
+      });
       await expectInsetScrollbar(page, settingsScroll, settingsHeader);
       await settingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({

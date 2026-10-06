@@ -14,6 +14,7 @@ import {
   DEEP_TRACE_MAX_PENDING_EVENTS,
   getDeepTraceEnabled,
   initializeDeepTraceRecorder,
+  isDeepTraceRecording,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
   setDeepTraceEnabled,
@@ -230,6 +231,23 @@ describe('opt-in deep diagnostic trace', () => {
         data: { reload_ms_ago: 1_500 },
       })
     );
+  });
+
+  it('records cache database stalls', async () => {
+    expect(isDeepTraceRecording()).toBe(false);
+    await setDeepTraceEnabled(true, storage);
+    expect(isDeepTraceRecording()).toBe(true);
+    const names = [
+      'storage.cache.close',
+      'storage.cache.open_settled',
+      'storage.cache.open_stalled',
+      'storage.cache.transaction_settled',
+      'storage.cache.transaction_stalled',
+    ];
+    names.forEach((name) => recordDeepTraceEvent(name, { readwrite: true, events: true }));
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events.filter((event) => names.includes(event.name))).toHaveLength(5);
   });
 
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {

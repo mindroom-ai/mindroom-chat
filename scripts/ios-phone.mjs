@@ -314,7 +314,7 @@ const runOnce = async (options) => {
     const deviceId = resolveDeviceId(options.deviceId);
 
     printStep('Building web app');
-    await run('npm', ['run', 'build']);
+    await run('npm', ['run', 'build:ios']);
 
     printStep('Syncing Capacitor iOS project');
     await run('npx', ['cap', 'sync', 'ios']);
@@ -363,6 +363,8 @@ const existingWatchTargets = () => {
     'public',
     'index.html',
     'config.mindroom.json',
+    'config.mindroom.ios.json',
+    'scripts/ios-client-config.mjs',
     'capacitor.config.ts',
     'package.json',
     'package-lock.json',

@@ -1,11 +1,13 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
+import { createClient, EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
 } from '../roomNavigateState';
+import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -28,9 +30,11 @@ const {
   navigatePathMock,
   pageState,
   passthrough,
+  permissionState,
   roomTimelineType,
   simpleModeState,
   navigateRoomFocusEventMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   threadContextBannerState,
   useKeyDownMock,
@@ -61,9 +65,11 @@ const {
     props: undefined as MockPageProps | undefined,
   },
   passthrough: 'div',
+  permissionState: { canMessage: true },
   roomTimelineType: 'room-timeline',
   simpleModeState: { enabled: false },
   navigateRoomFocusEventMock: vi.fn(),
+  navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   threadContextBannerState: {
     props: undefined as MockThreadContextBannerProps | undefined,
@@ -121,6 +127,7 @@ vi.stubGlobal('window', {
   },
 });
 
+vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('../../engine/engineContext', () => ({ useMindroomSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -266,7 +273,7 @@ vi.mock('../MindroomRoomTimeline', async () => {
   const { CompactRoomView } = await import('../CompactRoomView');
 
   type MockRoomTimelineProps = {
-    compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
+    compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
     room: { roomId: string };
     threadId?: string;
     threadHeader?: React.ReactNode;
@@ -348,7 +355,7 @@ vi.mock('../../../state/hooks/settings', () => ({
 
 vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
-    event: () => true,
+    event: () => permissionState.canMessage,
   }),
 }));
 
@@ -359,6 +366,7 @@ vi.mock('../../../hooks/useRoomCreators', () => ({
 vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigatePath: navigatePathMock,
+    navigateRoom: navigateRoomMock,
     navigateRoomFocusEvent: navigateRoomFocusEventMock,
     navigateRoomThread: navigateRoomThreadMock,
   }),
@@ -421,6 +429,8 @@ const makeRoom = (roomId: string) => ({
   roomId,
   getThread: () => undefined,
   findEventById: () => undefined,
+  on: vi.fn(),
+  removeListener: vi.fn(),
 });
 let roomIdSeed = 0;
 const nextRoomId = (label: string) => `!${label}-${roomIdSeed++}:example.org`;
@@ -448,7 +458,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       onSortDirectionChange: () => void;
       onToggleThreadSortFreeze: () => void;
       onReset: () => void;
-      compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
+      compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
       threadId?: string;
       threadFilterState: {
         resolved: string;
@@ -467,6 +477,16 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       } | null;
     };
   };
+
+// The compact overview measures its cards when it saves its position; these
+// tests render none, so it saves the plain offset.
+const createCompactScrollElement = () => ({
+  scrollTop: 0,
+  getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
+  querySelectorAll: () => [],
+  addEventListener: () => {},
+  removeEventListener: () => {},
+});
 
 describe('RoomView', () => {
   const originalResizeObserver = globalThis.ResizeObserver;
@@ -500,8 +520,10 @@ describe('RoomView', () => {
     isNativeIOSMock.mockReturnValue(false);
     navigatePathMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
+    navigateRoomMock.mockReset();
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
+    permissionState.canMessage = true;
     simpleModeState.enabled = false;
     threadContextBannerState.props = undefined;
     useKeyDownMock.mockClear();
@@ -614,7 +636,7 @@ describe('RoomView', () => {
     compactRoomTimelineState.onThreadClick.mockImplementation((threadRootId: string) => {
       navigateRoomThreadMock(room.roomId, threadRootId);
     });
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -654,7 +676,7 @@ describe('RoomView', () => {
 
     expect(historyBackMock).toHaveBeenCalledOnce();
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never }));
     });
@@ -668,7 +690,7 @@ describe('RoomView', () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -704,7 +726,7 @@ describe('RoomView', () => {
 
     expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never }));
     });
@@ -717,7 +739,7 @@ describe('RoomView', () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -737,7 +759,7 @@ describe('RoomView', () => {
       );
     });
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
@@ -1799,6 +1821,81 @@ describe('RoomView', () => {
     expect(JSON.stringify(renderer?.toJSON())).toContain(
       'Replies are available after this message is confirmed.'
     );
+  });
+
+  const renderFailedLocalRoot = async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const roomId = nextRoomId('room-a');
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    const room = new Room(roomId, mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    const root = new MatrixEvent({
+      event_id: `~${roomId}:txn-root`,
+      room_id: roomId,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: 'Hello' },
+    });
+    root.setStatus(EventStatus.SENDING);
+    room.addPendingEvent(root, 'txn-root');
+    room.updatePendingEvent(root, EventStatus.NOT_SENT);
+    useThreadRootEventMock.mockReturnValue(root.getId());
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room, threadId: root.getId()! }));
+    });
+    return { renderer: renderer!, room, root };
+  };
+
+  it('offers Retry and Delete instead of waiting when a local-echo thread root failed', async () => {
+    const { renderer, room, root } = await renderFailedLocalRoot();
+
+    // The real room is circular, so read rendered strings instead of serializing the tree.
+    const renderedText = () =>
+      renderer.root
+        .findAll(() => true)
+        .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
+        .join('|');
+    expect(renderer.root.findAllByType('room-input')).toHaveLength(0);
+    expect(renderedText()).toContain('Not sent|Retry|Delete');
+    expect(renderedText()).not.toContain('Replies are available after this message is confirmed.');
+
+    await act(async () => {
+      room.updatePendingEvent(root, EventStatus.SENDING);
+    });
+
+    expect(renderedText()).toContain('Replies are available after this message is confirmed.');
+    expect(renderedText()).not.toContain('Not sent');
+  });
+
+  it('keeps Retry and Delete for a failed local-echo root after losing permission to post', async () => {
+    permissionState.canMessage = false;
+    const { renderer } = await renderFailedLocalRoot();
+
+    const rendered = renderer.root
+      .findAll(() => true)
+      .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
+      .join('|');
+    expect(rendered).toContain('Not sent|Retry|Delete');
+    expect(rendered).not.toContain('You do not have permission to post in this room');
+  });
+
+  it('leaves the thread when its unsent local-echo root is deleted', async () => {
+    const { room, root } = await renderFailedLocalRoot();
+    expect(navigateRoomMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      room.updatePendingEvent(root, EventStatus.CANCELLED);
+    });
+
+    // The root is gone, so neither focus it in the room nor offer it to swipe-forward.
+    const { getDefaultStore } = await import('jotai');
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    expect(navigateRoomMock).toHaveBeenCalledWith(room.roomId, undefined, { replace: true });
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+    expect(getDefaultStore().get(lastExitedThreadAtom)).toBeNull();
   });
 
   it('does not open successful sends as new threads in classic mode', async () => {

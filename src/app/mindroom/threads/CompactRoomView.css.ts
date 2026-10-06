@@ -1,6 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
-import { DefaultReset, color, config } from 'folds';
+import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
 
@@ -64,11 +63,6 @@ export const Card = style([
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
     },
-    '@media': {
-      [touchActions]: {
-        paddingInlineEnd: '3rem',
-      },
-    },
   },
 ]);
 
@@ -91,7 +85,10 @@ export const CardAction = style({
   '@media': {
     [touchActions]: {
       insetInlineEnd: config.space.S100,
-      top: config.space.S100,
+      top: 'auto',
+      // Centers the 2.5rem button on the card's last row (24px tall, above
+      // an S200 padding and the border).
+      bottom: `calc(${config.borderWidth.B300} + ${config.space.S200} + ${toRem(12)} - 1.25rem)`,
       transform: 'none',
       opacity: 1,
       pointerEvents: 'auto',
@@ -142,6 +139,14 @@ globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardA
   pointerEvents: 'auto',
 });
 
+export const CardUnread = style({
+  boxShadow: `inset ${toRem(3)} 0 0 ${color.Primary.Main}`,
+});
+
+globalStyle(`[dir='rtl'] ${CardUnread}`, {
+  boxShadow: `inset -${toRem(3)} 0 0 ${color.Primary.Main}`,
+});
+
 export const CardResolved = style({
   borderColor: color.Success.ContainerLine,
   backgroundColor: color.Success.Container,
@@ -150,24 +155,19 @@ export const CardResolved = style({
 
 export const TitleRow = style({
   display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S100,
+  alignItems: 'baseline',
+  gap: config.space.S200,
   minWidth: 0,
-  justifyContent: 'space-between',
-});
-
-export const TitleLead = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-  minWidth: 0,
-  flex: 1,
 });
 
 export const TitleText = style({
   minWidth: 0,
   flex: 1,
   overflowWrap: 'anywhere',
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
 });
 
 export const TimeText = style({
@@ -175,19 +175,16 @@ export const TimeText = style({
   flexShrink: 0,
 });
 
-export const MessageRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-  minWidth: 0,
-  justifyContent: 'space-between',
+export const TimeTextUnread = style({
+  color: color.Primary.Main,
+  fontWeight: config.fontWeight.W600,
+  opacity: 1,
 });
 
 export const MessagePreview = style({
   display: 'flex',
   alignItems: 'center',
   minWidth: 0,
-  flex: 1,
 });
 
 export const MessageText = style({
@@ -195,45 +192,24 @@ export const MessageText = style({
   flex: 1,
 });
 
-export const Stats = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-  rowGap: config.space.S100,
-  flexShrink: 0,
-  flexWrap: 'wrap',
-  justifyContent: 'flex-end',
-});
-
-export const StatBadge = style({
-  flexShrink: 0,
-  whiteSpace: 'nowrap',
-});
-
-export const ScheduledIndicator = style({
-  minWidth: 0,
-  flexShrink: 0,
-  whiteSpace: 'nowrap',
-});
-
-export const TouchResolutionByline = style({
-  display: 'none',
-  minWidth: 0,
-  maxWidth: '100%',
-  '@media': {
-    '(max-width: 480px), (hover: none)': {
-      display: 'block',
-    },
-  },
-});
-
 export const MetadataRow = style({
   display: 'flex',
   alignItems: 'center',
-  gap: config.space.S100,
+  gap: config.space.S200,
   rowGap: config.space.S100,
   minWidth: 0,
+  minHeight: toRem(24),
   flexWrap: 'wrap',
+});
+
+// Room for the menu button that sits at the end of this row on touch; only
+// the compact view's card shell has that button.
+globalStyle(`${CardShell} ${MetadataRow}`, {
+  '@media': {
+    [touchActions]: {
+      paddingInlineEnd: toRem(32),
+    },
+  },
 });
 
 export const Participants = style({
@@ -246,55 +222,47 @@ export const ParticipantAvatar = style({
   flexShrink: 0,
 });
 
-export const StatusChip = style({
-  flexShrink: 0,
+export const ResolutionByline = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(2),
+  minWidth: 0,
+  maxWidth: '100%',
+  color: color.Success.Main,
 });
 
-export const UnreadWrap = style({
-  flexShrink: 0,
-  color: color.SurfaceVariant.OnContainer,
-});
-
-export const UnreadDot = style({
-  display: 'inline-block',
-});
-
-export const ScreenReaderText = style({
-  border: 0,
-  clip: 'rect(0 0 0 0)',
-  height: '1px',
-  margin: '-1px',
+export const ResolutionBylineLabel = style({
+  minWidth: 0,
   overflow: 'hidden',
-  padding: 0,
-  position: 'absolute',
+  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  width: '1px',
 });
 
-export const AttentionDot = recipe({
-  base: {
-    width: '0.5rem',
-    height: '0.5rem',
-    borderRadius: '999px',
-    flexShrink: 0,
-  },
-  variants: {
-    state: {
-      'needs-attention': {
-        backgroundColor: color.Critical.Main,
-      },
-      waiting: {
-        backgroundColor: color.Success.Main,
-      },
-      streaming: {
-        backgroundColor: color.Primary.Main,
-      },
-      resolved: {
-        backgroundColor: color.SurfaceVariant.OnContainer,
-      },
-      idle: {
-        backgroundColor: color.SurfaceVariant.ContainerLine,
-      },
-    },
-  },
+export const StreamingStatus = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+});
+
+export const Stats = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  flexShrink: 0,
+  marginInlineStart: 'auto',
+});
+
+export const ScheduledIndicator = style({
+  minWidth: 0,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+});
+
+export const ReplyCount = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(3),
+  whiteSpace: 'nowrap',
 });

@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Avatar, Badge, Box, Chip, Icon, Icons, Text } from 'folds';
+import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import * as threadIndicatorCss from './ThreadIndicator.css';
@@ -9,16 +9,7 @@ import type { CompactThreadCardViewModel } from './types';
 import * as css from './CompactRoomView.css';
 import { FailedSendIndicator, PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { ThreadStreamingDot } from './ThreadStreamingDot';
-
-const tagColor = (tagName: string): string => {
-  let hash = 0;
-  for (let i = 0; i < tagName.length; i++) {
-    hash = tagName.charCodeAt(i) + ((hash << 5) - hash);
-    hash &= hash;
-  }
-  const hue = ((hash % 360) + 360) % 360;
-  return `hsl(${hue}, 65%, 82%)`;
-};
+import { ThreadTagPill } from './ThreadTagPill';
 
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
@@ -33,6 +24,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     displayTitleText,
     previewText,
     messageCountLabel,
+    messageCountText,
     attentionState,
     attentionStatusText,
     participants,
@@ -49,7 +41,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     lastActivityTitle,
     primarySummaryText,
   } = viewModel;
-  const relativeTime = useRelativeTime(lastActivityTs);
+  const relativeTime = useRelativeTime(lastActivityTs, 'compact');
   const resolvedByLabel =
     isResolved && resolvedByDisplayName
       ? t('thread.resolvedBy', { name: resolvedByDisplayName })
@@ -67,75 +59,103 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     hasFailedSend ? t('thread.aria.messageFailed') : undefined,
     hasPendingSend ? t('thread.aria.messageSending') : undefined,
     scheduledTaskLabel,
-    relativeTime ? t('thread.aria.lastActivity', { time: relativeTime }) : undefined,
+    lastActivityTitle || relativeTime
+      ? t('thread.aria.lastActivity', { time: lastActivityTitle || relativeTime })
+      : undefined,
   ]
     .filter(Boolean)
     .join('. ');
-  const hasMetadata = participants.length > 0 || tags.length > 0 || isStreaming || isUnread;
+
+  // Unread threads carry an accent edge and an accented time rather than a
+  // dot, so no card reserves a leading gutter that most of them never use.
+  const cardClassName = [css.Card, isResolved && css.CardResolved, isUnread && css.CardUnread]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <button
-      className={isResolved ? `${css.Card} ${css.CardResolved}` : css.Card}
+      className={cardClassName}
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}
       data-thread-root-id={id.threadRootId}
+      data-attention-state={attentionState}
+      data-thread-unread={isUnread ? 'true' : undefined}
       aria-label={ariaLabel}
     >
       <Box className={css.TitleRow}>
-        <Box className={css.TitleLead}>
-          <span
-            className={css.AttentionDot({ state: attentionState })}
-            data-attention-state={attentionState}
-            title={resolvedByLabel}
-            aria-hidden="true"
-          />
-          <span className={css.ScreenReaderText}>
-            {t('mindroomUi.threads.compactThreadCard.threadStatus', {
-              status: attentionStatusText,
-            })}
-          </span>
-          <Text className={css.TitleText} size="B300" title={titleText}>
-            {displayTitleText}
-          </Text>
-        </Box>
+        <Text className={css.TitleText} size="B300" title={titleText}>
+          {displayTitleText}
+        </Text>
         {relativeTime && (
           <Text
-            className={css.TimeText}
+            as="span"
+            className={isUnread ? `${css.TimeText} ${css.TimeTextUnread}` : css.TimeText}
             size="T200"
             priority="300"
             title={lastActivityTitle}
-            aria-label={
-              lastActivityTitle
-                ? t('mindroomUi.threads.compactThreadCard.lastActivity', {
-                    timestamp: lastActivityTitle,
-                  })
-                : undefined
-            }
           >
             {relativeTime}
           </Text>
         )}
       </Box>
 
-      <Box className={css.MessageRow}>
-        <Box className={css.MessagePreview} alignItems="Center">
-          <Text className={css.MessageText} size="T200" priority="300" truncate>
-            {previewText}
+      <Box className={css.MessagePreview} alignItems="Center">
+        <Text className={css.MessageText} size="T200" priority="300" truncate>
+          {previewText}
+        </Text>
+        {hasFailedSend ? <FailedSendIndicator /> : hasPendingSend && <PendingSendIndicator />}
+      </Box>
+
+      <Box className={css.MetadataRow} data-compact-card-metadata="true">
+        {participants.length > 0 && (
+          <Box className={css.Participants} alignItems="Center">
+            {participants.map((participant, index) => (
+              <Avatar
+                key={participant.userId}
+                className={`${css.ParticipantAvatar} ${threadIndicatorCss.ThreadParticipant}`}
+                size="200"
+                radii="400"
+                title={participant.displayName}
+                style={
+                  index === 0
+                    ? { zIndex: participants.length - index }
+                    : {
+                        marginInlineStart: '-0.375rem',
+                        zIndex: participants.length - index,
+                      }
+                }
+              >
+                <UserAvatar
+                  userId={participant.userId}
+                  src={participant.avatarUrl}
+                  alt={participant.displayName}
+                  renderFallback={() => <Icon size="100" src={Icons.User} filled />}
+                />
+              </Avatar>
+            ))}
+          </Box>
+        )}
+        {resolvedByLabel && (
+          <Text
+            as="span"
+            className={css.ResolutionByline}
+            data-compact-card-resolution-byline="true"
+            size="T200"
+          >
+            <Icon size="50" src={Icons.Check} aria-hidden="true" />
+            <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
           </Text>
-          {hasFailedSend ? <FailedSendIndicator /> : hasPendingSend && <PendingSendIndicator />}
-        </Box>
-        <Box className={css.Stats}>
-          {/* `outlined` is load-bearing here, not decoration: this card's own
-              background is SurfaceVariant.Container, which the shared palette
-              sets to the same hex as Secondary.Container in dark, midnight and
-              butter. Without the outline the pill is invisible against the card
-              in those three themes and only appears on hover, when the card
-              moves to ContainerHover. */}
-          <Badge className={css.StatBadge} variant="Secondary" fill="Soft" radii="Pill" outlined>
-            <Text as="span" size="T200">
-              {messageCountLabel}
-            </Text>
-          </Badge>
+        )}
+        {tags.map((tagName) => (
+          <ThreadTagPill key={tagName} name={tagName} />
+        ))}
+        {isStreaming && (
+          <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
+            <ThreadStreamingDot aria-hidden="true" />
+            {t('mindroomUi.threads.compactThreadCard.streaming')}
+          </Text>
+        )}
+        <span className={css.Stats}>
           {scheduledDisplayText && scheduledTaskLabel && (
             <Box
               as="span"
@@ -157,96 +177,19 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
               </Text>
             </Box>
           )}
-        </Box>
+          <Text
+            as="span"
+            className={css.ReplyCount}
+            size="T200"
+            priority="300"
+            title={messageCountLabel}
+            data-compact-card-reply-count="true"
+          >
+            <Icon size="50" src={Icons.Thread} aria-hidden="true" />
+            {messageCountText}
+          </Text>
+        </span>
       </Box>
-
-      {resolvedByLabel && (
-        <Text
-          as="span"
-          className={css.TouchResolutionByline}
-          data-thread-resolution-touch-byline="true"
-          size="T200"
-          priority="300"
-          truncate
-        >
-          {resolvedByLabel}
-        </Text>
-      )}
-
-      {hasMetadata && (
-        <Box className={css.MetadataRow}>
-          {participants.length > 0 && (
-            <Box className={css.Participants} alignItems="Center">
-              {participants.map((participant, index) => (
-                <Avatar
-                  key={participant.userId}
-                  className={`${css.ParticipantAvatar} ${threadIndicatorCss.ThreadParticipant}`}
-                  size="200"
-                  radii="400"
-                  title={participant.displayName}
-                  style={
-                    index === 0
-                      ? { zIndex: participants.length - index }
-                      : {
-                          marginInlineStart: '-0.375rem',
-                          zIndex: participants.length - index,
-                        }
-                  }
-                >
-                  <UserAvatar
-                    userId={participant.userId}
-                    src={participant.avatarUrl}
-                    alt={participant.displayName}
-                    renderFallback={() => <Icon size="100" src={Icons.User} filled />}
-                  />
-                </Avatar>
-              ))}
-            </Box>
-          )}
-          {tags.map((tagName) => (
-            <Box
-              key={tagName}
-              as="span"
-              style={{
-                backgroundColor: tagColor(tagName),
-                color: '#1a1a1a',
-                fontSize: '0.65rem',
-                fontWeight: 500,
-                padding: '0.1rem 0.4rem',
-                borderRadius: '0.5rem',
-                whiteSpace: 'nowrap',
-                display: 'inline-flex',
-                alignItems: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {tagName}
-            </Box>
-          ))}
-          {isStreaming && (
-            <Chip as="span" className={css.StatusChip} variant="Primary" fill="Soft" radii="Pill">
-              <Box as="span" alignItems="Center" gap="100">
-                <ThreadStreamingDot aria-hidden="true" />
-                <Text as="span" size="T200">
-                  {t('mindroomUi.threads.compactThreadCard.streaming')}
-                </Text>
-              </Box>
-            </Chip>
-          )}
-          {isUnread && (
-            <Box as="span" className={css.UnreadWrap} alignItems="Center" gap="100">
-              <span
-                className={`${threadIndicatorCss.ThreadUnreadDot} ${css.UnreadDot}`}
-                role="img"
-                aria-label={t('mindroomUi.threads.compactThreadCard.unreadMessages')}
-              />
-              <Text as="span" size="T200" priority="300">
-                {t('mindroomUi.threads.compactThreadCard.unread')}
-              </Text>
-            </Box>
-          )}
-        </Box>
-      )}
     </button>
   );
 }

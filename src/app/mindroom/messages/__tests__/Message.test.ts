@@ -41,6 +41,10 @@ vi.mock('../MindroomModelBadge.css', () => ({
   Label: 'Label',
 }));
 
+vi.mock('../MessageCopyActions.css', () => ({
+  CopyActionDivider: 'CopyActionDivider',
+}));
+
 vi.mock('../MindroomMessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
   AiRunContextBar: 'AiRunContextBar',
@@ -341,6 +345,15 @@ vi.mock('../../../hooks/useMemberPowerTag', () => ({
   getPowerTagIconSrc: () => undefined,
 }));
 
+// The bug-report flow pulls in thread and Matrix plumbing this message-menu test does not exercise.
+vi.mock('../../bug-reports/MessageBugReportItem', async () => {
+  const { createElement } = await import('react');
+  return {
+    MessageBugReportItem: () =>
+      createElement('button', null, createElement('span', null, 'Report a bug')),
+  };
+});
+
 vi.mock('../longText', () => ({
   getMindroomLongTextSource: longTextMocks.getMindroomLongTextSource,
 }));
@@ -564,6 +577,8 @@ describe('Message local-echo actions', () => {
     expect(getButtonByText(renderer, 'Pin Message')).toBeUndefined();
     expect(getButtonByText(renderer, 'Delete')).toBeUndefined();
     expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+    // Failed and pending local echoes are prime bug-report targets, so it is not server-gated.
+    expect(getButtonByText(renderer, 'Report a bug')).toBeDefined();
   });
 
   it('keeps confirmed message actions available', async () => {

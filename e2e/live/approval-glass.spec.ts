@@ -5,7 +5,16 @@ import {
   getPrimaryCredentials,
   hasPrimaryCredentials,
 } from '../env';
-import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { expectFloatingNavHeader } from '../helpers/glassVisual';
+import { expectInsetScrollbar } from '../helpers/insetScrollbar';
+import {
+  createPrivateRoom,
+  joinRoom,
+  loginToMatrix,
+  matrixFetch,
+  registerAgentAccount,
+  sendRoomMessage,
+} from '../helpers/matrix';
 
 const headerGeometry = (header: Locator) =>
   header.evaluate((element) => {
@@ -52,10 +61,13 @@ for (const viewport of [
     });
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+    const router = await registerAgentAccount(homeserver, 'router');
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: 'Design notes',
       topic: 'Local approval and tool control fixture',
+      invite: [router.userId],
     });
+    await joinRoom(homeserver, router.accessToken, roomId);
     try {
       const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
@@ -84,17 +96,17 @@ for (const viewport of [
         },
         'm.relates_to': relation,
       });
-      const sendApproval = (status: 'approved' | 'pending') =>
+      const sendApproval = (status: 'approved' | 'pending', index = 0) =>
         matrixFetch(
           homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/${status}`,
+          `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/${status}-${index}`,
           {
             method: 'PUT',
-            accessToken: session.accessToken,
+            accessToken: router.accessToken,
             body: JSON.stringify({
               msgtype: 'io.mindroom.tool_approval',
               body: 'Approval required: save_note',
-              approval_id: status,
+              approval_id: `${status}-${index}`,
               tool_name: 'save_note',
               agent_name: 'assistant',
               status,
@@ -123,7 +135,7 @@ for (const viewport of [
           }
         );
       await sendApproval('approved');
-      await sendApproval('pending');
+      await Promise.all(Array.from({ length: 4 }, (_, index) => sendApproval('pending', index)));
       await page.goto(buildLoginPath(homeserver));
       await page.locator('input[name="usernameInput"]').fill(credentials.username);
       await page.locator('input[name="passwordInput"]').fill(credentials.password);
@@ -204,6 +216,16 @@ for (const viewport of [
         .soft(tintAlpha, 'dark dialog tint lets the dimmed conversation show through')
         .toBeLessThan(0.5);
       await page.screenshot({ path: testInfo.outputPath('approval-dialog.png') });
+      await page.setViewportSize({ ...viewport, height: 480 });
+      const title = dialog.locator('header');
+      const dialogScroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
+      await dialogScroll.evaluate((element) => {
+        element.scrollTop = 160;
+      });
+      await expectFloatingNavHeader(title, { inheritsPanelTint: true });
+      await expectInsetScrollbar(page, dialogScroll, title);
+      await page.screenshot({ path: testInfo.outputPath('approval-dialog-scrolled.png') });
+
       await dialog.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(dialog).toBeHidden();
       await expect(review).toBeFocused();

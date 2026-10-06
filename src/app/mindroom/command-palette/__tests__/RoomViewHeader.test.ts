@@ -200,6 +200,12 @@ vi.mock('../../threads/useStateEvents', () => ({
   useStateEvents: () => [],
 }));
 
+// AgentCallHeaderButton.test.tsx covers the button; this file checks where the header places it.
+vi.mock('../../calls/AgentCallHeaderButton', () => ({
+  AgentCallHeaderButton: ({ threadId }: { threadId?: string }) =>
+    React.createElement('agent-call-button', { 'data-thread-id': threadId }),
+}));
+
 vi.mock('../../../state/hooks/unread', () => ({
   useRoomUnread: () => false,
 }));
@@ -311,6 +317,9 @@ const renderHeader = async (
     computerAvailable?: boolean;
     computerOpen?: boolean;
     onComputerToggle?: () => void;
+    canvasOpen?: boolean;
+    onCanvasClose?: () => void;
+    threadId?: string;
   } = {}
 ) => {
   const store = createStore();
@@ -357,6 +366,27 @@ describe('RoomViewHeader', () => {
     act(() => renderer.unmount());
   });
 
+  it('offers agent calls before Members only with agents outside a call view', async () => {
+    const { renderer } = await renderHeader(0, { threadId: '$root' });
+    const findCallButtons = (r: typeof renderer) =>
+      r.root.findAllByType('agent-call-button' as never);
+    expect(findCallButtons(renderer).map((node) => node.props['data-thread-id'])).toEqual([
+      '$root',
+    ]);
+    const buttons = renderer.root.findAll(
+      (node) =>
+        node.type === 'agent-call-button' ||
+        (node.type === 'button' && node.props['aria-label'] === 'Show Members')
+    );
+    expect(buttons.map((node) => node.type)).toEqual(['agent-call-button', 'button']);
+
+    const { renderer: callView } = await renderHeader(0, { callView: true });
+    const { renderer: noAgents } = await renderHeader(0, { hasMindroomAgents: false });
+    expect(findCallButtons(callView)).toHaveLength(0);
+    expect(findCallButtons(noAgents)).toHaveLength(0);
+    act(() => [renderer, callView, noAgents].forEach((r) => r.unmount()));
+  });
+
   it('keeps schedules accessible in simple mode on phones', async () => {
     screenSizeState.value = 'Mobile';
     const { renderer, store } = await renderHeader();
@@ -388,6 +418,25 @@ describe('RoomViewHeader', () => {
       const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
       await act(async () => button.props.onClick());
       expect(onComputerToggle).toHaveBeenCalledTimes(1);
+      expect(membersState.setOpen).toHaveBeenCalledWith(true);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each(
+    ['Desktop', 'Tablet'].flatMap((screen) =>
+      [false, true].map((storedOpen) => ({ screen, storedOpen }))
+    )
+  )(
+    'replaces an open canvas with Members in one click on $screen with stored visibility $storedOpen',
+    async ({ screen, storedOpen }) => {
+      screenSizeState.value = screen;
+      membersState.open = storedOpen;
+      const onCanvasClose = vi.fn();
+      const { renderer } = await renderHeader(0, { canvasOpen: true, onCanvasClose });
+      const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
+      await act(async () => button.props.onClick());
+      expect(onCanvasClose).toHaveBeenCalledTimes(1);
       expect(membersState.setOpen).toHaveBeenCalledWith(true);
       act(() => renderer.unmount());
     }

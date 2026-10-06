@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { createClient, MatrixEvent, MatrixEventEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, MatrixEventEvent, Room, ThreadEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { hydrateCachedEvents, serializeEventsForCache } from '../threads/eventCacheEditUtils';
@@ -46,7 +46,7 @@ const event = (id = '$approval', value = content) =>
   new MatrixEvent({
     event_id: id,
     room_id: '!room:example.org',
-    sender: '@router:example.org',
+    sender: '@mindroom_router:example.org',
     origin_server_ts: 1,
     type: 'io.mindroom.tool_approval',
     content: structuredClone(value),
@@ -177,7 +177,7 @@ describe('thread approval provider lifecycle', () => {
     });
     expect(current.records[0].approval.status).toBe('approved');
     expect(updated.getContent().status).toBe('approved');
-    ignored = ['@router:example.org'];
+    ignored = ['@mindroom_router:example.org'];
     await act(async () => {
       renderer.update(
         <ThreadApprovalProvider room={room} threadId="$thread">
@@ -186,6 +186,18 @@ describe('thread approval provider lifecycle', () => {
       );
     });
     expect(current.records).toEqual([]);
+  });
+  it('keeps approval cards only from MindRoom accounts on the viewer homeserver', async () => {
+    await mount();
+    const from = (id: string, sender: string) => new MatrixEvent({ ...event(id).event, sender });
+    await act(async () => {
+      current.ingestTimeline([
+        event(),
+        from('$member', '@mallory:example.org'),
+        from('$foreign', '@mindroom_router:other.example'),
+      ]);
+    });
+    expect(current.records.map((record) => record.eventId)).toEqual(['$approval']);
   });
   it('settles local expiry at its deadline without a Matrix edit', async () => {
     vi.useFakeTimers();
@@ -314,7 +326,7 @@ it.each([
           event_id: '$redaction',
           room_id: room.roomId,
           type: 'm.room.redaction',
-          sender: '@router:example.org',
+          sender: '@mindroom_router:example.org',
           content: {},
           redacts: removed.getId(),
         },
@@ -355,7 +367,7 @@ it('preserves concurrent arrivals while a refresh learns an old origin was redac
               event_id: '$redaction',
               room_id: room.roomId,
               type: 'm.room.redaction',
-              sender: '@router:example.org',
+              sender: '@mindroom_router:example.org',
               content: {},
               redacts: '$approval',
             },
@@ -413,7 +425,7 @@ it('keeps send completion bound to committed records during a suspended transiti
   );
   mocks.backfill.mockResolvedValue({ events: [event()], repairedEventIds: ['$approval'] });
   const suspended = new Promise<void>(() => {});
-  const hiddenUsers = ['@router:example.org'];
+  const hiddenUsers = ['@mindroom_router:example.org'];
   const visibleUsers: string[] = [];
   let attemptedHiddenRender = false;
   function Gate({ block }: { block: boolean }) {
@@ -497,7 +509,7 @@ it('applies a recovered tombstone to the detached cached original and persists i
     new MatrixEvent({
       event_id: '$redaction',
       room_id: room.roomId,
-      sender: '@router:example.org',
+      sender: '@mindroom_router:example.org',
       type: 'm.room.redaction',
       content: {},
       redacts: '$approval',
@@ -568,7 +580,7 @@ it('keeps foreign approval edits and room redactions out of this thread cache', 
     event_id: '$foreign-redaction',
     room_id: room.roomId,
     type: 'm.room.redaction',
-    sender: '@router:example.org',
+    sender: '@mindroom_router:example.org',
     content: {},
     redacts: '$foreign',
   });
@@ -598,7 +610,7 @@ it('redacts an undecrypted cached original when its same-ID tombstone is recover
       redacted_because: {
         event_id: '$redaction',
         room_id: room.roomId,
-        sender: '@router:example.org',
+        sender: '@mindroom_router:example.org',
         type: 'm.room.redaction',
         content: {},
         redacts: '$approval',
@@ -636,7 +648,7 @@ it.each(['redaction', 'tombstone'] as const)(
     const redaction = new MatrixEvent({
       event_id: '$redaction',
       room_id: room.roomId,
-      sender: '@router:example.org',
+      sender: '@mindroom_router:example.org',
       type: 'm.room.redaction',
       content: {},
       redacts: '$approval',
@@ -780,7 +792,7 @@ it('applies a standalone redaction to a cached ciphertext approval before keys a
   const redaction = new MatrixEvent({
     event_id: '$redaction',
     room_id: room.roomId,
-    sender: '@router:example.org',
+    sender: '@mindroom_router:example.org',
     type: 'm.room.redaction',
     content: {},
     redacts: '$approval',
@@ -811,7 +823,7 @@ it('redacts a ciphertext timeline copy when retained approval evidence is alread
   const redaction = new MatrixEvent({
     event_id: '$redaction',
     room_id: room.roomId,
-    sender: '@router:example.org',
+    sender: '@mindroom_router:example.org',
     type: 'm.room.redaction',
     content: {},
     redacts: '$approval',
@@ -821,4 +833,42 @@ it('redacts a ciphertext timeline copy when retained approval evidence is alread
   expect(cached.isRedacted()).toBe(true);
   expect(current.records).toEqual([]);
   expect(current.error).toBeUndefined();
+});
+
+describe('thread approval provider rescans', () => {
+  const nextTask = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  const recordIds = () => current.records.map((record) => record.eventId).sort();
+
+  it('rescans the room and thread once per burst of SDK thread events', async () => {
+    await mount();
+    // The SDK emits one per event it adds to a thread, e.g. a reconcile's backfill.
+    const thread = { events: [event()] };
+    const rescans = vi.spyOn(room, 'getThread').mockReturnValue(thread as never);
+    const burst = (signal: ThreadEvent) =>
+      act(async () => {
+        for (let i = 0; i < 100; i += 1) room.emit(signal, thread as never);
+        await nextTask();
+      });
+
+    await burst(ThreadEvent.Update);
+    expect(rescans).toHaveBeenCalledTimes(1);
+    expect(recordIds()).toEqual(['$approval']);
+
+    thread.events.push(event('$second', { ...content, approval_id: 'two' }));
+    await burst(ThreadEvent.NewReply);
+    expect(rescans).toHaveBeenCalledTimes(2);
+    expect(recordIds()).toEqual(['$approval', '$second']);
+  });
+
+  it('drops a queued rescan when the provider unmounts', async () => {
+    await mount();
+    const rescans = vi.spyOn(room, 'getThread');
+    room.emit(ThreadEvent.Update, {} as never);
+    act(() => renderer.unmount());
+    await nextTask();
+    expect(rescans).not.toHaveBeenCalled();
+  });
 });

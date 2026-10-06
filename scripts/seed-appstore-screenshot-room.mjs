@@ -245,6 +245,15 @@ async function sendStateEvent(accessToken, roomId, eventType, stateKey, content)
   );
 }
 
+async function grantStatePower(accessToken, roomId, userId) {
+  const path = `/rooms/${encodeURIComponent(roomId)}/state/m.room.power_levels`;
+  const powers = await matrixFetch(path, accessToken);
+  await matrixFetch(path, accessToken, {
+    method: 'PUT',
+    body: JSON.stringify({ ...powers, users: { ...powers.users, [userId]: 50 } }),
+  });
+}
+
 async function updateMemberProfile(session, roomId) {
   await sendStateEvent(session.accessToken, roomId, 'm.room.member', session.userId, {
     membership: 'join',
@@ -391,8 +400,9 @@ async function seedThread({ accessToken, roomId, thread, messages, senders, prim
   }
 
   if (thread.scheduledAt) {
+    // The client lists only scheduled tasks a MindRoom account wrote, as the backend runs only those.
     await sendStateEvent(
-      accessToken,
+      senders.router.accessToken,
       roomId,
       'com.mindroom.scheduled.task',
       `appstore-fixture-${thread.id}`,
@@ -439,6 +449,9 @@ async function main() {
   for (const session of Object.values(agentSessions)) {
     await joinRoom(session.accessToken, roomId);
     await updateMemberProfile(session, roomId);
+  }
+  if (agentSessions.router) {
+    await grantStatePower(primarySession.accessToken, roomId, agentSessions.router.userId);
   }
 
   const senders = {

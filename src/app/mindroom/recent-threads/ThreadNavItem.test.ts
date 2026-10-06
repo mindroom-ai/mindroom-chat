@@ -108,6 +108,9 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
     navigateRoomThreadDirect: navigateRoomThreadDirectMock,
   }),
 }));
+vi.mock('../threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../../hooks/useRelativeTime', () => ({ useRelativeTime: () => '1m ago' }));
 vi.mock('../threads/compactThreadCardViewModel', () => ({
   buildCompactThreadCardViewModelFromRecord: buildViewModelMock,
@@ -148,6 +151,7 @@ const viewModel = {
   id: { roomId: entry.roomId, threadRootId: entry.threadRootId },
   displayTitleText: 'Ship the sidebar',
   messageCountLabel: '4 msgs',
+  messageCountText: '4',
   participants: [
     { userId: '@me:example.org', displayName: 'Me' },
     { userId: '@mindroom_research:example.org', displayName: 'Research Agent' },
@@ -175,11 +179,7 @@ describe('ThreadNavItem', () => {
     vi.clearAllMocks();
   });
 
-  const renderItem = (
-    pinned = false,
-    onTogglePin = vi.fn(),
-    sidebarScrollRef?: React.MutableRefObject<HTMLDivElement | null>
-  ) => {
+  const renderItem = (pinned = false, onTogglePin = vi.fn()) => {
     act(() => {
       renderer = create(
         React.createElement(ThreadNavItem, {
@@ -187,7 +187,6 @@ describe('ThreadNavItem', () => {
           onTogglePin,
           pinned,
           selected: false,
-          sidebarScrollRef,
         })
       );
     });
@@ -209,12 +208,7 @@ describe('ThreadNavItem', () => {
 
     act(() => getOpenButton().props.onClick());
 
-    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(
-      entry.roomId,
-      entry.threadRootId,
-      undefined,
-      undefined
-    );
+    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
   });
 
   it('keeps the row summary-first without an inline thread icon or activity time', () => {
@@ -231,7 +225,7 @@ describe('ThreadNavItem', () => {
 
     act(() => getOpenButton().props.onClick());
 
-    expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId, undefined);
+    expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
   });
 
   it('opens the hover details without a delay', () => {
@@ -291,21 +285,5 @@ describe('ThreadNavItem', () => {
     expect(setResolvedMock).toHaveBeenCalledWith(entry.threadRootId, true);
     expect(navigateRoomMock).not.toHaveBeenCalled();
     expect(navigateRoomThreadDirectMock).not.toHaveBeenCalled();
-  });
-
-  it('carries the sidebar scroll position into thread navigation', () => {
-    const sidebarScrollRef = {
-      current: { scrollTop: 321 } as HTMLDivElement,
-    };
-    renderItem(false, vi.fn(), sidebarScrollRef);
-
-    act(() => getOpenButton().props.onClick());
-
-    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(
-      entry.roomId,
-      entry.threadRootId,
-      undefined,
-      { state: { threadNavScrollTop: 321 } }
-    );
   });
 });

@@ -3,6 +3,16 @@
     "label": "スクロール可能なテーブル",
     "scrollHint": "横スクロール"
   },
+  "messageCodeBlock": {
+    "actions": "コードブロックの操作",
+    "code": "コード",
+    "language": "言語: {{language}}",
+    "copy": "コードをコピー",
+    "copied": "コピーされました",
+    "wrap": "行を折り返す",
+    "expand": "展開",
+    "collapse": "折りたたむ"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " ルーム名を変更しました"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "コマンド パレットやスレッド フィルターなどの高度な機能を非表示にします。デバイス間で同期されます。",
         "expandLongMessagesByDefault": "長いメッセージをデフォルトで展開する",
         "expandLongMessagesByDefaultDescription": "長いメッセージを「メッセージ全体を表示」の後ろに折りたたむのではなく、完全に表示します。デバイス間で同期されます。",
+        "showCanvasesInSidebar": "サイドバーにインタラクティブパネルを表示する",
+        "showCanvasesInSidebarDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。デバイス間で同期されます。",
         "saveFailed": "変更を保存できませんでした。接続を確認して、もう一度試してください。"
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "URL プレビュー",
         "urlPreviewEncrypted": "暗号化されたルームでの URL プレビュー",
         "showHiddenEvents": "非表示のイベントを表示"
+      },
+      "computers": {
+        "sectionTitle": "コンピューター",
+        "apiUrl": "コンピューターサービスのURL",
+        "description": "信頼できるMindRoomバックエンドを選択してください。短期間有効なサインイントークンが送信されます。このデバイスに保存されます。空欄にするとコンピューターが無効になります。",
+        "save": "コンピューターサービスを保存",
+        "reset": "アプリの既定値を使用",
+        "invalidUrl": "認証情報、パス、クエリ、フラグメントを含まないオリジンを入力してください。HTTPS、または localhost やプライベート LAN IP アドレスで HTTP を使用してください。",
+        "httpNotice": "HTTP はサインイン情報やコンピューターの通信を暗号化しません。信頼できるローカルネットワークでのみ使用してください。",
+        "saveFailed": "このデバイスにコンピューターサービスを保存できませんでした。",
+        "saved": "コンピューターサービスを保存しました。"
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "ホーム",
     "directMessages": "ダイレクトメッセージ",
     "threads": "スレッド",
+    "canvases": "インタラクティブパネル",
     "inbox": "受信箱",
     "exploreCommunity": "コミュニティを探索する",
     "addSpace": "スペースを追加",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "お使いのブラウザは WebRTC をサポートしていません。",
         "endCurrentCall": "まず現在の通話を終了してください。",
         "failedToStart": "通話の開始に失敗しました。"
+      },
+      "agentCallHeaderButton": {
+        "call": "エージェントと通話",
+        "callAgent": "{{name}} と通話",
+        "chooseAgent": "通話するエージェントを選択",
+        "close": "閉じる"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "キャンセル",
         "autoApproveMinutes_one": "{{count}} 分間自動承認します",
         "autoApproveMinutes_other": "{{count}} 分間自動承認します",
-        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）"
+        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）",
+        "approveExactCall": "この呼び出しをそのまま承認",
+        "approveAnyArguments": "任意の引数を承認",
+        "anyArgumentsWarning": "任意の引数を承認すると、エージェントは予定時刻の前後 {{minutes}} 分以内に、自分で決めた内容で {{tool}} を 1 回呼び出せます。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自動承認が有効です",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "元の固定有効期限: {{timestamp}}",
         "toolAndServer": "ツール: {{tool}} · サーバー: {{server}}",
         "tool": "ツール: {{tool}}",
-        "reason": "理由: {{reason}}"
+        "reason": "理由: {{reason}}",
+        "approvedWhenScheduledByAt": "予定作成時に {{approver}} が承認 · {{timestamp}}",
+        "approvedWhenScheduledBy": "予定作成時に {{approver}} が承認"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} に予定",
+        "approvedExactArguments": "この引数どおりで承認済み",
+        "approvedAnyArguments": "このツールの任意の引数で承認済み"
       },
       "approvalReviewCall": {
         "pending": "保留中",
@@ -2480,6 +2520,12 @@
         "copyText": "テキストをコピーする",
         "copyTextWithToolCalls": "ツール呼び出しを含めてテキストをコピーする",
         "copyLink": "リンクをコピー"
+      },
+      "bugReport": {
+        "report": "バグを報告",
+        "download": "バグレポートをダウンロード",
+        "sending": "レポートを送信中…",
+        "failed": "レポートを送信できませんでした。もう一度お試しください。"
       },
       "messageInspectionActions": {
         "readReceipts": "既読通知",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "メッセージの送信に失敗しました",
         "notSent": "送信されませんでした"
       },
+      "failedSendActions": {
+        "retry": "再試行",
+        "delete": "削除"
+      },
       "aiRunDisplay": {
         "inputTokens": "入力 {{formattedCount}}",
         "outputTokens": "出力 {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "スレッドはありません"
       },
       "compactThreadCard": {
-        "streaming": "ストリーミング",
-        "unreadMessages": "未読メッセージ",
-        "unread": "未読",
-        "threadStatus": "スレッドのステータス: {{status}}",
-        "lastActivity": "最後のアクティビティ {{time}}"
+        "streaming": "ストリーミング"
       },
       "mindroomCallChatView": {
         "chat": "チャット",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "コンピューターを表示",
       "openMembers": "メンバーを開く",
+      "openCanvas": "パネルを開く",
+      "canvasDisabled": "このアプリではインタラクティブパネルがオフになっています。",
+      "canvasDuringCall": "インタラクティブパネルを開くには通話を終了してください。",
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
       "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+    },
+    "canvas": {
+      "panelLabel": "インタラクティブパネル",
+      "fromAgent": "{{agent}} からのインタラクティブパネル",
+      "expand": "パネルを拡大",
+      "close": "パネルを閉じる",
+      "resize": "パネルのサイズを変更",
+      "updated": "{{agent}} がこのパネルを更新しました。",
+      "loadUpdate": "更新を読み込む",
+      "version": "バージョン {{current}} / {{total}}",
+      "previousVersion": "前のバージョン",
+      "nextVersion": "次のバージョン",
+      "earlierVersion": "これは以前のバージョンです。",
+      "showLatest": "最新を表示",
+      "loading": "パネルを読み込み中…",
+      "loadFailed": "このパネルを読み込めませんでした。",
+      "retry": "再試行",
+      "escaped": "このパネルがサンドボックスの外に出ようとしたため、停止しました。",
+      "reload": "パネルを再読み込み",
+      "pageError": "このページがエラーを報告しました。",
+      "tellAgent": "{{agent}} に伝える",
+      "errorsSent": "エラーを {{agent}} に送信しました。",
+      "errorsNotSent": "エラーを {{agent}} に送信できませんでした。",
+      "sendTo": "{{agent}} に送信:",
+      "changeAnswer": "回答を変更するには、まずこの回答を破棄してください。",
+      "data": "データ",
+      "send": "送信",
+      "discard": "破棄",
+      "disclosure": "{{agent}} が作成しました。アカウントにはアクセスできませんが、ここに入力した内容はパネルの外に送信される可能性があります。",
+      "sharedNotice": "このルームに保存されます: {{agent}} とこのルームの他のメンバーが入力内容を読めます。",
+      "sending": "{{agent}} に送信中…",
+      "sent": "{{agent}} に送信しました: {{label}}",
+      "sendFailed": "応答を送信できませんでした。もう一度お試しください。",
+      "receiptData": "エージェントに送信したデータを表示",
+      "unlabeled": "送信済み",
+      "notSent": "{{agent}} に送信されていません: {{label}}"
+    },
+    "canvases": {
+      "title": "インタラクティブパネル",
+      "note": "エージェントがあなたのために作成し、このブラウザーで表示されたインタラクティブパネルです。ピン留めしたパネルはすべてのデバイスに表示されます。",
+      "empty": "インタラクティブパネルはまだありません。エージェントがパネルを表示すると、ここに一覧表示されます。",
+      "pinned": "ピン留め済み",
+      "canvas": "パネル",
+      "thread": "スレッド",
+      "agent": "エージェント",
+      "room": "ルーム",
+      "updated": "更新日時",
+      "created": "作成日時",
+      "pin": "{{title}} をピン留め",
+      "unpin": "{{title}} のピン留めを解除",
+      "shared": "エージェントと共有",
+      "saved": "入力値を保存済み"
     }
   },
   "roomSchedules": {

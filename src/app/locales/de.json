@@ -3,6 +3,16 @@
     "label": "Scrollbare Tabelle",
     "scrollHint": "Horizontal scrollen"
   },
+  "messageCodeBlock": {
+    "actions": "Codeblock-Aktionen",
+    "code": "Code",
+    "language": "Sprache: {{language}}",
+    "copy": "Code kopieren",
+    "copied": "Kopiert",
+    "wrap": "Zeilen umbrechen",
+    "expand": "Erweitern",
+    "collapse": "Einklappen"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " hat den Raumnamen geändert"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "Blendet erweiterte Funktionen wie die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
         "expandLongMessagesByDefault": "Lange Nachrichten standardmäßig aufklappen",
         "expandLongMessagesByDefaultDescription": "Zeigt lange Nachrichten vollständig an, anstatt sie hinter „Mehr anzeigen“ einzuklappen. Wird zwischen deinen Geräten synchronisiert.",
+        "showCanvasesInSidebar": "Interaktive Panels in der Seitenleiste anzeigen",
+        "showCanvasesInSidebarDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Wird zwischen deinen Geräten synchronisiert.",
         "saveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "URL-Vorschau",
         "urlPreviewEncrypted": "URL-Vorschau in verschlüsselten Räumen",
         "showHiddenEvents": "Versteckte Ereignisse anzeigen"
+      },
+      "computers": {
+        "sectionTitle": "Computer",
+        "apiUrl": "URL des Computerdienstes",
+        "description": "Wähle ein vertrauenswürdiges MindRoom-Backend; es erhält ein kurzlebiges Anmeldetoken. Auf diesem Gerät gespeichert. Leer lassen, um Computer zu deaktivieren.",
+        "save": "Computerdienst speichern",
+        "reset": "App-Standard verwenden",
+        "invalidUrl": "Gib eine Origin ohne Zugangsdaten, Pfad, Abfrage oder Fragment ein. Verwende HTTPS oder HTTP mit localhost oder einer privaten LAN-IP-Adresse.",
+        "httpNotice": "HTTP verschlüsselt weder deine Anmeldung noch den Computer-Datenverkehr. Verwende es nur in einem vertrauenswürdigen lokalen Netzwerk.",
+        "saveFailed": "Der Computerdienst konnte auf diesem Gerät nicht gespeichert werden.",
+        "saved": "Computerdienst gespeichert."
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "Startseite",
     "directMessages": "Direktnachrichten",
     "threads": "Threads",
+    "canvases": "Interaktive Panels",
     "inbox": "Posteingang",
     "exploreCommunity": "Community erkunden",
     "addSpace": "Space hinzufügen",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "Dein Browser unterstützt WebRTC nicht.",
         "endCurrentCall": "Beende zuerst deinen aktuellen Anruf.",
         "failedToStart": "Der Anruf konnte nicht gestartet werden."
+      },
+      "agentCallHeaderButton": {
+        "call": "Einen Agenten anrufen",
+        "callAgent": "{{name}} anrufen",
+        "chooseAgent": "Wähle einen Agenten zum Anrufen",
+        "close": "Schließen"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "Abbrechen",
         "autoApproveMinutes_one": "Für {{count}} Minute automatisch genehmigen",
         "autoApproveMinutes_other": "Für {{count}} Minuten automatisch genehmigen",
-        "denyCallReasonOptional": "Grund für die Ablehnung des Aufrufs {{number}} (optional)"
+        "denyCallReasonOptional": "Grund für die Ablehnung des Aufrufs {{number}} (optional)",
+        "approveExactCall": "Genau diesen Aufruf genehmigen",
+        "approveAnyArguments": "Beliebige Argumente genehmigen",
+        "anyArgumentsWarning": "Mit beliebigen Argumenten darf der Agent innerhalb von {{minutes}} Minuten um die geplante Zeit einen {{tool}}-Aufruf mit selbst gewählten Argumenten ausführen."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Automatische Genehmigung aktiv",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "Ursprünglicher fester Ablaufzeitpunkt: {{timestamp}}",
         "toolAndServer": "Werkzeug: {{tool}} · Server: {{server}}",
         "tool": "Werkzeug: {{tool}}",
-        "reason": "Grund: {{reason}}"
+        "reason": "Grund: {{reason}}",
+        "approvedWhenScheduledByAt": "Beim Planen genehmigt von {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Beim Planen genehmigt von {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Geplant für {{timestamp}}",
+        "approvedExactArguments": "Für genau diese Argumente genehmigt",
+        "approvedAnyArguments": "Für beliebige Argumente dieses Werkzeugs genehmigt"
       },
       "approvalReviewCall": {
         "pending": "ausstehend",
@@ -2480,6 +2520,12 @@
         "copyText": "Text kopieren",
         "copyTextWithToolCalls": "Text mit Werkzeugaufrufen kopieren",
         "copyLink": "Link kopieren"
+      },
+      "bugReport": {
+        "report": "Fehler melden",
+        "download": "Fehlerbericht herunterladen",
+        "sending": "Bericht wird gesendet…",
+        "failed": "Der Bericht konnte nicht gesendet werden. Versuche es erneut."
       },
       "messageInspectionActions": {
         "readReceipts": "Lesebestätigungen",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "Nachricht konnte nicht gesendet werden",
         "notSent": "Nicht gesendet"
       },
+      "failedSendActions": {
+        "retry": "Erneut versuchen",
+        "delete": "Löschen"
+      },
       "aiRunDisplay": {
         "inputTokens": "ein {{formattedCount}}",
         "outputTokens": "aus {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "Keine Threads"
       },
       "compactThreadCard": {
-        "streaming": "Streaming",
-        "unreadMessages": "Ungelesene Nachrichten",
-        "unread": "ungelesen",
-        "threadStatus": "Thread-Status: {{status}}",
-        "lastActivity": "Letzte Aktivität {{time}}"
+        "streaming": "Streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "Computer ansehen",
       "openMembers": "Mitglieder öffnen",
+      "openCanvas": "Panel öffnen",
+      "canvasDisabled": "Interaktive Panels sind in dieser App deaktiviert.",
+      "canvasDuringCall": "Beende den Anruf, um interaktive Panels zu öffnen.",
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
       "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
+    },
+    "canvas": {
+      "panelLabel": "Interaktives Panel",
+      "fromAgent": "Interaktives Panel von {{agent}}",
+      "expand": "Panel vergrößern",
+      "close": "Panel schließen",
+      "resize": "Panelgröße ändern",
+      "updated": "{{agent}} hat dieses Panel aktualisiert.",
+      "loadUpdate": "Aktualisierung laden",
+      "version": "Version {{current}} von {{total}}",
+      "previousVersion": "Vorherige Version",
+      "nextVersion": "Nächste Version",
+      "earlierVersion": "Dies ist eine frühere Version.",
+      "showLatest": "Neueste anzeigen",
+      "loading": "Panel wird geladen…",
+      "loadFailed": "Dieses Panel konnte nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "escaped": "Dieses Panel hat versucht, seine Sandbox zu verlassen, und wurde gestoppt.",
+      "reload": "Panel neu laden",
+      "pageError": "Diese Seite hat einen Fehler gemeldet.",
+      "tellAgent": "{{agent}} Bescheid geben",
+      "errorsSent": "Fehler an {{agent}} gesendet.",
+      "errorsNotSent": "Die Fehler konnten nicht an {{agent}} gesendet werden.",
+      "sendTo": "An {{agent}} senden:",
+      "changeAnswer": "Um deine Antwort zu ändern, verwirf zuerst diese.",
+      "data": "Daten",
+      "send": "Senden",
+      "discard": "Verwerfen",
+      "disclosure": "Erstellt von {{agent}}. Das Panel hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können das Panel verlassen.",
+      "sharedNotice": "In diesem Raum gespeichert: {{agent}} und andere hier können deine Eingaben lesen.",
+      "sending": "Wird an {{agent}} gesendet…",
+      "sent": "An {{agent}} gesendet: {{label}}",
+      "sendFailed": "Deine Antwort konnte nicht gesendet werden. Versuche es erneut.",
+      "receiptData": "An den Agenten gesendete Daten anzeigen",
+      "unlabeled": "Abgeschickt",
+      "notSent": "Nicht an {{agent}} gesendet: {{label}}"
+    },
+    "canvases": {
+      "title": "Interaktive Panels",
+      "note": "Interaktive Panels, die deine Agenten für dich erstellt haben und die dieser Browser gesehen hat. Angeheftete erscheinen auf all deinen Geräten.",
+      "empty": "Noch keine interaktiven Panels. Wenn dir ein Agent eines zeigt, erscheint es hier.",
+      "pinned": "Angeheftet",
+      "canvas": "Panel",
+      "thread": "Thread",
+      "agent": "Agent",
+      "room": "Raum",
+      "updated": "Aktualisiert",
+      "created": "Erstellt",
+      "pin": "{{title}} anheften",
+      "unpin": "{{title}} lösen",
+      "shared": "Mit Agent geteilt",
+      "saved": "Enthält deine Werte"
     }
   },
   "roomSchedules": {

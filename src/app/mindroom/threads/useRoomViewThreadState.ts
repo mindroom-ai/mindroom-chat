@@ -63,6 +63,7 @@ export type RoomViewThreadState = {
   handleApplyPreset: (preset: FilterPreset) => void;
   handleCycleTag: (tag: string) => void;
   handleExitThread: () => void;
+  handleThreadRootDeleted: () => void;
   handleRemoveTag: (tag: string) => void;
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
@@ -92,7 +93,8 @@ export const useRoomViewThreadState = ({
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
-  const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
+  const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
+    useRoomNavigate();
 
   const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
   const threadFilterAtom = useMemo(
@@ -146,23 +148,40 @@ export const useRoomViewThreadState = ({
     [effectiveThreadId, resolvedThreadRootEvent, room, t, threadSummaryInfo]
   );
 
+  const leaveThread = useCallback(
+    (fallback: () => void) => {
+      const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
+      if (
+        historyExitTarget?.roomId === roomId &&
+        historyExitTarget.threadId === effectiveThreadId
+      ) {
+        const standaloneWebApp = isIOSStandaloneWebApp();
+        if (historyExitTarget.exitPath && (!historyExitTarget.useHistoryBack || standaloneWebApp)) {
+          navigatePath(historyExitTarget.exitPath, { replace: true });
+          return;
+        }
+        if (historyExitTarget.useHistoryBack && !standaloneWebApp) {
+          window.history.back();
+          return;
+        }
+      }
+      fallback();
+    },
+    [effectiveThreadId, navigatePath, roomId]
+  );
+
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
     setLastExitedThread({ roomId, threadId: effectiveThreadId });
-    const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
-    if (historyExitTarget?.roomId === roomId && historyExitTarget.threadId === effectiveThreadId) {
-      const standaloneWebApp = isIOSStandaloneWebApp();
-      if (historyExitTarget.exitPath && (!historyExitTarget.useHistoryBack || standaloneWebApp)) {
-        navigatePath(historyExitTarget.exitPath, { replace: true });
-        return;
-      }
-      if (historyExitTarget.useHistoryBack && !standaloneWebApp) {
-        window.history.back();
-        return;
-      }
-    }
-    navigateRoomFocusEvent(roomId, effectiveThreadId, { replace: true });
-  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, roomId, setLastExitedThread]);
+    leaveThread(() => navigateRoomFocusEvent(roomId, effectiveThreadId, { replace: true }));
+  }, [effectiveThreadId, leaveThread, navigateRoomFocusEvent, roomId, setLastExitedThread]);
+
+  // A deleted unsent root no longer exists, so swipe-forward must not reopen it and the
+  // room must not try to focus it.
+  const handleThreadRootDeleted = useCallback(
+    () => leaveThread(() => navigateRoom(roomId, undefined, { replace: true })),
+    [leaveThread, navigateRoom, roomId]
+  );
 
   const handleSwipeForwardToThread = useCallback(() => {
     if (effectiveViewMode === 'classic') return;
@@ -396,6 +415,7 @@ export const useRoomViewThreadState = ({
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
+    handleThreadRootDeleted,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,

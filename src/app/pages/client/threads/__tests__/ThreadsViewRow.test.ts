@@ -8,6 +8,9 @@ const { navigateRoomThreadMock } = vi.hoisted(() => ({
   navigateRoomThreadMock: vi.fn(),
 }));
 
+vi.mock('../../../../mindroom/threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../ThreadsView.css', () => ({
   Row: 'row',
   RowChrome: 'row-chrome',
@@ -54,6 +57,7 @@ vi.mock('../../../../mindroom/threads/compactThreadCardViewModel', () => ({
     previewText: 'Preview',
     messageCount: 1,
     messageCountLabel: '1 msg',
+    messageCountText: '1',
     attentionState: 'idle',
     attentionStatusText: 'Idle',
     participants: [],

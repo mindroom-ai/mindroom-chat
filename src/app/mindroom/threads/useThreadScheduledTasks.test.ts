@@ -27,7 +27,8 @@ const makeScheduledTaskEvent = (
     threadId?: string | null;
     newThread?: boolean;
   },
-  stateKey: string
+  stateKey: string,
+  sender = '@mindroom_router:example.org'
 ) =>
   new MatrixEvent({
     content: {
@@ -40,7 +41,7 @@ const makeScheduledTaskEvent = (
     event_id: `$${stateKey}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    sender,
     state_key: stateKey,
     type: MINDROOM_SCHEDULED_TASK_EVENT,
   });
@@ -92,7 +93,7 @@ const renderHookHarness = (
 
 describe('useThreadScheduledTasks', () => {
   it('returns an empty map for rooms without scheduled tasks', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => []);
 
     expect(getSnapshot()).toBe(0);
@@ -102,7 +103,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('counts one pending thread-targeted scheduled task', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
       makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-1'),
     ]);
@@ -113,7 +114,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('filters out non-pending task statuses', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
       makeScheduledTaskEvent({ status: 'completed', threadId: '$thread-1' }, 'task-1'),
       makeScheduledTaskEvent({ status: 'cancelled', threadId: '$thread-1' }, 'task-2'),
@@ -127,7 +128,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('filters out tasks without a thread id', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
       makeScheduledTaskEvent({ threadId: null }, 'task-1'),
     ]);
@@ -138,7 +139,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('filters out tasks that create a new thread', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
       makeScheduledTaskEvent({ threadId: '$thread-1', newThread: true }, 'task-1'),
     ]);
@@ -149,7 +150,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('aggregates multiple pending tasks for the same thread', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
       makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-1'),
       makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-2'),
@@ -161,8 +162,21 @@ describe('useThreadScheduledTasks', () => {
     renderer.unmount();
   });
 
+  it('ignores tasks written by accounts that are not MindRoom accounts on the viewer homeserver', () => {
+    const room = { myUserId: '@alice:example.org' } as Room;
+    const { getSnapshot, renderer } = renderHookHarness(room, '$thread-1', () => [
+      makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-1'),
+      makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-2', '@mallory:example.org'),
+      makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-3', '@mindroom_router:other.example'),
+    ]);
+
+    expect(getSnapshot()).toBe(1);
+
+    renderer.unmount();
+  });
+
   it('returns zero when thread root id is missing', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     const { getSnapshot, renderer } = renderHookHarness(room, undefined, () => [
       makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-1'),
     ]);
@@ -173,7 +187,7 @@ describe('useThreadScheduledTasks', () => {
   });
 
   it('recomputes when the scheduled-task event list changes', () => {
-    const room = {} as Room;
+    const room = { myUserId: '@alice:example.org' } as Room;
     let events = [makeScheduledTaskEvent({ threadId: '$thread-1' }, 'task-1')];
     const { getSnapshot, update, renderer } = renderHookHarness(room, '$thread-1', () => events);
 

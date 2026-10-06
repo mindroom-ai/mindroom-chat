@@ -11,7 +11,7 @@ const flushAsyncWork = async (cycles = 5) => {
 };
 
 describe('runThreadOpenSdkBootstrap', () => {
-  it('loads replies when SDK context fails with only the root already present', async () => {
+  it('loads replies through relations without a context request when only the root is loaded', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const reply = makeEvent('$reply', {
       relation: { rel_type: 'm.thread', event_id: '$root' },
@@ -29,6 +29,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       },
     };
     const thread = {
+      initialize: vi.fn(() => undefined),
       id: '$root',
       rootEvent: root,
       events,
@@ -36,6 +37,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       flushPendingTimelineReset: vi.fn(),
       getUnfilteredTimelineSet: () => ({
         getLiveTimeline: () => timeline,
+        getTimelines: () => [timeline],
         addEventsToTimeline: (
           incoming: MatrixEvent[],
           _backwards: boolean,
@@ -53,7 +55,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const mx = {
-      getThreadTimeline: vi.fn().mockRejectedValue(new Error('context unavailable')),
+      getThreadTimeline: vi.fn(),
       fetchRelations: vi.fn().mockResolvedValue({ chunk: [reply.event], next_batch: 'older' }),
       getEventMapper: () => () => reply,
     };
@@ -70,6 +72,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       shouldScrollToLatestOnOpen: true,
     });
     expect(result).toBe(true);
+    expect(mx.getThreadTimeline).not.toHaveBeenCalled();
     expect(events.map((event) => event.getId())).toEqual(['$reply', '$root']);
     expect(backward).toBe('older');
   });
@@ -88,10 +91,14 @@ describe('runThreadOpenSdkBootstrap', () => {
         setPaginationToken: vi.fn(),
       };
       const thread = {
+        initialize: vi.fn(() => undefined),
         id: '$root',
         events: [],
         addEvents: vi.fn(),
-        getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => threadTimeline }),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => threadTimeline,
+          getTimelines: () => [threadTimeline],
+        }),
       };
       const room = makeRoom({
         liveEvents: [],
@@ -132,6 +139,68 @@ describe('runThreadOpenSdkBootstrap', () => {
       expect(thread.events).toEqual([]);
       expect(thread.addEvents).not.toHaveBeenCalled();
       expect(threadTimeline.setPaginationToken).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([true, false])(
+    'initializes an unopened SDK thread before reading its timeline (mounted=%s)',
+    async (stayMounted) => {
+      const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
+      let finishInitialization!: () => void;
+      const initialization = new Promise<void>((resolve) => {
+        finishInitialization = resolve;
+      });
+      const threadTimeline = {
+        getEvents: () => [],
+        getNeighbouringTimeline: () => null,
+        getPaginationToken: () => null,
+        setPaginationToken: vi.fn(),
+      };
+      const thread = {
+        id: '$root',
+        events: [root],
+        rootEvent: root,
+        initialize: vi.fn(() => initialization),
+        flushPendingTimelineReset: vi.fn(),
+        setEventMetadata: vi.fn(),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => threadTimeline,
+          getTimelines: () => [threadTimeline],
+          addEventsToTimeline: vi.fn(),
+        }),
+      };
+      const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+      const mx = {
+        fetchRelations: vi.fn().mockResolvedValue({ chunk: [] }),
+        getEventMapper: vi.fn(),
+        getEventTimeline: vi.fn(),
+        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+      };
+      let mounted = true;
+      const work = runThreadOpenSdkBootstrap({
+        debugTraceId: 'test',
+        isMounted: () => mounted,
+        mx: mx as never,
+        persistThreadEventCache: vi.fn(),
+        pinThreadToBottomOnOpen: vi.fn(),
+        room: room as never,
+        setSupplementalThreadEvents: vi.fn(),
+        onBootstrap: vi.fn(),
+        shouldScrollToLatestOnOpen: true,
+        threadId: '$root',
+      });
+      await flushAsyncWork();
+      // A recorded sync gap is materialized first, so its conversion errors still reach the open.
+      expect(thread.flushPendingTimelineReset.mock.invocationCallOrder[0]).toBeLessThan(
+        thread.initialize.mock.invocationCallOrder[0]
+      );
+      expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+
+      mounted = stayMounted;
+      finishInitialization();
+
+      expect(await work).toBe(stayMounted);
+      expect(mx.getThreadTimeline).toHaveBeenCalledTimes(stayMounted ? 1 : 0);
     }
   );
 
@@ -197,12 +266,14 @@ describe('runThreadOpenSdkBootstrap', () => {
       setPaginationToken: vi.fn(),
     };
     const thread = {
+      initialize: vi.fn(() => undefined),
       id: '$root',
       events: [reply],
       rootEvent: root,
       addEvents: vi.fn(),
       getUnfilteredTimelineSet: () => ({
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
       }),
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });

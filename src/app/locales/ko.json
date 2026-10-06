@@ -3,6 +3,16 @@
     "label": "스크롤 가능한 표",
     "scrollHint": "가로로 스크롤"
   },
+  "messageCodeBlock": {
+    "actions": "코드 블록 작업",
+    "code": "코드",
+    "language": "언어: {{language}}",
+    "copy": "코드 복사",
+    "copied": "복사됨",
+    "wrap": "줄 바꿈",
+    "expand": "펼치기",
+    "collapse": "접기"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " 님이 방 이름을 변경했습니다"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "명령 팔레트와 스레드 필터 같은 고급 기능을 숨깁니다. 모든 기기에 동기화됩니다.",
         "expandLongMessagesByDefault": "긴 메시지를 기본으로 펼치기",
         "expandLongMessagesByDefaultDescription": "긴 메시지를 '전체 메시지 보기' 뒤에 접어 두지 않고 모두 표시합니다. 모든 기기에 동기화됩니다.",
+        "showCanvasesInSidebar": "사이드바에 대화형 패널 표시",
+        "showCanvasesInSidebarDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 모든 기기에 동기화됩니다.",
         "saveFailed": "변경 사항을 저장하지 못했습니다. 연결을 확인한 후 다시 시도하세요."
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "URL 미리보기",
         "urlPreviewEncrypted": "암호화된 방에서 URL 미리보기",
         "showHiddenEvents": "숨겨진 이벤트 표시"
+      },
+      "computers": {
+        "sectionTitle": "컴퓨터",
+        "apiUrl": "컴퓨터 서비스 URL",
+        "description": "신뢰할 수 있는 MindRoom 백엔드를 선택하세요. 유효 기간이 짧은 로그인 토큰이 전송됩니다. 이 기기에 저장됩니다. 비워 두면 컴퓨터가 비활성화됩니다.",
+        "save": "컴퓨터 서비스 저장",
+        "reset": "앱 기본값 사용",
+        "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 오리진을 입력하세요. HTTPS를 사용하거나 localhost 또는 사설 LAN IP 주소에 HTTP를 사용하세요.",
+        "httpNotice": "HTTP는 로그인 정보나 컴퓨터 트래픽을 암호화하지 않습니다. 신뢰할 수 있는 로컬 네트워크에서만 사용하세요.",
+        "saveFailed": "이 기기에 컴퓨터 서비스를 저장할 수 없습니다.",
+        "saved": "컴퓨터 서비스를 저장했습니다."
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "홈",
     "directMessages": "다이렉트 메시지",
     "threads": "스레드",
+    "canvases": "대화형 패널",
     "inbox": "받은편지함",
     "exploreCommunity": "커뮤니티 둘러보기",
     "addSpace": "스페이스 추가",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "이 브라우저는 WebRTC를 지원하지 않습니다.",
         "endCurrentCall": "먼저 현재 통화를 종료하세요.",
         "failedToStart": "통화를 시작하지 못했습니다."
+      },
+      "agentCallHeaderButton": {
+        "call": "에이전트에게 전화",
+        "callAgent": "{{name}}에게 전화",
+        "chooseAgent": "전화할 에이전트를 선택하세요",
+        "close": "닫기"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "취소",
         "autoApproveMinutes_one": "{{count}}분 동안 자동 승인",
         "autoApproveMinutes_other": "{{count}}분 동안 자동 승인",
-        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)"
+        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)",
+        "approveExactCall": "이 호출 그대로 승인",
+        "approveAnyArguments": "모든 인수 승인",
+        "anyArgumentsWarning": "모든 인수를 승인하면 에이전트가 예약 시간 전후 {{minutes}}분 안에 원하는 내용으로 {{tool}}을(를) 한 번 호출할 수 있습니다."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "자동 승인 활성",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "원래 고정 만료 시각: {{timestamp}}",
         "toolAndServer": "도구: {{tool}} · 서버: {{server}}",
         "tool": "도구: {{tool}}",
-        "reason": "사유: {{reason}}"
+        "reason": "사유: {{reason}}",
+        "approvedWhenScheduledByAt": "예약 시 {{approver}}님이 승인 · {{timestamp}}",
+        "approvedWhenScheduledBy": "예약 시 {{approver}}님이 승인"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}}에 예약됨",
+        "approvedExactArguments": "이 인수 그대로 승인됨",
+        "approvedAnyArguments": "이 도구의 모든 인수에 대해 승인됨"
       },
       "approvalReviewCall": {
         "pending": "대기 중",
@@ -2480,6 +2520,12 @@
         "copyText": "텍스트 복사",
         "copyTextWithToolCalls": "도구 호출 포함 텍스트 복사",
         "copyLink": "링크 복사"
+      },
+      "bugReport": {
+        "report": "버그 신고",
+        "download": "버그 보고서 다운로드",
+        "sending": "보고서 전송 중…",
+        "failed": "보고서를 보내지 못했습니다. 다시 시도해 주세요."
       },
       "messageInspectionActions": {
         "readReceipts": "읽음 확인",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "메시지 전송 실패",
         "notSent": "전송되지 않음"
       },
+      "failedSendActions": {
+        "retry": "다시 시도",
+        "delete": "삭제"
+      },
       "aiRunDisplay": {
         "inputTokens": "입력 {{formattedCount}}",
         "outputTokens": "출력 {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "스레드 없음"
       },
       "compactThreadCard": {
-        "streaming": "응답 생성 중",
-        "unreadMessages": "읽지 않은 메시지",
-        "unread": "읽지 않음",
-        "threadStatus": "스레드 상태: {{status}}",
-        "lastActivity": "최근 활동 {{time}}"
+        "streaming": "응답 생성 중"
       },
       "mindroomCallChatView": {
         "chat": "채팅",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "컴퓨터 보기",
       "openMembers": "멤버 열기",
+      "openCanvas": "패널 열기",
+      "canvasDisabled": "이 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "canvasDuringCall": "대화형 패널을 열려면 통화를 종료하세요.",
       "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
       "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
+    },
+    "canvas": {
+      "panelLabel": "대화형 패널",
+      "fromAgent": "{{agent}}의 대화형 패널",
+      "expand": "패널 확대",
+      "close": "패널 닫기",
+      "resize": "패널 크기 조절",
+      "updated": "{{agent}} 에이전트가 이 패널을 업데이트했습니다.",
+      "loadUpdate": "업데이트 불러오기",
+      "version": "버전 {{current}}/{{total}}",
+      "previousVersion": "이전 버전",
+      "nextVersion": "다음 버전",
+      "earlierVersion": "이전 버전입니다.",
+      "showLatest": "최신 버전 보기",
+      "loading": "패널을 불러오는 중…",
+      "loadFailed": "이 패널을 불러오지 못했습니다.",
+      "retry": "다시 시도",
+      "escaped": "이 패널이 샌드박스를 벗어나려고 해서 차단했습니다.",
+      "reload": "패널 새로고침",
+      "pageError": "이 페이지에서 오류를 보고했습니다.",
+      "tellAgent": "{{agent}}에게 알리기",
+      "errorsSent": "오류를 {{agent}}에게 보냈습니다.",
+      "errorsNotSent": "오류를 {{agent}}에게 보내지 못했습니다.",
+      "sendTo": "{{agent}}에게 보내기:",
+      "changeAnswer": "답변을 바꾸려면 먼저 이 답변을 삭제하세요.",
+      "data": "데이터",
+      "send": "보내기",
+      "discard": "삭제",
+      "disclosure": "{{agent}} 에이전트가 만들었습니다. 이 패널은 계정에 접근할 수 없지만, 여기에 입력한 내용은 패널 밖으로 전송될 수 있습니다.",
+      "sharedNotice": "이 방에 저장됨: {{agent}} 에이전트와 이 방의 다른 사람들이 입력한 내용을 읽을 수 있습니다.",
+      "sending": "{{agent}}에게 보내는 중…",
+      "sent": "{{agent}}에게 보냈습니다: {{label}}",
+      "sendFailed": "응답을 보내지 못했습니다. 다시 시도하세요.",
+      "receiptData": "에이전트에게 보낸 데이터 보기",
+      "unlabeled": "제출됨",
+      "notSent": "{{agent}}에게 보내지 못함: {{label}}"
+    },
+    "canvases": {
+      "title": "대화형 패널",
+      "note": "에이전트가 만들어 준 대화형 패널 중 이 브라우저에서 본 패널입니다. 고정한 패널은 모든 기기에 표시됩니다.",
+      "empty": "아직 대화형 패널이 없습니다. 에이전트가 패널을 보여 주면 여기에 표시됩니다.",
+      "pinned": "고정됨",
+      "canvas": "패널",
+      "thread": "스레드",
+      "agent": "에이전트",
+      "room": "방",
+      "updated": "업데이트됨",
+      "created": "생성됨",
+      "pin": "{{title}} 고정",
+      "unpin": "{{title}} 고정 해제",
+      "shared": "에이전트와 공유됨",
+      "saved": "입력한 값 있음"
     }
   },
   "roomSchedules": {

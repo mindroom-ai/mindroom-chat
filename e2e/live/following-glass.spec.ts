@@ -115,7 +115,10 @@ test('following glass appears only while another reader follows the latest messa
     await expect(page.getByTestId('room-virtual-inner')).toBeVisible();
     await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
     await expect(page.getByText(firstBody, { exact: true })).toBeVisible();
-    await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
+    // Initial catchup may need another 30-second Matrix long-poll cycle.
+    await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0, {
+      timeout: 60_000,
+    });
 
     const following = page.locator('[data-room-following="true"]');
     await expectClearStrip(following);
@@ -195,7 +198,9 @@ test('following glass appears only while another reader follows the latest messa
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('following-reader.png') });
     await readerButton.click();
-    const readers = page.getByText('Seen by', { exact: true }).locator('xpath=../../..');
+    const readers = page
+      .getByText('Seen by', { exact: true })
+      .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
     await expect(readers).toBeVisible();
     await expect(readers.getByText('Avery', { exact: true })).toBeVisible();
     await page.keyboard.press('Escape');

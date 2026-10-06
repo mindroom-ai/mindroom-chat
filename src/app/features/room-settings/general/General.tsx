@@ -1,7 +1,7 @@
 import React from 'react';
-import { Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRoom } from '../../../hooks/useRoom';
 import {
@@ -72,47 +72,48 @@ export function General({ requestClose }: GeneralProps) {
 
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('featureUi.roomSettings.general.general')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <RoomProfile permissions={permissions} />
-              <Box direction="Column" gap="100">
-                <Text size="L400">{t('featureUi.roomSettings.general.options')}</Text>
-                <RoomJoinRules permissions={permissions} />
-                <RoomTimelineMode />
-                <OfflineRoomSettings roomId={room.roomId} />
-                <RoomHistoryVisibility permissions={permissions} />
-                <RoomEncryption permissions={permissions} />
-                <RoomPublish permissions={permissions} />
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('featureUi.roomSettings.general.general')}
+                </Text>
               </Box>
-              <Box direction="Column" gap="100">
-                <Text size="L400">{t('featureUi.roomSettings.general.addresses')}</Text>
-                <RoomPublishedAddresses permissions={permissions} />
-                <RoomLocalAddresses permissions={permissions} />
-              </Box>
-              <Box direction="Column" gap="100">
-                <Text size="L400">{t('featureUi.roomSettings.general.advancedOptions')}</Text>
-                <RoomUpgrade permissions={permissions} requestClose={requestClose} />
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
               </Box>
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <RoomProfile permissions={permissions} />
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.roomSettings.general.options')}</Text>
+              <RoomJoinRules permissions={permissions} />
+              <RoomTimelineMode />
+              <OfflineRoomSettings roomId={room.roomId} />
+              <RoomHistoryVisibility permissions={permissions} />
+              <RoomEncryption permissions={permissions} />
+              <RoomPublish permissions={permissions} />
+            </Box>
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.roomSettings.general.addresses')}</Text>
+              <RoomPublishedAddresses permissions={permissions} />
+              <RoomLocalAddresses permissions={permissions} />
+            </Box>
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.roomSettings.general.advancedOptions')}</Text>
+              <RoomUpgrade permissions={permissions} requestClose={requestClose} />
+            </Box>
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

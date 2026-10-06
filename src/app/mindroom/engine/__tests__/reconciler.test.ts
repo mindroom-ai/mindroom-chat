@@ -1341,7 +1341,10 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
-      getUnfilteredTimelineSet: () => undefined,
+      events: [],
+      initialEventsFetched: true,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1398,11 +1401,13 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
 
     expect(result.repaired).toBe(true);
     expect(fetchRelations).toHaveBeenCalledTimes(2);
-    // Injection call — must be chronologically ordered.
+    // Injection call — the stub thread's window is empty, so the whole
+    // batch is backfill, prepended newest first.
     expect(addEvents).toHaveBeenCalledTimes(1);
-    const [injectedEvents] = addEvents.mock.calls[0];
+    const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0];
     const injectedTs = (injectedEvents as MatrixEvent[]).map((mEvent) => mEvent.getTs());
-    expect(injectedTs).toEqual([50, 100, 200, 300]);
+    expect(injectedTs).toEqual([300, 200, 100, 50]);
+    expect(toStartOfTimeline).toBe(true);
     // onRepaired batch — must be the same chronologically ordered
     // array (both call sites downstream expect the same shape).
     expect(onRepairedBatch).toBeDefined();
@@ -1480,13 +1485,17 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // never sees it, and the render paints v1 forever.
     //
     // Fix: on divergence, the reconciler must inject the mapped
-    // events into `room.getThread(threadId)?.addEvents(events, false)`
-    // BEFORE hydration and the onRepaired tick. This test asserts
-    // that call fires with the right shape.
+    // events into `room.getThread(threadId)` BEFORE hydration and the
+    // onRepaired tick. This test asserts that call fires with the right
+    // shape; `reconciler.sdkThread.test.ts` covers where a real SDK
+    // thread places them.
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
-      getUnfilteredTimelineSet: () => undefined,
+      events: [],
+      initialEventsFetched: true,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1522,13 +1531,13 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     });
 
     expect(result.repaired).toBe(true);
-    // The injection call — the fix. Second argument `false` means
-    // "not to start of timeline" (i.e. the tail end), matching the
-    // pre-P5 refresh's contract and the direction the reconciler
-    // paginates (Direction.Backward from HEAD).
+    // The injection call — the fix. The stub thread's window is empty,
+    // so every fetched event is older than it and goes in as backfill
+    // (`toStartOfTimeline` true): appended, the SDK would announce each
+    // one as a new reply or a live event.
     expect(addEvents).toHaveBeenCalledTimes(1);
     const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0];
-    expect(toStartOfTimeline).toBe(false);
+    expect(toStartOfTimeline).toBe(true);
     // All fetched, mapped events flow through — both the new id and
     // the already-cached one; the SDK's own dedup on event_id handles
     // duplicates as a no-op, so we do NOT filter before injection
@@ -1662,7 +1671,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // `(repairedEvents: readonly MatrixEvent[]) => void`. Component-side
     // callbacks call `setSupplementalThreadEvents(threadId, batch)`,
     // which is the render-side leg of the dual-injection fix (SDK-side
-    // leg is `liveThread.addEvents(allMapped, false)` above).
+    // leg is `addFetchedEventsToThread` in the reconciler).
     //
     // Why this matters: on the complete-coverage cache-first path the
     // SDK bootstrap is skipped by design; the render leans on
@@ -1831,7 +1840,10 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
-      getUnfilteredTimelineSet: () => undefined,
+      events: [],
+      initialEventsFetched: true,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -2069,7 +2081,10 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const sdkAlreadyHasV2Thread = {
       addEvents,
-      getUnfilteredTimelineSet: () => undefined,
+      events: [],
+      initialEventsFetched: true,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomSdkAhead = {
       roomId: '!room:example',

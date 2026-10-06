@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { Virtualizer } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBatchedMeasurementRef } from './batchedMeasurementRef';
+import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
+import { buildMeasurementScrollCorrectionHook } from './threadRenderUtils';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -24,11 +25,12 @@ function setup() {
   );
   const scroller = document.createElement('div');
   document.body.append(scroller);
+  const scrollToFn = vi.fn();
   const virtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
     count: 30,
     estimateSize: () => 50,
     getScrollElement: () => scroller,
-    scrollToFn: () => {},
+    scrollToFn,
     observeElementRect: (_instance, callback) => callback({ width: 390, height: 844 }),
     observeElementOffset: (_instance, callback) => callback(0, false),
   });
@@ -36,15 +38,15 @@ function setup() {
   virtualizer._willUpdate();
   const measure = vi.fn(virtualizer.measureElement);
   const ref = createBatchedMeasurementRef(measure);
-  const mount = (index: number) => {
+  const mount = (index: number, attach: (node: HTMLDivElement) => void = ref) => {
     const row = document.createElement('div');
     row.dataset.index = String(index);
     Object.defineProperty(row, 'offsetHeight', { value: 80 });
     scroller.append(row);
-    ref(row);
+    attach(row);
     return row;
   };
-  return { virtualizer, ref, mount, measure, unobserve, disconnect, dispose };
+  return { virtualizer, ref, mount, measure, scrollToFn, unobserve, disconnect, dispose };
 }
 
 describe('batched virtualizer measurement ref', () => {
@@ -90,5 +92,144 @@ describe('batched virtualizer measurement ref', () => {
     await Promise.resolve();
     expect(virtualizer.elementsCache.size).toBe(0);
     expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('measures a row attached during a live scroll before the browser paints', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = true;
+
+    // virtual-core alone leaves the row at its estimate until ResizeObserver
+    // reports it, which re-renders after the browser has painted.
+    mount(0, virtualizer.measureElement);
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(1, ref);
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(1)).toBe(80);
+    expect(virtualizer.getVirtualItems()[2]?.start).toBe(50 + 80);
+    expect(notify).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('measures the height a row settles on after updates queued by its own mount', async () => {
+    const { virtualizer, dispose } = setup();
+    virtualizer.isScrolling = true;
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    const row = document.createElement('div');
+    row.dataset.index = '0';
+    let height = 90;
+    Object.defineProperty(row, 'offsetHeight', { get: () => height });
+    virtualizer.scrollElement?.append(row);
+    ref(row);
+    // A child layout effect corrects its first pass in a nested synchronous
+    // render after the tile ref has attached.
+    height = 80;
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    dispose();
+  });
+
+  it('caches the height a row mounted at rest settles on, even if it unmounts before ResizeObserver', async () => {
+    const { virtualizer, dispose } = setup();
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    const row = document.createElement('div');
+    row.dataset.index = '0';
+    let height = 90;
+    Object.defineProperty(row, 'offsetHeight', { get: () => height });
+    virtualizer.scrollElement?.append(row);
+    ref(row);
+    // virtual-core measures at rest in the ref, before the row's first-pass
+    // child update has flushed.
+    expect(virtualizer.itemSizeCache.get(0)).toBe(90);
+    height = 80;
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.getVirtualItems()[1]?.start).toBe(80);
+    expect(notify).toHaveBeenCalled();
+
+    // The row unmounts before any ResizeObserver entry; a remount during a
+    // scroll reuses the settled height rather than the first pass.
+    ref(null);
+    row.remove();
+    virtualizer.isScrolling = true;
+    const remounted = document.createElement('div');
+    remounted.dataset.index = '0';
+    Object.defineProperty(remounted, 'offsetHeight', { value: 80 });
+    virtualizer.scrollElement?.append(remounted);
+    ref(remounted);
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    dispose();
+  });
+
+  it('reuses a cached size when a measured row remounts during a scroll', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(0, ref);
+    virtualizer.isScrolling = true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    const remounted = document.createElement('div');
+    remounted.dataset.index = '0';
+    const offsetHeight = vi.fn(() => 120);
+    Object.defineProperty(remounted, 'offsetHeight', { get: offsetHeight });
+    virtualizer.scrollElement?.append(remounted);
+    ref(remounted);
+    await Promise.resolve();
+    expect(offsetHeight).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    dispose();
+  });
+
+  it('keeps virtual-core measuring only near the target of a smooth programmatic scroll', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    virtualizer.scrollToIndex(25, { behavior: 'smooth' });
+    virtualizer.isScrolling = true;
+    mount(0, ref);
+    mount(25, ref);
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+    expect(virtualizer.itemSizeCache.get(25)).toBe(80);
+    dispose();
+  });
+
+  it('skips rows that React removed before the measurement ran', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    virtualizer.isScrolling = true;
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    const row = mount(0, ref);
+    row.remove();
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+    dispose();
+  });
+
+  it('folds an iOS correction above the viewport into the ledger without a scroll write', async () => {
+    const { virtualizer, mount, scrollToFn, dispose } = setup();
+    const onDroppedCorrection = vi.fn();
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => true,
+      onDroppedCorrection,
+    });
+    virtualizer.scrollElement!.scrollTop = 1_000;
+    virtualizer.scrollOffset = 1_000;
+    // Desktop applies a forward correction as a scroll write; only iOS folds it.
+    virtualizer.scrollDirection = 'forward';
+    virtualizer.isScrolling = true;
+    scrollToFn.mockClear();
+
+    mount(0, createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)));
+    await Promise.resolve();
+    expect(onDroppedCorrection).toHaveBeenCalledWith(30);
+    expect(scrollToFn).not.toHaveBeenCalled();
+    dispose();
   });
 });

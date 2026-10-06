@@ -254,6 +254,9 @@ export const createMindroomSyncEngine = ({
     }
   };
 
+  /** Confirmed events already saved from a timeline, so their echo is not saved again. */
+  const confirmedTimelineEvents = new WeakSet<MatrixEvent>();
+
   const handleTimelineEvent: RoomEventHandlerMap[RoomEvent.Timeline] = (
     event: MatrixEvent,
     room: Room | undefined,
@@ -270,7 +273,14 @@ export const createMindroomSyncEngine = ({
     if (!room || removed || toStartOfTimeline) return;
     if (!data?.liveEvent) return;
     if (!liveMode) return;
+    // The SDK's thread lists re-add a root as a live event whenever it lists
+    // the thread or the thread gets a reply. The root is not a new room
+    // event, and persisting it cost four IndexedDB transactions per listed
+    // thread on every launch.
+    const timelineSet = data.timeline?.getTimelineSet();
+    if (timelineSet && room.threadsTimelineSets.some((set) => set === timelineSet)) return;
 
+    if (!event.status) confirmedTimelineEvents.add(event);
     rememberEventCacheWriteLease(event, captureCacheStoreWriteLease(sessionId, room.roomId));
     const meta: EngineLiveEventMeta = {
       kind: 'timeline',
@@ -319,6 +329,29 @@ export const createMindroomSyncEngine = ({
     effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };
 
+  // The SDK confirms a sent event in place: the remote echo updates the local
+  // echo, and only a thread timeline announces it again, while the pending
+  // echo itself was not saved. Without this, the user's own room messages,
+  // thread roots included, reached the room cache only through other paths.
+  // Redactions are confirmed through the Redaction channel.
+  const handleLocalEchoUpdated: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
+    event,
+    room,
+    _oldEventId,
+    oldStatus
+  ) => {
+    trackPendingThreadEvent(event, room);
+    if (!liveMode || !oldStatus || event.status || event.isRedaction()) return;
+    if (confirmedTimelineEvents.has(event)) return;
+    rememberEventCacheWriteLease(event, captureCacheStoreWriteLease(sessionId, room.roomId));
+    effectiveWriteThrough.handleLiveEvent(event, room, {
+      kind: 'timeline',
+      roomId: room.roomId,
+      liveEvent: true,
+      toStartOfTimeline: false,
+    });
+  };
+
   const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (
     room,
     timelineSet,
@@ -346,7 +379,7 @@ export const createMindroomSyncEngine = ({
     mx.on(RoomEvent.Timeline, handleTimelineEvent);
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
-    mx.on(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
+    mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
     mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
@@ -372,7 +405,7 @@ export const createMindroomSyncEngine = ({
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
-      mx.removeListener(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
+      mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
       offline.stop();
       revokeCacheStoreWrites(sessionId);

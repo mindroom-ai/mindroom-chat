@@ -29,9 +29,14 @@ import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
+import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
+import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
+import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 
 export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
+  /** Whether the sender is a MindRoom account on the viewer's homeserver. */
+  fromMindroomAgent?: boolean;
   displayName: string;
   eventType?: string;
   roomId?: string;
@@ -68,6 +73,7 @@ function MindroomMessageExtrasRenderNotice({
 
 export const renderMindroomMessageContent = ({
   mEvent,
+  fromMindroomAgent = false,
   displayName,
   eventType,
   roomId,
@@ -212,6 +218,17 @@ export const renderMindroomMessageContent = ({
       renderStateSuffix,
     });
 
+  const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
+  if (canvasReceipt) {
+    return (
+      <CanvasResponseReceipt
+        receipt={canvasReceipt}
+        delivered={!pendingSend && !failedSend}
+        renderStateSuffix={getMessageStateSuffix()}
+      />
+    );
+  }
+
   const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
   if (threadSummaryInfo) {
     return (
@@ -224,7 +241,8 @@ export const renderMindroomMessageContent = ({
   }
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
-    const approval = parseToolApprovalContent(eventType, content);
+    // Only MindRoom sends approval cards; any member can post this event type.
+    const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
       <MindroomToolApprovalCard
         approval={approval}
@@ -263,7 +281,7 @@ export const renderMindroomMessageContent = ({
 
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
-      return (
+      const longText = (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
@@ -291,6 +309,20 @@ export const renderMindroomMessageContent = ({
           renderUrlsPreview={renderUrlsPreview}
         />
       );
+      // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
+      if (msgType === MsgType.File && content[CANVAS_RESPONSE_KEY]) {
+        return (
+          <CanvasResponseSidecarReceipt
+            source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
+            relation={content['m.relates_to']}
+            hydrate={hydrateLongText}
+            delivered={!pendingSend && !failedSend}
+            renderStateSuffix={getMessageStateSuffix()}
+            fallback={longText}
+          />
+        );
+      }
+      return longText;
     }
 
     if (msgType === MsgType.File) {
@@ -374,7 +406,13 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Notice) {
-    if (mEvent && !edited && content[CHAT_UI_ACTION_KEY]) {
+    const uiAction = content[CHAT_UI_ACTION_KEY];
+    // Canvas updates are edits of the request, so an edited canvas keeps its button.
+    const editableUiAction =
+      !!uiAction &&
+      typeof uiAction === 'object' &&
+      (uiAction as Record<string, unknown>).action === 'show_canvas';
+    if (mEvent && uiAction && (!edited || editableUiAction)) {
       return (
         <MNotice
           content={content}

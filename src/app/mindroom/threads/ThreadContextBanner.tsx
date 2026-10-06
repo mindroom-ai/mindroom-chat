@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -12,6 +13,7 @@ import { Box, Icon, IconButton, Icons, Text, Button, type RectCords } from 'fold
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
+import { type Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import * as threadIndicatorCss from './ThreadIndicator.css';
 import { useThreadHeaderInfo } from './useThreadHeaderInfo';
@@ -123,6 +125,18 @@ export function ThreadContextBanner({
     menu?.roomId === room.roomId && menu.threadId === threadId && menu.rootId === threadRootId
       ? menu
       : undefined;
+  const [, refreshThread] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    // After a redaction the SDK keeps an unredacted copy of the latest reply
+    // until it re-fetches the root; re-render once it does.
+    const handleThreadUpdate = (thread: Thread) => {
+      if (thread.id === threadRootId) refreshThread();
+    };
+    room.on(ThreadEvent.Update, handleThreadUpdate);
+    return () => {
+      room.removeListener(ThreadEvent.Update, handleThreadUpdate);
+    };
+  }, [room, threadRootId]);
   const pinning = useThreadPinning(room);
   const isPinned = pinning.pinnedEventIds.includes(threadRootId);
   const mutableThreadRootId = isConfirmedMatrixEventId(rootEventId) ? rootEventId : undefined;
@@ -338,10 +352,9 @@ export function ThreadContextBanner({
             >
               <Icon src={Icons.VerticalDots} size="100" />
             </IconButton>
-            {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
-            {pinning.canPin && mutableThreadRootId && (
+            {pinning.canPin && mutableThreadRootId ? (
               <IconButton
-                className={css.ShortViewportHidden}
+                className={isPinned ? undefined : css.ShortViewportHidden}
                 size="300"
                 radii="300"
                 aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
@@ -350,8 +363,19 @@ export function ThreadContextBanner({
                 disabled={pinning.updating || updating}
                 onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
               >
-                <Icon src={Icons.Pin} size="100" />
+                <Icon src={Icons.Pin} size="100" filled={isPinned} />
               </IconButton>
+            ) : (
+              isPinned && (
+                <Box
+                  as="span"
+                  role="img"
+                  aria-label={t('threadNav.pinned')}
+                  title={t('threadNav.pinned')}
+                >
+                  <Icon src={Icons.Pin} size="100" filled />
+                </Box>
+              )
             )}
             {!isPinned && (
               // Resolve is in More, but a resolved status stays visible for readers.

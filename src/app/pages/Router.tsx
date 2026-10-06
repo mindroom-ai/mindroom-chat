@@ -21,6 +21,7 @@ import {
   RESET_PASSWORD_PATH,
   SPACE_PATH,
   THREADS_PATH,
+  CANVASES_PATH,
   _CREATE_PATH,
   _FEATURED_PATH,
   _INVITES_PATH,
@@ -41,6 +42,7 @@ import { RouteSpaceProvider, Space, SpaceRouteRoomProvider, SpaceSearch } from '
 import { Explore, FeaturedRooms, PublicRooms } from './client/explore';
 import { Notifications, Inbox, Invites } from './client/inbox';
 import { Threads } from './client/threads';
+import { Canvases } from './client/canvases';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { Lobby } from '../features/lobby';
 import { WelcomePage } from './client/WelcomePage';
@@ -230,6 +232,7 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           />
         </Route>
         <Route path={THREADS_PATH} element={<Threads />} />
+        <Route path={CANVASES_PATH} element={<Canvases />} />
         <Route
           path={SPACE_PATH}
           element={

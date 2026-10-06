@@ -4,14 +4,66 @@
 export const sanitizeForRegex = (unsafeText: string): string =>
   unsafeText.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&').replace(/-/g, '\\x2d');
 
-export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]\\s]+)`;
+// Checking only the last character keeps trailing punctuation out of the URL; repeating the
+// class in the lookbehind rescanned the punctuation at every position the URL could end at.
+export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]\\s])`;
 
 export const URL_REG = new RegExp(HTTP_URL_PATTERN, 'g');
 
 export const EMAIL_REGEX =
   /^(([^<>()[\]\\.,;:\s@\\"]+(\.[^<>()[\]\\.,;:\s@\\"]+)*)|(\\".+\\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
 
-export const URL_NEG_LB = '(?<!(https?|ftp|mailto|magnet):\\/\\/\\S*)';
+const URL_SCHEME_BEFORE_REG = /(?:https?|ftp|mailto|magnet)$/;
+const WHITESPACE_REG = /\s/;
+const NEXT_WHITESPACE_REG = /\s/g;
+
+/**
+ * Returns a test for whether a position of `text` follows a URL scheme (`https://`, `ftp://`,
+ * `mailto://` or `magnet://`) in the same whitespace-free run, where Markdown markers and emoji
+ * stay literal. Testing positions in increasing order scans the text once.
+ *
+ * This replaces a negative lookbehind for the scheme, `://` and `\S*`. JavaScriptCore rescans
+ * the run behind every position for it, so a few kilobytes of JSON or file paths without
+ * spaces took seconds to render and froze the iOS app, while V8 stayed fast.
+ */
+export const createInsideUrlTest = (text: string): ((index: number) => boolean) => {
+  let scanned = 0;
+  let insideUrl = false;
+  return (index) => {
+    if (index < scanned) {
+      scanned = 0;
+      insideUrl = false;
+    }
+    for (; scanned < index; scanned += 1) {
+      if (WHITESPACE_REG.test(text[scanned])) {
+        insideUrl = false;
+      } else if (
+        !insideUrl &&
+        scanned >= 2 &&
+        text.startsWith('://', scanned - 2) &&
+        URL_SCHEME_BEFORE_REG.test(text.slice(Math.max(0, scanned - 8), scanned - 2))
+      ) {
+        insideUrl = true;
+      }
+    }
+    return insideUrl;
+  };
+};
+
+/** Returns the first match of the global `regex` in `text` that does not start inside a URL. */
+export const execOutsideUrl = (regex: RegExp, text: string): RegExpExecArray | null => {
+  const insideUrl = createInsideUrlTest(text);
+  regex.lastIndex = 0;
+  let match = regex.exec(text);
+  while (match && insideUrl(match.index)) {
+    // The rest of the run, and the whitespace that ends it, follow the scheme too.
+    NEXT_WHITESPACE_REG.lastIndex = match.index;
+    const whitespace = NEXT_WHITESPACE_REG.exec(text);
+    regex.lastIndex = whitespace ? whitespace.index + 1 : text.length + 1;
+    match = regex.exec(text);
+  }
+  return match;
+};
 
 // https://en.wikipedia.org/wiki/Variation_Selectors_(Unicode_block)
 export const VARIATION_SELECTOR_PATTERN = '[\uFE00-\uFE0F]';
@@ -21,6 +73,7 @@ export const EMOJI_PATTERN = `[#*0-9]\uFE0F?\u20E3|[\xA9\xAE\u203C\u2049\u2122\u
 
 // Thumbs up emoji found to have Variation Selector 16 at the end
 // so included variation selector pattern in regex
+// Shortcodes contain neither whitespace nor colons, so each one matches in a single way.
 export const JUMBO_EMOJI_REG = new RegExp(
-  `^(((${EMOJI_PATTERN})|(:.+?:))(${VARIATION_SELECTOR_PATTERN}|\\s)*){1,10}$`
+  `^(((${EMOJI_PATTERN})|(:[^:\\s]+:))(${VARIATION_SELECTOR_PATTERN}|\\s)*){1,10}$`
 );

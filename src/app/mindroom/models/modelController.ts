@@ -1,11 +1,9 @@
 import {
   ClientEvent,
-  EventStatus,
   MatrixClient,
   MatrixEvent,
   MatrixEventEvent,
   Room,
-  RoomEvent,
   RoomMember,
   RoomMemberEvent,
   SyncState,
@@ -79,8 +77,6 @@ type Command = {
   operation: 'set' | 'reset';
   model?: string;
   eventId?: string;
-  localEvent?: MatrixEvent;
-  txnId: string;
   generation: number;
   early: ModelSelectionResult[];
   acknowledged?: boolean;
@@ -144,7 +140,6 @@ export class ModelController {
     const mx = this.mx;
     mx.on(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     mx.on(ClientEvent.Event, this.onEvent);
-    mx.on(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
     mx.on(MatrixEventEvent.Decrypted, this.onEvent);
     mx.on(RoomMemberEvent.Membership, this.onMembership);
     mx.on(CryptoEvent.DevicesUpdated, this.onDevices);
@@ -440,7 +435,6 @@ export class ModelController {
       runtime,
       operation,
       model,
-      txnId: this.mx.makeTxnId(),
       generation: scope.generation,
       early: [],
       timer: setTimeout(() => this.uncertain(command), MODEL_TIMEOUT),
@@ -479,21 +473,9 @@ export class ModelController {
           ...(operation === 'set' ? { model } : {}),
         },
       } as RoomMessageEventContent;
-      let result;
-      try {
-        result = await this.mx.sendMessage(
-          scope.room.roomId,
-          scope.threadId!,
-          content,
-          command.txnId
-        );
-      } catch (error) {
-        // Reuse the SDK's local event and transaction; never create a second command.
-        const event = command.localEvent;
-        if (!this.currentCommand(command) || !event || event.status !== EventStatus.NOT_SENT)
-          throw error;
-        result = await this.mx.resendEvent(event, scope.room);
-      }
+      // The client scheduler already retries a dropped connection within its window; sending
+      // the command again afterwards could change the model long after it was chosen.
+      const result = await this.mx.sendMessage(scope.room.roomId, scope.threadId!, content);
       if (!this.currentCommand(command)) return;
       command.eventId = result.event_id;
       command.early.forEach((ack) => this.applyResult(command, ack));
@@ -525,15 +507,6 @@ export class ModelController {
 
   private onEvent = (event: MatrixEvent): void => {
     void this.receiveResult(event).catch(() => undefined);
-  };
-
-  private onLocalEcho = (event: MatrixEvent, room: Room): void => {
-    this.scopes.forEach((scope) => {
-      const command = scope.send ?? scope.command;
-      if (command && scope.room.roomId === room.roomId && event.getTxnId() === command.txnId) {
-        command.localEvent = event;
-      }
-    });
   };
 
   private async receiveResult(event: MatrixEvent): Promise<void> {
@@ -675,7 +648,6 @@ export class ModelController {
     this.roomCatalogs.clear();
     this.mx.removeListener(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     this.mx.removeListener(ClientEvent.Event, this.onEvent);
-    this.mx.removeListener(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
     this.mx.removeListener(MatrixEventEvent.Decrypted, this.onEvent);
     this.mx.removeListener(RoomMemberEvent.Membership, this.onMembership);
     this.mx.removeListener(CryptoEvent.DevicesUpdated, this.onDevices);

@@ -31,6 +31,16 @@ const ELEMENT_CALL_LANGUAGE_CODES: Record<string, string> = {
   'zh-TW': 'zh-Hant',
 };
 
+/**
+ * The widget API listens on the whole window and otherwise trusts any message that names the
+ * widget. Element Call is served from Chat's own origin, so only same-origin messages are its;
+ * this keeps other frames (such as agent canvases, whose origin is opaque) from driving the call.
+ */
+export const restrictCallTransportToSameOrigin = (call: Pick<ClientWidgetApi, 'transport'>) => {
+  // eslint-disable-next-line no-param-reassign
+  call.transport.strictOriginCheck = true;
+};
+
 export class CallEmbed {
   private mx: MatrixClient;
 
@@ -41,6 +51,9 @@ export class CallEmbed {
   public readonly room: Room;
 
   public joined = false;
+
+  /** Server timestamp of the room's newest event when the call started; earlier failure notices belong to an earlier call. */
+  public readonly startedAfterTs: number | undefined;
 
   public readonly control: CallControl;
 
@@ -182,10 +195,12 @@ export class CallEmbed {
 
     const callWidgetDriver = new CallWidgetDriver(mx, room.roomId);
     const call: ClientWidgetApi = new ClientWidgetApi(widget, iframe, callWidgetDriver);
+    restrictCallTransportToSameOrigin(call);
 
     this.mx = mx;
     this.call = call;
     this.room = room;
+    this.startedAfterTs = room.getLiveTimeline().getEvents().at(-1)?.getTs();
     this.iframe = iframe;
     this.container = container;
     this.callWidgetDriver = callWidgetDriver;

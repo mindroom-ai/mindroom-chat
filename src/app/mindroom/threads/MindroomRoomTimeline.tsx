@@ -65,6 +65,7 @@ import {
   useTimelineDebugTraceIds,
 } from './timelineDebugController';
 import { CompactRoomView } from './CompactRoomView';
+import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
@@ -205,7 +206,7 @@ export type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
   roomFooterRef?: RefObject<HTMLElement>;
-  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
+  compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   editor: Editor;
 };
 
@@ -355,8 +356,6 @@ export function RoomTimeline({
   const threadBackViewport = useThreadBackPaginationController();
   const {
     reset: resetThreadBackPagination,
-    clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
-    getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     isOpenBottomPinSuppressed: isThreadOpenBottomPinSuppressed,
   } = threadBackViewport;
   const requestThreadOpenBottomPin = useCallback(
@@ -739,7 +738,16 @@ export function RoomTimeline({
   // room-bound persist facade off the engine and hands the fns down
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
-  useThreadGapRecovery({ engine: syncEngine, room, threadId, append: setSupplementalThreadEvents });
+  const loadedThreadEventsRef = useRef(threadEvents);
+  loadedThreadEventsRef.current = threadEvents;
+  const getLoadedThreadEvents = useCallback(() => loadedThreadEventsRef.current, []);
+  useThreadGapRecovery({
+    engine: syncEngine,
+    room,
+    threadId,
+    append: setSupplementalThreadEvents,
+    getLoadedEvents: getLoadedThreadEvents,
+  });
   const beginRoomCacheWrite = useCallback(
     () => syncEngine.persist.forRoom(room).persistRoomEventCache,
     [syncEngine, room]
@@ -1078,15 +1086,14 @@ export function RoomTimeline({
   // mid-momentum (the trace's full-screen settle flash): an unsettled
   // ledger is coherent, so it can wait indefinitely.
   const {
-    captureThreadPrepend,
-    clearThreadPrependCapture,
+    holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement: measureTimelineElement,
+    threadLeadingRef,
     virtualInnerRef,
     virtualizer: roomTimelineVirtualizer,
   } = useTimelineScrollLedgerController({
     alive,
-    clearPendingThreadAnchor: clearPendingThreadBackPaginationAnchor,
     automaticFill: roomAutomaticFill,
     estimateSize: estimateRoomTimelineItemSize,
     // Keep this function fresh. virtual-core uses its identity to rebuild
@@ -1105,8 +1112,7 @@ export function RoomTimeline({
     threadEvents,
     threadId,
     threadInitialRenderMode,
-    threadPaginatingBack: isThreadPaginationPending('backward'),
-    threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
+    threadLeadingKey: `${!!threadLoadError}|${showThreadLoadOlderMessages}`,
   });
   useThreadDiagnosticSnapshot({
     traceId: threadDebugTraceId,
@@ -1280,9 +1286,6 @@ export function RoomTimeline({
   const threadPrependViewport = useThreadPrependViewport({
     controller: threadBackViewport,
     scrollRef,
-    eventIndex: threadEventIndexMapRef,
-    capture: captureThreadPrepend,
-    clearCapture: clearThreadPrependCapture,
   });
   const scrollThreadEventIntoView = useCallback(
     (eventId: string) => {
@@ -1707,8 +1710,8 @@ export function RoomTimeline({
   // via the "Load Older Messages" chip or background band fills, and
   // upward momentum scrolling hard-stopped at the loaded-window edge
   // on slow connections. This effect fires the SAME chip pipeline
-  // (cache-first IDB page, network fallback, prepend anchor
-  // capture/restore) when the top of the rendered window comes within
+  // (cache-first IDB page, network fallback, commit at scroll rest)
+  // when the top of the rendered window comes within
   // THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS of the loaded edge.
   //
   // Guard inputs are STATE values, not refs (greptile P1 on PR #74):
@@ -2214,6 +2217,7 @@ export function RoomTimeline({
               >
                 {threadHeader && (
                   <ThreadTimelineHeader
+                    onResize={holdThreadBannerResize}
                     scrollRef={scrollRef}
                     expansionControl={messageFeature.expansionControl}
                   >
@@ -2235,34 +2239,38 @@ export function RoomTimeline({
                       <RoomIntro room={room} />
                     </div>
                   )}
-                {threadId && threadLoadError && (
-                  <MessageBase space={messageSpacing}>
-                    <TimelineDivider variant="Surface">
-                      <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                        <Text size="L400">
-                          {t('mindroomUi.threads.mindroomRoomTimeline.failedToLoadThisThread')}
-                        </Text>
-                      </Badge>
-                    </TimelineDivider>
-                  </MessageBase>
-                )}
-                {threadId && showThreadLoadOlderMessages && (
-                  <MessageBase space={messageSpacing}>
-                    <TimelineDivider variant="Surface">
-                      <Chip
-                        variant="SurfaceVariant"
-                        radii="Pill"
-                        before={<Icon size="50" src={Icons.ArrowTop} />}
-                        onClick={handleThreadPaginateBack}
-                      >
-                        <Text size="L400">
-                          {threadPaginatingBack
-                            ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
-                            : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
-                        </Text>
-                      </Chip>
-                    </TimelineDivider>
-                  </MessageBase>
+                {threadId && (
+                  <Box ref={threadLeadingRef} direction="Column">
+                    {threadLoadError && (
+                      <MessageBase space={messageSpacing}>
+                        <TimelineDivider variant="Surface">
+                          <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                            <Text size="L400">
+                              {t('mindroomUi.threads.mindroomRoomTimeline.failedToLoadThisThread')}
+                            </Text>
+                          </Badge>
+                        </TimelineDivider>
+                      </MessageBase>
+                    )}
+                    {showThreadLoadOlderMessages && (
+                      <MessageBase space={messageSpacing}>
+                        <TimelineDivider variant="Surface">
+                          <Chip
+                            variant="SurfaceVariant"
+                            radii="Pill"
+                            before={<Icon size="50" src={Icons.ArrowTop} />}
+                            onClick={handleThreadPaginateBack}
+                          >
+                            <Text size="L400">
+                              {threadPaginatingBack
+                                ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
+                                : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+                            </Text>
+                          </Chip>
+                        </TimelineDivider>
+                      </MessageBase>
+                    )}
+                  </Box>
                 )}
                 {threadId &&
                   threadInitialRenderMode === 'loading' &&

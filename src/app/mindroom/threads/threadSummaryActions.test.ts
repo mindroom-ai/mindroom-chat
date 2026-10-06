@@ -90,7 +90,11 @@ describe('thread summary actions', () => {
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
     accept({ event_id: '$summary' });
     await save;
-    expect(getStoredSummary()).toMatchObject({ summaryText: 'New title', isManual: true });
+    expect(getStoredSummary()).toMatchObject({
+      summaryText: 'New title',
+      isManual: true,
+      eventId: '$summary',
+    });
   });
 
   it('keeps the accepted manual title when an automatic notice arrives during send, including reload', async () => {

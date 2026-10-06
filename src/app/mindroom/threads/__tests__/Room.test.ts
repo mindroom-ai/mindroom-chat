@@ -2,11 +2,14 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import type { ClientConfig } from '../../../hooks/useClientConfig';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  canvasOpen?: boolean;
+  onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -50,7 +53,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       getMembers: () => roomState.members,
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
-      findEventById: () => roomState.routedEvent,
+      findEventById: (eventId: string) =>
+        roomState.loadedEvents.get(eventId) ?? roomState.routedEvent,
       on: (name: string, handler: (...args: unknown[]) => void) =>
         roomState.listeners.set(name, handler),
       removeListener: (name: string) => roomState.listeners.delete(name),
@@ -77,16 +81,27 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       callRoom: false,
       clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
+      canvasPanelProps: undefined as
+        | undefined
+        | {
+            event: MatrixEvent;
+            onClose: () => void;
+            expanded: boolean;
+            onToggleExpanded: () => void;
+          },
+      callEmbed: undefined as unknown,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
+      loadedEvents: new Map<string, MatrixEvent>(),
       roomViewProps: undefined as MockRoomViewProps | undefined,
       setPeopleDrawer: vi.fn(),
     },
   }));
 
 vi.mock('folds', () => ({
-  Box: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  Box: ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) =>
+    React.createElement('div', { style }, children),
   Line: () => React.createElement('div'),
   Overlay: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -109,7 +124,11 @@ vi.mock('jotai', async () => {
 
   return {
     ...actual,
-    useAtomValue: () => roomState.callChat,
+    useAtomValue: (atom: { mock?: string }) => {
+      if (atom?.mock === 'callEmbed') return roomState.callEmbed;
+      if (atom?.mock === 'callChat') return roomState.callChat;
+      return actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]);
+    },
   };
 });
 
@@ -212,6 +231,18 @@ vi.mock('../../computer/ComputerPanel', () => ({
   },
 }));
 
+vi.mock('../../canvas/RoomCanvasPanel', () => ({
+  RoomCanvasPanel: (props: {
+    event: MatrixEvent;
+    onClose: () => void;
+    expanded: boolean;
+    onToggleExpanded: () => void;
+  }) => {
+    roomState.canvasPanelProps = props;
+    return React.createElement('mock-canvas-panel');
+  },
+}));
+
 vi.mock('../useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
@@ -255,7 +286,8 @@ vi.mock('../MindroomCallChatView', () => ({
 }));
 
 vi.mock('../../../state/callEmbed', () => ({
-  callChatAtom: {},
+  callChatAtom: { mock: 'callChat' },
+  callEmbedAtom: { mock: 'callEmbed' },
 }));
 
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -283,9 +315,12 @@ describe('Room', () => {
     roomState.callRoom = false;
     roomState.clientConfig = { mindroom: {} };
     roomState.computerPanelProps = undefined;
+    roomState.canvasPanelProps = undefined;
+    roomState.callEmbed = undefined;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
+    roomState.loadedEvents.clear();
     roomState.roomViewProps = undefined;
     roomState.setPeopleDrawer.mockReset();
     navigateRoomMock.mockReset();
@@ -435,6 +470,343 @@ describe('Room', () => {
     vi.stubGlobal('document', undefined);
   });
 
+  it('opens a live canvas request beside the conversation and yields to Members and Computer', async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: {
+        computers: { apiUrl: 'https://computer.example.org' },
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+        canvas: { enabled: true },
+      },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    let serial = 0;
+    const emitAction = (action: string, extra: Record<string, unknown> = {}) => {
+      const event = new MatrixEvent({
+        event_id: `$canvas-${serial++}`,
+        room_id: room.roomId,
+        sender: '@mindroom_helper:example.org',
+        type: 'm.room.message',
+        origin_server_ts: Date.now(),
+        content: {
+          msgtype: 'm.notice',
+          body: 'Open this view.',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+          'io.mindroom.ui_action': {
+            version: 1,
+            action,
+            requester_id: '@alice:example.org',
+            agent_user_id: '@mindroom_helper:example.org',
+            room_id: room.roomId,
+            thread_id: '$thread',
+            ...extra,
+          },
+        },
+      });
+      roomState.mxListeners.get('Room.timeline')?.(event, room, false, false, { liveEvent: true });
+      return event;
+    };
+    const canvasOpen = () => JSON.stringify(renderer!.toJSON()).includes('mock-canvas-panel');
+    const canvas = { title: 'Choose', html: '<button>A</button>' };
+
+    let request: MatrixEvent | undefined;
+    await act(async () => {
+      request = emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps?.event).toBe(request);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
+    // Expanding gives the canvas the conversation's column; the conversation unmounts so it
+    // cannot mark messages read while out of view.
+    const conversationShown = () => JSON.stringify(renderer!.toJSON()).includes('mock-room-view');
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    expect(conversationShown()).toBe(true);
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(roomState.canvasPanelProps?.expanded).toBe(true);
+    expect(conversationShown()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(conversationShown()).toBe(true);
+    // Closing an expanded canvas brings the conversation back and resets Expand.
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(conversationShown()).toBe(true);
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    // Tablets follow the same rule as desktops.
+    roomState.screenSize = 'Tablet';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(conversationShown()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer!.update(React.createElement(Room)));
+
+    await act(async () => {
+      emitAction('open_panel', { panel: 'members' });
+    });
+    expect(canvasOpen()).toBe(false);
+
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(true);
+    await act(async () => {
+      emitAction('show_computer');
+    });
+    expect(canvasOpen()).toBe(false);
+    expect(roomState.roomViewProps?.computerOpen).toBe(true);
+
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(true);
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(canvasOpen()).toBe(false);
+
+    // A call's frames listen to window messages, so a call closes canvases and blocks new ones.
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(true);
+    roomState.callEmbed = { mock: 'active call' };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(canvasOpen()).toBe(false);
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(false);
+    roomState.callEmbed = undefined;
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(canvasOpen()).toBe(false);
+    await act(async () => renderer!.unmount());
+    vi.stubGlobal('document', undefined);
+  });
+
+  const renderCanvasRoom = async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: {
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+        canvas: { enabled: true },
+      },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const view = () => JSON.stringify(renderer!.toJSON());
+    return {
+      canvasOpen: () => view().includes('mock-canvas-panel'),
+      conversationShown: () => view().includes('mock-room-view'),
+      rerender: () => act(async () => renderer!.update(React.createElement(Room))),
+      showCanvas: () =>
+        act(async () => {
+          roomState.mxListeners.get('Room.timeline')?.(
+            new MatrixEvent({
+              event_id: '$canvas-room',
+              room_id: room.roomId,
+              sender: '@mindroom_helper:example.org',
+              type: 'm.room.message',
+              origin_server_ts: Date.now(),
+              content: {
+                msgtype: 'm.notice',
+                body: 'Open this view.',
+                'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+                'io.mindroom.ui_action': {
+                  version: 1,
+                  action: 'show_canvas',
+                  requester_id: '@alice:example.org',
+                  agent_user_id: '@mindroom_helper:example.org',
+                  room_id: room.roomId,
+                  thread_id: '$thread',
+                  canvas: { title: 'Choose', html: '<p></p>' },
+                },
+              },
+            }),
+            room,
+            false,
+            false,
+            { liveEvent: true }
+          );
+        }),
+      unmount: async () => {
+        await act(async () => renderer!.unmount());
+        vi.stubGlobal('document', undefined);
+      },
+    };
+  };
+
+  const listedCanvas = () =>
+    new MatrixEvent({
+      event_id: '$listed',
+      room_id: '!room:example.org',
+      sender: '@mindroom_helper:example.org',
+      type: 'm.room.message',
+      origin_server_ts: Date.now(),
+      content: {
+        msgtype: 'm.notice',
+        body: 'Open this view.',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+        'io.mindroom.ui_action': {
+          version: 1,
+          action: 'show_canvas',
+          requester_id: '@alice:example.org',
+          agent_user_id: '@mindroom_helper:example.org',
+          room_id: '!room:example.org',
+          thread_id: '$thread',
+          canvas: { title: 'Home', html: '<p></p>' },
+        },
+      },
+    });
+
+  it('opens the canvas the Canvases page asked for, filling the room', async () => {
+    const canvas = listedCanvas();
+    roomState.loadedEvents.set('$listed', canvas);
+    const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
+    requestCanvasOpen('!room:example.org', '$listed');
+    const room = await renderCanvasRoom();
+    await act(async () => undefined);
+    expect(room.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps?.event).toBe(canvas);
+    expect(roomState.canvasPanelProps?.expanded).toBe(true);
+    expect(room.conversationShown()).toBe(false);
+    await room.unmount();
+  });
+
+  it('does not expand a requested canvas that could not open during a call, when it opens later', async () => {
+    const canvas = listedCanvas();
+    roomState.loadedEvents.set('$listed', canvas);
+    roomState.callEmbed = { mock: 'active call' };
+    const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
+    requestCanvasOpen('!room:example.org', '$listed');
+    const view = await renderCanvasRoom();
+    await act(async () => undefined);
+    expect(view.canvasOpen()).toBe(false);
+    roomState.callEmbed = undefined;
+    await view.rerender();
+    expect(view.canvasOpen()).toBe(false);
+    // The agent shows it again after the call: it opens beside the conversation, as usual.
+    await act(async () => {
+      roomState.mxListeners.get('Room.timeline')?.(listedCanvas(), room, false, false, {
+        liveEvent: true,
+      });
+    });
+    expect(view.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    await view.unmount();
+  });
+
+  it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {
+    roomState.screenSize = 'Mobile';
+    const room = await renderCanvasRoom();
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(true);
+    // Rotating a phone to the tablet layout switches to the saved Members setting, which may be on.
+    roomState.screenSize = 'Tablet';
+    roomState.drawer = true;
+    await room.rerender();
+    expect(room.canvasOpen()).toBe(true);
+    // The header knows the canvas holds the side panel, and its Members button replaces it.
+    expect(roomState.roomViewProps?.canvasOpen).toBe(true);
+    await act(async () => roomState.roomViewProps?.onCanvasClose?.());
+    expect(room.canvasOpen()).toBe(false);
+    expect(roomState.roomViewProps?.canvasOpen).toBe(false);
+    await room.unmount();
+  });
+
+  it('unmounts the conversation under a canvas on phones', async () => {
+    roomState.screenSize = 'Mobile';
+    const room = await renderCanvasRoom();
+    expect(room.conversationShown()).toBe(true);
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(true);
+    expect(room.conversationShown()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(room.conversationShown()).toBe(true);
+    await room.unmount();
+  });
+
+  it('opens enabled canvases in the native apps', async () => {
+    const native = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const room = await renderCanvasRoom();
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps).toBeDefined();
+    native.mockRestore();
+    await room.unmount();
+  });
+
+  it('keeps canvas requests passive when the deployment has not enabled canvases', async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: { uiActions: { autoOpenFromHomeservers: ['example.org'] } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => {
+      roomState.mxListeners.get('Room.timeline')?.(
+        new MatrixEvent({
+          event_id: '$canvas-off',
+          room_id: room.roomId,
+          sender: '@mindroom_helper:example.org',
+          type: 'm.room.message',
+          origin_server_ts: Date.now(),
+          content: {
+            msgtype: 'm.notice',
+            body: 'Open this view.',
+            'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+            'io.mindroom.ui_action': {
+              version: 1,
+              action: 'show_canvas',
+              requester_id: '@alice:example.org',
+              agent_user_id: '@mindroom_helper:example.org',
+              room_id: room.roomId,
+              thread_id: '$thread',
+              canvas: { title: 'Choose', html: '<p></p>' },
+            },
+          },
+        }),
+        room,
+        false,
+        false,
+        { liveEvent: true }
+      );
+    });
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('mock-canvas-panel');
+    expect(roomState.canvasPanelProps).toBeUndefined();
+    await act(async () => renderer!.unmount());
+    vi.stubGlobal('document', undefined);
+  });
+
   it('opens the configured computer panel only for exact joined agent identities', async () => {
     roomState.clientConfig = {
       mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
@@ -529,6 +901,37 @@ describe('Room', () => {
       await act(async () => renderer!.unmount());
     }
   );
+
+  it('closes the computer and ignores old control callbacks when the service changes', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    const previousInteractionChange = roomState.computerPanelProps?.onInteractionChange;
+    await act(async () =>
+      previousInteractionChange?.({ locked: true, agentUserId: '@mindroom_helper:example.org' })
+    );
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://other-computer.example.org' } },
+    };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.panelDisposals).toBe(1);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.apiUrl).toBe('https://other-computer.example.org');
+    await act(async () =>
+      previousInteractionChange?.({ locked: true, agentUserId: '@mindroom_helper:example.org' })
+    );
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    await act(async () => renderer!.unmount());
+  });
 
   it('closes an open computer panel when the routed thread changes', async () => {
     roomState.clientConfig = {

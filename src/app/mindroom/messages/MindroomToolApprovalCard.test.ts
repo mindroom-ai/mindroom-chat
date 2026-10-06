@@ -7,6 +7,10 @@ import { ThreadApprovals } from './ThreadApprovalProvider';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
 const sendEventMock = vi.fn();
+vi.mock('../../components/page', () => ({
+  PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, header, children),
+}));
 vi.mock('./ThreadApprovals.css', () => ({
   ReceiptHeader: 'ReceiptHeader',
   ReceiptLabel: 'ReceiptLabel',

@@ -30,6 +30,8 @@ export function ApprovalDecisionControls({
   const submitted = action?.status === 'submitted';
   const disabled = !canSend || !capabilities.deny;
   const durations = canSend && showDurations ? eligibility.durations : [];
+  const scheduledScopes = canSend ? eligibility.scheduledScopes : [];
+  const schedule = record.approval.schedule;
   useEffect(() => {
     if (!eligibility.deny) {
       setDenying(false);
@@ -60,14 +62,23 @@ export function ApprovalDecisionControls({
               <Button
                 size="300"
                 variant="Success"
+                fill="Soft"
                 outlined
                 disabled={disabled}
                 onClick={() => {
-                  if (canSend) void submit(record, { status: 'approved' });
+                  if (!canSend) return;
+                  void submit(
+                    record,
+                    scheduledScopes.length > 0
+                      ? { status: 'approved', scheduledScope: 'exact_arguments' }
+                      : { status: 'approved' }
+                  );
                 }}
               >
                 <Text size="B300">
-                  {durations.length > 0
+                  {scheduledScopes.length > 0
+                    ? t('mindroomUi.messages.approvalDecisionControls.approveExactCall')
+                    : durations.length > 0
                     ? t('mindroomUi.messages.approvalDecisionControls.approveOnce')
                     : t('mindroomUi.messages.approvalDecisionControls.approve')}
                 </Text>
@@ -77,6 +88,7 @@ export function ApprovalDecisionControls({
               ref={denyTrigger}
               size="300"
               variant="Critical"
+              fill="Soft"
               outlined
               disabled={disabled}
               onClick={() => {
@@ -89,6 +101,34 @@ export function ApprovalDecisionControls({
               <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.deny')}</Text>
             </Button>
           </div>
+          {scheduledScopes.includes('any_arguments') && (
+            <div className={css.Stack}>
+              <div className={css.Actions}>
+                <Button
+                  type="button"
+                  size="300"
+                  variant="Warning"
+                  fill="Soft"
+                  outlined
+                  disabled={disabled}
+                  onClick={() => {
+                    if (canSend)
+                      void submit(record, { status: 'approved', scheduledScope: 'any_arguments' });
+                  }}
+                >
+                  <Text size="B300">
+                    {t('mindroomUi.messages.approvalDecisionControls.approveAnyArguments')}
+                  </Text>
+                </Button>
+              </div>
+              <Text size="T200">
+                {t('mindroomUi.messages.approvalDecisionControls.anyArgumentsWarning', {
+                  tool: record.approval.toolName,
+                  minutes: (schedule?.windowSeconds ?? 0) / 60,
+                })}
+              </Text>
+            </div>
+          )}
           {durations.length > 0 && (
             <div
               className={css.Actions}
@@ -100,6 +140,8 @@ export function ApprovalDecisionControls({
                   key={duration}
                   type="button"
                   size="300"
+                  variant="Secondary"
+                  fill="Soft"
                   outlined
                   disabled={disabled}
                   onClick={() => {
@@ -139,7 +181,14 @@ export function ApprovalDecisionControls({
             onChange={(event) => setReason(event.currentTarget.value)}
           />
           <div className={css.Actions}>
-            <Button type="submit" size="300" variant="Critical" disabled={disabled}>
+            <Button
+              type="submit"
+              size="300"
+              variant="Critical"
+              fill="Soft"
+              outlined
+              disabled={disabled}
+            >
               <Text size="B300">
                 {index === undefined
                   ? t('mindroomUi.messages.approvalDecisionControls.confirmDeny')
@@ -149,6 +198,8 @@ export function ApprovalDecisionControls({
             <Button
               type="button"
               size="300"
+              variant="Secondary"
+              fill="Soft"
               outlined
               disabled={disabled}
               onClick={() => {

@@ -102,11 +102,9 @@ export type ThreadPaginationSnapshot = Readonly<{
   forward: 'idle' | 'pending';
 }>;
 export type ThreadPrependViewportPort = {
-  begin(request: ThreadPaginationRequest, eventCount: number): boolean;
+  begin(request: ThreadPaginationRequest): boolean;
   waitForQuiescence(request: ThreadPaginationRequest): Promise<void>;
-  recapture(request: ThreadPaginationRequest, eventCount: number): boolean;
-  clear(request: ThreadPaginationRequest): void;
-  finish(request: ThreadPaginationRequest, committed: boolean): void;
+  finish(request: ThreadPaginationRequest): void;
 };
 export type ThreadPagination = {
   snapshot: ThreadPaginationSnapshot;

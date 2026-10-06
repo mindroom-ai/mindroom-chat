@@ -25,7 +25,6 @@ import {
   config,
   toRem,
 } from 'folds';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   DndContext,
   DragCancelEvent,
@@ -106,6 +105,10 @@ import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
+import {
+  makeNavScrollMemoryKey,
+  useNavVirtualizer,
+} from '../../../mindroom/sidebar/navScrollMemory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
 import { applyOrderOverride } from '../../../state/utils/applyOrderOverride';
@@ -451,6 +454,7 @@ export function Space() {
   const space = useSpace();
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollMemoryKey = makeNavScrollMemoryKey(mx.getSafeUserId(), space.roomId);
   const mDirects = useAtomValue(mDirectAtom);
   const allRooms = useAtomValue(navigationRoomsAtom);
   const allJoinedRooms = useMemo(() => new Set(allRooms), [allRooms]);
@@ -514,7 +518,7 @@ export function Space() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useNavVirtualizer(scrollMemoryKey, {
     count: orderedHierarchy.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 0,
@@ -729,7 +733,7 @@ export function Space() {
               })()}
             </NavCategory>
           </DndContext>
-          <ThreadNavCategory sidebarScrollRef={scrollRef} spaceId={space.roomId} />
+          <ThreadNavCategory spaceId={space.roomId} />
         </Box>
       </PageNavContent>
       <RecentlyOpenedNavCategory />

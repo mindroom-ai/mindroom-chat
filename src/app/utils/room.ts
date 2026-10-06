@@ -237,6 +237,16 @@ const isThreadOnlyRoomActivity = (room: Room, mEvent: MatrixEvent): boolean => {
   return isThreadReplyMessage || isThreadReplyRelatedEvent;
 };
 
+// A reference that is not a message (a canvas's shared state, poll answers) never shows, whatever it
+// refers to, and neither does one still encrypted or that cannot be decrypted, so an encrypted copy
+// never shows as a placeholder. A message that carries a reference shows like any other.
+export const isHiddenReferenceEvent = (mEvent: MatrixEvent): boolean =>
+  mEvent.getRelation()?.rel_type === RelationType.Reference &&
+  (mEvent.getType() !== MessageEvent.RoomMessage || mEvent.isDecryptionFailure());
+
+const isHiddenRoomActivity = (room: Room, mEvent: MatrixEvent): boolean =>
+  isHiddenReferenceEvent(mEvent) || isThreadOnlyRoomActivity(room, mEvent);
+
 export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const userId = mx.getUserId();
   if (!userId) return false;
@@ -244,7 +254,7 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const liveEvents = room.getLiveTimeline().getEvents();
   const latestVisibleMainEvent = [...liveEvents]
     .reverse()
-    .find((event) => !isThreadOnlyRoomActivity(room, event));
+    .find((event) => !isHiddenRoomActivity(room, event));
 
   if (latestVisibleMainEvent?.getSender() === userId) {
     return false;
@@ -255,7 +265,7 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
     const event = liveEvents[i];
     if (!event) return false;
     if (event.getId() === readUpToId) return false;
-    if (isThreadOnlyRoomActivity(room, event)) continue;
+    if (isHiddenRoomActivity(room, event)) continue;
     sawVisibleMainEvent = true;
     if (isNotificationEvent(event)) return true;
   }
@@ -355,7 +365,9 @@ export const getDirectRoomAvatarUrl = (
 };
 
 export const trimReplyFromBody = (body: string): string => {
-  const match = body.match(/^> <.+?> .+\n(>.*\n)*?\n/m);
+  // The fallback starts the body, and its sender ends at the first `> `: trying every later
+  // start or split backtracked quadratically on bodies with no closing blank line.
+  const match = body.match(/^> <.(?:(?!> ).)*> .+\n(?:>.*\n)*\n/);
   if (!match) return body;
   return body.slice(match[0].length);
 };
@@ -556,8 +568,10 @@ export const getEditedEvent = (
 
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
   const relations = edits?.getRelations() ?? [];
+  // The SDK aggregates edits from every sender; only the original sender's may
+  // pick the shown edit or supply its metadata fallbacks.
   const candidateEdits = [...relations, replacingEvent, serializedReplacement].filter(
-    (editEvent): editEvent is MatrixEvent => !!editEvent
+    (editEvent): editEvent is MatrixEvent => isSameSenderEditEvent(mEvent, editEvent)
   );
   const latestEdit = getLatestEdit(mEvent, candidateEdits);
   logEditDebug('getEditedEvent:resolved', {

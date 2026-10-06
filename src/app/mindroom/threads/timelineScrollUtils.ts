@@ -23,11 +23,6 @@ type ThreadAutoScrollOpts = {
   isTimelineAtLiveEnd: boolean;
 };
 
-export type ThreadPrependScrollAnchor = {
-  eventId: string;
-  top: number;
-};
-
 const ROOM_FOCUS_SCROLL_RETRY_MAX_ATTEMPTS = 10;
 export const ROOM_FOCUS_OBSERVER_IDLE_MS = 200;
 export const ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS = 2000;
@@ -379,29 +374,4 @@ export const isAnchorVisibleInScroll = (
   const anchorRect = anchor.getBoundingClientRect();
   const scrollRect = scroll.getBoundingClientRect();
   return anchorRect.top <= scrollRect.bottom + marginPx;
-};
-
-export const captureThreadPrependScrollAnchor = (
-  scrollRoot: HTMLElement | null | undefined
-): ThreadPrependScrollAnchor | undefined => {
-  if (!scrollRoot) return undefined;
-
-  const scrollRect = scrollRoot.getBoundingClientRect();
-  const messageItems = scrollRoot.querySelectorAll<HTMLElement>('[data-message-id]');
-  for (const item of messageItems) {
-    const eventId = item.getAttribute('data-message-id');
-    if (!eventId) continue;
-
-    const itemRect = item.getBoundingClientRect();
-    if (itemRect.bottom <= scrollRect.top || itemRect.top >= scrollRect.bottom) {
-      continue;
-    }
-
-    return {
-      eventId,
-      top: itemRect.top,
-    };
-  }
-
-  return undefined;
 };

@@ -148,7 +148,20 @@ type MeasurementScrollCorrectionHookDeps = {
   // The delta is folded into the offset ledger to preserve the owned
   // anchor: normally the viewport, or the latest event during room fill.
   onDroppedCorrection: (deltaPx: number) => void;
+  // The virtual-core offset at the top of the reader's view for a scroll
+  // offset, when sticky headers and content above the list (a thread's
+  // banner and Load Older) set them apart.
+  viewportTopOffset?: (scrollOffset: number) => number | undefined;
+  // virtual-core writes an applied correction at once, but reports rows where
+  // they were when React last rendered them: the caller sums the corrections
+  // applied since then and renders them before the browser paints.
+  onAppliedCorrection?: (deltaPx: number) => void;
+  unrenderedCorrectionPx?: () => number;
 };
+
+// virtual-core takes a scroll event within this of its own last write as
+// that write (a zoomed page rounds fractional offsets).
+const VIRTUAL_CORE_WRITE_TOLERANCE_PX = 1.5;
 
 // Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
 // timeline installs on its virtualizer instance. Extracted so the iOS
@@ -160,6 +173,9 @@ export const buildMeasurementScrollCorrectionHook =
     isIOSWebKitDevice,
     onDroppedCorrection,
     shouldDeferAutomaticFillCorrection,
+    viewportTopOffset,
+    onAppliedCorrection,
+    unrenderedCorrectionPx,
   }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number; index?: number },
@@ -167,16 +183,38 @@ export const buildMeasurementScrollCorrectionHook =
     instance: {
       scrollOffset: number | null;
       scrollDirection: 'forward' | 'backward' | null;
+      scrollElement?: { scrollTop: number } | null;
     }
   ): boolean => {
-    const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
+    // A programmatic scroll writes the element before its scroll event
+    // updates virtual-core's cached offset. Judge this resize against the
+    // live offset, and make virtual-core apply any adjustment from it: its
+    // applyScrollAdjustment (3.17.3) writes scrollOffset + its pending
+    // adjustments, so fold the difference into those (the iOS contract test
+    // pins this). scrollOffset stays as it is, or virtual-core would ignore
+    // the scroll event as already seen and lose its direction and reset.
+    // An upward write it has not seen yet is a backward scroll: applying a
+    // correction now would fold that move away before its event.
+    const cachedOffset = instance.scrollOffset ?? 0;
+    const liveOffset = instance.scrollElement?.scrollTop;
+    if (typeof liveOffset === 'number') {
+      (instance as unknown as { scrollAdjustments: number }).scrollAdjustments =
+        liveOffset - cachedOffset;
+    }
+    const scrollOffset = liveOffset ?? cachedOffset;
+    // Judge the row in the rendered layout, where the reader has not moved yet.
+    const renderedOffset = scrollOffset - (unrenderedCorrectionPx?.() ?? 0);
+    const itemFullyAboveViewport =
+      item.end <= (viewportTopOffset?.(renderedOffset) ?? renderedOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
     const apply =
       !automaticFillPredecessor &&
       shouldApplyMeasurementScrollCorrection({
         itemFullyAboveViewport,
         isIOSWebKitDevice: isIOSWebKitDevice(),
-        isScrollingBackward: instance.scrollDirection === 'backward',
+        isScrollingBackward:
+          instance.scrollDirection === 'backward' ||
+          scrollOffset < cachedOffset - VIRTUAL_CORE_WRITE_TOLERANCE_PX,
       });
     // During latest-open fill, visible predecessors also move the retained
     // latest anchor. Its own height cannot move its start and is excluded by
@@ -184,6 +222,7 @@ export const buildMeasurementScrollCorrectionHook =
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
+    if (apply) onAppliedCorrection?.(delta);
     return apply;
   };
 
@@ -594,6 +633,10 @@ export const pickPreferredThreadRenderEvent = (
   return incomingEvent;
 };
 
+/** Thread rows render oldest first; equal timestamps fall back to event ID. */
+export const compareThreadRenderOrder = (a: MatrixEvent, b: MatrixEvent): number =>
+  a.getTs() - b.getTs() || (a.getId() ?? '').localeCompare(b.getId() ?? '');
+
 export const mergeThreadRenderEvents = (
   existingEvents: MatrixEvent[],
   incomingEvents: MatrixEvent[],
@@ -813,11 +856,7 @@ export const mergeThreadRenderEvents = (
     countCacheProbe('mergeSawIncomingEditRelation');
   }
 
-  const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {
-    const tsDiff = a.getTs() - b.getTs();
-    if (tsDiff !== 0) return tsDiff;
-    return (a.getId() ?? '').localeCompare(b.getId() ?? '');
-  });
+  const merged = Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
 
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): observability at the
   // merge seam — bumps once per incoming m.replace whose target IS

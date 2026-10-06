@@ -1,6 +1,12 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { getEditedEvent, getLatestEdit, getLatestMessageContent, roomHaveUnread } from './room';
+import {
+  getEditedEvent,
+  getLatestEdit,
+  getLatestMessageContent,
+  roomHaveUnread,
+  trimReplyFromBody,
+} from './room';
 
 const makeMessageEvent = (
   eventId: string,
@@ -421,6 +427,36 @@ describe('room edit helpers', () => {
     expect(resolvedContent['io.mindroom.stream_status']).toBe('streaming');
     expect(resolvedContent['io.mindroom.tool_trace']).toEqual(traceMetadata);
   });
+
+  it("never takes MindRoom metadata from another sender's edit", () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@mindroom_research:example.org');
+    const agentEdit = makeEditEvent(
+      '$agent-edit',
+      2000,
+      '$target',
+      '@mindroom_research:example.org'
+    );
+    const foreignEdit = makeEditEvent('$foreign-edit', 3000, '$target', '@mallory:example.org');
+    foreignEdit.getContent()['m.new_content']['com.mindroom.message_extras'] = {
+      version: 1,
+      sections: [{ title: 'Sign in', content_type: 'text/plain', content: 'https://evil' }],
+    };
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({
+          getRelations: () => [agentEdit, foreignEdit],
+        }),
+      },
+    } as any;
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+    const resolvedContent = getLatestMessageContent(targetEvent, editedEvent);
+
+    expect(editedEvent).toBe(agentEdit);
+    expect(resolvedContent.body).toBe('$agent-edit');
+    expect(resolvedContent['com.mindroom.message_extras']).toBeUndefined();
+    expect(agentEdit.getContent()['m.new_content']['com.mindroom.message_extras']).toBeUndefined();
+  });
 });
 
 describe('roomHaveUnread', () => {
@@ -440,6 +476,56 @@ describe('roomHaveUnread', () => {
     expect(roomHaveUnread(mx, room)).toBe(false);
   });
 
+  it("ignores another member's reference, such as a canvas's shared state, even when its target is not loaded", () => {
+    const sharedState = new MatrixEvent({
+      content: { version: 1, 'm.relates_to': { rel_type: 'm.reference', event_id: '$canvas' } },
+      event_id: '$copy',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'io.mindroom.canvas_state',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [sharedState],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(false);
+  });
+
+  it("counts another member's message that carries a reference as unread", () => {
+    const message = new MatrixEvent({
+      content: {
+        body: 'hello',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.reference', event_id: '$target' },
+      },
+      event_id: '$message',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'm.room.message',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [message],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(true);
+  });
+
   it('keeps the unread fallback when the loaded main-timeline slice still contains visible activity', () => {
     const mainEvent = makeMessageEvent('$main', 1000, '@bob:example.org');
     const room = {
@@ -454,5 +540,26 @@ describe('roomHaveUnread', () => {
     } as any;
 
     expect(roomHaveUnread(mx, room)).toBe(true);
+  });
+});
+
+describe('trimReplyFromBody', () => {
+  it('strips a leading reply fallback without backtracking on unclosed ones', () => {
+    expect(trimReplyFromBody('> <@a:b> quoted\n> second line\n\nreply')).toBe('reply');
+    expect(trimReplyFromBody('> <@a:b> > nested > quote\n\nreply\n\nmore')).toBe('reply\n\nmore');
+    expect(trimReplyFromBody('> <@a:b> no blank line\n> quoted\nreply')).toBe(
+      '> <@a:b> no blank line\n> quoted\nreply'
+    );
+    // A quote later in the body is not a fallback; slicing its length off the start garbled it.
+    expect(trimReplyFromBody('hi\n> <@a:b> q\n\nr')).toBe('hi\n> <@a:b> q\n\nr');
+
+    // Every `> ` could end the sender and every line could start a fallback, and each try
+    // rescanned the rest, so these bodies froze every viewer.
+    const unclosedLine = `> <${'> '.repeat(20_000)}`;
+    const unclosedLines = '> <a> b\n'.repeat(8_000);
+    const start = performance.now();
+    expect(trimReplyFromBody(unclosedLine)).toBe(unclosedLine);
+    expect(trimReplyFromBody(unclosedLines)).toBe(unclosedLines);
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });

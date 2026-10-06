@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = resolve(repo, 'node_modules/@playwright/test/cli.js');
 const serialSpec =
-  /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
+  /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|thread-fast-scroll-overlap|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
 
 export function reportPassed({ stats, errors }, code, cases) {
   const total = ['expected', 'unexpected', 'flaky', 'skipped'].reduce(
@@ -288,7 +288,7 @@ async function main() {
     const source = readFileSync(resolve(repo, job.file), 'utf8');
     if (
       source.includes('/e2e/fixtures/') ||
-      /diagnostics-storage-fallback|cinny124-flight-recorder/.test(job.file)
+      /diagnostics-storage-fallback|cinny124-flight-recorder|device-pairing/.test(job.file)
     )
       env.E2E_BASE_URL = development;
     env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(output, 'report.json');

@@ -78,7 +78,7 @@ const mountThreadSession = async ({
 };
 
 it.each(['pending', 'missed'] as const)(
-  'renders SDK-loaded replies while thread bootstrap stalls and storage is %s',
+  "renders SDK-loaded replies while the open's history refresh stalls and storage is %s",
   async (storage) => {
     const support = Thread.hasServerSideSupport;
     const forwardSupport = Thread.hasServerSideFwdPaginationSupport;
@@ -123,33 +123,28 @@ it.each(['pending', 'missed'] as const)(
       thread.initialEventsFetched = true;
       thread.replayEvents = null;
       thread.timelineSet.addEventsToTimeline([root], true, false, thread.liveTimeline, null);
-      // Cold start on iOS: the context arrives late, the SDK then indexes every reply,
-      // and its trailing root request stays queued behind background thread fetches.
-      let finishContext!: () => void;
-      const context = new Promise<object>((resolve) => {
-        finishContext = () =>
-          resolve({
-            event: rawRoot,
-            state: [],
-            events_before: [],
-            events_after: [],
-            start: 's',
-            end: 'e',
-          });
+      // Cold start on iOS: the reply page arrives late, the SDK then indexes every reply,
+      // and the open's next history page stays queued behind background thread fetches.
+      let finishReplies!: () => void;
+      const replyPage = new Promise<object>((resolve) => {
+        finishReplies = () => resolve({ chunk: [...rawReplies].reverse(), next_batch: 'older' });
       });
-      const contextClient = mx as unknown as { getEventContext: () => Promise<object> };
-      vi.spyOn(contextClient, 'getEventContext').mockReturnValue(context);
-      vi.spyOn(mx, 'fetchRelations').mockImplementation(
-        async (_roomId, _eventId, _rel, _type, opts) =>
-          opts?.dir === Direction.Forward ? { chunk: rawReplies } : { chunk: [] }
-      );
-      vi.spyOn(mx, 'fetchRoomEvent').mockReturnValue(new Promise(() => {}));
+      vi.spyOn(mx, 'fetchRelations').mockImplementation(((
+        _roomId: string,
+        _eventId: string,
+        _rel: unknown,
+        _type: unknown,
+        opts?: { dir?: Direction; from?: string }
+      ) =>
+        opts?.dir === Direction.Backward && !opts.from
+          ? replyPage
+          : new Promise(() => {})) as never);
       if (storage === 'missed')
         vi.mocked(loadThreadCachedSnapshot).mockResolvedValueOnce(undefined);
 
       view = await mountThreadSession({ mx, room });
       expect(view.bodies()).not.toContain('Reply 2');
-      await act(async () => finishContext());
+      await act(async () => finishReplies());
 
       expect(thread.events.map((event) => event.getId()).sort()).toEqual([
         '$reply-2',
@@ -225,7 +220,6 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
       if (!thread) return new Promise(() => {});
       // getThreadTimeline fills the timeline directly, without Thread.NewReply.
       thread.timelineSet.addEventsToTimeline([reply], true, false, thread.liveTimeline, null);
-      if (mode === 'pending-bootstrap') return new Promise(() => {});
       return thread.liveTimeline;
     });
     vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(room.getLiveTimeline());
@@ -302,6 +296,11 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
         ).toBeTruthy();
       }
       if (mode === 'pending-bootstrap') {
+        // The open waits for the SDK's own initialization, whose root request never returns.
+        expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+        await act(async () => {
+          thread!.timelineSet.addEventsToTimeline([reply], true, false, thread!.liveTimeline, null);
+        });
         expect(sdkReady).toBe(false);
         expect(cacheHydrated).toBe(false);
       }

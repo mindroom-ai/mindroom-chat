@@ -45,7 +45,8 @@
  * homeserver can otherwise stream tokens indefinitely.
  */
 
-import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { RelationType } from 'matrix-js-sdk';
+import type { IEvent, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   createPreferLiveEventMapper,
   persistThreadEventCacheSnapshotCommitted,
@@ -58,6 +59,7 @@ import {
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
+import { hasLoadedFirstThreadPage } from '../threads/sdk/threadBootstrapSdk';
 import type { BackfillScheduler } from './backfillScheduler';
 import { captureCacheStoreWriteLease } from '../threads/cacheStore';
 import type { HydratedThreadCachePage } from '../threads/types';
@@ -66,6 +68,7 @@ import {
   collectExplicitRedactedEventIds,
   describeRawEventRevision,
   hasEventRevisionUpgrade,
+  isEditKnownToRevision,
   mergeEventRevisionDescriptors,
   type EventRevisionDescriptor,
 } from '../threads/eventRevision';
@@ -100,7 +103,7 @@ export type ScheduleReconcileArgs = {
    * Fired at most once per pass, and only when the reconciler actually
    * applied a repair. Receives the fully-mapped, prefer-live event
    * batch the reconciler fetched — the SAME set that was injected
-   * into the SDK thread model via `liveThread.addEvents(batch, false)`
+   * into the SDK thread model via `addFetchedEventsToThread`
    * on the SDK-side leg of the P5-GATE-FIX v3 dual-injection.
    *
    * Why the batch is handed to the callback (P5-GATE-FIX v3): the
@@ -254,6 +257,37 @@ const buildCachedRevisionMap = (
   return revisions;
 };
 
+const buildCachedSenderMap = (cachedPage: HydratedThreadCachePage): Map<string, string> => {
+  const senders = new Map<string, string>();
+  [cachedPage.rootEvent, ...cachedPage.events].forEach((rawEvent) => {
+    if (typeof rawEvent?.event_id === 'string' && typeof rawEvent.sender === 'string') {
+      senders.set(rawEvent.event_id, rawEvent.sender);
+    }
+  });
+  return senders;
+};
+
+/**
+ * The cache folds a same-sender edit into the target it stores and keeps no
+ * record of the edit itself, so such a fetched edit is only news when the
+ * cached target does not already carry it or a newer one.
+ */
+const isEditFoldedIntoCache = (
+  rawEvent: Partial<IEvent>,
+  cachedRevisions: ReadonlyMap<string, EventRevisionDescriptor>,
+  cachedSenders: ReadonlyMap<string, string>
+): boolean => {
+  const relation = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
+  if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string') {
+    return false;
+  }
+  const target = cachedRevisions.get(relation.event_id);
+  if (!target) return false;
+  return isEditKnownToRevision(rawEvent, cachedSenders.get(relation.event_id), target);
+};
+
 /**
  * True when the diff between the fetched page and the cache introduces
  * an in-place change: a new event id, a redaction whose target was in
@@ -264,6 +298,7 @@ const buildCachedRevisionMap = (
 const detectDivergence = (
   fetched: Partial<IEvent>[],
   cachedRevisions: Map<string, EventRevisionDescriptor>,
+  cachedSenders: ReadonlyMap<string, string>,
   cachedEmbeddedRelationEventIds: ReadonlySet<string>
 ): boolean => {
   // Redaction targets known to the fetch: divergent when the cache still
@@ -286,7 +321,10 @@ const detectDivergence = (
     // New event we did not have. Covers "message the server has that
     // we missed" and "reaction added while offline".
     const cachedRevision = cachedRevisions.get(id);
-    if (!cachedRevision) return true;
+    if (!cachedRevision) {
+      if (isEditFoldedIntoCache(rawEvent, cachedRevisions, cachedSenders)) continue;
+      return true;
+    }
 
     if (
       hasEventRevisionUpgrade(describeRawEventRevision(rawEvent), cachedRevision, 'authoritative')
@@ -295,6 +333,55 @@ const detectDivergence = (
     }
   }
   return false;
+};
+
+/**
+ * Add the fetched events (oldest first) to the SDK thread, which after an app
+ * open usually holds only its latest page. Events older than that page go in
+ * as backfill. Appending them would make the SDK announce each one as a new
+ * reply or a live event, and listeners that re-render or persist per event
+ * froze the app for seconds when a reconcile fetched a long thread's history.
+ * An unopened thread is left alone: loading its first page replaces its
+ * timeline and replays buffered relations as new events. The repaired batch
+ * still reaches the render through `onRepaired`.
+ *
+ * Only events newer than every event an older segment holds go to the live
+ * segment. After a sync gap, or once history is joined behind it, older
+ * segments hold part of the history; anything not newer than them belongs in
+ * or behind them, and prepending it to the live segment put it after newer
+ * events, which SDK pagination then linked into a segment cycle that froze the
+ * app. Pagination places that history, even when the fetched page does not
+ * overlap the older segments.
+ */
+const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
+  if (!hasLoadedFirstThreadPage(thread)) return;
+  const timelineSet = thread.getUnfilteredTimelineSet();
+  // Adding an event first applies a deferred sync-gap reset; apply it before
+  // reading the segments, so they are the ones the events go into.
+  if (events.some((event) => !timelineSet.eventIdToTimeline(event.getId()!))) {
+    void thread.flushPendingTimelineReset();
+  }
+  let newestElsewhereTs = -Infinity;
+  timelineSet.getTimelines().forEach((timeline) => {
+    if (timeline === thread.liveTimeline) return;
+    timeline.getEvents().forEach((event) => {
+      newestElsewhereTs = Math.max(newestElsewhereTs, event.getTs());
+    });
+  });
+  const liveEvents = events.filter((event) => event.getTs() > newestElsewhereTs);
+  const [earliest] = thread.events;
+  // A window that starts at the root already reaches the thread's start.
+  if (earliest !== undefined && earliest.getId() === thread.id) {
+    thread.addEvents(liveEvents, false);
+    return;
+  }
+  const newerIndex = earliest
+    ? liveEvents.findIndex((event) => event.getTs() >= earliest.getTs())
+    : -1;
+  const backfillCount = newerIndex === -1 ? liveEvents.length : newerIndex;
+  // Backfill is prepended one event at a time, so it goes in newest first.
+  if (backfillCount > 0) thread.addEvents(liveEvents.slice(0, backfillCount).reverse(), true);
+  if (backfillCount < liveEvents.length) thread.addEvents(liveEvents.slice(backfillCount), false);
 };
 
 /**
@@ -334,6 +421,7 @@ const runThreadReconcilePass = async ({
   const cachedRevisions = cachedPage
     ? buildCachedRevisionMap(cachedPage)
     : new Map<string, EventRevisionDescriptor>();
+  const cachedSenders = cachedPage ? buildCachedSenderMap(cachedPage) : new Map<string, string>();
   const cachedEmbeddedRelationEventIds = collectEmbeddedRelationEventIds(
     cachedPage
       ? [...(cachedPage.rootEvent ? [cachedPage.rootEvent] : []), ...cachedPage.events]
@@ -403,15 +491,18 @@ const runThreadReconcilePass = async ({
   // negative here proves the applier would be a no-op — skip both the
   // hydrate call and the onRepaired tick to keep the "cached was right"
   // path zero-cost.
-  const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
+  const diverged = detectDivergence(
+    allRaw,
+    cachedRevisions,
+    cachedSenders,
+    cachedEmbeddedRelationEventIds
+  );
 
   if (!diverged) {
     await scan.settleWithoutRepair();
     // 2026-07-10 missing-middle fix (upstream #118 review finding): a
     // shortfall-driven full drain that found no divergence still observed
-    // the server-confirmed start. Without recording it, the phantom-high-
-    // count shape (expected count above what the stream can ever yield)
-    // would re-drain on every open with nothing to show for it. Restricted
+    // the server-confirmed start, so record it with the snapshot. Restricted
     // to shortfall-driven multi-page passes so the ordinary single-page
     // "cached was right" open keeps its zero-persist D7 guarantee.
     if (serverConfirmedStart && pagedPastOverlapForShortfall && allMapped.length > 0) {
@@ -447,10 +538,10 @@ const runThreadReconcilePass = async ({
 
   // Inject the fetched tail before hydration so SDK thread indices and the
   // cache-first render fallback converge on the same MatrixEvent instances.
-  // `addEvents(..., false)` is idempotent by event id.
+  // `addEvents` is idempotent by event id.
   const liveThread = room.getThread(threadId);
   if (liveThread && allMapped.length > 0) {
-    liveThread.addEvents(allMapped, false);
+    addFetchedEventsToThread(liveThread, allMapped);
   } else if (!liveThread && allMapped.length > 0) {
     // Complete cache-first opens may intentionally have no SDK thread yet;
     // the repaired batch still reaches the render fallback via `onRepaired`.

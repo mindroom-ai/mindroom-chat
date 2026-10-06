@@ -178,16 +178,32 @@ export const runThreadOpenSdkBootstrap = async ({
       return false;
     }
   }
-  const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
-  const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-  if (!isMounted()) {
-    return false;
+  // Listed threads skip the SDK's root and first-page requests until they are shown or opened.
+  // A failed initialization leaves the thread uninitialized; the requests below still run.
+  const initializing = threadModel.initialize();
+  if (initializing) {
+    await to(initializing);
+    if (!isMounted()) return false;
   }
-  if (err) {
-    logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
-      error: err,
-      threadId,
-    });
+  const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
+  // Only a thread with no loaded events needs the root's context. The SDK prepends the context's
+  // reply page newest first to the segment holding the root (or a new one), so a segment that
+  // already holds those newer replies becomes its older neighbour; later history then cannot join
+  // the live segment. Backward pagination of the live segment reaches the root instead.
+  const contextRequested = loadedThreadTimelineSet
+    .getTimelines()
+    .every((timeline) => timeline.getEvents().length === 0);
+  if (contextRequested) {
+    const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
+    if (!isMounted()) {
+      return false;
+    }
+    if (err) {
+      logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
+        error: err,
+        threadId,
+      });
+    }
   }
 
   let firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
@@ -219,6 +235,7 @@ export const runThreadOpenSdkBootstrap = async ({
   }
 
   logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-ready', {
+    contextRequested,
     rootPresent: !!threadModel.rootEvent,
     sdkEventCount: getThreadTimelineEvents(threadModel).length,
     threadId,

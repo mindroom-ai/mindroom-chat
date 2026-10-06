@@ -3,6 +3,16 @@
     "label": "Scrollable table",
     "scrollHint": "Scroll horizontally"
   },
+  "messageCodeBlock": {
+    "actions": "Code block actions",
+    "code": "Code",
+    "language": "Language: {{language}}",
+    "copy": "Copy code",
+    "copied": "Copied",
+    "wrap": "Wrap lines",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " changed room name"
@@ -52,12 +62,25 @@
     },
     "general": {
       "title": "General",
+      "computers": {
+        "sectionTitle": "Computers",
+        "apiUrl": "Computer service URL",
+        "description": "Choose a trusted MindRoom backend; it receives a short-lived sign-in token. Saved on this device. Leave blank to turn computers off.",
+        "save": "Save computer service",
+        "reset": "Use app default",
+        "invalidUrl": "Enter an origin without credentials, a path, query, or fragment. Use HTTPS, or HTTP with localhost or a private LAN IP address.",
+        "httpNotice": "HTTP does not encrypt your sign-in or computer traffic. Use it only on a trusted local network.",
+        "saveFailed": "Could not save the computer service on this device.",
+        "saved": "Computer service saved."
+      },
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",
         "simpleModeDescription": "Hide advanced features like the command palette and thread filters. Synced across your devices.",
         "expandLongMessagesByDefault": "Expand long messages by default",
         "expandLongMessagesByDefaultDescription": "Show long messages in full instead of folding them behind Show full message. Synced across your devices.",
+        "showCanvasesInSidebar": "Show Canvases in the sidebar",
+        "showCanvasesInSidebarDescription": "Show a Canvases button for the pages your agents made, once you have one. Synced across your devices.",
         "saveFailed": "Could not save the change. Check your connection and try again."
       },
       "language": {
@@ -132,6 +155,7 @@
     "home": "Home",
     "directMessages": "Direct Messages",
     "threads": "Threads",
+    "canvases": "Canvases",
     "inbox": "Inbox",
     "exploreCommunity": "Explore Community",
     "addSpace": "Add Space",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "Your browser does not support WebRTC.",
         "endCurrentCall": "End your current call first.",
         "failedToStart": "Failed to start the call."
+      },
+      "agentCallHeaderButton": {
+        "call": "Call an agent",
+        "callAgent": "Call {{name}}",
+        "chooseAgent": "Choose an agent to call",
+        "close": "Close"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "Cancel",
         "autoApproveMinutes_one": "Auto-approve for {{count}} minute",
         "autoApproveMinutes_other": "Auto-approve for {{count}} minutes",
-        "denyCallReasonOptional": "Reason for denying call {{number}} (optional)"
+        "denyCallReasonOptional": "Reason for denying call {{number}} (optional)",
+        "approveExactCall": "Approve this exact call",
+        "approveAnyArguments": "Approve any arguments",
+        "anyArgumentsWarning": "Any arguments lets the agent make one {{tool}} call with whatever it decides, within {{minutes}} minutes of the scheduled time."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Auto-approval active",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "Original fixed expiry: {{timestamp}}",
         "toolAndServer": "Tool: {{tool}} · Server: {{server}}",
         "tool": "Tool: {{tool}}",
-        "reason": "Reason: {{reason}}"
+        "reason": "Reason: {{reason}}",
+        "approvedWhenScheduledByAt": "Approved when scheduled by {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approved when scheduled by {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Scheduled for {{timestamp}}",
+        "approvedExactArguments": "Approved for these exact arguments",
+        "approvedAnyArguments": "Approved for any arguments to this tool"
       },
       "approvalReviewCall": {
         "pending": "pending",
@@ -2480,6 +2520,12 @@
         "copyText": "Copy Text",
         "copyTextWithToolCalls": "Copy Text with Tool Calls",
         "copyLink": "Copy Link"
+      },
+      "bugReport": {
+        "report": "Report a bug",
+        "download": "Download bug report",
+        "sending": "Sending report…",
+        "failed": "Couldn't send the report. Try again."
       },
       "messageInspectionActions": {
         "readReceipts": "Read Receipts",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "Message failed to send",
         "notSent": "Not sent"
       },
+      "failedSendActions": {
+        "retry": "Retry",
+        "delete": "Delete"
+      },
       "aiRunDisplay": {
         "inputTokens": "in {{formattedCount}}",
         "outputTokens": "out {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "No threads"
       },
       "compactThreadCard": {
-        "streaming": "streaming",
-        "unreadMessages": "Unread messages",
-        "unread": "unread",
-        "threadStatus": "Thread status: {{status}}",
-        "lastActivity": "Last activity {{time}}"
+        "streaming": "streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "View computer",
       "openMembers": "Open Members",
+      "openCanvas": "Open panel",
+      "canvasDisabled": "Interactive panels are turned off in this app.",
+      "canvasDuringCall": "End the call to open interactive panels.",
       "computerUnavailable": "This agent’s computer is unavailable.",
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",
       "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
+    },
+    "canvas": {
+      "panelLabel": "Canvas panel",
+      "fromAgent": "Interactive panel from {{agent}}",
+      "expand": "Expand canvas",
+      "close": "Close canvas",
+      "resize": "Resize canvas",
+      "updated": "{{agent}} updated this panel.",
+      "loadUpdate": "Load update",
+      "version": "Version {{current}} of {{total}}",
+      "previousVersion": "Previous version",
+      "nextVersion": "Next version",
+      "earlierVersion": "This is an earlier version.",
+      "showLatest": "Show latest",
+      "loading": "Loading panel…",
+      "loadFailed": "This panel could not be loaded.",
+      "retry": "Retry",
+      "escaped": "This panel tried to leave its sandbox and was stopped.",
+      "reload": "Reload panel",
+      "pageError": "This page reported an error.",
+      "tellAgent": "Tell {{agent}}",
+      "errorsSent": "Sent the errors to {{agent}}.",
+      "errorsNotSent": "Could not send the errors to {{agent}}.",
+      "sendTo": "Send to {{agent}}:",
+      "changeAnswer": "To change your answer, discard this one first.",
+      "data": "Data",
+      "send": "Send",
+      "discard": "Discard",
+      "disclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this panel.",
+      "sharedNotice": "Saved in this room: {{agent}} and others here can read what you enter.",
+      "sending": "Sending to {{agent}}…",
+      "sent": "Sent to {{agent}}: {{label}}",
+      "sendFailed": "Could not send your response. Try again.",
+      "receiptData": "Show the data sent to the agent",
+      "unlabeled": "Submitted",
+      "notSent": "Not sent to {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Canvases",
+      "note": "Canvases your agents made for you that this browser has seen. Pinned ones show on all your devices.",
+      "empty": "No canvases yet. When an agent shows you one, it is listed here.",
+      "pinned": "Pinned",
+      "canvas": "Canvas",
+      "thread": "Thread",
+      "agent": "Agent",
+      "room": "Room",
+      "updated": "Updated",
+      "created": "Created",
+      "pin": "Pin {{title}}",
+      "unpin": "Unpin {{title}}",
+      "shared": "Shared with agent",
+      "saved": "Has your values"
     }
   },
   "roomSchedules": {

@@ -32,11 +32,15 @@ import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
+import { usePendingThreadRoot } from './usePendingThreadRoot';
+import { isFailedLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 
 import { useMindroomSyncEngine } from '../engine/engineContext';
+import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 
 import * as overlay from './RoomOverlay.css';
 
@@ -76,6 +80,8 @@ export function RoomView({
   computerAvailable = false,
   computerOpen = false,
   onComputerToggle,
+  canvasOpen = false,
+  onCanvasClose,
   hasMindroomAgents = true,
   joinRequestCount = 0,
   eventId,
@@ -87,6 +93,8 @@ export function RoomView({
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
+  canvasOpen?: boolean;
+  onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -100,7 +108,7 @@ export function RoomView({
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const [approvalQueueHost, setApprovalQueueHost] = useState<HTMLDivElement | null>(null);
-  const compactRoomScrollStateRef = useRef(new Map<string, number>());
+  const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
@@ -122,6 +130,7 @@ export function RoomView({
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
+    handleThreadRootDeleted,
     handleRemoveTag,
     handleReset,
     handleRoomMessageSent,
@@ -160,6 +169,12 @@ export function RoomView({
     return () => observer.disconnect();
   }, [roomId, effectiveThreadId]);
   const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
+  const pendingRootEvent = usePendingThreadRoot(
+    room,
+    pendingThreadRoot ? effectiveThreadId : undefined,
+    handleThreadRootDeleted
+  );
+  const failedRootEvent = isFailedLocalEchoEvent(pendingRootEvent) ? pendingRootEvent : undefined;
 
   useKeyDown(
     window,
@@ -193,6 +208,8 @@ export function RoomView({
             computerAvailable={computerAvailable}
             computerOpen={computerOpen}
             onComputerToggle={onComputerToggle}
+            canvasOpen={canvasOpen}
+            onCanvasClose={onCanvasClose}
             threadId={effectiveThreadId}
             joinRequestCount={joinRequestCount}
           />
@@ -251,7 +268,18 @@ export function RoomView({
         <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
-          {tombstoneEvent ? (
+          {failedRootEvent ? (
+            <RoomInputPlaceholder
+              style={{
+                padding: config.space.S200,
+                paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+              }}
+              alignItems="Center"
+              justifyContent="Center"
+            >
+              <FailedSendActions room={room} event={failedRootEvent} />
+            </RoomInputPlaceholder>
+          ) : tombstoneEvent ? (
             <RoomTombstone
               roomId={roomId}
               body={tombstoneEvent.getContent().body}

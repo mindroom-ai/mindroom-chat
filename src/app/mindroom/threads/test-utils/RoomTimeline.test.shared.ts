@@ -22,6 +22,7 @@ import {
   type MindroomSyncEngine,
 } from '../../engine';
 import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
+import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 
 const {
   passthrough,
@@ -150,6 +151,9 @@ const {
     optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
+    // The row at the reader's top. Like virtual-core's offset lookup, it
+    // follows that row's index across renders; without it there is none.
+    firstVisibleKey: undefined as unknown,
     // The mock instance of the current test tree (mutant audit 2026-07-07:
     // the drop-path pins call the component-installed
     // shouldAdjustScrollPositionOnItemSizeChange hook directly).
@@ -439,6 +443,17 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
+        getVirtualItemForOffset: (offset: number) => {
+          const opts = optionsRef.current;
+          const { firstVisibleKey } = roomTimelineVirtualizerState;
+          if (firstVisibleKey === undefined) return undefined;
+          for (let index = 0; index < opts.count; index += 1) {
+            if ((opts.getItemKey?.(index) ?? index) === firstVisibleKey) {
+              return { index, start: offset };
+            }
+          }
+          return undefined;
+        },
         getTotalSize: () => {
           const opts = optionsRef.current;
           const estimatedSize = opts.estimateSize?.() ?? 100;
@@ -468,6 +483,12 @@ vi.mock('@tanstack/react-virtual', () => {
         },
         measureElement: (node: Element | null) =>
           roomTimelineVirtualizerState.measureElementMock(node),
+        // virtual-core reads the row index from `data-index`; node mocks have none.
+        indexFromElement: (node: Element) => {
+          const value = node.getAttribute?.('data-index');
+          const index = value == null ? Number.NaN : Number(value);
+          return Number.isInteger(index) ? index : -1;
+        },
         scrollToIndex: (...args: unknown[]) =>
           roomTimelineVirtualizerState.scrollToIndexMock(...args),
         scrollToOffset: (...args: unknown[]) =>
@@ -596,6 +617,7 @@ vi.mock('../../../utils/room', () => ({
   getLatestEditableEvt: () => undefined,
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
+  isHiddenReferenceEvent: () => false,
   isMembershipChanged: isMembershipChangedMock,
   logEditDebug: vi.fn(),
   reactionOrEditEvent: reactionOrEditEventMock,
@@ -1274,6 +1296,8 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
 
 vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
+vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '0px' }));
+
 const makeEvent = (
   eventId: string,
   opts: {
@@ -1426,6 +1450,7 @@ const makeRoom = ({
           timeline.setPaginationToken(token, Direction.Backward);
         },
         getLiveTimeline: () => threadLiveTimeline,
+        getTimelines: () => [threadLiveTimeline],
         getTimelineForEvent: (eventId: string) =>
           threadEvents.some((event) => event.getId() === eventId) ? threadLiveTimeline : undefined,
       };
@@ -1435,6 +1460,7 @@ const makeRoom = ({
         rootEvent,
         events: threadEvents,
         initialEventsFetched: false,
+        initialize: vi.fn(() => undefined),
         replayEvents: [] as ReturnType<typeof makeEvent>[] | null,
         timeline: threadEvents,
         get length() {
@@ -1558,6 +1584,7 @@ beforeEach(() => {
   roomTimelineVirtualizerState.lastOptions = undefined;
   roomTimelineVirtualizerState.virtualIndexes = undefined;
   roomTimelineVirtualizerState.totalSize = undefined;
+  roomTimelineVirtualizerState.firstVisibleKey = undefined;
   roomTimelineVirtualizerState.measureElementMock.mockClear();
   roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
@@ -1724,7 +1751,7 @@ const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
   const roomInputRef = createRef<HTMLElement>();
-  const compactRoomScrollStateRef = { current: new Map<string, number>() };
+  const compactRoomScrollStateRef: { current: ScrollAnchorMemory } = { current: new Map() };
   const editor = {} as Editor;
   const defaultSummaryMap = new Map();
   const defaultOnStoreThreadSummary = vi.fn();

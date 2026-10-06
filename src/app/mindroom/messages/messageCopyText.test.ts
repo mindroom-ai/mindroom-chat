@@ -300,6 +300,20 @@ describe('getMessageCopyTexts plain copy', () => {
     ).toBe('Let me check.\n\nIt is sunny.');
   });
 
+  it('collapses wide gaps before markers to one blank line', () => {
+    expect(
+      copyText(
+        'Understood.\n\n\n\n\n🔧 `shell` [1]\n\nGot it.\n\n  \n\n\n\n🔧 `shell` [2]\n\n\n\nI found it.'
+      )
+    ).toBe('Understood.\n\nGot it.\n\nI found it.');
+    expect(
+      copyTexts({
+        body: 'Understood.\n\n\n\n\n🔧 `shell` [1]\n\nGot it.',
+        formattedBody: '<p>Understood.</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>Got it.</p>\n',
+      }).text
+    ).toBe('Understood.\n\nGot it.');
+  });
+
   it('removes leading and trailing markers', () => {
     expect(copyText('🔧 `a` [1]\n\nAnswer\n\n🔧 `b` [2]\n')).toBe('Answer');
   });
@@ -427,6 +441,14 @@ describe('getMessageCopyTexts tool-call copy', () => {
         '```',
       ].join('\n')
     );
+  });
+
+  it('collapses wide gaps before tool calls to one blank line', () => {
+    expect(
+      copy('Understood.\n\n\n\n\n🔧 `shell` [1]\n\n\n\nGot it.', [
+        { type: 'tool_call_completed', tool_name: 'shell' },
+      ]).textWithToolCalls
+    ).toBe('Understood.\n\n**🔧 Tool call 1**\n\n```\nshell\n```\n\nGot it.');
   });
 
   it('keeps pending markers whose event has no type marked as running', () => {

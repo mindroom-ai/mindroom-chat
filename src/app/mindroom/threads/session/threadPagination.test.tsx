@@ -39,13 +39,6 @@ const page = (id: string): Page => ({
 });
 const scrollRoot = {
   getBoundingClientRect: () => ({ top: 100, bottom: 500 }),
-  querySelectorAll: () => [
-    {
-      getAttribute: () => '$anchor',
-      getBoundingClientRect: () => ({ top: 140, bottom: 180 }),
-      parentElement: null,
-    },
-  ],
 } as unknown as HTMLDivElement;
 
 const fixture = (renderedEvents: MatrixEvent[] = []) => {
@@ -54,12 +47,6 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
   const room = new Room('!room:example.org', mx, '@user:example.org');
   const otherRoom = new Room('!other:example.org', mx, '@user:example.org');
   const order: string[] = [];
-  const capture = vi.fn(() => {
-    order.push('capture');
-  });
-  const clearCapture = vi.fn(() => {
-    order.push('clear');
-  });
   const persist = vi.fn(() => {
     order.push('persist');
   });
@@ -89,12 +76,10 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
   room.getLiveTimeline().setPaginationToken('older', Direction.Backward);
   room.getLiveTimeline().setPaginationToken('newer', Direction.Forward);
   let withThread = false;
-  let visible = true;
   const paginate = vi.spyOn(mx, 'paginateEventTimeline');
   let result: ThreadPagination & {
     paginateBack(): Promise<void>;
     pending: boolean;
-    anchor?: string;
     commands: ThreadSessionCommands;
   };
   let renderer: ReactTestRenderer;
@@ -108,15 +93,7 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
       eventId,
     });
     const scrollRef = useRef(scrollRoot);
-    scrollRef.current = visible ? scrollRoot : { ...scrollRoot, querySelectorAll: () => [] };
-    const eventIndex = useRef(new Map([['$anchor', 0]]));
-    const viewport = useThreadPrependViewport({
-      controller: back,
-      scrollRef,
-      eventIndex,
-      capture,
-      clearCapture,
-    });
+    const viewport = useThreadPrependViewport({ controller: back, scrollRef });
     const { isPending } = pagination;
     useEffect(() => {
       if (!isPending('backward')) back.reset();
@@ -136,9 +113,6 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
       ...pagination,
       commands: session.commands,
       pending: pagination.snapshot.backward === 'pending',
-      get anchor() {
-        return back.getPendingAnchorEventId();
-      },
     };
     return null;
   };
@@ -156,15 +130,9 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
     room,
     thread,
     order,
-    capture,
-    clearCapture,
     paginate,
     useNetwork: () => {
       withThread = true;
-      rerender('$a');
-    },
-    hideRows: () => {
-      visible = false;
       rerender('$a');
     },
     unmount: () => act(() => renderer.unmount()),
@@ -293,7 +261,7 @@ describe('thread pagination request ownership', () => {
     }
   });
 
-  it('old backward completion cannot release replacement pending state or clear its anchor', async () => {
+  it('old backward completion cannot release replacement pending state', async () => {
     const a = deferred<Page>();
     const b = deferred<Page>();
     vi.mocked(loadThreadCachedPaginationSnapshot)
@@ -309,15 +277,12 @@ describe('thread pagination request ownership', () => {
     act(() => {
       requestB = f.current().paginateBack();
     });
-    const clearsBeforeOld = f.clearCapture.mock.calls.length;
     await act(async () => {
       a.resolve(page('$old'));
       await requestA;
     });
-    expect(f.clearCapture).toHaveBeenCalledTimes(clearsBeforeOld);
     expect(f.current().pending).toBe(true);
     expect(f.current().isPending('backward')).toBe(true);
-    expect(f.current().anchor).toBe('$anchor');
     await act(async () => {
       b.resolve(page('$new'));
       await requestB;
@@ -387,7 +352,7 @@ describe('pagination boundaries and commit ordering', () => {
     expect(f.current().snapshot.backward).toBe('idle');
     f.unmount();
   });
-  it('keeps same-thread pagination and its capture across event-target-only opens', async () => {
+  it('keeps same-thread pagination across event-target-only opens', async () => {
     const cached = deferred<Page>();
     vi.mocked(loadThreadCachedPaginationSnapshot).mockReturnValueOnce(cached.promise);
     const f = fixture();
@@ -399,7 +364,6 @@ describe('pagination boundaries and commit ordering', () => {
     f.rerender('$a', f.room.roomId, '$target');
     expect(f.current().commands.isCurrent(lease)).toBe(true);
     expect(f.current().snapshot.backward).toBe('pending');
-    expect(f.current().anchor).toBe('$anchor');
     const cachedPage = page('$cached');
     await act(async () => {
       cached.resolve(cachedPage);
@@ -410,7 +374,7 @@ describe('pagination boundaries and commit ordering', () => {
     expect(f.current().snapshot.backward).toBe('idle');
     f.unmount();
   });
-  it('rejects duplicate backward calls synchronously without clearing the first capture', async () => {
+  it('rejects duplicate backward calls synchronously', async () => {
     const cached = deferred<Page>();
     vi.mocked(loadThreadCachedPaginationSnapshot).mockReturnValueOnce(cached.promise);
     const f = fixture();
@@ -418,14 +382,10 @@ describe('pagination boundaries and commit ordering', () => {
     act(() => {
       first = f.current().paginateBack();
     });
-    const captureCount = f.capture.mock.calls.length;
-    const clearCount = f.clearCapture.mock.calls.length;
     await act(async () => {
       await f.current().paginateBack();
     });
     expect(loadThreadCachedPaginationSnapshot).toHaveBeenCalledTimes(1);
-    expect(f.capture).toHaveBeenCalledTimes(captureCount);
-    expect(f.clearCapture).toHaveBeenCalledTimes(clearCount);
     expect(f.current().isPending('backward')).toBe(true);
     await act(async () => {
       cached.resolve(page('$cached'));
@@ -433,7 +393,7 @@ describe('pagination boundaries and commit ordering', () => {
     });
     f.unmount();
   });
-  it('does not publish or recapture after unmount while quiescent', async () => {
+  it('does not publish after unmount while quiescent', async () => {
     const quiet = deferred<void>();
     vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue(page('$cached'));
     vi.mocked(waitForScrollQuiescence).mockReturnValue(quiet.promise);
@@ -444,15 +404,12 @@ describe('pagination boundaries and commit ordering', () => {
     });
     expect(waitForScrollQuiescence).toHaveBeenCalledTimes(1);
     f.unmount();
-    const clears = f.clearCapture.mock.calls.length;
     await act(async () => {
       quiet.resolve();
       await request;
     });
     expect(f.runtime.render.append).not.toHaveBeenCalled();
     expect(f.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
-    expect(f.capture).toHaveBeenCalledTimes(1);
-    expect(f.clearCapture).toHaveBeenCalledTimes(clears);
     expect(f.current().isPending('backward')).toBe(false);
   });
   it('keeps replacement backward state when old quiescence resolves', async () => {
@@ -472,14 +429,11 @@ describe('pagination boundaries and commit ordering', () => {
     act(() => {
       replacement = f.current().paginateBack();
     });
-    const clears = f.clearCapture.mock.calls.length;
     await act(async () => {
       quiet.resolve();
       await old;
     });
     expect(f.current().snapshot.backward).toBe('pending');
-    expect(f.current().anchor).toBe('$anchor');
-    expect(f.clearCapture).toHaveBeenCalledTimes(clears);
     expect(f.runtime.render.append).not.toHaveBeenCalled();
     await act(async () => {
       next.resolve(page('$new'));
@@ -553,7 +507,7 @@ describe('pagination boundaries and commit ordering', () => {
     expect(waitForScrollQuiescence).not.toHaveBeenCalled();
     f.unmount();
   });
-  it('cache commit waits for quiescence, recaptures, then appends the exact cached events', async () => {
+  it('cache commit waits for quiescence, then appends the exact cached events', async () => {
     const quiet = deferred<void>();
     const cached = page('$cached');
     vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue(cached);
@@ -567,27 +521,25 @@ describe('pagination boundaries and commit ordering', () => {
     await act(async () => {
       request = f.current().paginateBack();
     });
-    expect(f.order).toEqual(['clear', 'capture', 'wait']);
+    expect(f.order).toEqual(['wait']);
     await act(async () => {
       quiet.resolve();
       await request;
     });
-    expect(f.order).toEqual(['clear', 'capture', 'wait', 'capture', 'append', 'invalidate']);
+    expect(f.order).toEqual(['wait', 'append', 'invalidate']);
     expect(vi.mocked(f.runtime.render.append).mock.calls[0][1]).toBe(cached.events);
     expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
-    expect(f.current().anchor).toBe('$anchor');
     f.unmount();
   });
   it.each(['cache', 'network'] as const)(
-    '%s with no anchor uses six bounded recaptures and its distinct commit policy',
+    '%s pages commit once scrolling rests, whether or not a row is visible',
     async (source) => {
-      vi.useFakeTimers();
       vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue(
         source === 'cache' ? page('$cached') : { status: 'cache-miss' }
       );
       const f = fixture();
       if (source === 'network') f.useNetwork();
-      f.hideRows();
+      f.order.length = 0;
       f.paginate.mockImplementation(async () => {
         f.order.push('sdk');
         return true;
@@ -595,41 +547,18 @@ describe('pagination boundaries and commit ordering', () => {
       vi.mocked(waitForScrollQuiescence).mockImplementation(async () => {
         f.order.push('wait');
       });
-      let request!: Promise<void>;
-      let finished = false;
       await act(async () => {
-        request = f
-          .current()
-          .paginateBack()
-          .then(() => {
-            finished = true;
-          });
+        await f.current().paginateBack();
       });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(299);
-      });
-      expect(finished).toBe(false);
-      expect(f.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-        await request;
-      });
-      expect(finished).toBe(true);
-      expect(f.current().anchor).toBeUndefined();
       expect(f.current().snapshot.backward).toBe('idle');
+      expect(f.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
       if (source === 'cache') {
-        expect(f.runtime.render.append).not.toHaveBeenCalled();
-        expect(f.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
-        expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
-        // Begin, each of six failed recaptures, and failed finish clear their own ledger capture.
-        expect(f.clearCapture).toHaveBeenCalledTimes(8);
+        expect(f.order).toEqual(['wait', 'append', 'invalidate']);
       } else {
         expect(f.order.indexOf('sdk')).toBeLessThan(f.order.indexOf('persist'));
         expect(f.order.indexOf('persist')).toBeLessThan(f.order.indexOf('wait'));
         expect(f.order.indexOf('wait')).toBeLessThan(f.order.indexOf('invalidate'));
-        expect(f.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
         expect(f.runtime.render.append).not.toHaveBeenCalled();
-        expect(f.clearCapture).toHaveBeenCalledTimes(8);
       }
       f.unmount();
     }

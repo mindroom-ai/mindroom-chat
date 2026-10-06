@@ -155,3 +155,18 @@ describe('profile chip clipboard feedback', () => {
     renderer.unmount();
   });
 });
+
+describe('server chip', () => {
+  it('opens the server in a new tab without an opener', () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    const renderer = create(<ServerChip server="example.org" />);
+
+    act(() => {
+      getMenuButton(renderer, 'Open in Browser').props.onClick();
+    });
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.org', '_blank', 'noopener,noreferrer');
+    openSpy.mockRestore();
+    renderer.unmount();
+  });
+});

@@ -85,7 +85,7 @@ const makeScheduledTaskEvent = (
     event_id: `$${stateKey}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    sender: '@mindroom_router:example.org',
     state_key: stateKey,
     type: MINDROOM_SCHEDULED_TASK_EVENT,
   });
@@ -203,6 +203,7 @@ const createRoom = ({
 
   return Object.assign(emitter, {
     roomId: '!room:example.org',
+    myUserId: '@alice:example.org',
     thread,
     setThread: (nextThread: MockThread | undefined) => {
       currentThread = nextThread;

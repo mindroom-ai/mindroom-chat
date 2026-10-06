@@ -9,6 +9,7 @@ import {
   type MutableRefObject,
   type RefObject,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   observeElementRect,
   useVirtualizer,
@@ -17,7 +18,7 @@ import {
 } from '@tanstack/react-virtual';
 import { threadScrollRange } from './threadScrollRange';
 import { countCacheProbe } from './cacheProbe';
-import { createBatchedMeasurementRef } from './batchedMeasurementRef';
+import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -34,24 +35,15 @@ import {
   type ThreadInitialRenderMode,
 } from './threadRenderUtils';
 import {
-  buildThreadFoldBaseline,
   planThreadLedgerRender,
+  type ThreadLedgerAnchor,
   type ThreadLedgerEvent,
-  type ThreadVirtualPrependCapture,
 } from './threadScrollLedger';
 
 type VirtualItemKey = string | number | bigint;
 
-export type ThreadPrependLedgerCapture = {
-  threadId: string;
-  anchorEventId: string;
-  anchorIndex: number;
-  anchorSeq: number;
-};
-
 export type TimelineScrollLedgerControllerOptions = {
   alive: () => boolean;
-  clearPendingThreadAnchor: () => void;
   estimateSize: (index?: number) => number;
   getItemKey: (index: number) => VirtualItemKey;
   getScrollElement: () => HTMLDivElement | null;
@@ -63,8 +55,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
-  threadPaginatingBack: boolean;
-  threadPendingAnchorSeq?: number;
+  /** What the thread renders between its banner and its rows. */
+  threadLeadingKey?: string;
   automaticFill?: {
     isActive: () => boolean;
     geometryReader: MutableRefObject<() => string | undefined>;
@@ -72,10 +64,10 @@ export type TimelineScrollLedgerControllerOptions = {
 };
 
 export type TimelineScrollLedgerController = {
-  captureThreadPrepend: (capture: ThreadPrependLedgerCapture) => void;
-  clearThreadPrependCapture: () => void;
+  holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
+  threadLeadingRef: RefObject<HTMLDivElement>;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -155,7 +147,6 @@ export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
  */
 export const useTimelineScrollLedgerController = ({
   alive,
-  clearPendingThreadAnchor,
   estimateSize,
   getItemKey,
   getScrollElement,
@@ -167,8 +158,7 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadInitialRenderMode,
-  threadPaginatingBack,
-  threadPendingAnchorSeq,
+  threadLeadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
@@ -181,7 +171,9 @@ export const useTimelineScrollLedgerController = ({
   const compensationResetKeyRef = useRef(ledgerViewKey);
   const resettingLedgerView = compensationResetKeyRef.current !== ledgerViewKey;
   const [, setLedgerCommitTick] = useState(0);
-  const threadVirtualPrependCaptureRef = useRef<ThreadVirtualPrependCapture>();
+  // The reader's first visible thread row as of the last commit or scroll.
+  // Rows that a later render adds above it are folded, whatever added them.
+  const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>();
   const ledgerSettleWantedRef = useRef(false);
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
@@ -193,49 +185,29 @@ export const useTimelineScrollLedgerController = ({
       ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index),
     [estimateSize]
   );
-  const threadEventsRef = useRef(threadEvents);
-  threadEventsRef.current = threadEvents;
-
-  const buildLedgerFoldBaseline = useCallback(
-    (boundaryIndex: number): Map<string, number> =>
-      buildThreadFoldBaseline(threadEventsRef.current, boundaryIndex, priceThreadRowForLedger),
-    [priceThreadRowForLedger]
-  );
-
-  const captureThreadPrepend = useCallback(
-    ({
-      threadId: captureThreadId,
-      anchorEventId,
-      anchorIndex,
-      anchorSeq,
-    }: ThreadPrependLedgerCapture) => {
-      const currentThreadEvents = threadEventsRef.current;
-      threadVirtualPrependCaptureRef.current = {
-        threadId: captureThreadId,
-        anchorEventId,
-        anchorSeq,
-        abovePrices: buildLedgerFoldBaseline(anchorIndex),
-        foldedEvents: currentThreadEvents,
-      };
-    },
-    [buildLedgerFoldBaseline]
-  );
-
-  const clearThreadPrependCapture = useCallback(() => {
-    threadVirtualPrependCaptureRef.current = undefined;
-  }, []);
-
   // Thread prepend planning is pure. Its mutations are applied only after
   // React commits the render that consumed this plan.
   const threadLedgerRenderPlan = planThreadLedgerRender({
-    capture: resettingLedgerView ? undefined : threadVirtualPrependCaptureRef.current,
+    anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
     eventIndexMap: threadEventIndexMap,
-    paginatingBack: threadPaginatingBack,
-    pendingAnchorSeq: threadPendingAnchorSeq,
     priceRow: priceThreadRowForLedger,
     threadEvents,
     threadId,
   });
+  // The content between the banner and the rows (load error, Load Older)
+  // moves every row when its height changes, so it is priced like a row. A
+  // render that changes what it shows folds all of its committed height, so
+  // the margin lands before anything can read layout and clamp the scroll;
+  // each commit then measures what it shows and folds that before paint,
+  // where it can only add height. A reader looking at that content (no
+  // anchor row) sees it change.
+  const threadLeadingRef = useRef<HTMLDivElement>(null);
+  const threadLeadingCommittedRef = useRef({ key: '', px: 0 });
+  const committedLeading = threadLeadingCommittedRef.current;
+  const threadLeadingPx = threadLeadingKey === committedLeading.key ? committedLeading.px : 0;
+  const threadLeadingHeld =
+    !resettingLedgerView && !!threadId && threadLedgerAnchorRef.current?.threadId === threadId;
+  const threadLeadingFoldPx = threadLeadingHeld ? threadLeadingPx - committedLeading.px : 0;
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
   // abandoned concurrent renders neither lose nor double-apply it.
@@ -244,12 +216,15 @@ export const useTimelineScrollLedgerController = ({
   // and every tile top for this paint.
   const ledgerPxAtRender = resettingLedgerView
     ? 0
-    : scrollCompensationPxRef.current + threadLedgerRenderPlan.foldPx + roomFoldPxAtRender;
+    : scrollCompensationPxRef.current +
+      threadLedgerRenderPlan.foldPx +
+      threadLeadingFoldPx +
+      roomFoldPxAtRender;
 
   useLayoutEffect(() => {
     if (resettingLedgerView) return;
 
-    const foldPx = threadLedgerRenderPlan.foldPx + roomFoldPxAtRender;
+    const foldPx = threadLedgerRenderPlan.foldPx + threadLeadingFoldPx + roomFoldPxAtRender;
     if (foldPx !== 0) {
       // Preserve measurement corrections that arrived between render and
       // this effect; only add the render plan's delta.
@@ -257,15 +232,13 @@ export const useTimelineScrollLedgerController = ({
       ledgerSettleWantedRef.current = true;
     }
     pendingRoomFoldPxRef.current -= roomFoldPxAtRender;
-    threadVirtualPrependCaptureRef.current = threadLedgerRenderPlan.nextCapture;
-    if (threadLedgerRenderPlan.clearPendingAnchor) clearPendingThreadAnchor();
     if (threadLedgerRenderPlan.probe) countCacheProbe(threadLedgerRenderPlan.probe);
   }, [
-    clearPendingThreadAnchor,
     ledgerViewKey,
     pendingRoomFoldPxRef,
     resettingLedgerView,
     roomFoldPxAtRender,
+    threadLeadingFoldPx,
     threadLedgerRenderPlan,
   ]);
 
@@ -306,7 +279,7 @@ export const useTimelineScrollLedgerController = ({
   });
   const virtualizerRef = useRef(virtualizer);
   const measureElement = useMemo(
-    () => createBatchedMeasurementRef(virtualizer.measureElement),
+    () => createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)),
     [virtualizer]
   );
 
@@ -315,6 +288,86 @@ export const useTimelineScrollLedgerController = ({
     roomFoldPriceRef.current = priceThreadRowForLedger;
     virtualizerRef.current = virtualizer;
   }, [priceThreadRowForLedger, roomFoldPriceRef, virtualizer]);
+
+  // The reader's view starts below the sticky headers (the scroller's
+  // scroll-padding-top). virtual-core does not know the content above the
+  // list (header inset, banner, Load Older), so its range can name another
+  // row than the one there, and it does not notify React when only that row
+  // changes. Each commit therefore records its rows, where the list sits in
+  // the scroll content, and the headers' inset; every commit and scroll
+  // resolves the anchor from that, and the measurement-correction hook
+  // judges which rows are above the reader the same way: the reader's top is
+  // virtual-core offset scrollTop + inset - listTop. A settle shifts
+  // scrollTop and scrollMargin together, keeping it valid. Above the first
+  // row there is no anchor.
+  const threadLedgerViewRef = useRef<{
+    rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
+    listTop: number;
+    inset: number;
+  }>();
+  const readerTopOffset = useCallback((scrollTop: number) => {
+    const view = threadLedgerViewRef.current;
+    return view ? scrollTop + view.inset - view.listTop : undefined;
+  }, []);
+  useInsertionEffect(() => {
+    // Rows measured in this commit are judged before the layout effect
+    // re-reads the list's offset; the leading content it changed moves it.
+    const view = threadLedgerViewRef.current;
+    if (view) view.listTop += threadLeadingPx - committedLeading.px;
+  });
+  const anchorThreadLedgerAt = useCallback(
+    (scrollTop: number) => {
+      const view = threadLedgerViewRef.current;
+      const offset = readerTopOffset(scrollTop);
+      const item =
+        offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
+      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+      const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
+      threadLedgerAnchorRef.current =
+        view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
+    },
+    [readerTopOffset]
+  );
+  useLayoutEffect(() => {
+    if (!threadId) {
+      threadLedgerViewRef.current = undefined;
+      threadLedgerAnchorRef.current = undefined;
+      return;
+    }
+    const leadingPx = threadLeadingRef.current?.offsetHeight ?? 0;
+    threadLeadingCommittedRef.current = { key: threadLeadingKey, px: leadingPx };
+    if (threadLeadingHeld && leadingPx !== threadLeadingPx) {
+      // Applied by a synchronous re-render, before this commit paints.
+      scrollCompensationPxRef.current += leadingPx - threadLeadingPx;
+      ledgerSettleWantedRef.current = true;
+      setLedgerCommitTick((tick) => tick + 1);
+    }
+    const scrollElement = getScrollElement();
+    const inner = virtualInnerRef.current;
+    if (!scrollElement || !inner) {
+      threadLedgerViewRef.current = undefined;
+      threadLedgerAnchorRef.current = undefined;
+      return;
+    }
+    threadLedgerViewRef.current = {
+      rows: { threadId, events: threadEvents, priceRow: priceThreadRowForLedger },
+      // A row at virtual-core offset s paints at inner.top + s + ledger.
+      listTop:
+        scrollElement.scrollTop -
+        (scrollElement.getBoundingClientRect().top -
+          inner.getBoundingClientRect().top -
+          ledgerPxAtRender),
+      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+    };
+    anchorThreadLedgerAt(scrollElement.scrollTop);
+  });
+  useEffect(() => {
+    const scrollElement = getScrollElement();
+    if (!scrollElement || !threadId) return undefined;
+    const onScroll = () => anchorThreadLedgerAt(scrollElement.scrollTop);
+    scrollElement.addEventListener('scroll', onScroll, { passive: true });
+    return () => scrollElement.removeEventListener('scroll', onScroll);
+  }, [anchorThreadLedgerAt, getScrollElement, threadId]);
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
@@ -335,6 +388,28 @@ export const useTimelineScrollLedgerController = ({
   const settleDiscardWatchRef = useRef<
     { px: number; preSettleScrollTop: number; settledScrollTop: number; at: number } | undefined
   >(undefined);
+
+  // The banner above the rows changes height mostly without a timeline
+  // commit (tags, resolution, pins, wrapping). Its header resizes in a frame
+  // callback, before layout, and reports the change with the offset it had;
+  // a reader with a row keeps it in place, as with native scroll anchoring.
+  // One discrete change is written at once: folded into the ledger, its
+  // settle at rest lands after any scroll the reader starts meanwhile. A
+  // reader at the very top stays there.
+  const holdThreadBannerResize = useCallback(
+    (deltaPx: number, scrollTop: number) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
+        return;
+      if (scrollTop <= 0) return;
+      scrollElement.scrollTop = scrollTop + deltaPx;
+      // As after a settle: this write is not a discarded settle's reversal,
+      // and its scroll event must not read as the reader's direction.
+      settleDiscardWatchRef.current = undefined;
+      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+    },
+    [getScrollElement, threadId]
+  );
 
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
@@ -411,6 +486,26 @@ export const useTimelineScrollLedgerController = ({
     },
     [armSettleAtRest]
   );
+
+  // virtual-core writes an applied correction at once, in a ResizeObserver
+  // callback, but the rows it moves render in React's next task, after the
+  // browser has painted them unmoved: the reader's view jumps by the
+  // correction for a frame. Render them in a microtask, before the paint, and
+  // until then let the hook judge rows in the layout React rendered.
+  const unrenderedCorrectionPxRef = useRef(0);
+  const handleAppliedCorrection = useCallback((deltaPx: number) => {
+    if (unrenderedCorrectionPxRef.current === 0) {
+      queueMicrotask(() => {
+        if (unrenderedCorrectionPxRef.current === 0) return;
+        flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      });
+    }
+    unrenderedCorrectionPxRef.current += deltaPx;
+  }, []);
+  const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
+  useInsertionEffect(() => {
+    unrenderedCorrectionPxRef.current = 0;
+  });
 
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
   // can expose a real top margin, while positive ledger can clamp the
@@ -561,8 +656,18 @@ export const useTimelineScrollLedgerController = ({
         onDroppedCorrection: handleDroppedCorrection,
         shouldDeferAutomaticFillCorrection: (item) =>
           !!isAutomaticFillActive?.() && (item.index ?? itemCount) < itemCount - 1,
+        viewportTopOffset: readerTopOffset,
+        onAppliedCorrection: handleAppliedCorrection,
+        unrenderedCorrectionPx,
       }),
-    [isAutomaticFillActive, handleDroppedCorrection, itemCount]
+    [
+      isAutomaticFillActive,
+      handleAppliedCorrection,
+      handleDroppedCorrection,
+      itemCount,
+      readerTopOffset,
+      unrenderedCorrectionPx,
+    ]
   );
 
   useLayoutEffect(() => {
@@ -599,7 +704,7 @@ export const useTimelineScrollLedgerController = ({
       ledgerGenerationRef.current += 1;
       compensationSettleArmedRef.current = false;
       ledgerSettleWantedRef.current = false;
-      threadVirtualPrependCaptureRef.current = undefined;
+      threadLedgerAnchorRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = undefined;
       settleDiscardWatchRef.current = undefined;
     }
@@ -613,10 +718,10 @@ export const useTimelineScrollLedgerController = ({
   ]);
 
   return {
-    captureThreadPrepend,
-    clearThreadPrependCapture,
+    holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement,
+    threadLeadingRef,
     virtualInnerRef,
     virtualizer,
   };

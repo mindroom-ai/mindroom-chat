@@ -2,11 +2,13 @@
 import React, {
   ComponentPropsWithoutRef,
   ReactEventHandler,
+  ReactNode,
   Suspense,
   lazy,
   useMemo,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Element,
   Text as DOMText,
@@ -16,13 +18,24 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { Box, Chip, config, Icon, IconButton, Icons, Text, toRem } from 'folds';
+import { Box, config, Text, toRem, Tooltip, TooltipProvider } from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
-import { Header } from '../components/glass/GlassPrimitives';
 import * as css from '../styles/CustomHtml.css';
 import { renderMindroomCustomHtmlElement } from '../mindroom/html/customHtmlRenderers';
+import {
+  CheckIcon,
+  CodeBlockLanguageIcon,
+  CollapseIcon,
+  CopyIcon,
+  ExpandIcon,
+  WrapTextIcon,
+} from '../mindroom/html/CodeBlockIcons';
+import {
+  getCodeBlockLanguage,
+  getCodeBlockLanguageIconToken,
+} from '../mindroom/html/codeBlockLanguage';
 import { renderTextWithMatrixMath } from '../mindroom/html/matrixMath';
 import {
   getMxIdLocalPart,
@@ -31,7 +44,7 @@ import {
   mxcUrlToHttp,
 } from '../utils/matrix';
 import { getMemberDisplayName } from '../utils/room';
-import { EMOJI_PATTERN, sanitizeForRegex, URL_NEG_LB } from '../utils/regex';
+import { createInsideUrlTest, EMOJI_PATTERN, sanitizeForRegex } from '../utils/regex';
 import { getHexcodeForEmoji, getShortcodeFor } from './emoji';
 import { findAndReplace } from '../utils/findAndReplace';
 import {
@@ -48,7 +61,7 @@ import { containsSpoiler } from '../mindroom/messages/linkFaviconPolicy';
 
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
-const EMOJI_REG_G = new RegExp(`${URL_NEG_LB}(${EMOJI_PATTERN})`, 'g');
+const EMOJI_REG_G = new RegExp(`(${EMOJI_PATTERN})`, 'g');
 const TABLE_STRUCTURE_TAGS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
 
 const hasAncestorTag = (node: ChildNode, tagName: string): boolean => {
@@ -195,7 +208,8 @@ export const scaleSystemEmoji = (text: string): (string | JSX.Element)[] =>
         </span>
       </span>
     ),
-    (txt) => txt
+    (txt) => txt,
+    createInsideUrlTest(text)
   );
 
 export const makeHighlightRegex = (highlights: string[]): RegExp | undefined => {
@@ -267,6 +281,89 @@ const extractTextFromChildren = (nodes: ChildNode[]): string => {
   return text;
 };
 
+function CodeBlockAction({
+  label,
+  pressed,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipProvider
+      position="Top"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Text size="T200">{label}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={css.CodeBlockAction}
+          aria-label={label}
+          aria-pressed={pressed}
+          onClick={onClick}
+        >
+          {children}
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
+
+/**
+ * Filename labels render icon + text. A bare language renders only its icon,
+ * named in a tooltip, and falls back to the language text without one.
+ */
+function CodeBlockTitle({ label, language }: { label?: string; language?: string }) {
+  const { t } = useTranslation();
+  const iconToken = language ? getCodeBlockLanguageIconToken(language) : undefined;
+  if (label) {
+    return (
+      <span className={css.CodeBlockLabel}>
+        <CodeBlockLanguageIcon token={iconToken ?? 'default'} />
+        <span className={css.CodeBlockLabelText}>{label}</span>
+      </span>
+    );
+  }
+  if (!language || !iconToken) {
+    return (
+      <span className={css.CodeBlockLabel}>
+        <span className={css.CodeBlockLabelText}>{language ?? 'text'}</span>
+      </span>
+    );
+  }
+  return (
+    <TooltipProvider
+      position="Top"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Text size="T200">{language}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <span
+          ref={triggerRef}
+          className={css.CodeBlockLabel}
+          role="img"
+          aria-label={t('messageCodeBlock.language', { language })}
+        >
+          <CodeBlockLanguageIcon token={iconToken} />
+        </span>
+      )}
+    </TooltipProvider>
+  );
+}
+
 export function CodeBlock({
   children,
   opts,
@@ -274,26 +371,23 @@ export function CodeBlock({
   children: ChildNode[];
   opts: HTMLReactParserOptions;
 }) {
+  const { t } = useTranslation();
   const code = children[0];
   const attribs = code instanceof Element && code.name === 'code' ? code.attribs : undefined;
-  const languageClass = attribs?.class;
   const customLabel = attribs?.['data-label'];
-  const language =
-    languageClass && languageClass.startsWith('language-')
-      ? languageClass.replace('language-', '')
-      : languageClass;
+  const language = getCodeBlockLanguage(attribs?.class);
 
   const LINE_LIMIT = 14;
-  const largeCodeBlock = useMemo(
-    () => extractTextFromChildren(children).split('\n').length > LINE_LIMIT,
-    [children]
-  );
-
+  const text = useMemo(() => extractTextFromChildren(children), [children]);
   const [expanded, setExpand] = useState(false);
+  const [wrapped, setWrapped] = useState(true);
   const [copied, setCopied] = useTimeoutToggle();
+  // Wrapped, a single long line (minified JSON, a log) grows as tall as many short ones.
+  const largeCodeBlock =
+    text.split('\n').length > LINE_LIMIT || (wrapped && text.length > LINE_LIMIT * 80);
 
   const handleCopy = async () => {
-    if (await copyToClipboard(extractTextFromChildren(children))) setCopied();
+    if (await copyToClipboard(text)) setCopied();
   };
 
   const toggleExpand = () => {
@@ -301,42 +395,55 @@ export function CodeBlock({
   };
 
   return (
-    <Text size="T300" as="pre" className={css.CodeBlock}>
-      <Header variant="Surface" size="400" className={css.CodeBlockHeader}>
-        <Box grow="Yes">
-          <Text size="L400" truncate>
-            {customLabel ?? language ?? 'Code'}
-          </Text>
-        </Box>
-        <Box shrink="No" gap="200">
-          <Chip
-            variant={copied ? 'Success' : 'Surface'}
-            fill="None"
-            radii="Pill"
-            onClick={handleCopy}
-            before={copied && <Icon size="50" src={Icons.Check} />}
+    <Text
+      size="T300"
+      as="pre"
+      className={classNames(css.CodeBlock, css.MessageCodeBlock)}
+      data-wrap={wrapped}
+    >
+      <div className={css.CodeBlockHeader}>
+        <CodeBlockTitle label={customLabel} language={language} />
+        <div
+          className={css.CodeBlockActions}
+          role="group"
+          aria-label={t('messageCodeBlock.actions', 'Code block actions')}
+        >
+          <CodeBlockAction
+            label={t('messageCodeBlock.wrap', 'Wrap lines')}
+            pressed={wrapped}
+            onClick={() => setWrapped(!wrapped)}
           >
-            <Text size="B300">{copied ? 'Copied' : 'Copy'}</Text>
-          </Chip>
+            <WrapTextIcon />
+          </CodeBlockAction>
           {largeCodeBlock && (
-            <IconButton
-              size="300"
-              variant="SurfaceVariant"
-              outlined
-              radii="300"
+            <CodeBlockAction
+              label={
+                expanded
+                  ? t('messageCodeBlock.collapse', 'Collapse')
+                  : t('messageCodeBlock.expand', 'Expand')
+              }
               onClick={toggleExpand}
-              aria-label={expanded ? 'Collapse' : 'Expand'}
             >
-              <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} />
-            </IconButton>
+              {expanded ? <CollapseIcon /> : <ExpandIcon />}
+            </CodeBlockAction>
           )}
-        </Box>
-      </Header>
+          <CodeBlockAction
+            label={
+              copied
+                ? t('messageCodeBlock.copied', 'Copied')
+                : t('messageCodeBlock.copy', 'Copy code')
+            }
+            onClick={handleCopy}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+          </CodeBlockAction>
+        </div>
+      </div>
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- Native scroll regions need keyboard focus. */}
       <div
         className={css.CodeBlockScroll}
         role="group"
-        aria-label={customLabel ?? language ?? 'Code'}
+        aria-label={customLabel ?? language ?? t('messageCodeBlock.code', 'Code')}
         tabIndex={0}
         style={{
           maxHeight: largeCodeBlock && !expanded ? toRem(300) : undefined,
@@ -489,7 +596,9 @@ export const getReactCustomHtmlParser = (
               return (
                 <ErrorBoundary fallback={<code {...props}>{codeReact}</code>}>
                   <Suspense fallback={<code {...props}>{codeReact}</code>}>
-                    <ReactPrism>
+                    {/* Prism rewrites the element, and React's next text update erases its
+                        tokens; remount on each edit so streamed code stays highlighted. */}
+                    <ReactPrism key={`${lang}:${codeReact}`}>
                       {(ref) => (
                         <code ref={ref} {...props} className={lang}>
                           {codeReact}
@@ -573,6 +682,16 @@ export const getReactCustomHtmlParser = (
           domNode.data.trim().length === 0
         ) {
           return null;
+        }
+
+        // Fenced code stays a plain string so the code replacer can hand it to
+        // Prism; a block containing a search match shows the match instead.
+        if (
+          parentName === 'code' &&
+          hasAncestorTag(domNode, 'pre') &&
+          (!params.highlightRegex || domNode.data.search(params.highlightRegex) === -1)
+        ) {
+          return undefined;
         }
 
         const insideCode = hasAncestorTag(domNode, 'code');

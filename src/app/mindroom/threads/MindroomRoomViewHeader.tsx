@@ -79,6 +79,7 @@ import {
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
 import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
+import { AgentCallHeaderButton } from '../calls/AgentCallHeaderButton';
 
 type RoomMenuProps = {
   room: Room;
@@ -304,6 +305,8 @@ export function RoomViewHeader({
   computerAvailable = false,
   computerOpen = false,
   onComputerToggle,
+  canvasOpen = false,
+  onCanvasClose,
   threadId,
   joinRequestCount = 0,
 }: {
@@ -312,6 +315,9 @@ export function RoomViewHeader({
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
+  /** A canvas holds the side panel slot, so Members shows as closed and opening it replaces the canvas. */
+  canvasOpen?: boolean;
+  onCanvasClose?: () => void;
   threadId?: string;
   joinRequestCount?: number;
 }) {
@@ -346,7 +352,7 @@ export function RoomViewHeader({
     : undefined;
 
   const [peopleDrawer, setPeopleDrawer] = useMembersDrawer();
-  const membersOpen = peopleDrawer && !computerOpen;
+  const membersOpen = peopleDrawer && !computerOpen && !canvasOpen;
 
   const handleSearchClick = () => {
     const searchParams: _SearchPathSearchParams = {
@@ -374,6 +380,7 @@ export function RoomViewHeader({
       return;
     }
     if (computerOpen) onComputerToggle?.();
+    if (canvasOpen) onCanvasClose?.();
     setPeopleDrawer(!membersOpen);
   };
   const memberButtonLabel = callView
@@ -566,6 +573,7 @@ export function RoomViewHeader({
             </>
           )}
 
+          {hasMindroomAgents && !callView && <AgentCallHeaderButton threadId={threadId} />}
           <TooltipProvider
             position="Bottom"
             offset={4}

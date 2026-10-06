@@ -3,6 +3,16 @@
     "label": "Tabla desplazable",
     "scrollHint": "Desplázate horizontalmente"
   },
+  "messageCodeBlock": {
+    "actions": "Acciones del bloque de código",
+    "code": "Código",
+    "language": "Lenguaje: {{language}}",
+    "copy": "Copiar código",
+    "copied": "Copiado",
+    "wrap": "Ajustar líneas",
+    "expand": "Expandir",
+    "collapse": "Contraer"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " cambió el nombre de la sala"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "Oculta funciones avanzadas como la paleta de comandos y los filtros de hilos. Se sincroniza entre tus dispositivos.",
         "expandLongMessagesByDefault": "Expandir los mensajes largos de forma predeterminada",
         "expandLongMessagesByDefaultDescription": "Muestra completos los mensajes largos en lugar de plegarlos tras Mostrar mensaje completo. Se sincroniza entre tus dispositivos.",
+        "showCanvasesInSidebar": "Mostrar paneles interactivos en la barra lateral",
+        "showCanvasesInSidebarDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Se sincroniza entre tus dispositivos.",
         "saveFailed": "No se pudo guardar el cambio. Comprueba tu conexión e inténtalo de nuevo."
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "Vista previa de URL",
         "urlPreviewEncrypted": "Vista previa de URL en salas cifradas",
         "showHiddenEvents": "Mostrar eventos ocultos"
+      },
+      "computers": {
+        "sectionTitle": "Ordenadores",
+        "apiUrl": "URL del servicio de ordenadores",
+        "description": "Elige un backend MindRoom de confianza; recibirá un token de inicio de sesión de corta duración. Se guarda en este dispositivo. Déjalo vacío para desactivar los ordenadores.",
+        "save": "Guardar servicio de ordenadores",
+        "reset": "Usar configuración de la app",
+        "invalidUrl": "Introduce un origen sin credenciales, ruta, consulta ni fragmento. Usa HTTPS, o HTTP con localhost o una dirección IP privada de la red local.",
+        "httpNotice": "HTTP no cifra el inicio de sesión ni el tráfico del ordenador. Úsalo solo en una red local de confianza.",
+        "saveFailed": "No se pudo guardar el servicio de ordenadores en este dispositivo.",
+        "saved": "Servicio de ordenadores guardado."
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "Inicio",
     "directMessages": "Mensajes directos",
     "threads": "Hilos",
+    "canvases": "Paneles interactivos",
     "inbox": "Bandeja de entrada",
     "exploreCommunity": "Explorar la comunidad",
     "addSpace": "Añadir espacio",
@@ -2300,6 +2324,12 @@
         "browserUnsupported": "Tu navegador no admite WebRTC.",
         "endCurrentCall": "Finaliza primero la llamada actual.",
         "failedToStart": "No se pudo iniciar la llamada."
+      },
+      "agentCallHeaderButton": {
+        "call": "Llamar a un agente",
+        "callAgent": "Llamar a {{name}}",
+        "chooseAgent": "Elige un agente para llamar",
+        "close": "Cerrar"
       }
     },
     "commands": {
@@ -2457,6 +2487,9 @@
         "autoApproveMinutes_one": "Aprobar automáticamente durante {{count}} minuto",
         "autoApproveMinutes_other": "Aprobar automáticamente durante {{count}} minutos",
         "denyCallReasonOptional": "Motivo para denegar la llamada {{number}} (opcional)",
+        "approveExactCall": "Aprobar esta llamada exacta",
+        "approveAnyArguments": "Aprobar cualquier argumento",
+        "anyArgumentsWarning": "Con cualquier argumento, el agente puede hacer una llamada a {{tool}} con lo que decida, dentro de {{minutes}} minutos de la hora programada.",
         "autoApproveMinutes_many": "Aprobar automáticamente durante {{count}} minutos"
       },
       "approvalGrantStatus": {
@@ -2492,7 +2525,14 @@
         "toolAndServer": "Herramienta: {{tool}} · Servidor: {{server}}",
         "tool": "Herramienta: {{tool}}",
         "reason": "Motivo: {{reason}}",
+        "approvedWhenScheduledByAt": "Aprobado al programarse por {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Aprobado al programarse por {{approver}}",
         "timedPermissionMinutes_many": "Permiso temporal · {{count}} minutos"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Programado para {{timestamp}}",
+        "approvedExactArguments": "Aprobado para estos argumentos exactos",
+        "approvedAnyArguments": "Aprobado para cualquier argumento de esta herramienta"
       },
       "approvalReviewCall": {
         "pending": "pendiente",
@@ -2512,6 +2552,12 @@
         "copyText": "Copiar texto",
         "copyTextWithToolCalls": "Copiar texto con llamadas de herramientas",
         "copyLink": "Copiar enlace"
+      },
+      "bugReport": {
+        "report": "Informar de un error",
+        "download": "Descargar informe de error",
+        "sending": "Enviando informe…",
+        "failed": "No se pudo enviar el informe. Inténtalo de nuevo."
       },
       "messageInspectionActions": {
         "readReceipts": "Confirmaciones de lectura",
@@ -2685,6 +2731,10 @@
         "messageFailedToSend": "No se pudo enviar el mensaje",
         "notSent": "No enviado"
       },
+      "failedSendActions": {
+        "retry": "Reintentar",
+        "delete": "Eliminar"
+      },
       "aiRunDisplay": {
         "inputTokens": "entrada {{formattedCount}}",
         "outputTokens": "salida {{formattedCount}}",
@@ -2758,11 +2808,7 @@
         "noThreads": "No hay hilos"
       },
       "compactThreadCard": {
-        "streaming": "transmitiendo",
-        "unreadMessages": "Mensajes sin leer",
-        "unread": "no leído",
-        "threadStatus": "Estado del hilo: {{status}}",
-        "lastActivity": "Última actividad: {{time}}"
+        "streaming": "transmitiendo"
       },
       "mindroomCallChatView": {
         "chat": "Chat",
@@ -2933,10 +2979,65 @@
     "uiActions": {
       "viewComputer": "Ver ordenador",
       "openMembers": "Abrir miembros",
+      "openCanvas": "Abrir panel",
+      "canvasDisabled": "Los paneles interactivos están desactivados en esta app.",
+      "canvasDuringCall": "Finaliza la llamada para abrir paneles interactivos.",
       "computerUnavailable": "El ordenador de este agente no está disponible.",
       "releaseControl": "Libera el control del ordenador antes de abrir otra vista.",
       "openConversation": "Abre esta solicitud desde la conversación de la sala.",
       "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
+    },
+    "canvas": {
+      "panelLabel": "Panel interactivo",
+      "fromAgent": "Panel interactivo de {{agent}}",
+      "expand": "Expandir panel",
+      "close": "Cerrar panel",
+      "resize": "Cambiar el tamaño del panel",
+      "updated": "{{agent}} ha actualizado este panel.",
+      "loadUpdate": "Cargar actualización",
+      "version": "Versión {{current}} de {{total}}",
+      "previousVersion": "Versión anterior",
+      "nextVersion": "Versión siguiente",
+      "earlierVersion": "Esta es una versión anterior.",
+      "showLatest": "Ver la más reciente",
+      "loading": "Cargando panel…",
+      "loadFailed": "No se pudo cargar este panel.",
+      "retry": "Reintentar",
+      "escaped": "Este panel intentó salir de su entorno aislado y fue bloqueado.",
+      "reload": "Recargar panel",
+      "pageError": "Esta página informó de un error.",
+      "tellAgent": "Avisar a {{agent}}",
+      "errorsSent": "Errores enviados a {{agent}}.",
+      "errorsNotSent": "No se pudieron enviar los errores a {{agent}}.",
+      "sendTo": "Enviar a {{agent}}:",
+      "changeAnswer": "Para cambiar tu respuesta, descarta primero esta.",
+      "data": "Datos",
+      "send": "Enviar",
+      "discard": "Descartar",
+      "disclosure": "Creado por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de este panel.",
+      "sharedNotice": "Guardado en esta sala: {{agent}} y los demás aquí pueden leer lo que escribas.",
+      "sending": "Enviando a {{agent}}…",
+      "sent": "Enviado a {{agent}}: {{label}}",
+      "sendFailed": "No se pudo enviar tu respuesta. Inténtalo de nuevo.",
+      "receiptData": "Mostrar los datos enviados al agente",
+      "unlabeled": "Enviado",
+      "notSent": "No enviado a {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Paneles interactivos",
+      "note": "Paneles interactivos que tus agentes crearon para ti y que este navegador ha visto. Los fijados aparecen en todos tus dispositivos.",
+      "empty": "Aún no hay paneles interactivos. Cuando un agente te muestre uno, aparecerá aquí.",
+      "pinned": "Fijado",
+      "canvas": "Panel",
+      "thread": "Hilo",
+      "agent": "Agente",
+      "room": "Sala",
+      "updated": "Actualizado",
+      "created": "Creado",
+      "pin": "Fijar {{title}}",
+      "unpin": "Desfijar {{title}}",
+      "shared": "Compartido con el agente",
+      "saved": "Tiene tus valores"
     }
   },
   "roomSchedules": {

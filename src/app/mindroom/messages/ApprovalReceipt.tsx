@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Icon, Icons } from 'folds';
 import { ApprovalArguments } from './ApprovalArguments';
+import { ApprovalSchedule } from './ApprovalSchedule';
+import { formatApprovalTime, scheduledScopeLabelKey } from './approvalScheduleText';
 import { getToolApprovalOperationLabel, ToolApprovalData } from './toolApproval';
 import * as css from './ThreadApprovals.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
@@ -65,7 +67,25 @@ export function ApprovalReceipt({
               })
             : statusLabel}
         </p>
-        {provenance?.kind === 'timed_grant' ? (
+        <ApprovalSchedule approval={approval} />
+        {provenance?.kind === 'scheduled_approval' ? (
+          <p>
+            {provenance.approvedAt
+              ? t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledByAt', {
+                  approver: provenance.approvedBy,
+                  timestamp: formatApprovalTime(provenance.approvedAt, language),
+                })
+              : t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledBy', {
+                  approver: provenance.approvedBy,
+                })}
+            <br />
+            {t('mindroomUi.messages.approvalSchedule.scheduledFor', {
+              timestamp: formatApprovalTime(provenance.scheduledFor, language),
+            })}
+            <br />
+            {t(scheduledScopeLabelKey(provenance.scope))}
+          </p>
+        ) : provenance?.kind === 'timed_grant' ? (
           <p>
             {provenance.durationSeconds
               ? t('mindroomUi.messages.approvalReceipt.timedPermissionMinutes', {

@@ -3,6 +3,16 @@
     "label": "可滚动表格",
     "scrollHint": "水平滚动"
   },
+  "messageCodeBlock": {
+    "actions": "代码块操作",
+    "code": "代码",
+    "language": "语言：{{language}}",
+    "copy": "复制代码",
+    "copied": "已复制",
+    "wrap": "自动换行",
+    "expand": "展开",
+    "collapse": "折叠"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " 更改了房间名称"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "隐藏命令选项板和讨论串过滤器等高级功能。在您的设备之间同步。",
         "expandLongMessagesByDefault": "默认展开长消息",
         "expandLongMessagesByDefaultDescription": "完整显示长消息，而不是将其折叠为“显示完整消息”。此设置会在您的设备之间同步。",
+        "showCanvasesInSidebar": "在侧边栏显示交互式面板",
+        "showCanvasesInSidebarDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。此设置会在您的设备之间同步。",
         "saveFailed": "无法保存更改。检查您的连接并重试。"
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "网址预览",
         "urlPreviewEncrypted": "加密房间网址预览",
         "showHiddenEvents": "显示隐藏的事件"
+      },
+      "computers": {
+        "sectionTitle": "计算机",
+        "apiUrl": "计算机服务 URL",
+        "description": "请选择可信的 MindRoom 后端；它会收到短期有效的登录令牌。保存在此设备上。留空可关闭计算机。",
+        "save": "保存计算机服务",
+        "reset": "使用应用默认值",
+        "invalidUrl": "请输入不含凭据、路径、查询或片段的源。请使用 HTTPS，或对 localhost 或私有局域网 IP 地址使用 HTTP。",
+        "httpNotice": "HTTP 不会加密您的登录信息或计算机流量。请仅在可信任的局域网上使用。",
+        "saveFailed": "无法在此设备上保存计算机服务。",
+        "saved": "计算机服务已保存。"
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "首页",
     "directMessages": "私信",
     "threads": "讨论串",
+    "canvases": "交互式面板",
     "inbox": "收件箱",
     "exploreCommunity": "探索社区",
     "addSpace": "添加空间",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "您的浏览器不支持 WebRTC。",
         "endCurrentCall": "请先结束当前通话。",
         "failedToStart": "无法开始通话。"
+      },
+      "agentCallHeaderButton": {
+        "call": "与智能体通话",
+        "callAgent": "与 {{name}} 通话",
+        "chooseAgent": "选择要通话的智能体",
+        "close": "关闭"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "取消",
         "autoApproveMinutes_one": "自动批准 {{count}} 分钟",
         "autoApproveMinutes_other": "自动批准 {{count}} 分钟",
-        "denyCallReasonOptional": "拒绝调用 {{number}} 的原因（可选）"
+        "denyCallReasonOptional": "拒绝调用 {{number}} 的原因（可选）",
+        "approveExactCall": "批准这次确切调用",
+        "approveAnyArguments": "批准任意参数",
+        "anyArgumentsWarning": "选择任意参数后，智能体可在预定时间前后 {{minutes}} 分钟内，按自己决定的内容调用一次 {{tool}}。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自动批准已激活",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "原始固定到期日：{{timestamp}}",
         "toolAndServer": "工具：{{tool}} · 服务器：{{server}}",
         "tool": "工具：{{tool}}",
-        "reason": "原因：{{reason}}"
+        "reason": "原因：{{reason}}",
+        "approvedWhenScheduledByAt": "安排时由 {{approver}} 批准 · {{timestamp}}",
+        "approvedWhenScheduledBy": "安排时由 {{approver}} 批准"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "预定于 {{timestamp}}",
+        "approvedExactArguments": "已按这些确切参数批准",
+        "approvedAnyArguments": "已批准此工具的任意参数"
       },
       "approvalReviewCall": {
         "pending": "待处理",
@@ -2480,6 +2520,12 @@
         "copyText": "复制文本",
         "copyTextWithToolCalls": "复制文本（含工具调用）",
         "copyLink": "复制链接"
+      },
+      "bugReport": {
+        "report": "报告问题",
+        "download": "下载问题报告",
+        "sending": "正在发送报告…",
+        "failed": "无法发送报告，请重试。"
       },
       "messageInspectionActions": {
         "readReceipts": "已读回执",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "消息发送失败",
         "notSent": "未发送"
       },
+      "failedSendActions": {
+        "retry": "重试",
+        "delete": "删除"
+      },
       "aiRunDisplay": {
         "inputTokens": "输入 {{formattedCount}}",
         "outputTokens": "输出 {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "没有讨论串"
       },
       "compactThreadCard": {
-        "streaming": "流式响应",
-        "unreadMessages": "未读消息",
-        "unread": "未读",
-        "threadStatus": "讨论串状态：{{status}}",
-        "lastActivity": "上次活动 {{time}}"
+        "streaming": "流式响应"
       },
       "mindroomCallChatView": {
         "chat": "聊天",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "查看电脑",
       "openMembers": "打开成员列表",
+      "openCanvas": "打开面板",
+      "canvasDisabled": "此应用已关闭交互式面板。",
+      "canvasDuringCall": "结束通话后才能打开交互式面板。",
       "computerUnavailable": "此代理的电脑不可用。",
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",
       "settingsUnavailable": "关闭简单模式以打开此设置部分。"
+    },
+    "canvas": {
+      "panelLabel": "交互式面板",
+      "fromAgent": "来自 {{agent}} 的交互式面板",
+      "expand": "展开面板",
+      "close": "关闭面板",
+      "resize": "调整面板大小",
+      "updated": "{{agent}} 更新了此面板。",
+      "loadUpdate": "加载更新",
+      "version": "第 {{current}} 版，共 {{total}} 版",
+      "previousVersion": "上一版",
+      "nextVersion": "下一版",
+      "earlierVersion": "这是较早的版本。",
+      "showLatest": "显示最新版",
+      "loading": "正在加载面板…",
+      "loadFailed": "无法加载此面板。",
+      "retry": "重试",
+      "escaped": "此面板试图离开沙盒，已被阻止。",
+      "reload": "重新加载面板",
+      "pageError": "此页面报告了一个错误。",
+      "tellAgent": "告诉 {{agent}}",
+      "errorsSent": "已将错误发送给 {{agent}}。",
+      "errorsNotSent": "无法将错误发送给 {{agent}}。",
+      "sendTo": "发送给 {{agent}}：",
+      "changeAnswer": "如需更改回答，请先丢弃当前回答。",
+      "data": "数据",
+      "send": "发送",
+      "discard": "丢弃",
+      "disclosure": "由 {{agent}} 创建。它无法访问您的账户；您在此输入的内容可能会离开此面板。",
+      "sharedNotice": "已保存在此房间：{{agent}} 和此处的其他人可以读取您输入的内容。",
+      "sending": "正在发送给 {{agent}}…",
+      "sent": "已发送给 {{agent}}：{{label}}",
+      "sendFailed": "无法发送您的回复。请重试。",
+      "receiptData": "显示发送给代理的数据",
+      "unlabeled": "已提交",
+      "notSent": "未发送给 {{agent}}：{{label}}"
+    },
+    "canvases": {
+      "title": "交互式面板",
+      "note": "智能体为您创建、且此浏览器见过的交互式面板。已置顶的面板会显示在您的所有设备上。",
+      "empty": "还没有交互式面板。当智能体向您展示面板时，它会列在这里。",
+      "pinned": "已置顶",
+      "canvas": "面板",
+      "thread": "讨论串",
+      "agent": "智能体",
+      "room": "房间",
+      "updated": "更新时间",
+      "created": "创建时间",
+      "pin": "置顶 {{title}}",
+      "unpin": "取消置顶 {{title}}",
+      "shared": "已与智能体共享",
+      "saved": "包含您的输入"
     }
   },
   "roomSchedules": {

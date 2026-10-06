@@ -530,6 +530,20 @@ export const hasEventRevisionUpgrade = (
 };
 
 /**
+ * True when a same-sender `edit` adds nothing to a target with revision
+ * `target`: the target is redacted, or already carries this edit or a newer one.
+ */
+export const isEditKnownToRevision = (
+  edit: Partial<IEvent>,
+  targetSender: string | undefined,
+  target: EventRevisionDescriptor
+): boolean => {
+  const replacement = getReplacementRevision(targetSender, edit);
+  if (!replacement) return false;
+  return target.redacted || compareReplacementRevision(replacement, target.replacement) <= 0;
+};
+
+/**
  * Compare two observations of one logical event. Redaction is monotonic;
  * otherwise the newest valid same-sender replacement wins by Matrix's
  * timestamp/event-id ordering.

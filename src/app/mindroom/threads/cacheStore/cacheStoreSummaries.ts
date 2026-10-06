@@ -46,6 +46,7 @@ export const saveCachedThreadSummary = async (
         summaryText: info.summaryText!,
         generatedTs: info.generatedTs,
         ...(info.eventTs !== undefined ? { eventTs: info.eventTs } : {}),
+        ...(info.eventId ? { eventId: info.eventId } : {}),
         messageCount: info.messageCount,
         ...(info.isManual ? { isManual: true } : {}),
         updatedAt: Date.now(),
@@ -84,6 +85,7 @@ export const loadCachedThreadSummaries = async (
         summaryText: record.summaryText,
         generatedTs: record.generatedTs,
         ...(record.eventTs !== undefined ? { eventTs: record.eventTs } : {}),
+        ...(record.eventId ? { eventId: record.eventId } : {}),
         messageCount: record.messageCount,
         ...(record.isManual ? { isManual: true } : {}),
       });

@@ -157,7 +157,6 @@ for (const [themeId, width] of [
       await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible();
       await page.mouse.move(0, 0);
       await expect(page.getByRole('tooltip')).toHaveCount(0);
-      // The client clears stale typing after five seconds; send after scrolling.
       await setTyping(true);
       await expect(typing).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('composer-typing.png') });
@@ -202,6 +201,7 @@ for (const [themeId, width] of [
         )
       ).toEqual([]);
 
+      // The notice stays while the server reports typing, so only the button can hide it.
       await page.getByRole('button', { name: 'Drop Typing Status' }).click();
       await expect(typing).toHaveCount(0);
       // A new remote update should restore the strip after local dismissal.

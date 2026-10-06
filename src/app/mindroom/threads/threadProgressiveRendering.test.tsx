@@ -12,7 +12,8 @@ it.each(['already loaded', 'arriving'] as const)(
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
     vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
-    vi.spyOn(mx, 'fetchRoomEvent').mockImplementation(() => new Promise(() => {}));
+    // Server discovery never finishes, so SDK thread metadata stays pending.
+    mx.threadSupportPending = new Promise(() => {});
     const room = new Room('!room:example.org', mx, '@alice:example.org', { timelineSupport: true });
     const root = new MatrixEvent({
       event_id: '$root',
@@ -91,7 +92,6 @@ it.each(['already loaded', 'arriving'] as const)(
         expect(state.threadInitialRenderMode).toBe('cached');
         await act(async () => addReply());
       }
-      expect(mx.fetchRoomEvent).toHaveBeenCalled();
       expect(metadataUpdate).not.toHaveBeenCalled();
       expect(thread.events).toContain(reply);
       expect(state.threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);

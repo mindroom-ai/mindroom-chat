@@ -3,6 +3,16 @@
     "label": "Scrollbare tabel",
     "scrollHint": "Horizontaal scrollen"
   },
+  "messageCodeBlock": {
+    "actions": "Codeblokacties",
+    "code": "Code",
+    "language": "Taal: {{language}}",
+    "copy": "Code kopiëren",
+    "copied": "Gekopieerd",
+    "wrap": "Regels laten teruglopen",
+    "expand": "Uitvouwen",
+    "collapse": "Inklappen"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " heeft de kamernaam gewijzigd"
@@ -58,6 +68,8 @@
         "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
         "expandLongMessagesByDefault": "Lange berichten standaard uitklappen",
         "expandLongMessagesByDefaultDescription": "Toont lange berichten volledig in plaats van ze achter ‘Meer tonen’ in te klappen. Gesynchroniseerd tussen je apparaten.",
+        "showCanvasesInSidebar": "Interactieve panelen in de zijbalk tonen",
+        "showCanvasesInSidebarDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."
       },
       "language": {
@@ -125,6 +137,17 @@
         "urlPreview": "URL-voorvertoning",
         "urlPreviewEncrypted": "URL-voorvertoning in versleutelde kamers",
         "showHiddenEvents": "Verborgen gebeurtenissen tonen"
+      },
+      "computers": {
+        "sectionTitle": "Computers",
+        "apiUrl": "URL van computerservice",
+        "description": "Kies een vertrouwde MindRoom-backend; die ontvangt een kort geldig aanmeldingstoken. Opgeslagen op dit apparaat. Laat leeg om computers uit te schakelen.",
+        "save": "Computerservice opslaan",
+        "reset": "Appstandaard gebruiken",
+        "invalidUrl": "Voer een origin in zonder inloggegevens, pad, query of fragment. Gebruik HTTPS, of HTTP met localhost of een privé-IP-adres op het lokale netwerk.",
+        "httpNotice": "HTTP versleutelt je aanmelding of computerverkeer niet. Gebruik het alleen op een vertrouwd lokaal netwerk.",
+        "saveFailed": "De computerservice kon niet op dit apparaat worden opgeslagen.",
+        "saved": "Computerservice opgeslagen."
       }
     }
   },
@@ -132,6 +155,7 @@
     "home": "Home",
     "directMessages": "Directe berichten",
     "threads": "Threads",
+    "canvases": "Interactieve panelen",
     "inbox": "Inbox",
     "exploreCommunity": "Community verkennen",
     "addSpace": "Space toevoegen",
@@ -2272,6 +2296,12 @@
         "browserUnsupported": "Je browser ondersteunt WebRTC niet.",
         "endCurrentCall": "Beëindig eerst je huidige oproep.",
         "failedToStart": "De oproep kon niet worden gestart."
+      },
+      "agentCallHeaderButton": {
+        "call": "Een agent bellen",
+        "callAgent": "{{name}} bellen",
+        "chooseAgent": "Kies een agent om te bellen",
+        "close": "Sluiten"
       }
     },
     "commands": {
@@ -2427,7 +2457,10 @@
         "cancel": "Annuleren",
         "autoApproveMinutes_one": "Automatisch goedkeuren gedurende {{count}} minuut",
         "autoApproveMinutes_other": "Automatisch goedkeuren gedurende {{count}} minuten",
-        "denyCallReasonOptional": "Reden voor weigering van aanroep {{number}} (optioneel)"
+        "denyCallReasonOptional": "Reden voor weigering van aanroep {{number}} (optioneel)",
+        "approveExactCall": "Precies deze aanroep goedkeuren",
+        "approveAnyArguments": "Willekeurige argumenten goedkeuren",
+        "anyArgumentsWarning": "Met willekeurige argumenten mag de agent binnen {{minutes}} minuten van het geplande tijdstip één {{tool}}-aanroep doen met wat hij kiest."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Automatische goedkeuring actief",
@@ -2460,7 +2493,14 @@
         "originalFixedExpiry": "Oorspronkelijke vaste vervaltijd: {{timestamp}}",
         "toolAndServer": "Gereedschap: {{tool}} · Server: {{server}}",
         "tool": "Gereedschap: {{tool}}",
-        "reason": "Reden: {{reason}}"
+        "reason": "Reden: {{reason}}",
+        "approvedWhenScheduledByAt": "Goedgekeurd bij het plannen door {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Goedgekeurd bij het plannen door {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Gepland voor {{timestamp}}",
+        "approvedExactArguments": "Goedgekeurd voor precies deze argumenten",
+        "approvedAnyArguments": "Goedgekeurd voor willekeurige argumenten van deze tool"
       },
       "approvalReviewCall": {
         "pending": "in behandeling",
@@ -2480,6 +2520,12 @@
         "copyText": "Tekst kopiëren",
         "copyTextWithToolCalls": "Tekst kopiëren met gereedschapsaanroepen",
         "copyLink": "Link kopiëren"
+      },
+      "bugReport": {
+        "report": "Een bug melden",
+        "download": "Bugrapport downloaden",
+        "sending": "Rapport verzenden…",
+        "failed": "Het rapport kon niet worden verzonden. Probeer het opnieuw."
       },
       "messageInspectionActions": {
         "readReceipts": "Leesbevestigingen",
@@ -2642,6 +2688,10 @@
         "messageFailedToSend": "Bericht kon niet worden verzonden",
         "notSent": "Niet verstuurd"
       },
+      "failedSendActions": {
+        "retry": "Opnieuw proberen",
+        "delete": "Verwijderen"
+      },
       "aiRunDisplay": {
         "inputTokens": "in {{formattedCount}}",
         "outputTokens": "uit {{formattedCount}}",
@@ -2711,11 +2761,7 @@
         "noThreads": "Geen threads"
       },
       "compactThreadCard": {
-        "streaming": "streaming",
-        "unreadMessages": "Ongelezen berichten",
-        "unread": "ongelezen",
-        "threadStatus": "Threadstatus: {{status}}",
-        "lastActivity": "Laatste activiteit {{time}}"
+        "streaming": "streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",
@@ -2879,10 +2925,65 @@
     "uiActions": {
       "viewComputer": "Computer bekijken",
       "openMembers": "Leden openen",
+      "openCanvas": "Paneel openen",
+      "canvasDisabled": "Interactieve panelen staan uit in deze app.",
+      "canvasDuringCall": "Beëindig het gesprek om interactieve panelen te openen.",
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
       "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
+    },
+    "canvas": {
+      "panelLabel": "Interactief paneel",
+      "fromAgent": "Interactief paneel van {{agent}}",
+      "expand": "Paneel uitklappen",
+      "close": "Paneel sluiten",
+      "resize": "Paneel vergroten of verkleinen",
+      "updated": "{{agent}} heeft dit paneel bijgewerkt.",
+      "loadUpdate": "Update laden",
+      "version": "Versie {{current}} van {{total}}",
+      "previousVersion": "Vorige versie",
+      "nextVersion": "Volgende versie",
+      "earlierVersion": "Dit is een eerdere versie.",
+      "showLatest": "Nieuwste tonen",
+      "loading": "Paneel laden…",
+      "loadFailed": "Dit paneel kon niet worden geladen.",
+      "retry": "Opnieuw proberen",
+      "escaped": "Dit paneel probeerde zijn sandbox te verlaten en is gestopt.",
+      "reload": "Paneel opnieuw laden",
+      "pageError": "Deze pagina heeft een fout gemeld.",
+      "tellAgent": "{{agent}} laten weten",
+      "errorsSent": "Fouten naar {{agent}} verzonden.",
+      "errorsNotSent": "De fouten konden niet naar {{agent}} worden verzonden.",
+      "sendTo": "Versturen naar {{agent}}:",
+      "changeAnswer": "Verwijder eerst dit antwoord als je het wilt wijzigen.",
+      "data": "Gegevens",
+      "send": "Versturen",
+      "discard": "Verwijderen",
+      "disclosure": "Gemaakt door {{agent}}. Het paneel heeft geen toegang tot je account, maar wat je hier invoert, kan het paneel verlaten.",
+      "sharedNotice": "Opgeslagen in deze ruimte: {{agent}} en anderen hier kunnen lezen wat je invoert.",
+      "sending": "Wordt verstuurd naar {{agent}}…",
+      "sent": "Verstuurd naar {{agent}}: {{label}}",
+      "sendFailed": "Je antwoord kon niet worden verstuurd. Probeer het opnieuw.",
+      "receiptData": "Gegevens tonen die naar de agent zijn verstuurd",
+      "unlabeled": "Verzonden",
+      "notSent": "Niet verzonden naar {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Interactieve panelen",
+      "note": "Interactieve panelen die je agents voor je hebben gemaakt en die deze browser heeft gezien. Vastgemaakte panelen zie je op al je apparaten.",
+      "empty": "Nog geen interactieve panelen. Als een agent je er een laat zien, verschijnt het hier.",
+      "pinned": "Vastgemaakt",
+      "canvas": "Paneel",
+      "thread": "Thread",
+      "agent": "Agent",
+      "room": "Kamer",
+      "updated": "Bijgewerkt",
+      "created": "Gemaakt",
+      "pin": "{{title}} vastmaken",
+      "unpin": "{{title}} losmaken",
+      "shared": "Gedeeld met agent",
+      "saved": "Bevat je waarden"
     }
   },
   "roomSchedules": {

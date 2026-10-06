@@ -153,6 +153,12 @@ export const glassFlat = style({
   },
 });
 
+// Nested chrome already has its panel's tint behind it; only blur scrolling content.
+// Opaque accessibility/no-backdrop fallbacks do not use surfaceTint and stay intact.
+export const glassInheritTint = style({
+  selectors: { '&&&&': { vars: { [surfaceTint]: '0%' } } },
+});
+
 // Modal500 already dims the page through OverlayBackdrop. Its glass needs less
 // tint than a floating menu over an undimmed page, especially in dark themes.
 export const glassOverBackdrop = style({
@@ -215,4 +221,44 @@ export const glassSurface = recipe({
     },
   },
   defaultVariants: { level: 'panel', variant: 'Surface' },
+});
+
+// Keep a scrolling header's blur outside the panel's backdrop-filter tree.
+// Nested backdrop filters otherwise repaint the panel tint beneath the header.
+// The sibling paint layer preserves refraction without filtering foreground text.
+export const glassScrollPanel = style({
+  '@supports': {
+    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+      selectors: {
+        '&&&:has([data-glass-flat="true"])': {
+          position: 'relative',
+          isolation: 'isolate',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+        },
+        // PageScroll's sticky title (z-index 1) would otherwise paint over the rim,
+        // and Chromium's title blur smears the 1px rim into a band along the edge.
+        '&:has([data-glass-flat="true"])::before': { zIndex: 2 },
+        '&:has([data-glass-flat="true"])::after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 'inherit',
+          pointerEvents: 'none',
+          zIndex: -1,
+          backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+          WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+        },
+        '&[data-liquid-glass="active"]:has([data-glass-flat="true"])::after': {
+          backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
+          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
+        },
+      },
+    },
+  },
+  '@media': {
+    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
+      selectors: { '&&&::after': { display: 'none' } },
+    },
+  },
 });

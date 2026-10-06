@@ -74,7 +74,11 @@ it('reads later overview batches even when the first threads have no cached repl
     await vi.waitFor(async () => {
       await act(async () => {});
       expect(previews.get('$saved-b')).toBe('Saved reply');
-      expect(summaries.get('$saved-b')).toEqual({ summaryText: 'Saved summary', eventTs: 2000 });
+      expect(summaries.get('$saved-b')).toEqual({
+        summaryText: 'Saved summary',
+        eventTs: 2000,
+        eventId: '$saved-b-summary',
+      });
     });
   } finally {
     await act(async () => renderer?.unmount());

@@ -1,6 +1,7 @@
 import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import {
+  MINDROOM_TOOL_REF_HTML_REG_G,
   MINDROOM_TOOL_REF_ICON,
   MindroomToolRefParseResult,
   parseMindroomToolRefHtml,
@@ -40,12 +41,6 @@ export type ToolRefElementPrefix = {
   trailingChildren: ChildNode[];
 };
 
-type ToolRefMatchBoundary = {
-  html: string;
-  childIndex: number;
-  textSplitIndex: number | undefined;
-};
-
 export const trimLeadingToolRefBoundary = (children: ChildNode[]): ChildNode[] => {
   const remaining = [...children];
 
@@ -76,75 +71,124 @@ export const parseToolRefIndexFromTextPrefix = (text: string): number | undefine
   return index;
 };
 
-export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
-  if (!['p', 'div', 'li'].includes(element.name)) return undefined;
+// Matches, at `lastIndex`, the longest prefix of a text that trims to exactly one marker.
+const TOOL_REF_PREFIX_REG = new RegExp(`\\s*(?:${MINDROOM_TOOL_REF_HTML_REG_G.source})\\s*`, 'y');
 
+// What a child adds to the HTML a marker is matched in, or undefined when no
+// marker can span it.
+const getToolRefChildHtml = (child: ChildNode): string | undefined => {
+  if (isDomTextNode(child)) return child.data;
+  if (isDomElementNode(child) && child.name === 'code') {
+    return `<code>${extractTextFromChildren(child.children)}</code>`;
+  }
+  if (isDomElementNode(child) && child.name === 'span') {
+    return extractTextFromChildren(child.children);
+  }
+  return undefined;
+};
+
+/**
+ * Offers `take` the HTML of each marker that starts the element, in order,
+ * until it declines one: the first marker starts the element, and each later
+ * one starts what is left after the previous marker and its boundary. Returns
+ * what is left after the last marker taken. The element is scanned once,
+ * however many markers it holds.
+ */
+export const takeLeadingToolRefs = (
+  element: Element,
+  take: (html: string) => boolean
+): ChildNode[] => {
+  const children = element.children as ChildNode[];
+  if (!['p', 'div', 'li'].includes(element.name)) return children;
+
+  // What is left starts `split` characters into children[start]. The children
+  // a marker can span from there are joined once into `html`, in which
+  // children[runStart + i] ends at childEnds[i].
+  let start = 0;
+  let split = 0;
+  let runStart = 0;
   let html = '';
-  let bestMatch: ToolRefMatchBoundary | undefined;
-
-  const buildPrefixResult = (match: ToolRefMatchBoundary): ToolRefElementPrefix => {
-    const matchedChild = element.children[match.childIndex];
-    const trailingText =
-      isDomTextNode(matchedChild) && match.textSplitIndex !== undefined
-        ? matchedChild.data.slice(match.textSplitIndex)
-        : '';
-    const trailingChildren = trimLeadingToolRefBoundary([
-      ...(trailingText ? [new DOMText(trailingText)] : []),
-      ...element.children.slice(match.childIndex + 1),
-    ]);
-
-    return {
-      html: match.html,
-      trailingChildren,
-    };
+  let childEnds: number[] = [];
+  const joinRun = () => {
+    runStart = start;
+    html = '';
+    childEnds = [];
+    for (let childIndex = start; childIndex < children.length; childIndex += 1) {
+      const childHtml = getToolRefChildHtml(children[childIndex]);
+      if (childHtml === undefined) break;
+      html += childHtml;
+      childEnds.push(html.length);
+    }
+  };
+  const childStartOf = (childIndex: number): number =>
+    childIndex === runStart ? 0 : childEnds[childIndex - runStart - 1];
+  const skipWhitespaceText = () => {
+    while (start < children.length) {
+      const child = children[start];
+      if (!isDomTextNode(child) || child.data.slice(split).trim()) break;
+      start += 1;
+      split = 0;
+    }
   };
 
-  for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
-    const child = element.children[childIndex];
+  joinRun();
+  for (;;) {
+    // A prefix is a marker exactly when it ends between the marker's `]` and the end of this
+    // match, so one anchored match replaces parsing every prefix.
+    const from = childStartOf(start) + split;
+    TOOL_REF_PREFIX_REG.lastIndex = from;
+    const match = TOOL_REF_PREFIX_REG.exec(html);
+    if (!match || !parseMindroomToolRefHtml(match[0])) break;
+    const longest = from + match[0].length;
+    // The `]` comes before the optional pending icon and the trailing whitespace.
+    const shortest = from + match[0].trimEnd().length - (match[3]?.length ?? 0);
 
-    if (isDomTextNode(child)) {
-      for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
-        const candidate = `${html}${child.data.slice(0, splitIndex)}`;
-        if (parseMindroomToolRefHtml(candidate)) {
-          // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
-          bestMatch = {
-            html: candidate,
-            childIndex,
-            textSplitIndex: splitIndex,
-          };
-        }
+    let end: number | undefined;
+    let endChild = start;
+    for (let childIndex = start; childIndex < runStart + childEnds.length; childIndex += 1) {
+      const childStart = childIndex === start ? from : childStartOf(childIndex);
+      if (childStart > longest) break;
+      const childEnd = childEnds[childIndex - runStart];
+      // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
+      // Only a text child can be split.
+      const candidate = isDomTextNode(children[childIndex])
+        ? Math.min(childEnd, longest)
+        : childEnd;
+      if (childStart <= candidate && shortest <= candidate && candidate <= longest) {
+        end = candidate;
+        endChild = childIndex;
       }
+    }
+    if (end === undefined || !take(html.slice(from, end))) break;
 
-      html += child.data;
-    } else if (isDomElementNode(child) && child.name === 'code') {
-      html += `<code>${extractTextFromChildren(child.children)}</code>`;
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
-    } else if (isDomElementNode(child) && child.name === 'span') {
-      html += extractTextFromChildren(child.children);
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
-    } else if (bestMatch) {
-      return buildPrefixResult(bestMatch);
-    } else {
-      return undefined;
+    // Continue after the marker and its boundary: whitespace, then one line
+    // break and more whitespace.
+    const endsInsideChild = end < childEnds[endChild - runStart];
+    start = endsInsideChild ? endChild : endChild + 1;
+    split = endsInsideChild ? end - childStartOf(endChild) : 0;
+    skipWhitespaceText();
+    const next = children[start];
+    if (isDomElementNode(next) && next.name === 'br') {
+      start += 1;
+      skipWhitespaceText();
+      joinRun();
     }
   }
 
-  if (!bestMatch) return undefined;
-  return buildPrefixResult(bestMatch);
+  const rest = children.slice(start);
+  const first = rest[0];
+  if (split > 0 && isDomTextNode(first)) rest[0] = new DOMText(first.data.slice(split));
+  return rest;
+};
+
+export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
+  let prefixHtml = '';
+  const trailingChildren = takeLeadingToolRefs(element, (html) => {
+    if (prefixHtml) return false;
+    prefixHtml = html;
+    return true;
+  });
+  return prefixHtml ? { html: prefixHtml, trailingChildren } : undefined;
 };
 
 export const countMindroomToolRefIcons = (text: string): number =>
@@ -179,18 +223,17 @@ export const getRenderedMindroomToolRefs = (html: string): RenderedMindroomToolR
     const text = extractTextFromChildren(node.children as ChildNode[]);
     if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
 
-    const prefix = getToolRefPrefixFromElement(node);
-    const toolRef = prefix ? parseMindroomToolRefHtml(prefix.html) : undefined;
-    if (!prefix || !toolRef) return;
-    // The renderer groups by the first bracketed number in the text, so a name
-    // holding another index can hide the block; count it as text instead.
-    if (parseToolRefIndexFromTextPrefix(text) !== toolRef.index) return;
+    takeLeadingToolRefs(node, (html) => {
+      const toolRef = parseMindroomToolRefHtml(html);
+      // The renderer groups by the first bracketed number in the text, so a name
+      // holding another index can hide the block; count it as text instead.
+      // The marker starts the text, so that number is in the marker.
+      if (!toolRef || parseToolRefIndexFromTextPrefix(html) !== toolRef.index) return false;
 
-    toolBlocks.push(toolRef);
-    toolBlockIconCount += countMindroomToolRefIcons(prefix.html);
-    if (prefix.trailingChildren.length > 0) {
-      visit(new Element(node.name, { ...node.attribs }, prefix.trailingChildren));
-    }
+      toolBlocks.push(toolRef);
+      toolBlockIconCount += countMindroomToolRefIcons(html);
+      return true;
+    });
   };
 
   const countAttributeIcons = (nodes: ChildNode[]): number =>

@@ -161,6 +161,9 @@ const replaceToolMarkerLines = (
   lines.forEach((line, index) => {
     const toolRef = toolRefs[index];
     if (toolRef) {
+      // The backend pads markers with blank lines on top of the reply's own, so
+      // the gap before a marker can be several blank lines wide.
+      while (output.length > 0 && output[output.length - 1].trim() === '') output.pop();
       const replacement = visit(toolRef);
       if (replacement.length > 0) {
         if (!lastLineIsBlank()) output.push('');

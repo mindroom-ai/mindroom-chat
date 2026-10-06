@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Box, Icon, IconButton, Icons, Scroll, Text } from 'folds';
+import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { useRoom } from '../../../hooks/useRoom';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
@@ -39,38 +39,39 @@ export function Permissions({ requestClose }: PermissionsProps) {
 
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('featureUi.roomSettings.permissions.permissions')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <Powers
-                powerLevels={powerLevels}
-                onEdit={canEditPowers ? handleEditPowers : undefined}
-                permissionGroups={permissionGroups}
-              />
-              <PermissionGroups
-                canEdit={canEditPermissions}
-                powerLevels={powerLevels}
-                permissionGroups={permissionGroups}
-              />
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('featureUi.roomSettings.permissions.permissions')}
+                </Text>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <Powers
+              powerLevels={powerLevels}
+              onEdit={canEditPowers ? handleEditPowers : undefined}
+              permissionGroups={permissionGroups}
+            />
+            <PermissionGroups
+              canEdit={canEditPermissions}
+              powerLevels={powerLevels}
+              permissionGroups={permissionGroups}
+            />
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

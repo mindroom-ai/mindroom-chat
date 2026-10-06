@@ -1,4 +1,4 @@
-import { EventStatus, MsgType, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { MsgType, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
   getMindroomThreadSummaryInfo,
@@ -9,6 +9,7 @@ import {
 } from '../messages/threadSummary';
 import { createSessionId } from '../../state/sessions';
 import { isMindroomAgentUserId } from '../matrix/agentIdentity';
+import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import { getMessageRelation } from './composeMessageRelation';
 import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
@@ -33,8 +34,7 @@ const sendThreadAction = async (
   try {
     return await mx.sendMessage(room.roomId, threadId, content, txnId);
   } catch (error) {
-    const event = room.getEventForTxnId(txnId);
-    if (event?.status === EventStatus.NOT_SENT) mx.cancelPendingEvent(event);
+    discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
     throw error;
   }
 };
@@ -131,6 +131,7 @@ export const saveThreadSummary = async (
   // notice through the same state/cache used by the overview and thread banner.
   storeThreadSummaryInState(sessionId, room.roomId, threadId, {
     ...getMindroomThreadSummaryInfo(content),
+    eventId,
     ...(eventTs !== undefined && isSupportedThreadSummaryTimestamp(eventTs) ? { eventTs } : {}),
   });
 };

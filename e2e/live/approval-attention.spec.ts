@@ -3,8 +3,10 @@ import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../
 import { loginWithPassword } from '../helpers/auth';
 import {
   createThreadFixture,
+  joinRoom,
   loginToMatrix,
   matrixFetch,
+  registerAgentAccount,
   seedRoomOverviewState,
 } from '../helpers/matrix';
 
@@ -17,20 +19,23 @@ test('approval attention settles, stops on review, and respects actionability an
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  const router = await registerAgentAccount(homeserver, 'router');
   const roomName = `Approval attention ${Date.now()}`;
   const fixture = await createThreadFixture(homeserver, session.accessToken, {
     name: roomName,
     topic: 'Local approval attention check',
     rootBody: 'Save the project notes',
     replyBody: 'The notes are ready. I will ask before saving them.',
+    invite: [router.userId],
   });
+  await joinRoom(homeserver, router.accessToken, fixture.roomId);
   const sendApproval = async (id: string, approver = session.userId) => {
     await matrixFetch(
       homeserver,
       `/rooms/${encodeURIComponent(fixture.roomId)}/send/io.mindroom.tool_approval/${id}`,
       {
         method: 'PUT',
-        accessToken: session.accessToken,
+        accessToken: router.accessToken,
         body: JSON.stringify({
           msgtype: 'io.mindroom.tool_approval',
           body: 'Approval required: save_note',

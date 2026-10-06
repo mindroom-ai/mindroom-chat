@@ -153,9 +153,12 @@ export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
   expect.soft(painted[8], `${surface}: rim leaves the interior clear`).toEqual(plain[8]);
 };
 
-// Catch a header outside its scrolling viewport, an opaque material, or raised
-// edges reappearing when switching between navigation sections.
-export async function expectFloatingNavHeader(header: Locator) {
+// Catch a header outside its scrolling viewport, a strip of the list showing beside
+// it, an opaque material, or raised edges reappearing between navigation sections.
+export async function expectFloatingNavHeader(
+  header: Locator,
+  { inheritsPanelTint = false }: { inheritsPanelTint?: boolean } = {}
+) {
   await expect(header).toBeVisible();
   const scroll = header.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
   await expect(scroll).toHaveCount(1);
@@ -163,8 +166,11 @@ export async function expectFloatingNavHeader(header: Locator) {
     header.evaluate((element) => {
       const viewport = element.closest('[data-y-scrollbar-width]')!;
       const css = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
       return {
-        offset: element.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
+        offset: rect.top - viewportRect.top,
+        edges: [rect.left - viewportRect.left, viewportRect.right - rect.right],
         border: [
           css.borderTopWidth,
           css.borderRightWidth,
@@ -179,12 +185,14 @@ export async function expectFloatingNavHeader(header: Locator) {
     });
   await expect.poll(async () => (await geometry()).offset).toBeCloseTo(0, 0);
   const material = await geometry();
+  material.edges.forEach((edge) => expect(Math.abs(edge)).toBeLessThan(0.5));
   expect(material.border).toEqual(['0px', '0px', '0px', '0px']);
   expect(material.shadow).toBe('none');
   expect(material.highlight).toBe('none');
   expect(material.filter).toContain('blur(');
   expect(material.filter).not.toContain('url(');
-  expect(material.alpha).toBeGreaterThan(0);
+  if (inheritsPanelTint) expect(material.alpha).toBe(0);
+  else expect(material.alpha).toBeGreaterThan(0);
   expect(material.alpha).toBeLessThan(1);
   const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
   await expect(scrollbar).toHaveCount(1);

@@ -1,5 +1,6 @@
-import React, { MutableRefObject, ReactNode, useEffect, useRef } from 'react';
+import React, { MutableRefObject, ReactNode, useLayoutEffect, useRef } from 'react';
 
+import './prismManual';
 import Prism from 'prismjs';
 
 import 'prismjs/components/prism-abap.js';
@@ -314,7 +315,8 @@ export default function ReactPrism({
 }) {
   const codeRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
+  // Before paint, so a streamed edit never shows a frame of uncolored code.
+  useLayoutEffect(() => {
     const el = codeRef.current;
     if (el) Prism.highlightElement(el);
   }, []);

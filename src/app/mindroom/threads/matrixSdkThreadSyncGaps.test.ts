@@ -92,6 +92,29 @@ describe('deferred thread sync gaps', () => {
     expect(messages).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a backward cursor when no room event follows the gap boundary', async () => {
+    // Tuwunel's compact edits can shrink a limited window of streamed edits to its newest
+    // event; `/messages` then finds nothing after `prev_batch` and omits `end`.
+    const { room, threads, messages, client, event } = fixture();
+    messages.mockImplementation(async (_room, token, _limit, dir) =>
+      dir === Direction.Forward
+        ? { chunk: [], start: token! }
+        : { chunk: [], start: 'messages:' + token, end: token! }
+    );
+    const http = vi
+      .spyOn(client.http, 'authedRequest')
+      .mockResolvedValue({ chunk: [event('$gap-reply').event], next_batch: 'older' });
+    room.resetLiveTimeline('back', 'forward');
+    await threads[0].flushPendingTimelineReset();
+
+    expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('back');
+    await client.paginateEventTimeline(threads[0].liveTimeline, { backwards: true });
+    expect(new URL(http.mock.calls[0][1], 'https://example.org').searchParams.get('from')).toBe(
+      'back'
+    );
+    expect(threads[0].liveTimeline.getEvents().map((e) => e.getId())).toContain('$gap-reply');
+  });
+
   it('clears a deferred gap on destructive reset and ignores old conversion completion', async () => {
     const { room, threads, messages } = fixture();
     const pending = deferred<any>();
@@ -253,7 +276,9 @@ describe('deferred thread sync gaps', () => {
   it('does not defer resets during initial metadata loading', async () => {
     const { room, threads } = fixture();
     await settle();
+    // An opened thread whose first page is still loading.
     threads[0].initialEventsFetched = false;
+    (threads[0] as unknown as { initializationDeferred: boolean }).initializationDeferred = false;
     const old = threads[0].liveTimeline;
     room.resetLiveTimeline('back', 'forward');
     expect(threads[0].liveTimeline === old).toBe(false);

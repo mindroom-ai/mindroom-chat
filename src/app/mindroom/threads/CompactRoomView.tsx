@@ -20,6 +20,8 @@ import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar'
 import * as overlay from './RoomOverlay.css';
 import { useThreadPinning } from './useThreadPinning';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { useInitializeShownThread } from './useInitializeShownThread';
+import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -30,13 +32,7 @@ export type CompactRoomViewProps = {
   threadRootIds: string[];
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
-  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
-};
-
-type ScrollRestoreState = {
-  roomId: string;
-  targetScrollTop: number;
-  lastAppliedScrollTop: number;
+  compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
 };
 
 type ThreadActionsMenuState = {
@@ -82,10 +78,13 @@ const CompactThreadCardRow = React.memo(
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
     const rootId = viewModel.id.threadRootId;
+    const shownRef = useInitializeShownThread(roomId, rootId);
 
     return (
       <div
+        ref={shownRef}
         className={css.CardShell}
+        data-scroll-anchor={rootId}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -187,7 +186,6 @@ export function CompactRoomView({
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const scrollRestoreStateRef = useRef<ScrollRestoreState>();
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds,
@@ -262,51 +260,15 @@ export function CompactRoomView({
     }
   }, [error]);
 
-  useLayoutEffect(() => {
-    const view = viewRef.current;
-    if (!view || cardViewModels.length === 0) return;
-
-    const restore = () => {
-      const restoreState = scrollRestoreStateRef.current;
-      if (restoreState?.roomId === room.roomId) {
-        const restoreWasClamped =
-          restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
-        const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
-        if (restoreWasClamped && scrollHasNotMoved) {
-          view.scrollTop = restoreState.targetScrollTop;
-          restoreState.lastAppliedScrollTop = view.scrollTop;
-        }
-        return;
-      }
-
-      const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
-      if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
-      scrollRestoreStateRef.current = {
-        roomId: room.roomId,
-        targetScrollTop: savedScrollTop ?? view.scrollTop,
-        lastAppliedScrollTop: view.scrollTop,
-      };
-    };
-    restore();
-    // Overlay measurements can increase padding after the initial restore.
-    // Retry only a clamped restore, and never after the reader has moved.
-    const observer = new ResizeObserver(restore);
-    observer.observe(view);
-    return () => observer.disconnect();
-  }, [cardViewModels.length, compactRoomScrollStateRef, room.roomId]);
-
-  useLayoutEffect(() => {
-    const view = viewRef.current;
-    if (!view) return undefined;
-    const scrollState = compactRoomScrollStateRef.current;
-    const roomId = room.roomId;
-
-    return () => {
-      if (scrollRestoreStateRef.current?.roomId === roomId) {
-        scrollState.set(roomId, view.scrollTop);
-      }
-    };
-  }, [compactRoomScrollStateRef, room.roomId]);
+  // Opening a card remounts this view, and threads that got replies meanwhile
+  // sort above the cards that were in view, so restore by those cards.
+  useScrollAnchorMemory({
+    memory: compactRoomScrollStateRef.current,
+    memoryKey: room.roomId,
+    scrollRef: viewRef,
+    contentRef,
+    ready: cardViewModels.length > 0,
+  });
 
   const resolveLabel = t('thread.resolve');
   const pinLabel = t('threadNav.pin');

@@ -43,8 +43,10 @@ import {
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+import { forgetRedactedThreadSummaries } from './threadSummaryState';
 import { countCacheProbe } from './cacheProbe';
 import {
+  collectExplicitRedactedEventIds,
   collectKnownRedactedEventIds,
   compareEventRevisions,
   describeMatrixEventRevision,
@@ -910,6 +912,8 @@ export const persistThreadEventCacheSnapshot = ({
     : undefined;
 
   countCacheProbe('serializedEvents', rawEvents.length);
+  // Fetched or backfilled copies can carry a redaction the live handler never saw.
+  forgetRedactedThreadSummaries(sessionId, room.roomId, collectExplicitRedactedEventIds(rawEvents));
   // CINNY-207 P2.3: health gate + failure surfacing moved into the
   // cacheStore save entry point (single choke point). This seam only
   // serializes and delegates.
@@ -1088,6 +1092,7 @@ export const persistRoomEventCacheSnapshot = ({
   const rawEvents = serializeRoomCacheEvents(room, events);
 
   countCacheProbe('serializedEvents', rawEvents.length);
+  forgetRedactedThreadSummaries(sessionId, room.roomId, collectExplicitRedactedEventIds(rawEvents));
   // CINNY-207 P2.3: same as the thread path — gating/surfacing lives
   // in the cacheStore save entry point.
   const attachmentOwners = collectSnapshotAttachmentOwners(room, rawEvents, events);

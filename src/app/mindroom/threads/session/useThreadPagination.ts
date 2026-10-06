@@ -53,18 +53,18 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
       alive && active[request.direction] === request && session.isCurrent(request.lease);
     const reset = (notify = true) => {
       for (const request of Object.values(active)) {
-        if (request) viewports.get(request)?.finish(request, false);
+        if (request) viewports.get(request)?.finish(request);
       }
       delete active.backward;
       delete active.forward;
       viewports.clear();
       if (notify) wake();
     };
-    const finish = (request: ThreadPaginationRequest, committed: boolean) => {
+    const finish = (request: ThreadPaginationRequest) => {
       if (active[request.direction] !== request) return;
       delete active[request.direction];
       wake();
-      viewports.get(request)?.finish(request, committed);
+      viewports.get(request)?.finish(request);
       viewports.delete(request);
     };
     const paginateBack = async () => {
@@ -79,27 +79,14 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         direction: 'backward',
         requestId: ++nextRequestId,
       };
-      if (!viewport.begin(request, threadEvents.length)) return;
+      if (!viewport.begin(request)) return;
       active.backward = request;
       viewports.set(request, viewport);
       wake();
       session.beginManualHistoryRead();
-      let committed = false;
-      const currentOrClear = () => {
+      const stillCurrent = () => {
         if (isCurrent(request)) return true;
         countCacheProbe('threadPaginateBackStaleThreadBails');
-        viewport.clear(request);
-        return false;
-      };
-      const recapture = async () => {
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-          if (!isCurrent(request)) return false;
-          if (viewport.recapture(request, threadEvents.length)) return true;
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((resolve) => {
-            setTimeout(resolve, 50);
-          });
-        }
         return false;
       };
       try {
@@ -131,7 +118,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
               thread.rootEvent,
               first.getPaginationToken(Direction.Backward)
             );
-            if (!currentOrClear()) return;
+            if (!stillCurrent()) return;
             const serverAnchor = getThreadCursorAnchor(
               findEarliestLoadedThreadReplyByCacheOrder(
                 getThreadTimelineEvents(thread),
@@ -150,7 +137,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         }
         if (networkError) countCacheProbe('threadPaginateBackNetworkErrors');
         if (!thread || !first || !serverCursor || networkError) {
-          if (!currentOrClear()) return;
+          if (!stillCurrent()) return;
           const cached = await loadThreadCachedPaginationSnapshot({
             sessionId,
             roomId: room.roomId,
@@ -162,7 +149,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
             limit: THREAD_BATCH_SIZE,
             mapEvent: createPreferLiveEventMapper(room, mx.getEventMapper()),
           }).catch(() => undefined);
-          if (!currentOrClear() || !cached) return;
+          if (!stillCurrent() || !cached) return;
           if (cached.status === 'cache-hit') {
             const timelineSet = thread?.getUnfilteredTimelineSet();
             const cachedTimeline = timelineSet
@@ -175,15 +162,8 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
               );
             }
             await viewport.waitForQuiescence(request);
-            if (!currentOrClear()) return;
-            const captured = await recapture();
-            if (!currentOrClear()) return;
-            // Cached data has not changed the SDK/render sink: retry from cache if rows are absent.
-            if (!captured) {
-              countCacheProbe('threadPaginateBackCommitSkippedNoAnchor');
-              return;
-            }
-            committed = session.commitPage(lease, {
+            if (!stillCurrent()) return;
+            const committed = session.commitPage(lease, {
               kind: 'back-cache',
               events: cached.events,
               hasMoreCachedBack: cached.hasMoreCachedBack,
@@ -200,13 +180,9 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
           }
           return;
         }
-        if (!currentOrClear()) return;
+        if (!stillCurrent()) return;
         await viewport.waitForQuiescence(request);
-        if (!currentOrClear()) return;
-        const captured = await recapture();
-        if (!currentOrClear()) return;
-        // Network pagination already mutated the SDK, so commit after bounded retries without a restore.
-        if (!captured) viewport.clear(request);
+        if (!stillCurrent()) return;
         let hasMoreCachedBack = current.threadHasMoreCachedBack;
         reconcileThreadBackwardPagination(
           first,
@@ -215,10 +191,11 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
             hasMoreCachedBack = value;
           }
         );
-        committed = session.commitPage(lease, { kind: 'back-network', hasMoreCachedBack });
-        if (committed) countCacheProbe('threadPaginateBackNetworkCommits');
+        if (session.commitPage(lease, { kind: 'back-network', hasMoreCachedBack })) {
+          countCacheProbe('threadPaginateBackNetworkCommits');
+        }
       } finally {
-        finish(request, committed);
+        finish(request);
       }
     };
     const paginateFront = async () => {
@@ -252,7 +229,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         if (!isCurrent(request)) return;
         session.commitPage(lease, { kind: 'front-network', tailLoaded });
       } finally {
-        finish(request, false);
+        finish(request);
       }
     };
     return {

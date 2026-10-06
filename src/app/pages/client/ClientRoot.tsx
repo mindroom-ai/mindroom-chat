@@ -12,7 +12,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import React, { MouseEventHandler, ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
@@ -42,11 +42,10 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
-import { useSyncState } from '../../hooks/useSyncState';
 import { AutoDiscovery } from './AutoDiscovery';
 import {
   isInitialClientCatchupInProgress,
-  type ClientSyncStateData,
+  useClientSyncStateData,
 } from '../../hooks/useInitialClientCatchup';
 import {
   createMindroomSyncEngine,
@@ -307,32 +306,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
   }, [getPrefetchConfig, mx, subscribePrefetchConfig]);
 
   const [hasCachedShell, setHasCachedShell] = useState(false);
-  const [syncStateData, setSyncStateData] = useState<ClientSyncStateData>({
-    current: null,
-    previous: undefined,
-  });
-
-  useEffect(() => {
-    setSyncStateData({
-      current: mx?.getSyncState?.() ?? null,
-      previous: undefined,
-    });
-  }, [mx]);
-
-  useSyncState(
-    mx,
-    useMemo(
-      () => (current, previous) => {
-        setSyncStateData((existing) => {
-          if (existing.current === current && existing.previous === previous) {
-            return existing;
-          }
-          return { current, previous };
-        });
-      },
-      []
-    )
-  );
+  const syncStateData = useClientSyncStateData(mx);
   useEffect(() => {
     let disposed = false;
     let nextClient: ClientMatrixClient | undefined;

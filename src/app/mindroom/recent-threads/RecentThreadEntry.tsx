@@ -8,6 +8,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
+import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
 
 type RecentThreadEntryProps = {
@@ -21,6 +22,7 @@ export const RecentThreadEntry = memo(
   ({ room, threadId, openedAt, summaryText }: RecentThreadEntryProps) => {
     const { t } = useTranslation();
     const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
+    const shownRef = useInitializeShownThread(room.roomId, viewModel.id.threadRootId);
     const relativeTime = useRelativeTime(openedAt);
     const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
     const { viewMode } = useRoomViewMode(room.roomId);
@@ -57,7 +59,12 @@ export const RecentThreadEntry = memo(
     ]);
 
     return (
-      <NavItem className={css.RecentlyOpenedEntry} variant="Background" radii="400">
+      <NavItem
+        className={css.RecentlyOpenedEntry}
+        data-scroll-anchor={`${room.roomId}|${threadId}`}
+        variant="Background"
+        radii="400"
+      >
         <NavButton
           type="button"
           onClick={() => {
@@ -72,7 +79,7 @@ export const RecentThreadEntry = memo(
         >
           <NavItemContent as="span">
             <Box as="span" grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-              <Text as="span" size="T300" truncate>
+              <Text as="span" size="T300" truncate ref={shownRef}>
                 {viewModel.summaryText}
               </Text>
               <Box as="span" alignItems="Center" justifyContent="SpaceBetween" gap="100">

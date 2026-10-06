@@ -183,9 +183,7 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
           return roots.every((root, index) => {
             const card = cards.get(root);
             const label = card?.getAttribute('aria-label');
-            const state = card
-              ?.querySelector('[data-attention-state]')
-              ?.getAttribute('data-attention-state');
+            const state = card?.getAttribute('data-attention-state');
             return (
               label?.includes(markers[index]) &&
               state &&

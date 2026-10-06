@@ -11,7 +11,6 @@ export const Header = style({
   borderBottomWidth: config.borderWidth.B300,
   flexShrink: 0,
 });
-export const Scroll = style({ flexGrow: 1, minHeight: 0 });
 export const Content = style({ padding: config.space.S400 });
 export const Card = style({
   padding: config.space.S400,

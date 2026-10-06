@@ -960,6 +960,16 @@
     "label": "স্ক্রোলযোগ্য টেবিল",
     "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন"
   },
+  "messageCodeBlock": {
+    "actions": "কোড ব্লকের অ্যাকশন",
+    "code": "কোড",
+    "language": "ভাষা: {{language}}",
+    "copy": "কোড কপি করুন",
+    "copied": "কপি করা হয়েছে",
+    "wrap": "লাইন মোড়ান",
+    "expand": "বিস্তৃত করুন",
+    "collapse": "গুটিয়ে নিন"
+  },
   "mindroomUi": {
     "models": {
       "modelPicker": {
@@ -993,6 +1003,12 @@
         "endCurrentCall": "আগে বর্তমান কল শেষ করুন।",
         "failedToStart": "কল শুরু করা যায়নি।",
         "homeserverUnsupported": "আপনার হোমসার্ভার কল সমর্থন করে না।"
+      },
+      "agentCallHeaderButton": {
+        "call": "একটি এজেন্টকে কল করুন",
+        "callAgent": "{{name}}-কে কল করুন",
+        "chooseAgent": "কল করার জন্য একটি এজেন্ট বেছে নিন",
+        "close": "বন্ধ করুন"
       }
     },
     "commands": {
@@ -1166,6 +1182,9 @@
         "denialReasonOptional": "প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
         "deny": "প্রত্যাখ্যান করুন",
         "denyCallReasonOptional": "কল {{number}} প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
+        "approveExactCall": "ঠিক এই কলটি অনুমোদন করুন",
+        "approveAnyArguments": "যেকোনো আর্গুমেন্ট অনুমোদন করুন",
+        "anyArgumentsWarning": "যেকোনো আর্গুমেন্ট বেছে নিলে এজেন্ট নির্ধারিত সময়ের {{minutes}} মিনিটের মধ্যে নিজের পছন্দমতো {{tool}} একবার কল করতে পারবে।",
         "denyReasonOptional": "প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
         "submittedWaitingForRoomUpdate": "জমা দেওয়া হয়েছে। রুম আপডেটের জন্য অপেক্ষা করছি।",
         "thisRequestCannotBeApprovedHere": "এই অনুরোধ এখানে অনুমোদন করা যাবে না."
@@ -1188,6 +1207,8 @@
         "grantedByAt": "{{grantor}} · {{timestamp}} দ্বারা মঞ্জুর করা হয়েছে",
         "originalFixedExpiry": "প্রথমে নির্ধারিত মেয়াদ শেষের সময়: {{timestamp}}",
         "reason": "কারণ: {{reason}}",
+        "approvedWhenScheduledByAt": "নির্ধারণের সময় {{approver}} অনুমোদন করেছেন · {{timestamp}}",
+        "approvedWhenScheduledBy": "নির্ধারণের সময় {{approver}} অনুমোদন করেছেন",
         "requestedBy": "{{agent}} · {{requester}} দ্বারা অনুরোধ করা হয়েছে",
         "resolvedAt": "{{status}} · {{timestamp}}",
         "resolvedBy": "{{resolver}} দ্বারা {{status}}",
@@ -1203,6 +1224,11 @@
         "toolAndServer": "টুল: {{tool}} · সার্ভার: {{server}}",
         "unknown": "অজানা"
       },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}}-এর জন্য নির্ধারিত",
+        "approvedExactArguments": "ঠিক এই আর্গুমেন্টগুলোর জন্য অনুমোদিত",
+        "approvedAnyArguments": "এই টুলের যেকোনো আর্গুমেন্টের জন্য অনুমোদিত"
+      },
       "approvalReviewCall": {
         "callStatus": "কল {{number}} · {{status}}",
         "pending": "মুলতুবি",
@@ -1216,11 +1242,21 @@
           "submitted": "জমা দেওয়া হয়েছে"
         }
       },
+      "failedSendActions": {
+        "delete": "মুছুন",
+        "retry": "আবার চেষ্টা করুন"
+      },
       "messageCopyActions": {
         "copyLink": "লিংক কপি করুন",
         "copyText": "টেক্সট কপি করুন",
         "copyTextWithToolCalls": "টুল কলসহ টেক্সট কপি করুন",
         "copyTextLoading": "টেক্সট কপি করুন (লোড হচ্ছে...)"
+      },
+      "bugReport": {
+        "report": "বাগ রিপোর্ট করুন",
+        "download": "বাগ রিপোর্ট ডাউনলোড করুন",
+        "sending": "রিপোর্ট পাঠানো হচ্ছে…",
+        "failed": "রিপোর্ট পাঠানো যায়নি। আবার চেষ্টা করুন।"
       },
       "messageInspectionActions": {
         "readReceipts": "পড়ার সূচক",
@@ -1439,11 +1475,7 @@
         "noThreads": "কোনো থ্রেড নেই"
       },
       "compactThreadCard": {
-        "lastActivity": "শেষ কার্যকলাপ {{time}}",
-        "streaming": "স্ট্রিমিং",
-        "threadStatus": "থ্রেড স্ট্যাটাস: {{status}}",
-        "unread": "অপঠিত",
-        "unreadMessages": "অপঠিত বার্তা"
+        "streaming": "স্ট্রিমিং"
       },
       "compactThreadCardUtils": {
         "atTime": "{{time}} এ",
@@ -1637,10 +1669,65 @@
     "uiActions": {
       "viewComputer": "কম্পিউটার দেখুন",
       "openMembers": "সদস্যদের খুলুন",
+      "openCanvas": "প্যানেল খুলুন",
+      "canvasDisabled": "এই অ্যাপে ইন্টারঅ্যাকটিভ প্যানেল বন্ধ আছে।",
+      "canvasDuringCall": "ইন্টারঅ্যাকটিভ প্যানেল খুলতে কলটি শেষ করুন।",
       "computerUnavailable": "এই এজেন্টের কম্পিউটার উপলব্ধ নেই।",
       "releaseControl": "অন্য দৃশ্য খোলার আগে কম্পিউটারের নিয়ন্ত্রণ ছেড়ে দিন।",
       "openConversation": "রুমের কথোপকথন থেকে এই অনুরোধটি খুলুন।",
       "settingsUnavailable": "সেটিংসের এই বিভাগ খুলতে সরল মোড বন্ধ করুন।"
+    },
+    "canvas": {
+      "panelLabel": "ইন্টারঅ্যাকটিভ প্যানেল",
+      "fromAgent": "{{agent}}-এর ইন্টারঅ্যাকটিভ প্যানেল",
+      "expand": "প্যানেল বড় করুন",
+      "close": "প্যানেল বন্ধ করুন",
+      "resize": "প্যানেলের আকার পরিবর্তন করুন",
+      "updated": "{{agent}} এই প্যানেলটি আপডেট করেছে।",
+      "loadUpdate": "আপডেট লোড করুন",
+      "version": "সংস্করণ {{current}} / {{total}}",
+      "previousVersion": "আগের সংস্করণ",
+      "nextVersion": "পরের সংস্করণ",
+      "earlierVersion": "এটি একটি আগের সংস্করণ।",
+      "showLatest": "সর্বশেষটি দেখান",
+      "loading": "প্যানেল লোড হচ্ছে…",
+      "loadFailed": "এই প্যানেলটি লোড করা যায়নি।",
+      "retry": "আবার চেষ্টা করুন",
+      "escaped": "এই প্যানেলটি তার স্যান্ডবক্সের বাইরে যাওয়ার চেষ্টা করেছিল, তাই এটি থামানো হয়েছে।",
+      "reload": "প্যানেল আবার লোড করুন",
+      "pageError": "এই পৃষ্ঠাটি একটি ত্রুটি জানিয়েছে।",
+      "tellAgent": "{{agent}}-কে জানান",
+      "errorsSent": "ত্রুটিগুলো {{agent}}-কে পাঠানো হয়েছে।",
+      "errorsNotSent": "ত্রুটিগুলো {{agent}}-কে পাঠানো যায়নি।",
+      "sendTo": "{{agent}}-কে পাঠান:",
+      "changeAnswer": "আপনার উত্তর বদলাতে আগে এটি বাতিল করুন।",
+      "data": "ডেটা",
+      "send": "পাঠান",
+      "discard": "বাতিল করুন",
+      "disclosure": "{{agent}} এটি তৈরি করেছে। এটি আপনার অ্যাকাউন্টে অ্যাক্সেস করতে পারে না; এখানে আপনি যা লিখবেন তা এই প্যানেলের বাইরে যেতে পারে।",
+      "sharedNotice": "এই রুমে সংরক্ষিত: {{agent}} এবং এখানকার অন্যরা আপনি যা লিখবেন তা পড়তে পারে।",
+      "sending": "{{agent}}-কে পাঠানো হচ্ছে…",
+      "sent": "{{agent}}-কে পাঠানো হয়েছে: {{label}}",
+      "sendFailed": "আপনার উত্তর পাঠানো যায়নি। আবার চেষ্টা করুন।",
+      "receiptData": "এজেন্টকে পাঠানো ডেটা দেখুন",
+      "unlabeled": "জমা দেওয়া হয়েছে",
+      "notSent": "{{agent}}-কে পাঠানো হয়নি: {{label}}"
+    },
+    "canvases": {
+      "title": "ইন্টারঅ্যাকটিভ প্যানেল",
+      "note": "আপনার এজেন্টরা আপনার জন্য যে ইন্টারঅ্যাকটিভ প্যানেল বানিয়েছে এবং এই ব্রাউজার যা দেখেছে। পিন করা প্যানেল আপনার সব ডিভাইসে দেখা যায়।",
+      "empty": "এখনো কোনো ইন্টারঅ্যাকটিভ প্যানেল নেই। কোনো এজেন্ট আপনাকে একটি দেখালে সেটি এখানে দেখা যাবে।",
+      "pinned": "পিন করা হয়েছে",
+      "canvas": "প্যানেল",
+      "thread": "থ্রেড",
+      "agent": "এজেন্ট",
+      "room": "রুম",
+      "updated": "আপডেট করা হয়েছে",
+      "created": "তৈরি করা হয়েছে",
+      "pin": "{{title}} পিন করুন",
+      "unpin": "{{title}} আনপিন করুন",
+      "shared": "এজেন্টের সাথে শেয়ার করা",
+      "saved": "আপনার মান সংরক্ষিত আছে"
     }
   },
   "nav": {
@@ -1665,6 +1752,7 @@
     "noRoomsDescription": "আপনার এখনও কোনো রুম নেই।",
     "rooms": "রুম",
     "threads": "থ্রেড",
+    "canvases": "ইন্টারঅ্যাকটিভ প্যানেল",
     "unverifiedDevice": "অযাচাইকৃত ডিভাইস",
     "unverifiedDevices": "অযাচাইকৃত ডিভাইস"
   },
@@ -1759,6 +1847,8 @@
       "interface": {
         "expandLongMessagesByDefault": "ডিফল্টরূপে দীর্ঘ বার্তা প্রসারিত করুন",
         "expandLongMessagesByDefaultDescription": "দীর্ঘ বার্তাগুলিকে ‘সম্পূর্ণ বার্তা দেখান’-এর আড়ালে না রেখে পুরোটা দেখান। এই সেটিং আপনার ডিভাইসগুলিতে সিঙ্ক হয়।",
+        "showCanvasesInSidebar": "সাইডবারে ইন্টারঅ্যাকটিভ প্যানেল দেখান",
+        "showCanvasesInSidebarDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। এই সেটিং আপনার ডিভাইসগুলিতে সিঙ্ক হয়।",
         "saveFailed": "পরিবর্তন সংরক্ষণ করা যায়নি. আপনার সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন.",
         "sectionTitle": "ইন্টারফেস",
         "simpleMode": "সহজ মোড",
@@ -1785,7 +1875,18 @@
         "urlPreview": "ইউআরএল প্রিভিউ",
         "urlPreviewEncrypted": "এনক্রিপ্ট করা রুমে URL পূর্বরূপ"
       },
-      "title": "সাধারণ"
+      "title": "সাধারণ",
+      "computers": {
+        "sectionTitle": "কম্পিউটার",
+        "apiUrl": "কম্পিউটার পরিষেবার URL",
+        "description": "একটি বিশ্বস্ত MindRoom ব্যাকএন্ড বেছে নিন; এটি স্বল্পমেয়াদি সাইন-ইন টোকেন পাবে। এই ডিভাইসে সংরক্ষিত হয়। কম্পিউটার বন্ধ করতে ফাঁকা রাখুন।",
+        "save": "কম্পিউটার পরিষেবা সংরক্ষণ করুন",
+        "reset": "অ্যাপের ডিফল্ট ব্যবহার করুন",
+        "invalidUrl": "পরিচয়পত্র, পাথ, কোয়েরি বা ফ্র্যাগমেন্ট ছাড়া একটি অরিজিন লিখুন। HTTPS ব্যবহার করুন, অথবা localhost বা ব্যক্তিগত LAN IP ঠিকানার জন্য HTTP ব্যবহার করুন।",
+        "httpNotice": "HTTP আপনার সাইন-ইন বা কম্পিউটারের ডেটা এনক্রিপ্ট করে না। এটি কেবল বিশ্বস্ত স্থানীয় নেটওয়ার্কে ব্যবহার করুন।",
+        "saveFailed": "এই ডিভাইসে কম্পিউটার পরিষেবা সংরক্ষণ করা যায়নি।",
+        "saved": "কম্পিউটার পরিষেবা সংরক্ষিত হয়েছে।"
+      }
     },
     "logout": "লগআউট",
     "nav": {

@@ -1,8 +1,6 @@
-import { SyncState } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   areMessageSearchRoomsEqual,
-  isInitialMessageSearchCatchupInProgress,
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
@@ -10,11 +8,7 @@ import {
 describe('normalizeMessageSearchRooms', () => {
   it('sorts and deduplicates room ids', () => {
     expect(
-      normalizeMessageSearchRooms([
-        '!b:example.org',
-        '!a:example.org',
-        '!b:example.org',
-      ])
+      normalizeMessageSearchRooms(['!b:example.org', '!a:example.org', '!b:example.org'])
     ).toEqual(['!a:example.org', '!b:example.org']);
   });
 
@@ -26,37 +20,15 @@ describe('normalizeMessageSearchRooms', () => {
 describe('areMessageSearchRoomsEqual', () => {
   it('returns true for matching ordered room scopes', () => {
     expect(
-      areMessageSearchRoomsEqual(['!a:example.org', '!b:example.org'], [
-        '!a:example.org',
-        '!b:example.org',
-      ])
+      areMessageSearchRoomsEqual(
+        ['!a:example.org', '!b:example.org'],
+        ['!a:example.org', '!b:example.org']
+      )
     ).toBe(true);
   });
 
   it('returns false when room scopes differ', () => {
-    expect(
-      areMessageSearchRoomsEqual(['!a:example.org'], ['!b:example.org'])
-    ).toBe(false);
-  });
-});
-
-describe('isInitialMessageSearchCatchupInProgress', () => {
-  it('treats the initial Prepared state as catchup', () => {
-    expect(
-      isInitialMessageSearchCatchupInProgress({
-        current: SyncState.Prepared,
-        previous: undefined,
-      })
-    ).toBe(true);
-  });
-
-  it('stops treating Syncing as initial catchup after steady-state sync', () => {
-    expect(
-      isInitialMessageSearchCatchupInProgress({
-        current: SyncState.Syncing,
-        previous: SyncState.Syncing,
-      })
-    ).toBe(false);
+    expect(areMessageSearchRoomsEqual(['!a:example.org'], ['!b:example.org'])).toBe(false);
   });
 });
 

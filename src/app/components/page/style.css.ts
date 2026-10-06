@@ -1,22 +1,22 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
 import { Viewport } from '../inset-scrollbar/InsetScrollbar.css';
 
 // Match the size-600 navigation header and its native focus-scroll inset.
 const pageNavHeaderHeight = toRem(54);
+// folds' Scroll pads its inline end for an overlay scrollbar whenever the native
+// one measures 0 px, which these hidden-scrollbar viewports always do. Sticky
+// headers span that padding so no strip of the content shows beside them.
+const pageNavScrollEndPadding = toRem(8);
+const pageScrollEndPadding = createVar();
 
-// Size-600 page chrome shares the navigation header's flat native material.
-export const PageHeaderMaterial = style([
-  glassSurface({ level: 'panel', variant: 'Surface' }),
-  glassFlat,
-  glassFloating,
-]);
+export const pageScrollHeaderHeight = createVar();
+const scrollHeaderHeight = fallbackVar(pageScrollHeaderHeight, pageNavHeaderHeight);
 
 export const PageScroll = recipe({
   base: [Viewport, { scrollPaddingBlockStart: 0 }],
-  variants: { header: { true: { scrollPaddingBlockStart: pageNavHeaderHeight } } },
+  variants: { header: { true: { scrollPaddingBlockStart: scrollHeaderHeight } } },
 });
 
 export const PageScrollContent = style({ minHeight: '100%' });
@@ -24,17 +24,18 @@ export const PageScrollHeader = style({
   position: 'sticky',
   top: 0,
   zIndex: 1,
-  height: pageNavHeaderHeight,
+  vars: { [pageScrollEndPadding]: toRem(16) },
+  marginInlineEnd: `calc(-1 * ${pageScrollEndPadding})`,
 });
 export const PageScrollBody = style({
   paddingInlineEnd: 'calc(var(--mr-scrollbar-inset-end, 0px) + 12px)',
 });
 export const PageScrollbar = recipe({
   base: { top: 0, bottom: 0, insetInlineEnd: 'var(--mr-scrollbar-inset-end, 0px)', zIndex: 1 },
-  variants: { header: { true: { top: pageNavHeaderHeight } } },
+  variants: { header: { true: { top: scrollHeaderHeight } } },
 });
 export const PageScrollToTop = style({
-  selectors: { '&&': { top: `calc(${pageNavHeaderHeight} + ${config.space.S200})` } },
+  selectors: { '&&': { top: `calc(${scrollHeaderHeight} + ${config.space.S200})` } },
 });
 
 export const PageNav = recipe({
@@ -54,19 +55,15 @@ export const PageNav = recipe({
 });
 export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
-// Navigation chrome shares native blur without borders or a refractive rim.
-export const PageNavHeaderMaterial = style([
-  glassSurface({ level: 'panel', variant: 'Background' }),
-  glassFlat,
-  glassFloating,
-]);
-
 export const PageNavHeader = style({
   position: 'sticky',
   top: 0,
   zIndex: 1,
   height: pageNavHeaderHeight,
   padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
+  // The extra end padding keeps the header's contents in place.
+  marginInlineEnd: `calc(-1 * ${pageNavScrollEndPadding})`,
+  paddingInlineEnd: `calc(${config.space.S200} + ${pageNavScrollEndPadding})`,
   flexShrink: 0,
   selectors: {
     'button&': {
@@ -108,7 +105,8 @@ export const PageNavScrollbar = style({
 export const PageHeader = recipe({
   base: {
     paddingInlineStart: config.space.S400,
-    paddingInlineEnd: config.space.S200,
+    // Inside PageScroll the header spans the viewport's end padding; keep its contents in place.
+    paddingInlineEnd: `calc(${config.space.S200} + ${fallbackVar(pageScrollEndPadding, '0px')})`,
   },
   variants: {
     balance: {

@@ -44,6 +44,10 @@
     "computers": {
       "apiUrl": ""
     },
+    "canvas": {
+      "enabled": false,
+      "libraries": false
+    },
     "thinkingPlaceholderMessages": [
       "Thinking",
       "Making progress",

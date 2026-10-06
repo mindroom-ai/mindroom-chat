@@ -3,6 +3,7 @@ import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-p
 import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   act,
   create,
@@ -78,6 +79,9 @@ vi.mock('folds', async () => {
       }
     ),
     toRem: (value: number) => `${value / 16}rem`,
+    Tooltip: passthrough('span'),
+    TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+      children(() => undefined),
   };
 });
 
@@ -88,7 +92,14 @@ vi.mock('../styles/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
+  MessageCodeBlock: 'MessageCodeBlock',
   CodeBlockHeader: 'CodeBlockHeader',
+  CodeBlockLabel: 'CodeBlockLabel',
+  CodeBlockLabelText: 'CodeBlockLabelText',
+  CodeBlockLanguageIcon: 'CodeBlockLanguageIcon',
+  CodeBlockActions: 'CodeBlockActions',
+  CodeBlockAction: 'CodeBlockAction',
+  CodeBlockActionIcon: 'CodeBlockActionIcon',
   CodeBlockScroll: 'CodeBlockScroll',
   CodeBlockInternal: 'CodeBlockInternal',
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
@@ -97,6 +108,7 @@ vi.mock('../styles/CustomHtml.css', () => ({
   Spoiler: () => 'Spoiler',
   EmoticonBase: 'EmoticonBase',
   Emoticon: () => 'Emoticon',
+  highlightText: 'highlightText',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -202,7 +214,9 @@ describe('CodeBlock clipboard feedback', () => {
     );
 
   const getCopyControl = (renderer: ReactTestRenderer) =>
-    renderer.root.findAllByType('span').find((node) => typeof node.props.onClick === 'function')!;
+    renderer.root.find(
+      (node) => node.type === 'button' && String(node.props['aria-label']).startsWith('Cop')
+    );
 
   it('shows Copied only after confirmed clipboard success', async () => {
     clipboardMocks.copyToClipboard.mockResolvedValue(true);
@@ -213,7 +227,7 @@ describe('CodeBlock clipboard feedback', () => {
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('copy me');
-    expect(collectTextContent(renderer.toJSON())).toContain('Copied');
+    expect(getCopyControl(renderer).props['aria-label']).toBe('Copied');
     renderer.unmount();
   });
 
@@ -225,8 +239,110 @@ describe('CodeBlock clipboard feedback', () => {
       await getCopyControl(renderer).props.onClick();
     });
 
-    expect(collectTextContent(renderer.toJSON())).toContain('Copy');
-    expect(collectTextContent(renderer.toJSON())).not.toContain('Copied');
+    expect(getCopyControl(renderer).props['aria-label']).toBe('Copy code');
+    renderer.unmount();
+  });
+});
+
+describe('CodeBlock header', () => {
+  const renderFence = (html: string) => renderCustomHtmlMarkup(html);
+
+  it('shows a known language as its icon, named for assistive technology', () => {
+    const markup = renderFence('<pre><code class="language-sh">ls</code></pre>');
+
+    expect(markup).toContain('role="img" aria-label="Language: sh"');
+    expect(markup).toContain('data-code-icon="bash"');
+  });
+
+  it('labels filenames with the icon of their language', () => {
+    const markup = renderFence(
+      '<pre><code class="language-tsx" data-label="Greeting.tsx">x</code></pre>'
+    );
+
+    expect(markup).toContain('data-code-icon="react"');
+    expect(markup).toContain('>Greeting.tsx</span>');
+  });
+
+  it('falls back to the language name, or text, without an icon', () => {
+    expect(renderFence('<pre><code class="language-elixir">x</code></pre>')).toContain(
+      '>elixir</span>'
+    );
+    expect(renderFence('<pre><code>x</code></pre>')).toContain('>text</span>');
+  });
+
+  it('collapses a long wrapped line like a long block', () => {
+    const renderer = renderCustomHtmlTree(`<pre><code>${'x'.repeat(2000)}</code></pre>`);
+    const expand = () =>
+      renderer.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Expand'
+      );
+
+    expect(expand()).toHaveLength(1);
+    act(() => {
+      renderer.root
+        .find((node) => node.type === 'button' && node.props['aria-label'] === 'Wrap lines')
+        .props.onClick();
+    });
+    expect(expand()).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('wraps lines by default and toggles wrapping from the toolbar', () => {
+    const renderer = renderCustomHtmlTree('<pre><code>x</code></pre>');
+    const pre = () => renderer.root.findByType('pre');
+    const wrapButton = () =>
+      renderer.root.find(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Wrap lines'
+      );
+
+    expect(pre().props['data-wrap']).toBe(true);
+    expect(wrapButton().props['aria-pressed']).toBe(true);
+
+    act(() => {
+      wrapButton().props.onClick();
+    });
+
+    expect(pre().props['data-wrap']).toBe(false);
+    expect(wrapButton().props['aria-pressed']).toBe(false);
+    renderer.unmount();
+  });
+});
+
+describe('fenced code syntax highlighting', () => {
+  it('hands fenced code to the Prism highlighter', () => {
+    const renderer = renderCustomHtmlTree(
+      '<pre><code class="language-js">const a = 1;</code></pre>'
+    );
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
+    expect(collectTextContent(renderer.toJSON())).toContain('const a = 1;');
+    renderer.unmount();
+  });
+
+  const renderSearch = (html: string) => {
+    const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+      highlightRegex: /const/gi,
+    });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(React.Fragment, null, parse(html, opts)));
+    });
+    return renderer!;
+  };
+
+  it('shows search matches instead of syntax colors in a matching block', () => {
+    const renderer = renderSearch('<pre><code class="language-js">const a = 1;</code></pre>');
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: 'highlightText' })).toHaveLength(1);
+    renderer.unmount();
+  });
+
+  it('keeps syntax colors in blocks without a search match', () => {
+    const renderer = renderSearch('<pre><code class="language-js">let a = 1;</code></pre>');
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
     renderer.unmount();
   });
 });
@@ -530,6 +646,28 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(markup).toContain('Done');
   });
 
+  it('renders and copies a paragraph of many markers without recursing per marker', () => {
+    const count = 3_000;
+    const markers = Array.from({ length: count }, (_, index) => `🔧 <code>t</code> [${index + 1}]`);
+    const html = `<p>${markers.join('<br>')}<br>Done</p>`;
+    const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), {
+      formatted_body: html,
+    });
+
+    // Each marker used to parse the rest of its paragraph one level deeper,
+    // which overflowed the stack for a long paragraph.
+    const parsed = parse(html, opts) as React.ReactElement;
+    const shown = React.Children.toArray(parsed.props.children);
+    const toolBlocks = shown.filter(
+      (node) =>
+        React.isValidElement<{ parsedTools?: unknown }>(node) &&
+        Array.isArray(node.props.parsedTools)
+    );
+    expect(toolBlocks).toHaveLength(count);
+    expect(renderToStaticMarkup(shown[shown.length - 1] as React.ReactElement)).toBe('<p>Done</p>');
+    expect(getRenderedMindroomToolRefs(html).toolBlocks).toHaveLength(count);
+  });
+
   it('consumes pending hourglass as part of the marker and does not render it as trailing text', () => {
     const markup = renderWithToolTrace('<p>🔧 <code>tool3</code> [3] ⏳<br/>Waiting</p>', {
       'io.mindroom.tool_trace': {
@@ -694,12 +832,12 @@ describe('getReactCustomHtmlParser', () => {
     const codeTree = renderCustomHtmlTree(
       `<pre><code><a href="${matrixTo}">${userId}</a></code></pre>`
     );
-    const copyControl = codeTree.root
-      .findAllByType('span')
-      .find((node) => typeof node.props.onClick === 'function');
+    const copyControl = codeTree.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Copy code'
+    );
 
     await act(async () => {
-      await copyControl?.props.onClick();
+      await copyControl.props.onClick();
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(userId);
@@ -715,15 +853,15 @@ describe('getReactCustomHtmlParser', () => {
     const codeTree = renderCustomHtmlTree(
       `<pre><code><a href="${matrixTo}">${customLabel}</a></code></pre>`
     );
-    const copyControl = codeTree.root
-      .findAllByType('span')
-      .find((node) => typeof node.props.onClick === 'function');
+    const copyControl = codeTree.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Copy code'
+    );
 
     expect(collectTextContent(codeTree.toJSON())).toContain(customLabel);
     expect(codeTree.root.findAllByType('a')).toHaveLength(0);
 
     await act(async () => {
-      await copyControl?.props.onClick();
+      await copyControl.props.onClick();
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(customLabel);
@@ -805,6 +943,13 @@ describe('getReactCustomHtmlParser', () => {
 
     expect(markup).toContain('MathInline');
     expect(markup).toContain('katex');
+  });
+
+  it('scales emoji in text but not inside URLs', () => {
+    const markup = renderLatexTextMarkup('✅ https://example.org/✅ ✅');
+
+    expect(markup.match(/Emoticon"/g)).toHaveLength(2);
+    expect(markup).toContain('https://example.org/✅');
   });
 
   it('does not split URLs that contain dollar delimiters', () => {

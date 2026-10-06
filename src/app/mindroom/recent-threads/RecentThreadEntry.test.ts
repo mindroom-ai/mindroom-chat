@@ -75,8 +75,15 @@ vi.mock('folds', () => ({
 vi.mock('../../components/nav', () => ({
   NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     React.createElement('button', props, children),
-  NavItem: ({ children, className }: { children?: React.ReactNode; className?: string }) =>
-    React.createElement('div', { className }, children),
+  NavItem: ({
+    children,
+    className,
+    'data-scroll-anchor': scrollAnchor,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    'data-scroll-anchor'?: string;
+  }) => React.createElement('div', { className, 'data-scroll-anchor': scrollAnchor }, children),
   NavItemContent: ({
     as: asElement = 'div',
     children,
@@ -98,6 +105,9 @@ vi.mock('../threads/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomViewModeState.value }),
 }));
 
+vi.mock('../threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../../hooks/useRelativeTime', () => ({
   useRelativeTime: () => '1m ago',
 }));
@@ -166,6 +176,22 @@ describe('RecentThreadEntry', () => {
 
     expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith('!room:example.org', '$resolved');
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
+  it('marks its row as a scroll anchor with the same key as its list entry', () => {
+    act(() => {
+      renderer = create(
+        React.createElement(RecentThreadEntry, {
+          room: { roomId: '!room:example.org', hasEncryptionStateEvent: () => false } as never,
+          threadId: '$thread',
+          openedAt: Date.now(),
+        })
+      );
+    });
+
+    expect(renderer!.root.findByType('div').props['data-scroll-anchor']).toBe(
+      '!room:example.org|$thread'
+    );
   });
 
   it('uses room navigation when the effective view policy resolves classic mode', () => {

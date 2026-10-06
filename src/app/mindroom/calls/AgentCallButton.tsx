@@ -1,49 +1,36 @@
 import { useTranslation } from 'react-i18next';
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Box, Button, color, Icon, Icons, Spinner, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useClientConfig } from '../../hooks/useClientConfig';
-import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
-import { useLivekitSupport } from '../../hooks/useLivekitSupport';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { webRTCSupported } from '../../utils/rtc';
+import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
+import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
-import {
-  cleanupCreatedAgentCall,
-  createAgentVoiceRoom,
-  hasMindroomVoiceCallsPresence,
-  waitForJoinedRoom,
-} from './agentCall';
+import { hasMindroomVoiceCallsPresence, toAgentCallOrigin } from './agentCall';
+import { useStartAgentCall } from './useStartAgentCall';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
-import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 
 type AgentCallButtonProps = {
+  roomId: string;
   userId: string;
   displayName?: string;
   presenceStatus?: string;
 };
 
-export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCallButtonProps) {
+export function AgentCallButton({
+  roomId,
+  userId,
+  displayName,
+  presenceStatus,
+}: AgentCallButtonProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const { createRoom } = useClientConfig();
-  const startCall = useCallStart(false);
-  const callEmbed = useCallEmbed();
-  const livekitSupported = useLivekitSupport();
-  const rtcSupported = webRTCSupported();
-  const { navigateRoom } = useRoomNavigate();
   const closeUserRoomProfile = useCloseUserRoomProfile();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>();
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const selectedRoomId = useSelectedRoom();
+  const [searchParams] = useSearchParams();
+  const { threadId } = getRoomSearchParams(searchParams);
+  const { startAgentCall, loading, error, unavailableReason } = useStartAgentCall();
 
   if (
     !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined) ||
@@ -52,52 +39,9 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
     return null;
   }
 
-  const unavailable = !livekitSupported || !rtcSupported || !!callEmbed;
-  const unavailableReason = !livekitSupported
-    ? t('mindroomUi.calls.agentCallButton.homeserverUnsupported')
-    : !rtcSupported
-    ? t('mindroomUi.calls.agentCallButton.browserUnsupported')
-    : callEmbed
-    ? t('mindroomUi.calls.agentCallButton.endCurrentCall')
-    : undefined;
-
   const handleCall = async () => {
-    if (loading || unavailable) return;
-    setLoading(true);
-    setError(undefined);
-
-    let roomId: string | undefined;
-    let callStarted = false;
-    try {
-      await requestMicrophoneAccess();
-      if (!mountedRef.current) return;
-
-      roomId = await createAgentVoiceRoom(
-        mx,
-        userId,
-        displayName,
-        createRoom?.defaultEncryption ?? true
-      );
-      if (!mountedRef.current) {
-        await cleanupCreatedAgentCall(mx, roomId, userId);
-        return;
-      }
-      const room = await waitForJoinedRoom(mx, roomId);
-      if (!mountedRef.current) {
-        await cleanupCreatedAgentCall(mx, roomId, userId);
-        return;
-      }
-      setLoading(false);
-      startCall(room, { microphone: true, video: false, sound: true });
-      callStarted = true;
-      navigateRoom(roomId);
-      closeUserRoomProfile();
-    } catch (callError) {
-      if (roomId && !callStarted) await cleanupCreatedAgentCall(mx, roomId, userId);
-      if (!mountedRef.current) return;
-      setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
-      setLoading(false);
-    }
+    const origin = toAgentCallOrigin(roomId, selectedRoomId === roomId ? threadId : undefined);
+    if (await startAgentCall({ userId, displayName }, origin)) closeUserRoomProfile();
   };
 
   return (
@@ -115,7 +59,7 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
           )
         }
         onClick={handleCall}
-        disabled={loading || unavailable}
+        disabled={loading || !!unavailableReason}
         title={unavailableReason}
       >
         <Text size="B300">{t('mindroomUi.calls.agentCallButton.call')}</Text>

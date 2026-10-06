@@ -2,12 +2,16 @@ export type ThreadLedgerEvent = {
   getId: () => string | undefined;
 };
 
-export type ThreadVirtualPrependCapture = {
+/**
+ * The reader's first visible row in the last committed thread render, with the
+ * event list and row prices of that render. Index 0 is the thread root.
+ */
+export type ThreadLedgerAnchor = {
   threadId: string;
-  anchorEventId: string;
-  anchorSeq: number;
-  abovePrices: Map<string, number>;
-  foldedEvents: unknown;
+  eventId: string;
+  index: number;
+  events: readonly ThreadLedgerEvent[];
+  priceRow: (eventId: string, index: number) => number;
 };
 
 export type ThreadLedgerFoldProbe =
@@ -15,131 +19,85 @@ export type ThreadLedgerFoldProbe =
   | 'threadPrependFoldAnchorLost';
 
 export type ThreadLedgerRenderPlan = {
-  clearPendingAnchor: boolean;
   foldPx: number;
-  nextCapture: ThreadVirtualPrependCapture | undefined;
   probe?: ThreadLedgerFoldProbe;
 };
 
 type PlanThreadLedgerRenderArgs = {
-  capture: ThreadVirtualPrependCapture | undefined;
+  anchor: ThreadLedgerAnchor | undefined;
   eventIndexMap: ReadonlyMap<string, number>;
-  paginatingBack: boolean;
-  pendingAnchorSeq: number | undefined;
   priceRow: (eventId: string, index: number) => number;
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
 };
 
-export const buildThreadFoldBaseline = (
-  events: readonly ThreadLedgerEvent[],
-  boundaryIndex: number,
-  priceRow: (eventId: string, index: number) => number
-): Map<string, number> => {
-  const abovePrices = new Map<string, number>();
+const sameRowsAbove = (
+  previous: readonly ThreadLedgerEvent[],
+  next: readonly ThreadLedgerEvent[],
+  boundaryIndex: number
+): boolean => {
   for (let index = 1; index < boundaryIndex; index += 1) {
-    const eventId = events[index]?.getId();
-    if (eventId) abovePrices.set(eventId, priceRow(eventId, index));
+    if (previous[index]?.getId() !== next[index]?.getId()) return false;
   }
-  return abovePrices;
+  return true;
 };
 
 /**
- * Derive the thread-prepend ledger update without mutating component refs,
- * pagination globals, probes, or DOM. React may abandon this render plan;
- * the caller applies it only from the commit phase.
+ * Derive how far rows added above the reader push the reader down, so the
+ * ledger can fold that height and keep the reader's rows in place. This holds
+ * for every change to the thread's rows (Load Older, the opening history chain,
+ * reconciled or recovered pages), like native scroll anchoring, which the
+ * thread scroller disables. Pure: React may abandon this render plan, and the
+ * caller applies it only from the commit phase.
  */
 export const planThreadLedgerRender = ({
-  capture,
+  anchor,
   eventIndexMap,
-  paginatingBack,
-  pendingAnchorSeq,
   priceRow,
   threadEvents,
   threadId,
 }: PlanThreadLedgerRenderArgs): ThreadLedgerRenderPlan => {
-  if (!capture) {
-    return { clearPendingAnchor: false, foldPx: 0, nextCapture: undefined };
+  if (!anchor || !threadId || anchor.threadId !== threadId || anchor.events === threadEvents) {
+    return { foldPx: 0 };
   }
 
-  if (capture.threadId !== (threadId ?? '') || pendingAnchorSeq !== capture.anchorSeq) {
-    return { clearPendingAnchor: false, foldPx: 0, nextCapture: undefined };
-  }
-
-  if (!threadId || capture.foldedEvents === threadEvents) {
-    return { clearPendingAnchor: false, foldPx: 0, nextCapture: capture };
-  }
-
-  let boundaryEventId = capture.anchorEventId;
-  let boundaryIndex = eventIndexMap.get(boundaryEventId) ?? -1;
+  let previousIndex = anchor.index;
+  let boundaryIndex = eventIndexMap.get(anchor.eventId);
   let probe: ThreadLedgerFoldProbe | undefined;
-  if (boundaryIndex < 0) {
-    capture.abovePrices.forEach((_px, eventId) => {
-      const index = eventIndexMap.get(eventId);
-      if (typeof index === 'number' && index > boundaryIndex) {
-        boundaryIndex = index;
-        boundaryEventId = eventId;
-      }
-    });
-    probe = boundaryIndex >= 0 ? 'threadPrependFoldAnchorFallback' : 'threadPrependFoldAnchorLost';
+  if (boundaryIndex === undefined) {
+    // The reader's row left; hold the nearest row above it that survived.
+    for (previousIndex = anchor.index - 1; previousIndex >= 1; previousIndex -= 1) {
+      const eventId = anchor.events[previousIndex]?.getId();
+      boundaryIndex = eventId === undefined ? undefined : eventIndexMap.get(eventId);
+      if (boundaryIndex !== undefined) break;
+    }
+    if (boundaryIndex === undefined) return { foldPx: 0, probe: 'threadPrependFoldAnchorLost' };
+    probe = 'threadPrependFoldAnchorFallback';
+  }
+  const result = (foldPx: number): ThreadLedgerRenderPlan =>
+    probe ? { foldPx, probe } : { foldPx };
+
+  // The common case on a streaming thread: an edit or reply landed below.
+  if (
+    boundaryIndex === previousIndex &&
+    sameRowsAbove(anchor.events, threadEvents, boundaryIndex)
+  ) {
+    return result(0);
   }
 
-  if (boundaryIndex < 0) {
-    return {
-      clearPendingAnchor: false,
-      foldPx: 0,
-      nextCapture: undefined,
-      probe,
-    };
+  const previousAbove = new Map<string, number>();
+  for (let index = 1; index < previousIndex; index += 1) {
+    const eventId = anchor.events[index]?.getId();
+    if (eventId) previousAbove.set(eventId, index);
   }
-
-  let addedPx = 0;
-  let addedCount = 0;
+  let foldPx = 0;
   for (let index = 1; index < boundaryIndex; index += 1) {
     const eventId = threadEvents[index]?.getId();
-    if (eventId && !capture.abovePrices.has(eventId)) {
-      addedPx += priceRow(eventId, index);
-      addedCount += 1;
-    }
+    if (eventId && !previousAbove.delete(eventId)) foldPx += priceRow(eventId, index);
   }
-
-  let removedPx = 0;
-  capture.abovePrices.forEach((px, eventId) => {
-    if (eventIndexMap.get(eventId) === undefined) removedPx += px;
+  // Rows that left the space above the reader take their committed height with them.
+  previousAbove.forEach((index, eventId) => {
+    foldPx -= anchor.priceRow(eventId, index);
   });
-  const foldPx = addedPx - removedPx;
-
-  if (addedCount > 0 && !paginatingBack) {
-    return {
-      clearPendingAnchor: true,
-      foldPx,
-      nextCapture: undefined,
-      probe,
-    };
-  }
-
-  if (addedCount > 0 || removedPx !== 0) {
-    return {
-      clearPendingAnchor: false,
-      foldPx,
-      nextCapture: {
-        ...capture,
-        anchorEventId: boundaryEventId,
-        abovePrices: buildThreadFoldBaseline(threadEvents, boundaryIndex, priceRow),
-        foldedEvents: threadEvents,
-      },
-      probe,
-    };
-  }
-
-  return {
-    clearPendingAnchor: false,
-    foldPx: 0,
-    nextCapture: {
-      ...capture,
-      anchorEventId: boundaryEventId,
-      foldedEvents: threadEvents,
-    },
-    probe,
-  };
+  return result(foldPx);
 };

@@ -108,6 +108,8 @@ test.describe('pinned announcement threads', () => {
     await expect(pins.locator('[data-compact-thread-resolve]')).toHaveCount(0);
     await card(first).click();
     await expect(page.getByRole('button', { name: 'Unpin thread', exact: true })).toBeVisible();
+    await expect(page.getByText('Pinned', { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('pinned-banner-admin.png') });
     await expect(page.getByRole('button', { name: 'Resolve', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Resolved', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Unpin thread', exact: true }).click();
@@ -139,7 +141,9 @@ test.describe('pinned announcement threads', () => {
       await expect(
         memberPage.getByRole('button', { name: /^(Unpin thread|Pin thread|Resolve|Resolved)$/ })
       ).toHaveCount(0);
-      await expect(memberPage.getByText('Pinned', { exact: true })).toBeVisible();
+      await expect(memberPage.getByRole('img', { name: 'Pinned', exact: true })).toBeVisible();
+      await expect(memberPage.getByText('Pinned', { exact: true })).toHaveCount(0);
+      await memberPage.screenshot({ path: testInfo.outputPath('pinned-banner-member.png') });
     } finally {
       await context.close();
     }

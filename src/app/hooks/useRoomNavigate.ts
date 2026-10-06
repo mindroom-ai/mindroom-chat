@@ -10,7 +10,7 @@ import {
   withSearchParam,
 } from '../pages/pathUtils';
 import { useMatrixClient } from './useMatrixClient';
-import { getOrphanParents, guessPerfectParent } from '../utils/room';
+import { getAllParents, getOrphanParents, guessPerfectParent } from '../utils/room';
 import { roomToParentsAtom } from '../state/room/roomToParents';
 import { mDirectAtom } from '../state/mDirectList';
 import { useSelectedSpace } from './router/useSelectedSpace';
@@ -42,28 +42,29 @@ export const useRoomNavigate = () => {
       const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
       const openSpaceTimeline = developerTools && spaceSelectedId === roomId;
 
+      if (
+        spaceSelectedId &&
+        (openSpaceTimeline || getAllParents(roomToParents, roomId).has(spaceSelectedId))
+      ) {
+        return getSpaceRoomPath(
+          getCanonicalAliasOrRoomId(mx, spaceSelectedId),
+          openSpaceTimeline ? roomId : roomIdOrAlias,
+          eventId
+        );
+      }
+
       if (simpleMode) {
         return mDirects.has(roomId)
           ? getDirectRoomPath(roomIdOrAlias, eventId)
           : getHomeRoomPath(roomIdOrAlias, eventId);
       }
 
-      const orphanParents = openSpaceTimeline ? [roomId] : getOrphanParents(roomToParents, roomId);
+      const orphanParents = getOrphanParents(roomToParents, roomId);
       if (orphanParents.length > 0) {
-        let parentSpace: string;
-        if (spaceSelectedId && orphanParents.includes(spaceSelectedId)) {
-          parentSpace = spaceSelectedId;
-        } else {
-          parentSpace = guessPerfectParent(mx, roomId, orphanParents) ?? orphanParents[0];
-        }
-
+        const parentSpace = guessPerfectParent(mx, roomId, orphanParents) ?? orphanParents[0];
         const pSpaceIdOrAlias = getCanonicalAliasOrRoomId(mx, parentSpace);
 
-        return getSpaceRoomPath(
-          pSpaceIdOrAlias,
-          openSpaceTimeline ? roomId : roomIdOrAlias,
-          eventId
-        );
+        return getSpaceRoomPath(pSpaceIdOrAlias, roomIdOrAlias, eventId);
       }
 
       if (mDirects.has(roomId)) {
