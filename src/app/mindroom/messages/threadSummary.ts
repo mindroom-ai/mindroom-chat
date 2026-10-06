@@ -22,6 +22,8 @@ export type MindroomThreadSummaryInfo = {
   summaryText?: string;
   /** Accepted Matrix event (or replacement) timestamp, absent on legacy cache/local echoes. */
   eventTs?: number;
+  /** Accepted Matrix event carrying the summary, so its redaction can clear cached copies. */
+  eventId?: string;
   generatedTs?: number;
   messageCount?: number;
 };
@@ -232,6 +234,7 @@ export const formatMindroomThreadSummaryMessageCount = (count: number): string =
 
 type ThreadSummaryEventLike = {
   status?: string | null;
+  getId?(): string | undefined;
   getContent(): Record<string, unknown>;
   getTs?(): number | undefined;
   replacingEventDate?(): Date | undefined;
@@ -289,6 +292,7 @@ type SummaryEventCacheEntry = {
   messageCount: unknown;
   model: unknown;
   eventTs: number | undefined;
+  eventId: string | undefined;
   info: MindroomThreadSummaryInfo | undefined;
 };
 
@@ -310,6 +314,7 @@ export const getThreadSummaryEventInfo = (
     isSupportedThreadSummaryTimestamp(timestamp)
       ? timestamp
       : undefined;
+  const eventId = eventTs !== undefined ? event.getId?.() : undefined;
   const cached = summaryEventCache.get(event);
   // Inspect values, not just object identity: SDK edits, decryption and cached
   // event enrichment can change existing objects between overview refreshes.
@@ -323,7 +328,8 @@ export const getThreadSummaryEventInfo = (
     cached.generatedAt === metadata?.generated_at &&
     cached.messageCount === metadata?.message_count &&
     cached.model === metadata?.model &&
-    cached.eventTs === eventTs
+    cached.eventTs === eventTs &&
+    cached.eventId === eventId
   ) {
     return cached.info;
   }
@@ -331,7 +337,10 @@ export const getThreadSummaryEventInfo = (
   // Fall back to body extraction for simple boolean flag format
   const text = getThreadSummaryPreviewText(event);
   const summary = info ?? (text ? { summaryText: text } : undefined);
-  const result = summary && eventTs !== undefined ? { ...summary, eventTs } : summary;
+  const result =
+    summary && eventTs !== undefined
+      ? { ...summary, eventTs, ...(eventId ? { eventId } : {}) }
+      : summary;
   summaryEventCache.set(event, {
     hasMetadata: !!metadata,
     hasNewContent: !!newContent,
@@ -342,6 +351,7 @@ export const getThreadSummaryEventInfo = (
     messageCount: metadata?.message_count,
     model: metadata?.model,
     eventTs,
+    eventId,
     info: result,
   });
   return result;

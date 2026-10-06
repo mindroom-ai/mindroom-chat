@@ -35,11 +35,14 @@ import {
   META_STORE,
   ROOM_LEDGER_STORE,
   ROOM_SCOPE,
+  THREAD_SUMMARIES_BY_ROOM_INDEX,
+  THREAD_SUMMARIES_STORE,
   buildEventCacheKey,
   buildMetaKey,
   estimateRawEventBytes,
   type CachedEventRecord,
   type CachedMetaRecord,
+  type CachedThreadSummaryRecord,
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
@@ -240,7 +243,14 @@ const runScrubRedactedRelationsTxn = async (
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ROOM_LEDGER_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+        THREAD_SUMMARIES_STORE,
+      ],
       'readwrite'
     );
     void invalidateCachedAttachmentReferences(transaction, roomId, redactedEventIds).catch(() =>
@@ -260,6 +270,20 @@ const runScrubRedactedRelationsTxn = async (
         updatedAt: Date.now(),
       } satisfies CachedMetaRecord);
     });
+
+    // A redacted summary notice must not remain a thread's cached title.
+    const summaryCursorRequest = transaction
+      .objectStore(THREAD_SUMMARIES_STORE)
+      .index(THREAD_SUMMARIES_BY_ROOM_INDEX)
+      .openCursor(IDBKeyRange.only(roomId));
+    summaryCursorRequest.onsuccess = () => {
+      const cursor = summaryCursorRequest.result;
+      if (!cursor) return;
+      const { eventId } = cursor.value as CachedThreadSummaryRecord;
+      if (eventId && redactedEventIds.has(eventId)) cursor.delete();
+      cursor.continue();
+    };
+    summaryCursorRequest.onerror = () => reject(summaryCursorRequest.error);
 
     const repairRawEvent = (
       rawEvent: Partial<IEvent>,

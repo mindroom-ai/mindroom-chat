@@ -22,6 +22,18 @@
   - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
   - Two devices editing the same canvas share their own copies; the agent reads the newest.
 
+### Drop a redacted thread summary from the thread title (2026-10-05)
+
+- Problem: after an `io.mindroom.thread_summary` notice was redacted, clients that had received it kept showing its text as the thread title in the overview and the thread banner, and kept it in the IndexedDB `thread_summaries` store across reloads until a newer summary replaced it.
+- Root cause: the shared summary state and its `thread_summaries` records did not know which event a title came from, so neither the live redaction handler nor the redaction scrub could clear them, and the stored title kept winning over the thread's remaining summaries.
+  In an open thread the banner also read matrix-js-sdk's latest reply, an unredacted copy until the SDK re-fetches the root, and nothing re-rendered the banner when it did.
+- Fix: a summary taken from a Matrix event (or a manual save) records its `eventId` in the shared state and the cache record.
+  The engine's live redaction handler drops matching titles from the shared state (`forgetRedactedThreadSummaries`), and the redaction scrub deletes matching `thread_summaries` records, so readers fall back to the thread's remaining summaries or the root preview.
+  The room and thread snapshot writers in `eventRepository.ts` drop them too when they persist redaction evidence, because a redaction that fell in a sync gap reaches the client only through gap fill or a thread fetch, never through the live handler.
+  `ThreadContextBanner` re-renders on its thread's `ThreadEvent.Update`.
+- Tests: `threadSummaryPersistence.test.tsx` caches a summary, redacts it through the engine write-through and the real cache scrub, and checks that memory and disk drop it and that the older summary then becomes the title (fails on `dev` and without either the state or the scrub change), and checks that a redacted copy of the notice persisted through the room or the thread snapshot writer drops the loaded title (each case fails without its writer's call); `ThreadContextBanner.test.ts` swaps the SDK's latest reply and emits `ThreadEvent.Update` (fails without the subscription); `threadSummaryActions.test.ts` checks that a manual save records its event id.
+  A local live check against Tuwunel (Chromium) redacted the newest of two summaries with the thread open and with the client closed: the banner, the overview card, and the stored record fell back to the older summary, also after a reload; on `dev` the redacted text stayed in the card and the stored record in both cases, and in the open thread's banner.
+
 ### Trust MindRoom metadata only from the accounts that send it (2026-10-05)
 
 - Report: the client read MindRoom metadata from whoever sent it, so any room member could make other members' clients show content MindRoom never sent.
