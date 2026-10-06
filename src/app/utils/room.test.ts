@@ -1,6 +1,12 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { getEditedEvent, getLatestEdit, getLatestMessageContent, roomHaveUnread } from './room';
+import {
+  getEditedEvent,
+  getLatestEdit,
+  getLatestMessageContent,
+  roomHaveUnread,
+  trimReplyFromBody,
+} from './room';
 
 const makeMessageEvent = (
   eventId: string,
@@ -484,5 +490,26 @@ describe('roomHaveUnread', () => {
     } as any;
 
     expect(roomHaveUnread(mx, room)).toBe(true);
+  });
+});
+
+describe('trimReplyFromBody', () => {
+  it('strips a leading reply fallback without backtracking on unclosed ones', () => {
+    expect(trimReplyFromBody('> <@a:b> quoted\n> second line\n\nreply')).toBe('reply');
+    expect(trimReplyFromBody('> <@a:b> > nested > quote\n\nreply\n\nmore')).toBe('reply\n\nmore');
+    expect(trimReplyFromBody('> <@a:b> no blank line\n> quoted\nreply')).toBe(
+      '> <@a:b> no blank line\n> quoted\nreply'
+    );
+    // A quote later in the body is not a fallback; slicing its length off the start garbled it.
+    expect(trimReplyFromBody('hi\n> <@a:b> q\n\nr')).toBe('hi\n> <@a:b> q\n\nr');
+
+    // Every `> ` could end the sender and every line could start a fallback, and each try
+    // rescanned the rest, so these bodies froze every viewer.
+    const unclosedLine = `> <${'> '.repeat(20_000)}`;
+    const unclosedLines = '> <a> b\n'.repeat(8_000);
+    const start = performance.now();
+    expect(trimReplyFromBody(unclosedLine)).toBe(unclosedLine);
+    expect(trimReplyFromBody(unclosedLines)).toBe(unclosedLines);
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });

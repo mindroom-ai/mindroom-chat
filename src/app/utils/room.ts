@@ -355,7 +355,9 @@ export const getDirectRoomAvatarUrl = (
 };
 
 export const trimReplyFromBody = (body: string): string => {
-  const match = body.match(/^> <.+?> .+\n(>.*\n)*?\n/m);
+  // The fallback starts the body, and its sender ends at the first `> `: trying every later
+  // start or split backtracked quadratically on bodies with no closing blank line.
+  const match = body.match(/^> <.(?:(?!> ).)*> .+\n(?:>.*\n)*\n/);
   if (!match) return body;
   return body.slice(match[0].length);
 };

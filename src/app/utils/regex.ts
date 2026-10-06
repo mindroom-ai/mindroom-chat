@@ -4,7 +4,9 @@
 export const sanitizeForRegex = (unsafeText: string): string =>
   unsafeText.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&').replace(/-/g, '\\x2d');
 
-export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]\\s]+)`;
+// Checking only the last character keeps trailing punctuation out of the URL; repeating the
+// class in the lookbehind rescanned the punctuation at every position the URL could end at.
+export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]\\s])`;
 
 export const URL_REG = new RegExp(HTTP_URL_PATTERN, 'g');
 

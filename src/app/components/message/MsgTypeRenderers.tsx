@@ -255,6 +255,10 @@ export function MImage({ content, renderImageContent, outlined }: MImageProps) {
   );
 }
 
+// Event content is untrusted JSON: a name that is not a string crashes the render.
+const getFileName = (content: { filename?: unknown; body?: unknown }): string | undefined =>
+  [content.filename, content.body].find((name): name is string => typeof name === 'string');
+
 type RenderVideoContentProps = {
   body: string;
   info: IVideoInfo & IThumbnailContent;
@@ -291,7 +295,7 @@ export function MVideo({
 
   const height = scaleYDimension(videoInfo.w || 400, 400, videoInfo.h || 400);
 
-  const filename = content.filename ?? content.body ?? 'Video';
+  const filename = getFileName(content) ?? 'Video';
 
   return (
     <Attachment outlined={outlined}>
@@ -358,7 +362,7 @@ export function MAudio({ owner, content, renderAsFile }: MAudioProps) {
     return <BrokenContent />;
   }
 
-  const downloadFilename = content.filename ?? content.body ?? 'Audio';
+  const downloadFilename = getFileName(content) ?? 'Audio';
   return (
     <VoiceAudioContent
       owner={owner}
@@ -399,23 +403,23 @@ export function MFile({ content, renderFileContent, outlined }: MFileProps) {
     return <BrokenContent />;
   }
 
+  const fileName = getFileName(content);
+  const mimeType = typeof fileInfo?.mimetype === 'string' ? fileInfo.mimetype : FALLBACK_MIMETYPE;
+
   return (
     <Attachment outlined={outlined}>
       <AttachmentHeader>
         <FileHeader
-          body={content.filename ?? content.body ?? t('sharedUi.msgTypeRenderers.unnamedFile')}
-          mimeType={fileInfo?.mimetype ?? FALLBACK_MIMETYPE}
+          body={fileName ?? t('sharedUi.msgTypeRenderers.unnamedFile')}
+          mimeType={mimeType}
         />
       </AttachmentHeader>
       <AttachmentBox>
         <AttachmentContent>
           {renderFileContent({
-            body:
-              content.filename ??
-              content.body ??
-              t('mindroomUi.message-search.searchResultPreview.file'),
+            body: fileName ?? t('mindroomUi.message-search.searchResultPreview.file'),
             info: fileInfo ?? {},
-            mimeType: fileInfo?.mimetype ?? FALLBACK_MIMETYPE,
+            mimeType,
             url: mxcUrl,
             encInfo: content.file,
           })}
