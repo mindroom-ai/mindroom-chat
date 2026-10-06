@@ -12,7 +12,7 @@
   The existing selection rules pick the title, and the shared state saves it to `thread_summaries`, so the overview card and the thread banner read it from the same place with no room view mounted.
   It runs only when the batch holds a summary notice, so a batch without one does no summary work, and it runs after the batch's cache write has started, so it cannot stop that write.
   Notices that the same batch shows as redacted are skipped, so redactions persisted with the batch still clear the title as in #405.
-  It is skipped when the write's cache lease was revoked, as the event write is, so a repair that started before a room's offline content was cleared records no summary.
+  It is skipped when the write's cache lease was already revoked when the write starts, so a repair that started before a room's offline content was cleared records no summary; unlike the event write, it does not check the lease again later.
   Room cache writes need no change, because they leave out thread replies, which reach the thread writer.
 - This replaces the closed PR #323, which moved summary ownership into the cache store across 28 files and added a background repair cursor.
 - Tests: `threadSummaryPersistence.test.tsx`: a summary notice cached the way the sync engine writes a live event, or by a fetched history chunk that puts it outside the 32-event tail, reaches the shared state and the summary store with no room view mounted (both fail on `dev`).
@@ -28,7 +28,7 @@
   - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
   - The room view's own summary publishers are unchanged.
   - Two redaction gaps that predate this change remain: a stale unredacted copy fetched after its redaction was already saved, and a redaction that arrives while a room's first summary read is pending, can bring a redacted title back.
-    Room view writers could already hit both; background writes now can too.
+    Room view writers could already hit both; background writes now can too, so the first can now also bring a title back for a room that was never opened (it needs a fetched copy from before the redaction that matrix-js-sdk does not hold).
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
