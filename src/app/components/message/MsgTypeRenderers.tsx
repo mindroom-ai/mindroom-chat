@@ -223,14 +223,19 @@ type RenderImageContentProps = {
 };
 type MImageProps = {
   content: IImageContent;
+  renderAsFile: () => ReactNode;
   renderImageContent: (props: RenderImageContentProps) => ReactNode;
   outlined?: boolean;
 };
-export function MImage({ content, renderImageContent, outlined }: MImageProps) {
+export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
   const imgInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
   if (typeof mxcUrl !== 'string') {
     return <BrokenContent />;
+  }
+  // Image blobs never carry the SVG type, so an SVG cannot render inline; offer it as a file.
+  if (imgInfo?.mimetype === 'image/svg+xml') {
+    return renderAsFile();
   }
   const height = scaleYDimension(imgInfo?.w || 400, 400, imgInfo?.h || 400);
 

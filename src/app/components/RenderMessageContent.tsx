@@ -140,47 +140,51 @@ export function RenderMessageContent({
     return null;
   };
 
-  const renderFile = () => (
-    <>
-      <MFile
-        content={getContent()}
-        renderFileContent={({ body, mimeType, info, encInfo, url }) => (
-          <FileContent
-            body={body}
-            mimeType={mimeType}
-            renderAsPdfFile={() => (
-              <ReadPdfFile
-                owner={owner}
-                body={body}
-                mimeType={mimeType}
-                url={url}
-                encInfo={encInfo}
-                renderViewer={(p) => <PdfViewer {...p} />}
-              />
-            )}
-            renderAsTextFile={() => (
-              <ReadTextFile
-                owner={owner}
-                body={body}
-                mimeType={mimeType}
-                url={url}
-                encInfo={encInfo}
-                renderViewer={(p) => <TextViewer {...p} />}
-              />
-            )}
-          >
-            <DownloadFile
+  const renderFileTile = () => (
+    <MFile
+      content={getContent()}
+      renderFileContent={({ body, mimeType, info, encInfo, url }) => (
+        <FileContent
+          body={body}
+          mimeType={mimeType}
+          renderAsPdfFile={() => (
+            <ReadPdfFile
               owner={owner}
               body={body}
               mimeType={mimeType}
               url={url}
               encInfo={encInfo}
-              info={info}
+              renderViewer={(p) => <PdfViewer {...p} />}
             />
-          </FileContent>
-        )}
-        outlined={outlineAttachment}
-      />
+          )}
+          renderAsTextFile={() => (
+            <ReadTextFile
+              owner={owner}
+              body={body}
+              mimeType={mimeType}
+              url={url}
+              encInfo={encInfo}
+              renderViewer={(p) => <TextViewer {...p} />}
+            />
+          )}
+        >
+          <DownloadFile
+            owner={owner}
+            body={body}
+            mimeType={mimeType}
+            url={url}
+            encInfo={encInfo}
+            info={info}
+          />
+        </FileContent>
+      )}
+      outlined={outlineAttachment}
+    />
+  );
+
+  const renderFile = () => (
+    <>
+      {renderFileTile()}
       {renderCaption()}
     </>
   );
@@ -212,6 +216,7 @@ export function RenderMessageContent({
       <>
         <MImage
           content={getContent()}
+          renderAsFile={renderFileTile}
           renderImageContent={(props) => (
             <ImageContent
               owner={owner}

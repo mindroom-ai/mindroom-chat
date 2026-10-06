@@ -29,7 +29,7 @@ import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlClean
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import * as css from './style.css';
 import { bytesToSize } from '../../../utils/common';
-import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
+import { getImageBlobSafeMimeType } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
 import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
@@ -103,7 +103,7 @@ export const ImageContent = as<'div', ImageContentProps>(
           {
             owner,
             mxcUri: url,
-            mimeType: mimeType ?? FALLBACK_MIMETYPE,
+            mimeType: getImageBlobSafeMimeType(mimeType),
             encryptedFile: encInfo ? { ...encInfo, url } : undefined,
           },
           useAuthentication

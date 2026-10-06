@@ -42,7 +42,8 @@ vi.mock('../../../components/message', () => ({
   MBadEncrypted: () => React.createElement('div', { 'data-renderer': 'bad-encrypted' }),
   MEmote: () => React.createElement('div', { 'data-renderer': 'emote' }),
   MFile: () => null,
-  MImage: () => null,
+  MImage: ({ content, renderAsFile }: any) =>
+    content.info?.mimetype === 'image/svg+xml' ? renderAsFile() : null,
   MLocation: () => React.createElement('div', { 'data-renderer': 'location' }),
   MNotice: () => React.createElement('div', { 'data-renderer': 'notice' }),
   MindroomThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
@@ -431,4 +432,31 @@ describe('RenderMessageContent', () => {
       renderer.unmount();
     }
   );
+
+  it('shows the caption of an SVG image rendered as a file once', async () => {
+    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+    renderMindroomMessageContentMock.mockReset();
+    renderMindroomMessageContentMock.mockReturnValue(undefined);
+
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'Sender',
+        msgType: 'm.image',
+        ts: 0,
+        getContent: (() => ({
+          msgtype: 'm.image',
+          body: 'Architecture diagram',
+          filename: 'diagram.svg',
+          url: 'mxc://example/diagram',
+          info: { mimetype: 'image/svg+xml' },
+        })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    expect(renderer.root.findAllByProps({ 'data-renderer': 'text' })).toHaveLength(1);
+
+    renderer.unmount();
+  });
 });
