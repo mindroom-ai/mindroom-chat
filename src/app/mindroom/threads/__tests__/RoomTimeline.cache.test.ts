@@ -1731,6 +1731,8 @@ describe('RoomTimeline', () => {
 
     it('keeps the zero-thread overview hidden during initial client catchup after cache hydrate settles', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      // The client is still on its initial catch-up.
+      matrixClientMock.getSyncState.mockReturnValue('PREPARED');
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
@@ -1752,6 +1754,8 @@ describe('RoomTimeline', () => {
 
     it('does not treat non-root notices as room-overview readiness during initial catchup', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      // The client is still on its initial catch-up.
+      matrixClientMock.getSyncState.mockReturnValue('PREPARED');
       const notice = makeEvent('$notice', {
         content: { body: 'Bridge notice', msgtype: 'm.notice' },
       });
@@ -1799,6 +1803,26 @@ describe('RoomTimeline', () => {
       const overview = renderer?.root.findByType(roomThreadOverviewType);
       expect(overview?.props.threadCount).toBe(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    });
+
+    it('shows a real zero-thread overview at once when the client has already caught up', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const room = makeRoom();
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(5);
+      });
+
+      expect(renderer?.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
     });
 
     it('passes visible room thread counts to the overview', async () => {
@@ -2552,6 +2576,8 @@ describe('RoomTimeline', () => {
 
     it('does not force direct rooms back to the message timeline in compact mode', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      // The client is still on its initial catch-up.
+      matrixClientMock.getSyncState.mockReturnValue('PREPARED');
       const directMessage = makeEvent('$dm-message');
       const room = makeRoom({
         liveEvents: [directMessage],

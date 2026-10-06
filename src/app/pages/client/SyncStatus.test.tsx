@@ -37,9 +37,9 @@ const createClient = () => {
         .catch(() => undefined);
       await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
     });
-  const emitSync = (state: SyncState, previous: SyncState | null) =>
+  const emitSync = (state: SyncState, previous: SyncState | null, catchingUp?: boolean) =>
     act(() => {
-      mx.emit(ClientEvent.Sync, state, previous);
+      mx.emit(ClientEvent.Sync, state, previous, { catchingUp });
     });
   return { mx, request, emitSync };
 };
@@ -87,6 +87,35 @@ describe('SyncStatus', () => {
 
     await request({ reachable: true });
     expect(text()).toBe('Catching up...');
+  });
+
+  it('stops catching up once the SDK has caught up, without waiting for another sync', () => {
+    const { mx, emitSync } = createClient();
+    const text = render(mx);
+    emitSync(SyncState.Prepared, null);
+    expect(text()).toBe('Catching up...');
+
+    // The server still had to-device messages queued: the SDK polls again at once.
+    emitSync(SyncState.Syncing, SyncState.Prepared, true);
+    expect(text()).toBe('Catching up...');
+
+    emitSync(SyncState.Syncing, SyncState.Syncing, false);
+    expect(text()).toBe('');
+
+    // After a reconnect, the first sync that catches up ends it.
+    emitSync(SyncState.Catchup, SyncState.Error);
+    expect(text()).toBe('Catching up...');
+    emitSync(SyncState.Syncing, SyncState.Catchup, false);
+    expect(text()).toBe('');
+  });
+
+  it('shows the sync state the client is already in when it mounts', () => {
+    const { mx } = createClient();
+    Object.assign(mx, {
+      getSyncState: () => SyncState.Prepared,
+      getSyncStateData: () => ({ catchingUp: false }),
+    });
+    expect(render(mx)()).toBe('Catching up...');
   });
 
   it('keeps the reconnecting banner while the /sync loop reconnects', async () => {

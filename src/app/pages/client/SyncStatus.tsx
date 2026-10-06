@@ -1,46 +1,23 @@
 import { useTranslation } from 'react-i18next';
 import { MatrixClient, SyncState } from 'matrix-js-sdk';
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { Box, config, Line, Text } from 'folds';
-import { useSyncState } from '../../hooks/useSyncState';
+import {
+  isInitialClientCatchupInProgress,
+  useClientSyncStateData,
+} from '../../hooks/useInitialClientCatchup';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { useHomeserverUnreachable } from '../../mindroom/matrix/homeserverReachability';
-
-type StateData = {
-  current: SyncState | null;
-  previous: SyncState | null | undefined;
-};
 
 type SyncStatusProps = {
   mx: MatrixClient;
 };
 export function SyncStatus({ mx }: SyncStatusProps) {
   const { t } = useTranslation();
-  const [stateData, setStateData] = useState<StateData>({
-    current: null,
-    previous: undefined,
-  });
-
-  useSyncState(
-    mx,
-    useCallback((current, previous) => {
-      setStateData((s) => {
-        if (s.current === current && s.previous === previous) {
-          return s;
-        }
-        return { current, previous };
-      });
-    }, [])
-  );
+  const stateData = useClientSyncStateData(mx);
   const unreachable = useHomeserverUnreachable(mx);
 
-  if (
-    !unreachable &&
-    (stateData.current === SyncState.Prepared ||
-      stateData.current === SyncState.Syncing ||
-      stateData.current === SyncState.Catchup) &&
-    stateData.previous !== SyncState.Syncing
-  ) {
+  if (!unreachable && stateData.current != null && isInitialClientCatchupInProgress(stateData)) {
     return (
       <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box
