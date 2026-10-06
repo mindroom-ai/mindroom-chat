@@ -10,6 +10,13 @@
 - Validation: `src/app/hooks/useAccountManagement.test.ts` pins that a `javascript:` `account_management_uri` or `issuer` yields no URL; it fails before the fix and passes after.
   `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass.
 
+### Open the server chip's homeserver with noopener (2026-10-05)
+
+- Problem: the profile server chip's "Open in Browser" item called `window.open` without window features.
+  Unlike a `target="_blank"` link, `window.open` does not imply `noopener`, so the homeserver page it opened kept a `window.opener` reference to the Chat tab and could navigate that tab to another page.
+- Fix: the item passes `noopener,noreferrer`, as the other `window.open` calls in `ConnectPage` and `LocalMindroom` do.
+- Tests: `UserChips.clipboard.test.tsx` checks that the item opens `https://<server>` in a new tab with `noopener,noreferrer`; it fails without the fix.
+
 ### Type image blobs from an allowlist of raster image types (2026-10-05)
 
 - Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
