@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### More particles on GPUs; a capped, lower-resolution animation on software WebGL (2026-10-07)
+
+- Why: the owner asked for more particles where a GPU draws them, using `@basnijholt/particular-drift` 0.2.0, which can render below CSS resolution (`maxDevicePixelRatio` < 1) and cap the frame rate (`maxFramesPerSecond`).
+- GPU path (no performance caveat): the simulation runs on the GPU, so the CPU-core tiers (`hardwareConcurrency`) are gone and the counts follow the screen: 120 000 (the library default) on a desktop screen with a fine pointer, 80 000 where `devicePixelRatio` > 1.5 or the screen has over 4 M device pixels, 40 000 with a coarse pointer (touch). Firefox (by default) and Safari never report the caveat, so they always take this path. Not measured on real GPUs: this host only has SwiftShader.
+- Software path (Chromium's SwiftShader/WARP fallback): still 10 000 particles, now at three quarters of CSS resolution (`maxDevicePixelRatio: 0.75`) and at most 30 frames a second. Particle size is in canvas pixels, so size 1.125 and opacity 0.7 keep the look of the previous 1.5 and 0.6 at full resolution.
+- 0.2.0 also narrows the default edge search to a 5×5 grid (`edgeSearchSteps` 2) from the fixed 7×7; both paths take that default.
+- Choice of the software options, second tab of `account-multitab.spec.ts` to its shell (2 CPUs per browser / 1 CPU), 3 runs each:
+  - `dev` (10 000, size 1.5, opacity 0.6, CSS resolution, uncapped): 3.3–3.6 s / 7.5–10.1 s.
+  - Chosen (0.75, 30 fps): 2.4–3.3 s / 7.6–9.6 s; 0.5 resolution: 2.6–3.0 s / 7.3–9.6 s, but its points look square and blocky.
+  - 15 000 at 0.75: 3.0–3.7 s / 10.6–10.8 s, slower than `dev` at 1 CPU; 20 000 at 0.75 or 0.5: 3.7–3.9 s, slower at 2 CPUs. So the count stays at 10 000.
+  - 100 particles: 4.2–4.6 s at 1 CPU, so the particle count, not the resolution, sets the cost.
+  Starved of CPU, the splash draws about 5 frames a second during startup (about 80 draw calls before the shell appears in 9 s), so the 30 fps cap does not bind there; it cuts the idle login page from 78 to 64 draw calls a second.
+- Tests: `MindRoomParticleBackground.test.tsx`: the three GPU tiers, the GPU options (no frame cap) and the software options; each fails with its code reverted.
+- Validation (final build against `dev`, run together): second tab at normal load 1.7–1.8 s against 1.9–2.0 s (4 runs each), 2 CPUs 2.4–3.3 s against 3.3–3.6 s, 1 CPU 8.7–9.3 s against 9.4–10.1 s (3 each); the login canvas animates (two screenshots 0.7 s apart differ); `account-multitab.spec.ts` passes 6 of 6 tests with the fix (3 runs) and 2 of 2 on `dev`.
+
 ### Animate fewer particles on Chromium's software WebGL (2026-10-06)
 
 - Report: `e2e/account-multitab.spec.ts` ("propagates logout fallback across tabs without crashing") failed once in a full live run: a second tab opened on `/home/` stayed on the startup splash for over 30 s.

@@ -2,7 +2,10 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MindRoomParticleBackground } from './MindRoomParticleBackground';
+import {
+  MindRoomParticleBackground,
+  resolveMindRoomParticleCount,
+} from './MindRoomParticleBackground';
 
 vi.mock('@basnijholt/particular-drift/react', () => ({
   ParticularDriftCanvas: ({
@@ -51,9 +54,10 @@ describe('MindRoomParticleBackground', () => {
     expect(canvas.props['data-options']).toMatchObject({
       interactive: true,
       cursorMode: 'repel',
-      particleCount: 52000,
+      particleCount: 80000,
       maxDevicePixelRatio: 1.25,
     });
+    expect(canvas.props['data-options']).not.toHaveProperty('maxFramesPerSecond');
   });
 
   it('can carry its layout styles across a document portal', () => {
@@ -91,9 +95,42 @@ describe('MindRoomParticleBackground', () => {
     expect(getContext).toHaveBeenCalledWith('webgl2', { failIfMajorPerformanceCaveat: true });
     expect(renderer!.root.findByType('canvas').props['data-options']).toMatchObject({
       particleCount: 10000,
-      particleSize: 1.5,
-      particleOpacity: 0.6,
-      maxDevicePixelRatio: 1,
+      particleSize: 1.125,
+      particleOpacity: 0.7,
+      maxDevicePixelRatio: 0.75,
+      maxFramesPerSecond: 30,
+    });
+  });
+
+  describe('particle count where WebGL2 runs on the GPU', () => {
+    const stubScreen = (screen: {
+      coarse?: boolean;
+      devicePixelRatio?: number;
+      width?: number;
+      height?: number;
+    }) =>
+      vi.stubGlobal('window', {
+        matchMedia: () => ({ matches: screen.coarse ?? false }),
+        devicePixelRatio: screen.devicePixelRatio ?? 1,
+        innerWidth: screen.width ?? 1440,
+        innerHeight: screen.height ?? 900,
+      });
+
+    it('animates the most particles on a desktop screen', () => {
+      stubScreen({});
+      expect(resolveMindRoomParticleCount()).toBe(120000);
+    });
+
+    it('animates fewer on a dense or very large screen', () => {
+      stubScreen({ devicePixelRatio: 2 });
+      expect(resolveMindRoomParticleCount()).toBe(80000);
+      stubScreen({ width: 2560, height: 1600 });
+      expect(resolveMindRoomParticleCount()).toBe(80000);
+    });
+
+    it('animates the fewest on a touch screen', () => {
+      stubScreen({ coarse: true, devicePixelRatio: 3 });
+      expect(resolveMindRoomParticleCount()).toBe(40000);
     });
   });
 });
