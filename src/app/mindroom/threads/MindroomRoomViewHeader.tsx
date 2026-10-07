@@ -12,6 +12,7 @@ import {
   IconButton,
   Icon,
   Icons,
+  type IconSrc,
   Tooltip,
   TooltipProvider,
   toRem,
@@ -72,7 +73,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
-import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import { useRoomViewMode } from './useRoomViewMode';
 import {
   getPendingJoinRequestLabel,
@@ -80,6 +81,12 @@ import {
 } from '../../features/room/PendingJoinRequestBadge';
 import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
 import { AgentCallHeaderButton } from '../calls/AgentCallHeaderButton';
+
+const ROOM_VIEW_MODE_MENU_ITEMS = {
+  compact: { icon: Icons.Category, label: 'mindroomUi.threads.mindroomRoomViewHeader.compact' },
+  threaded: { icon: Icons.Thread, label: 'mindroomUi.threads.mindroomRoomViewHeader.threads' },
+  classic: { icon: Icons.Message, label: 'mindroomUi.threads.mindroomRoomViewHeader.classic' },
+} as const satisfies Record<RoomViewMode, { icon: IconSrc; label: string }>;
 
 type RoomMenuProps = {
   room: Room;
@@ -96,7 +103,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const notificationMode = getRoomNotificationMode(notificationPreferences, room.roomId);
   const { navigateRoom } = useRoomNavigate();
-  const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
+  const { availableViewModes, setViewMode, viewMode } = useRoomViewMode(room.roomId);
   const simpleMode = useSimpleMode();
 
   const [invitePrompt, setInvitePrompt] = useState(false);
@@ -159,44 +166,27 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           )}
         </RoomNotificationModeSwitcher>
       </Box>
-      <Line variant="Surface" size="300" />
-      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-        <MenuItem
-          onClick={() => handleViewMode('compact')}
-          size="300"
-          after={<Icon size="100" src={Icons.Category} />}
-          radii="300"
-          aria-pressed={viewMode === 'compact'}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            {t('mindroomUi.threads.mindroomRoomViewHeader.compact')}
-          </Text>
-        </MenuItem>
-        <MenuItem
-          onClick={() => handleViewMode('threaded')}
-          size="300"
-          after={<Icon size="100" src={Icons.Thread} />}
-          radii="300"
-          aria-pressed={viewMode === 'threaded'}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            {t('mindroomUi.threads.mindroomRoomViewHeader.threads')}
-          </Text>
-        </MenuItem>
-        {isRoomViewModeAvailable('classic', simpleMode) && (
-          <MenuItem
-            onClick={() => handleViewMode('classic')}
-            size="300"
-            after={<Icon size="100" src={Icons.Message} />}
-            radii="300"
-            aria-pressed={viewMode === 'classic'}
-          >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              {t('mindroomUi.threads.mindroomRoomViewHeader.classic')}
-            </Text>
-          </MenuItem>
-        )}
-      </Box>
+      {availableViewModes.length > 0 && (
+        <>
+          <Line variant="Surface" size="300" />
+          <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+            {availableViewModes.map((mode) => (
+              <MenuItem
+                key={mode}
+                onClick={() => handleViewMode(mode)}
+                size="300"
+                after={<Icon size="100" src={ROOM_VIEW_MODE_MENU_ITEMS[mode].icon} />}
+                radii="300"
+                aria-pressed={viewMode === mode}
+              >
+                <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                  {t(ROOM_VIEW_MODE_MENU_ITEMS[mode].label)}
+                </Text>
+              </MenuItem>
+            ))}
+          </Box>
+        </>
+      )}
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
         <MenuItem

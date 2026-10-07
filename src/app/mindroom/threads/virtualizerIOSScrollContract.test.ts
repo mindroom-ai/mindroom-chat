@@ -326,6 +326,26 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(droppedDeltas).toEqual([]);
   });
 
+  it('ledgers a correction that would scroll above the top', () => {
+    // A pending fold lays the rows it added above the reader at negative
+    // offsets. One that measures smaller than its estimate cannot be undone by
+    // scrolling a reader near the top: the browser would clamp the write.
+    const droppedDeltas: number[] = [];
+    const hook = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+    });
+
+    const apply = hook({ end: -200 }, -100, {
+      scrollOffset: 30,
+      scrollDirection: null,
+      scrollElement: { scrollTop: 30 },
+    });
+
+    expect(apply).toBe(false);
+    expect(droppedDeltas).toEqual([-100]);
+  });
+
   it('judges and corrects from the live offset, an unseen upward write being a backward scroll', () => {
     // App writes (a jump, a bulk-expansion restore) move the element; rows
     // resize before their scroll event arrives.

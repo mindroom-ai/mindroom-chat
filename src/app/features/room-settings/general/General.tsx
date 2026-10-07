@@ -16,12 +16,8 @@ import {
 } from '../../common-settings/general';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
-import {
-  getAvailableRoomViewModes,
-  type RoomViewMode,
-} from '../../../mindroom/threads/roomViewMode';
+import type { RoomViewMode } from '../../../mindroom/threads/roomViewMode';
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
-import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 import { OfflineRoomSettings } from './OfflineRoomSettings';
 
 const ROOM_VIEW_MODE_LABELS = {
@@ -33,8 +29,9 @@ const ROOM_VIEW_MODE_LABELS = {
 function RoomTimelineMode() {
   const { t } = useTranslation();
   const room = useRoom();
-  const simpleMode = useSimpleMode();
-  const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
+  const { availableViewModes, setViewMode, viewMode } = useRoomViewMode(room.roomId);
+
+  if (availableViewModes.length === 0) return null;
 
   return (
     <Box direction="Column" gap="200">
@@ -42,7 +39,7 @@ function RoomTimelineMode() {
         {t('featureUi.roomSettings.general.timeline')}
       </Text>
       <Box gap="100" wrap="Wrap">
-        {getAvailableRoomViewModes(simpleMode).map((mode) => (
+        {availableViewModes.map((mode) => (
           <Button
             key={mode}
             size="300"
