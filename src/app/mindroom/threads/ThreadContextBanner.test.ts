@@ -681,6 +681,14 @@ describe('ThreadContextBanner rendering', () => {
     const pinned = renderBanner('A concise thread summary');
     expect(toggles(pinned)).toHaveLength(0);
     pinned.unmount();
+    // Collapsing elsewhere leaves it in the full layout, which it can't leave.
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+    const pinnedCollapsed = renderBanner('A concise thread summary');
+    expect(
+      pinnedCollapsed.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className
+    ).toBe('Banner');
+    pinnedCollapsed.unmount();
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: false });
 
     // Tags fold away.
     bannerMocks.useThreadTags.mockReturnValue({

@@ -219,7 +219,8 @@ export function ThreadContextBanner({
         ref={glassRef}
         className={classNames(
           headerModel.isResolved ? css.BannerResolved : css.Banner,
-          collapsed && css.Collapsed
+          // With nothing to fold there is no chevron, so nothing to expand.
+          collapsed && canCollapse && css.Collapsed
         )}
         data-thread-context-banner="true"
         tabIndex={-1}

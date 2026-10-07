@@ -124,7 +124,7 @@ for (const viewport of [
         const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
         await expect(resolve).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('expanded.png') });
-        // The two tags share a row; on a phone it is a row of their own.
+        // The two tags share a row.
         const research = banner.getByText('research', { exact: true }).filter({ visible: true });
         const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
         expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);

@@ -1,4 +1,4 @@
-import { style, type StyleRule } from '@vanilla-extract/css';
+import { style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
@@ -7,7 +7,8 @@ import { shortViewport } from './shortViewport';
 // title and the actions menu, which already offers tags, pinning and resolving.
 export const Collapsed = style({});
 // Doubled in the media query to match `${Collapsed} &` over single-class rules.
-const whenCompact = (compact: StyleRule) => ({
+// Spread it only into styles without selectors or media queries of their own.
+const whenCompact = (compact: CSSProperties) => ({
   selectors: { [`${Collapsed} &`]: compact },
   '@media': { [shortViewport]: { selectors: { '&&': compact } } },
 });
