@@ -199,7 +199,7 @@ test.describe('live threads', () => {
     await composer.fill(rootBody);
     await composer.press('Enter');
 
-    await expect(page.getByText('Thread View', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(() => new URL(page.url()).searchParams.get('threadId')?.startsWith('$'), {
         timeout: 30_000,
@@ -217,7 +217,7 @@ test.describe('live threads', () => {
     await expect(compactThreadButton).toHaveAccessibleName(/\b0 replies\b/);
 
     await compactThreadButton.click();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
 
@@ -252,7 +252,7 @@ test.describe('live threads', () => {
     await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
 
     await hiddenRelationThreadButton.click();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(HIDDEN_THREAD_RELATION_ROOT_MARKER).last()).toBeVisible({
       timeout: 30_000,
     });

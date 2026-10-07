@@ -332,6 +332,8 @@
     "resolved": "Opgelost",
     "resolvedBy": "Opgelost door {{name}}",
     "resolvedByShort": "door {{name}}",
+    "hideDetails": "Threaddetails verbergen",
+    "showDetails": "Threaddetails tonen",
     "replyCount_one": "{{count}} antwoord",
     "replyCount_other": "{{count}} antwoorden",
     "aria": {

@@ -332,6 +332,8 @@
     "resolved": "解決済み",
     "resolvedBy": "{{name}} によって解決されました",
     "resolvedByShort": "{{name}} が解決",
+    "hideDetails": "スレッドの詳細を隠す",
+    "showDetails": "スレッドの詳細を表示",
     "replyCount_one": "{{count}} 件の返信",
     "replyCount_other": "{{count}} 件の返信",
     "aria": {

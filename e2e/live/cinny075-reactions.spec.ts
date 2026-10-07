@@ -116,7 +116,7 @@ test.describe('live message reactions', () => {
     });
 
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     const replyItem = page.locator(`[data-message-id="${replyId}"]`);
     await expect(replyItem).toBeVisible({ timeout: 30_000 });
     await expect(replyItem.getByText(replyBody)).toBeVisible();

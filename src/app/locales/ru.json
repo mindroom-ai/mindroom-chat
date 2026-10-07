@@ -334,6 +334,8 @@
     "resolved": "Решена",
     "resolvedBy": "Решил(а) {{name}}",
     "resolvedByShort": "от {{name}}",
+    "hideDetails": "Скрыть сведения о ветке",
+    "showDetails": "Показать сведения о ветке",
     "replyCount_one": "{{count}} ответ",
     "replyCount_other": "{{count}} ответов",
     "aria": {

@@ -178,7 +178,7 @@ for (const width of [390, 1280]) {
         );
         expect(visibleIndex).toBeGreaterThanOrEqual(0);
         await cards.nth(visibleIndex).click();
-        const banner = page.getByText('Thread View', { exact: true }).locator('xpath=../../..');
+        const banner = page.locator('[data-thread-context-banner]').locator('xpath=../../..');
         await expect(banner).toBeVisible();
         await banner.getByRole('button').first().click();
         await expect(scroll).toBeVisible();

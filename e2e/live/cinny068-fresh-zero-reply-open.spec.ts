@@ -35,10 +35,7 @@ const getExpandedZeroReplyThreadButton = (
 
 const clickThreadExitButton = async (page: import('@playwright/test').Page) => {
   await page.evaluate(() => {
-    const label = Array.from(document.querySelectorAll('p')).find(
-      (element) => element.textContent?.trim() === 'Thread View'
-    );
-    const exitButton = label?.closest('div')?.parentElement?.parentElement?.querySelector('button');
+    const exitButton = document.querySelector('[data-thread-context-banner] button');
     if (!(exitButton instanceof HTMLButtonElement)) {
       throw new Error('Thread exit button not found');
     }
@@ -172,7 +169,7 @@ test.describe('live cinny-068 fresh zero-reply open', () => {
           message: 'Compact root send should open its provisional local-echo route',
         })
         .toMatch(/^~/);
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
       await expect(
         page.getByText('Replies are available after this message is confirmed.')
@@ -242,7 +239,7 @@ test.describe('live cinny-068 fresh zero-reply open', () => {
       expect(delayedSend.isReleased()).toBe(false);
 
       await threadButton.click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
       expect(delayedSend.isReleased()).toBe(false);

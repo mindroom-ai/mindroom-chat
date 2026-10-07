@@ -122,7 +122,7 @@ test.describe('live cinny-061 thread summary cache upgrade', () => {
     await threadCard.click();
 
     const threadSummary = page.locator('[data-thread-context-summary="true"]').first();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(threadSummary).toContainText(cachedSummaryText);
 
     await sendRoomMessage(
@@ -142,6 +142,9 @@ test.describe('live cinny-061 thread summary cache upgrade', () => {
     await expect(threadCard).toContainText(liveSummaryText, { timeout: 30_000 });
     await expect(threadCard).not.toContainText(cachedSummaryText);
 
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-061-thread-summary-cache-upgrade');
+    await expectNoUnexpectedBrowserDiagnostics(
+      diagnostics,
+      'cinny-061-thread-summary-cache-upgrade'
+    );
   });
 });

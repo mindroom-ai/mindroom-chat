@@ -126,11 +126,7 @@ const seedThreadExitFixture = async (
 
 const clickThreadExitButton = async (page: Page) => {
   await page.evaluate(() => {
-    const label = Array.from(document.querySelectorAll('p')).find(
-      (element) => element.textContent?.trim() === 'Thread View'
-    );
-    const banner = label?.closest('div')?.parentElement?.parentElement;
-    const exitButton = banner?.querySelector('button');
+    const exitButton = document.querySelector('[data-thread-context-banner] button');
 
     if (!(exitButton instanceof HTMLButtonElement)) {
       throw new Error('Thread exit button not found');
@@ -186,7 +182,7 @@ test.describe('live cinny-015 thread exit scroll', () => {
     }, roomId);
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
 
     await clickThreadExitButton(page);
 
@@ -237,7 +233,7 @@ test.describe('live cinny-015 thread exit scroll', () => {
     await installHistoryBackProbe(page);
     await openThreadButton.click();
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 10_000 });
     await clickThreadExitButton(page);
 
     await expect

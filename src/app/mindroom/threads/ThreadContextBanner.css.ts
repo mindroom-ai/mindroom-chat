@@ -3,17 +3,26 @@ import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
 
+// Collapsed, and always on short screens, the banner keeps one row: back,
+// title and the actions menu, which already offers tags, pinning and resolving.
+export const Collapsed = style({});
+
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
   padding: config.space.S300,
   borderRadius: config.radii.R400,
   flexShrink: 0,
   pointerEvents: 'auto',
+  selectors: { [`&${Collapsed}`]: { padding: config.space.S200 } },
   '@media': { [shortViewport]: { padding: config.space.S200 } },
 });
 
-// Short screens keep one row: back, title and the actions menu, which already
-// offers tags, pinning and resolving.
+export const CompactHidden = style({
+  selectors: { [`${Collapsed} &`]: { display: 'none' } },
+  '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
+});
+
+// The collapse toggle has nothing to fold on a short screen.
 export const ShortViewportHidden = style({
   '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
 });
@@ -25,9 +34,9 @@ export const Banner = style([
 ]);
 
 // "Thread View" is chrome, not content: it says the same thing on every
-// thread the user opens. It reads as an eyebrow over the title below, using
-// the same uppercase/12px/W500 treatment the sidebar category headers and the
-// SHOW MORE pill already use for that role.
+// thread the user opens, so it shows only while the thread has no title. It
+// uses the same uppercase/12px/W500 treatment the sidebar category headers and
+// the SHOW MORE pill already use for that role.
 export const ViewLabel = style({
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -40,6 +49,11 @@ export const TitleRow = style({
   alignItems: 'center',
   gap: config.space.S300,
   minHeight: '1.5rem',
+});
+
+// Holds the eyebrow, the approvals chip and the tags; often none of them.
+export const EyebrowRow = style({
+  selectors: { '&:empty': { display: 'none' } },
 });
 
 export const TitleColumn = style({
@@ -65,6 +79,9 @@ export const SubtitleRow = style({
   marginTop: config.space.S100,
   minWidth: 0,
   flexWrap: 'wrap',
+  selectors: {
+    [`${EyebrowRow}:empty + &, ${Collapsed} &`]: { marginTop: 0 },
+  },
   '@media': { [shortViewport]: { marginTop: 0 } },
 });
 

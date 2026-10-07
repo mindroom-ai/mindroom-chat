@@ -39,7 +39,7 @@ test.describe('live CINNY-001b root restore', () => {
       )}`
     );
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(roomWithThread.replyBody)).toBeVisible({ timeout: 30_000 });
 
     await page.goto('/');
@@ -60,7 +60,7 @@ test.describe('live CINNY-001b root restore', () => {
         threadId: roomWithThread.rootId,
       });
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(roomWithThread.replyBody)).toBeVisible({ timeout: 10_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-001b-root-restore');

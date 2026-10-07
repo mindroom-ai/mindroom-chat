@@ -336,6 +336,8 @@
     "resolved": "محلولة",
     "resolvedBy": "حلّها ⁨{{name}}⁩",
     "resolvedByShort": "بواسطة ⁨{{name}}⁩",
+    "hideDetails": "إخفاء تفاصيل سلسلة المحادثة",
+    "showDetails": "إظهار تفاصيل سلسلة المحادثة",
     "replyCount_one": "⁨{{count}}⁩ رد",
     "replyCount_other": "⁨{{count}}⁩ من الردود",
     "aria": {

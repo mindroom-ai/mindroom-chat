@@ -333,6 +333,8 @@
     "resolved": "Resuelto",
     "resolvedBy": "Resuelto por {{name}}",
     "resolvedByShort": "por {{name}}",
+    "hideDetails": "Ocultar detalles del hilo",
+    "showDetails": "Mostrar detalles del hilo",
     "replyCount_one": "{{count}} respuesta",
     "replyCount_other": "{{count}} respuestas",
     "aria": {

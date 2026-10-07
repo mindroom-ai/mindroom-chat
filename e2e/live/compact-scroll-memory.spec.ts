@@ -73,10 +73,7 @@ const scrollOverviewTo = (page: Page, scrollTop: number) =>
 
 const clickThreadExitButton = (page: Page) =>
   page.evaluate(() => {
-    const label = Array.from(document.querySelectorAll('p')).find(
-      (element) => element.textContent?.trim() === 'Thread View'
-    );
-    const exitButton = label?.closest('div')?.parentElement?.parentElement?.querySelector('button');
+    const exitButton = document.querySelector('[data-thread-context-banner] button');
     if (!(exitButton instanceof HTMLButtonElement)) throw new Error('Thread exit button not found');
     exitButton.click();
   });

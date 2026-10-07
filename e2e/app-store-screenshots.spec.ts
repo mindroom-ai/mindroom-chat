@@ -270,9 +270,9 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await captureScene(page, device, sceneById('personal-workspace'), capturedDigests);
 
       await getThreadEntry(page, DINNER_THREAD_TITLE).click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('mindroom-explained'));
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('Dinner, sorted')).toBeVisible({
         timeout: 30_000,
       });
@@ -282,9 +282,9 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, HOME_AUTOMATION_THREAD_TITLE).click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('campground-monitor'));
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       const toolCallsButton = page.getByRole('button', { name: /3 tool calls/i }).first();
       await expect(toolCallsButton).toBeVisible({ timeout: 30_000 });
       await expandCollapsedMessages(page);
@@ -297,9 +297,9 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, TRIP_THREAD_TITLE).click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('car-search'));
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/Three ways to do it under €900/)).toBeVisible({
         timeout: 30_000,
       });
@@ -309,9 +309,9 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, REMINDER_THREAD_TITLE).click();
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('home-reminders'));
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('One less thing to remember')).toBeVisible({ timeout: 30_000 });
       await expandCollapsedMessages(page);
 

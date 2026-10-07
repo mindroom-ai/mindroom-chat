@@ -109,7 +109,7 @@ const runThreadSendStabilityAssertions = async (page: Page) => {
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
 
-  await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
   // The root can be outside the virtualized window while viewing the latest reply.
   await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(fixture.rootId);
   await expect(page.getByText(lastSeededReplyBody)).toBeVisible({ timeout: 30_000 });

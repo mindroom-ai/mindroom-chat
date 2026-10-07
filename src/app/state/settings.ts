@@ -54,6 +54,7 @@ export interface Settings {
   encUrlPreview: boolean;
   showHiddenEvents: boolean;
   legacyUsernameColor: boolean;
+  threadBannerCollapsed: boolean;
 
   showNotifications: boolean;
   isNotificationSounds: boolean;
@@ -88,6 +89,7 @@ const defaultSettings: Settings = {
   encUrlPreview: false,
   showHiddenEvents: false,
   legacyUsernameColor: false,
+  threadBannerCollapsed: false,
 
   showNotifications: true,
   isNotificationSounds: true,

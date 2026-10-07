@@ -111,7 +111,7 @@ test('opens a root-only thread while its IndexedDB history read is blocked', asy
   try {
     opening = true;
     await card.click();
-    await expect(page.getByText('Thread View', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
     await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
     await expect(page.locator('[data-thread-context-summary="true"]').first()).toContainText(
       summary

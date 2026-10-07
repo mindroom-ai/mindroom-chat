@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Collapse the thread banner to one row (2026-10-07)
+
+- Why: a user asked to hide the thread banner. It stays above the messages while they scroll, and on a phone it took four rows (eyebrow, title, tags, and `+ tag` wrapped onto its own line). Hiding it outright would also hide the way back and the thread's status, so it collapses instead.
+- A chevron at the end of the banner (`Hide thread details` / `Show thread details`) collapses it to the row short landscape screens already used: back, title and More, plus a resolved status or a solid pin, which stay in view. Tags, the pin button, Resolve and the resolver byline go; More still offers tags, pinning and resolving. The chevron is absent where collapsing would hide nothing (a pinned thread without tags, a resolved one with no byline, tags or pin button) and on short landscape screens, which always show the single row.
+- The choice is a device setting (`threadBannerCollapsed` in the local `settings`), so it holds for every thread and after a reload, and a phone and a desktop can differ.
+- `ShortViewportHidden` on the collapsible parts became `CompactHidden`, which hides them under a `Collapsed` banner as well as on short screens; `ShortViewportHidden` now only hides the chevron.
+- For everyone: the "Thread View" eyebrow is rendered only while the thread has no title (summary or scheduled-task line); before, short screens hid it with CSS. `+ tag` shows only next to tags already set; More adds the first one. So a titled thread without tags is a single row even expanded. The eyebrow row collapses (`:empty`) when it holds nothing, and the title row then drops its top margin.
+- Live specs that waited for the "Thread View" text to know a thread was open, or found the back button from it, now use `[data-thread-context-banner]`; with a summary the text is gone.
+- Tests: `ThreadContextBanner.test.ts`: which parts collapse (renamed from the short-screen case), no eyebrow once titled, `+ tag` only beside tags, the toggle and the setting carried to the next thread, the toggle only when something folds. Each failed before its change.
+- Live: `e2e/live/thread-banner-collapse.spec.ts`, desktop (1280×800) and phone (390×844), a 14-reply thread with a summary and two tags: no eyebrow, collapse to ≤ 48 px with Resolve and tags hidden and the reader still at the latest reply, More still offering tags and resolve, still collapsed after a reload, expand again. Playwright's `click` scrolls a target into view first, and for a button in the sticky banner it scrolled the thread about 370 px toward the banner's place in the flow, so the spec presses the button by its coordinates; a tap there kept the reader at the bottom.
+- Next, not done: the glass behind the banner shows the messages scrolling under it; a more opaque surface might be what bothered the reporter in the first place.
+
 ### Open the command palette from one place, with rooms first (2026-10-07)
 
 - Why: the owner found the palette advertised twice in full mode (sidebar tab and room-header button, both a terminal icon) and mostly opens it to switch rooms, which were listed after threads and actions.

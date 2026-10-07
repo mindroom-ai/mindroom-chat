@@ -77,7 +77,7 @@ test.describe('live CINNY-001 room re-entry does not auto-restore the last threa
       )}`
     );
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(roomWithThread.replyBody)).toBeVisible({ timeout: 30_000 });
 
     await page.goto(`/home/${encodeURIComponent(fallbackRoomId)}`);
@@ -92,7 +92,7 @@ test.describe('live CINNY-001 room re-entry does not auto-restore the last threa
     await expect(page.getByText(roomWithThread.rootBody).first()).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(3_000);
     expect(new URL(page.url()).searchParams.get('threadId')).toBeNull();
-    await expect(page.getByText('Thread View')).toHaveCount(0);
+    await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-001-last-open-thread');
   });
