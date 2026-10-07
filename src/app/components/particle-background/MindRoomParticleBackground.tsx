@@ -34,23 +34,29 @@ export function resolveMindRoomParticleCount() {
 }
 
 /**
- * Animate only when the browser creates WebGL2 without reporting a major
- * performance caveat. Chromium reports one for its software fallback
- * (SwiftShader, as in headless Chromium, or WARP), which draws every frame on
- * the CPU while the main thread waits to read each frame back, delaying the app
- * starting behind the splash. Firefox (by default) and Safari ignore the
- * attribute and animate as before.
+ * Whether the browser reports a major performance caveat for WebGL2. Chromium
+ * reports one for its software fallback (SwiftShader, as in headless Chromium,
+ * or WARP), which draws every frame on the CPU while the main thread waits to
+ * read each frame back, so the full animation delays the app starting behind
+ * the splash. Firefox (by default) and Safari ignore the attribute.
  */
-export function canAnimateMindRoomParticles() {
-  const gl =
-    typeof document === 'undefined'
-      ? null
-      : document
-          .createElement('canvas')
-          .getContext('webgl2', { failIfMajorPerformanceCaveat: true });
+export function hasWebGLPerformanceCaveat() {
+  if (typeof document === 'undefined') return false;
+  const gl = document
+    .createElement('canvas')
+    .getContext('webgl2', { failIfMajorPerformanceCaveat: true });
   gl?.getExtension('WEBGL_lose_context')?.loseContext();
-  return gl !== null;
+  return gl === null;
 }
+
+// Fewer, bolder particles at CSS resolution: the CPU draws them in a fraction of
+// the time and the logo still reads.
+const SOFTWARE_PARTICLE_OPTIONS: ParticularDriftUserOptions = {
+  particleCount: 10000,
+  particleSize: 1.5,
+  particleOpacity: 0.6,
+  maxDevicePixelRatio: 1,
+};
 
 type MindRoomParticleBackgroundProps = {
   position?: 'absolute' | 'fixed';
@@ -61,7 +67,7 @@ export function MindRoomParticleBackground({
   position = 'absolute',
   selfContained = false,
 }: MindRoomParticleBackgroundProps) {
-  const animate = React.useMemo(canAnimateMindRoomParticles, []);
+  const software = React.useMemo(hasWebGLPerformanceCaveat, []);
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
   const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
   const options = React.useMemo<ParticularDriftUserOptions>(
@@ -81,8 +87,9 @@ export function MindRoomParticleBackground({
       edgeThreshold: 0.32,
       flowFieldScale: 4,
       maxDevicePixelRatio: 1.25,
+      ...(software ? SOFTWARE_PARTICLE_OPTIONS : {}),
     }),
-    [particleCount, particleTheme]
+    [particleCount, particleTheme, software]
   );
 
   return (
@@ -104,24 +111,22 @@ export function MindRoomParticleBackground({
       }
       aria-hidden="true"
     >
-      {animate && (
-        <ParticularDriftCanvas
-          className={css.ParticleCanvas}
-          imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
-          options={options}
-          style={
-            selfContained
-              ? {
-                  width: '100%',
-                  height: '100%',
-                  opacity: 1,
-                  pointerEvents: 'auto',
-                  touchAction: 'none',
-                }
-              : undefined
-          }
-        />
-      )}
+      <ParticularDriftCanvas
+        className={css.ParticleCanvas}
+        imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
+        options={options}
+        style={
+          selfContained
+            ? {
+                width: '100%',
+                height: '100%',
+                opacity: 1,
+                pointerEvents: 'auto',
+                touchAction: 'none',
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

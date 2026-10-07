@@ -51,6 +51,8 @@ describe('MindRoomParticleBackground', () => {
     expect(canvas.props['data-options']).toMatchObject({
       interactive: true,
       cursorMode: 'repel',
+      particleCount: 52000,
+      maxDevicePixelRatio: 1.25,
     });
   });
 
@@ -77,7 +79,7 @@ describe('MindRoomParticleBackground', () => {
     });
   });
 
-  it('keeps the static background when the browser reports a WebGL2 performance caveat', () => {
+  it('animates fewer particles when the browser reports a WebGL2 performance caveat', () => {
     const getContext = vi.fn(() => null);
     stubWebGL2(getContext);
     let renderer: ReactTestRenderer;
@@ -87,7 +89,11 @@ describe('MindRoomParticleBackground', () => {
     });
 
     expect(getContext).toHaveBeenCalledWith('webgl2', { failIfMajorPerformanceCaveat: true });
-    expect(renderer!.root.findByType('div').props.className).toBe('particle-background');
-    expect(renderer!.root.findAllByType('canvas')).toHaveLength(0);
+    expect(renderer!.root.findByType('canvas').props['data-options']).toMatchObject({
+      particleCount: 10000,
+      particleSize: 1.5,
+      particleOpacity: 0.6,
+      maxDevicePixelRatio: 1,
+    });
   });
 });
