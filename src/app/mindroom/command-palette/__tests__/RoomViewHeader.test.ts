@@ -1,22 +1,25 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
-const { encryptionState, permissionState, screenSizeState, membersState } = vi.hoisted(() => ({
-  membersState: { open: false, setOpen: vi.fn() },
-  encryptionState: {
-    value: undefined as unknown,
-  },
-  permissionState: {
-    canInvite: true,
-    canKick: true,
-  },
-  screenSizeState: {
-    value: 'Desktop',
-  },
-}));
+const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
+  () => ({
+    navigateSpy: vi.fn(),
+    membersState: { open: false, setOpen: vi.fn() },
+    encryptionState: {
+      value: undefined as unknown,
+    },
+    permissionState: {
+      canInvite: true,
+      canKick: true,
+    },
+    screenSizeState: {
+      value: 'Desktop',
+    },
+  })
+);
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test-utils/i18n');
@@ -65,14 +68,22 @@ vi.mock('folds', async (importOriginal) => {
     Line: () => reactModule.createElement('hr'),
     Menu: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    MenuItem: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('button', { type: 'button' }, children),
+    MenuItem: ({
+      children,
+      after,
+      onClick,
+    }: {
+      children: React.ReactNode;
+      after?: React.ReactNode;
+      onClick?: () => void;
+    }) => reactModule.createElement('button', { type: 'button', onClick }, children, after),
     Overlay: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
     OverlayBackdrop: () => reactModule.createElement('div'),
     OverlayCenter: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    PopOut: () => null,
+    PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+      anchor ? content : null,
     Spinner: () => reactModule.createElement('div'),
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
@@ -101,7 +112,7 @@ vi.mock('focus-trap-react', async () => {
 });
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateSpy,
 }));
 
 vi.mock('../../../components/page', () => ({
@@ -158,6 +169,7 @@ vi.mock('../../../hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: '!room:example.org',
     getJoinRule: () => undefined,
+    isSpaceRoom: () => false,
   }),
   useIsDirectRoom: () => false,
 }));
@@ -203,6 +215,18 @@ vi.mock('../../threads/useStateEvents', () => ({
 vi.mock('../../calls/AgentCallHeaderButton', () => ({
   AgentCallHeaderButton: ({ threadId }: { threadId?: string }) =>
     React.createElement('agent-call-button', { 'data-thread-id': threadId }),
+}));
+
+vi.mock('../../notifications/MindroomMarkRoomReadMenuItem', () => ({
+  MindroomMarkRoomReadMenuItem: () => null,
+}));
+
+vi.mock('../../rooms/ArchiveRoomMenuItem', () => ({
+  ArchiveRoomMenuItem: () => null,
+}));
+
+vi.mock('../../threads/useRoomViewMode', () => ({
+  useRoomViewMode: () => ({ availableViewModes: [], setViewMode: vi.fn(), viewMode: 'threaded' }),
 }));
 
 vi.mock('../../../state/hooks/unread', () => ({
@@ -319,11 +343,12 @@ const renderHeader = async (
     canvasOpen?: boolean;
     onCanvasClose?: () => void;
     threadId?: string;
-  } = {}
+  } = {},
+  simpleMode = false
 ) => {
   const store = createStore();
   store.set(mindroomAccountSettingsAtom, {
-    simpleMode: false,
+    simpleMode,
     expandLongMessagesByDefault: true,
   });
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
@@ -457,17 +482,44 @@ describe('RoomViewHeader', () => {
     }
   );
 
-  it('hides message search in encrypted rooms', async () => {
-    const { renderer: plain } = await renderHeader();
-    expect(plain.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(1);
+  it.each([
+    { label: 'an unencrypted room', encrypted: false, simpleMode: false, offered: true },
+    { label: 'an encrypted room', encrypted: true, simpleMode: false, offered: false },
+    { label: 'Simple Mode', encrypted: false, simpleMode: true, offered: false },
+  ])(
+    'offers message search in the room menu, not the top bar, for $label',
+    async ({ encrypted, simpleMode, offered }) => {
+      if (encrypted) encryptionState.value = {};
+      const { renderer } = await renderHeader(0, {}, simpleMode);
+      const findIcons = (icon: string) =>
+        renderer.root.findAll((node) => node.props?.['data-icon'] === icon);
+      const textOf = (node: ReactTestInstance): string =>
+        node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+      const findMessageSearch = () =>
+        renderer.root.findAll(
+          (node) => node.type === 'button' && textOf(node).includes('Message Search')
+        );
 
-    encryptionState.value = {};
-    const { renderer: encrypted } = await renderHeader();
-    expect(encrypted.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(
-      0
-    );
-    act(() => [plain, encrypted].forEach((r) => r.unmount()));
-  });
+      expect(findIcons('Search')).toHaveLength(0);
+      const moreOptions = renderer.root.findByProps({ 'aria-label': 'More Options' });
+      await act(async () =>
+        moreOptions.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
+      );
+
+      expect(
+        renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room')
+      ).toHaveLength(1);
+      expect(findMessageSearch()).toHaveLength(offered ? 1 : 0);
+      if (offered) {
+        navigateSpy.mockClear();
+        await act(async () => findMessageSearch()[0].props.onClick());
+        expect(navigateSpy).toHaveBeenCalledWith(
+          `/home/search/?${new URLSearchParams({ rooms: '!room:example.org' })}`
+        );
+      }
+      act(() => renderer.unmount());
+    }
+  );
 
   it.each(['Desktop', 'Tablet', 'Mobile'])(
     'shows pending join requests on the %s Members button only to moderators',

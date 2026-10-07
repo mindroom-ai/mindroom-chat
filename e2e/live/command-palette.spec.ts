@@ -71,7 +71,7 @@ test.describe('command palette', () => {
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
   });
 
-  test('leads with rooms, sinks the open room, and keeps a single visible trigger', async ({
+  test('leads with rooms, sinks the open room, keeps one trigger, and moves room search to the menu', async ({
     page,
   }, testInfo) => {
     const homeserver = getHomeserver();
@@ -112,8 +112,17 @@ test.describe('command palette', () => {
       await input.press('Enter');
       await expect(page).toHaveURL(new RegExp(encodeURIComponent(currentId)));
 
-      // The room header no longer duplicates the sidebar trigger.
+      // The room header no longer duplicates the sidebar trigger; room message search moved
+      // from its top bar into the room menu.
       await expect(trigger).toHaveCount(1);
+      const header = page.getByRole('banner').filter({ hasText: currentName });
+      await header.getByRole('button', { name: 'More Options' }).click();
+      await page.getByRole('button', { name: 'Message Search' }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`/search/\\?${new URLSearchParams({ rooms: currentId })}$`)
+      );
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(encodeURIComponent(currentId)));
       await trigger.hover();
       await expect(page.getByRole('tooltip')).toContainText(/(Ctrl \+ K|⌘ K)/);
 
