@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { style, type StyleRule } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
@@ -6,6 +6,11 @@ import { shortViewport } from './shortViewport';
 // Collapsed, and always on short screens, the banner keeps one row: back,
 // title and the actions menu, which already offers tags, pinning and resolving.
 export const Collapsed = style({});
+// Doubled in the media query to match `${Collapsed} &` over single-class rules.
+const whenCompact = (compact: StyleRule) => ({
+  selectors: { [`${Collapsed} &`]: compact },
+  '@media': { [shortViewport]: { selectors: { '&&': compact } } },
+});
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
@@ -67,18 +72,12 @@ export const EyebrowRow = style({
 });
 
 // Compact, the approvals chip that stays in view sits beside the title.
-const titleColumnInline = {
-  flexDirection: 'row',
-  alignItems: 'center',
-  columnGap: config.space.S200,
-} as const;
 export const TitleColumn = style({
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
   gap: 0,
-  selectors: { [`${Collapsed} &`]: titleColumnInline },
-  '@media': { [shortViewport]: titleColumnInline },
+  ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
 });
 
 export const TagsRow = style({
@@ -101,6 +100,8 @@ export const DesktopOnlyTags = style({
   },
 });
 
+// Compact, the title and a scheduled task share one line and truncate together.
+const subtitleRowInline = { marginTop: 0, flexWrap: 'nowrap' } as const;
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -109,10 +110,11 @@ export const SubtitleRow = style({
   minWidth: 0,
   flexWrap: 'wrap',
   selectors: {
-    [`${EyebrowRow}:empty + &, ${Collapsed} &`]: { marginTop: 0 },
+    [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
+    [`${Collapsed} &`]: subtitleRowInline,
   },
   '@media': {
-    [shortViewport]: { marginTop: 0 },
+    [shortViewport]: subtitleRowInline,
     // Narrow screens move the tags to their own row, which can leave the
     // eyebrow row with nothing showing.
     '(max-width: 480px)': {
@@ -186,6 +188,7 @@ export const SummaryText = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  ...whenCompact({ flexBasis: 'auto' }),
 });
 
 export const ScheduledWrap = style({
@@ -194,6 +197,7 @@ export const ScheduledWrap = style({
   gap: config.space.S100,
   minWidth: 0,
   flexShrink: 0,
+  ...whenCompact({ flexShrink: 1 }),
 });
 
 export const MetadataDot = style({
@@ -207,6 +211,7 @@ export const ScheduledIndicator = style({
   minWidth: 0,
   flexShrink: 0,
   whiteSpace: 'nowrap',
+  ...whenCompact({ flexShrink: 1 }),
 });
 
 export const BannerResolved = style([
