@@ -35,18 +35,23 @@ export function resolveMindRoomParticleCount() {
 
 /**
  * Whether the browser reports a major performance caveat for WebGL2. Chromium
- * reports one for its software fallback (SwiftShader, as in headless Chromium,
- * or WARP), which draws every frame on the CPU while the main thread waits to
+ * reports one for its SwiftShader/WARP WebGL fallback (as in Playwright's default
+ * chrome-headless-shell), which draws every frame on the CPU while the main thread waits to
  * read each frame back, so the full animation delays the app starting behind
  * the splash. Firefox (by default) and Safari ignore the attribute.
  */
 export function hasWebGLPerformanceCaveat() {
   if (typeof document === 'undefined') return false;
-  const gl = document
-    .createElement('canvas')
-    .getContext('webgl2', { failIfMajorPerformanceCaveat: true });
-  gl?.getExtension('WEBGL_lose_context')?.loseContext();
-  return gl === null;
+  try {
+    const gl = document
+      .createElement('canvas')
+      .getContext('webgl2', { failIfMajorPerformanceCaveat: true });
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return gl === null;
+  } catch {
+    // This runs at the top of the app: a patched getContext must not take it down.
+    return false;
+  }
 }
 
 // Fewer, bolder particles at CSS resolution: the CPU draws them in a fraction of
