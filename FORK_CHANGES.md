@@ -26,6 +26,22 @@
     On Tuwunel before its `mindroom-tuwunel` fix, the server's count also keeps counting redacted replies (see "Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)").
   - The overview cache hydration still counts at most 32 cached events; that count no longer hides a larger one.
 
+### Keep a room's other Spaces when one Space removes it (2026-10-06)
+
+- Problem: when a Space removed a room (its `m.space.child` event became invalid), `useBindRoomToParentsAtom` dispatched `DELETE` for the room, the action meant for a Space the user left.
+  That deleted all of the room's parents and also removed the room as a parent of every other room.
+  So a room in two Spaces that one Space removed lost both, until reload: it showed in Home as a room in no Space (outside Simple Mode), opening it from search or a notification went to Home instead of the other Space, and its unread count stopped counting toward that Space.
+  A subspace removed from its parent Space did the same to its own rooms.
+  The other Space's room list reads `m.space.child` state directly, so it still listed the room.
+- Fix: a new `REMOVE_PARENT` action in `src/app/state/room/roomToParents.ts` removes only the link from that Space to that room, and deletes the room's entry only when no parent is left; an invalidated `m.space.child` event now dispatches it.
+  `DELETE` is still used when the user leaves a Space or the room is deleted.
+  Salvaged from closed PR #135 and re-derived against `dev`.
+- Tests: `src/app/state/room/roomToParents.test.ts` binds the hook to a real `MatrixClient`, Spaces and jotai store and sends real `m.space.child` changes.
+  A room removed from one of two Spaces keeps the other, and a subspace removed from its parent stays the parent of its own rooms; both fail on `dev`.
+  A room removed from its last Space loses its entry; this passes before and after.
+- Validation: typecheck, production/PWA build, Prettier on the touched files, and lint (0 errors, 18 existing warnings) pass.
+  The full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+
 ### Keep a reader at the top of a short room while its older rows load (2026-10-06)
 
 - Report: the live `composer-glass` spec started failing after PR #422 (5 of 8 runs; 0 of 4 before it): a 180 px wheel right after opening a short room never showed "Jump to Latest". #422 removed the 30 s "Catching up..." wait that had let the room finish loading first. Probing found a reader who scrolls to the top of a short room is sent back to the bottom when its older rows load.
