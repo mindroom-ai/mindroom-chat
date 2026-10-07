@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Animate fewer particles on Chromium's software WebGL (2026-10-06)
+
+- Report: `e2e/account-multitab.spec.ts` ("propagates logout fallback across tabs without crashing") failed once in a full live run: a second tab opened on `/home/` stayed on the startup splash for over 30 s.
+- Root cause: the splash and auth background (and the call background) animates up to 80 000 particles with WebGL2. Where WebGL2 is software (SwiftShader in headless Chromium, the live suite's browser), every frame is drawn on the CPU and the page's main thread waits to read it back, so the animation takes the main thread the starting app needs (IndexedDB load, crypto setup).
+  In the failing trace the second tab's startup and the test's own page queries advanced only in bursts between stalls of about 5 s, five in a row; a Chrome trace of the same page with the browser's disk throttled shows the main thread blocked 4.1 s in `GLES2::ReadPixels` during a frame commit. The stalls grow with host load.
+- Fix: `MindRoomParticleBackground` asks the browser for a WebGL2 context with `failIfMajorPerformanceCaveat: true`. Where it refuses, the animation still runs, with 10 000 particles drawn larger (1.5) and more opaque (0.6) so the logo still reads, at CSS resolution (`maxDevicePixelRatio: 1`; the library does not render below it). Elsewhere the options are unchanged.
+  Chromium refuses that context for its software fallback: SwiftShader (verified in the live suite's headless Chromium) and WARP (per Chromium's source).
+- Tests: `MindRoomParticleBackground.test.tsx`: the software options when the browser reports the caveat (fails without the check), the usual ones when it does not.
+- Choice of options, second tab to its shell with this spec's flow, 3 or 4 runs each (normal load / 2 CPUs per browser / 1 CPU):
+  - `dev` (80 000): 2.5 s / 8.7–10.3 s / the first login already exceeds its 30 s wait.
+  - 20 000: 1.8 s / 4.1–5.1 s / 10.1–12.2 s.
+  - 10 000, size 1.5, opacity 0.6 (chosen; looks like 20 000): 1.9 s / 3.3–3.7 s / 7.8–10.1 s.
+  - 8 000: 1.8–2.9 s / 3.2–3.3 s / 7.6–10.1 s. 3 000: 1.8 s / 2.6–3.0 s / 6.9–7.3 s, too sparse to show the logo.
+  - Without a canvas (measured earlier): 1.4–2.0 s / 1.6–1.9 s / 3.5–4.2 s.
+  Fewer particles cut the per-particle shading; the readback of each frame scales with the canvas pixels and stays, so a starved CPU still pays for the animation.
+- Validation: `account-multitab.spec.ts` with 1 CPU per browser: 6 of 6 tests pass with the fix, 0 of 6 on `dev` (each first login exceeds its 30 s wait); the login canvas animates (two screenshots 0.7 s apart differ).
+- Not changed: Chromium animates as before wherever it does not report the caveat; full Chromium in headless mode (the host-Chromium fallback in `playwright.config.ts`) draws through SwiftShader's Vulkan device without reporting it, so it keeps the full animation. Firefox (by default, `webgl.disable-fail-if-major-performance-caveat`) and Safari ignore the attribute and animate as before, also when they render in software.
+
 ### Show the release version in Settings → About (2026-10-06)
 
 - Problem: About showed a hard-coded `v4.12.6`, so it never said which MindRoom release (`v4.12.6-mindroom.180`) a client was built from.

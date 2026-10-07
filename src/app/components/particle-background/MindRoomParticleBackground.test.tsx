@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MindRoomParticleBackground } from './MindRoomParticleBackground';
 
@@ -22,7 +22,23 @@ vi.mock('./MindRoomParticleBackground.css', () => ({
   ParticleCanvas: 'particle-canvas',
 }));
 
+// `getContext` stands in for the browser's WebGL2: null when the browser reports a major
+// performance caveat, as Chromium does for its software fallback.
+const stubWebGL2 = (getContext: (type: string, attributes?: object) => unknown) =>
+  vi.stubGlobal('document', {
+    createElement: () => ({ getContext }),
+    documentElement: { classList: { contains: () => false } },
+  });
+
 describe('MindRoomParticleBackground', () => {
+  beforeEach(() => {
+    stubWebGL2(() => ({ getExtension: () => ({ loseContext: () => undefined }) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('keeps pointer interaction enabled for direct touch gestures', () => {
     let renderer: ReactTestRenderer;
 
@@ -35,6 +51,8 @@ describe('MindRoomParticleBackground', () => {
     expect(canvas.props['data-options']).toMatchObject({
       interactive: true,
       cursorMode: 'repel',
+      particleCount: 52000,
+      maxDevicePixelRatio: 1.25,
     });
   });
 
@@ -58,6 +76,24 @@ describe('MindRoomParticleBackground', () => {
       height: '100%',
       pointerEvents: 'auto',
       touchAction: 'none',
+    });
+  });
+
+  it('animates fewer particles when the browser reports a WebGL2 performance caveat', () => {
+    const getContext = vi.fn(() => null);
+    stubWebGL2(getContext);
+    let renderer: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(<MindRoomParticleBackground />);
+    });
+
+    expect(getContext).toHaveBeenCalledWith('webgl2', { failIfMajorPerformanceCaveat: true });
+    expect(renderer!.root.findByType('canvas').props['data-options']).toMatchObject({
+      particleCount: 10000,
+      particleSize: 1.5,
+      particleOpacity: 0.6,
+      maxDevicePixelRatio: 1,
     });
   });
 });
