@@ -124,6 +124,10 @@ for (const viewport of [
         const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
         await expect(resolve).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('expanded.png') });
+        // The two tags share a row; on a phone it is a row of their own.
+        const research = banner.getByText('research', { exact: true }).filter({ visible: true });
+        const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
+        expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
         // A titled thread drops the "Thread View" eyebrow.
         await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
         const expandedHeight = (await banner.boundingBox())!.height;

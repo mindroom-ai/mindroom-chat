@@ -702,7 +702,7 @@ describe('ThreadContextBanner rendering', () => {
     // The resolver byline below it folds away.
     bannerMocks.useThreadTags.mockReturnValue({
       ...readOnly,
-      tags: { resolved: { set_by: '@alice:example.org', set_at: ISO_1 } },
+      tags: { [RESOLVED_TAG]: { set_by: '@alice:example.org', set_at: ISO_1 } },
       isResolved: true,
     });
     const attributed = renderBanner('A concise thread summary');
