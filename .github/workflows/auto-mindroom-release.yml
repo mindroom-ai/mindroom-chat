@@ -130,6 +130,8 @@ jobs:
         run: npm ci
 
       - name: Build web bundle
+        env:
+          MINDROOM_RELEASE_VERSION: ${{ needs.release.outputs.release_tag }}
         run: npm run build
 
       - name: Sync Capacitor to Android
