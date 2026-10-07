@@ -12,6 +12,7 @@ import {
   getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedRoomEventsBefore as loadCachedRoomEventsBeforeFromCache,
   loadCachedRoomPaginationToken as loadCachedRoomPaginationTokenFromCache,
+  loadCachedThreadEvent,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
   loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
@@ -19,7 +20,6 @@ import {
   normalizeCachedThreadEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
   saveRoomEventsToCacheCommitted,
-  saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
   saveThreadEventsToCacheCommitted,
   type CachedRoomEventPage,
   type CachedThreadEvent,
@@ -33,6 +33,10 @@ import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUt
 import { loadCachedEventAcrossRoomScopes } from './cacheStore/cacheStoreEvents';
 import { readRoomOfflineProgress, updateRoomOfflineProgress } from './cacheStore/cacheStoreMeta';
 import { collectEventAttachments } from '../messages/eventAttachments';
+import {
+  getThreadSummaryInfosFromEventSources,
+  type MindroomThreadSummaryInfo,
+} from '../messages/threadSummary';
 import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -43,7 +47,7 @@ import {
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
-import { forgetRedactedThreadSummaries } from './threadSummaryState';
+import { forgetRedactedThreadSummaries, storeThreadSummaryInState } from './threadSummaryState';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectExplicitRedactedEventIds,
@@ -133,7 +137,7 @@ export const createPreferLiveEventMapper =
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
 type SaveThreadEventsToCache = (
-  ...args: Parameters<typeof saveThreadEventsToCacheToStorage>
+  ...args: Parameters<typeof saveThreadEventsToCacheCommitted>
 ) => Promise<void | boolean>;
 type SaveRoomEventsToCache = (
   ...args: Parameters<typeof saveRoomEventsToCacheToStorage>
@@ -880,6 +884,34 @@ const collectSnapshotAttachmentOwners = (
   );
 };
 
+/**
+ * Publish a thread write's summary notices once it commits, so a thread keeps
+ * its title when the notice is older than the cached tail the overview reads.
+ * The save refuses copies of notices it knows are redacted, also from earlier
+ * writes, so only notices it stored unredacted are published.
+ */
+const publishCachedThreadSummaries = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  summaries: MindroomThreadSummaryInfo[],
+  write: Promise<void | boolean>,
+  lease: CacheStoreWriteLease
+): Promise<void> => {
+  if ((await write) === false) return;
+  const cached = await Promise.all(
+    summaries.map((info) =>
+      info.eventId ? loadCachedThreadEvent(sessionId, roomId, threadId, info.eventId) : undefined
+    )
+  );
+  const kept = summaries.filter((_info, index) => {
+    const event = cached[index];
+    return !!event && !event.unsigned?.redacted_because;
+  });
+  if (kept.length > 0 && isCacheStoreWriteLeaseCurrent(lease))
+    storeThreadSummaryInState(sessionId, roomId, threadId, ...kept);
+};
+
 export const persistThreadEventCacheSnapshot = ({
   sessionId,
   room,
@@ -894,7 +926,7 @@ export const persistThreadEventCacheSnapshot = ({
   relationSnapshotMode,
   authoritativeRawEvents,
   writeLease,
-  save = saveThreadEventsToCacheToStorage,
+  save = saveThreadEventsToCacheCommitted,
 }: PersistThreadEventCacheSnapshotArgs): ThreadEventCacheSnapshotWrite => {
   const resolvedRootEvent = rootEvent ?? undefined;
   const loadedReplyCount = buildThreadReplyCountMap(events).get(threadId) ?? 0;
@@ -941,6 +973,15 @@ export const persistThreadEventCacheSnapshot = ({
     : relationSnapshotMode === undefined
     ? save(...saveArgs)
     : save(...saveArgs, relationSnapshotMode);
+  const summaries = getThreadSummaryInfosFromEventSources(events).filter(
+    (info): info is MindroomThreadSummaryInfo => !!info?.summaryText
+  );
+  if (summaries.length > 0) {
+    const lease = writeLease ?? captureCacheStoreWriteLease(sessionId, room.roomId);
+    publishCachedThreadSummaries(sessionId, room.roomId, threadId, summaries, write, lease).catch(
+      () => undefined
+    );
+  }
 
   return {
     rawEvents,
@@ -990,7 +1031,7 @@ export const persistThreadCacheFromRoomEventsSnapshot = ({
   opts,
   getSeedSnapshot = getThreadOpenSeedSnapshot,
   saveSeedSnapshot = saveThreadOpenSeedSnapshot,
-  saveThreadSnapshot = saveThreadEventsToCacheToStorage,
+  saveThreadSnapshot = saveThreadEventsToCacheCommitted,
 }: {
   sessionId: string;
   room: Room;

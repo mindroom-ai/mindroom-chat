@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Keep thread summaries from cached history without opening the thread (2026-10-06)
+
+- Report: a thread's summary title that was already in downloaded history could be missing from the room overview card until the user opened the thread.
+- Root cause: only room view code and the manual summary action wrote the shared summary state and its `thread_summaries` store, and the overview reads only the newest 32 cached events of each thread (`OVERVIEW_CACHE_EVENT_LIMIT`).
+  A summary notice that reached the cache through engine write-through while its room was not open, or through a history fetch, got no summary record, so once 32 newer replies followed it nothing showed it on the card.
+- Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), publishes the batch's summary notices through `storeThreadSummaryInState` once the batch's cache write has committed.
+  It first reads each notice back from the thread cache (`loadCachedThreadEvent`) and publishes only those stored unredacted, because the save refuses a copy of a notice whose redaction it recorded, in the same batch or in an earlier write.
+  Nothing is published when the write does not commit or the write's cache lease is revoked (for example when a room's offline content is cleared); the thread snapshot writers now default to `saveThreadEventsToCacheCommitted` so every path reports whether it committed.
+  The existing selection rules pick the title, and the overview card and the thread banner read it from the same shared state with no room view mounted.
+  The event write does not wait for any of this.
+- Tests: `threadSummaryPersistence.test.tsx` covers a notice cached by live sync and by a fetched history chunk outside the 32-event tail (both fail on `dev`), a stale copy of a redacted notice in a reconciler repair or in a later write, a revoked lease, and an edit of a cached notice whose write fails.
+  `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice; on local Tuwunel in Chromium it fails on `dev` and passes with the fix.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+- Not changed:
+  - Caches written before this change are not repaired; opening a thread still publishes its summary.
+  - The room view's own summary publishers are unchanged; prefetch can still publish a fetched stale copy of a notice whose redaction was already saved, as before.
+  - A redaction that arrives while a room's first summary read is pending, or within the few IndexedDB steps around the read-back of a just-cached notice, can still bring its title back.
+  - A stale fetched copy of a notice that carries an edit redacted earlier can still publish the edit's text; it needs a copy from the homeserver's short stale-copy window, and encrypted rooms cache ciphertext, so the cached record cannot supply the title instead.
+
 ### Open direct messages with people in the Classic timeline (2026-10-06)
 
 - Problem: a direct message between two people used the same per-room view mode as agent rooms, so in the default Compact mode every message showed as a thread card with "Open thread", under the thread overview toolbar.
@@ -1884,7 +1903,7 @@
   Those changes are complete; the no-thread mode stays owned by the render hook.
   Claude's final re-review approves the corrected implementation and validation record.
 - Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
-  The separate report of missing summaries remains under investigation.
+  The separate report of missing summaries is fixed in "Keep thread summaries from cached history without opening the thread" (2026-10-06).
 
 ### Jump to Latest in threads without waiting for older history (2026-09-25)
 
