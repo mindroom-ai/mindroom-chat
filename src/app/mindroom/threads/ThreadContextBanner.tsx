@@ -323,25 +323,6 @@ export function ThreadContextBanner({
                 )}
               </div>
             )}
-            {/* Mobile: tags in a dedicated row below subtitle */}
-            {hasTags && (
-              <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
-              </div>
-            )}
           </div>
           <Box alignItems="Center" gap="100" shrink="No">
             <IconButton
@@ -432,6 +413,25 @@ export function ThreadContextBanner({
               </IconButton>
             )}
           </Box>
+          {/* Mobile: tags in a row of their own, under the title and the actions */}
+          {hasTags && (
+            <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
+              <TagPills
+                tags={headerModel.displayTags}
+                maxPills={MOBILE_MAX_PILLS}
+                allTags={headerModel.displayTags}
+                canEdit={headerModel.canEdit}
+                onRemove={handleRemoveTag}
+              />
+              {headerModel.canEdit && (
+                <ThreadTagPicker
+                  availableTags={headerModel.availableTags}
+                  onAddTag={handleAddTag}
+                  disabled={headerModel.pickerDisabled}
+                />
+              )}
+            </div>
+          )}
         </div>
         {!!pinning.error && (
           <Text role="alert" size="T200">

@@ -44,10 +44,12 @@ export const ViewLabel = style({
   whiteSpace: 'nowrap',
 });
 
+// Back, title and actions; narrow screens add the tags as a second row.
 export const TitleRow = style({
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
   alignItems: 'center',
-  gap: config.space.S300,
+  columnGap: config.space.S300,
   minHeight: '1.5rem',
 });
 
@@ -59,7 +61,6 @@ export const EyebrowRow = style({
 export const TitleColumn = style({
   display: 'flex',
   flexDirection: 'column',
-  flexGrow: 1,
   minWidth: 0,
   gap: 0,
 });
@@ -72,6 +73,18 @@ export const TagsRow = style({
   overflow: 'hidden',
 });
 
+/**
+ * Desktop: tags inline on title row (hidden below).
+ * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
+ */
+export const DesktopOnlyTags = style({
+  '@media': {
+    '(max-width: 480px)': {
+      display: 'none',
+    },
+  },
+});
+
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -82,7 +95,16 @@ export const SubtitleRow = style({
   selectors: {
     [`${EyebrowRow}:empty + &, ${Collapsed} &`]: { marginTop: 0 },
   },
-  '@media': { [shortViewport]: { marginTop: 0 } },
+  '@media': {
+    [shortViewport]: { marginTop: 0 },
+    // Narrow screens move the tags to their own row, which can leave the
+    // eyebrow row with nothing showing.
+    '(max-width: 480px)': {
+      selectors: {
+        [`${EyebrowRow}:not(:has(> :not(${DesktopOnlyTags}))) + &`]: { marginTop: 0 },
+      },
+    },
+  },
 });
 
 export const ResolveChip = style({
@@ -125,20 +147,9 @@ export const OverflowChip = style({
   verticalAlign: 'middle',
 });
 
-/**
- * Desktop: tags inline on title row (hidden below).
- * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
- */
-export const DesktopOnlyTags = style({
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'none',
-    },
-  },
-});
-
 export const MobileOnlyTags = style({
   display: 'none',
+  gridColumn: '2 / -1',
   '@media': {
     '(max-width: 480px)': {
       display: 'flex',

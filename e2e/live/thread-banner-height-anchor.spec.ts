@@ -32,7 +32,7 @@ const threadRelation = (rootId: string) => ({
 
 type Fixture = { homeserver: string; session: MatrixSession; roomId: string; rootId: string };
 
-const openThread = async (page: Page): Promise<Fixture> => {
+const openThread = async (page: Page, { tagged = false } = {}): Promise<Fixture> => {
   const homeserver = getHomeserver();
   const { username, password } = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, username, password);
@@ -50,6 +50,18 @@ const openThread = async (page: Page): Promise<Fixture> => {
       body: `Banner anchor reply ${index}\nA second line keeps every reply two lines tall.`,
       'm.relates_to': threadRelation(rootId),
     });
+  }
+  if (tagged) {
+    await sendStateEvent(
+      homeserver,
+      session.accessToken,
+      roomId,
+      'com.mindroom.thread.tags',
+      rootId,
+      {
+        tags: { anchor: { set_by: session.userId, set_at: new Date().toISOString() } },
+      }
+    );
   }
   await page.addInitScript(() => {
     window.addEventListener('error', (event) => {
@@ -160,7 +172,9 @@ test.describe('thread banner height changes keep the reader in place', () => {
 
   test('a thread summary arriving keeps a mid-thread reader in place', async ({ page }) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const fixture = await openThread(page);
+    // A title replaces the "Thread View" eyebrow in the same row; with a tag,
+    // the eyebrow row stays for the tags and the title adds a row below it.
+    const fixture = await openThread(page, { tagged: true });
     await scrollMidThread(page);
     await expectReaderHeld(page, async () => {
       await sendRoomMessage(fixture.homeserver, fixture.session.accessToken, fixture.roomId, {

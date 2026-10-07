@@ -547,7 +547,7 @@ describe('ThreadContextBanner rendering', () => {
         .map((node) => node.props['aria-label'] ?? String(node.props.className).split(' ')[0]);
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual(['TagsRow', 'MobileOnlyTags', 'Pin thread', 'ResolveChip']);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'ResolveChip', 'MobileOnlyTags']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBeUndefined();
     summarized.unmount();
@@ -699,6 +699,17 @@ describe('ThreadContextBanner rendering', () => {
     const resolved = renderBanner('A concise thread summary');
     expect(toggles(resolved)).toHaveLength(0);
     resolved.unmount();
+    // The resolver byline below it folds away.
+    bannerMocks.useThreadTags.mockReturnValue({
+      ...readOnly,
+      tags: { resolved: { set_by: '@alice:example.org', set_at: ISO_1 } },
+      isResolved: true,
+    });
+    const attributed = renderBanner('A concise thread summary');
+    expect(attributed.root.findByProps({ 'data-thread-resolution-byline': 'true' })).toBeDefined();
+    expect(toggles(attributed)).toHaveLength(1);
+    attributed.unmount();
+    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: true });
     pinningMocks.canPin = true;
     const pinnable = renderBanner('A concise thread summary');
     expect(toggles(pinnable)).toHaveLength(1);
