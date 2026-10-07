@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
-import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 
 const openCommandPalette = async (page: Page) => {
   const mac = await page.evaluate(() => /Mac|iPod|iPhone|iPad/.test(navigator.platform));
@@ -69,6 +69,68 @@ test.describe('command palette', () => {
     await input.press('Enter');
     await expect(dialog).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
+  });
+
+  test('leads with rooms, sinks the open room, and keeps a single visible trigger', async ({
+    page,
+  }, testInfo) => {
+    const homeserver = getHomeserver();
+    const credentials = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+    const restoreInterfaceMode = await setFullInterfaceModeForSession(homeserver, session);
+    try {
+      const stamp = Date.now();
+      const earlierName = `Palette earlier ${stamp}`;
+      const currentName = `Palette current ${stamp}`;
+      const earlierId = await createPrivateRoom(homeserver, session.accessToken, {
+        name: earlierName,
+      });
+      const currentId = await createPrivateRoom(homeserver, session.accessToken, {
+        name: currentName,
+      });
+      await sendRoomMessage(homeserver, session.accessToken, earlierId, {
+        msgtype: 'm.text',
+        body: 'older activity',
+      });
+      await sendRoomMessage(homeserver, session.accessToken, currentId, {
+        msgtype: 'm.text',
+        body: 'newest activity',
+      });
+      await loginWithPassword(page, { homeserver, ...credentials });
+
+      const trigger = page.getByRole('button', { name: 'Open command palette', exact: true });
+      await expect(trigger).toHaveCount(1);
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Command palette', exact: true });
+      const input = dialog.getByRole('combobox');
+      await expect(input).toBeFocused();
+      await expect(dialog.getByRole('listbox').getByRole('group').first()).toHaveAccessibleName(
+        /^Rooms/
+      );
+      await input.fill(currentName);
+      await expect(dialog.getByRole('option').first()).toContainText(currentName);
+      await input.press('Enter');
+      await expect(page).toHaveURL(new RegExp(encodeURIComponent(currentId)));
+
+      // The room header no longer duplicates the sidebar trigger.
+      await expect(trigger).toHaveCount(1);
+      await trigger.hover();
+      await expect(page.getByRole('tooltip')).toContainText(/(Ctrl \+ K|⌘ K)/);
+
+      // The shortcut works while its tooltip is showing.
+      await openCommandPalette(page);
+      await expect(input).toBeFocused();
+      const first = dialog.getByRole('option').first();
+      await expect(first).toHaveAttribute('data-kind', 'room');
+      await expect(first).toContainText(earlierName);
+      await expect(first).toHaveAttribute('aria-selected', 'true');
+      await page.screenshot({ path: testInfo.outputPath('rooms-first-palette.png') });
+      await input.press('Enter');
+      await expect(dialog).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(encodeURIComponent(earlierId)));
+    } finally {
+      await restoreInterfaceMode();
+    }
   });
 
   for (const viewport of [

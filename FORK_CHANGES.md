@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Open the command palette from one place, with rooms first (2026-10-07)
+
+- Why: the owner found the palette advertised twice in full mode (sidebar tab and room-header button, both a terminal icon) and mostly opens it to switch rooms, which were listed after threads and actions.
+- One visible trigger: the room-header button (`MindroomCommandPaletteHeaderButton`) is deleted. The sidebar tab remains; the icon rail stays visible on desktop and tablet even with the room list collapsed, and on phones it shows on the navigation screens. Mod+K is unchanged, and Simple Mode still hides the tab.
+  On a phone, opening the palette from inside a room now takes the back gesture first; the room list is the switcher there.
+  Leaving the room also clears the selected room, so phones without a keyboard lose the palette's current-room and current-thread actions (resolve, mark read, copy link, room settings, search this room); the room menu and thread controls still offer them.
+- The tab uses the search icon instead of the terminal icon, and its tooltip shows the shortcut from the same `getCommandPaletteShortcutLabel` as the palette footer; the button also sets `aria-keyshortcuts`.
+  The label says `⌘ K` on macOS and iOS, where is-hotkey reads `mod` as Command; it used to say `Ctrl + K` on iPhone and iPad.
+- Rooms lead both the starter list (rooms, threads, actions, users) and typed results (rooms, threads, users, messages, actions); the category filters follow (All, Rooms, Threads, Users, Actions, Spaces).
+- The open room ranks last (`getCommandPaletteRoomRanking`: sort rank 0, no boost; it used to get the largest boost), so the first row of a fresh palette is the most recently active other room and Mod+K, Enter switches to it.
+- Room rows show the room list's unread badge (a count, or a dot for unread messages without notifications); the counts were already in the items but not rendered.
+- Fixed on the way: a hover tooltip mounts in `#portalContainer`, and `hasBlockingPortalOverlay` counted it as a modal, so Mod+K did nothing while the pointer rested on any tooltip, including the one now naming the shortcut. Children with `role="tooltip"` no longer count; this also lets typing while a tooltip shows reach the composer (`MindroomRoomView`).
+- Tests: `commandPaletteQuery.test.ts` (orders), `CommandPalette.test.ts` (rooms first, filter order), `commandPaletteRoomRanking.test.ts`, `CommandPaletteList.test.ts` (unread badge), `MindroomCommandPaletteSidebarTab.test.ts` (icon, tooltip, Command key on macOS and iOS), `RoomViewHeader.test.ts` (no header trigger on any screen size; message search still hidden in encrypted rooms), `portalOverlay.test.ts` and `useCommandPaletteHotkey.test.ts` (tooltips do not block). Each new assertion failed before its change.
+- Live: `e2e/live/command-palette.spec.ts` gains a case against the local homeserver: one trigger on the page inside a room, a tooltip with the shortcut, Mod+K while it shows, the other room first and selected, Enter opens it. All 4 cases pass.
+- Validation: typecheck, production build, ESLint on the changed files. The full Vitest run fails only `xcodeCloudPostClone.test.ts` (3, Nix host paths) and `useRoomInputSendSessionController.test.ts` (1), which fail the same way on `dev` at `f515cc79`.
+- Review: an independent pass found no blockers; its follow-ups (encrypted-room search test, the phone note above, the iOS label, `aria-keyshortcuts`, the unread dot, a sturdier live selector) are in.
+- Next, not done: rank rooms by when the user last opened them rather than last activity; show a room's Space next to rooms with the same name; the room header's message search and the sidebar tab now share the search icon.
+
 ### More particles on GPUs; a capped, lower-resolution animation on software WebGL (2026-10-06)
 
 - Why: the owner asked for more particles where a GPU draws them, using `@basnijholt/particular-drift` 0.2.0, which can render below CSS resolution (`maxDevicePixelRatio` < 1) and cap the frame rate (`maxFramesPerSecond`).

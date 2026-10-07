@@ -10,8 +10,6 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { KeySymbol } from '../../utils/key-symbol';
-import { isMacOS } from '../../utils/user-agent';
 import { getCommandPaletteSectionOrder, parseCommandPaletteQuery } from './commandPaletteQuery';
 import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
@@ -21,6 +19,7 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import { getCommandPaletteShortcutLabel } from './commandPaletteShortcut';
 import { COMMAND_PALETTE_PREFIX_HINTS, type CommandPalettePrefix } from './commandPaletteTypes';
 import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
 
@@ -248,7 +247,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
     }
   };
 
-  const shortcutLabel = isMacOS() ? `${KeySymbol.Command} K` : 'Ctrl + K';
+  const shortcutLabel = getCommandPaletteShortcutLabel();
 
   const changeFilter = (prefix?: CommandPalettePrefix) => {
     // Keep a pasted Matrix ID literal when removing an explicit category prefix.

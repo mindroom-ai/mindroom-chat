@@ -2,7 +2,6 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { commandPaletteOpenAtom } from '../commandPaletteState';
 import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
 const { encryptionState, permissionState, screenSizeState, membersState } = vi.hoisted(() => ({
@@ -442,27 +441,32 @@ describe('RoomViewHeader', () => {
     }
   );
 
-  it('opens the shared command palette atom from the new top-bar button', async () => {
-    const { renderer, store } = await renderHeader();
-    const button = renderer.root.findByProps({ 'aria-label': 'Open command palette' });
+  it.each(['Desktop', 'Tablet', 'Mobile'])(
+    'leaves the command palette to the sidebar and shortcut on %s',
+    async (screen) => {
+      screenSizeState.value = screen;
+      const { renderer } = await renderHeader();
 
-    await act(async () => {
-      button.props.onClick();
-    });
+      expect(renderer.root.findAllByProps({ 'aria-label': 'Open command palette' })).toHaveLength(
+        0
+      );
+      expect(
+        renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')
+      ).toHaveLength(0);
+      act(() => renderer.unmount());
+    }
+  );
 
-    expect(store.get(commandPaletteOpenAtom)).toBe(true);
-  });
+  it('hides message search in encrypted rooms', async () => {
+    const { renderer: plain } = await renderHeader();
+    expect(plain.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(1);
 
-  it('keeps the command palette button visible on mobile and in encrypted rooms', async () => {
-    screenSizeState.value = 'Mobile';
     encryptionState.value = {};
-    const { renderer } = await renderHeader();
-
-    expect(renderer.root.findByProps({ 'aria-label': 'Open command palette' })).toBeDefined();
-    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(0);
-    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(
-      1
+    const { renderer: encrypted } = await renderHeader();
+    expect(encrypted.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(
+      0
     );
+    act(() => [plain, encrypted].forEach((r) => r.unmount()));
   });
 
   it.each(['Desktop', 'Tablet', 'Mobile'])(

@@ -118,7 +118,14 @@ describe('useEdgeSwipeForward', () => {
       configurable: true,
       value: {
         getElementById: (id: string) =>
-          id === 'portalContainer' ? { childElementCount: portalChildCount } : null,
+          id === 'portalContainer'
+            ? {
+                childElementCount: portalChildCount,
+                children: Array.from({ length: portalChildCount }, () => ({
+                  getAttribute: () => null,
+                })),
+              }
+            : null,
       },
     });
   });

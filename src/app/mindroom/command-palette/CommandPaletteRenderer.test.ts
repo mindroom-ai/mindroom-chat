@@ -49,6 +49,7 @@ afterEach(() => {
 
 vi.mock('../../utils/user-agent', () => ({
   isMacOS: () => false,
+  isIOS: () => false,
 }));
 
 vi.mock('./commandPaletteItems', () => ({
@@ -94,6 +95,7 @@ vi.mock('../../components/LogoutDialog', async () => {
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
+    toRem: (value: number) => `${value / 16}rem`,
     Overlay: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', { 'data-testid': 'overlay' }, children),
     OverlayBackdrop: () => reactModule.createElement('div', { 'data-testid': 'backdrop' }),

@@ -58,7 +58,6 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
-import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
 import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
@@ -473,7 +472,6 @@ export function RoomViewHeader({
               onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
             />
           )}
-          <MindroomCommandPaletteHeaderButton />
           <ComputerHeaderButton
             label={t(
               computerOpen
