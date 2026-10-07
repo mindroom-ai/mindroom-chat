@@ -101,6 +101,97 @@ describe('buildThreadRecord', () => {
     expect(visibleReplies).toHaveBeenCalledTimes(2);
   });
 
+  const makeRootWithServerCount = (count: number): MatrixEvent =>
+    ({
+      ...makeEvent({ eventId: '$root', body: 'Root' }),
+      getUnsigned: () => ({ 'm.relations': { 'm.thread': { count } } }),
+    } as unknown as MatrixEvent);
+
+  const makeSdkThread = (rootEvent: MatrixEvent, events: MatrixEvent[], length: number) =>
+    ({
+      id: '$root',
+      rootEvent,
+      events,
+      timeline: events,
+      length,
+      initialEventsFetched: true,
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({
+          getEvents: () => events,
+          getNeighbouringTimeline: () => undefined,
+        }),
+        relations: { getChildEventsForEvent: () => undefined },
+      }),
+    } as unknown as ReturnType<Room['getThread']>);
+
+  const makeReplies = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: 2000 + index,
+      })
+    );
+
+  it("shows a partly loaded thread's total count on the card and the badge", () => {
+    const rootEvent = makeRootWithServerCount(24);
+    const room = makeRoom({
+      rootEvent,
+      thread: makeSdkThread(rootEvent, makeReplies(13), 24),
+    });
+
+    const record = buildThreadRecord({ room, threadRootId: '$root', fallbackMessageCount: 13 });
+
+    expect(record.presentation.messageCount).toBe(24);
+    expect(record.status.replyCount).toBe(24);
+  });
+
+  it("does not let a cached count hide the root's server count before the SDK has the thread", () => {
+    const rootEvent = makeRootWithServerCount(24);
+    const room = makeRoom({ rootEvent });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: 13,
+    });
+
+    expect(record.presentation.messageCount).toBe(24);
+    expect(record.status.replyCount).toBe(24);
+  });
+
+  it('gives the badge the same count as the card when only fallback counts are known', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root' });
+    const room = makeRoom({ rootEvent });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      threadRootEvent: rootEvent,
+      fallbackReplyCount: 1,
+      fallbackMessageCount: 13,
+    });
+
+    expect(record.presentation.messageCount).toBe(13);
+    expect(record.status.replyCount).toBe(13);
+  });
+
+  it('counts a fully loaded thread exactly on the card and the badge after a redaction', () => {
+    // The SDK drops a redacted reply from the thread and its count; the root's bundle and the cache still count it.
+    const rootEvent = makeRootWithServerCount(2);
+    const room = makeRoom({
+      rootEvent,
+      thread: makeSdkThread(rootEvent, [rootEvent, ...makeReplies(1)], 1),
+    });
+
+    const record = buildThreadRecord({ room, threadRootId: '$root', fallbackMessageCount: 2 });
+
+    expect(record.presentation.messageCount).toBe(1);
+    expect(record.status.replyCount).toBe(1);
+  });
+
   it('does not depend on legacy overview metadata compatibility inputs', () => {
     const source = readFileSync(new URL('./threadRecord.ts', import.meta.url), 'utf8');
     const legacyTypeName = ['Thread', 'Overview', 'Metadata'].join('');
@@ -198,7 +289,7 @@ describe('buildThreadRecord', () => {
         rootPreviewText: 'Cached root preview',
         latestReplyPreviewText: 'Latest reply',
         lastSenderId: '@agent-b:server',
-        messageCount: 8,
+        messageCount: 99,
         participantIds: ['@agent-b:server', '@agent-a:server', '@me:server'],
       },
       status: {
@@ -215,7 +306,7 @@ describe('buildThreadRecord', () => {
         newestTs: 3000,
         relationSnapshotComplete: false,
         tailLoaded: false,
-        expectedReplyCount: 2,
+        expectedReplyCount: 99,
       },
     });
   });
