@@ -8,7 +8,7 @@ import * as css from './MindRoomParticleBackground.css';
 import { PARTICLE_THEMES } from './particleBackgroundTheme';
 import { useParticleThemeKind } from './useParticleThemeKind';
 
-// The simulation runs on the GPU, so the count follows the pixels to fill, not the CPU.
+// Where WebGL2 runs on the GPU, the count follows the kind of screen, not the CPU cores.
 const DESKTOP_PARTICLE_COUNT = 120000;
 const HIGH_DENSITY_PARTICLE_COUNT = 80000;
 const TOUCH_PARTICLE_COUNT = 40000;

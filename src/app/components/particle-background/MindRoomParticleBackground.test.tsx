@@ -114,6 +114,7 @@ describe('MindRoomParticleBackground', () => {
         devicePixelRatio: screen.devicePixelRatio ?? 1,
         innerWidth: screen.width ?? 1440,
         innerHeight: screen.height ?? 900,
+        navigator: { hardwareConcurrency: 4 },
       });
 
     it('animates the most particles on a desktop screen', () => {
@@ -122,7 +123,7 @@ describe('MindRoomParticleBackground', () => {
     });
 
     it('animates fewer on a dense or very large screen', () => {
-      stubScreen({ devicePixelRatio: 2 });
+      stubScreen({ devicePixelRatio: 2, width: 1280, height: 720 });
       expect(resolveMindRoomParticleCount()).toBe(80000);
       stubScreen({ width: 2560, height: 1600 });
       expect(resolveMindRoomParticleCount()).toBe(80000);
