@@ -5,6 +5,7 @@ import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
+import { hasLoadedFirstThreadPage } from './sdk/threadBootstrapSdk';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -20,11 +21,13 @@ type VisibleThreadEventLike = ThreadEventLike & {
 };
 
 export type VisibleThreadEventCollectionLike = {
+  id?: string;
   rootEvent?: MatrixEvent;
   replyToEvent?: MatrixEvent | null;
   length?: number;
   events?: MatrixEvent[];
   timeline?: MatrixEvent[];
+  initialEventsFetched?: boolean;
 };
 
 const VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES = new Set<string>([
@@ -139,19 +142,36 @@ export const hasLoadedThreadReplyEvents = (
   return !!thread?.timeline && thread.timeline.length > 0;
 };
 
+/**
+ * The SDK puts the root first once back-pagination reaches the thread's start,
+ * but the live timeline can still have a hole: the app moves the backward token
+ * to its cache's cursor without adding the cached replies, and after a sync gap
+ * older replies can stay in another segment. So it must also hold as many
+ * thread replies as the SDK counts; its edits and reactions are not replies.
+ */
+const hasLoadedEveryThreadReply = (
+  thread: VisibleThreadEventCollectionLike | null | undefined
+): boolean =>
+  !!thread?.id &&
+  !!thread.events &&
+  thread.events[0]?.getId() === thread.id &&
+  hasLoadedFirstThreadPage(thread) &&
+  getThreadReplyEventsForRoot(thread.events, thread.id).length >= (thread.length ?? 0);
+
+/**
+ * A fully loaded thread is counted exactly, so redacting a reply lowers its count.
+ * Otherwise the loaded replies may be only the newest part of the thread, so the
+ * largest of their number, the SDK's count (from the server's `m.thread` count)
+ * and the caller's count is shown.
+ */
 export const getVisibleThreadMessageCount = (
   thread: VisibleThreadEventCollectionLike | null | undefined,
   fallbackMessageCount?: number,
   replyEvents = getPreferredVisibleThreadReplyEvents(thread)
 ): number => {
-  if (replyEvents.length > 0) return replyEvents.length;
-  if (hasLoadedThreadReplyEvents(thread)) return 0;
-  if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
-  if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
-    return fallbackMessageCount;
-  }
+  if (hasLoadedEveryThreadReply(thread)) return replyEvents.length;
 
-  return 0;
+  return Math.max(replyEvents.length, thread?.length ?? 0, fallbackMessageCount ?? 0);
 };
 
 export const getVisibleThreadParticipantIds = (
