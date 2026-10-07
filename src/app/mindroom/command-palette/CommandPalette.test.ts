@@ -400,6 +400,26 @@ describe('CommandPalette', () => {
     expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
   });
 
+  it('keeps spaces out of the starter rooms so Enter switches to a room', async () => {
+    const renderer = renderPalette({
+      source: {
+        ...FIXTURE_SOURCE,
+        rooms: FIXTURE_SOURCE.rooms.map((room) =>
+          room.kind === 'space' ? { ...room, sortRank: 99 } : room
+        ),
+      },
+    });
+    expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
+    expect(getOptions(renderer).some((option) => option.props['data-kind'] === 'space')).toBe(
+      false
+    );
+
+    await act(async () =>
+      getInput(renderer).props.onChange({ currentTarget: { value: 'Engineering' } })
+    );
+    expect(getOptions(renderer)[0].props['data-kind']).toBe('space');
+  });
+
   it('orders the category filters with rooms first', () => {
     const renderer = renderPalette();
     const filterGroup = renderer.root.findByProps({
