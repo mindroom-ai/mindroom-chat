@@ -22,6 +22,7 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
+  getVisibleThreadMessageCount,
   getVisibleThreadParticipantIds,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
@@ -120,32 +121,11 @@ export const getThreadReplyCount = (
   const eventId = mEvent.getId();
   if (!eventId) return undefined;
 
-  const thread = room.getThread(eventId);
-  const loadedThreadEvents = getLoadedThreadEvents(thread);
-  if (loadedThreadEvents && loadedThreadEvents.length > 0) {
-    const visibleThreadReplyCount =
-      buildVisibleThreadReplyCountMap(loadedThreadEvents).get(eventId) ?? 0;
-    if (visibleThreadReplyCount > 0 || allowZeroReplyCount) {
-      return visibleThreadReplyCount;
-    }
-  }
-
-  const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    | { count?: unknown; c?: unknown }
-    | undefined;
-  if (typeof threadMeta?.count === 'number') return threadMeta.count;
-  if (typeof threadMeta?.c === 'number') return threadMeta.c;
-
-  const threadLength = thread?.length;
-  if (typeof threadLength === 'number' && (threadLength > 0 || allowZeroReplyCount)) {
-    return threadLength;
-  }
-
-  if (typeof fallbackReplyCount === 'number' && (fallbackReplyCount > 0 || allowZeroReplyCount)) {
-    return fallbackReplyCount;
-  }
-
-  return allowZeroReplyCount ? 0 : undefined;
+  const replyCount = getVisibleThreadMessageCount(
+    room.getThread(eventId),
+    Math.max(getKnownThreadReplyCount(mEvent) ?? 0, fallbackReplyCount ?? 0)
+  );
+  return replyCount > 0 || allowZeroReplyCount ? replyCount : undefined;
 };
 
 export const getKnownThreadReplyCount = (mEvent: MatrixEvent): number | undefined => {
@@ -283,7 +263,10 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
-  const resolvedFallbackReplyCount = fallbackReplyCount ?? fallbackMessageCount;
+  const resolvedFallbackReplyCount =
+    fallbackReplyCount === undefined && fallbackMessageCount === undefined
+      ? undefined
+      : Math.max(fallbackReplyCount ?? 0, fallbackMessageCount ?? 0);
   const recordReplyCount =
     (resolvedThreadRootEvent
       ? getThreadReplyCount(
@@ -292,9 +275,7 @@ export const buildThreadRecord = ({
           resolvedFallbackReplyCount,
           zeroReplyThreadRoot
         )
-      : undefined) ??
-    fallbackReplyCount ??
-    fallbackMessageCount;
+      : undefined) ?? resolvedFallbackReplyCount;
   const isKnownThreadRoot =
     (typeof recordReplyCount === 'number' && (recordReplyCount > 0 || zeroReplyThreadRoot)) ||
     typeof fallbackReplyCount === 'number' ||
@@ -321,7 +302,7 @@ export const buildThreadRecord = ({
     fallbackLatestReplyPreviewText,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
-    fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
+    fallbackMessageCount: Math.max(fallbackMessageCount ?? 0, recordReplyCount ?? 0),
     fallbackParticipantIds,
     visibleReplyEvents,
   });

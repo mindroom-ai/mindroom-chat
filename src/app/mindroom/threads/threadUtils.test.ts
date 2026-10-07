@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createClient, Room } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
+import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
   buildThreadParticipantMap,
   buildThreadReplyCountMap,
@@ -247,6 +250,134 @@ describe('getVisibleThreadMessageCount', () => {
   it('falls back to sdk or bundled counts when replies are not loaded yet', () => {
     expect(getVisibleThreadMessageCount({ length: 3 })).toBe(3);
     expect(getVisibleThreadMessageCount(undefined, 2)).toBe(2);
+  });
+
+  const makeSdkThread = (
+    events: ReturnType<typeof makeEvent>[],
+    { length, initialEventsFetched = true }: { length: number; initialEventsFetched?: boolean }
+  ) =>
+    ({
+      id: '$root',
+      events,
+      timeline: events,
+      length,
+      initialEventsFetched,
+    } as unknown as Parameters<typeof getVisibleThreadMessageCount>[0]);
+
+  it('does not let a partly loaded thread hide its total count', () => {
+    const replies = [
+      makeEvent('$reply-1', '$root', RelationType.Thread),
+      makeEvent('$reply-2', '$root', RelationType.Thread),
+    ];
+
+    // Each window holds as many replies as the SDK counts; only the missing root or first page shows it is partial.
+    expect(getVisibleThreadMessageCount(makeSdkThread(replies, { length: 2 }), 24)).toBe(24);
+    expect(
+      getVisibleThreadMessageCount(
+        makeSdkThread([makeEvent('$root'), ...replies], { length: 2, initialEventsFetched: false }),
+        24
+      )
+    ).toBe(24);
+    expect(getVisibleThreadMessageCount({ events: replies, timeline: replies }, 24)).toBe(24);
+  });
+
+  describe('with an SDK thread', () => {
+    const roomId = '!room:example.org';
+    const message = (eventId: string, ts: number, content = {}) => ({
+      event_id: eventId,
+      room_id: roomId,
+      sender: '@agent:example.org',
+      type: 'm.room.message',
+      origin_server_ts: ts,
+      content: { msgtype: 'm.text', body: eventId, ...content },
+    });
+    const reply = (index: number) =>
+      message(`$reply-${index}`, index * 10, {
+        'm.relates_to': { rel_type: RelationType.Thread, event_id: '$root' },
+      });
+    const edit = (index: number) =>
+      message(`$edit-${index}`, index * 10 + 1, {
+        body: '* edited',
+        'm.new_content': { msgtype: 'm.text', body: 'edited' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: `$reply-${index}` },
+      });
+    /** An unopened listed thread whose server reports `count` replies; `pages` answer its /relations requests. */
+    const listedThread = (count: number, pages: { chunk: object[]; next_batch?: string }[]) => {
+      const root = {
+        ...message('$root', 0),
+        unsigned: { 'm.relations': { 'm.thread': { count, latest_event: reply(count) } } },
+      };
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root as never);
+      const fetchRelations = vi.spyOn(mx, 'fetchRelations');
+      pages.forEach((page) => fetchRelations.mockResolvedValueOnce(page as never));
+      const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });
+      mx.store.storeRoom(room);
+      room.processThreadRoots([mx.getEventMapper()(root)], true);
+      return { mx, room, thread: room.getThread('$root')! };
+    };
+    const ids = (thread: Thread) => thread.events.map((event) => event.getId());
+
+    let serverSideSupport: FeatureSupport;
+    beforeEach(() => {
+      serverSideSupport = Thread.hasServerSideSupport;
+      Thread.hasServerSideSupport = FeatureSupport.Stable;
+    });
+    afterEach(() => {
+      Thread.hasServerSideSupport = serverSideSupport;
+      vi.restoreAllMocks();
+    });
+
+    it('counts the loaded replies exactly once back-pagination loads the whole thread', async () => {
+      const { mx, room, thread } = listedThread(3, [
+        { chunk: [reply(3)], next_batch: 'older' },
+        { chunk: [reply(2), reply(1)] },
+      ]);
+
+      await thread.initialize();
+      expect(ids(thread)).toEqual(['$reply-3']);
+      expect(getVisibleThreadMessageCount(thread)).toBe(3);
+
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+      expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-2', '$reply-3']);
+      expect(getVisibleThreadMessageCount(thread, 5)).toBe(3);
+
+      room.addLiveEvents(
+        [
+          mx.getEventMapper()({
+            ...message('$redaction', 100),
+            type: 'm.room.redaction',
+            redacts: '$reply-2',
+            content: { redacts: '$reply-2' },
+          }),
+        ],
+        { addToState: false }
+      );
+      expect(getVisibleThreadMessageCount(thread, 5)).toBe(2);
+    });
+
+    it('does not count edits as replies when deciding the thread is fully loaded', async () => {
+      const { mx, thread } = listedThread(5, [
+        { chunk: [edit(5), reply(5), edit(4), reply(4)], next_batch: 'older' },
+        { chunk: [edit(1), reply(1)] },
+      ]);
+      await thread.initialize();
+      thread.liveTimeline.setPaginationToken('cache-cursor', Direction.Backward);
+
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+
+      expect(ids(thread)).toEqual([
+        '$root',
+        '$reply-1',
+        '$edit-1',
+        '$reply-4',
+        '$edit-4',
+        '$reply-5',
+        '$edit-5',
+      ]);
+      expect(getVisibleThreadMessageCount(thread)).toBe(5);
+    });
   });
 });
 

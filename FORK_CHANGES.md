@@ -20,6 +20,85 @@
 - Validation: `account-multitab.spec.ts` with 1 CPU per browser: 6 of 6 tests pass with the fix, 0 of 6 on `dev` (each first login exceeds its 30 s wait); the login canvas animates (two screenshots 0.7 s apart differ).
 - Not changed: Chromium animates as before wherever it does not report the caveat. Firefox (by default, `webgl.disable-fail-if-major-performance-caveat`) and Safari ignore the attribute and animate as before, also when they render in software.
 
+### Keep thread summaries from cached history without opening the thread (2026-10-06)
+
+- Report: a thread's summary title that was already in downloaded history could be missing from the room overview card until the user opened the thread.
+- Root cause: only room view code and the manual summary action wrote the shared summary state and its `thread_summaries` store, and the overview reads only the newest 32 cached events of each thread (`OVERVIEW_CACHE_EVENT_LIMIT`).
+  A summary notice that reached the cache through engine write-through while its room was not open, or through a history fetch, got no summary record, so once 32 newer replies followed it nothing showed it on the card.
+- Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), publishes the batch's summary notices through `storeThreadSummaryInState` once the batch's cache write has committed.
+  It first reads each notice back from the thread cache (`loadCachedThreadEvent`) and publishes only those stored unredacted, because the save refuses a copy of a notice whose redaction it recorded, in the same batch or in an earlier write.
+  Nothing is published when the write does not commit or the write's cache lease is revoked (for example when a room's offline content is cleared); the thread snapshot writers now default to `saveThreadEventsToCacheCommitted` so every path reports whether it committed.
+  The existing selection rules pick the title, and the overview card and the thread banner read it from the same shared state with no room view mounted.
+  The event write does not wait for any of this.
+- Tests: `threadSummaryPersistence.test.tsx` covers a notice cached by live sync and by a fetched history chunk outside the 32-event tail (both fail on `dev`), a stale copy of a redacted notice in a reconciler repair or in a later write, a revoked lease, and an edit of a cached notice whose write fails.
+  `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice; on local Tuwunel in Chromium it fails on `dev` and passes with the fix.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+- Not changed:
+  - Caches written before this change are not repaired; opening a thread still publishes its summary.
+  - The room view's own summary publishers are unchanged; prefetch can still publish a fetched stale copy of a notice whose redaction was already saved, as before.
+  - A redaction that arrives while a room's first summary read is pending, or within the few IndexedDB steps around the read-back of a just-cached notice, can still bring its title back.
+  - A stale fetched copy of a notice that carries an edit redacted earlier can still publish the edit's text; it needs a copy from the homeserver's short stale-copy window, and encrypted rooms cache ciphertext, so the cached record cannot supply the title instead.
+
+### Open direct messages with people in the Classic timeline (2026-10-06)
+
+- Problem: a direct message between two people used the same per-room view mode as agent rooms, so in the default Compact mode every message showed as a thread card with "Open thread", under the thread overview toolbar.
+  Since Simple Mode became the default, Classic cannot be chosen in Simple Mode, so a default user could never get a normal chat view in such a room.
+- Fix: `useRoomViewMode` decides in one place whether a room is a direct message between people: it is in `m.direct` (`mDirectAtom`) and has no MindRoom agent.
+  A room has an agent when one is joined or invited (`hasActiveMindroomAgent`), or when `m.direct` lists the room under an agent as its partner, unless that agent's loaded membership is `leave` or `ban`.
+  The partner rule is needed because members are lazy loaded: without it an agent direct room showed Classic until its members loaded, and a thread link opened in that time lost its thread.
+  A direct room with three or more people and no agent also shows Classic.
+  The hook follows membership changes through one client listener shared by all its callers, since the Threads and Recently Opened lists render a card per thread.
+  `resolveEffectiveRoomViewMode` shows such a room in Classic, also in Simple Mode, and `getAvailableRoomViewModes` offers it no modes, so the header menu and room settings show no mode choice there.
+  The stored per-room mode is never written (a UI action that switches Classic to Threads needs a joined agent), so the room returns to it when an agent is invited or joins.
+  Thread links into such a room keep the existing Classic behavior: they open the room timeline at the linked event or thread root.
+- PR: [#426](https://github.com/mindroom-ai/mindroom-chat/pull/426).
+- Tests: `useRoomViewMode.test.ts` (real hook, jotai store and client) covers a direct message between people, an agent invited later, an agent direct room until the agent leaves, a cold agent direct room named in `m.direct` and its `leave` or `ban`, a non-direct room of people, and the shared listener; the people and cold-agent cases fail without the fix.
+  `roomViewMode.test.ts` covers `getAvailableRoomViewModes` with and without Simple Mode.
+  `e2e/live/cinny034-direct-room-timeline.spec.ts` now expects a direct message between two accounts in the Classic timeline with no compact view, overview, or "Open thread" button; against the local Docker homeserver it passes with the fix and fails on `dev`.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+- Known limit: an agent invited into a direct room whose `m.direct` partner is a person counts only once its member event is loaded; until then the room shows Classic.
+  Agents are recognized by their `mindroom_` user ID prefix, as elsewhere in the app.
+
+### Show a thread card's total message count, not only its loaded replies (2026-10-06)
+
+- Report: a thread card in the compact room overview showed "13 msgs" while the thread had at least 22 replies; opening it showed more replies and still offered older messages.
+- Root cause: `getVisibleThreadMessageCount` returned the number of loaded visible replies whenever there was one, before it looked at the SDK thread's `length` (from the server's `m.thread` count) or the caller's count.
+  `getThreadReplyCount`, which gives the room timeline's thread badge its "N replies", preferred the loaded replies the same way, and `buildThreadRecord` gave the card the cached count (from at most 32 cached events) instead of the root's server count whenever the cache had one.
+- Fix: loaded replies are counted exactly only when they are the whole thread, so redacting a reply in a fully loaded thread still lowers the count.
+  That is when the SDK has loaded the thread's first page (`hasLoadedFirstThreadPage`), the root is the first event of its live timeline (the SDK puts it there when back-pagination reaches the thread's start), and that timeline holds at least as many thread replies as the SDK counts.
+  The root alone does not prove it: the app moves the SDK's backward token to its own cache's cursor without adding the cached replies, so paginating from there can reach the root past a hole, and after a sync gap the root can land in the live segment while older replies stay in the segment before it.
+  Replies are counted as the server and the SDK count them, as `m.thread` relations to the root, because the live timeline also holds the replies' edits (MindRoom streams each reply as many edits) and reactions.
+  On redaction the SDK drops the reply from the thread timeline and from its count, so a fully loaded thread stays fully loaded.
+  Otherwise the largest of the loaded replies, the SDK's count and the caller's count is shown.
+  `getThreadReplyCount` now uses `getVisibleThreadMessageCount` with the root's server count and the larger of the two fallback counts, and `buildThreadRecord` gives the card the larger of the cached count and that reply count, so the compact card, the thread badge, the recent threads list and the command palette get the count through one function.
+- Tests: `threadUtils.test.ts` checks that a window without the root, or one the SDK has not opened, keeps the larger count, and, with a real SDK `Thread`, that a fully back-paginated thread is counted exactly (also after a real `m.room.redaction`) while a cache-cursor hole padded with edits keeps the server's count.
+  `threadRecord.test.ts` checks the card and the badge: a partly loaded thread shows its total, a cached count does not hide the root's server count, both take the larger fallback count, and a fully loaded thread is exact after a redaction.
+  All but the fully loaded cases fail on `dev`; the "merges canonical presentation and status data" fixture (2 loaded replies of a 99-reply SDK thread) now expects 99 instead of the buggy 8 and 2.
+- Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+- Not changed:
+  - A thread that is not fully loaded shows the largest count, which can run high, and it can stay that way for the whole session: once the app sets the SDK's backward token to `null` from its cache, the SDK never paginates to the root.
+  - The server's `m.thread` count also counts tool approval responses (`io.mindroom.tool_approval_response`), which are thread events but not shown.
+  - The SDK adds 1 to its count for every reply appended at the end of the thread timeline, also when forward pagination appends replies the server's count already included; this is rare, since `paginateFront` only runs when the live segment has a forward token, and the count stays high until the root is fetched again.
+  - After a reply in such a thread is redacted, the count stays at the root's bundled count and the cached count on any server until the root is fetched again.
+    On Tuwunel before its `mindroom-tuwunel` fix, the server's count also keeps counting redacted replies (see "Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)").
+  - The overview cache hydration still counts at most 32 cached events; that count no longer hides a larger one.
+
+### Keep a room's other Spaces when one Space removes it (2026-10-06)
+
+- Problem: when a Space removed a room (its `m.space.child` event became invalid), `useBindRoomToParentsAtom` dispatched `DELETE` for the room, the action meant for a Space the user left.
+  That deleted all of the room's parents and also removed the room as a parent of every other room.
+  So a room in two Spaces that one Space removed lost both, until reload: it showed in Home as a room in no Space (outside Simple Mode), opening it from search or a notification went to Home instead of the other Space, and its unread count stopped counting toward that Space.
+  A subspace removed from its parent Space did the same to its own rooms.
+  The other Space's room list reads `m.space.child` state directly, so it still listed the room.
+- Fix: a new `REMOVE_PARENT` action in `src/app/state/room/roomToParents.ts` removes only the link from that Space to that room, and deletes the room's entry only when no parent is left; an invalidated `m.space.child` event now dispatches it.
+  `DELETE` is still used when the user leaves a Space or the room is deleted.
+  Salvaged from closed PR #135 and re-derived against `dev`.
+- Tests: `src/app/state/room/roomToParents.test.ts` binds the hook to a real `MatrixClient`, Spaces and jotai store and sends real `m.space.child` changes.
+  A room removed from one of two Spaces keeps the other, and a subspace removed from its parent stays the parent of its own rooms; both fail on `dev`.
+  A room removed from its last Space loses its entry; this passes before and after.
+- Validation: typecheck, production/PWA build, Prettier on the touched files, and lint (0 errors, 18 existing warnings) pass.
+  The full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
+
 ### Keep a reader at the top of a short room while its older rows load (2026-10-06)
 
 - Report: the live `composer-glass` spec started failing after PR #422 (5 of 8 runs; 0 of 4 before it): a 180 px wheel right after opening a short room never showed "Jump to Latest". #422 removed the 30 s "Catching up..." wait that had let the room finish loading first. Probing found a reader who scrolls to the top of a short room is sent back to the bottom when its older rows load.
@@ -1842,7 +1921,7 @@
   Those changes are complete; the no-thread mode stays owned by the render hook.
   Claude's final re-review approves the corrected implementation and validation record.
 - Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
-  The separate report of missing summaries remains under investigation.
+  The separate report of missing summaries is fixed in "Keep thread summaries from cached history without opening the thread" (2026-10-06).
 
 ### Jump to Latest in threads without waiting for older history (2026-09-25)
 
