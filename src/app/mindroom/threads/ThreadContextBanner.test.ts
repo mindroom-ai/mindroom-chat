@@ -681,7 +681,7 @@ describe('ThreadContextBanner rendering', () => {
     const pinned = renderBanner('A concise thread summary');
     expect(toggles(pinned)).toHaveLength(0);
     pinned.unmount();
-    // Collapsing elsewhere leaves it in the full layout, which it can't leave.
+    // Collapsed elsewhere, it keeps the full layout: without a chevron it could not expand.
     store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
     const pinnedCollapsed = renderBanner('A concise thread summary');
     expect(
