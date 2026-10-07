@@ -54,15 +54,31 @@ export const TitleRow = style({
 });
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
+const eyebrowRowFolded = `:not(:has(> :not(${CompactHidden})))`;
 export const EyebrowRow = style({
-  selectors: { '&:empty': { display: 'none' } },
+  flexShrink: 0,
+  selectors: {
+    '&:empty': { display: 'none' },
+    [`${Collapsed} &${eyebrowRowFolded}`]: { display: 'none' },
+  },
+  '@media': {
+    [shortViewport]: { selectors: { [`&${eyebrowRowFolded}`]: { display: 'none' } } },
+  },
 });
 
+// Compact, the approvals chip that stays in view sits beside the title.
+const titleColumnInline = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  columnGap: config.space.S200,
+} as const;
 export const TitleColumn = style({
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
   gap: 0,
+  selectors: { [`${Collapsed} &`]: titleColumnInline },
+  '@media': { [shortViewport]: titleColumnInline },
 });
 
 export const TagsRow = style({
