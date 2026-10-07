@@ -95,12 +95,25 @@ describe('useCommandPaletteHotkey', () => {
   });
 
   it('does not open while another portal overlay is mounted', () => {
-    const { renderer, getSnapshot, dispatchShortcut } = renderHookHarness([{}]);
+    const { renderer, getSnapshot, dispatchShortcut } = renderHookHarness([
+      { getAttribute: () => null },
+    ]);
 
     const event = dispatchShortcut();
 
     expect(getSnapshot().open).toBe(false);
     expect(event.preventDefault).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('opens while the pointer rests on a tooltip, such as the one naming the shortcut', () => {
+    const { renderer, getSnapshot, dispatchShortcut } = renderHookHarness([
+      { getAttribute: (name: string) => (name === 'role' ? 'tooltip' : null) },
+    ]);
+
+    dispatchShortcut();
+
+    expect(getSnapshot().open).toBe(true);
     renderer.unmount();
   });
 

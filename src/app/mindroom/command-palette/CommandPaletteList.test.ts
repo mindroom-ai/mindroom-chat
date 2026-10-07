@@ -32,6 +32,14 @@ vi.mock('./CommandPalette.css', () => ({
 
 vi.mock('folds', () => ({ Icon: () => null, Icons: { Hash: 'hash', Terminal: 'terminal' } }));
 
+vi.mock('../../components/unread-badge', async () => {
+  const reactModule = await import('react');
+  return {
+    UnreadBadge: (props: { highlight: boolean; count: number; selected?: boolean }) =>
+      reactModule.createElement('unread-badge', props),
+  };
+});
+
 const ROOM_SECTION: CommandPaletteListSection = {
   id: 'rooms',
   title: 'Rooms',
@@ -70,6 +78,35 @@ describe('CommandPaletteList', () => {
     const renderer = renderList({ onSelect });
     renderer.root.findByProps({ role: 'option' }).props.onClick();
     expect(onSelect).toHaveBeenCalledWith(ROOM_SECTION.items[0]);
+  });
+
+  it('shows unread counts on rooms so busy rooms stand out', () => {
+    const renderer = renderList({
+      selectedItemId: '!ops:example.org',
+      sections: [
+        {
+          id: 'rooms',
+          title: 'Rooms',
+          items: [
+            ROOM_SECTION.items[0],
+            {
+              id: '!ops:example.org',
+              kind: 'room',
+              name: 'Ops',
+              unreadCount: 4,
+              unreadHighlight: true,
+            },
+            { id: '!quiet:example.org', kind: 'room', name: 'Quiet', unreadCount: 0 },
+          ],
+        },
+      ],
+    });
+    // Like the room list: a count, or a dot for unread messages without notifications.
+    const badges = renderer.root.findAllByType('unread-badge' as never);
+    expect(badges.map((badge) => badge.props)).toEqual([
+      { count: 4, highlight: true },
+      { count: 0, highlight: false },
+    ]);
   });
 
   it('does not change keyboard selection when a touch pointer scrolls the list', () => {

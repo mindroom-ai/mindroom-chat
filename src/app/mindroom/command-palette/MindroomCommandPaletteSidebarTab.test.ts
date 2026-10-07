@@ -13,13 +13,30 @@ vi.mock('react-i18next', async () => {
   };
 });
 
+const { userAgentState } = vi.hoisted(() => ({
+  userAgentState: { os: 'Linux' },
+}));
+
+vi.mock('../../utils/user-agent', () => ({
+  isMacOS: () => userAgentState.os === 'Mac OS',
+  isIOS: () => userAgentState.os === 'iOS',
+}));
+
 vi.mock('folds', async () => {
   const reactModule = await import('react');
+  const passthrough =
+    (tag: string) =>
+    ({ children }: { children?: React.ReactNode }) =>
+      reactModule.createElement(tag, null, children);
   return {
+    Badge: ({ as, children }: { as?: string; children?: React.ReactNode }) =>
+      reactModule.createElement(as ?? 'span', null, children),
+    Box: passthrough('span'),
     Icon: ({ src }: { src: string }) => reactModule.createElement('i', { 'data-icon': src }),
     Icons: {
-      Terminal: 'Terminal',
+      Search: 'Search',
     },
+    Text: passthrough('span'),
   };
 });
 
@@ -30,14 +47,13 @@ vi.mock('../../components/sidebar', () => ({
     tooltip,
     children,
   }: {
-    tooltip: string;
+    tooltip: React.ReactNode;
     children: (triggerRef: () => void) => React.ReactNode;
   }) =>
     React.createElement(
       'div',
-      {
-        'data-tooltip': tooltip,
-      },
+      null,
+      React.createElement('div', { 'data-tooltip': true }, tooltip),
       children(() => undefined)
     ),
   SidebarAvatar: React.forwardRef<
@@ -77,11 +93,30 @@ describe('MindroomCommandPaletteSidebarTab', () => {
     expect(store.get(commandPaletteOpenAtom)).toBe(true);
   });
 
-  it('uses the command palette tooltip and active state', () => {
+  it('uses a search icon, the active state, and a tooltip that teaches the shortcut', () => {
     const { renderer } = renderSearchTab(true);
+    const tooltip = renderer.root.findByProps({ 'data-tooltip': true });
+    const tooltipText = (node: typeof tooltip): string =>
+      node.children
+        .map((child) => (typeof child === 'string' ? child : tooltipText(child)))
+        .join('');
 
-    expect(renderer.root.findByProps({ 'data-tooltip': 'Open command palette' })).toBeDefined();
+    expect(tooltipText(tooltip)).toBe('Open command paletteCtrl + K');
+    expect(tooltip.findByType('kbd' as never)).toBeDefined();
     expect(renderer.root.findByProps({ 'data-active': true })).toBeDefined();
-    expect(renderer.root.findByProps({ 'data-icon': 'Terminal' })).toBeDefined();
+    expect(renderer.root.findByProps({ 'data-icon': 'Search' })).toBeDefined();
+    expect(renderer.root.findByType('button').props['aria-label']).toBe('Open command palette');
+    expect(renderer.root.findByType('button').props['aria-keyshortcuts']).toBe('Control+K');
+  });
+
+  it.each(['Mac OS', 'iOS'])('names the Command key on %s, where mod+k means Command', (os) => {
+    userAgentState.os = os;
+    try {
+      const { renderer } = renderSearchTab();
+      expect(JSON.stringify(renderer.toJSON())).toContain('⌘ K');
+      expect(renderer.root.findByType('button').props['aria-keyshortcuts']).toBe('Meta+K');
+    } finally {
+      userAgentState.os = 'Linux';
+    }
   });
 });

@@ -1,7 +1,6 @@
 export * from './CommandPalette';
 export * from './CommandPaletteList';
 export * from './CommandPaletteRenderer';
-export * from './MindroomCommandPaletteHeaderButton';
 export * from './MindroomCommandPaletteSidebarTab';
 export * from './commandPaletteActions';
 export * from './commandPaletteItems';

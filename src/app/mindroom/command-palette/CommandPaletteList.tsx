@@ -1,5 +1,6 @@
 import { Icon, Icons, type IconSrc } from 'folds';
 import React, { useEffect, useRef } from 'react';
+import { UnreadBadge } from '../../components/unread-badge';
 import type { CommandPaletteItem, CommandPaletteSectionId } from './commandPaletteTypes';
 import * as css from './CommandPalette.css';
 
@@ -133,6 +134,10 @@ export function CommandPaletteList({
                   <span className={css.RowTitle}>{getItemTitle(item)}</span>
                   {description && <span className={css.RowDescription}>{description}</span>}
                 </span>
+                {(item.kind === 'room' || item.kind === 'space') &&
+                  item.unreadCount !== undefined && (
+                    <UnreadBadge highlight={!!item.unreadHighlight} count={item.unreadCount} />
+                  )}
                 <span className={css.RowEnter} aria-hidden="true">
                   ↵
                 </span>

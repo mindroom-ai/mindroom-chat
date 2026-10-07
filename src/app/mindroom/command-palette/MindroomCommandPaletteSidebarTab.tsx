@@ -1,10 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon, Icons } from 'folds';
+import { Badge, Box, Icon, Icons, Text } from 'folds';
 import { useAtom } from 'jotai';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../components/sidebar';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { commandPaletteOpenAtom } from './commandPaletteState';
+import {
+  getCommandPaletteAriaKeyShortcuts,
+  getCommandPaletteShortcutLabel,
+} from './commandPaletteShortcut';
 
 export function MindroomCommandPaletteSidebarTab() {
   const { t } = useTranslation();
@@ -16,7 +20,18 @@ export function MindroomCommandPaletteSidebarTab() {
 
   return (
     <SidebarItem active={opened}>
-      <SidebarItemTooltip tooltip={t('commandPalette.open')}>
+      <SidebarItemTooltip
+        tooltip={
+          <Box as="span" alignItems="Center" gap="200">
+            {t('commandPalette.open')}
+            <Badge as="kbd" radii="300" size="500">
+              <Text as="span" size="T200">
+                {getCommandPaletteShortcutLabel()}
+              </Text>
+            </Badge>
+          </Box>
+        }
+      >
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
@@ -24,8 +39,9 @@ export function MindroomCommandPaletteSidebarTab() {
             outlined
             onClick={open}
             aria-label={t('commandPalette.open')}
+            aria-keyshortcuts={getCommandPaletteAriaKeyShortcuts()}
           >
-            <Icon src={Icons.Terminal} filled={opened} />
+            <Icon src={Icons.Search} filled={opened} />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>

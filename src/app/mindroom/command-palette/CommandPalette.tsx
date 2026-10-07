@@ -10,8 +10,6 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { KeySymbol } from '../../utils/key-symbol';
-import { isMacOS } from '../../utils/user-agent';
 import { getCommandPaletteSectionOrder, parseCommandPaletteQuery } from './commandPaletteQuery';
 import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
@@ -21,6 +19,7 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import { getCommandPaletteShortcutLabel } from './commandPaletteShortcut';
 import { COMMAND_PALETTE_PREFIX_HINTS, type CommandPalettePrefix } from './commandPaletteTypes';
 import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
 
@@ -80,9 +79,13 @@ const getSectionItems = ({
             : '',
         config: commandPaletteSearchConfig.threads,
       });
-    case 'rooms':
+    case 'rooms': {
+      let items = source.rooms;
+      if (parsedQuery.mode === 'spaces') items = spaceItems;
+      // The starter list is for switching rooms; spaces still match by name or with `*`.
+      else if (!parsedQuery.searchText) items = source.rooms.filter((item) => item.kind === 'room');
       return searchCommandPaletteSection({
-        items: parsedQuery.mode === 'spaces' ? spaceItems : source.rooms,
+        items,
         query:
           parsedQuery.mode === 'rooms' ||
           parsedQuery.mode === 'spaces' ||
@@ -91,6 +94,7 @@ const getSectionItems = ({
             : '',
         config: commandPaletteSearchConfig.rooms,
       });
+    }
     case 'users': {
       const hasSearchText = parsedQuery.searchText.length > 0;
       return searchCommandPaletteSection({
@@ -248,7 +252,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
     }
   };
 
-  const shortcutLabel = isMacOS() ? `${KeySymbol.Command} K` : 'Ctrl + K';
+  const shortcutLabel = getCommandPaletteShortcutLabel();
 
   const changeFilter = (prefix?: CommandPalettePrefix) => {
     // Keep a pasted Matrix ID literal when removing an explicit category prefix.

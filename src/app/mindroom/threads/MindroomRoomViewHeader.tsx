@@ -58,7 +58,6 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
-import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
 import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
@@ -91,8 +90,11 @@ const ROOM_VIEW_MODE_MENU_ITEMS = {
 type RoomMenuProps = {
   room: Room;
   requestClose: () => void;
+  // Server-side search cannot read encrypted rooms, so the header leaves this out there.
+  onSearchMessages?: () => void;
 };
-const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose }, ref) => {
+const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>((props, ref) => {
+  const { room, requestClose, onSearchMessages } = props;
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const powerLevels = usePowerLevelsContext();
@@ -132,7 +134,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   };
 
   return (
-    <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
+    <Menu ref={ref} style={{ maxWidth: toRem(200), width: '100vw' }}>
       {invitePrompt && (
         <InviteUserPrompt
           room={room}
@@ -205,6 +207,21 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
         </MenuItem>
         {!simpleMode && (
           <>
+            {onSearchMessages && (
+              <MenuItem
+                onClick={() => {
+                  onSearchMessages();
+                  requestClose();
+                }}
+                size="300"
+                after={<Icon size="100" src={Icons.Search} />}
+                radii="300"
+              >
+                <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                  {t('nav.messageSearch')}
+                </Text>
+              </MenuItem>
+            )}
             <MenuItem
               onClick={handleCopyLink}
               size="300"
@@ -473,7 +490,6 @@ export function RoomViewHeader({
               onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
             />
           )}
-          <MindroomCommandPaletteHeaderButton />
           <ComputerHeaderButton
             label={t(
               computerOpen
@@ -484,23 +500,6 @@ export function RoomViewHeader({
             open={computerOpen}
             onToggle={onComputerToggle ?? (() => undefined)}
           />
-          {!simpleMode && !encryptedRoom && (
-            <TooltipProvider
-              position="Bottom"
-              offset={4}
-              tooltip={
-                <Tooltip>
-                  <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.search')}</Text>
-                </Tooltip>
-              }
-            >
-              {(triggerRef) => (
-                <IconButton fill="None" ref={triggerRef} onClick={handleSearchClick}>
-                  <Icon size="400" src={Icons.Search} />
-                </IconButton>
-              )}
-            </TooltipProvider>
-          )}
           {!simpleMode && (
             <>
               <TooltipProvider
@@ -610,6 +609,7 @@ export function RoomViewHeader({
                 fill="None"
                 onClick={handleOpenMenu}
                 ref={triggerRef}
+                aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}
                 aria-pressed={!!menuAnchor}
               >
                 <Icon size="400" src={Icons.VerticalDots} filled={!!menuAnchor} />
@@ -632,7 +632,11 @@ export function RoomViewHeader({
                   escapeDeactivates: stopPropagation,
                 }}
               >
-                <RoomMenu room={room} requestClose={() => setMenuAnchor(undefined)} />
+                <RoomMenu
+                  room={room}
+                  requestClose={() => setMenuAnchor(undefined)}
+                  onSearchMessages={encryptedRoom ? undefined : handleSearchClick}
+                />
               </FocusTrap>
             }
           />

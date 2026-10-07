@@ -10,6 +10,7 @@ const { searchCommandPaletteSectionCalls } = vi.hoisted(() => ({
 
 vi.mock('../../utils/user-agent', () => ({
   isMacOS: () => false,
+  isIOS: () => false,
 }));
 
 vi.mock('./commandPaletteSearch', async () => {
@@ -29,6 +30,7 @@ vi.mock('./commandPaletteSearch', async () => {
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
+    toRem: (value: number) => `${value / 16}rem`,
     Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
       reactModule.createElement('div', props, children),
     Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
@@ -380,6 +382,53 @@ describe('CommandPalette', () => {
       exhaustive: false,
       includeRelatedRooms: false,
     });
+  });
+
+  it('lists rooms before every other section for empty and typed searches', async () => {
+    const renderer = renderPalette();
+    const firstSectionKinds = () => {
+      const options = getOptions(renderer);
+      return options.slice(0, 2).map((option) => option.props['data-kind']);
+    };
+    expect(firstSectionKinds()).toEqual(['room', 'room']);
+    expect(getOptions(renderer)[0].props['data-selected']).toBe(true);
+
+    await act(async () =>
+      getInput(renderer).props.onChange({ currentTarget: { value: 'General' } })
+    );
+    expect(getOptions(renderer)[0].props['data-kind']).toBe('room');
+    expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
+  });
+
+  it('keeps spaces out of the starter rooms so Enter switches to a room', async () => {
+    const renderer = renderPalette({
+      source: {
+        ...FIXTURE_SOURCE,
+        rooms: FIXTURE_SOURCE.rooms.map((room) =>
+          room.kind === 'space' ? { ...room, sortRank: 99 } : room
+        ),
+      },
+    });
+    expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
+    expect(getOptions(renderer).some((option) => option.props['data-kind'] === 'space')).toBe(
+      false
+    );
+
+    await act(async () =>
+      getInput(renderer).props.onChange({ currentTarget: { value: 'Engineering' } })
+    );
+    expect(getOptions(renderer)[0].props['data-kind']).toBe('space');
+  });
+
+  it('orders the category filters with rooms first', () => {
+    const renderer = renderPalette();
+    const filterGroup = renderer.root.findByProps({
+      role: 'group',
+      'aria-label': 'Filter results',
+    });
+    expect(filterGroup.findAllByType('button').map((button) => button.props['aria-label'])).toEqual(
+      ['All', 'Rooms', 'Threads', 'Users', 'Actions', 'Spaces']
+    );
   });
 
   it('only requests related-room users for an explicit user search', async () => {

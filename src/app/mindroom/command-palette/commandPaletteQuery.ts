@@ -5,16 +5,18 @@ import {
   type CommandPaletteSectionId,
 } from './commandPaletteTypes';
 
+// Switching rooms is the most common reason to open the palette, so rooms lead
+// both orders.
 const EMPTY_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
+  'rooms',
   'threads',
   'actions',
-  'rooms',
   'users',
 ];
 
 const TYPED_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
-  'threads',
   'rooms',
+  'threads',
   'users',
   'messages',
   'actions',

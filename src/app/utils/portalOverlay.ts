@@ -1,11 +1,15 @@
 const PORTAL_CONTAINER_ID = 'portalContainer';
 
 /**
- * True when the app's portal container hosts any children — i.e. some modal,
- * popover, or overlay is currently mounted. Callers use this to defer keyboard
- * shortcuts and edge-swipes so they don't fight the active overlay.
+ * True when the app's portal container hosts a modal, popover, or other
+ * overlay. Callers use this to defer keyboard shortcuts and edge-swipes so they
+ * don't fight the active overlay. Hover tooltips mount there too but never take
+ * input, so they don't count; otherwise resting the pointer on a tooltip that
+ * names a shortcut would make that shortcut do nothing.
  */
 export const hasBlockingPortalOverlay = (): boolean => {
   if (typeof document === 'undefined') return false;
-  return (document.getElementById(PORTAL_CONTAINER_ID)?.childElementCount ?? 0) > 0;
+  const container = document.getElementById(PORTAL_CONTAINER_ID);
+  if (!container) return false;
+  return Array.from(container.children).some((child) => child.getAttribute('role') !== 'tooltip');
 };

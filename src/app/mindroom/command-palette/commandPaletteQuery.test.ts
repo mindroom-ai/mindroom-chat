@@ -44,19 +44,19 @@ describe('parseCommandPaletteQuery', () => {
 });
 
 describe('getCommandPaletteSectionOrder', () => {
-  it('shows starter ordering for empty unified search', () => {
+  it('puts rooms first in the starter ordering for empty unified search', () => {
     expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('   '))).toEqual([
+      'rooms',
       'threads',
       'actions',
-      'rooms',
       'users',
     ]);
   });
 
-  it('shows typed unified ordering with messages before actions', () => {
+  it('puts rooms first in typed unified ordering with messages before actions', () => {
     expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('release'))).toEqual([
-      'threads',
       'rooms',
+      'threads',
       'users',
       'messages',
       'actions',
@@ -67,8 +67,6 @@ describe('getCommandPaletteSectionOrder', () => {
     expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('t: hotfix'))).toEqual([
       'threads',
     ]);
-    expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('# team'))).toEqual([
-      'rooms',
-    ]);
+    expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('# team'))).toEqual(['rooms']);
   });
 });

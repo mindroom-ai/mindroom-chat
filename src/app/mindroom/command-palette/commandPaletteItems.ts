@@ -38,6 +38,7 @@ import {
   resolveCommandPaletteUserTarget,
   type CommandPaletteQuickActionId,
 } from './commandPaletteActions';
+import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
@@ -183,12 +184,14 @@ export const useCommandPaletteSource = (
             parentNames,
             unreadCount: unread?.total,
             unreadHighlight: unread ? unread.highlight > 0 : undefined,
-            sortRank: roomActivityRank.get(room.roomId) ?? 0,
-            boost:
-              (room.roomId === selectedRoomId ? 30 : 0) +
-              (room.roomId === selectedSpaceId ? 15 : 0) +
-              ((unread?.total ?? 0) > 0 ? 15 : 0) +
-              ((unread?.highlight ?? 0) > 0 ? 10 : 0),
+            ...getCommandPaletteRoomRanking({
+              roomId: room.roomId,
+              selectedRoomId,
+              selectedSpaceId,
+              activityRank: roomActivityRank.get(room.roomId) ?? 0,
+              unreadTotal: unread?.total ?? 0,
+              unreadHighlights: unread?.highlight ?? 0,
+            }),
             onSelect: () => {
               if (room.isSpaceRoom()) {
                 navigateSpace(room.roomId);
