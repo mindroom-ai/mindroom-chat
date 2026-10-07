@@ -146,12 +146,12 @@ test.describe('live cinny-060 thread summary consistency', () => {
       .toBe(rootId);
 
     const threadSummary = page.locator('[data-thread-context-summary="true"]').first();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(threadSummary).toContainText(latestSummaryLead);
     await expect(threadSummary).not.toContainText(olderSummaryText);
 
     await page.reload();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(threadSummary).toContainText(latestSummaryLead);
     await expect(threadSummary).not.toContainText(olderSummaryText);
 

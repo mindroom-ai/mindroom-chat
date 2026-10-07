@@ -476,7 +476,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
 
       await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.locator('[data-message-id]').first()).toBeVisible({ timeout: 30_000 });
 
       const loadOlderButton = page.getByRole('button', { name: 'Load Older Messages' });

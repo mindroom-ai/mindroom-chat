@@ -213,7 +213,7 @@ test.describe('live cinny-071 cached room resume', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await page.goto(expectedRoute);
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
 
@@ -231,7 +231,7 @@ test.describe('live cinny-071 cached room resume', () => {
     await expectLoggedInShellStable(page);
     await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
     await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
-    await expect(page.getByText('Thread View')).toHaveCount(0);
+    await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [roomName, roomId])).toEqual([]);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-room-thread-bare-home');
@@ -294,7 +294,7 @@ test.describe('live cinny-071 cached room resume', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await page.goto(`${expectedPathname}?${expectedSearch}`);
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
 
@@ -317,7 +317,7 @@ test.describe('live cinny-071 cached room resume', () => {
         })
         .toContain(expectedSearch);
 
-      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
     } finally {
@@ -389,7 +389,7 @@ test.describe('live cinny-071 cached room resume', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await page.goto(expectedRoute);
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
 
@@ -407,7 +407,7 @@ test.describe('live cinny-071 cached room resume', () => {
     await expectLoggedInShellStable(page);
     await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
     await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
-    await expect(page.getByText('Thread View')).toHaveCount(0);
+    await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [spaceName, spaceId, roomName, roomId])).toEqual(
       []

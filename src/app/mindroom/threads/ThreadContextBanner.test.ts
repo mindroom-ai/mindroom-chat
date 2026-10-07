@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
+import { createStore, Provider } from 'jotai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
@@ -17,6 +18,7 @@ import {
 } from './threadTags';
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
 import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadContextBanner';
+import { settingsAtom } from '../../state/settings';
 
 const menuProps = vi.hoisted(() => vi.fn());
 vi.mock('./ThreadActionsMenu', () => ({
@@ -123,7 +125,10 @@ vi.mock('./ThreadTagPicker', () => ({
 vi.mock('./ThreadContextBanner.css', () => ({
   Banner: 'Banner',
   BannerResolved: 'BannerResolved',
+  Collapsed: 'Collapsed',
+  CompactHidden: 'CompactHidden',
   DesktopOnlyTags: 'DesktopOnlyTags',
+  EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
@@ -307,7 +312,9 @@ describe('ThreadContextBanner data flow', () => {
 });
 
 describe('ThreadContextBanner rendering', () => {
+  let store: ReturnType<typeof createStore>;
   beforeEach(() => {
+    store = createStore();
     menuProps.mockClear();
     pinningMocks.pinnedEventIds = [];
     pinningMocks.canPin = false;
@@ -335,23 +342,27 @@ describe('ThreadContextBanner rendering', () => {
     createNodeMock?: (element: React.ReactElement) => unknown
   ) =>
     create(
-      React.createElement(ThreadContextBanner, {
-        room: {
-          roomId: '!room:example.org',
-          getThread: () => undefined,
-          findEventById: () => undefined,
-          getMember: (userId: string) =>
-            userId === '@alice:example.org'
-              ? { rawDisplayName: 'Alice', name: 'Alice' }
-              : undefined,
-          hasEncryptionStateEvent: () => false,
-          on: vi.fn(),
-          removeListener: vi.fn(),
-        } as unknown as Room,
-        threadId: '$root',
-        summaryInfo: summaryText ? { summaryText } : undefined,
-        onExitThread: vi.fn(),
-      }),
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(ThreadContextBanner, {
+          room: {
+            roomId: '!room:example.org',
+            getThread: () => undefined,
+            findEventById: () => undefined,
+            getMember: (userId: string) =>
+              userId === '@alice:example.org'
+                ? { rawDisplayName: 'Alice', name: 'Alice' }
+                : undefined,
+            hasEncryptionStateEvent: () => false,
+            on: vi.fn(),
+            removeListener: vi.fn(),
+          } as unknown as Room,
+          threadId: '$root',
+          summaryInfo: summaryText ? { summaryText } : undefined,
+          onExitThread: vi.fn(),
+        })
+      ),
       createNodeMock ? { createNodeMock } : undefined
     );
 
@@ -515,10 +526,10 @@ describe('ThreadContextBanner rendering', () => {
     admin.unmount();
   });
 
-  it('keeps only back, title and More on short screens', () => {
+  it('keeps only back, title and More when collapsed or on short screens', () => {
     pinningMocks.canPin = true;
     bannerMocks.useThreadTags.mockReturnValue({
-      tags: {},
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
       displayTags: ['bug'],
       isResolved: false,
       canEdit: true,
@@ -531,18 +542,12 @@ describe('ThreadContextBanner rendering', () => {
             typeof node.type === 'string' &&
             String(node.props.className ?? '')
               .split(' ')
-              .includes('ShortViewportHidden')
+              .includes('CompactHidden')
         )
         .map((node) => node.props['aria-label'] ?? String(node.props.className).split(' ')[0]);
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual([
-      'ViewLabel',
-      'TagsRow',
-      'MobileOnlyTags',
-      'Pin thread',
-      'ResolveChip',
-    ]);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'ResolveChip', 'MobileOnlyTags']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBeUndefined();
     summarized.unmount();
@@ -551,16 +556,6 @@ describe('ThreadContextBanner rendering', () => {
     const untitled = renderBanner();
     expect(hidden(untitled)).not.toContain('ViewLabel');
     untitled.unmount();
-
-    // A scheduled-task line is a title too.
-    bannerMocks.useThreadHeaderInfo.mockReturnValue({
-      scheduledTaskCount: 2,
-      nextScheduledTs: Date.parse('2026-04-04T18:12:00.000Z'),
-      scheduledDisplayText: 'in 12m',
-    });
-    const scheduled = renderBanner();
-    expect(hidden(scheduled)).toContain('ViewLabel');
-    scheduled.unmount();
 
     // A resolved status stays in view; only its byline goes.
     bannerMocks.useThreadTags.mockReturnValue({
@@ -582,6 +577,158 @@ describe('ThreadContextBanner rendering', () => {
     expect(hidden(pinned)).not.toContain('Unpin thread');
     expect(pinned.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
     pinned.unmount();
+  });
+
+  it('drops the Thread View eyebrow once the thread has a title', () => {
+    const eyebrow = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          String(node.props.className ?? '')
+            .split(' ')
+            .includes('ViewLabel')
+      );
+
+    const summarized = renderBanner('A concise thread summary');
+    expect(eyebrow(summarized)).toHaveLength(0);
+    summarized.unmount();
+
+    const untitled = renderBanner();
+    expect(eyebrow(untitled)).toHaveLength(1);
+    untitled.unmount();
+
+    // A scheduled-task line is a title too.
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 2,
+      nextScheduledTs: Date.parse('2026-04-04T18:12:00.000Z'),
+      scheduledDisplayText: 'in 12m',
+    });
+    const scheduled = renderBanner();
+    expect(eyebrow(scheduled)).toHaveLength(0);
+    scheduled.unmount();
+  });
+
+  it('offers + tag only next to existing tags', () => {
+    const editable = { tags: {}, isResolved: false, canEdit: true, availableTags: ['bug'] };
+    bannerMocks.useThreadTags.mockReturnValue({ ...editable, displayTags: [] });
+    const untagged = renderBanner('A concise thread summary');
+    // More still adds the first tag.
+    expect(JSON.stringify(untagged.toJSON())).not.toContain('+ tag');
+    untagged.unmount();
+
+    bannerMocks.useThreadTags.mockReturnValue({
+      ...editable,
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
+      displayTags: ['bug'],
+    });
+    const tagged = renderBanner('A concise thread summary');
+    // One picker beside the desktop tags, one beside the mobile tags row.
+    expect(
+      tagged.root.findAll((node) => node.type === 'button' && node.children.includes('+ tag'))
+    ).toHaveLength(2);
+    tagged.unmount();
+  });
+
+  it('collapses to one row and keeps that for the next thread', () => {
+    pinningMocks.canPin = true;
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
+      displayTags: ['bug'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    const banner = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
+    // Inside act, so the settings subscription is live before the click.
+    const renderSubscribed = (summary: string) => {
+      let renderer: ReturnType<typeof renderBanner> | undefined;
+      act(() => {
+        renderer = renderBanner(summary);
+      });
+      return renderer!;
+    };
+
+    const renderer = renderSubscribed('A concise thread summary');
+    expect(banner(renderer).props.className).toBe('Banner');
+    const hide = renderer.root.findByProps({ 'aria-label': 'Hide thread details' });
+    // A short screen already shows the single row.
+    expect(hide.props.className).toBe('ShortViewportHidden');
+    act(() => hide.props.onClick());
+    expect(banner(renderer).props.className).toBe('Banner Collapsed');
+    expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
+    renderer.unmount();
+
+    const next = renderSubscribed('Another thread');
+    expect(banner(next).props.className).toBe('Banner Collapsed');
+    act(() => next.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
+    expect(banner(next).props.className).toBe('Banner');
+    expect(store.get(settingsAtom).threadBannerCollapsed).toBe(false);
+    next.unmount();
+  });
+
+  it('offers the collapse toggle only when collapsing hides something', () => {
+    const toggles = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === 'string' && node.props['aria-label'] === 'Hide thread details'
+      );
+    const readOnly = { tags: {}, displayTags: [], canEdit: false, availableTags: [] };
+
+    // A pinned thread shows the pin instead of Resolve, and the pin stays.
+    pinningMocks.pinnedEventIds = ['$root'];
+    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: false });
+    const pinned = renderBanner('A concise thread summary');
+    expect(toggles(pinned)).toHaveLength(0);
+    pinned.unmount();
+    // Collapsed elsewhere, it keeps the full layout: without a chevron it could not expand.
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+    const pinnedCollapsed = renderBanner('A concise thread summary');
+    expect(
+      pinnedCollapsed.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className
+    ).toBe('Banner');
+    pinnedCollapsed.unmount();
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: false });
+
+    // Tags fold away.
+    bannerMocks.useThreadTags.mockReturnValue({
+      ...readOnly,
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
+      displayTags: ['bug'],
+      isResolved: false,
+    });
+    const tagged = renderBanner('A concise thread summary');
+    expect(toggles(tagged)).toHaveLength(1);
+    tagged.unmount();
+
+    // A resolved status stays; a pin button folds away.
+    pinningMocks.pinnedEventIds = [];
+    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: true });
+    const resolved = renderBanner('A concise thread summary');
+    expect(toggles(resolved)).toHaveLength(0);
+    resolved.unmount();
+    // The resolver byline below it folds away.
+    bannerMocks.useThreadTags.mockReturnValue({
+      ...readOnly,
+      tags: { [RESOLVED_TAG]: { set_by: '@alice:example.org', set_at: ISO_1 } },
+      isResolved: true,
+    });
+    const attributed = renderBanner('A concise thread summary');
+    expect(attributed.root.findByProps({ 'data-thread-resolution-byline': 'true' })).toBeDefined();
+    expect(toggles(attributed)).toHaveLength(1);
+    attributed.unmount();
+    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: true });
+    pinningMocks.canPin = true;
+    const pinnable = renderBanner('A concise thread summary');
+    expect(toggles(pinnable)).toHaveLength(1);
+    pinnable.unmount();
+
+    // Resolve folds away.
+    pinningMocks.canPin = false;
+    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: false });
+    const open = renderBanner('A concise thread summary');
+    expect(toggles(open)).toHaveLength(1);
+    open.unmount();
   });
 
   it('hides the metadata row when no summary or scheduled task info exists', () => {

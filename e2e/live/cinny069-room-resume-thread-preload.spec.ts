@@ -204,7 +204,7 @@ test.describe('room resume thread preload', () => {
     suspension = undefined;
 
     await cards[0].click();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(threads[0].latestReplyBody)).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-069-room-resume-thread-preload');

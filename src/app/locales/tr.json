@@ -332,6 +332,8 @@
     "resolved": "Çözüldü",
     "resolvedBy": "{{name}} tarafından çözüldü",
     "resolvedByShort": "{{name}} tarafından",
+    "hideDetails": "Konu ayrıntılarını gizle",
+    "showDetails": "Konu ayrıntılarını göster",
     "replyCount_one": "{{count}} yanıt",
     "replyCount_other": "{{count}} yanıt",
     "aria": {

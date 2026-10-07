@@ -1,7 +1,17 @@
-import { style } from '@vanilla-extract/css';
+import { style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
+
+// Collapsed, and always on short screens, the banner keeps one row: back,
+// title and the actions menu, which already offers tags, pinning and resolving.
+export const Collapsed = style({});
+// Doubled in the media query to match `${Collapsed} &` over single-class rules.
+// Spread it only into styles without selectors or media queries of their own.
+const whenCompact = (compact: CSSProperties) => ({
+  selectors: { [`${Collapsed} &`]: compact },
+  '@media': { [shortViewport]: { selectors: { '&&': compact } } },
+});
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
@@ -9,11 +19,16 @@ const BannerLayout = style({
   borderRadius: config.radii.R400,
   flexShrink: 0,
   pointerEvents: 'auto',
+  selectors: { [`&${Collapsed}`]: { padding: config.space.S200 } },
   '@media': { [shortViewport]: { padding: config.space.S200 } },
 });
 
-// Short screens keep one row: back, title and the actions menu, which already
-// offers tags, pinning and resolving.
+export const CompactHidden = style({
+  selectors: { [`${Collapsed} &`]: { display: 'none' } },
+  '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
+});
+
+// The collapse toggle has nothing to fold on a short screen.
 export const ShortViewportHidden = style({
   '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
 });
@@ -25,9 +40,9 @@ export const Banner = style([
 ]);
 
 // "Thread View" is chrome, not content: it says the same thing on every
-// thread the user opens. It reads as an eyebrow over the title below, using
-// the same uppercase/12px/W500 treatment the sidebar category headers and the
-// SHOW MORE pill already use for that role.
+// thread the user opens, so it shows only while the thread has no title. It
+// uses the same uppercase/12px/W500 treatment the sidebar category headers and
+// the SHOW MORE pill already use for that role.
 export const ViewLabel = style({
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -35,19 +50,35 @@ export const ViewLabel = style({
   whiteSpace: 'nowrap',
 });
 
+// Back, title and actions; narrow screens add the tags as a second row.
 export const TitleRow = style({
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
   alignItems: 'center',
-  gap: config.space.S300,
+  columnGap: config.space.S300,
   minHeight: '1.5rem',
 });
 
+// Holds the eyebrow, the approvals chip and the tags; often none of them.
+const eyebrowRowFolded = `:not(:has(> :not(${CompactHidden})))`;
+export const EyebrowRow = style({
+  flexShrink: 0,
+  selectors: {
+    '&:empty': { display: 'none' },
+    [`${Collapsed} &${eyebrowRowFolded}`]: { display: 'none' },
+  },
+  '@media': {
+    [shortViewport]: { selectors: { [`&${eyebrowRowFolded}`]: { display: 'none' } } },
+  },
+});
+
+// Compact, the approvals chip that stays in view sits beside the title.
 export const TitleColumn = style({
   display: 'flex',
   flexDirection: 'column',
-  flexGrow: 1,
   minWidth: 0,
   gap: 0,
+  ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
 });
 
 export const TagsRow = style({
@@ -58,6 +89,20 @@ export const TagsRow = style({
   overflow: 'hidden',
 });
 
+/**
+ * Desktop: tags inline on title row (hidden below).
+ * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
+ */
+export const DesktopOnlyTags = style({
+  '@media': {
+    '(max-width: 480px)': {
+      display: 'none',
+    },
+  },
+});
+
+// Compact, the title and a scheduled task share one line and truncate together.
+const subtitleRowInline = { marginTop: 0, flexWrap: 'nowrap' } as const;
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -65,7 +110,20 @@ export const SubtitleRow = style({
   marginTop: config.space.S100,
   minWidth: 0,
   flexWrap: 'wrap',
-  '@media': { [shortViewport]: { marginTop: 0 } },
+  selectors: {
+    [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
+    [`${Collapsed} &`]: subtitleRowInline,
+  },
+  '@media': {
+    [shortViewport]: subtitleRowInline,
+    // Narrow screens move the tags to their own row, which can leave the
+    // eyebrow row with nothing showing.
+    '(max-width: 480px)': {
+      selectors: {
+        [`${EyebrowRow}:not(:has(> :not(${DesktopOnlyTags}))) + &`]: { marginTop: 0 },
+      },
+    },
+  },
 });
 
 export const ResolveChip = style({
@@ -108,20 +166,9 @@ export const OverflowChip = style({
   verticalAlign: 'middle',
 });
 
-/**
- * Desktop: tags inline on title row (hidden below).
- * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
- */
-export const DesktopOnlyTags = style({
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'none',
-    },
-  },
-});
-
 export const MobileOnlyTags = style({
   display: 'none',
+  gridColumn: '2 / -1',
   '@media': {
     '(max-width: 480px)': {
       display: 'flex',
@@ -142,6 +189,7 @@ export const SummaryText = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  ...whenCompact({ flexBasis: 'auto' }),
 });
 
 export const ScheduledWrap = style({
@@ -150,6 +198,7 @@ export const ScheduledWrap = style({
   gap: config.space.S100,
   minWidth: 0,
   flexShrink: 0,
+  ...whenCompact({ flexShrink: 1 }),
 });
 
 export const MetadataDot = style({
@@ -163,6 +212,7 @@ export const ScheduledIndicator = style({
   minWidth: 0,
   flexShrink: 0,
   whiteSpace: 'nowrap',
+  ...whenCompact({ flexShrink: 1 }),
 });
 
 export const BannerResolved = style([

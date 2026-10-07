@@ -142,9 +142,8 @@ for (const viewport of [
           await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
           expect(bannerBox.y).toBeLessThan(12);
           expect(bannerBox.height, 'the thread banner is a single row').toBeLessThanOrEqual(48);
-          const eyebrow = banner.getByText('Thread View', { exact: true });
-          await expect(eyebrow).toBeAttached();
-          await expect(eyebrow).toBeHidden();
+          // A titled thread has no eyebrow on any screen.
+          await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
           const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
           await expect(resolve).toBeAttached();
           await expect(resolve).toBeHidden();
@@ -188,7 +187,7 @@ for (const viewport of [
           await expect(roomHeader).toBeVisible();
         } else {
           await expect(roomHeader).toBeVisible();
-          await expect(banner.getByText('Thread View', { exact: true })).toBeVisible();
+          await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
           await expect(banner.getByRole('button', { name: 'Resolve' })).toBeVisible();
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })

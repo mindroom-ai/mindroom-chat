@@ -30,6 +30,8 @@ import * as css from './ThreadContextBanner.css';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -91,6 +93,7 @@ export function ThreadContextBanner({
 }: ThreadContextBannerProps) {
   const { t } = useTranslation();
   const glassRef = useLiquidGlass<HTMLDivElement>();
+  const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -205,12 +208,20 @@ export function ThreadContextBanner({
   const hasTags = headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   const hasSubtitle = !!headerModel.summaryText || hasScheduled;
+  const hasPinToggle = pinning.canPin && !!mutableThreadRootId;
+  // What CompactHidden hides; a resolved status and a solid pin stay in view.
+  const canCollapse =
+    hasTags || (!isPinned && (hasPinToggle || !headerModel.isResolved || !!resolvedByDisplayName));
 
   return (
     <>
       <div
         ref={glassRef}
-        className={headerModel.isResolved ? css.BannerResolved : css.Banner}
+        className={classNames(
+          headerModel.isResolved ? css.BannerResolved : css.Banner,
+          // With nothing to fold there is no chevron, so nothing to expand.
+          collapsed && canCollapse && css.Collapsed
+        )}
         data-thread-context-banner="true"
         tabIndex={-1}
         onContextMenu={(event) => {
@@ -235,20 +246,17 @@ export function ThreadContextBanner({
             <Icon data-directional src={Icons.ArrowLeft} />
           </IconButton>
           <div className={css.TitleColumn}>
-            <Box direction="Row" alignItems="Center" gap="200">
-              <Text
-                className={classNames(css.ViewLabel, hasSubtitle && css.ShortViewportHidden)}
-                size="L400"
-                priority="300"
-              >
-                {t('thread.view')}
-              </Text>
+            <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
+              {!hasSubtitle && (
+                <Text className={css.ViewLabel} size="L400" priority="300">
+                  {t('thread.view')}
+                </Text>
+              )}
               {/* Desktop: tags inline on title row */}
               <ThreadApprovalPermissions />
-              {(hasTags || headerModel.canEdit) && (
-                <div
-                  className={classNames(css.TagsRow, css.DesktopOnlyTags, css.ShortViewportHidden)}
-                >
+              {/* More adds the first tag; + tag joins the ones already set. */}
+              {hasTags && (
+                <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
                   <TagPills
                     tags={headerModel.displayTags}
                     maxPills={DESKTOP_MAX_PILLS}
@@ -316,25 +324,6 @@ export function ThreadContextBanner({
                 )}
               </div>
             )}
-            {/* Mobile: tags in a dedicated row below subtitle */}
-            {(hasTags || headerModel.canEdit) && (
-              <div className={classNames(css.MobileOnlyTags, css.ShortViewportHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
-              </div>
-            )}
           </div>
           <Box alignItems="Center" gap="100" shrink="No">
             <IconButton
@@ -354,7 +343,7 @@ export function ThreadContextBanner({
             </IconButton>
             {pinning.canPin && mutableThreadRootId ? (
               <IconButton
-                className={isPinned ? undefined : css.ShortViewportHidden}
+                className={isPinned ? undefined : css.CompactHidden}
                 size="300"
                 radii="300"
                 aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
@@ -382,7 +371,7 @@ export function ThreadContextBanner({
               <div
                 className={classNames(
                   css.ResolveChip,
-                  !headerModel.isResolved && css.ShortViewportHidden
+                  !headerModel.isResolved && css.CompactHidden
                 )}
               >
                 <Button
@@ -401,7 +390,7 @@ export function ThreadContextBanner({
                 </Button>
                 {resolvedByDisplayName && (
                   <Text
-                    className={classNames(css.ResolutionByline, css.ShortViewportHidden)}
+                    className={classNames(css.ResolutionByline, css.CompactHidden)}
                     data-thread-resolution-byline="true"
                     size="T200"
                     priority="300"
@@ -412,7 +401,38 @@ export function ThreadContextBanner({
                 )}
               </div>
             )}
+            {canCollapse && (
+              <IconButton
+                className={css.ShortViewportHidden}
+                size="300"
+                radii="300"
+                aria-label={t(collapsed ? 'thread.showDetails' : 'thread.hideDetails')}
+                title={t(collapsed ? 'thread.showDetails' : 'thread.hideDetails')}
+                onClick={() => setCollapsed(!collapsed)}
+              >
+                <Icon src={collapsed ? Icons.ChevronBottom : Icons.ChevronTop} size="100" />
+              </IconButton>
+            )}
           </Box>
+          {/* Mobile: tags in a row of their own, under the title and the actions */}
+          {hasTags && (
+            <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
+              <TagPills
+                tags={headerModel.displayTags}
+                maxPills={MOBILE_MAX_PILLS}
+                allTags={headerModel.displayTags}
+                canEdit={headerModel.canEdit}
+                onRemove={handleRemoveTag}
+              />
+              {headerModel.canEdit && (
+                <ThreadTagPicker
+                  availableTags={headerModel.availableTags}
+                  onAddTag={handleAddTag}
+                  disabled={headerModel.pickerDisabled}
+                />
+              )}
+            </div>
+          )}
         </div>
         {!!pinning.error && (
           <Text role="alert" size="T200">

@@ -25,18 +25,13 @@ import { createThreadFixture, loginToMatrix } from '../helpers/matrix';
     await page.goto(
       `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
     );
-    await expect(page.getByText('Thread View', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
     await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
 
     const composer = page.getByRole('textbox').first();
     const draft = `Unsent thread draft ${stamp}`;
     const exitThread = () =>
-      page
-        .getByText('Thread View', { exact: true })
-        .locator('xpath=../../..')
-        .getByRole('button')
-        .first()
-        .click();
+      page.locator('[data-thread-context-banner]').getByRole('button').first().click();
     const reopenThread = () =>
       page
         .getByTestId('thread-nav-list')
@@ -45,7 +40,7 @@ import { createThreadFixture, loginToMatrix } from '../helpers/matrix';
 
     await composer.fill(draft);
     await exitThread();
-    await expect(page.getByText('Thread View', { exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
     await reopenThread();
     await expect(composer).toHaveText(draft);
@@ -67,7 +62,7 @@ import { createThreadFixture, loginToMatrix } from '../helpers/matrix';
     const message = page.locator('[data-message-item]').filter({ hasText: draft });
     await expect(message).toHaveCount(1);
     await exitThread();
-    await expect(page.getByText('Thread View', { exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0);
     await reopenThread();
     await expect(message).toHaveCount(1);
     await expect(

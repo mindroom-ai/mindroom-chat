@@ -49,7 +49,7 @@ test.describe('CINNY-029: thread Load Older Messages button', () => {
       .first();
     await expect(threadEntry).toBeVisible({ timeout: 30_000 });
     await threadEntry.click();
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Thread reply 1')).toBeVisible({ timeout: 30_000 });
 
     const loadOlderButton = page.getByRole('button', { name: 'Load Older Messages' });

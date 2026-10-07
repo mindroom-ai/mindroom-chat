@@ -5,11 +5,7 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
-import {
-  createThreadFixture,
-  loginToMatrix,
-  seedRoomOverviewState,
-} from '../helpers/matrix';
+import { createThreadFixture, loginToMatrix, seedRoomOverviewState } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -65,7 +61,7 @@ test.describe('live cinny-032 search result open target', () => {
       })
       .toBe(fixture.rootId);
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(threadReplyBody)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('No threads match current filters.')).toHaveCount(0);
 

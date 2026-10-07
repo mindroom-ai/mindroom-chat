@@ -332,6 +332,8 @@
     "resolved": "해결됨",
     "resolvedBy": "{{name}} 님이 해결함",
     "resolvedByShort": "{{name}} 님",
+    "hideDetails": "스레드 세부 정보 숨기기",
+    "showDetails": "스레드 세부 정보 표시",
     "replyCount_one": "답글 {{count}}개",
     "replyCount_other": "답글 {{count}}개",
     "aria": {

@@ -332,6 +332,8 @@
     "resolved": "已解決",
     "resolvedBy": "由 {{name}} 解決",
     "resolvedByShort": "由 {{name}}",
+    "hideDetails": "隱藏討論串詳細資料",
+    "showDetails": "顯示討論串詳細資料",
     "replyCount_one": "{{count}} 筆回應",
     "replyCount_other": "{{count}} 筆回應",
     "aria": {
