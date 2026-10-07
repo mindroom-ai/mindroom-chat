@@ -67,8 +67,6 @@ describe('getCommandPaletteSectionOrder', () => {
     expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('t: hotfix'))).toEqual([
       'threads',
     ]);
-    expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('# team'))).toEqual([
-      'rooms',
-    ]);
+    expect(getCommandPaletteSectionOrder(parseCommandPaletteQuery('# team'))).toEqual(['rooms']);
   });
 });
