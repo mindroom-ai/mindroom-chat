@@ -8,26 +8,26 @@ import * as css from './MindRoomParticleBackground.css';
 import { PARTICLE_THEMES } from './particleBackgroundTheme';
 import { useParticleThemeKind } from './useParticleThemeKind';
 
-const DESKTOP_PARTICLE_COUNT = 80000;
-const BALANCED_PARTICLE_COUNT = 52000;
-const LOW_END_PARTICLE_COUNT = 28000;
+// Where WebGL2 runs on the GPU, the count follows the kind of screen, not the CPU cores.
+const DESKTOP_PARTICLE_COUNT = 120000;
+const HIGH_DENSITY_PARTICLE_COUNT = 80000;
+const TOUCH_PARTICLE_COUNT = 40000;
 
 export function resolveMindRoomParticleCount() {
   if (typeof window === 'undefined') {
-    return BALANCED_PARTICLE_COUNT;
+    return HIGH_DENSITY_PARTICLE_COUNT;
   }
 
   const coarsePointer = window.matchMedia?.('(hover: none), (pointer: coarse)').matches ?? false;
-  const hardwareConcurrency = window.navigator.hardwareConcurrency ?? 4;
   const devicePixelRatio = window.devicePixelRatio || 1;
   const effectivePixelArea = window.innerWidth * window.innerHeight * devicePixelRatio ** 2;
 
-  if (coarsePointer || hardwareConcurrency <= 4) {
-    return LOW_END_PARTICLE_COUNT;
+  if (coarsePointer) {
+    return TOUCH_PARTICLE_COUNT;
   }
 
-  if (hardwareConcurrency <= 8 || devicePixelRatio > 1.5 || effectivePixelArea > 4_000_000) {
-    return BALANCED_PARTICLE_COUNT;
+  if (devicePixelRatio > 1.5 || effectivePixelArea > 4_000_000) {
+    return HIGH_DENSITY_PARTICLE_COUNT;
   }
 
   return DESKTOP_PARTICLE_COUNT;
@@ -54,13 +54,15 @@ export function hasWebGLPerformanceCaveat() {
   }
 }
 
-// Fewer, bolder particles at CSS resolution: the CPU draws them in a fraction of
-// the time and the logo still reads.
+// Fewer, bolder particles at three quarters of CSS resolution and at most 30 frames
+// a second, so the CPU draws them in a fraction of the time and the logo still reads.
+// Particle size is in canvas pixels, so it shrinks with the resolution.
 const SOFTWARE_PARTICLE_OPTIONS: ParticularDriftUserOptions = {
   particleCount: 10000,
-  particleSize: 1.5,
-  particleOpacity: 0.6,
-  maxDevicePixelRatio: 1,
+  particleSize: 1.125,
+  particleOpacity: 0.7,
+  maxDevicePixelRatio: 0.75,
+  maxFramesPerSecond: 30,
 };
 
 type MindRoomParticleBackgroundProps = {
