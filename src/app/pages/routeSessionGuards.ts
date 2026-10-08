@@ -3,6 +3,7 @@ import { getActiveSession, hasStoredSessions } from '../state/sessions';
 import { getStoredNavToActivePath } from '../state/navToActivePath';
 import { isAddAccountSearch } from './auth/addAccount';
 import { resolveSessionRestorePath } from './client/sessionRouteRestore';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 import {
   getAppPathFromHref,
   getHomePath,
@@ -14,6 +15,15 @@ import {
 export type RouteRedirectDecision = {
   redirectTo: string;
   afterLoginPath?: string;
+};
+
+const getAfterLoginPath = (baseUrl: string, href: string): string => {
+  const url = new URL(href);
+  if (!url.searchParams.has(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM)) {
+    return getAppPathFromHref(baseUrl, href);
+  }
+  url.searchParams.delete(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM);
+  return getAppPathFromHref(baseUrl, url.href);
 };
 
 export const resolveRootRouteRedirect = (
@@ -30,7 +40,7 @@ export const resolveRootRouteRedirect = (
     };
   }
 
-  const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(), href);
+  const afterLoginPath = getAfterLoginPath(getOriginBaseUrl(), href);
   return {
     redirectTo: getLoginPath(),
     afterLoginPath: afterLoginPath || undefined,
@@ -56,7 +66,7 @@ export const resolveProtectedRouteRedirect = (
 ): RouteRedirectDecision | null => {
   if (storedSessions && activeSession) return null;
 
-  const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(hashRouterConfig), href);
+  const afterLoginPath = getAfterLoginPath(getOriginBaseUrl(hashRouterConfig), href);
   return {
     redirectTo: getLoginPath(),
     afterLoginPath: afterLoginPath || undefined,

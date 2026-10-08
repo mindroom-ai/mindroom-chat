@@ -27,6 +27,7 @@ import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroom
 import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigation';
 import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
 import {
   initializeDeepTraceRecorder,
@@ -171,6 +172,13 @@ const bootstrap = async () => {
               ? await fetchPublishedAppVersion()
               : undefined;
             if (publishedVersion) {
+              // An older active worker may still serve its cached shell while
+              // the newly registered worker waits for other tabs to close.
+              // Restore control through the network so this reload keeps the
+              // version the hard refresh just loaded.
+              const reloadUrl = new URL(window.location.href);
+              reloadUrl.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
+              window.history.replaceState(window.history.state, '', reloadUrl.href);
               window.sessionStorage.setItem(RELOAD_FLAG, '1');
               window.location.reload();
               return;

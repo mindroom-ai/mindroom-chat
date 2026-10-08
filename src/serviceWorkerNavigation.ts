@@ -1,6 +1,7 @@
 const MAX_EXCLUDE_PATHS = 8;
 const MAX_EXCLUDE_PATH_LENGTH = 256;
 const NORMALIZATION_ORIGIN = 'https://service-worker.invalid';
+const RECOVERY_NAVIGATION_TIMEOUT_MS = 5_000;
 
 export const NAVIGATION_FALLBACK_EXCLUDE_PARAM = 'navigation-fallback-exclude';
 export const NON_DISRUPTIVE_UPDATE_PARAM = 'non-disruptive-update';
@@ -62,7 +63,23 @@ export const fetchNavigationWithShellFallback = async (
   loadCachedShell: () => Promise<Response | undefined>
 ): Promise<Response> => {
   if (isAuthenticationRecoveryNavigation(request.url)) {
-    return fetch(request, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RECOVERY_NAVIGATION_TIMEOUT_MS);
+    try {
+      // Preserve HTTP errors and opaque sign-in redirects. Only transport
+      // failure may fall back to an offline shell.
+      return await fetch(request, { cache: 'no-store', signal: controller.signal });
+    } catch (error) {
+      try {
+        const cachedShell = await loadCachedShell();
+        if (cachedShell?.ok) return cachedShell;
+      } catch {
+        // Preserve the navigation failure if the precache is unavailable.
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   try {

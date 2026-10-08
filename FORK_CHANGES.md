@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Keep the current build after a hard refresh (2026-10-08)
+
+- A hard refresh bypasses the active service worker and loads the deployed shell, but can leave the page uncontrolled.
+  The media-control recovery reload then used the older active worker's cached shell while the replacement worker waited for other tabs to close.
+- The guarded reload now sets the existing `authentication-recovery-navigation=1` network-bypass marker before reloading.
+  It preserves the current path, query, fragment and history state; `ClientConfigLoader` removes the marker on boot.
+  The one-reload guard, offline preflight and deferred worker activation remain in place.
+  The guard is consumed only after URL replacement succeeds, so a blocked history update leaves a later boot able to retry.
+- Marked recovery navigation uses a five-second network timeout and falls back to a valid cached shell only on transport failure.
+  HTTP errors and opaque sign-in redirects pass through without consulting the cache.
+  Already-active predecessor workers retain their existing network-only recovery until the new worker activates.
+  Login return paths remove the one-time marker before saving the selected path, other query values and fragment.
+- The bootstrap regression fails before the fix and passes after it, including the real navigation handler choosing the network build over an older cached shell.
+  All 6,499 unit tests pass with two workers, along with typecheck, production build and changed-file formatting.
+  The 97 focused recovery, routing and configuration tests also pass after the review fixes.
+  Changed-file lint reports zero errors and three existing console warnings.
+  Four timing failures in the initial unconstrained suite pass both in isolation and in the final full run.
+  Independent review found no actionable issues and confirmed compatibility with older cache-first workers.
+  A hosted Chrome probe loaded release `4.12.6-mindroom.190` through the bypass while the existing cached page loaded an older bundle.
+  PR #434 is open; deployment is pending.
+  Next: merge the reviewed change, publish its image, pin staging and production, then verify that a hosted hard refresh keeps the deployed build.
+  Cross-model consultation was attempted for offline fallback but returned a quota error; the chosen fallback preserves authentication responses and restores the earlier bounded transport-failure behavior.
+
 ### Collapse the thread banner to one row (2026-10-07)
 
 - Why: a user asked to hide the thread banner. It stays above the messages while they scroll, and on a phone it took four rows (eyebrow, title, tags, and `+ tag` wrapped onto its own line). Hiding it outright would also hide the way back and the thread's status, so it collapses instead.

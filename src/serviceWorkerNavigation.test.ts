@@ -112,7 +112,10 @@ describe('service worker navigation responses', () => {
     );
     expect(isAuthenticationRecoveryNavigation(request.url)).toBe(true);
     expect(loadCachedShell).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
+    expect(fetchMock).toHaveBeenCalledWith(request, {
+      cache: 'no-store',
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it('ignores absent, malformed, and unrelated authentication recovery markers', () => {
@@ -123,5 +126,53 @@ describe('service worker navigation responses', () => {
       )
     ).toBe(false);
     expect(isAuthenticationRecoveryNavigation('not a URL')).toBe(false);
+  });
+
+  it('keeps a cached shell available when the marked navigation loses connectivity', async () => {
+    const request = new Request(
+      'https://chat.example.com/home?authentication-recovery-navigation=1'
+    );
+    const cachedShell = new Response('cached shell');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    await expect(fetchNavigationWithShellFallback(request, async () => cachedShell)).resolves.toBe(
+      cachedShell
+    );
+  });
+
+  it('keeps a cached shell available when the marked navigation stalls', async () => {
+    vi.useFakeTimers();
+    try {
+      const request = new Request(
+        'https://chat.example.com/home?authentication-recovery-navigation=1'
+      );
+      const cachedShell = new Response('cached shell');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_request, options) =>
+            new Promise((_resolve, reject) => {
+              options?.signal?.addEventListener('abort', () =>
+                reject(new DOMException('Aborted', 'AbortError'))
+              );
+            })
+        )
+      );
+      const result = fetchNavigationWithShellFallback(request, async () => cachedShell);
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(result).resolves.toBe(cachedShell);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('preserves authentication denial instead of replacing it with a cached shell', async () => {
+    const request = new Request(
+      'https://chat.example.com/home?authentication-recovery-navigation=1'
+    );
+    const denied = new Response('Sign in required', { status: 403 });
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(denied));
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(denied);
+    expect(loadCachedShell).not.toHaveBeenCalled();
   });
 });
