@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   isServiceWorkerEnabled: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
+  getActiveSession: vi.fn(),
+  waitForServiceWorkerControl: vi.fn(),
+  fetchPublishedAppVersion: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -64,18 +67,18 @@ vi.mock('./app/utils/runtimeConfig', () => ({
 }));
 
 vi.mock('./app/state/sessions', () => ({
-  getActiveSession: () => undefined,
+  getActiveSession: mocks.getActiveSession,
   subscribeToSessionStore: vi.fn(),
 }));
 
 vi.mock('./sw-session', () => ({
   pushSessionToSW: vi.fn(),
-  waitForServiceWorkerControl: vi.fn(),
+  waitForServiceWorkerControl: mocks.waitForServiceWorkerControl,
 }));
 
 vi.mock('./appVersion', () => ({
   APP_BUILD_VERSION: 'test-build',
-  fetchPublishedAppVersion: vi.fn(),
+  fetchPublishedAppVersion: mocks.fetchPublishedAppVersion,
   startAppVersionMonitor: vi.fn(),
 }));
 
@@ -99,9 +102,12 @@ describe('application bootstrap', () => {
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
+    mocks.getActiveSession.mockReturnValue(undefined);
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     if (originalServiceWorker) {
       Object.defineProperty(navigator, 'serviceWorker', originalServiceWorker);
     } else {
@@ -214,5 +220,65 @@ describe('application bootstrap', () => {
 
     await vi.waitFor(() => expect(mocks.createRoot).toHaveBeenCalledOnce());
     expect(serviceWorker.register).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the network build when reloading to restore control after a hard refresh', async () => {
+    const browserWindow = window;
+    const originalUrl = browserWindow.location.href;
+    browserWindow.history.replaceState({ room: 'selected' }, '', '/home/room?threadId=reply#event');
+    const navigationUrls: string[] = [];
+    vi.stubGlobal(
+      'window',
+      new Proxy(browserWindow, {
+        get(target, property) {
+          if (property === 'location') {
+            return {
+              get href() {
+                return target.location.href;
+              },
+              reload: () => navigationUrls.push(target.location.href),
+            };
+          }
+          return Reflect.get(target, property);
+        },
+      })
+    );
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        controller: null,
+        addEventListener: vi.fn(),
+        ready: Promise.resolve(),
+        register: vi.fn().mockResolvedValue({ active: {} }),
+        getRegistration: vi.fn().mockResolvedValue({ active: {} }),
+      },
+    });
+    mocks.isServiceWorkerEnabled.mockReturnValue(true);
+    mocks.getActiveSession.mockReturnValue({ baseUrl: 'https://matrix.example.com' });
+    mocks.waitForServiceWorkerControl.mockResolvedValue(false);
+    mocks.fetchPublishedAppVersion.mockResolvedValue('new-build');
+
+    try {
+      await import('./index');
+      await vi.waitFor(() => expect(navigationUrls).toHaveLength(1));
+
+      const destination = new URL(navigationUrls[0]);
+      expect(destination.pathname + destination.search + destination.hash).toBe(
+        '/home/room?threadId=reply&authentication-recovery-navigation=1#event'
+      );
+      expect(browserWindow.history.state).toEqual({ room: 'selected' });
+      expect(browserWindow.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBe('1');
+
+      // Exercise the real worker navigation handler with an older cached shell.
+      const { fetchNavigationWithShellFallback } = await import('./serviceWorkerNavigation');
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('new build')));
+      const response = await fetchNavigationWithShellFallback(
+        new Request(destination),
+        async () => new Response('old build')
+      );
+      expect(await response.text()).toBe('new build');
+    } finally {
+      browserWindow.history.replaceState(null, '', originalUrl);
+    }
   });
 });
