@@ -222,63 +222,83 @@ describe('application bootstrap', () => {
     expect(serviceWorker.register).toHaveBeenCalledOnce();
   });
 
-  it('keeps the network build when reloading to restore control after a hard refresh', async () => {
-    const browserWindow = window;
-    const originalUrl = browserWindow.location.href;
-    browserWindow.history.replaceState({ room: 'selected' }, '', '/home/room?threadId=reply#event');
-    const navigationUrls: string[] = [];
-    vi.stubGlobal(
-      'window',
-      new Proxy(browserWindow, {
-        get(target, property) {
-          if (property === 'location') {
-            return {
-              get href() {
-                return target.location.href;
-              },
-              reload: () => navigationUrls.push(target.location.href),
-            };
-          }
-          return Reflect.get(target, property);
+  it.each([false, true])(
+    'restores control safely when history replacement fails: %s',
+    async (historyFails) => {
+      const browserWindow = window;
+      const originalUrl = browserWindow.location.href;
+      browserWindow.history.replaceState(
+        { room: 'selected' },
+        '',
+        '/home/room?threadId=reply#event'
+      );
+      const navigationUrls: string[] = [];
+      vi.stubGlobal(
+        'window',
+        new Proxy(browserWindow, {
+          get(target, property) {
+            if (property === 'location') {
+              return {
+                get href() {
+                  return target.location.href;
+                },
+                reload: () => navigationUrls.push(target.location.href),
+              };
+            }
+            return Reflect.get(target, property);
+          },
+        })
+      );
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: {
+          controller: null,
+          addEventListener: vi.fn(),
+          ready: Promise.resolve(),
+          register: vi.fn().mockResolvedValue({ active: {} }),
+          getRegistration: vi.fn().mockResolvedValue({ active: {} }),
         },
-      })
-    );
-    Object.defineProperty(navigator, 'serviceWorker', {
-      configurable: true,
-      value: {
-        controller: null,
-        addEventListener: vi.fn(),
-        ready: Promise.resolve(),
-        register: vi.fn().mockResolvedValue({ active: {} }),
-        getRegistration: vi.fn().mockResolvedValue({ active: {} }),
-      },
-    });
-    mocks.isServiceWorkerEnabled.mockReturnValue(true);
-    mocks.getActiveSession.mockReturnValue({ baseUrl: 'https://matrix.example.com' });
-    mocks.waitForServiceWorkerControl.mockResolvedValue(false);
-    mocks.fetchPublishedAppVersion.mockResolvedValue('new-build');
+      });
+      mocks.isServiceWorkerEnabled.mockReturnValue(true);
+      mocks.getActiveSession.mockReturnValue({ baseUrl: 'https://matrix.example.com' });
+      mocks.waitForServiceWorkerControl.mockResolvedValue(false);
+      mocks.fetchPublishedAppVersion.mockResolvedValue('new-build');
+      const replaceState = vi.spyOn(browserWindow.history, 'replaceState');
+      if (historyFails) {
+        replaceState.mockImplementationOnce(() => {
+          throw new DOMException('History unavailable', 'SecurityError');
+        });
+      }
 
-    try {
-      await import('./index');
-      await vi.waitFor(() => expect(navigationUrls).toHaveLength(1));
+      try {
+        await import('./index');
+        if (historyFails) {
+          await vi.waitFor(() => expect(replaceState).toHaveBeenCalled());
+          expect(navigationUrls).toHaveLength(0);
+          expect(browserWindow.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBeNull();
+          return;
+        }
+        await vi.waitFor(() => expect(navigationUrls).toHaveLength(1));
 
-      const destination = new URL(navigationUrls[0]);
-      expect(destination.pathname + destination.search + destination.hash).toBe(
-        '/home/room?threadId=reply&authentication-recovery-navigation=1#event'
-      );
-      expect(browserWindow.history.state).toEqual({ room: 'selected' });
-      expect(browserWindow.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBe('1');
+        const destination = new URL(navigationUrls[0]);
+        expect(destination.pathname + destination.search + destination.hash).toBe(
+          '/home/room?threadId=reply&authentication-recovery-navigation=1#event'
+        );
+        expect(browserWindow.history.state).toEqual({ room: 'selected' });
+        expect(browserWindow.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBe('1');
 
-      // Exercise the real worker navigation handler with an older cached shell.
-      const { fetchNavigationWithShellFallback } = await import('./serviceWorkerNavigation');
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('new build')));
-      const response = await fetchNavigationWithShellFallback(
-        new Request(destination),
-        async () => new Response('old build')
-      );
-      expect(await response.text()).toBe('new build');
-    } finally {
-      browserWindow.history.replaceState(null, '', originalUrl);
+        // Exercise the real worker navigation handler with an older cached shell.
+        const { fetchNavigationWithShellFallback } = await import('./serviceWorkerNavigation');
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('new build')));
+        const response = await fetchNavigationWithShellFallback(
+          new Request(destination),
+          async () => new Response('old build')
+        );
+        expect(await response.text()).toBe('new build');
+      } finally {
+        replaceState.mockRestore();
+        browserWindow.history.replaceState(null, '', originalUrl);
+      }
     }
-  });
+  );
 });

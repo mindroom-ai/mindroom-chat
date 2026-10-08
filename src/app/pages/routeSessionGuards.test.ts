@@ -216,6 +216,23 @@ describe('routeSessionGuards', () => {
     });
   });
 
+  it.each(['root', 'protected'])(
+    'does not save the recovery marker in a %s login return path',
+    (route) => {
+      Object.defineProperty(globalThis, 'window', {
+        value: { location: { origin: 'https://chat.mindroom.chat' } },
+        configurable: true,
+      });
+      const path = route === 'root' ? '/' : '/home/room';
+      const href = `https://chat.mindroom.chat${path}?threadId=reply&authentication-recovery-navigation=1#event`;
+      const decision =
+        route === 'root'
+          ? resolveRootRouteRedirect(href, undefined)
+          : resolveProtectedRouteRedirect(href, undefined, false, undefined);
+      expect(decision?.afterLoginPath).toBe(`${path}?threadId=reply#event`);
+    }
+  );
+
   it('allows protected routes when an active session exists', () => {
     expect(
       resolveProtectedRouteRedirect('https://chat.mindroom.chat/home', undefined, true, {

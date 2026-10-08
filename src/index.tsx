@@ -172,7 +172,6 @@ const bootstrap = async () => {
               ? await fetchPublishedAppVersion()
               : undefined;
             if (publishedVersion) {
-              window.sessionStorage.setItem(RELOAD_FLAG, '1');
               // An older active worker may still serve its cached shell while
               // the newly registered worker waits for other tabs to close.
               // Restore control through the network so this reload keeps the
@@ -180,6 +179,7 @@ const bootstrap = async () => {
               const reloadUrl = new URL(window.location.href);
               reloadUrl.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
               window.history.replaceState(window.history.state, '', reloadUrl.href);
+              window.sessionStorage.setItem(RELOAD_FLAG, '1');
               window.location.reload();
               return;
             }
