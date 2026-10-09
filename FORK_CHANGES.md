@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### Open a conversation's canvases and computer from the room header (2026-10-08)
+
+- Why: a canvas an agent keeps updating was easy to lose, because after closing it the only way back was its **Open panel** button far up the conversation, or the global Canvases page.
+  The header's Computer button also showed in every room with an agent, though most never use their computer.
+- Status: implemented on `feat/conversation-panel-buttons` (four commits on top of `911d50c1`), validated below.
+  Live canvas specs pass against a disposable Tuwunel.
+  Not yet merged or deployed.
+  The worker-computer spec's edit (see below) has not been run live here, because it needs the backend's computer fixture.
+  The backend half (the first browser call in a thread sends the `show_computer` notice) is a separate mindroom PR; the two merge in either order.
+- Header Canvas button (`CanvasHeaderButton`, icon `Icons.Category`, the sidebar's Canvases icon) sits after the Computer button.
+  It shows only where canvases are on, outside a call, and when the conversation (the routed thread, or the room's main timeline) has a listed canvas.
+  With one canvas it toggles it (`Show canvas` / `Hide canvas`, `aria-pressed`); with several it opens a menu titled `Canvases`, newest update first, each row with its title and update time, the open one marked (`aria-current="true"` and a check).
+  Choosing the open one closes it, another opens it, and a reordering update keeps the menu open.
+  Opening goes through `openCanvasById` (`loadCanvasEvent`, then the Chat UI action `activate`), the same validated path as the timeline button, so call and disabled-canvas rules, panel exclusivity and the latest version apply; a canvas whose request was deleted opens nothing.
+  New keys `mindroomUi.threads.mindroomRoomViewHeader.showCanvas`, `hideCanvas` and `canvases` in all 17 catalogs.
+- Computer button: the header button shows only when the computer is available and either its panel is open or this conversation received a valid `show_computer` notice (sent when an agent calls `chat_ui.show_computer()`).
+  Otherwise the room's More menu offers **Show computer** (also in Simple Mode), so users can still open it first, for example to log in; once open, the header button appears and the menu item goes.
+  Timeline **View computer** buttons and automatic opening are unchanged.
+- Index: the canvas index database (`mindroom-canvas-index::<session>`) is now version 2.
+  The upgrade adds the object store `computerShown` (rows `{ key, roomId, threadId }`, key `roomId`, newline, `threadId`) and keeps the `canvases` rows.
+  The recorder parses `show_computer` notices with `readChatUiAction` (sender, requester, membership, echo and edit checks), so a notice for another user, from a non-agent or from a local echo records nothing.
+  `useConversationCanvases` and `useComputerShown` read the index through `watchCanvasIndex`, the one subscribe, read and debounce helper the Canvases page now shares.
+  The index is still deleted at logout, and a canvas or computer notice this browser never received is not known.
+- Label: the timeline button `mindroomUi.uiActions.openCanvas` reads **Open canvas** (was **Open panel**).
+  The 16 other catalogs already named a canvas with their word for "panel" (`mindroomUi.canvases.canvas`), so their `openCanvas` text already matches and did not change; the English catalog and the component's default value did.
+  `e2e/agent-canvas.spec.ts` matches the new name.
+- Tests: `canvasIndexStore.test.ts` (computer notices per conversation, upgrade from version 1 keeps canvases, listeners notified), `canvasIndex.test.tsx` (what the recorder keeps and ignores, per-conversation filtering and order, `openCanvasById`), `CanvasHeaderButton.test.tsx` (hidden, toggle, menu order and open mark, choices, reordering with the menu open, menu dropped at one canvas), `RoomViewHeader.test.ts` (the computer button and menu item for every availability, shown and open combination; the item opens the computer and closes the menu; kept in Simple Mode), `RoomView.test.ts` and `Room.test.ts` (the room passes the canvas and computer state through, nothing during a call or with canvases off).
+- Live: `e2e/agent-canvas.spec.ts` gains "the room header brings back a conversation's canvases".
+  In one thread the agent sends a canvas and then a second: the button first toggles the single canvas directly, then lists both newest first, a choice shows its canvas, and the open one is marked.
+  A second thread in the room starts with no button and toggles its own single canvas without a menu, and the first thread still lists only its two.
+  The sidebar's Canvases tab shares the menu button's name, so the spec looks in the room header only.
+  `e2e/worker-computer.spec.ts` now opens the computer through More Options, Show Computer, because its thread has no `show_computer` notice and the header button stays hidden until the computer is open.
+- Validation (Node 24.21): `npm test` 6,528 passed and 3 failed (`xcodeCloudPostClone`, no `/bin/bash` on this NixOS host; they pass in CI), `npm run typecheck`, `npm run lint` (0 errors, 18 existing warnings), `npm run build`, branch-wide Prettier.
+  Live, against a disposable Tuwunel on port 28258 with the production build in Playwright 1.58.2's Ubuntu image: `agent-canvas.spec.ts` (2 cases), `agent-canvas-list.spec.ts` and `agent-ui-actions.spec.ts` pass directly, and the scheduler passes the two canvas specs (`node scripts/test-e2e-parallel.mjs --jobs 2 e2e/agent-canvas.spec.ts e2e/agent-canvas-list.spec.ts`).
+  `npm run test:e2e:parallel -- --list` discovers the new case.
+- Next, not done: run `e2e/worker-computer.spec.ts` where the backend's computer fixture exists; merge with the backend PR; deployed check that a thread with a canvas and a browsing agent shows both header buttons.
+  Deferred review notes: the hooks re-render on every index write and answer empty until the first read after a conversation switch, so a header button can appear a moment late; the hooks read IndexedDB even where canvases are off; a header open that finishes after a conversation switch is not guarded.
+
 ### Keep the current build after a hard refresh (2026-10-08)
 
 - A hard refresh bypasses the active service worker and loads the deployed shell, but can leave the page uncontrolled.
@@ -274,6 +312,7 @@
   Its title opens the canvas in its thread, filling the room, at its latest version; the thread name opens that thread and the room name the room, both without the canvas.
 - The list is kept per session in its own IndexedDB database (`mindroom-canvas-index::<session>`), deleted at logout like the saved canvas state.
   It is not bounded: an entry is a few hundred bytes, and a bound would drop old pinned canvases (fetched again, then dropped again).
+  Since 2026-10-08 the database is version 2: a second object store, `computerShown`, records the conversations (room and thread) that received a valid `show_computer` notice, and the room header reads both stores to show its Canvas and Computer buttons.
   Every write tells the page to re-read the list, also one that changed nothing, since another tab of the session may have written the change first.
   `useCanvasIndexRecorder` fills it with every canvas this browser receives, on any route: it listens to sync's `ClientEvent.Event` (which also reports an update or deletion of a canvas whose thread is not loaded, events no timeline takes), timelines (history and threads loaded later), decryption and applied edits.
   An update renames its row only when it is newer and the panel would accept it (`readCanvasEdit`, held against the authority the listed request carries: its agent, room, thread, requester and sharing), and an older copy of a request never rolls a row back; a deletion removes it, as does a copy that turns up already deleted (history loaded after a missed deletion).
@@ -1193,7 +1232,7 @@
   An answer without a label is sent with the label `Submitted` (part of the canonical body) but shown in the panel and receipt with a translated word.
   The agent reads the answer as its next turn through the existing message pipeline.
 - Timeline: `renderMindroomMessageContent` shows such a message as a one-line receipt (expandable to the JSON, label capped at 200 characters) only when the body equals the canonical body regenerated from the metadata; anything else renders as ordinary text.
-  Canvas notices keep their **Open panel** button when edited.
+  Canvas notices keep their **Open canvas** button (named **Open panel** until 2026-10-08) when edited.
 - Updates: a new revision loads at once unless the user focused the frame since it loaded or since their last send; then the panel keeps the current page and offers **Load update**.
   Each revision is decided once, and a new revision drops a pending snapshot; a sent answer's status clears with the new page, while one still sending or failed stays until it is sent or deleted.
   The theme is fixed per displayed revision, so switching themes does not discard unsent work.
@@ -1202,6 +1241,7 @@
   Nothing else closes a canvas for Members, so crossing the phone/tablet breakpoint (which switches which saved Members setting applies) keeps it open.
   On phones the canvas covers the conversation, which is unmounted, as with Expand.
   `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel; a copy is followed only when the UI-action parser accepts its edit and that edit comes after the shown one in Matrix edit order (timestamp, then event ID), so the page never rolls back. A deletion that lands on another copy closes the panel too.
+  The header's Canvas button, after the Computer button, lists the conversation's canvases and reopens a closed one (2026-10-08, see "Open a conversation's canvases and computer from the room header"): one canvas toggles, several open a menu, newest update first; it uses the canvas index, so a canvas far up the timeline or in an unloaded thread is one click away.
   Host text is translated in all 17 locales (`mindroomUi.canvas.*`).
   The shared desktop/mobile panel layout moved to `sidebar/SidePanel.css.ts`.
 - Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`, and agents get `show_canvas` only when their `chat_ui` entry sets `enable_show_canvas: true`.
@@ -1219,6 +1259,7 @@
 - Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `RoomCanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy and wrapper, bridge validation, canonical JSON, receipts and the content budget, staging, frozen snapshots, delivery status on a real SDK client and room (sent, the server's copy arriving, failure with Retry and Delete, timeline-started retries and deletions, an immediate failure, a status change before the hook subscribes, one unresolved answer at a time (and Send free again after a sent one), a refused send after a sent answer, a failure across a new page, an outright refusal), updates, escapes, edits on other event copies, foreign-sender edits, call exclusion, breakpoints, phones, the native apps, and routing.
   The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
   `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch` or an image, no navigation reaching Chat's own origin or reCAPTCHA (it fails if the wrapper allows navigation), a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
+  Its second case (2026-10-08) drives the room header's Canvas button: a direct toggle for one canvas, a newest-first menu for two, and a second thread listing only its own.
 - Live end-to-end (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel, with this production build in Chromium, showed a lunch-order canvas that opened automatically, received "Sushi", updated the same canvas in place to a drink step, received "Tea" (citing the edit as its revision), and replied "Your lunch order is Sushi with Tea."
   This passed in an unencrypted room and in an end-to-end encrypted managed room.
   The same agent built a SaaS operations dashboard (KPI cards with sparklines, SVG line, bar, and donut charts, a sortable table) that used the theme variables and reflowed to six columns when expanded.
@@ -3721,6 +3762,7 @@
 - The feature is opt-in through the exact trusted origin at `mindroom.computers.apiUrl`; the shipped value is empty, remote origins require HTTPS, and loopback HTTP remains available for local development.
 - Operator example: `"mindroom": { "computers": { "apiUrl": "https://computer.example.org" } }`.
 - Eligible rooms expose a Computer header action only when the configured origin is valid and at least one MindRoom agent is joined.
+  Since 2026-10-08 the header action also needs the panel open or a `show_computer` notice recorded for the conversation; before that the room's More menu offers **Show computer** (see "Open a conversation's canvases and computer from the room header").
 - The room owns the panel so account, room, routed-thread, and selected-agent changes dispose the old viewer and invalidate late responses.
 - Multiple joined agents require an explicit selection and Watch action, and the exact Matrix user ID is sent for authorization.
 - Session bearer tokens remain inside the active in-memory client, every display connection uses a new single-use ticket in the `mindroom-ticket.<ticket>` WebSocket subprotocol, and request credentials are omitted.

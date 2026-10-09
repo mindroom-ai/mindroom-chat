@@ -2929,7 +2929,7 @@
     "uiActions": {
       "viewComputer": "View computer",
       "openMembers": "Open Members",
-      "openCanvas": "Open panel",
+      "openCanvas": "Open canvas",
       "canvasDisabled": "Interactive panels are turned off in this app.",
       "canvasDuringCall": "End the call to open interactive panels.",
       "computerUnavailable": "This agent’s computer is unavailable.",
