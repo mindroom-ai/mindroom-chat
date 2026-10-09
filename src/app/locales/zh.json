@@ -294,6 +294,8 @@
     "placeholder": "发送消息…",
     "sendMessage": "发送消息",
     "recordVoice": "录制语音消息",
+    "formatting": "格式",
+    "attach": "添加附件",
     "voicePausedInOtherRoom": "录音已暂停 — 完成或放弃在 {{roomName}} 中未发送的录音",
     "dropFiles": "将文件拖放到“{{roomName}}”中",
     "dropFilesHint": "将文件拖放到此处或单击以打开选择对话框",
@@ -2579,7 +2581,8 @@
         "addReaction": "添加反应",
         "reply": "回复",
         "replyInThread": "在讨论串中回复",
-        "editMessage": "编辑消息"
+        "editMessage": "编辑消息",
+        "moreOptions": "更多选项"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "请求上下文窗口",
@@ -2802,7 +2805,8 @@
         "members": "成员",
         "hideMembers": "隐藏成员",
         "showMembers": "显示成员",
-        "moreOptions": "更多选项"
+        "moreOptions": "更多选项",
+        "back": "返回"
       },
       "roomThreadOverview": {
         "addTagFilter": "添加标签过滤器",

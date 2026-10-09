@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Name icon buttons in tooltips across the chat surfaces (2026-10-08)
+
+- Why: after the thread banner's buttons got folds tooltips (#435, #437), the owner asked for the same tooltip on the other buttons where it makes sense. Many icon-only buttons on the chat surfaces had neither a tooltip nor an accessible name: the message hover toolbar (react, reply, reply in thread, edit, More) and the composer's attach, formatting, sticker and emoji buttons.
+- `IconTooltip` (`mindroom/tooltip/IconTooltip.tsx`) is the banner's former `BannerTooltip`, shared: folds `TooltipProvider`, offset 4, a label and an optional quieter hint, `position` (default `Bottom`) and `align`. Every button it wraps carries the same text as its `aria-label`; native `title`s on those buttons are gone. Buttons with refs of their own (the banner's More and Show details, the composer's emoji button) merge them with the tooltip's trigger ref in an inline callback; folds' trigger ref only stores the node.
+- Covered, with `position="Top"` except at the top of a panel:
+  - message hover toolbar (`MindroomMessage`): Add Reaction, Reply, Reply in Thread, Edit Message, More Options; state-event rows' More Options (`MindroomTimelineEvent`); the quick reactions in the message menu show their shortcode (`MessageReactionActions`);
+  - composer (`RoomInputEditor`, `useRoomInputAttachments`, `useRoomInputVoice`): Attach files, Formatting (also `aria-pressed`), Sticker, Emoji, Send message, Record voice message (the tooltip also gives the reason when another room's draft disables it); the message editor's Formatting and Emoji (`MessageEditor`);
+  - thread cards' Resolve, Pin and More (`CompactRoomView`), the sidebar thread rows' Resolve and Pin (`ThreadNavItem`) and room rows' chat toggle and More Options (`RoomNavItem`);
+  - canvas header previous/next version and expand (`Bottom`); the voice capsule's discard and pause/resume; the typing bar's "drop typing status".
+- Left as they were: close (✕) buttons, settings and dialog buttons, scroll-to-top buttons. The phone room header's back button gets an `aria-label` ("Back") but no tooltip, since phones have no hover.
+- New keys in all 17 catalogs: `composer.formatting`, `composer.attach`, `mindroomUi.messages.mindroomMessage.moreOptions` (each catalog's existing "More Options" from the room header), `mindroomUi.threads.mindroomRoomViewHeader.back`. Sticker and Emoji reuse the emoji board's tab names (`sharedUi.tabs.*`).
+- Tests: `Message.test.ts` checks the toolbar's names; `RoomInput.test.ts` the composer's (Simple Mode, so no formatting or sticker). Test doubles of folds gained a `TooltipProvider` passthrough where they lacked one, and the `IconButton` doubles in the canvas, voice and compact-card performance tests now forward refs like folds' does; a plain function double made React probe it once more, which the performance test counted as a render.
+- Live: new `icon-button-tooltips.spec.ts` points at the composer's buttons and the message toolbar's and reads each tooltip; `thread-banner-collapse` (desktop), the short landscape case of `short-viewport-chrome` and `compact-card-display-names` still pass.
+
 ### Name the thread banner's back button; cover the hidden byline (2026-10-08)
 
 - Follow-ups from the reviews of #435, which the owner asked for after merging it.

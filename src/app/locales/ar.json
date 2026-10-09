@@ -298,6 +298,8 @@
     "placeholder": "إرسال رسالة...",
     "sendMessage": "إرسال الرسالة",
     "recordVoice": "تسجيل رسالة صوتية",
+    "formatting": "التنسيق",
+    "attach": "إرفاق ملفات",
     "voicePausedInOtherRoom": "التسجيل الصوتي متوقف مؤقتًا — أنهِ التسجيل غير المرسل أو تجاهله في ⁨{{roomName}}⁩",
     "dropFiles": "إفلات الملفات في «⁨{{roomName}}⁩»",
     "dropFilesHint": "اسحب الملفات وأفلتها هنا أو انقر لفتح نافذة الاختيار",
@@ -2715,7 +2717,8 @@
         "addReaction": "إضافة تفاعل",
         "reply": "رد",
         "replyInThread": "الرد في سلسلة المحادثة",
-        "editMessage": "تحرير الرسالة"
+        "editMessage": "تحرير الرسالة",
+        "moreOptions": "المزيد من الخيارات"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "نافذة سياق الطلب",
@@ -2990,7 +2993,8 @@
         "members": "الأعضاء",
         "hideMembers": "إخفاء الأعضاء",
         "showMembers": "إظهار الأعضاء",
-        "moreOptions": "المزيد من الخيارات"
+        "moreOptions": "المزيد من الخيارات",
+        "back": "رجوع"
       },
       "roomThreadOverview": {
         "addTagFilter": "إضافة عامل تصفية حسب الوسم",

@@ -7,6 +7,7 @@ import { VoiceWaveform } from '../../components/voice/VoiceWaveform';
 import { VoiceRecorderPhase } from './useVoiceRecorder';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './VoiceRecordingCapsule.css';
+import { IconTooltip } from '../tooltip/IconTooltip';
 
 type VoiceRecordingCapsuleProps = {
   phase: VoiceRecorderPhase;
@@ -53,37 +54,52 @@ export function VoiceRecordingCapsule({
 
   return (
     <Box ref={glassRef} className={css.Capsule}>
-      <IconButton
-        variant="SurfaceVariant"
-        size="300"
-        radii="300"
-        onClick={onDiscard}
-        disabled={phase === 'processing' || phase === 'sending'}
-        aria-label={t('mindroomUi.voice.discardRecording')}
-      >
-        <Icon src={Icons.Delete} size="50" />
-      </IconButton>
+      <IconTooltip label={t('mindroomUi.voice.discardRecording')} position="Top">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            variant="SurfaceVariant"
+            size="300"
+            radii="300"
+            onClick={onDiscard}
+            disabled={phase === 'processing' || phase === 'sending'}
+            aria-label={t('mindroomUi.voice.discardRecording')}
+          >
+            <Icon src={Icons.Delete} size="50" />
+          </IconButton>
+        )}
+      </IconTooltip>
       <VoiceWaveform waveform={waveform} dimmed={paused || busy} compact />
       <Text className={css.Timer} size="B300" aria-live="polite">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>
-      <IconButton
-        variant="SurfaceVariant"
-        size="300"
-        radii="300"
-        onClick={paused ? onResume : onPause}
-        disabled={pauseDisabled}
-        aria-label={
+      <IconTooltip
+        label={
           paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
         }
-        aria-pressed={paused}
+        position="Top"
       >
-        {busy ? (
-          <Spinner size="50" variant="Secondary" />
-        ) : (
-          <Icon src={paused ? Icons.Play : Icons.Pause} size="50" />
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            variant="SurfaceVariant"
+            size="300"
+            radii="300"
+            onClick={paused ? onResume : onPause}
+            disabled={pauseDisabled}
+            aria-label={
+              paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
+            }
+            aria-pressed={paused}
+          >
+            {busy ? (
+              <Spinner size="50" variant="Secondary" />
+            ) : (
+              <Icon src={paused ? Icons.Play : Icons.Pause} size="50" />
+            )}
+          </IconButton>
         )}
-      </IconButton>
+      </IconTooltip>
       <span className={css.HiddenStatus} aria-live="polite">
         {statusText}
       </span>

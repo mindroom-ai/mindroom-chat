@@ -22,6 +22,7 @@ import { useThreadPinning } from './useThreadPinning';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { useInitializeShownThread } from './useInitializeShownThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
+import { IconTooltip } from '../tooltip/IconTooltip';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -114,62 +115,74 @@ const CompactThreadCardRow = React.memo(
         <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
         <div className={css.CardAction}>
           {showResolveAction && (
-            <IconButton
-              className={css.CardQuickAction}
-              type="button"
-              size="300"
-              variant="Secondary"
-              fill="None"
-              radii="300"
-              aria-label={resolveLabel}
-              title={resolveLabel}
-              disabled={actionsDisabled}
-              onClick={() => onResolve(rootId)}
-              data-compact-thread-resolve="true"
-            >
-              <Icon size="100" src={Icons.Check} />
-            </IconButton>
+            <IconTooltip label={resolveLabel} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  className={css.CardQuickAction}
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label={resolveLabel}
+                  disabled={actionsDisabled}
+                  onClick={() => onResolve(rootId)}
+                  data-compact-thread-resolve="true"
+                >
+                  <Icon size="100" src={Icons.Check} />
+                </IconButton>
+              )}
+            </IconTooltip>
           )}
           {showPinAction && (
-            <IconButton
-              className={css.CardQuickAction}
-              type="button"
-              size="300"
-              variant="Secondary"
-              fill="None"
-              radii="300"
-              aria-label={pinLabel}
-              title={pinLabel}
-              disabled={actionsDisabled}
-              onClick={() => onPin(rootId, pinned)}
-              data-compact-thread-pin="true"
-            >
-              <Icon size="100" src={Icons.Pin} filled={pinned} />
-            </IconButton>
+            <IconTooltip label={pinLabel} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  className={css.CardQuickAction}
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label={pinLabel}
+                  disabled={actionsDisabled}
+                  onClick={() => onPin(rootId, pinned)}
+                  data-compact-thread-pin="true"
+                >
+                  <Icon size="100" src={Icons.Pin} filled={pinned} />
+                </IconButton>
+              )}
+            </IconTooltip>
           )}
-          <IconButton
-            className={css.CardMenuButton}
-            type="button"
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-label={moreLabel}
-            title={moreLabel}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-              onOpenMenu({
-                roomId,
-                rootId,
-                viewModel,
-                anchor: event.currentTarget.getBoundingClientRect(),
-                trigger: event.currentTarget,
-              })
-            }
-          >
-            <Icon size="100" src={Icons.HorizontalDots} />
-          </IconButton>
+          <IconTooltip label={moreLabel} position="Top">
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                className={css.CardMenuButton}
+                type="button"
+                size="300"
+                variant="Secondary"
+                fill="None"
+                radii="300"
+                aria-label={moreLabel}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                  onOpenMenu({
+                    roomId,
+                    rootId,
+                    viewModel,
+                    anchor: event.currentTarget.getBoundingClientRect(),
+                    trigger: event.currentTarget,
+                  })
+                }
+              >
+                <Icon size="100" src={Icons.HorizontalDots} />
+              </IconButton>
+            )}
+          </IconTooltip>
         </div>
       </div>
     );

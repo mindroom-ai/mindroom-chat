@@ -296,6 +296,8 @@
     "placeholder": "Введите сообщение…",
     "sendMessage": "Отправить сообщение",
     "recordVoice": "Записать голосовое сообщение",
+    "formatting": "Форматирование",
+    "attach": "Прикрепить файлы",
     "voicePausedInOtherRoom": "Запись голоса приостановлена — завершите или удалите неотправленную запись в {{roomName}}",
     "dropFiles": "Перетащите файлы в «{{roomName}}»",
     "dropFilesHint": "Перетащите файлы сюда или нажмите, чтобы выбрать их",
@@ -2647,7 +2649,8 @@
         "addReaction": "Добавить реакцию",
         "reply": "Ответить",
         "replyInThread": "Ответить в ветке",
-        "editMessage": "Изменить сообщение"
+        "editMessage": "Изменить сообщение",
+        "moreOptions": "Другие параметры"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Контекстное окно запроса",
@@ -2896,7 +2899,8 @@
         "members": "Участники",
         "hideMembers": "Скрыть участников",
         "showMembers": "Показать участников",
-        "moreOptions": "Другие параметры"
+        "moreOptions": "Другие параметры",
+        "back": "Назад"
       },
       "roomThreadOverview": {
         "addTagFilter": "Добавить фильтр по тегу",

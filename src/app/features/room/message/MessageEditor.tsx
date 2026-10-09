@@ -55,6 +55,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getEditedEvent, getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
+import { IconTooltip } from '../../../mindroom/tooltip/IconTooltip';
 
 type MessageEditorProps = {
   roomId: string;
@@ -290,14 +291,20 @@ export const MessageEditor = as<'div', MessageEditorProps>(
                   </Chip>
                 </Box>
                 <Box gap="Inherit">
-                  <IconButton
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                    onClick={() => setToolbar(!toolbar)}
-                  >
-                    <Icon size="400" src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
-                  </IconButton>
+                  <IconTooltip label={t('composer.formatting')} position="Top">
+                    {(triggerRef) => (
+                      <IconButton
+                        ref={triggerRef}
+                        aria-label={t('composer.formatting')}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                        onClick={() => setToolbar(!toolbar)}
+                      >
+                        <Icon size="400" src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
+                      </IconButton>
+                    )}
+                  </IconTooltip>
                   <UseStateProvider initial={undefined}>
                     {(anchor: RectCords | undefined, setAnchor) => (
                       <PopOut
@@ -323,20 +330,26 @@ export const MessageEditor = as<'div', MessageEditorProps>(
                           />
                         }
                       >
-                        <IconButton
-                          aria-pressed={anchor !== undefined}
-                          onClick={
-                            ((evt) =>
-                              setAnchor(
-                                evt.currentTarget.getBoundingClientRect()
-                              )) as MouseEventHandler<HTMLButtonElement>
-                          }
-                          variant="SurfaceVariant"
-                          size="300"
-                          radii="300"
-                        >
-                          <Icon size="400" src={Icons.Smile} filled={anchor !== undefined} />
-                        </IconButton>
+                        <IconTooltip label={t('sharedUi.tabs.emoji')} position="Top">
+                          {(triggerRef) => (
+                            <IconButton
+                              ref={triggerRef}
+                              aria-label={t('sharedUi.tabs.emoji')}
+                              aria-pressed={anchor !== undefined}
+                              onClick={
+                                ((evt) =>
+                                  setAnchor(
+                                    evt.currentTarget.getBoundingClientRect()
+                                  )) as MouseEventHandler<HTMLButtonElement>
+                              }
+                              variant="SurfaceVariant"
+                              size="300"
+                              radii="300"
+                            >
+                              <Icon size="400" src={Icons.Smile} filled={anchor !== undefined} />
+                            </IconButton>
+                          )}
+                        </IconTooltip>
                       </PopOut>
                     )}
                   </UseStateProvider>

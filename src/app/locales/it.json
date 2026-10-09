@@ -295,6 +295,8 @@
     "placeholder": "Invia un messaggio...",
     "sendMessage": "Invia messaggio",
     "recordVoice": "Registra messaggio vocale",
+    "formatting": "Formattazione",
+    "attach": "Allega file",
     "voicePausedInOtherRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata in {{roomName}}",
     "dropFiles": "Rilascia i file in \"{{roomName}}\"",
     "dropFilesHint": "Trascina qui i file o fai clic per aprire la finestra di selezione",
@@ -2613,7 +2615,8 @@
         "addReaction": "Aggiungi reazione",
         "reply": "Rispondi",
         "replyInThread": "Rispondi nel thread",
-        "editMessage": "Modifica messaggio"
+        "editMessage": "Modifica messaggio",
+        "moreOptions": "Altre opzioni"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Finestra di contesto della richiesta",
@@ -2849,7 +2852,8 @@
         "members": "Membri",
         "hideMembers": "Nascondi membri",
         "showMembers": "Mostra membri",
-        "moreOptions": "Altre opzioni"
+        "moreOptions": "Altre opzioni",
+        "back": "Indietro"
       },
       "roomThreadOverview": {
         "addTagFilter": "Aggiungi filtro tag",

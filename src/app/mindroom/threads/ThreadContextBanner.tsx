@@ -1,7 +1,5 @@
 import React, {
   lazy,
-  type ReactNode,
-  type RefCallback,
   Suspense,
   useCallback,
   useEffect,
@@ -12,17 +10,7 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Text,
-  Tooltip,
-  TooltipProvider,
-  type Align,
-  type RectCords,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
@@ -40,6 +28,7 @@ import { ThreadTagPicker } from './ThreadTagPicker';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
@@ -63,41 +52,6 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: MindroomThreadSummaryInfo;
   onExitThread: () => void;
-}
-
-// The banner's buttons are icons, so each names itself in a tooltip below it.
-function BannerTooltip({
-  label,
-  hint,
-  align,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  align?: Align;
-  children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
-}) {
-  return (
-    <TooltipProvider
-      position="Bottom"
-      align={align}
-      offset={4}
-      tooltip={
-        <Tooltip>
-          <Box direction="Column">
-            <Text size="T300">{label}</Text>
-            {hint && (
-              <Text size="T200" priority="300">
-                {hint}
-              </Text>
-            )}
-          </Box>
-        </Tooltip>
-      }
-    >
-      {children}
-    </TooltipProvider>
-  );
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -283,7 +237,7 @@ export function ThreadContextBanner({
   const backButton = (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
     // folds aligns to physical edges, and right-to-left puts the button on the right.
-    <BannerTooltip label={t('thread.backToRoom')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
+    <IconTooltip label={t('thread.backToRoom')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
@@ -295,7 +249,7 @@ export function ThreadContextBanner({
           <Icon data-directional src={Icons.ArrowLeft} />
         </IconButton>
       )}
-    </BannerTooltip>
+    </IconTooltip>
   );
 
   return (
@@ -331,7 +285,7 @@ export function ThreadContextBanner({
           <Box alignItems="Center" gap="100">
             {backButton}
             <ThreadApprovalPermissions />
-            <BannerTooltip label={t('thread.showDetails')}>
+            <IconTooltip label={t('thread.showDetails')}>
               {(triggerRef) => (
                 <IconButton
                   ref={(node: HTMLButtonElement | null) => {
@@ -346,7 +300,7 @@ export function ThreadContextBanner({
                   <Icon src={Icons.ChevronBottom} size="100" />
                 </IconButton>
               )}
-            </BannerTooltip>
+            </IconTooltip>
           </Box>
         ) : (
           <div className={css.TitleRow}>
@@ -467,7 +421,7 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              <BannerTooltip label={t('threadActions.more')}>
+              <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
                   <IconButton
                     ref={(node: HTMLButtonElement | null) => {
@@ -487,9 +441,9 @@ export function ThreadContextBanner({
                     <Icon src={Icons.VerticalDots} size="100" />
                   </IconButton>
                 )}
-              </BannerTooltip>
+              </IconTooltip>
               {pinning.canPin && mutableThreadRootId ? (
-                <BannerTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
+                <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
@@ -504,7 +458,7 @@ export function ThreadContextBanner({
                       <Icon src={Icons.Pin} size="100" filled={isPinned} />
                     </IconButton>
                   )}
-                </BannerTooltip>
+                </IconTooltip>
               ) : (
                 isPinned && (
                   <Box
@@ -519,7 +473,7 @@ export function ThreadContextBanner({
               )}
               {!isPinned && (
                 // Resolve is in More, but a resolved status stays visible for readers.
-                <BannerTooltip
+                <IconTooltip
                   label={
                     headerModel.isResolved
                       ? resolvedByLabel ?? t('thread.resolved')
@@ -547,7 +501,7 @@ export function ThreadContextBanner({
                       <Icon src={Icons.Check} size="100" />
                     </IconButton>
                   )}
-                </BannerTooltip>
+                </IconTooltip>
               )}
             </Box>
             {/* Mobile: tags in a row of their own, under the title and the actions */}

@@ -294,6 +294,8 @@
     "placeholder": "メッセージを送信…",
     "sendMessage": "メッセージを送信",
     "recordVoice": "音声メッセージを録音する",
+    "formatting": "書式",
+    "attach": "ファイルを添付",
     "voicePausedInOtherRoom": "音声録音が一時停止されました — {{roomName}} での未送信の録音を終了するか破棄してください",
     "dropFiles": "「{{roomName}}」にファイルをドロップ",
     "dropFilesHint": "ここにファイルをドラッグ アンド ドロップするか、クリックして選択ダイアログを表示します",
@@ -2579,7 +2581,8 @@
         "addReaction": "リアクションを追加",
         "reply": "返信",
         "replyInThread": "スレッド内で返信",
-        "editMessage": "メッセージを編集"
+        "editMessage": "メッセージを編集",
+        "moreOptions": "その他のオプション"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "リクエストコンテキストウィンドウ",
@@ -2802,7 +2805,8 @@
         "members": "メンバー",
         "hideMembers": "メンバーを非表示にする",
         "showMembers": "メンバーを表示",
-        "moreOptions": "その他のオプション"
+        "moreOptions": "その他のオプション",
+        "back": "戻る"
       },
       "roomThreadOverview": {
         "addTagFilter": "タグフィルターを追加する",

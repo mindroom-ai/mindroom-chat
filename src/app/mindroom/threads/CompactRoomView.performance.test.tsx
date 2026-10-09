@@ -20,10 +20,13 @@ const state = vi.hoisted(() => ({
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
   const react = await import('react');
-  const ActionControl = (props: React.ComponentProps<'button'>) => {
-    state.actionRenderProps(props);
-    return react.createElement('button', props);
-  };
+  // Forwards its ref like folds' IconButton, which the action tooltips attach to.
+  const ActionControl = react.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
+    (props, ref) => {
+      state.actionRenderProps(props);
+      return react.createElement('button', { ...props, ref });
+    }
+  );
 
   return {
     ...actual,

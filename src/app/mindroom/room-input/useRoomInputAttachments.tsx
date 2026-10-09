@@ -15,6 +15,7 @@ import {
   toRem,
 } from 'folds';
 import { Dialog, IconButton } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
@@ -365,9 +366,20 @@ export const useRoomInputAttachments = ({
     </Overlay>
   );
   const attachButton = (
-    <IconButton onClick={() => pickFile('*')} variant="SurfaceVariant" size="300" radii="300">
-      <Icon src={Icons.PlusCircle} />
-    </IconButton>
+    <IconTooltip label={t('composer.attach')} position="Top">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          onClick={() => pickFile('*')}
+          variant="SurfaceVariant"
+          size="300"
+          radii="300"
+          aria-label={t('composer.attach')}
+        >
+          <Icon src={Icons.PlusCircle} />
+        </IconButton>
+      )}
+    </IconTooltip>
   );
   return { access, board, dropOverlay, attachButton, onPaste, onEditorChange: handleEditorChange };
 };

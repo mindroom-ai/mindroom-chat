@@ -47,6 +47,7 @@ import { getImageInfo, mxcUrlToHttp } from '../../utils/matrix';
 import { getImageUrlBlob, loadImageElement } from '../../utils/dom';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import {
   getMindroomRoomInputAutocompleteQuery,
   isMindroomRoomInputAutocompleteQuery,
@@ -96,7 +97,7 @@ export function RoomInputEditor({
   const [autocompleteQuery, setAutocompleteQuery] =
     useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
   const [hideStickerBtn, setHideStickerBtn] = useState(document.body.clientWidth < 500);
-  const emojiBtnRef = useRef<HTMLButtonElement>(null);
+  const emojiBtnRef = useRef<HTMLButtonElement | null>(null);
   const isComposing = useComposingCheck();
 
   useElementSizeObserver(
@@ -240,14 +241,21 @@ export function RoomInputEditor({
         after={
           <>
             {!simpleMode && (
-              <IconButton
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                onClick={() => setToolbar(!toolbar)}
-              >
-                <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
-              </IconButton>
+              <IconTooltip label={t('composer.formatting')} position="Top">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    variant="SurfaceVariant"
+                    size="300"
+                    radii="300"
+                    aria-label={t('composer.formatting')}
+                    aria-pressed={toolbar}
+                    onClick={() => setToolbar(!toolbar)}
+                  >
+                    <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
+                  </IconButton>
+                )}
+              </IconTooltip>
             )}
             <UseStateProvider initial={undefined}>
               {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
@@ -283,45 +291,67 @@ export function RoomInputEditor({
                   }
                 >
                   {!hideStickerBtn && !simpleMode && (
-                    <IconButton
-                      aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
-                      onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
-                    >
-                      <Icon src={Icons.Sticker} filled={emojiBoardTab === EmojiBoardTab.Sticker} />
-                    </IconButton>
+                    <IconTooltip label={t('sharedUi.tabs.sticker')} position="Top">
+                      {(triggerRef) => (
+                        <IconButton
+                          ref={triggerRef}
+                          aria-label={t('sharedUi.tabs.sticker')}
+                          aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
+                          onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon
+                            src={Icons.Sticker}
+                            filled={emojiBoardTab === EmojiBoardTab.Sticker}
+                          />
+                        </IconButton>
+                      )}
+                    </IconTooltip>
                   )}
-                  <IconButton
-                    ref={emojiBtnRef}
-                    aria-pressed={
-                      hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
-                    }
-                    onClick={() => setEmojiBoardTab(EmojiBoardTab.Emoji)}
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                  >
-                    <Icon
-                      src={Icons.Smile}
-                      filled={
-                        hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
-                      }
-                    />
-                  </IconButton>
+                  <IconTooltip label={t('sharedUi.tabs.emoji')} position="Top">
+                    {(triggerRef) => (
+                      <IconButton
+                        ref={(node: HTMLButtonElement | null) => {
+                          triggerRef(node);
+                          emojiBtnRef.current = node;
+                        }}
+                        aria-label={t('sharedUi.tabs.emoji')}
+                        aria-pressed={
+                          hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
+                        }
+                        onClick={() => setEmojiBoardTab(EmojiBoardTab.Emoji)}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                      >
+                        <Icon
+                          src={Icons.Smile}
+                          filled={
+                            hideStickerBtn ? !!emojiBoardTab : emojiBoardTab === EmojiBoardTab.Emoji
+                          }
+                        />
+                      </IconButton>
+                    )}
+                  </IconTooltip>
                 </PopOut>
               )}
             </UseStateProvider>
-            <IconButton
-              onClick={onSubmit}
-              variant="Primary"
-              size="300"
-              radii="300"
-              aria-label={t('composer.sendMessage')}
-            >
-              <Icon src={Icons.Send} />
-            </IconButton>
+            <IconTooltip label={t('composer.sendMessage')} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  onClick={onSubmit}
+                  variant="Primary"
+                  size="300"
+                  radii="300"
+                  aria-label={t('composer.sendMessage')}
+                >
+                  <Icon src={Icons.Send} />
+                </IconButton>
+              )}
+            </IconTooltip>
           </>
         }
         bottom={

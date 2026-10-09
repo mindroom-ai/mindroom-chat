@@ -16,6 +16,7 @@ import { usePinnedEventIds } from '../threads/useThreadPinning';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
 import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
+import { IconTooltip } from '../tooltip/IconTooltip';
 
 type ThreadNavItemProps = {
   entry: CrossRoomThreadIndexEntry;
@@ -47,36 +48,46 @@ function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActions
   return (
     <NavItemOptions className={css.EntryActions} gap="100">
       {!roomPinned && (
-        <IconButton
-          type="button"
-          variant="Background"
-          fill="None"
-          size="300"
-          radii="300"
-          aria-label={t('thread.resolve')}
-          disabled={!canToggle || updating}
-          onClick={() => setResolved(entry.threadRootId, true)}
-        >
-          <Icon src={Icons.CheckTwice} size="50" aria-hidden="true" />
-        </IconButton>
+        <IconTooltip label={t('thread.resolve')} position="Top">
+          {(triggerRef) => (
+            <IconButton
+              ref={triggerRef}
+              type="button"
+              variant="Background"
+              fill="None"
+              size="300"
+              radii="300"
+              aria-label={t('thread.resolve')}
+              disabled={!canToggle || updating}
+              onClick={() => setResolved(entry.threadRootId, true)}
+            >
+              <Icon src={Icons.CheckTwice} size="50" aria-hidden="true" />
+            </IconButton>
+          )}
+        </IconTooltip>
       )}
-      <IconButton
-        className={pinned ? css.EntryPinButtonPinned : undefined}
-        type="button"
-        variant="Background"
-        fill="None"
-        size="300"
-        radii="300"
-        aria-label={pinned ? t('threadNav.unpin') : t('threadNav.pin')}
-        aria-pressed={pinned}
-        onMouseEnter={() => setPinHovered(true)}
-        onMouseLeave={() => setPinHovered(false)}
-        onFocus={() => setPinHovered(true)}
-        onBlur={() => setPinHovered(false)}
-        onClick={onTogglePin}
-      >
-        <Icon src={Icons.Pin} size="50" filled={pinned || pinHovered} aria-hidden="true" />
-      </IconButton>
+      <IconTooltip label={pinned ? t('threadNav.unpin') : t('threadNav.pin')} position="Top">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            className={pinned ? css.EntryPinButtonPinned : undefined}
+            type="button"
+            variant="Background"
+            fill="None"
+            size="300"
+            radii="300"
+            aria-label={pinned ? t('threadNav.unpin') : t('threadNav.pin')}
+            aria-pressed={pinned}
+            onMouseEnter={() => setPinHovered(true)}
+            onMouseLeave={() => setPinHovered(false)}
+            onFocus={() => setPinHovered(true)}
+            onBlur={() => setPinHovered(false)}
+            onClick={onTogglePin}
+          >
+            <Icon src={Icons.Pin} size="50" filled={pinned || pinHovered} aria-hidden="true" />
+          </IconButton>
+        )}
+      </IconTooltip>
     </NavItemOptions>
   );
 }

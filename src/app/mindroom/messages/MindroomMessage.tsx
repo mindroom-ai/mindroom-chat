@@ -7,6 +7,7 @@ import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import {
   AvatarBase,
   BubbleLayout,
@@ -367,50 +368,88 @@ export const Message = as<'div', MessageProps>(
                         />
                       }
                     >
-                      <IconButton
-                        onClick={handleOpenEmojiBoard}
-                        variant="SurfaceVariant"
-                        size="300"
-                        radii="300"
-                        aria-pressed={!!emojiBoardAnchor}
+                      <IconTooltip
+                        label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                        position="Top"
                       >
-                        <Icon src={Icons.SmilePlus} size="100" />
-                      </IconButton>
+                        {(triggerRef) => (
+                          <IconButton
+                            ref={triggerRef}
+                            aria-label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                            onClick={handleOpenEmojiBoard}
+                            variant="SurfaceVariant"
+                            size="300"
+                            radii="300"
+                            aria-pressed={!!emojiBoardAnchor}
+                          >
+                            <Icon src={Icons.SmilePlus} size="100" />
+                          </IconButton>
+                        )}
+                      </IconTooltip>
                     </PopOut>
                   )}
                   {serverEventActionsAllowed && (
-                    <IconButton
-                      onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
-                        onReplyClick(ev, isThreadedMessage)
-                      }
-                      data-event-id={mEvent.getId()}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
+                    <IconTooltip
+                      label={t('mindroomUi.messages.mindroomMessage.reply')}
+                      position="Top"
                     >
-                      <Icon src={Icons.ReplyArrow} size="100" />
-                    </IconButton>
+                      {(triggerRef) => (
+                        <IconButton
+                          ref={triggerRef}
+                          aria-label={t('mindroomUi.messages.mindroomMessage.reply')}
+                          onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
+                            onReplyClick(ev, isThreadedMessage)
+                          }
+                          data-event-id={mEvent.getId()}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon src={Icons.ReplyArrow} size="100" />
+                        </IconButton>
+                      )}
+                    </IconTooltip>
                   )}
                   {serverEventActionsAllowed && !isThreadedMessage && (
-                    <IconButton
-                      onClick={(ev: React.MouseEvent<HTMLButtonElement>) => onReplyClick(ev, true)}
-                      data-event-id={mEvent.getId()}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
+                    <IconTooltip
+                      label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                      position="Top"
                     >
-                      <Icon src={Icons.ThreadPlus} size="100" />
-                    </IconButton>
+                      {(triggerRef) => (
+                        <IconButton
+                          ref={triggerRef}
+                          aria-label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                          onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
+                            onReplyClick(ev, true)
+                          }
+                          data-event-id={mEvent.getId()}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon src={Icons.ThreadPlus} size="100" />
+                        </IconButton>
+                      )}
+                    </IconTooltip>
                   )}
                   {serverEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
-                    <IconButton
-                      onClick={() => onEditId(mEvent.getId())}
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
+                    <IconTooltip
+                      label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                      position="Top"
                     >
-                      <Icon src={Icons.Pencil} size="100" />
-                    </IconButton>
+                      {(triggerRef) => (
+                        <IconButton
+                          ref={triggerRef}
+                          aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                          onClick={() => onEditId(mEvent.getId())}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                        >
+                          <Icon src={Icons.Pencil} size="100" />
+                        </IconButton>
+                      )}
+                    </IconTooltip>
                   )}
                   <PopOut
                     anchor={menuAnchor}
@@ -593,15 +632,24 @@ export const Message = as<'div', MessageProps>(
                       </FocusTrap>
                     }
                   >
-                    <IconButton
-                      variant="SurfaceVariant"
-                      size="300"
-                      radii="300"
-                      onClick={handleOpenMenu}
-                      aria-pressed={!!menuAnchor}
+                    <IconTooltip
+                      label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                      position="Top"
                     >
-                      <Icon src={Icons.VerticalDots} size="100" />
-                    </IconButton>
+                      {(triggerRef) => (
+                        <IconButton
+                          ref={triggerRef}
+                          aria-label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                          variant="SurfaceVariant"
+                          size="300"
+                          radii="300"
+                          onClick={handleOpenMenu}
+                          aria-pressed={!!menuAnchor}
+                        >
+                          <Icon src={Icons.VerticalDots} size="100" />
+                        </IconButton>
+                      )}
+                    </IconTooltip>
                   </PopOut>
                 </Box>
               </Menu>

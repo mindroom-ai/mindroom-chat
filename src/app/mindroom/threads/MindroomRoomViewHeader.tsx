@@ -418,7 +418,12 @@ export function RoomViewHeader({
           <BackRouteHandler enableEdgeSwipe={!threadId}>
             {(onBack) => (
               <Box shrink="No" alignItems="Center">
-                <IconButton fill="None" onClick={onBack}>
+                {/* Phones only, where there is no hover for a tooltip. */}
+                <IconButton
+                  fill="None"
+                  onClick={onBack}
+                  aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
+                >
                   <Icon data-directional src={Icons.ArrowLeft} />
                 </IconButton>
               </Box>

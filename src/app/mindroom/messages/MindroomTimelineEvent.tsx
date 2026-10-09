@@ -1,10 +1,12 @@
 import { Box, Icon, IconButton, Icons, Line, PopOut, RectCords, as } from 'folds';
 import React, { MouseEventHandler, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { useFocusWithin, useHover } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Menu } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import { MessageBase } from '../../components/message';
 import { MessageSpacing } from '../../state/settings';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -40,6 +42,7 @@ export const Event = as<'div', EventProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const [hover, setHover] = useState(false);
     const { hoverProps } = useHover({ onHoverChange: setHover });
@@ -150,15 +153,24 @@ export const Event = as<'div', EventProps>(
                     </FocusTrap>
                   }
                 >
-                  <IconButton
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                    onClick={handleOpenMenu}
-                    aria-pressed={!!menuAnchor}
+                  <IconTooltip
+                    label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                    position="Top"
                   >
-                    <Icon src={Icons.VerticalDots} size="100" />
-                  </IconButton>
+                    {(triggerRef) => (
+                      <IconButton
+                        ref={triggerRef}
+                        aria-label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                        onClick={handleOpenMenu}
+                        aria-pressed={!!menuAnchor}
+                      >
+                        <Icon src={Icons.VerticalDots} size="100" />
+                      </IconButton>
+                    )}
+                  </IconTooltip>
                 </PopOut>
               </Box>
             </Menu>

@@ -294,6 +294,8 @@
     "placeholder": "Send a message...",
     "sendMessage": "Send message",
     "recordVoice": "Record voice message",
+    "formatting": "Formatting",
+    "attach": "Attach files",
     "voicePausedInOtherRoom": "Voice recording paused — finish or discard your unsent recording in {{roomName}}",
     "dropFiles": "Drop Files in \"{{roomName}}\"",
     "dropFilesHint": "Drag and drop files here or click for selection dialog",
@@ -2579,7 +2581,8 @@
         "addReaction": "Add Reaction",
         "reply": "Reply",
         "replyInThread": "Reply in Thread",
-        "editMessage": "Edit Message"
+        "editMessage": "Edit Message",
+        "moreOptions": "More Options"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Request context window",
@@ -2802,7 +2805,8 @@
         "members": "Members",
         "hideMembers": "Hide Members",
         "showMembers": "Show Members",
-        "moreOptions": "More Options"
+        "moreOptions": "More Options",
+        "back": "Back"
       },
       "roomThreadOverview": {
         "addTagFilter": "Add tag filter",

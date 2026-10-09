@@ -5,6 +5,7 @@ import { IContent, MatrixClient } from 'matrix-js-sdk';
 import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 import {
   TUploadItem,
@@ -501,27 +502,30 @@ export const useRoomInputVoice = ({
       />
     ) : null;
 
+  const microphoneLabel = otherPendingVoiceRoomName
+    ? t('composer.voicePausedInOtherRoom', { roomName: otherPendingVoiceRoomName })
+    : t('composer.recordVoice');
   const microphone = (
-    <IconButton
-      onClick={() => {
-        if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft) return;
-        pauseAllMediaElements();
-        setVoiceRecorderOpen(true);
-      }}
-      variant="SurfaceVariant"
-      size="300"
-      radii="300"
-      disabled={voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft}
-      aria-label={
-        otherPendingVoiceRoomName
-          ? t('composer.voicePausedInOtherRoom', {
-              roomName: otherPendingVoiceRoomName,
-            })
-          : t('composer.recordVoice')
-      }
-    >
-      <Icon src={Icons.Mic} />
-    </IconButton>
+    // The tooltip also says why the button is disabled while another room holds a draft.
+    <IconTooltip label={microphoneLabel} position="Top">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          onClick={() => {
+            if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft) return;
+            pauseAllMediaElements();
+            setVoiceRecorderOpen(true);
+          }}
+          variant="SurfaceVariant"
+          size="300"
+          radii="300"
+          disabled={voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft}
+          aria-label={microphoneLabel}
+        >
+          <Icon src={Icons.Mic} />
+        </IconButton>
+      )}
+    </IconTooltip>
   );
 
   return { blocksSubmit, submitIfActive, microphone, renderRecorder };

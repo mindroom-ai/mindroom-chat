@@ -595,6 +595,11 @@ describe('Message local-echo actions', () => {
     expect(getButtonByIcon(renderer, 'ReplyArrow')).toBeDefined();
     expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeDefined();
     expect(getButtonByIcon(renderer, 'SmilePlus')).toBeDefined();
+    // The hover toolbar's icons name themselves, as the menu items do.
+    expect(getButtonByIcon(renderer, 'SmilePlus').props['aria-label']).toBe('Add Reaction');
+    expect(getButtonByIcon(renderer, 'ReplyArrow').props['aria-label']).toBe('Reply');
+    expect(getButtonByIcon(renderer, 'ThreadPlus').props['aria-label']).toBe('Reply in Thread');
+    expect(getButtonByIcon(renderer, 'VerticalDots').props['aria-label']).toBe('More Options');
 
     await openContextMenu(renderer);
 
