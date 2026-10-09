@@ -1,14 +1,20 @@
+import 'fake-indexeddb/auto';
+import { EventEmitter } from 'events';
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import type { Store } from 'jotai/vanilla';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { IDBFactory } from 'fake-indexeddb';
+import { ClientEvent, MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { createSessionId } from '../../state/sessions';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { Membership } from '../../../types/matrix/room';
-import { MindroomInviteNotifications } from './MindroomClientNonUIFeatures';
+import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
+import { CanvasIndexFeature, MindroomInviteNotifications } from './MindroomClientNonUIFeatures';
 
 type MockRoom = {
   roomId: string;
@@ -308,5 +314,105 @@ describe('MindroomInviteNotifications', () => {
         body: 'You have 1 new invitation request.',
       })
     );
+  });
+});
+
+describe('CanvasIndexFeature', () => {
+  const ROOM_ID = '!room:example.org';
+  const AGENT = '@mindroom_planner:example.org';
+  const VIEWER = '@alice:example.org';
+  const HOMESERVER = 'https://example.org';
+  const SESSION = createSessionId(HOMESERVER, VIEWER);
+
+  const showComputerNotice = () =>
+    new MatrixEvent({
+      event_id: '$computer',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Opening the computer.',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+        'io.mindroom.ui_action': {
+          version: 1,
+          action: 'show_computer',
+          requester_id: VIEWER,
+          agent_user_id: AGENT,
+          room_id: ROOM_ID,
+          thread_id: '$thread',
+        },
+      },
+    });
+
+  const createClient = () => {
+    const room = {
+      roomId: ROOM_ID,
+      getMember: (userId: string) => ({ userId, membership: 'join' }),
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+      getThreads: () => [],
+      findEventById: () => undefined,
+    } as unknown as Room;
+    return Object.assign(new EventEmitter(), {
+      getSafeUserId: () => VIEWER,
+      getHomeserverUrl: () => HOMESERVER,
+      getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+      getRooms: () => [room],
+    }) as unknown as MatrixClient & EventEmitter;
+  };
+
+  const settle = async () => {
+    // IndexedDB work finishes over several tasks.
+    for (let index = 0; index < 5; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+  };
+
+  // Canvases are off in every case; only the computer service differs.
+  const recordNoticeWith = async (mindroom: ClientConfig['mindroom']) => {
+    const mx = createClient();
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store: createStore() },
+          React.createElement(
+            ClientConfigProvider,
+            { value: { mindroom } },
+            React.createElement(
+              MatrixClientProvider,
+              { value: mx },
+              React.createElement(CanvasIndexFeature)
+            )
+          )
+        )
+      );
+    });
+    mx.emit(ClientEvent.Event, showComputerNotice());
+    await settle();
+    await act(async () => {
+      renderer?.unmount();
+    });
+    return isComputerShown(SESSION, ROOM_ID, '$thread');
+  };
+
+  beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory();
+  });
+
+  it('records where an agent showed its computer when only a computer service is configured', async () => {
+    expect(await recordNoticeWith({ computers: { apiUrl: 'https://computers.example.org' } })).toBe(
+      true
+    );
+    expect(await listCanvases(SESSION)).toEqual([]);
+  });
+
+  it('records nothing with canvases and computers both off', async () => {
+    expect(await recordNoticeWith({ canvas: { enabled: false } })).toBe(false);
   });
 });

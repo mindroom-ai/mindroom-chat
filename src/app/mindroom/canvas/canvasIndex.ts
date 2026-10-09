@@ -241,7 +241,10 @@ export function useHasListedCanvases(mx: MatrixClient): boolean {
   return listed?.sessionId === sessionId ? listed.value : listedBySession.get(sessionId) ?? false;
 }
 
-/** Keeps the Canvases page's list current with every canvas this client sees, on any route. */
+/**
+ * Keeps the Canvases page's list current with every canvas this client sees, and notes the
+ * conversations where an agent showed its computer, on any route. Runs while canvases or computers are on.
+ */
 export function useCanvasIndexRecorder(mx: MatrixClient, enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return undefined;

@@ -25,6 +25,7 @@
   The recorder parses `show_computer` notices with `readChatUiAction` (sender, requester, membership, echo and edit checks), so a notice for another user, from a non-agent or from a local echo records nothing.
   `useConversationCanvases` and `useComputerShown` read the index through `watchCanvasIndex`, the one subscribe, read and debounce helper the Canvases page now shares.
   The index is still deleted at logout, and a canvas or computer notice this browser never received is not known.
+  The recorder runs where canvases or a computer service are on (`CanvasIndexFeature`, tested in `MindroomClientNonUIFeatures.test.ts`), because the two are separate opt-ins and the header's Computer button needs the notice where only the computer is.
 - Label: the timeline button `mindroomUi.uiActions.openCanvas` reads **Open canvas** (was **Open panel**).
   The 16 other catalogs already named a canvas with their word for "panel" (`mindroomUi.canvases.canvas`), so their `openCanvas` text already matches and did not change; the English catalog and the component's default value did.
   `e2e/agent-canvas.spec.ts` matches the new name.
