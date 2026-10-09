@@ -772,8 +772,6 @@ test("the room header brings back a conversation's canvases: a menu for several,
   await expect(canvasButton).toHaveAccessibleName('Show canvas');
   await canvasButton.click();
   await expect(panel.getByText('Move checklist', { exact: true })).toBeVisible();
-  // One canvas means a direct toggle: no menu ever listed it.
-  await expect(page.getByRole('button', { name: /^Move checklist/ })).toHaveCount(0);
 
   // Back in the first conversation, the menu still lists its two canvases and not the other's.
   await openThread(fixture.rootId, fixture.replyBody);

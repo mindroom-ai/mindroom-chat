@@ -68,7 +68,15 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
     await page.getByRole('button', { name: 'More Options', exact: true }).click();
     await showComputer.click();
   };
-  await expect(showComputer).toHaveCount(0);
+  // Leave Room is always in the menu, so an absent entry is not just a menu that has not rendered.
+  const expectNoShowComputerInMenu = async () => {
+    await page.getByRole('button', { name: 'More Options', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Leave Room', exact: true })).toBeVisible();
+    await expect(showComputer).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Leave Room', exact: true })).toHaveCount(0);
+  };
+  await expectNoShowComputerInMenu();
   await openSettingsFromAccountRail(page);
   await page.getByRole('button', { name: 'General', exact: true }).click();
   const serviceInput = page.getByRole('textbox', { name: 'Computer service URL', exact: true });
@@ -170,7 +178,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   await page.getByRole('button', { name: 'Save computer service', exact: true }).click();
   await page.reload();
   await expect(page.locator('[data-slate-editor="true"]').first()).toBeVisible();
-  await expect(showComputer).toHaveCount(0);
+  await expectNoShowComputerInMenu();
   expect(continuations).toHaveLength(1);
   expect(pageErrors).toEqual([]);
 });
