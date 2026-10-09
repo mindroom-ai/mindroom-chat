@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI によるスレッド要約"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI がスレッドにタイトルを付けました",
+        "updated": "AI がタイトルを更新しました",
+        "edited": "タイトルが編集されました",
+        "previous": "変更前: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "ツール承認リクエスト",
         "submitted": "提出済み",

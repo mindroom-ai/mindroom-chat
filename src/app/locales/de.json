@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "KI-Thread-Zusammenfassung"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "KI hat den Thread benannt",
+        "updated": "KI-Titel aktualisiert",
+        "edited": "Titel bearbeitet",
+        "previous": "Vorher: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Anfrage zur Werkzeuggenehmigung",
         "submitted": "Übermittelt",

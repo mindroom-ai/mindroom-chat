@@ -155,6 +155,7 @@ import {
   useThreadApprovalTimeline,
   useThreadApprovalRowMeasurements,
 } from './useThreadApprovalTimeline';
+import { planThreadSummaryTimeline } from './threadSummaryTimeline';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -608,6 +609,35 @@ export function RoomTimeline({
     eventId,
     focusItem?.eventId
   );
+  // A jumped-to summary stays visible after its temporary highlight ends.
+  const revealedSummaryIds = useRef(new Set<string>());
+  const threadSummaryTimeline = useMemo(() => {
+    if (eventId) revealedSummaryIds.current.add(eventId);
+    if (focusItem?.eventId) revealedSummaryIds.current.add(focusItem.eventId);
+    return planThreadSummaryTimeline(threadEvents, {
+      history: {
+        sdkLoaded: !!threadInitialSdkLoaded,
+        canPaginateBack: canPaginateThreadBack,
+        hasMoreCachedBack: threadHasMoreCachedBack,
+      },
+      revealedEventIds: revealedSummaryIds.current,
+    });
+  }, [
+    threadEvents,
+    threadInitialSdkLoaded,
+    canPaginateThreadBack,
+    threadHasMoreCachedBack,
+    eventId,
+    focusItem?.eventId,
+  ]);
+  // Thread rows that stay in the virtualizer's index space but render nothing.
+  const hiddenThreadEventIds = useMemo(
+    () =>
+      threadSummaryTimeline.hiddenEventIds.size === 0
+        ? approvalTimeline.hiddenEventIds
+        : new Set([...approvalTimeline.hiddenEventIds, ...threadSummaryTimeline.hiddenEventIds]),
+    [approvalTimeline.hiddenEventIds, threadSummaryTimeline.hiddenEventIds]
+  );
   // Pre-download every long-text sidecar of the open thread so replies render
   // their full Markdown without waiting for viewport entry or expansion (the
   // CollapsibleMessage IntersectionObserver gate still covers room-view rows).
@@ -978,10 +1008,10 @@ export function RoomTimeline({
       if (!threadId) return defaultRowEstimate;
       const mEvent = index === undefined ? undefined : threadEvents[index];
       if (!mEvent) return defaultRowEstimate;
-      if (approvalTimeline.hiddenEventIds.has(mEvent.getId() ?? '')) return 0;
+      if (hiddenThreadEventIds.has(mEvent.getId() ?? '')) return 0;
       return estimateThreadEventRowHeight(mEvent, { compact: compactRowLayout });
     },
-    [compactRowLayout, defaultRowEstimate, threadEvents, threadId, approvalTimeline.hiddenEventIds]
+    [compactRowLayout, defaultRowEstimate, threadEvents, threadId, hiddenThreadEventIds]
   );
   // The paginator runs before the ledger controller in hook order because
   // its returned items define the virtualizer's room surface. Record room
@@ -1131,7 +1161,7 @@ export function RoomTimeline({
     getElement: () => virtualInnerRef.current,
     getVirtualItemCount: () => roomTimelineVirtualizer.getVirtualItems().length,
     isRenderableReply: (event) =>
-      !approvalTimeline.hiddenEventIds.has(event.getId() ?? '') &&
+      !hiddenThreadEventIds.has(event.getId() ?? '') &&
       isRenderableEvent(
         event,
         room,
@@ -1149,7 +1179,7 @@ export function RoomTimeline({
   useThreadApprovalRowMeasurements(
     roomTimelineVirtualizer,
     threadEvents,
-    approvalTimeline.hiddenEventIds,
+    hiddenThreadEventIds,
     estimateRoomTimelineItemSize
   );
   const roomTimelineLatestVirtualIndex = useMemo(() => {
@@ -1859,7 +1889,7 @@ export function RoomTimeline({
 
     if (!mEvent || !mEventId) return null;
 
-    if (approvalTimeline.hiddenEventIds.has(mEventId)) return null;
+    if (hiddenThreadEventIds.has(mEventId)) return null;
 
     const eventSender = mEvent.getSender();
     if (eventSender && ignoredUsersSet.has(eventSender)) {
@@ -1912,7 +1942,13 @@ export function RoomTimeline({
             highlighted: focusItem?.index === item && !!focusItem.highlight,
             previousEventId: prevEvent?.getId(),
           },
-          { threadRecordMap, threadEventMap, approvalTimeline, handleOpenReply }
+          {
+            threadRecordMap,
+            threadEventMap,
+            approvalTimeline,
+            threadSummaryTimeline,
+            handleOpenReply,
+          }
         );
     prevEvent = mEvent;
     isPrevRendered = !!eventJSX;
@@ -2067,7 +2103,7 @@ export function RoomTimeline({
       (previousIndex) => threadEvents[previousIndex],
       index,
       (mEvent) => {
-        if (approvalTimeline.hiddenEventIds.has(mEvent.getId() ?? '')) return true;
+        if (hiddenThreadEventIds.has(mEvent.getId() ?? '')) return true;
         const eventSender = mEvent.getSender();
         if (eventSender && ignoredUsersSet.has(eventSender)) return true;
         return mEvent.isRedacted() && !showHiddenEvents;
@@ -2115,9 +2151,7 @@ export function RoomTimeline({
         }}
       >
         {virtualItems
-          .filter(
-            (item) => !approvalTimeline.hiddenEventIds.has(threadEvents[item.index]?.getId() ?? '')
-          )
+          .filter((item) => !hiddenThreadEventIds.has(threadEvents[item.index]?.getId() ?? ''))
           .map((virtualItem) => {
             // Advance grouping/day-divider context even for null-rendering
             // relations, but do not mount and measure an empty tile for every

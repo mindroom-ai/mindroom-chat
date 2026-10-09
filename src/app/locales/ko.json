@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 스레드 요약"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI가 스레드 제목을 지정함",
+        "updated": "AI 제목 업데이트됨",
+        "edited": "제목 수정됨",
+        "previous": "이전: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "도구 승인 요청",
         "submitted": "제출됨",

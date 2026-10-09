@@ -166,6 +166,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ScheduledWrap: 'ScheduledWrap',
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
+  SummaryTextChanged: 'SummaryTextChanged',
   TagsRow: 'TagsRow',
   TitleColumn: 'TitleColumn',
   TitleRow: 'TitleRow',
@@ -371,34 +372,32 @@ describe('ThreadContextBanner rendering', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({ scheduledTaskCount: 0 });
   });
 
+  const bannerElement = (summaryText?: string, threadId = '$root') =>
+    React.createElement(
+      Provider,
+      { store },
+      React.createElement(ThreadContextBanner, {
+        room: {
+          roomId: '!room:example.org',
+          getThread: () => undefined,
+          findEventById: () => undefined,
+          getMember: (userId: string) =>
+            userId === '@alice:example.org'
+              ? { rawDisplayName: 'Alice', name: 'Alice' }
+              : undefined,
+          hasEncryptionStateEvent: () => false,
+          on: vi.fn(),
+          removeListener: vi.fn(),
+        } as unknown as Room,
+        threadId,
+        summaryInfo: summaryText ? { summaryText } : undefined,
+        onExitThread: vi.fn(),
+      })
+    );
   const renderBanner = (
     summaryText?: string,
     createNodeMock?: (element: React.ReactElement) => unknown
-  ) =>
-    create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(ThreadContextBanner, {
-          room: {
-            roomId: '!room:example.org',
-            getThread: () => undefined,
-            findEventById: () => undefined,
-            getMember: (userId: string) =>
-              userId === '@alice:example.org'
-                ? { rawDisplayName: 'Alice', name: 'Alice' }
-                : undefined,
-            hasEncryptionStateEvent: () => false,
-            on: vi.fn(),
-            removeListener: vi.fn(),
-          } as unknown as Room,
-          threadId: '$root',
-          summaryInfo: summaryText ? { summaryText } : undefined,
-          onExitThread: vi.fn(),
-        })
-      ),
-      createNodeMock ? { createNodeMock } : undefined
-    );
+  ) => create(bannerElement(summaryText), createNodeMock ? { createNodeMock } : undefined);
 
   it('opens actions for the active thread and current summary without offering navigation', async () => {
     const renderer = renderBanner('Current summary');
@@ -884,6 +883,22 @@ describe('ThreadContextBanner rendering', () => {
     expect(renderer.root.findByProps({ title: 'A concise thread summary' })).toBeTruthy();
     expect(renderer.root.findByProps({ 'data-thread-context-summary': 'true' })).toBeTruthy();
     expect(tree).not.toContain('Next task');
+  });
+
+  it('tints the summary only when it changes in the same thread', () => {
+    const summaryClass = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.className;
+    let renderer!: ReturnType<typeof renderBanner>;
+    act(() => {
+      renderer = create(bannerElement('Push bug'));
+    });
+    expect(summaryClass(renderer)).toBe('SummaryText');
+
+    act(() => renderer.update(bannerElement('Fixing token refresh')));
+    expect(summaryClass(renderer)).toBe('SummaryText SummaryTextChanged');
+
+    act(() => renderer.update(bannerElement('Another thread', '$other')));
+    expect(summaryClass(renderer)).toBe('SummaryText');
   });
 
   it('shows the next summary once the SDK replaces a redacted latest summary', () => {

@@ -19,6 +19,8 @@ import { MessageEvent, type GetContentCallback } from '../../../../types/matrix/
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../messages/pendingLocalEcho';
 import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
+import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
+import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { CollapsibleMessage } from '../CollapsibleMessage';
 import {
   getCollapsibleMessageMeasurementKey,
@@ -42,6 +44,7 @@ type TimelineMessageBodyProps = {
   kind: TimelineMessageKind;
   policy: TimelineMessageBodyPolicy;
   approvalTimeline: TimelineMessageData['approvalTimeline'];
+  threadSummaryTimeline: TimelineMessageData['threadSummaryTimeline'];
   messageContent?: ReturnType<typeof resolveTimelineMessageContent>;
 };
 
@@ -64,6 +67,7 @@ export function TimelineMessageBody({
   kind,
   policy,
   approvalTimeline,
+  threadSummaryTimeline,
   messageContent,
 }: TimelineMessageBodyProps) {
   const { event, eventId } = row;
@@ -128,6 +132,15 @@ export function TimelineMessageBody({
     }
     if (!encrypted || event.getType() === MessageEvent.RoomMessage) {
       const msgType = event.getContent().msgtype;
+      // The open thread's banner shows its summary, so the summary event itself stays small.
+      const summaryInfo = threadId ? getMindroomThreadSummaryInfo(content) : undefined;
+      if (summaryInfo?.summaryText)
+        return (
+          <MindroomThreadSummaryMarker
+            summaryInfo={summaryInfo}
+            plan={threadSummaryTimeline.markersByEventId.get(eventId)}
+          />
+        );
       const expansion = getExpansion(eventId, content);
       const renderMessage = (loadFullContent = true) => (
         <RenderMessageContent

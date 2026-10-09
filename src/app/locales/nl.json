@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI-threadsamenvatting"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI heeft deze thread een titel gegeven",
+        "updated": "AI-titel bijgewerkt",
+        "edited": "Titel bewerkt",
+        "previous": "Eerder: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Verzoek om gereedschapsgoedkeuring",
         "submitted": "Ingediend",

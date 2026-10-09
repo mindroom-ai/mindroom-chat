@@ -189,6 +189,17 @@ export function ThreadContextBanner({
     pickerDisabled,
     t,
   });
+  // A summary that changes while the thread is open tints briefly; opening a thread does not.
+  const { summaryText } = headerModel;
+  const [shownSummary, setShownSummary] = useState({ threadId, summaryText, changed: false });
+  if (shownSummary.threadId !== threadId || shownSummary.summaryText !== summaryText) {
+    setShownSummary({
+      threadId,
+      summaryText,
+      changed: shownSummary.threadId === threadId && !!shownSummary.summaryText && !!summaryText,
+    });
+  }
+  const summaryChanged = shownSummary.changed;
   const resolvedByDisplayName = getThreadResolverDisplayName(
     room,
     headerRecord.status.resolvedByUserId
@@ -338,9 +349,14 @@ export function ThreadContextBanner({
                 <div className={css.SubtitleRow}>
                   {headerModel.summaryText && (
                     <Text
+                      // Remounting replays the tint for each new summary.
+                      key={headerModel.summaryText}
                       as="span"
                       data-thread-context-summary="true"
-                      className={css.SummaryText}
+                      className={classNames(
+                        css.SummaryText,
+                        summaryChanged && css.SummaryTextChanged
+                      )}
                       size="T300"
                       truncate
                       title={headerModel.summaryText}

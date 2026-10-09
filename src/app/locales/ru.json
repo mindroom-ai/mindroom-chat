@@ -2704,6 +2704,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Сводка ветки от ИИ"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "ИИ дал ветке название",
+        "updated": "ИИ обновил название",
+        "edited": "Название изменено",
+        "previous": "Было: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Запрос на одобрение инструмента",
         "submitted": "Отправлено",

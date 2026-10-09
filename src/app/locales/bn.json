@@ -1363,6 +1363,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "এআই থ্রেড সারাংশ"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "এআই থ্রেডটির শিরোনাম দিয়েছে",
+        "updated": "এআই শিরোনাম হালনাগাদ করেছে",
+        "edited": "শিরোনাম সম্পাদিত",
+        "previous": "আগে: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "argumentsMayDifferBetweenCalls": "প্রতিটি কলের আর্গুমেন্ট আলাদা হতে পারে।",
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "স্বতঃ-অনুমোদন এই থ্রেড, অনুরোধকারী, এজেন্ট এবং টুলে প্রযোজ্য।",

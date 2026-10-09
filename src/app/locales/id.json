@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Ringkasan utas AI"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI memberi judul utas ini",
+        "updated": "Judul AI diperbarui",
+        "edited": "Judul diedit",
+        "previous": "Sebelumnya: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Permintaan persetujuan alat",
         "submitted": "Dikirim",
