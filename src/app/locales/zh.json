@@ -334,6 +334,7 @@
     "resolvedByShort": "由 {{name}}",
     "hideDetails": "隐藏讨论串详情",
     "showDetails": "显示讨论串详情",
+    "backToRoom": "返回房间",
     "replyCount_one": "{{count}} 条回复",
     "replyCount_other": "{{count}} 条回复",
     "aria": {

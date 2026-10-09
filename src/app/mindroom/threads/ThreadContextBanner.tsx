@@ -68,15 +68,18 @@ export interface ThreadContextBannerProps {
 function BannerTooltip({
   label,
   hint,
+  align,
   children,
 }: {
   label: string;
   hint?: string;
+  align?: 'Start' | 'Center' | 'End';
   children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
 }) {
   return (
     <TooltipProvider
       position="Bottom"
+      align={align}
       offset={4}
       tooltip={
         <Tooltip>
@@ -277,9 +280,20 @@ export function ThreadContextBanner({
   const resolverBylineId = useId();
 
   const backButton = (
-    <IconButton size="300" radii="300" onClick={onExitThread}>
-      <Icon data-directional src={Icons.ArrowLeft} />
-    </IconButton>
+    // At the banner's start, so its tooltip opens toward the banner, not past it.
+    <BannerTooltip label={t('thread.backToRoom')} align="Start">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          size="300"
+          radii="300"
+          aria-label={t('thread.backToRoom')}
+          onClick={onExitThread}
+        >
+          <Icon data-directional src={Icons.ArrowLeft} />
+        </IconButton>
+      )}
+    </BannerTooltip>
   );
 
   return (

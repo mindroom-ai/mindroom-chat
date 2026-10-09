@@ -162,7 +162,13 @@ for (const viewport of [
           await expect(menu.locator('[data-thread-action="pin"]')).toBeVisible();
           await menu.locator('[data-thread-action="resolve"]').click();
           // A resolved thread keeps its status in the single row.
-          await expect(banner.getByRole('button', { name: 'Resolved' })).toBeVisible();
+          const resolved = banner.getByRole('button', { name: 'Resolved' });
+          await expect(resolved).toBeVisible();
+          // The row hides the byline, but the button still says who resolved it.
+          const byline = banner.locator('[data-thread-resolution-byline]');
+          await expect(byline).toBeAttached();
+          await expect(byline).toBeHidden();
+          await expect(resolved).toHaveAccessibleDescription(/^Resolved by /);
           // The menu ignores Escape while the change is saving.
           await expect(menu.locator('[data-thread-action="resolve"]')).toBeEnabled();
           await page.keyboard.press('Escape');

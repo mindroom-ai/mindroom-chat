@@ -678,7 +678,7 @@ describe('ThreadContextBanner rendering', () => {
     const banner = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
     const buttons = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAllByType('button').map((button) => button.props['aria-label'] ?? 'Back');
+      renderer.root.findAllByType('button').map((button) => button.props['aria-label']);
     const focusable = { more: { focus: vi.fn() }, show: { focus: vi.fn() } };
     // Inside act, so the settings subscription is live before the click.
     const renderSubscribed = (summary: string) => {
@@ -713,7 +713,7 @@ describe('ThreadContextBanner rendering', () => {
     });
     expect(banner(renderer).props.className).toBe('Banner Collapsed');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
-    expect(buttons(renderer)).toEqual(['Back', 'Show thread details']);
+    expect(buttons(renderer)).toEqual(['Back to room', 'Show thread details']);
     expect(renderer.root.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
     expect(JSON.stringify(renderer.toJSON())).not.toContain('A concise thread summary');
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
@@ -1041,7 +1041,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.findByType('i').props.src).toBe('check');
     expect(resolve.props.className).toBe('CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
-    expect(tips).toEqual(['Thread options', 'Pin thread', 'Resolve']);
+    expect(tips).toEqual(['Back to room', 'Thread options', 'Pin thread', 'Resolve']);
     // The tooltips replace the native ones.
     expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
       []
@@ -1075,9 +1075,10 @@ describe('ThreadContextBanner rendering', () => {
     );
     expect(chip.props.className).toBe('ResolvedButton');
     // Screen readers hear who resolved it from the button too, also where the byline is hidden.
-    expect(chip.props['aria-describedby']).toBe(
-      renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props.id
-    );
+    const bylineId = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props
+      .id;
+    expect(bylineId).toBeTruthy();
+    expect(chip.props['aria-describedby']).toBe(bylineId);
     expect(chip.findByType('i').props.src).toBe('check');
     // Who resolved it, and what pressing it does.
     expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(

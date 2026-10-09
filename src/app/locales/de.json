@@ -334,6 +334,7 @@
     "resolvedByShort": "von {{name}}",
     "hideDetails": "Thread-Details ausblenden",
     "showDetails": "Thread-Details einblenden",
+    "backToRoom": "Zurück zum Raum",
     "replyCount_one": "{{count}} Antwort",
     "replyCount_other": "{{count}} Antworten",
     "aria": {

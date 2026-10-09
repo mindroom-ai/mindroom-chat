@@ -334,6 +334,7 @@
     "resolvedByShort": "oleh {{name}}",
     "hideDetails": "Sembunyikan detail utas",
     "showDetails": "Tampilkan detail utas",
+    "backToRoom": "Kembali ke ruang",
     "replyCount_one": "{{count}} balasan",
     "replyCount_other": "{{count}} balasan",
     "aria": {

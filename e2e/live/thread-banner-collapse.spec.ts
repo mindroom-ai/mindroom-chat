@@ -145,6 +145,7 @@ for (const viewport of [
         const show = banner.getByRole('button', { name: 'Show thread details' });
         await expect(show).toBeFocused();
         await expect(banner.getByRole('button')).toHaveCount(2);
+        await expect(banner.getByRole('button', { name: 'Back to room' })).toBeVisible();
         await expect(banner.locator('[data-thread-context-summary]')).toHaveCount(0);
         await expect(resolve).toHaveCount(0);
         await expect(tag).toHaveCount(0);

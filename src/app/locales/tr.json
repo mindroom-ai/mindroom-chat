@@ -334,6 +334,7 @@
     "resolvedByShort": "{{name}} tarafından",
     "hideDetails": "Konu ayrıntılarını gizle",
     "showDetails": "Konu ayrıntılarını göster",
+    "backToRoom": "Odaya dön",
     "replyCount_one": "{{count}} yanıt",
     "replyCount_other": "{{count}} yanıt",
     "aria": {

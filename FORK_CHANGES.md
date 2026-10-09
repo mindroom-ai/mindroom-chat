@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Name the thread banner's back button; cover the hidden byline (2026-10-09)
+
+- Follow-ups from the reviews of #435, which the owner asked for after merging it.
+- The banner's back button had no accessible name, on `dev` before #435 too; in the collapsed pill it is one of only two controls. It is now "Back to room" (`thread.backToRoom`, in all 17 catalogs, using each catalog's word for room from `roomFallback`), and like the other banner buttons it names itself in a tooltip. That tooltip aligns to the button's start (`BannerTooltip` takes `align`), so it opens over the banner instead of hanging past its edge into the room list.
+- `short-viewport-chrome.spec.ts` now checks, on the short landscape screens, that the resolver byline is attached but hidden and that the Resolved button still has the accessible description "Resolved by …"; this is the case `aria-describedby` was added for in #435.
+- `ThreadContextBanner.test.ts` asserts the byline has an `id` before comparing it to the button's `aria-describedby`, so dropping both no longer passes as `undefined === undefined`. The button and tooltip lists now include "Back to room"; `thread-banner-collapse.spec.ts` finds the pill's back button by that name.
+- Live: all four `short-viewport-chrome.spec.ts` cases and `thread-banner-collapse.spec.ts` on desktop, tablet and phone pass.
+
 ### Collapse the thread banner to a pill; resolver after the title (2026-10-08)
 
 - Why: the owner found the expanded banner out of balance with a resolved thread, and wanted the collapsed banner much smaller, with the toggle moved into More.

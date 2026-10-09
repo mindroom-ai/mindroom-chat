@@ -335,6 +335,7 @@
     "resolvedByShort": "por {{name}}",
     "hideDetails": "Ocultar detalhes do tópico",
     "showDetails": "Mostrar detalhes do tópico",
+    "backToRoom": "Voltar à sala",
     "replyCount_one": "{{count}} resposta",
     "replyCount_other": "{{count}} respostas",
     "aria": {
