@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ClientEvent,
   Direction,
@@ -305,13 +305,37 @@ export const loadCanvasEvent = async (
   }
 };
 
-/** Opens a listed canvas: its request may be gone by now (deleted), and then nothing opens. */
-export const openCanvasById = async (
+/**
+ * Opens a listed canvas for the conversation the header shows. Its request may have to be fetched
+ * or be gone by now (deleted, and then nothing opens), so the answer is dropped when the
+ * conversation changed or the room left meanwhile, and when a later choice superseded it:
+ * `activate` acts on the conversation shown now, not on the one the choice was made in.
+ */
+export function useOpenCanvasById(
   mx: MatrixClient,
   room: Room,
-  canvasId: string,
+  conversation: string,
   activate: (event: MatrixEvent) => void
-): Promise<void> => {
-  const event = await loadCanvasEvent(mx, room, canvasId);
-  if (event) activate(event);
-};
+): (canvasId: string) => void {
+  const latestActivate = useRef(activate);
+  useLayoutEffect(() => {
+    latestActivate.current = activate;
+  }, [activate]);
+  const choice = useRef(0);
+  useEffect(
+    () => () => {
+      choice.current += 1;
+    },
+    [mx, room, conversation]
+  );
+  return useCallback(
+    (canvasId: string) => {
+      choice.current += 1;
+      const mine = choice.current;
+      loadCanvasEvent(mx, room, canvasId).then((event) => {
+        if (event && choice.current === mine) latestActivate.current(event);
+      });
+    },
+    [mx, room]
+  );
+}

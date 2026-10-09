@@ -17,11 +17,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import {
   loadCanvasEvent,
-  openCanvasById,
   recordCanvasEvent,
   useCanvasIndexRecorder,
   useComputerShown,
   useConversationCanvases,
+  useOpenCanvasById,
 } from './canvasIndex';
 import {
   isComputerShown,
@@ -563,24 +563,137 @@ describe('loadCanvasEvent', () => {
   });
 });
 
-describe('openCanvasById', () => {
+describe('useOpenCanvasById', () => {
+  const mountOpener = (
+    mx: MatrixClient,
+    room: Room,
+    activate: (event: MatrixEvent) => void,
+    conversation = 'thread A'
+  ) => {
+    const opener: { open?: (canvasId: string) => void } = {};
+    function Probe({
+      conversation: shown,
+      onActivate,
+    }: {
+      conversation: string;
+      onActivate: typeof activate;
+    }) {
+      opener.open = useOpenCanvasById(mx, room, shown, onActivate);
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe conversation={conversation} onActivate={activate} />));
+    return {
+      open: (canvasId: string) => act(async () => opener.open!(canvasId)),
+      show: (next: string, onActivate = activate) =>
+        act(() => root.render(<Probe conversation={next} onActivate={onActivate} />)),
+      unmount: () => act(() => root.unmount()),
+    };
+  };
+  const deferredRelations = (relations: ReturnType<typeof vi.fn>) => {
+    const pending: Array<(found: { originalEvent: MatrixEvent | null; events: [] }) => void> = [];
+    relations.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+        })
+    );
+    return pending;
+  };
+
   it('hands the loaded request to the opener', async () => {
     const { mx, room, timeline } = fixture();
     const canvas = request();
     timeline.push(canvas);
     const activate = vi.fn();
-    await openCanvasById(mx, room, '$canvas', activate);
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
     expect(activate).toHaveBeenCalledOnce();
     expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
   });
 
   it('opens nothing and throws nothing when the request was deleted', async () => {
     const { mx, room, relations } = fixture();
     const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
     relations.mockResolvedValueOnce({ originalEvent: null, events: [] });
-    await expect(openCanvasById(mx, room, '$canvas', activate)).resolves.toBeUndefined();
+    await opener.open('$canvas');
     relations.mockRejectedValueOnce(new Error('M_NOT_FOUND'));
-    await expect(openCanvasById(mx, room, '$canvas', activate)).resolves.toBeUndefined();
+    await opener.open('$canvas');
     expect(activate).not.toHaveBeenCalled();
+    opener.unmount();
+  });
+
+  it('opens a fetched request in the conversation it was chosen in', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    expect(activate).not.toHaveBeenCalled();
+    const canvas = request();
+    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
+  });
+
+  it('drops a fetched request when another conversation is shown by the time it arrives', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    await opener.show('thread B');
+    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    expect(activate).not.toHaveBeenCalled();
+    // A choice made in the new conversation opens there.
+    await opener.open('$canvas');
+    const canvas = request();
+    await act(async () => pending[1]({ originalEvent: canvas, events: [] }));
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
+  });
+
+  it('drops a fetched request when the room left before it arrived', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    opener.unmount();
+    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('lets a later choice win over an earlier, slower fetch', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$slow');
+    await opener.open('$fast');
+    const fast = request({ id: '$fast' });
+    await act(async () => pending[1]({ originalEvent: fast, events: [] }));
+    await act(async () => pending[0]({ originalEvent: request({ id: '$slow' }), events: [] }));
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(fast);
+    opener.unmount();
+  });
+
+  it('acts through the latest opener', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const first = vi.fn();
+    const second = vi.fn();
+    const opener = mountOpener(mx, room, first);
+    await opener.open('$canvas');
+    await opener.show('thread A', second);
+    const canvas = request();
+    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(canvas);
+    opener.unmount();
   });
 });

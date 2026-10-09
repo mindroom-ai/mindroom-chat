@@ -792,6 +792,56 @@ describe('Room', () => {
       await view.unmount();
     });
 
+    describe('when the canvas must be fetched', () => {
+      const deferredRelations = () => {
+        const pending: Array<(found: { originalEvent: MatrixEvent; events: [] }) => void> = [];
+        mx.relations.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              pending.push(resolve);
+            })
+        );
+        return pending;
+      };
+
+      it('drops a canvas that arrives after the user switched to another conversation', async () => {
+        const pending = deferredRelations();
+        roomState.conversationCanvases = [entry('$listed')];
+        const view = await renderCanvasRoom();
+
+        await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$listed'));
+        expect(pending).toHaveLength(1);
+        // Another thread of the same room, before the fetch answers.
+        roomState.search = '?threadId=%24other';
+        roomState.routedEvent = { getId: () => '$other', isSending: () => false };
+        await view.rerender();
+        await act(async () => pending[0]({ originalEvent: listedCanvas(), events: [] }));
+
+        expect(view.canvasOpen()).toBe(false);
+        expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+        await view.unmount();
+      });
+
+      it('lets a later choice win over an earlier, slower fetch', async () => {
+        const pending = deferredRelations();
+        const slow = listedCanvas();
+        const fast = new MatrixEvent({ ...listedCanvas().event, event_id: '$fast' });
+        roomState.conversationCanvases = [entry('$slow'), entry('$fast')];
+        const view = await renderCanvasRoom();
+
+        await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$slow'));
+        await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$fast'));
+        expect(pending).toHaveLength(2);
+        await act(async () => pending[1]({ originalEvent: fast, events: [] }));
+        expect(roomState.canvasPanelProps?.event).toBe(fast);
+        await act(async () => pending[0]({ originalEvent: slow, events: [] }));
+
+        expect(roomState.canvasPanelProps?.event).toBe(fast);
+        expect(roomState.roomViewProps?.openCanvasId).toBe('$fast');
+        await view.unmount();
+      });
+    });
+
     it('lists no canvases during a call', async () => {
       roomState.conversationCanvases = [entry('$listed')];
       roomState.callEmbed = { mock: 'active call' };
