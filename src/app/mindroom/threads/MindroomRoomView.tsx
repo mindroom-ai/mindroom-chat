@@ -80,6 +80,7 @@ export function RoomView({
   room,
   computerAvailable = false,
   computerOpen = false,
+  computerShown = false,
   onComputerToggle,
   canvasOpen = false,
   canvases,
@@ -96,6 +97,7 @@ export function RoomView({
   room: Room;
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  computerShown?: boolean;
   onComputerToggle?: () => void;
   canvasOpen?: boolean;
   canvases?: CanvasListEntry[];
@@ -214,6 +216,7 @@ export function RoomView({
             hasMindroomAgents={hasMindroomAgents}
             computerAvailable={computerAvailable}
             computerOpen={computerOpen}
+            computerShown={computerShown}
             onComputerToggle={onComputerToggle}
             canvasOpen={canvasOpen}
             canvases={canvases}

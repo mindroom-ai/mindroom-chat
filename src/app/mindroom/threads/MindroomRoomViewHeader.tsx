@@ -94,9 +94,11 @@ type RoomMenuProps = {
   requestClose: () => void;
   // Server-side search cannot read encrypted rooms, so the header leaves this out there.
   onSearchMessages?: () => void;
+  // Set while the header's Computer button is hidden, so the computer stays one click away.
+  onShowComputer?: () => void;
 };
 const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>((props, ref) => {
-  const { room, requestClose, onSearchMessages } = props;
+  const { room, requestClose, onSearchMessages, onShowComputer } = props;
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const powerLevels = usePowerLevelsContext();
@@ -207,6 +209,21 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>((props, ref) => {
             {t('mindroomUi.threads.mindroomRoomViewHeader.invite')}
           </Text>
         </MenuItem>
+        {onShowComputer && (
+          <MenuItem
+            onClick={() => {
+              onShowComputer();
+              requestClose();
+            }}
+            size="300"
+            after={<Icon size="100" src={Icons.Monitor} />}
+            radii="300"
+          >
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+              {t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
+            </Text>
+          </MenuItem>
+        )}
         {!simpleMode && (
           <>
             {onSearchMessages && (
@@ -313,6 +330,7 @@ export function RoomViewHeader({
   hasMindroomAgents,
   computerAvailable = false,
   computerOpen = false,
+  computerShown = false,
   onComputerToggle,
   canvasOpen = false,
   canvases,
@@ -326,6 +344,8 @@ export function RoomViewHeader({
   hasMindroomAgents: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  /** An agent showed its computer in this conversation; until then the room menu opens it. */
+  computerShown?: boolean;
   onComputerToggle?: () => void;
   /** A canvas holds the side panel slot, so Members shows as closed and opening it replaces the canvas. */
   canvasOpen?: boolean;
@@ -399,6 +419,10 @@ export function RoomViewHeader({
     if (canvasOpen) onCanvasClose?.();
     setPeopleDrawer(!membersOpen);
   };
+  // The button follows the computer's use; before then the room menu opens it.
+  const computerReachable = computerAvailable && !!onComputerToggle;
+  const computerButtonShown = computerReachable && (computerOpen || computerShown);
+  const computerMenuItemShown = computerReachable && !computerButtonShown;
   const memberButtonLabel = callView
     ? t('mindroomUi.threads.mindroomRoomViewHeader.members')
     : membersOpen
@@ -505,7 +529,7 @@ export function RoomViewHeader({
                 ? 'mindroomUi.threads.mindroomRoomViewHeader.hideComputer'
                 : 'mindroomUi.threads.mindroomRoomViewHeader.showComputer'
             )}
-            available={computerAvailable && !!onComputerToggle}
+            available={computerButtonShown}
             open={computerOpen}
             onToggle={onComputerToggle ?? (() => undefined)}
           />
@@ -653,6 +677,7 @@ export function RoomViewHeader({
                   room={room}
                   requestClose={() => setMenuAnchor(undefined)}
                   onSearchMessages={encryptedRoom ? undefined : handleSearchClick}
+                  onShowComputer={computerMenuItemShown ? onComputerToggle : undefined}
                 />
               </FocusTrap>
             }

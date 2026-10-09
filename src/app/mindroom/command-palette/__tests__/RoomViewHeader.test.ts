@@ -59,6 +59,7 @@ vi.mock('folds', async (importOriginal) => {
     Icons: {
       ArrowLeft: 'ArrowLeft',
       CheckTwice: 'CheckTwice',
+      Monitor: 'Monitor',
       Pin: 'Pin',
       Search: 'Search',
       Terminal: 'Terminal',
@@ -339,6 +340,7 @@ const renderHeader = async (
     callView?: boolean;
     computerAvailable?: boolean;
     computerOpen?: boolean;
+    computerShown?: boolean;
     onComputerToggle?: () => void;
     canvasOpen?: boolean;
     onCanvasClose?: () => void;
@@ -550,4 +552,87 @@ describe('RoomViewHeader', () => {
       ).toBeDefined();
     }
   );
+
+  describe('computer entry points', () => {
+    const textOf = (node: ReactTestInstance): string =>
+      node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+    const findButton = (renderer: ReturnType<typeof create>, label: string) =>
+      renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label);
+    const findMenuItem = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findAll(
+        (node) =>
+          node.type === 'button' && !node.props['aria-label'] && textOf(node) === 'Show Computer'
+      );
+    const openMoreMenu = (renderer: ReturnType<typeof create>) =>
+      act(async () =>
+        renderer.root
+          .findByProps({ 'aria-label': 'More Options' })
+          .props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
+      );
+
+    const base = { available: true, open: false, shown: false, toggle: true };
+    it.each([
+      { name: 'was never shown', ...base, entry: 'menu' },
+      { name: 'was shown', ...base, shown: true, entry: 'button' },
+      { name: 'is open', ...base, open: true, entry: 'button' },
+      { name: 'is open and was shown', ...base, open: true, shown: true, entry: 'button' },
+      { name: 'is unavailable', ...base, available: false, entry: 'none' },
+      {
+        name: 'is unavailable but was shown',
+        ...base,
+        available: false,
+        shown: true,
+        entry: 'none',
+      },
+      { name: 'cannot be toggled', ...base, shown: true, toggle: false, entry: 'none' },
+    ])(
+      'offers the computer through the $entry when it $name',
+      async ({ available, open, shown, toggle, entry }) => {
+        const { renderer } = await renderHeader(0, {
+          computerAvailable: available,
+          computerOpen: open,
+          computerShown: shown,
+          onComputerToggle: toggle ? vi.fn() : undefined,
+        });
+        await openMoreMenu(renderer);
+
+        const button = [
+          ...findButton(renderer, 'Show Computer'),
+          ...findButton(renderer, 'Hide Computer'),
+        ];
+        expect(button).toHaveLength(entry === 'button' ? 1 : 0);
+        expect(findMenuItem(renderer)).toHaveLength(entry === 'menu' ? 1 : 0);
+        act(() => renderer.unmount());
+      }
+    );
+
+    it('opens the computer from the room menu and closes the menu', async () => {
+      const onComputerToggle = vi.fn();
+      const { renderer } = await renderHeader(0, {
+        computerAvailable: true,
+        onComputerToggle,
+      });
+      await openMoreMenu(renderer);
+      const leaveRoom = () =>
+        renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room');
+      expect(leaveRoom()).toHaveLength(1);
+
+      await act(async () => findMenuItem(renderer)[0].props.onClick());
+
+      expect(onComputerToggle).toHaveBeenCalledOnce();
+      expect(leaveRoom()).toHaveLength(0);
+      act(() => renderer.unmount());
+    });
+
+    it('keeps the room menu entry in Simple Mode', async () => {
+      const { renderer } = await renderHeader(
+        0,
+        { computerAvailable: true, onComputerToggle: vi.fn() },
+        true
+      );
+      await openMoreMenu(renderer);
+      expect(findMenuItem(renderer)).toHaveLength(1);
+      act(() => renderer.unmount());
+    });
+  });
 });

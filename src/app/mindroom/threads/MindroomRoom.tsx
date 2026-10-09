@@ -32,7 +32,7 @@ import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
 import { useRoomCanvasState } from '../canvas/useRoomCanvasState';
 import { useCanvasOpenRequest } from '../canvas/useCanvasOpenRequest';
-import { openCanvasById, useConversationCanvases } from '../canvas/canvasIndex';
+import { openCanvasById, useComputerShown, useConversationCanvases } from '../canvas/canvasIndex';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -264,6 +264,7 @@ export function Room() {
   );
   // The header lists this conversation's canvases, so one closed (or far up the timeline) is one click away.
   const conversationCanvases = useConversationCanvases(mx, room.roomId, computerThreadId);
+  const computerShown = useComputerShown(mx, room.roomId, computerThreadId);
   const openCanvasFromHeader = useCallback(
     (canvasId: string) => {
       openCanvasById(mx, room, canvasId, uiActions.activate);
@@ -295,6 +296,7 @@ export function Room() {
                   room={room}
                   computerAvailable={computerAvailable}
                   computerOpen={effectiveComputerOpen}
+                  computerShown={computerShown}
                   onComputerToggle={handleComputerToggle}
                   canvasOpen={canvasShown}
                   canvases={canvasEnabled && !callActive ? conversationCanvases : undefined}

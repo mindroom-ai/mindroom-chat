@@ -9,6 +9,7 @@ import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 type MockRoomViewProps = {
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  computerShown?: boolean;
   canvasOpen?: boolean;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
@@ -103,6 +104,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       loadedEvents: new Map<string, MatrixEvent>(),
       conversationCanvases: [] as CanvasListEntry[],
       conversationCanvasesFor: [] as unknown[][],
+      computerShown: false,
+      computerShownFor: [] as unknown[][],
       roomViewProps: undefined as MockRoomViewProps | undefined,
       setPeopleDrawer: vi.fn(),
     },
@@ -225,6 +228,10 @@ vi.mock('../../canvas/canvasIndex', async (importOriginal) => ({
     roomState.conversationCanvasesFor.push(conversation);
     return roomState.conversationCanvases;
   },
+  useComputerShown: (...conversation: unknown[]) => {
+    roomState.computerShownFor.push(conversation);
+    return roomState.computerShown;
+  },
 }));
 
 vi.mock('../../../hooks/useClientConfig', () => ({
@@ -340,6 +347,8 @@ describe('Room', () => {
     roomState.loadedEvents.clear();
     roomState.conversationCanvases = [];
     roomState.conversationCanvasesFor = [];
+    roomState.computerShown = false;
+    roomState.computerShownFor = [];
     mx.relations.mockReset();
     roomState.roomViewProps = undefined;
     roomState.setPeopleDrawer.mockReset();
@@ -805,6 +814,27 @@ describe('Room', () => {
       expect(roomState.roomViewProps?.canvases).toBeUndefined();
       await act(async () => renderer!.unmount());
     });
+  });
+
+  it('tells the header whether this conversation showed its computer', async () => {
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
+    ] as never;
+    roomState.search = '?threadId=%24thread';
+    roomState.computerShown = true;
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+
+    expect(roomState.computerShownFor.at(-1)).toEqual([mx, room.roomId, '$thread']);
+    expect(roomState.roomViewProps?.computerShown).toBe(true);
+    roomState.computerShown = false;
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomState.roomViewProps?.computerShown).toBe(false);
+    await act(async () => renderer!.unmount());
   });
 
   it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {

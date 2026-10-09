@@ -62,7 +62,12 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
       '?threadId=' +
       encodeURIComponent(fixture.thread_id)
   );
+  // No agent showed this computer, so only the room menu offers it; the header button follows once it is open.
   const showComputer = page.getByRole('button', { name: 'Show Computer', exact: true });
+  const showComputerFromMenu = async () => {
+    await page.getByRole('button', { name: 'More Options', exact: true }).click();
+    await showComputer.click();
+  };
   await expect(showComputer).toHaveCount(0);
   await openSettingsFromAccountRail(page);
   await page.getByRole('button', { name: 'General', exact: true }).click();
@@ -73,6 +78,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
     page.getByRole('status').filter({ hasText: 'Computer service saved.' })
   ).toBeVisible();
   await page.reload();
+  await page.getByRole('button', { name: 'More Options', exact: true }).click();
   await expect(showComputer).toBeVisible();
   await showComputer.click();
   const panel = page.getByRole('complementary', { name: 'Computer panel' });
@@ -139,7 +145,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   expect((await eventResponse.json()).sender).toBe(fixture.viewer.user_id);
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   await expect(panel).toHaveCount(0);
-  await showComputer.click();
+  await showComputerFromMenu();
   await expect(panel.getByText('Watch mode', { exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });

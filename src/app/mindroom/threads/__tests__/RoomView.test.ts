@@ -1558,6 +1558,50 @@ describe('RoomView', () => {
     expect(headerClass()).toBe('room-header room-header-in-thread');
   });
 
+  it('forwards the computer and canvas state to the room header', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('header-panels'));
+    const onComputerToggle = vi.fn();
+    const onCanvasOpen = vi.fn();
+    const onCanvasClose = vi.fn();
+    const canvases = [{ canvasId: '$canvas' }];
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, {
+          room: room as never,
+          computerAvailable: true,
+          computerOpen: true,
+          computerShown: true,
+          onComputerToggle,
+          canvasOpen: true,
+          canvases: canvases as never,
+          openCanvasId: '$canvas',
+          onCanvasOpen,
+          onCanvasClose,
+          threadId: '$thread',
+        })
+      );
+    });
+
+    const header = renderer!.root.find(
+      (node) => node.type === 'div' && 'hasMindroomAgents' in node.props
+    );
+    expect(header.props).toMatchObject({
+      computerAvailable: true,
+      computerOpen: true,
+      computerShown: true,
+      onComputerToggle,
+      canvasOpen: true,
+      canvases,
+      openCanvasId: '$canvas',
+      onCanvasOpen,
+      onCanvasClose,
+      threadId: '$thread',
+    });
+  });
+
   it('does not move computer keyboard input into the room composer', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom('!computer-focus:example.org');
