@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Undo typing one word at a time in the composer (2026-10-09)
+
+- Why: the owner found Cmd/Ctrl+Z in the composer too aggressive; after typing a sentence, one undo removed the whole sentence.
+- Cause: slate-history's `shouldMerge` folds every `insert_text` that continues the previous one into the same undo batch, with no word or pause boundary, so an unbroken run of typing was a single undo step.
+- `withWordUndo` (`components/editor/history.ts`), applied directly around `withHistory` in `useEditor`, starts a new batch when a keystroke begins a word after whitespace. Undo after "hello world again" leaves "hello world ", then "hello ", then nothing; redo steps forward the same way. It only acts on the first saved op of a change (selection ops before it are fine; slate-react's Android input manager and `beforeinput` often select first) and only when no caller set a merge mode, so a paste or a transform that inserts several words stays one step. Deleting is unchanged. Every composer and the message editor share `useEditor`.
+- Known limit: slate-history keeps the last 100 undo steps, which is now about 100 words of typing instead of 100 runs.
+- Tests: `history.test.ts` covers word steps, a single word, runs of spaces, a pasted sentence, a multi-word transform, a keystroke that selects first, a caller's `withMerging`, and redo. The new fixture `e2e/fixtures/composer-undo.html` mounts the real `CustomEditor`; `composer-undo.spec.ts` types with the keyboard and presses Ctrl/Cmd+Z. It fails without `withWordUndo` (the first undo empties the composer) and passes in Chromium, and in Firefox and WebKit in the `mcr.microsoft.com/playwright:v1.58.2-noble` container. The spec leaves redo to the unit test: Playwright's Desktop Safari sends a Mac user agent, so slate-react wants Cmd+Shift+Z there while a Linux host presses Ctrl.
+
 ### Name icon buttons in tooltips across the chat surfaces (2026-10-08)
 
 - Why: after the thread banner's buttons got folds tooltips (#435, #437), the owner asked for the same tooltip on the other buttons where it makes sense. Many icon-only buttons on the chat surfaces had neither a tooltip nor an accessible name: the message hover toolbar (react, reply, reply in thread, edit, More) and the composer's attach, formatting, sticker and emoji buttons.

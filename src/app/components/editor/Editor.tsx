@@ -20,6 +20,7 @@ import {
 } from 'slate-react';
 import { withHistory } from 'slate-history';
 import { BlockType } from './types';
+import { withWordUndo } from './history';
 import { RenderElement, RenderLeaf } from './Elements';
 import { CustomElement } from './slate';
 import { useLiquidGlass } from '../glass/liquid/useLiquidGlass';
@@ -60,7 +61,9 @@ const withVoid = (editor: Editor): Editor => {
 };
 
 export const useEditor = (): Editor => {
-  const [editor] = useState(() => withInline(withVoid(withReact(withHistory(createEditor())))));
+  const [editor] = useState(() =>
+    withInline(withVoid(withReact(withWordUndo(withHistory(createEditor())))))
+  );
   return editor;
 };
 
