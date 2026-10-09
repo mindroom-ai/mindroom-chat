@@ -2,6 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
@@ -226,6 +227,11 @@ vi.mock('../../rooms/ArchiveRoomMenuItem', () => ({
   ArchiveRoomMenuItem: () => null,
 }));
 
+vi.mock('../../canvas/CanvasHeaderButton', () => ({
+  CanvasHeaderButton: (props: Record<string, unknown>) =>
+    React.createElement('mock-canvas-header-button', props),
+}));
+
 vi.mock('../../threads/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ availableViewModes: [], setViewMode: vi.fn(), viewMode: 'threaded' }),
 }));
@@ -343,6 +349,9 @@ const renderHeader = async (
     computerShown?: boolean;
     onComputerToggle?: () => void;
     canvasOpen?: boolean;
+    canvases?: CanvasListEntry[];
+    openCanvasId?: string;
+    onCanvasOpen?: (canvasId: string) => void;
     onCanvasClose?: () => void;
     threadId?: string;
   } = {},
@@ -552,6 +561,60 @@ describe('RoomViewHeader', () => {
       ).toBeDefined();
     }
   );
+
+  describe('canvas entry point', () => {
+    const listed: CanvasListEntry[] = [
+      {
+        canvasId: '$canvas',
+        roomId: '!room:example.org',
+        threadId: '$thread',
+        agentUserId: '@mindroom_helper:example.org',
+        title: 'Plans',
+        createdTs: 1,
+        revisionId: '$canvas',
+        updatedTs: 1,
+        shared: false,
+      },
+    ];
+    const findCanvasButtons = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findAllByType('mock-canvas-header-button' as never);
+
+    it('renders the Canvas button with the conversation’s canvases and its handlers', async () => {
+      const onCanvasOpen = vi.fn();
+      const onCanvasClose = vi.fn();
+      const { renderer } = await renderHeader(0, {
+        canvases: listed,
+        openCanvasId: '$canvas',
+        onCanvasOpen,
+        onCanvasClose,
+      });
+
+      const buttons = findCanvasButtons(renderer);
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].props).toEqual({
+        canvases: listed,
+        openCanvasId: '$canvas',
+        onOpen: onCanvasOpen,
+        onClose: onCanvasClose,
+      });
+      act(() => renderer.unmount());
+    });
+
+    it.each([
+      { name: 'there are no canvases', canvases: undefined, open: vi.fn(), close: vi.fn() },
+      { name: 'it cannot open one', canvases: listed, open: undefined, close: vi.fn() },
+      { name: 'it cannot close one', canvases: listed, open: vi.fn(), close: undefined },
+    ])('renders no Canvas button when $name', async ({ canvases, open, close }) => {
+      const { renderer } = await renderHeader(0, {
+        canvases,
+        onCanvasOpen: open,
+        onCanvasClose: close,
+      });
+
+      expect(findCanvasButtons(renderer)).toHaveLength(0);
+      act(() => renderer.unmount());
+    });
+  });
 
   describe('computer entry points', () => {
     const textOf = (node: ReactTestInstance): string =>
