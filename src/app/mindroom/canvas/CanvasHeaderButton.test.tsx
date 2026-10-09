@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
-import { Text } from 'folds';
+import { Scroll, Text } from 'folds';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasHeaderButton } from './CanvasHeaderButton';
 import type { CanvasListEntry } from './canvasIndexStore';
@@ -119,6 +119,33 @@ describe('CanvasHeaderButton', () => {
     // The update time is there for telling same-named canvases apart.
     const time = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' });
     expect(nodeText(items[0])).toBe(`Budget${time.format(3_000)}`);
+  });
+
+  it('keeps a long menu inside the viewport and scrolls its choices', () => {
+    const many = Array.from({ length: 30 }, (_, index) =>
+      canvas(`$many${index}`, `Canvas ${index}`, 30_000 - index)
+    );
+    const { renderer } = render({ canvases: many });
+    openMenu(renderer);
+
+    // The choices sit in a scroll area, below the title, inside a menu with a viewport-bound height.
+    const scroll = renderer.root.findByType(Scroll);
+    expect(scroll.findAll((node) => menuItems(renderer).includes(node))).toHaveLength(30);
+    let bounded: ReactTestInstance | null = scroll.parent;
+    while (bounded && !bounded.props.style?.maxHeight) bounded = bounded.parent;
+    expect(bounded?.props.style).toMatchObject({
+      display: 'flex',
+      flexDirection: 'column',
+      maxHeight: expect.stringContaining('100vh'),
+      maxWidth: expect.anything(),
+    });
+  });
+
+  it('is a plain button, as the room’s other header menus are', () => {
+    const { renderer } = render({ canvases: [budget, roadmap] });
+
+    expect(trigger(renderer).props['aria-haspopup']).toBeUndefined();
+    expect(trigger(renderer).props['aria-expanded']).toBeUndefined();
   });
 
   it('opens the chosen canvas and closes the menu', () => {

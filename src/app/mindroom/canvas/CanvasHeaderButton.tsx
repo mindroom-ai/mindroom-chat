@@ -9,6 +9,7 @@ import {
   Icons,
   PopOut,
   RectCords,
+  Scroll,
   Text,
   toRem,
   Tooltip,
@@ -18,6 +19,15 @@ import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { stopPropagation } from '../../utils/keyboard';
 import type { CanvasListEntry } from './canvasIndexStore';
+
+// A conversation can have many canvases: the menu stays inside the viewport and scrolls its choices.
+export const CANVAS_MENU_STYLE = {
+  display: 'flex',
+  flexDirection: 'column',
+  maxWidth: toRem(320),
+  width: '100vw',
+  maxHeight: `calc(100vh - ${toRem(96)})`,
+} as const;
 
 type CanvasHeaderButtonProps = {
   /** The conversation's canvases, in the order to list them. */
@@ -81,8 +91,6 @@ export function CanvasHeaderButton({
             onClick={handleClick}
             aria-label={label}
             aria-pressed={open}
-            aria-haspopup={several ? 'menu' : undefined}
-            aria-expanded={several ? !!menuAnchor : undefined}
           >
             <Icon size="400" src={Icons.Category} filled={open} />
           </IconButton>
@@ -103,36 +111,44 @@ export function CanvasHeaderButton({
               escapeDeactivates: stopPropagation,
             }}
           >
-            <Menu style={{ maxWidth: toRem(320), width: '100vw' }}>
-              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+            <Menu style={CANVAS_MENU_STYLE}>
+              <Box
+                direction="Column"
+                gap="100"
+                style={{ padding: config.space.S100, minHeight: 0 }}
+              >
                 <Box style={{ padding: `${config.space.S100} ${config.space.S200}` }}>
                   <Text size="L400">{label}</Text>
                 </Box>
-                {canvases.map((canvas) => {
-                  const current = canvas.canvasId === openCanvasId;
-                  return (
-                    <MenuItem
-                      key={canvas.canvasId}
-                      onClick={() => {
-                        setMenuAnchor(undefined);
-                        toggle(canvas.canvasId);
-                      }}
-                      aria-current={current ? 'true' : undefined}
-                      size="400"
-                      radii="300"
-                      after={current ? <Icon size="100" src={Icons.Check} /> : undefined}
-                    >
-                      <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
-                        <Text as="span" size="T300" truncate>
-                          {canvas.title}
-                        </Text>
-                        <Text as="span" size="T200" priority="300">
-                          {date.format(canvas.updatedTs)}
-                        </Text>
-                      </Box>
-                    </MenuItem>
-                  );
-                })}
+                <Scroll size="300" hideTrack visibility="Hover">
+                  <Box direction="Column" gap="100">
+                    {canvases.map((canvas) => {
+                      const current = canvas.canvasId === openCanvasId;
+                      return (
+                        <MenuItem
+                          key={canvas.canvasId}
+                          onClick={() => {
+                            setMenuAnchor(undefined);
+                            toggle(canvas.canvasId);
+                          }}
+                          aria-current={current ? 'true' : undefined}
+                          size="400"
+                          radii="300"
+                          after={current ? <Icon size="100" src={Icons.Check} /> : undefined}
+                        >
+                          <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
+                            <Text as="span" size="T300" truncate>
+                              {canvas.title}
+                            </Text>
+                            <Text as="span" size="T200" priority="300">
+                              {date.format(canvas.updatedTs)}
+                            </Text>
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
+                  </Box>
+                </Scroll>
               </Box>
             </Menu>
           </FocusTrap>

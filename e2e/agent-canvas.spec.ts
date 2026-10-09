@@ -779,4 +779,26 @@ test("the room header brings back a conversation's canvases: a menu for several,
   await canvasButton.click();
   await expect(choices).toHaveCount(2);
   await expect(page.getByRole('button', { name: /^Move checklist/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(choices).toHaveCount(0);
+
+  // Many canvases on a short window: the menu stays on screen and scrolls to the oldest choice.
+  for (let index = 1; index <= 10; index += 1) {
+    await sendCanvas(`Extra ${index}`, fixture.rootId);
+    await expect(panel.getByText(`Extra ${index}`, { exact: true })).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1600, height: 480 });
+  const allChoices = page.getByRole('button', { name: /^(Packing list|Travel plan|Extra \d+)/ });
+  await canvasButton.click();
+  await expect(allChoices).toHaveCount(12);
+  const menu = allChoices.first().locator('xpath=ancestor::*[contains(@style, "max-height")][1]');
+  const menuBox = await menu.boundingBox();
+  expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(480);
+  const oldest = allChoices.filter({ hasText: 'Packing list' });
+  await expect(oldest).not.toBeInViewport();
+  await oldest.scrollIntoViewIfNeeded();
+  await expect(oldest).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('canvas-header-menu-short.png') });
+  await oldest.click();
+  await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
 });
