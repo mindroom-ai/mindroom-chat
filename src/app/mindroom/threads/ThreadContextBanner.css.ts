@@ -3,13 +3,15 @@ import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
 
-// Collapsed, and always on short screens, the banner keeps one row: back,
-// title and the actions menu, which already offers tags, pinning and resolving.
+// Collapsed, the banner shrinks to a pill with back and Show details at the
+// start of the row, so the messages show beside it.
 export const Collapsed = style({});
-// Doubled in the media query to match `${Collapsed} &` over single-class rules.
-// Spread it only into styles without selectors or media queries of their own.
+
+// Short screens keep one row: back, title and the actions menu, which already
+// offers tags, pinning and resolving. Doubled to beat single-class rules
+// regardless of stylesheet order. Spread it only into styles without media
+// queries of their own.
 const whenCompact = (compact: CSSProperties) => ({
-  selectors: { [`${Collapsed} &`]: compact },
   '@media': { [shortViewport]: { selectors: { '&&': compact } } },
 });
 
@@ -19,19 +21,11 @@ const BannerLayout = style({
   borderRadius: config.radii.R400,
   flexShrink: 0,
   pointerEvents: 'auto',
-  selectors: { [`&${Collapsed}`]: { padding: config.space.S200 } },
+  selectors: { [`&${Collapsed}`]: { width: 'fit-content', padding: config.space.S100 } },
   '@media': { [shortViewport]: { padding: config.space.S200 } },
 });
 
-export const CompactHidden = style({
-  selectors: { [`${Collapsed} &`]: { display: 'none' } },
-  '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
-});
-
-// The collapse toggle has nothing to fold on a short screen.
-export const ShortViewportHidden = style({
-  '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
-});
+export const CompactHidden = style(whenCompact({ display: 'none' }));
 
 export const Banner = style([
   BannerLayout,
@@ -60,20 +54,21 @@ export const TitleRow = style({
 });
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
-const eyebrowRowFolded = `:not(:has(> :not(${CompactHidden})))`;
 export const EyebrowRow = style({
   flexShrink: 0,
-  selectors: {
-    '&:empty': { display: 'none' },
-    [`${Collapsed} &${eyebrowRowFolded}`]: { display: 'none' },
-  },
+  selectors: { '&:empty': { display: 'none' } },
   '@media': {
-    [shortViewport]: { selectors: { [`&${eyebrowRowFolded}`]: { display: 'none' } } },
+    [shortViewport]: {
+      selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
+    },
   },
 });
 
-// Compact, the approvals chip that stays in view sits beside the title.
+// On short screens the approvals chip that stays in view sits beside the title.
+// A size container, so the byline can wrap by the room the title has: a tablet
+// with the room list open leaves as little as a phone.
 export const TitleColumn = style({
+  containerType: 'inline-size',
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
@@ -101,8 +96,7 @@ export const DesktopOnlyTags = style({
   },
 });
 
-// Compact, the title and a scheduled task share one line and truncate together.
-const subtitleRowInline = { marginTop: 0, flexWrap: 'nowrap' } as const;
+// On short screens the title and a scheduled task share one line and truncate together.
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -112,10 +106,9 @@ export const SubtitleRow = style({
   flexWrap: 'wrap',
   selectors: {
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
-    [`${Collapsed} &`]: subtitleRowInline,
   },
   '@media': {
-    [shortViewport]: subtitleRowInline,
+    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap' },
     // Narrow screens move the tags to their own row, which can leave the
     // eyebrow row with nothing showing.
     '(max-width: 480px)': {
@@ -126,24 +119,36 @@ export const SubtitleRow = style({
   },
 });
 
-export const ResolveChip = style({
-  marginInlineStart: 'auto',
+// Who resolved the thread follows the title like the schedule does; below
+// the chip it made that column taller than the buttons beside it. Where the
+// title column is narrow (phones, tablets with the room list) the byline would
+// squeeze the title to an ellipsis, so it takes a line of its own there.
+const narrowTitle = '(max-width: 26rem)';
+export const ResolutionByline = style({
+  display: 'inline-flex',
+  minWidth: 0,
   flexShrink: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: config.space.S100,
+  '@container': { [narrowTitle]: { flexBasis: '100%' } },
 });
 
-export const ResolutionByline = style({
+// The separator only makes sense beside the title.
+export const ResolutionBylineDot = style({
+  '@container': { [narrowTitle]: { display: 'none' } },
+});
+
+export const ResolverName = style({
+  minWidth: 0,
   maxWidth: '10rem',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  '@media': {
-    '(max-width: 480px)': {
-      maxWidth: '6rem',
-    },
+  '@container': { [narrowTitle]: { maxWidth: 'none' } },
+});
+
+// Resolved, the check fills like a set pin: solid green, as the chip was.
+export const ResolvedButton = style({
+  backgroundColor: color.Success.Main,
+  color: color.Success.OnMain,
+  selectors: {
+    '&:hover, &:focus-visible': { backgroundColor: color.Success.MainHover },
+    '&:active': { backgroundColor: color.Success.MainActive },
   },
 });
 
@@ -185,6 +190,9 @@ export const SummaryText = style({
   display: 'block',
   fontWeight: config.fontWeight.W500,
   minWidth: 0,
+  // Fills the row only as far as the title is long, so a schedule or a
+  // byline follows it instead of the far end of the row.
+  maxWidth: 'max-content',
   flex: '1 1 0',
   overflow: 'hidden',
   textOverflow: 'ellipsis',

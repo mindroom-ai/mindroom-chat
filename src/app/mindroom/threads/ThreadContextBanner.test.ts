@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
@@ -28,7 +28,14 @@ vi.mock('./ThreadActionsMenu', () => ({
   },
 }));
 
-vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalPermissions: () => null }));
+vi.mock('../messages/ThreadApprovalControls', () => ({
+  ThreadApprovalPermissions: () => React.createElement('b', { 'data-approvals': 'true' }),
+}));
+
+// The optical glass needs a real DOM node; pass the banner's own ref through.
+vi.mock('../../components/glass/liquid/useLiquidGlass', () => ({
+  useLiquidGlass: (ref?: unknown) => ref,
+}));
 
 const pinningMocks = vi.hoisted(() => ({
   pinnedEventIds: [] as string[],
@@ -71,7 +78,23 @@ vi.mock('folds', async () => {
     IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
       ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
     ),
-    Icons: { ArrowLeft: 'arrow-left' },
+    Icons: { ArrowLeft: 'arrow-left', Check: 'check', ChevronBottom: 'chevron-bottom' },
+    Tooltip: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement('div', null, children),
+    // Render the tooltip beside its trigger, so tests can read what it says.
+    TooltipProvider: ({
+      tooltip,
+      children,
+    }: {
+      tooltip: React.ReactNode;
+      children: (triggerRef: () => void) => React.ReactNode;
+    }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        children(() => undefined),
+        React.createElement('div', { role: 'tooltip' }, tooltip)
+      ),
     Text: ({
       as,
       children,
@@ -132,11 +155,12 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MetadataDot: 'MetadataDot',
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
-  ResolveChip: 'ResolveChip',
   ResolutionByline: 'ResolutionByline',
+  ResolutionBylineDot: 'ResolutionBylineDot',
+  ResolverName: 'ResolverName',
+  ResolvedButton: 'ResolvedButton',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
-  ShortViewportHidden: 'ShortViewportHidden',
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
   TagsRow: 'TagsRow',
@@ -311,6 +335,13 @@ describe('ThreadContextBanner data flow', () => {
   });
 });
 
+// The text a node renders, its pieces joined by spaces.
+const text = (node: ReactTestInstance): string =>
+  node.children
+    .map((child) => (typeof child === 'string' ? child : text(child)))
+    .filter(Boolean)
+    .join(' ');
+
 describe('ThreadContextBanner rendering', () => {
   let store: ReturnType<typeof createStore>;
   beforeEach(() => {
@@ -389,7 +420,9 @@ describe('ThreadContextBanner rendering', () => {
     expect(selectedMenu.anchor).toEqual({ x: 120, y: 230, width: 0, height: 0 });
     expect(selectedMenu.onOpenThread).toBeUndefined();
     act(() => selectedMenu.onClose());
+    // Focusing inside the sticky banner must not scroll the thread to its top.
     expect(target.focus).toHaveBeenCalledOnce();
+    expect(target.focus).toHaveBeenCalledWith({ preventScroll: true });
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
     renderer.unmount();
   });
@@ -526,7 +559,7 @@ describe('ThreadContextBanner rendering', () => {
     admin.unmount();
   });
 
-  it('keeps only back, title and More when collapsed or on short screens', () => {
+  it('keeps only back, title and More on short screens', () => {
     pinningMocks.canPin = true;
     bannerMocks.useThreadTags.mockReturnValue({
       tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
@@ -544,10 +577,15 @@ describe('ThreadContextBanner rendering', () => {
               .split(' ')
               .includes('CompactHidden')
         )
-        .map((node) => node.props['aria-label'] ?? String(node.props.className).split(' ')[0]);
+        .map((node) => {
+          const [className] = String(node.props.className).split(' ');
+          return (
+            node.props['aria-label'] ?? (className === 'CompactHidden' ? text(node) : className)
+          );
+        });
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'ResolveChip', 'MobileOnlyTags']);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve', 'MobileOnlyTags']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBeUndefined();
     summarized.unmount();
@@ -559,22 +597,21 @@ describe('ThreadContextBanner rendering', () => {
 
     // A resolved status stays in view; only its byline goes.
     bannerMocks.useThreadTags.mockReturnValue({
-      tags: {},
+      tags: { [RESOLVED_TAG]: { set_by: '@alice:example.org', set_at: ISO_1 } },
       displayTags: [],
       isResolved: true,
       canEdit: false,
       availableTags: [],
     });
     const resolved = renderBanner('A concise thread summary');
-    expect(JSON.stringify(resolved.toJSON())).toContain('Resolved');
-    expect(hidden(resolved)).not.toContain('ResolveChip');
+    expect(JSON.stringify(resolved.toJSON())).toContain('"Resolved"');
+    expect(hidden(resolved)).toEqual(['Resolved by Alice', 'Pin thread']);
     resolved.unmount();
 
     // The solid pin replaces Resolve and stays in view.
     pinningMocks.pinnedEventIds = ['$root'];
     const pinned = renderBanner('A concise thread summary');
-    expect(hidden(pinned)).not.toContain('ResolveChip');
-    expect(hidden(pinned)).not.toContain('Unpin thread');
+    expect(hidden(pinned)).toEqual([]);
     expect(pinned.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
     pinned.unmount();
   });
@@ -629,7 +666,7 @@ describe('ThreadContextBanner rendering', () => {
     tagged.unmount();
   });
 
-  it('collapses to one row and keeps that for the next thread', () => {
+  it('collapses to back and Show details from More and keeps that for the next thread', async () => {
     pinningMocks.canPin = true;
     bannerMocks.useThreadTags.mockReturnValue({
       tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
@@ -640,95 +677,109 @@ describe('ThreadContextBanner rendering', () => {
     });
     const banner = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
+    const buttons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAllByType('button').map((button) => button.props['aria-label'] ?? 'Back');
+    const focusable = { more: { focus: vi.fn() }, show: { focus: vi.fn() } };
     // Inside act, so the settings subscription is live before the click.
     const renderSubscribed = (summary: string) => {
       let renderer: ReturnType<typeof renderBanner> | undefined;
       act(() => {
-        renderer = renderBanner(summary);
+        renderer = renderBanner(summary, (element) => {
+          if (element.props['aria-haspopup'] === 'menu') return focusable.more;
+          if (element.props['aria-label'] === 'Show thread details') return focusable.show;
+          return null;
+        });
       });
       return renderer!;
+    };
+    const openMore = async (renderer: ReturnType<typeof renderBanner>) => {
+      const trigger = {
+        focus: vi.fn(),
+        isConnected: true,
+        getBoundingClientRect: () => ({ x: 20, y: 30, width: 30, height: 30 }),
+      };
+      const more = renderer.root.findByProps({ 'aria-label': 'Thread options' });
+      await act(async () => more.props.onClick({ currentTarget: trigger }));
+      return menuProps.mock.calls.at(-1)![0];
     };
 
     const renderer = renderSubscribed('A concise thread summary');
     expect(banner(renderer).props.className).toBe('Banner');
-    const hide = renderer.root.findByProps({ 'aria-label': 'Hide thread details' });
-    // A short screen already shows the single row.
-    expect(hide.props.className).toBe('ShortViewportHidden');
-    act(() => hide.props.onClick());
+    expect(buttons(renderer)).not.toContain('Hide thread details');
+    const menu = await openMore(renderer);
+    act(() => {
+      menu.onHideDetails();
+      menu.onClose();
+    });
     expect(banner(renderer).props.className).toBe('Banner Collapsed');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
+    expect(buttons(renderer)).toEqual(['Back', 'Show thread details']);
+    expect(renderer.root.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('A concise thread summary');
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
+    // Hide unmounted with the menu; focus moves to the button that undoes it.
+    expect(focusable.show.focus).toHaveBeenCalledOnce();
+    expect(focusable.show.focus).toHaveBeenCalledWith({ preventScroll: true });
     renderer.unmount();
 
     const next = renderSubscribed('Another thread');
     expect(banner(next).props.className).toBe('Banner Collapsed');
+    expect(focusable.show.focus).toHaveBeenCalledOnce();
+    focusable.more.focus.mockClear();
     act(() => next.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
     expect(banner(next).props.className).toBe('Banner');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(false);
+    expect(focusable.more.focus).toHaveBeenCalledOnce();
+    expect(focusable.more.focus).toHaveBeenCalledWith({ preventScroll: true });
     next.unmount();
   });
 
-  it('offers the collapse toggle only when collapsing hides something', () => {
-    const toggles = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAll(
-        (node) =>
-          typeof node.type === 'string' && node.props['aria-label'] === 'Hide thread details'
-      );
-    const readOnly = { tags: {}, displayTags: [], canEdit: false, availableTags: [] };
-
-    // A pinned thread shows the pin instead of Resolve, and the pin stays.
-    pinningMocks.pinnedEventIds = ['$root'];
-    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: false });
-    const pinned = renderBanner('A concise thread summary');
-    expect(toggles(pinned)).toHaveLength(0);
-    pinned.unmount();
-    // Collapsed elsewhere, it keeps the full layout: without a chevron it could not expand.
+  it('focuses the banner on expanding while More waits for a confirmed root', () => {
     store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
-    const pinnedCollapsed = renderBanner('A concise thread summary');
-    expect(
-      pinnedCollapsed.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className
-    ).toBe('Banner');
-    pinnedCollapsed.unmount();
-    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: false });
-
-    // Tags fold away.
-    bannerMocks.useThreadTags.mockReturnValue({
-      ...readOnly,
-      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
-      displayTags: ['bug'],
-      isResolved: false,
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    const banner = { focus: vi.fn() };
+    const more = { focus: vi.fn(), disabled: true };
+    let renderer: ReturnType<typeof renderBanner> | undefined;
+    act(() => {
+      renderer = renderBanner('A concise thread summary', (element) => {
+        if (element.props['data-thread-context-banner']) return banner;
+        if (element.props['aria-haspopup'] === 'menu') return more;
+        return null;
+      });
     });
-    const tagged = renderBanner('A concise thread summary');
-    expect(toggles(tagged)).toHaveLength(1);
-    tagged.unmount();
+    act(() => renderer!.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
+    expect(more.focus).not.toHaveBeenCalled();
+    expect(banner.focus).toHaveBeenCalledWith({ preventScroll: true });
+    renderer!.unmount();
+  });
 
-    // A resolved status stays; a pin button folds away.
-    pinningMocks.pinnedEventIds = [];
-    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: true });
-    const resolved = renderBanner('A concise thread summary');
-    expect(toggles(resolved)).toHaveLength(0);
-    resolved.unmount();
-    // The resolver byline below it folds away.
+  it('keeps the resolved tint and offers no Hide item once collapsed', async () => {
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
     bannerMocks.useThreadTags.mockReturnValue({
-      ...readOnly,
       tags: { [RESOLVED_TAG]: { set_by: '@alice:example.org', set_at: ISO_1 } },
+      displayTags: [],
       isResolved: true,
+      canEdit: true,
+      availableTags: [],
     });
-    const attributed = renderBanner('A concise thread summary');
-    expect(attributed.root.findByProps({ 'data-thread-resolution-byline': 'true' })).toBeDefined();
-    expect(toggles(attributed)).toHaveLength(1);
-    attributed.unmount();
-    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: true });
-    pinningMocks.canPin = true;
-    const pinnable = renderBanner('A concise thread summary');
-    expect(toggles(pinnable)).toHaveLength(1);
-    pinnable.unmount();
-
-    // Resolve folds away.
-    pinningMocks.canPin = false;
-    bannerMocks.useThreadTags.mockReturnValue({ ...readOnly, isResolved: false });
-    const open = renderBanner('A concise thread summary');
-    expect(toggles(open)).toHaveLength(1);
-    open.unmount();
+    const renderer = renderBanner('A concise thread summary');
+    const banner = renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
+    expect(banner.props.className).toBe('BannerResolved Collapsed');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('"Resolved"');
+    // Right-clicking the pill still opens the actions, without Hide.
+    const target = { focus: vi.fn(), isConnected: true, contains: () => true };
+    await act(async () =>
+      banner.props.onContextMenu({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        clientX: 10,
+        clientY: 10,
+        currentTarget: target,
+        target,
+      })
+    );
+    expect(menuProps.mock.calls.at(-1)![0].onHideDetails).toBeUndefined();
+    renderer.unmount();
   });
 
   it('hides the metadata row when no summary or scheduled task info exists', () => {
@@ -764,9 +815,7 @@ describe('ThreadContextBanner rendering', () => {
     const renderer = renderBanner();
     const resolveButton = renderer.root
       .findAllByType('button')
-      .find((button) =>
-        button.findAllByType('span').some((child) => child.children.includes('Resolve'))
-      );
+      .find((button) => button.props['aria-label'] === 'Resolve');
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain('+ tag');
     expect(resolveButton?.props.disabled).toBe(true);
@@ -976,7 +1025,31 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).toContain('Resolve');
   });
 
-  it('shows resolver attribution below the resolved button and in its tooltip', () => {
+  it('offers Resolve as an icon button named by a tooltip, like More and the pin', () => {
+    pinningMocks.canPin = true;
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    const renderer = renderBanner('A concise thread summary');
+    const resolve = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Resolve'
+    );
+    expect(resolve.findByType('i').props.src).toBe('check');
+    expect(resolve.props.className).toBe('CompactHidden');
+    const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
+    expect(tips).toEqual(['Thread options', 'Pin thread', 'Resolve']);
+    // The tooltips replace the native ones.
+    expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
+      []
+    );
+    renderer.unmount();
+  });
+
+  it('shows who resolved the thread after its title, not below the chip', () => {
     bannerMocks.useThreadTags.mockReturnValue({
       tags: {
         resolved: {
@@ -995,10 +1068,71 @@ describe('ThreadContextBanner rendering', () => {
       scheduledDisplayText: undefined,
     });
 
-    const renderer = renderBanner();
+    const renderer = renderBanner('A concise thread summary');
 
-    expect(renderer.root.findByProps({ title: 'Resolved by Alice' })).toBeTruthy();
+    const chip = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Resolved'
+    );
+    expect(chip.props.className).toBe('ResolvedButton');
+    // Screen readers hear who resolved it from the button too, also where the byline is hidden.
+    expect(chip.props['aria-describedby']).toBe(
+      renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props.id
+    );
+    expect(chip.findByType('i').props.src).toBe('check');
+    // Who resolved it, and what pressing it does.
+    expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(
+      'Resolved by Alice Reopen thread'
+    );
     const byline = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' });
-    expect(byline.findByType('span').children).toContain('by Alice');
+    expect(byline.props['aria-label']).toBe('Resolved by Alice');
+    expect(byline.findByProps({ className: 'ResolverName' }).findByType('span').children).toContain(
+      'by Alice'
+    );
+    const subtitle = renderer.root.findByProps({ className: 'SubtitleRow' });
+    expect(
+      subtitle.findAllByProps({ 'data-thread-resolution-byline': 'true' }, { deep: false })
+    ).toHaveLength(1);
+    expect(
+      byline.findAllByProps({ className: 'MetadataDot ResolutionBylineDot' }, { deep: false })
+    ).toHaveLength(1);
+    expect(
+      chip.findAllByProps({ 'data-thread-resolution-byline': 'true' }, { deep: false })
+    ).toHaveLength(0);
+    renderer.unmount();
+
+    // Untitled, the byline needs no separator and the eyebrow stays.
+    const untitled = renderBanner();
+    expect(JSON.stringify(untitled.toJSON())).toContain('Thread View');
+    const untitledByline = untitled.root.findByProps({ 'data-thread-resolution-byline': 'true' });
+    expect(
+      untitledByline.findAllByProps(
+        { className: 'MetadataDot ResolutionBylineDot' },
+        { deep: false }
+      )
+    ).toHaveLength(0);
+    untitled.unmount();
+
+    // A reader can't reopen, so the tooltip only says who resolved it.
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: { resolved: { set_by: '@alice:example.org', set_at: '2026-08-27T12:00:00.000Z' } },
+      displayTags: [],
+      isResolved: true,
+      canEdit: false,
+      availableTags: [],
+    });
+    const reader = renderBanner('A concise thread summary');
+    expect(reader.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(
+      'Resolved by Alice'
+    );
+    expect(JSON.stringify(reader.toJSON())).not.toContain('Reopen thread');
+    reader.unmount();
+
+    // A pinned thread shows the pin instead of the chip and its byline.
+    pinningMocks.pinnedEventIds = ['$root'];
+    const pinned = renderBanner('A concise thread summary');
+    expect(
+      pinned.root.findAllByProps({ 'data-thread-resolution-byline': 'true' }, { deep: false })
+    ).toHaveLength(0);
+    pinned.unmount();
   });
 });

@@ -47,6 +47,8 @@ export type ThreadActionsMenuProps = {
   anchor: RectCords;
   onClose: () => void;
   onOpenThread?: () => void;
+  /** The open thread's banner offers to collapse itself here. */
+  onHideDetails?: () => void;
 };
 export function ThreadActionsMenu({
   room,
@@ -55,6 +57,7 @@ export function ThreadActionsMenu({
   anchor,
   onClose,
   onOpenThread,
+  onHideDetails,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -237,6 +240,11 @@ export function ThreadActionsMenu({
                         else setError(true);
                       })
                       .catch(() => setError(true));
+                  })}
+                {onHideDetails &&
+                  item('hideDetails', t('thread.hideDetails'), Icons.ChevronTop, () => {
+                    onHideDetails();
+                    onClose();
                   })}
                 {failure}
               </Box>
