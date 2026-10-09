@@ -83,14 +83,12 @@ const setupSupportedRecorder = () => {
 vi.mock('folds', () => {
   const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children);
-  const Button = ({
-    children,
-    onClick,
-    ...props
-  }: {
-    children?: React.ReactNode;
-    onClick?: () => void;
-  }) => React.createElement('button', { ...props, onClick }, children);
+  const Button = React.forwardRef<
+    HTMLButtonElement,
+    { children?: React.ReactNode; onClick?: () => void }
+  >(({ children, onClick, ...props }, ref) =>
+    React.createElement('button', { ...props, onClick, ref }, children)
+  );
 
   return {
     Box: Wrapper,
@@ -111,6 +109,10 @@ vi.mock('folds', () => {
     OverlayCenter: Wrapper,
     Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
     Text: Wrapper,
+    // Icon buttons name themselves in tooltips; render only the trigger.
+    Tooltip: () => null,
+    TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+      children(() => undefined),
     config: {
       space: new Proxy(
         {},

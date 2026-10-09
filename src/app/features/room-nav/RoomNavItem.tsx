@@ -60,6 +60,7 @@ import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
+import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
 
 type RoomNavItemMenuProps = {
   room: Room;
@@ -208,17 +209,22 @@ function CallChatToggle() {
   const [chat, setChat] = useAtom(callChatAtom);
 
   return (
-    <IconButton
-      onClick={() => setChat(!chat)}
-      aria-pressed={chat}
-      aria-label={t('featureUi.roomNav.roomNavItem.toggleChat')}
-      variant="Background"
-      fill="None"
-      size="300"
-      radii="300"
-    >
-      <Icon size="50" src={Icons.Message} filled={chat} />
-    </IconButton>
+    <IconTooltip label={t('featureUi.roomNav.roomNavItem.toggleChat')} position="Top">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          onClick={() => setChat(!chat)}
+          aria-pressed={chat}
+          aria-label={t('featureUi.roomNav.roomNavItem.toggleChat')}
+          variant="Background"
+          fill="None"
+          size="300"
+          radii="300"
+        >
+          <Icon size="50" src={Icons.Message} filled={chat} />
+        </IconButton>
+      )}
+    </IconTooltip>
   );
 }
 
@@ -436,18 +442,23 @@ export function RoomNavItem({
               </FocusTrap>
             }
           >
-            <IconButton
-              onClick={handleOpenMenu}
-              aria-pressed={!!menuAnchor}
-              aria-controls={`menu-${room.roomId}`}
-              aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-              variant="Background"
-              fill="None"
-              size="300"
-              radii="300"
-            >
-              <Icon size="50" src={Icons.VerticalDots} />
-            </IconButton>
+            <IconTooltip label={t('featureUi.roomNav.roomNavItem.moreOptions')} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  onClick={handleOpenMenu}
+                  aria-pressed={!!menuAnchor}
+                  aria-controls={`menu-${room.roomId}`}
+                  aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+                  variant="Background"
+                  fill="None"
+                  size="300"
+                  radii="300"
+                >
+                  <Icon size="50" src={Icons.VerticalDots} />
+                </IconButton>
+              )}
+            </IconTooltip>
           </PopOut>
         </NavItemOptions>
       )}

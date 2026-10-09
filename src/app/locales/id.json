@@ -294,6 +294,8 @@
     "placeholder": "Ketik pesan...",
     "sendMessage": "Kirim pesan",
     "recordVoice": "Rekam pesan suara",
+    "formatting": "Pemformatan",
+    "attach": "Lampirkan file",
     "voicePausedInOtherRoom": "Rekaman suara dijeda — selesaikan atau buang rekaman yang belum terkirim di {{roomName}}",
     "dropFiles": "Letakkan file di \"{{roomName}}\"",
     "dropFilesHint": "Seret dan letakkan file di sini atau klik untuk membuka dialog pemilihan",
@@ -334,6 +336,7 @@
     "resolvedByShort": "oleh {{name}}",
     "hideDetails": "Sembunyikan detail utas",
     "showDetails": "Tampilkan detail utas",
+    "backToRoom": "Kembali ke ruang",
     "replyCount_one": "{{count}} balasan",
     "replyCount_other": "{{count}} balasan",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "Tambahkan reaksi",
         "reply": "Balas",
         "replyInThread": "Balas di utas",
-        "editMessage": "Edit pesan"
+        "editMessage": "Edit pesan",
+        "moreOptions": "Opsi lainnya"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Jendela konteks permintaan",
@@ -2804,7 +2808,8 @@
         "members": "Anggota",
         "hideMembers": "Sembunyikan anggota",
         "showMembers": "Tampilkan anggota",
-        "moreOptions": "Opsi lainnya"
+        "moreOptions": "Opsi lainnya",
+        "back": "Kembali"
       },
       "roomThreadOverview": {
         "addTagFilter": "Tambahkan filter tag",

@@ -294,6 +294,8 @@
     "placeholder": "메시지를 입력하세요...",
     "sendMessage": "메시지 보내기",
     "recordVoice": "음성 메시지 녹음",
+    "formatting": "서식",
+    "attach": "파일 첨부",
     "voicePausedInOtherRoom": "음성 녹음 일시 중지됨 — {{roomName}}에서 보내지 않은 녹음을 완료하거나 삭제하세요",
     "dropFiles": "\"{{roomName}}\"에 파일 놓기",
     "dropFilesHint": "여기에 파일을 끌어다 놓거나 클릭하여 파일을 선택하세요",
@@ -334,6 +336,7 @@
     "resolvedByShort": "{{name}} 님",
     "hideDetails": "스레드 세부 정보 숨기기",
     "showDetails": "스레드 세부 정보 표시",
+    "backToRoom": "방으로 돌아가기",
     "replyCount_one": "답글 {{count}}개",
     "replyCount_other": "답글 {{count}}개",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "반응 추가",
         "reply": "답글",
         "replyInThread": "스레드에서 답글",
-        "editMessage": "메시지 수정"
+        "editMessage": "메시지 수정",
+        "moreOptions": "추가 옵션"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "요청 컨텍스트 창",
@@ -2804,7 +2808,8 @@
         "members": "멤버",
         "hideMembers": "멤버 숨기기",
         "showMembers": "멤버 표시",
-        "moreOptions": "추가 옵션"
+        "moreOptions": "추가 옵션",
+        "back": "뒤로"
       },
       "roomThreadOverview": {
         "addTagFilter": "태그 필터 추가",

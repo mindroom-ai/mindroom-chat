@@ -12,6 +12,7 @@ import * as css from './RoomViewTyping.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
 import { IconButton } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
 
 export type RoomViewTypingProps = {
   room: Room;
@@ -106,14 +107,19 @@ export const RoomViewTyping = as<'div', RoomViewTypingProps>(
             />
           )}
         </Text>
-        <IconButton
-          title={t('featureUi.room.typing.dropTypingStatus')}
-          size="300"
-          radii="Pill"
-          onClick={handleDropAll}
-        >
-          <Icon size="50" src={Icons.Cross} />
-        </IconButton>
+        <IconTooltip label={t('featureUi.room.typing.dropTypingStatus')} position="Top">
+          {(triggerRef) => (
+            <IconButton
+              ref={triggerRef}
+              aria-label={t('featureUi.room.typing.dropTypingStatus')}
+              size="300"
+              radii="Pill"
+              onClick={handleDropAll}
+            >
+              <Icon size="50" src={Icons.Cross} />
+            </IconButton>
+          )}
+        </IconTooltip>
       </Box>
     );
   }

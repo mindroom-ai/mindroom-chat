@@ -22,6 +22,7 @@ import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import * as css from '../../features/room/message/styles.css';
 import { ReactionViewer } from '../../features/room/reaction-viewer';
 import { stopPropagation } from '../../utils/keyboard';
+import { IconTooltip } from '../tooltip/IconTooltip';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -45,18 +46,21 @@ export const MessageQuickReactions = as<'div', MessageQuickReactionsProps>(
           ref={ref}
         >
           {recentEmojis.map((emoji) => (
-            <IconButton
-              key={emoji.unicode}
-              className={css.MessageQuickReaction}
-              size="300"
-              variant="SurfaceVariant"
-              radii="Pill"
-              title={emoji.shortcode}
-              aria-label={emoji.shortcode}
-              onClick={() => onReaction(emoji.unicode, emoji.shortcode)}
-            >
-              <Text size="T500">{emoji.unicode}</Text>
-            </IconButton>
+            <IconTooltip key={emoji.unicode} label={emoji.shortcode} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  className={css.MessageQuickReaction}
+                  size="300"
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  aria-label={emoji.shortcode}
+                  onClick={() => onReaction(emoji.unicode, emoji.shortcode)}
+                >
+                  <Text size="T500">{emoji.unicode}</Text>
+                </IconButton>
+              )}
+            </IconTooltip>
           ))}
         </Box>
         <Line size="300" />

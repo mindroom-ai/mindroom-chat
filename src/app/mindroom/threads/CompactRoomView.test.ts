@@ -113,6 +113,10 @@ vi.mock('folds', async (importOriginal) => {
     Button: 'button',
     IconButton: 'button',
     Text: passthrough,
+    // Icon buttons name themselves in tooltips; render only the trigger.
+    Tooltip: () => null,
+    TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+      children(() => undefined),
   };
 });
 

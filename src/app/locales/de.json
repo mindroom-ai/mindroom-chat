@@ -294,6 +294,8 @@
     "placeholder": "Nachricht senden...",
     "sendMessage": "Nachricht senden",
     "recordVoice": "Sprachnachricht aufnehmen",
+    "formatting": "Formatierung",
+    "attach": "Dateien anhängen",
     "voicePausedInOtherRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme in {{roomName}} ab oder verwirf sie",
     "dropFiles": "Dateien in \"{{roomName}}\" ablegen",
     "dropFilesHint": "Dateien hierher ziehen oder klicken, um den Auswahldialog zu öffnen",
@@ -334,6 +336,7 @@
     "resolvedByShort": "von {{name}}",
     "hideDetails": "Thread-Details ausblenden",
     "showDetails": "Thread-Details einblenden",
+    "backToRoom": "Zurück zum Raum",
     "replyCount_one": "{{count}} Antwort",
     "replyCount_other": "{{count}} Antworten",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "Reaktion hinzufügen",
         "reply": "Antworten",
         "replyInThread": "Im Thread antworten",
-        "editMessage": "Nachricht bearbeiten"
+        "editMessage": "Nachricht bearbeiten",
+        "moreOptions": "Weitere Optionen"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Kontextfenster der Anfrage",
@@ -2804,7 +2808,8 @@
         "members": "Mitglieder",
         "hideMembers": "Mitglieder ausblenden",
         "showMembers": "Mitglieder anzeigen",
-        "moreOptions": "Weitere Optionen"
+        "moreOptions": "Weitere Optionen",
+        "back": "Zurück"
       },
       "roomThreadOverview": {
         "addTagFilter": "Tag-Filter hinzufügen",

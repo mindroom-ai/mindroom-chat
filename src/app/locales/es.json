@@ -295,6 +295,8 @@
     "placeholder": "Envía un mensaje...",
     "sendMessage": "Enviar mensaje",
     "recordVoice": "Grabar mensaje de voz",
+    "formatting": "Formato",
+    "attach": "Adjuntar archivos",
     "voicePausedInOtherRoom": "La grabación de voz está en pausa; termina o descarta la grabación sin enviar de {{roomName}}",
     "dropFiles": "Suelta archivos en «{{roomName}}»",
     "dropFilesHint": "Arrastra y suelta archivos aquí o haz clic para abrir el cuadro de selección",
@@ -335,6 +337,7 @@
     "resolvedByShort": "por {{name}}",
     "hideDetails": "Ocultar detalles del hilo",
     "showDetails": "Mostrar detalles del hilo",
+    "backToRoom": "Volver a la sala",
     "replyCount_one": "{{count}} respuesta",
     "replyCount_other": "{{count}} respuestas",
     "aria": {
@@ -2612,7 +2615,8 @@
         "addReaction": "Añadir reacción",
         "reply": "Responder",
         "replyInThread": "Responder en el hilo",
-        "editMessage": "Editar mensaje"
+        "editMessage": "Editar mensaje",
+        "moreOptions": "Más opciones"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Ventana de contexto de la solicitud",
@@ -2851,7 +2855,8 @@
         "members": "Miembros",
         "hideMembers": "Ocultar miembros",
         "showMembers": "Mostrar miembros",
-        "moreOptions": "Más opciones"
+        "moreOptions": "Más opciones",
+        "back": "Atrás"
       },
       "roomThreadOverview": {
         "addTagFilter": "Añadir filtro de etiqueta",

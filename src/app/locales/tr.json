@@ -294,6 +294,8 @@
     "placeholder": "Bir mesaj yazın...",
     "sendMessage": "Mesaj gönder",
     "recordVoice": "Sesli mesaj kaydet",
+    "formatting": "Biçimlendirme",
+    "attach": "Dosya ekle",
     "voicePausedInOtherRoom": "Ses kaydı duraklatıldı — {{roomName}} odasındaki gönderilmemiş kaydınızı tamamlayın veya silin",
     "dropFiles": "Dosyaları \"{{roomName}}\" odasına bırakın",
     "dropFilesHint": "Dosyaları buraya sürükleyip bırakın veya seçim penceresini açmak için tıklayın",
@@ -334,6 +336,7 @@
     "resolvedByShort": "{{name}} tarafından",
     "hideDetails": "Konu ayrıntılarını gizle",
     "showDetails": "Konu ayrıntılarını göster",
+    "backToRoom": "Odaya dön",
     "replyCount_one": "{{count}} yanıt",
     "replyCount_other": "{{count}} yanıt",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "Tepki ekle",
         "reply": "Yanıtla",
         "replyInThread": "Konuda yanıtla",
-        "editMessage": "Mesajı düzenle"
+        "editMessage": "Mesajı düzenle",
+        "moreOptions": "Diğer seçenekler"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "İstek bağlam penceresi",
@@ -2804,7 +2808,8 @@
         "members": "Üyeler",
         "hideMembers": "Üyeleri gizle",
         "showMembers": "Üyeleri göster",
-        "moreOptions": "Diğer seçenekler"
+        "moreOptions": "Diğer seçenekler",
+        "back": "Geri"
       },
       "roomThreadOverview": {
         "addTagFilter": "Etiket filtresi ekle",

@@ -21,6 +21,7 @@ import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadCont
 import { settingsAtom } from '../../state/settings';
 
 const menuProps = vi.hoisted(() => vi.fn());
+const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
 vi.mock('./ThreadActionsMenu', () => ({
   ThreadActionsMenu: (props: unknown) => {
     menuProps(props);
@@ -84,16 +85,18 @@ vi.mock('folds', async () => {
     // Render the tooltip beside its trigger, so tests can read what it says.
     TooltipProvider: ({
       tooltip,
+      align,
       children,
     }: {
       tooltip: React.ReactNode;
+      align?: string;
       children: (triggerRef: () => void) => React.ReactNode;
     }) =>
       React.createElement(
         React.Fragment,
         null,
         children(() => undefined),
-        React.createElement('div', { role: 'tooltip' }, tooltip)
+        React.createElement('div', { role: 'tooltip', 'data-align': align }, tooltip)
       ),
     Text: ({
       as,
@@ -179,7 +182,7 @@ vi.mock('./ThreadIndicator.css', () => ({
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test-utils/i18n');
   return {
-    useTranslation: () => ({ t: translateFromEn }),
+    useTranslation: () => ({ t: translateFromEn, i18n: { dir: textDirection } }),
   };
 });
 
@@ -678,7 +681,7 @@ describe('ThreadContextBanner rendering', () => {
     const banner = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
     const buttons = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAllByType('button').map((button) => button.props['aria-label'] ?? 'Back');
+      renderer.root.findAllByType('button').map((button) => button.props['aria-label']);
     const focusable = { more: { focus: vi.fn() }, show: { focus: vi.fn() } };
     // Inside act, so the settings subscription is live before the click.
     const renderSubscribed = (summary: string) => {
@@ -713,7 +716,7 @@ describe('ThreadContextBanner rendering', () => {
     });
     expect(banner(renderer).props.className).toBe('Banner Collapsed');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
-    expect(buttons(renderer)).toEqual(['Back', 'Show thread details']);
+    expect(buttons(renderer)).toEqual(['Back to room', 'Show thread details']);
     expect(renderer.root.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
     expect(JSON.stringify(renderer.toJSON())).not.toContain('A concise thread summary');
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
@@ -1041,12 +1044,26 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.findByType('i').props.src).toBe('check');
     expect(resolve.props.className).toBe('CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
-    expect(tips).toEqual(['Thread options', 'Pin thread', 'Resolve']);
+    expect(tips).toEqual(['Back to room', 'Thread options', 'Pin thread', 'Resolve']);
     // The tooltips replace the native ones.
     expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
       []
     );
     renderer.unmount();
+  });
+
+  it('opens the back tooltip toward the banner in either text direction', () => {
+    const backTip = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back to room')!
+        .props['data-align'];
+    const ltr = renderBanner('A concise thread summary');
+    expect(backTip(ltr)).toBe('Start');
+    ltr.unmount();
+    textDirection.mockReturnValue('rtl');
+    const rtl = renderBanner('A concise thread summary');
+    expect(backTip(rtl)).toBe('End');
+    rtl.unmount();
+    textDirection.mockReturnValue('ltr');
   });
 
   it('shows who resolved the thread after its title, not below the chip', () => {
@@ -1075,9 +1092,10 @@ describe('ThreadContextBanner rendering', () => {
     );
     expect(chip.props.className).toBe('ResolvedButton');
     // Screen readers hear who resolved it from the button too, also where the byline is hidden.
-    expect(chip.props['aria-describedby']).toBe(
-      renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props.id
-    );
+    const bylineId = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props
+      .id;
+    expect(bylineId).toBeTruthy();
+    expect(chip.props['aria-describedby']).toBe(bylineId);
     expect(chip.findByType('i').props.src).toBe('check');
     // Who resolved it, and what pressing it does.
     expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(

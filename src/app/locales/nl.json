@@ -294,6 +294,8 @@
     "placeholder": "Stuur een bericht...",
     "sendMessage": "Bericht verzenden",
     "recordVoice": "Spraakbericht opnemen",
+    "formatting": "Opmaak",
+    "attach": "Bestanden bijvoegen",
     "voicePausedInOtherRoom": "Spraakopname gepauzeerd — maak je niet-verzonden opname in {{roomName}} af of verwijder deze",
     "dropFiles": "Bestanden neerzetten in \"{{roomName}}\"",
     "dropFilesHint": "Sleep bestanden hierheen of klik om het selectievenster te openen",
@@ -334,6 +336,7 @@
     "resolvedByShort": "door {{name}}",
     "hideDetails": "Threaddetails verbergen",
     "showDetails": "Threaddetails tonen",
+    "backToRoom": "Terug naar de kamer",
     "replyCount_one": "{{count}} antwoord",
     "replyCount_other": "{{count}} antwoorden",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "Reactie toevoegen",
         "reply": "Beantwoorden",
         "replyInThread": "Beantwoorden in thread",
-        "editMessage": "Bericht bewerken"
+        "editMessage": "Bericht bewerken",
+        "moreOptions": "Meer opties"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "Contextvenster van verzoek",
@@ -2804,7 +2808,8 @@
         "members": "Leden",
         "hideMembers": "Leden verbergen",
         "showMembers": "Leden weergeven",
-        "moreOptions": "Meer opties"
+        "moreOptions": "Meer opties",
+        "back": "Terug"
       },
       "roomThreadOverview": {
         "addTagFilter": "Tagfilter toevoegen",

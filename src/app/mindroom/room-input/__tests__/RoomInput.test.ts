@@ -206,6 +206,10 @@ vi.mock('folds', () => {
     PopOut: Wrapper,
     Scroll: Wrapper,
     Text: Wrapper,
+    // Icon buttons name themselves in tooltips; render only the trigger.
+    Tooltip: () => null,
+    TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+      children(() => undefined),
     config: {
       space: new Proxy(
         {},
@@ -941,6 +945,19 @@ afterEach(() => {
 });
 
 describe('RoomInput', () => {
+  it('names each icon button, as its tooltip does', async () => {
+    const { renderer } = await renderRoomInput();
+    const labels = renderer.root
+      .findAll((node) => node.type === 'button')
+      .map((button) => button.props['aria-label']);
+
+    // Simple Mode, so no formatting or sticker buttons.
+    expect(labels).toEqual(expect.arrayContaining(['Attach files', 'Emoji', 'Send message']));
+    expect(labels.some((label) => String(label).startsWith('Record voice message'))).toBe(true);
+
+    renderer.unmount();
+  });
+
   it('mounts the thread model picker in the top slot for a thread', async () => {
     const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
 

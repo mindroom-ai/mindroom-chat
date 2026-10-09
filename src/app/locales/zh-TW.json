@@ -294,6 +294,8 @@
     "placeholder": "傳送訊息…",
     "sendMessage": "傳送訊息",
     "recordVoice": "錄製語音訊息",
+    "formatting": "格式",
+    "attach": "附加檔案",
     "voicePausedInOtherRoom": "錄音已暫停 — 完成或放棄在 {{roomName}} 中未傳送的錄音",
     "dropFiles": "將檔案拖曳到「{{roomName}}」中",
     "dropFilesHint": "將檔案拖放到此處或按一下以開啟選擇對話方塊",
@@ -334,6 +336,7 @@
     "resolvedByShort": "由 {{name}}",
     "hideDetails": "隱藏討論串詳細資料",
     "showDetails": "顯示討論串詳細資料",
+    "backToRoom": "返回房間",
     "replyCount_one": "{{count}} 筆回應",
     "replyCount_other": "{{count}} 筆回應",
     "aria": {
@@ -2578,7 +2581,8 @@
         "addReaction": "新增反應",
         "reply": "回覆",
         "replyInThread": "在討論串中回覆",
-        "editMessage": "編輯訊息"
+        "editMessage": "編輯訊息",
+        "moreOptions": "更多選項"
       },
       "mindroomMessageControls": {
         "requestContextWindow": "請求上下文視窗",
@@ -2804,7 +2808,8 @@
         "members": "成員",
         "hideMembers": "隱藏成員",
         "showMembers": "顯示成員",
-        "moreOptions": "更多選項"
+        "moreOptions": "更多選項",
+        "back": "返回"
       },
       "roomThreadOverview": {
         "addTagFilter": "新增標籤篩選條件",

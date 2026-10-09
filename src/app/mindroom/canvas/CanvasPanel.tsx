@@ -26,6 +26,7 @@ import { FailedSendActions } from '../messages/FailedSendActions';
 import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
 import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
+import { IconTooltip } from '../tooltip/IconTooltip';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
 export const CANVAS_SEND_ARM_DELAY_MS = 500;
@@ -505,39 +506,54 @@ export function CanvasPanel({
         <Box className={css.Controls} alignItems="Center" gap="100">
           {versions && onSelectVersion && (
             <Box alignItems="Center" gap="100">
-              <IconButton
-                onClick={() => selectVersion(versions.current - 1)}
-                aria-label={t('mindroomUi.canvas.previousVersion')}
-                disabled={versionLocked || versions.current <= 1}
-                size="300"
-              >
-                <Icon size="300" src={Icons.ChevronLeft} />
-              </IconButton>
+              <IconTooltip label={t('mindroomUi.canvas.previousVersion')}>
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    onClick={() => selectVersion(versions.current - 1)}
+                    aria-label={t('mindroomUi.canvas.previousVersion')}
+                    disabled={versionLocked || versions.current <= 1}
+                    size="300"
+                  >
+                    <Icon size="300" src={Icons.ChevronLeft} />
+                  </IconButton>
+                )}
+              </IconTooltip>
               <Text className={css.Version} size="T200" priority="300">
                 {t('mindroomUi.canvas.version', {
                   current: versions.current,
                   total: versions.total,
                 })}
               </Text>
-              <IconButton
-                onClick={() => selectVersion(versions.current + 1)}
-                aria-label={t('mindroomUi.canvas.nextVersion')}
-                disabled={versionLocked || versions.current >= versions.total}
-                size="300"
-              >
-                <Icon size="300" src={Icons.ChevronRight} />
-              </IconButton>
+              <IconTooltip label={t('mindroomUi.canvas.nextVersion')}>
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    onClick={() => selectVersion(versions.current + 1)}
+                    aria-label={t('mindroomUi.canvas.nextVersion')}
+                    disabled={versionLocked || versions.current >= versions.total}
+                    size="300"
+                  >
+                    <Icon size="300" src={Icons.ChevronRight} />
+                  </IconButton>
+                )}
+              </IconTooltip>
             </Box>
           )}
           {onToggleExpanded && (
-            <IconButton
-              onClick={onToggleExpanded}
-              aria-label={t('mindroomUi.canvas.expand')}
-              aria-pressed={expanded}
-              size="300"
-            >
-              <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
-            </IconButton>
+            <IconTooltip label={t('mindroomUi.canvas.expand')}>
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  onClick={onToggleExpanded}
+                  aria-label={t('mindroomUi.canvas.expand')}
+                  aria-pressed={expanded}
+                  size="300"
+                >
+                  <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+                </IconButton>
+              )}
+            </IconTooltip>
           )}
           <IconButton onClick={onClose} aria-label={t('mindroomUi.canvas.close')} size="300">
             <Icon size="300" src={Icons.Cross} />
