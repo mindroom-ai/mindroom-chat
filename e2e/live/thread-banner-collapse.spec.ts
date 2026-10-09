@@ -203,6 +203,11 @@ for (const viewport of [
         const moreBox = await box(more);
         expect(Math.abs(resolvedBox.width - moreBox.width)).toBeLessThan(1);
         expect(Math.abs(resolvedBox.height - moreBox.height)).toBeLessThan(1);
+        // Resolved fills green; More keeps its own surface.
+        const background = (locator: Locator) =>
+          locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+        expect(await background(resolved)).not.toBe(await background(more));
+        await expect(resolved).toHaveAccessibleDescription(/^Resolved by /);
         if (!viewport.touch) {
           // The click that resolved it closed the tooltip; point at it afresh.
           await page.mouse.move(0, 0);

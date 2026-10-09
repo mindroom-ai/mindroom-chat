@@ -1074,6 +1074,10 @@ describe('ThreadContextBanner rendering', () => {
       (node) => node.type === 'button' && node.props['aria-label'] === 'Resolved'
     );
     expect(chip.props.className).toBe('ResolvedButton');
+    // Screen readers hear who resolved it from the button too, also where the byline is hidden.
+    expect(chip.props['aria-describedby']).toBe(
+      renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props.id
+    );
     expect(chip.findByType('i').props.src).toBe('check');
     // Who resolved it, and what pressing it does.
     expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(

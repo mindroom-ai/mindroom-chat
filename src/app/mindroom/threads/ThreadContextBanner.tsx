@@ -5,6 +5,7 @@ import React, {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useReducer,
   useRef,
@@ -271,6 +272,9 @@ export function ThreadContextBanner({
   const hasSubtitle = !!headerModel.summaryText || hasScheduled;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
   const showResolver = !isPinned && !!resolvedByDisplayName;
+  // The Resolved button is described by the byline, also on short screens,
+  // which hide it.
+  const resolverBylineId = useId();
 
   const backButton = (
     <IconButton size="300" radii="300" onClick={onExitThread}>
@@ -412,6 +416,7 @@ export function ThreadContextBanner({
                     <Box
                       as="span"
                       className={classNames(css.ResolutionByline, css.CompactHidden)}
+                      id={resolverBylineId}
                       data-thread-resolution-byline="true"
                       alignItems="Center"
                       gap="100"
@@ -513,12 +518,11 @@ export function ThreadContextBanner({
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
-                      className={classNames(
-                        headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
-                      )}
+                      className={headerModel.isResolved ? css.ResolvedButton : css.CompactHidden}
                       size="300"
                       radii="300"
                       aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+                      aria-describedby={showResolver ? resolverBylineId : undefined}
                       onClick={handleToggleResolve}
                       disabled={
                         !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating
