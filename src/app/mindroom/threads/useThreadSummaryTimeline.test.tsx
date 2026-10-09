@@ -41,6 +41,15 @@ class EncryptedEvent extends EventEmitter {
 
   getRelation = () => null;
 
+  // The wire type stays encrypted after a failed attempt, as in the SDK.
+  isEncrypted = () => true;
+
+  failDecryption() {
+    this.type = 'm.room.message';
+    this.content = { msgtype: 'm.bad.encrypted', body: '** Unable to decrypt **' };
+    this.emit(MatrixEventEvent.Decrypted, this);
+  }
+
   decryptAs(content: Record<string, unknown>) {
     this.type = 'm.room.message';
     this.content = content;
@@ -50,17 +59,19 @@ class EncryptedEvent extends EventEmitter {
 
 const history = { sdkLoaded: true, canPaginateBack: false, hasMoreCachedBack: false };
 
-const renderPlan = (events: readonly MatrixEvent[]) => {
+const renderPlan = (initialEvents: readonly MatrixEvent[]) => {
   const plans: ThreadSummaryTimelinePlan[] = [];
-  function Harness() {
+  function Harness({ events }: { events: readonly MatrixEvent[] }) {
     plans.push(useThreadSummaryTimeline(events, { history }));
     return null;
   }
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<Harness />);
+    renderer = create(<Harness events={initialEvents} />);
   });
-  return { plans, renderer };
+  const rerender = (events: readonly MatrixEvent[]) =>
+    act(() => renderer.update(<Harness events={events} />));
+  return { plans, renderer, rerender };
 };
 
 describe('useThreadSummaryTimeline', () => {
@@ -77,5 +88,19 @@ describe('useThreadSummaryTimeline', () => {
     expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$s2']);
     act(() => renderer.unmount());
     expect(encrypted.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('plans a summary again when it decrypts after a failed attempt', () => {
+    const encrypted = new EncryptedEvent('$s2');
+    const events = [summary('$s1', 'Push bug'), encrypted as unknown as MatrixEvent];
+    const { plans, renderer, rerender } = renderPlan(events);
+
+    act(() => encrypted.failDecryption());
+    // A later thread change, such as a new reply, gives the hook a new array.
+    rerender([...events]);
+    act(() => encrypted.decryptAs(summaryContent('Push bug')));
+
+    expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$s2']);
+    act(() => renderer.unmount());
   });
 });

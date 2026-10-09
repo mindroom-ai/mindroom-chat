@@ -1351,6 +1351,7 @@ const makeEvent = (
     getTs: () => opts.ts ?? 0,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
+    isEncrypted: () => opts.type === 'm.room.encrypted',
     getUnsigned: () => unsigned,
     setUnsigned: (next: Record<string, unknown>) => {
       unsigned = next;

@@ -122,4 +122,59 @@ describe('thread summary markers', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('compares a summary by its latest edit, as its row shows it', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { MindroomThreadSummaryMarker } = await import(
+      '../../messages/MindroomThreadSummaryMarker'
+    );
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
+    const edited = summary('$s2', 'Push bug', 3_000);
+    // The shared fixture's getEditedEvent returns this, as the SDK's replacement.
+    Object.assign(edited, {
+      __editedEvent: {
+        getContent: () => ({
+          'm.new_content': {},
+          msgtype: 'm.notice',
+          body: 'Token refresh',
+          'io.mindroom.thread_summary': { version: 1, summary: 'Token refresh' },
+        }),
+      },
+    });
+    const events = [rootEvent, summary('$s1', 'Push bug', 2_000), edited];
+    const timeline = makeTimeline(events, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = () =>
+      ({
+        rootEvent,
+        events: events.slice(1),
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    threadRenderStateMock.threadEvents = events as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      events.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = [1, 2];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual(['$s1', '$s2']);
+      expect(
+        renderer!.root
+          .findAllByType(MindroomThreadSummaryMarker)
+          .map((node) => node.props.plan?.previousSummaryText)
+      ).toEqual([undefined, 'Push bug']);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

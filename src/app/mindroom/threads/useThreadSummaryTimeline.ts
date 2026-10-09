@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
-import { MessageEvent } from '../../../types/matrix/room';
 import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
 import { planThreadSummaryTimeline, type ThreadSummaryHistory } from './threadSummaryTimeline';
 
@@ -18,13 +17,12 @@ export const useThreadSummaryTimeline = (
 ) => {
   // A jumped-to summary stays visible after its temporary highlight ends.
   const revealed = useRef(new Set<string>());
-  // Live events reach the thread before they decrypt, so a summary is planned
-  // again once it can be read.
+  // Live events reach the thread before they decrypt, and a missing room key
+  // can fail the first attempt, so a summary is planned again once readable.
   const [decryptions, countDecryption] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
-    const encrypted = events.filter(
-      (event) => event.getType() === MessageEvent.RoomMessageEncrypted
-    );
+    // The wire type, so an event whose first attempt failed still counts.
+    const encrypted = events.filter((event) => event.isEncrypted());
     const decrypted = (event: MatrixEvent) => {
       if (isMindroomThreadSummaryEvent(event)) countDecryption();
     };
