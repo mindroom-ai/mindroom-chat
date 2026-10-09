@@ -92,6 +92,30 @@ describe('thread summary timeline plan', () => {
     });
   });
 
+  it('ignores summaries from ignored users, whose rows are hidden', () => {
+    const fromIgnored = new MatrixEvent({
+      type: 'm.room.message',
+      event_id: '$ignored',
+      room_id: '!room:example.org',
+      sender: '@spam:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: 'Token refresh',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Token refresh' },
+      },
+    });
+    const plan = planThreadSummaryTimeline(
+      [summary('$s1', 'Push bug'), fromIgnored, summary('$s2', 'Token refresh', 11)],
+      { history: startLoaded, ignoredUserIds: new Set(['@spam:example.org']) }
+    );
+
+    expect(plan.markersByEventId.has('$ignored')).toBe(false);
+    expect(plan.markersByEventId.get('$s2')).toEqual({
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+  });
+
   it('ignores summary edits, which have no row of their own', () => {
     const edit = new MatrixEvent({
       type: 'm.room.message',

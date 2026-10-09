@@ -635,6 +635,7 @@ export function RoomTimeline({
       hasMoreCachedBack: threadHasMoreCachedBack,
     },
     getContent: getThreadEventContent,
+    ignoredUserIds: ignoredUsersSet,
     routeId: eventId,
     focusId: focusItem?.eventId,
   });

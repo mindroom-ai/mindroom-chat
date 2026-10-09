@@ -190,14 +190,21 @@ export function ThreadContextBanner({
     t,
   });
   // A summary that changes while the thread is open tints once; opening a thread does not.
+  // The collapsed pill shows no title, so it drops a pending tint rather than replay it later.
   const { summaryText } = headerModel;
   const [shownSummary, setShownSummary] = useState({ threadId, summaryText, changed: false });
   if (shownSummary.threadId !== threadId || shownSummary.summaryText !== summaryText) {
     setShownSummary({
       threadId,
       summaryText,
-      changed: shownSummary.threadId === threadId && !!shownSummary.summaryText && !!summaryText,
+      changed:
+        !collapsed &&
+        shownSummary.threadId === threadId &&
+        !!shownSummary.summaryText &&
+        !!summaryText,
     });
+  } else if (collapsed && shownSummary.changed) {
+    setShownSummary({ ...shownSummary, changed: false });
   }
   const summaryChanged = shownSummary.changed;
   const resolvedByDisplayName = getThreadResolverDisplayName(

@@ -418,7 +418,7 @@ export const estimateThreadEventRowHeight = (
   const body = typeof content.body === 'string' ? content.body : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
   if (getMindroomThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
-  // Always-expanded rows (agent tool traces / thread summaries) never
+  // Always-expanded rows (agent tool traces / legacy thread summaries) never
   // fold: the body renders in full and each extras section adds a
   // collapsed accordion header. Estimating these at the fold cap made
   // every one of them mount ~hundreds of px small — the per-frame jumps

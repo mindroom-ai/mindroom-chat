@@ -29,6 +29,8 @@ type PlanOptions = {
   revealedEventIds?: ReadonlySet<string>;
   /** The content an event's row shows, after its latest edit. */
   getContent?: (event: MatrixEvent) => Record<string, unknown>;
+  /** Senders whose rows the timeline hides. */
+  ignoredUserIds?: ReadonlySet<string>;
 };
 
 // MindRoom posts a summary after the first reply and then every ten messages,
@@ -36,7 +38,12 @@ type PlanOptions = {
 // a summary that repeats the previous one is hidden; the others become markers.
 export const planThreadSummaryTimeline = (
   events: readonly MatrixEvent[],
-  { history, revealedEventIds, getContent = (event) => event.getContent() }: PlanOptions
+  {
+    history,
+    revealedEventIds,
+    getContent = (event) => event.getContent(),
+    ignoredUserIds,
+  }: PlanOptions
 ): ThreadSummaryTimelinePlan => {
   // Only then is the earliest summary given also the thread's first.
   const historyStartLoaded =
@@ -47,8 +54,9 @@ export const planThreadSummaryTimeline = (
 
   events.forEach((event) => {
     const eventId = event.getId();
-    // Edits and reactions have no row of their own.
+    // Edits, reactions and ignored senders have no row of their own.
     if (!eventId || reactionOrEditEvent(event) || !isMindroomThreadSummaryEvent(event)) return;
+    if (ignoredUserIds?.has(event.getSender() ?? '')) return;
     // Parse as the timeline row does, so only rows that would show a marker are planned.
     const summaryText = getMindroomThreadSummaryInfo(getContent(event))?.summaryText;
     if (!summaryText) return;

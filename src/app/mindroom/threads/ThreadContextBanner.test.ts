@@ -906,6 +906,26 @@ describe('ThreadContextBanner rendering', () => {
     expect(summaryClass(renderer)).toBe('SummaryText');
   });
 
+  it('drops a pending tint when the banner collapses', () => {
+    const summaryClass = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.className;
+    const setCollapsed = (threadBannerCollapsed: boolean) =>
+      act(() => store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed }));
+    let renderer!: ReturnType<typeof renderBanner>;
+    act(() => {
+      renderer = create(bannerElement('Push bug'));
+    });
+    act(() => renderer.update(bannerElement('Fixing token refresh')));
+    expect(summaryClass(renderer)).toBe('SummaryText SummaryTextChanged');
+
+    // Collapsed before the tint ends, so the title unmounts without its animationend.
+    setCollapsed(true);
+    setCollapsed(false);
+
+    expect(summaryClass(renderer)).toBe('SummaryText');
+    act(() => renderer.unmount());
+  });
+
   it('shows the next summary once the SDK replaces a redacted latest summary', () => {
     const notice = (eventId: string, summary: string, timestamp: number) =>
       new MatrixEvent({
