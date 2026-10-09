@@ -79,6 +79,22 @@ vi.mock('folds', async () => {
       ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
     ),
     Icons: { ArrowLeft: 'arrow-left', Check: 'check', ChevronBottom: 'chevron-bottom' },
+    Tooltip: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement('div', null, children),
+    // Render the tooltip beside its trigger, so tests can read what it says.
+    TooltipProvider: ({
+      tooltip,
+      children,
+    }: {
+      tooltip: React.ReactNode;
+      children: (triggerRef: () => void) => React.ReactNode;
+    }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        children(() => undefined),
+        React.createElement('div', { role: 'tooltip' }, tooltip)
+      ),
     Text: ({
       as,
       children,
@@ -142,6 +158,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
+  ResolvedButton: 'ResolvedButton',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
   SubtitleRow: 'SubtitleRow',
@@ -317,6 +334,13 @@ describe('ThreadContextBanner data flow', () => {
     });
   });
 });
+
+// The text a node renders, its pieces joined by spaces.
+const text = (node: ReactTestInstance): string =>
+  node.children
+    .map((child) => (typeof child === 'string' ? child : text(child)))
+    .filter(Boolean)
+    .join(' ');
 
 describe('ThreadContextBanner rendering', () => {
   let store: ReturnType<typeof createStore>;
@@ -544,8 +568,6 @@ describe('ThreadContextBanner rendering', () => {
       canEdit: true,
       availableTags: [],
     });
-    const text = (node: ReactTestInstance): string =>
-      node.children.map((child) => (typeof child === 'string' ? child : text(child))).join('');
     const hidden = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root
         .findAll(
@@ -793,9 +815,7 @@ describe('ThreadContextBanner rendering', () => {
     const renderer = renderBanner();
     const resolveButton = renderer.root
       .findAllByType('button')
-      .find((button) =>
-        button.findAllByType('span').some((child) => child.children.includes('Resolve'))
-      );
+      .find((button) => button.props['aria-label'] === 'Resolve');
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain('+ tag');
     expect(resolveButton?.props.disabled).toBe(true);
@@ -1005,6 +1025,30 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).toContain('Resolve');
   });
 
+  it('offers Resolve as an icon button named by a tooltip, like More and the pin', () => {
+    pinningMocks.canPin = true;
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    const renderer = renderBanner('A concise thread summary');
+    const resolve = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Resolve'
+    );
+    expect(resolve.findByType('i').props.src).toBe('check');
+    expect(resolve.props.className).toBe('CompactHidden');
+    const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
+    expect(tips).toEqual(['Thread options', 'Pin thread', 'Resolve']);
+    // The tooltips replace the native ones.
+    expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
+      []
+    );
+    renderer.unmount();
+  });
+
   it('shows who resolved the thread after its title, not below the chip', () => {
     bannerMocks.useThreadTags.mockReturnValue({
       tags: {
@@ -1027,7 +1071,13 @@ describe('ThreadContextBanner rendering', () => {
     const renderer = renderBanner('A concise thread summary');
 
     const chip = renderer.root.find(
-      (node) => node.type === 'button' && node.props.title === 'Resolved by Alice'
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Resolved'
+    );
+    expect(chip.props.className).toBe('ResolvedButton');
+    expect(chip.findByType('i').props.src).toBe('check');
+    // Who resolved it, and what pressing it does.
+    expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(
+      'Resolved by Alice Reopen thread'
     );
     const byline = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' });
     expect(byline.props['aria-label']).toBe('Resolved by Alice');
@@ -1057,6 +1107,21 @@ describe('ThreadContextBanner rendering', () => {
       )
     ).toHaveLength(0);
     untitled.unmount();
+
+    // A reader can't reopen, so the tooltip only says who resolved it.
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: { resolved: { set_by: '@alice:example.org', set_at: '2026-08-27T12:00:00.000Z' } },
+      displayTags: [],
+      isResolved: true,
+      canEdit: false,
+      availableTags: [],
+    });
+    const reader = renderBanner('A concise thread summary');
+    expect(reader.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(
+      'Resolved by Alice'
+    );
+    expect(JSON.stringify(reader.toJSON())).not.toContain('Reopen thread');
+    reader.unmount();
 
     // A pinned thread shows the pin instead of the chip and its byline.
     pinningMocks.pinnedEventIds = ['$root'];

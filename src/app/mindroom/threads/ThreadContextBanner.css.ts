@@ -142,6 +142,16 @@ export const ResolverName = style({
   '@container': { [narrowTitle]: { maxWidth: 'none' } },
 });
 
+// Resolved, the check fills like a set pin: solid green, as the chip was.
+export const ResolvedButton = style({
+  backgroundColor: color.Success.Main,
+  color: color.Success.OnMain,
+  selectors: {
+    '&:hover, &:focus-visible': { backgroundColor: color.Success.MainHover },
+    '&:active': { backgroundColor: color.Success.MainActive },
+  },
+});
+
 // The grey this used to hardcode (rgba(128,128,128,0.2)) is the same slab in
 // all five themes, so it read as a hole in butter and as a smudge in midnight.
 // On the container tokens it tracks the tag pills it sits next to.

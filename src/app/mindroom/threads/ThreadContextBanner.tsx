@@ -1,5 +1,7 @@
 import React, {
   lazy,
+  type ReactNode,
+  type RefCallback,
   Suspense,
   useCallback,
   useEffect,
@@ -9,7 +11,16 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { Box, Icon, IconButton, Icons, Text, Button, type RectCords } from 'folds';
+import {
+  Box,
+  Icon,
+  IconButton,
+  Icons,
+  Text,
+  Tooltip,
+  TooltipProvider,
+  type RectCords,
+} from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
@@ -50,6 +61,38 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: MindroomThreadSummaryInfo;
   onExitThread: () => void;
+}
+
+// The banner's buttons are icons, so each names itself in a tooltip below it.
+function BannerTooltip({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
+}) {
+  return (
+    <TooltipProvider
+      position="Bottom"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Box direction="Column">
+            <Text size="T300">{label}</Text>
+            {hint && (
+              <Text size="T200" priority="300">
+                {hint}
+              </Text>
+            )}
+          </Box>
+        </Tooltip>
+      }
+    >
+      {children}
+    </TooltipProvider>
+  );
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -104,7 +147,7 @@ export function ThreadContextBanner({
   const canOpenMenu = isConfirmedMatrixEventId(threadRootId);
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
     const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
@@ -123,7 +166,7 @@ export function ThreadContextBanner({
   // The button that toggled the banner unmounts with it, so focus moves to the
   // control that toggles it back: Show details, or More, which offers Hide
   // (or the banner while More waits for the thread root to be confirmed).
-  const showDetailsRef = useRef<HTMLButtonElement>(null);
+  const showDetailsRef = useRef<HTMLButtonElement | null>(null);
   const focusAfterToggle = useRef(false);
   const toggleCollapsed = (next: boolean) => {
     focusAfterToggle.current = true;
@@ -268,16 +311,22 @@ export function ThreadContextBanner({
           <Box alignItems="Center" gap="100">
             {backButton}
             <ThreadApprovalPermissions />
-            <IconButton
-              ref={showDetailsRef}
-              size="300"
-              radii="300"
-              aria-label={t('thread.showDetails')}
-              title={t('thread.showDetails')}
-              onClick={() => toggleCollapsed(false)}
-            >
-              <Icon src={Icons.ChevronBottom} size="100" />
-            </IconButton>
+            <BannerTooltip label={t('thread.showDetails')}>
+              {(triggerRef) => (
+                <IconButton
+                  ref={(node: HTMLButtonElement | null) => {
+                    triggerRef(node);
+                    showDetailsRef.current = node;
+                  }}
+                  size="300"
+                  radii="300"
+                  aria-label={t('thread.showDetails')}
+                  onClick={() => toggleCollapsed(false)}
+                >
+                  <Icon src={Icons.ChevronBottom} size="100" />
+                </IconButton>
+              )}
+            </BannerTooltip>
           </Box>
         ) : (
           <div className={css.TitleRow}>
@@ -397,34 +446,44 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              <IconButton
-                ref={moreButtonRef}
-                size="300"
-                radii="300"
-                aria-label={t('threadActions.more')}
-                title={t('threadActions.more')}
-                aria-haspopup="menu"
-                aria-expanded={!!activeMenu}
-                disabled={!canOpenMenu}
-                onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                  openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
-                }
-              >
-                <Icon src={Icons.VerticalDots} size="100" />
-              </IconButton>
+              <BannerTooltip label={t('threadActions.more')}>
+                {(triggerRef) => (
+                  <IconButton
+                    ref={(node: HTMLButtonElement | null) => {
+                      triggerRef(node);
+                      moreButtonRef.current = node;
+                    }}
+                    size="300"
+                    radii="300"
+                    aria-label={t('threadActions.more')}
+                    aria-haspopup="menu"
+                    aria-expanded={!!activeMenu}
+                    disabled={!canOpenMenu}
+                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                      openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                    }
+                  >
+                    <Icon src={Icons.VerticalDots} size="100" />
+                  </IconButton>
+                )}
+              </BannerTooltip>
               {pinning.canPin && mutableThreadRootId ? (
-                <IconButton
-                  className={isPinned ? undefined : css.CompactHidden}
-                  size="300"
-                  radii="300"
-                  aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                  title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                  aria-pressed={isPinned}
-                  disabled={pinning.updating || updating}
-                  onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
-                >
-                  <Icon src={Icons.Pin} size="100" filled={isPinned} />
-                </IconButton>
+                <BannerTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
+                  {(triggerRef) => (
+                    <IconButton
+                      ref={triggerRef}
+                      className={isPinned ? undefined : css.CompactHidden}
+                      size="300"
+                      radii="300"
+                      aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                      aria-pressed={isPinned}
+                      disabled={pinning.updating || updating}
+                      onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
+                    >
+                      <Icon src={Icons.Pin} size="100" filled={isPinned} />
+                    </IconButton>
+                  )}
+                </BannerTooltip>
               ) : (
                 isPinned && (
                   <Box
@@ -439,21 +498,36 @@ export function ThreadContextBanner({
               )}
               {!isPinned && (
                 // Resolve is in More, but a resolved status stays visible for readers.
-                <Button
-                  className={classNames(!headerModel.isResolved && css.CompactHidden)}
-                  size="300"
-                  variant={headerModel.isResolved ? 'Success' : 'Secondary'}
-                  fill={headerModel.isResolved ? 'Solid' : 'Soft'}
-                  outlined={!headerModel.isResolved}
-                  radii="300"
-                  onClick={handleToggleResolve}
-                  disabled={!headerModel.canEdit || headerModel.pickerDisabled || pinning.updating}
-                  title={resolvedByLabel}
+                <BannerTooltip
+                  label={
+                    headerModel.isResolved
+                      ? resolvedByLabel ?? t('thread.resolved')
+                      : t('thread.resolve')
+                  }
+                  hint={
+                    headerModel.isResolved && headerModel.canEdit
+                      ? t('threadActions.reopen')
+                      : undefined
+                  }
                 >
-                  <Text size="T200">
-                    {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
-                  </Text>
-                </Button>
+                  {(triggerRef) => (
+                    <IconButton
+                      ref={triggerRef}
+                      className={classNames(
+                        headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
+                      )}
+                      size="300"
+                      radii="300"
+                      aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+                      onClick={handleToggleResolve}
+                      disabled={
+                        !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating
+                      }
+                    >
+                      <Icon src={Icons.Check} size="100" />
+                    </IconButton>
+                  )}
+                </BannerTooltip>
               )}
             </Box>
             {/* Mobile: tags in a row of their own, under the title and the actions */}

@@ -198,6 +198,18 @@ for (const viewport of [
           expect(by.x - (title.x + title.width)).toBeLessThan(16);
         }
         expect(Math.abs(centerY(await box(resolved)) - centerY(await box(more)))).toBeLessThan(2);
+        // Resolve is an icon the size of More, named by a tooltip.
+        const resolvedBox = await box(resolved);
+        const moreBox = await box(more);
+        expect(Math.abs(resolvedBox.width - moreBox.width)).toBeLessThan(1);
+        expect(Math.abs(resolvedBox.height - moreBox.height)).toBeLessThan(1);
+        if (!viewport.touch) {
+          // The click that resolved it closed the tooltip; point at it afresh.
+          await page.mouse.move(0, 0);
+          await page.mouse.move(resolvedBox.x + resolvedBox.width / 2, centerY(resolvedBox));
+          await expect(page.getByRole('tooltip')).toContainText('Resolved by');
+          await expect(page.getByRole('tooltip')).toContainText('Reopen thread');
+        }
         await page.screenshot({ path: testInfo.outputPath('resolved.png') });
       } finally {
         await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
