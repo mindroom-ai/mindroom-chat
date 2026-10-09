@@ -19,9 +19,12 @@
   New keys `mindroomUi.threads.mindroomRoomViewHeader.showCanvas`, `hideCanvas` and `canvases` in all 17 catalogs.
 - Computer button: the header button shows only when the computer is available and either its panel is open or this conversation received a valid `show_computer` notice (sent when an agent calls `chat_ui.show_computer()`).
   Otherwise the room's More menu offers **Show computer** (also in Simple Mode), so users can still open it first, for example to log in; once open, the header button appears and the menu item goes.
+  On phones the header never shows the Computer button, so the More menu always opens it there (at most Schedules, Canvas, Pinned, Call, Members and More: six actions, as before this change).
   Timeline **View computer** buttons and automatic opening are unchanged.
 - Index: the canvas index database (`mindroom-canvas-index::<session>`) is now version 2.
   The upgrade adds the object store `computerShown` (rows `{ key, roomId, threadId }`, key `roomId`, newline, `threadId`) and keeps the `canvases` rows.
+  Rolling back to a build older than this one makes the old build's canvas index fail to open (`VersionError`), so its Canvases list stays empty until the next login deletes the database.
+  A listed canvas whose agent left the room opens nothing from the header, as on the Canvases page (accepted).
   The recorder parses `show_computer` notices with `readChatUiAction` (sender, requester, membership, echo and edit checks), so a notice for another user, from a non-agent or from a local echo records nothing.
   `useConversationCanvases`, `useComputerShown` and `useHasListedCanvases` read the index through `watchCanvasIndex`, the one subscribe, read and debounce helper the Canvases page shares; the two conversation hooks share one keyed helper, so the key rules live in one place.
   The index is still deleted at logout, and a canvas or computer notice this browser never received is not known.
@@ -29,7 +32,7 @@
 - Label: the timeline button `mindroomUi.uiActions.openCanvas` reads **Open canvas** (was **Open panel**).
   The 16 other catalogs already named a canvas with their word for "panel" (`mindroomUi.canvases.canvas`), so their `openCanvas` text already matches and did not change; the English catalog and the component's default value did.
   `e2e/agent-canvas.spec.ts` matches the new name.
-- Tests: `canvasIndexStore.test.ts` (computer notices per conversation, upgrade from version 1 keeps canvases, listeners notified), `canvasIndex.test.tsx` (what the recorder keeps and ignores, per-conversation filtering and order, no commit for writes that leave an answer as it was, `useOpenCanvasById`), `CanvasHeaderButton.test.tsx` (hidden, toggle, menu order and open mark, choices, reordering with the menu open, menu dropped at one canvas), `RoomViewHeader.test.ts` (the computer button and menu item for every availability, shown and open combination; the item opens the computer and closes the menu; kept in Simple Mode), `RoomView.test.ts` and `Room.test.ts` (the room passes the canvas and computer state through, nothing during a call or with canvases off).
+- Tests: `canvasIndexStore.test.ts` (computer notices per conversation, upgrade from version 1 keeps canvases, listeners notified), `canvasIndex.test.tsx` (what the recorder keeps and ignores, per-conversation filtering and order, no commit for writes that leave an answer as it was, `useOpenCanvasById`), `CanvasHeaderButton.test.tsx` (hidden, toggle, menu order and open mark, choices, reordering with the menu open, menu dropped at one canvas), `RoomViewHeader.test.ts` (the computer button and menu item for every availability, shown and open combination, and on phones only the menu item; the item opens the computer and closes the menu; kept in Simple Mode; the Canvas button with its canvases and handlers, absent without them), `RoomView.test.ts` and `Room.test.ts` (the room passes the canvas and computer state through, nothing during a call or with canvases off).
 - Live: `e2e/agent-canvas.spec.ts` gains "the room header brings back a conversation's canvases".
   In one thread the agent sends a canvas and then a second: the button first toggles the single canvas directly, then lists both newest first, a choice shows its canvas, and the open one is marked.
   A second thread in the room starts with no button and toggles its own single canvas without a menu, and the first thread still lists only its two.
@@ -49,6 +52,15 @@
   The trigger no longer sets `aria-haspopup="menu"` or `aria-expanded`: the glass menus render no `menu` or `menuitem` roles, and the room's More and pinned-messages triggers use `aria-pressed` only.
   `useConversationCanvases` and `useComputerShown` keep the held answer when a read equals it (same `canvasId`, `revisionId`, `updatedTs` and `title` per canvas, or the same boolean), so an index write elsewhere no longer renders the room; `useHasListedCanvases` moved onto `watchCanvasIndex` and keeps its `listedBySession` cache.
   Validation: focused vitest, `npm run typecheck`, `npm run lint`, branch-wide Prettier, and `e2e/agent-canvas.spec.ts` plus `e2e/agent-canvas-list.spec.ts` live against a disposable Tuwunel (3 passed).
+- PR review round 2 (2026-10-08, mindroom-chat#436):
+  A header open still loading was undone by nothing but another header open, so closing the canvas, opening Members or opening the computer meanwhile was overridden when the fetch answered.
+  `useOpenCanvasById` now takes a context string and drops the answer from the commit of any change in it; `Room` builds it from the conversation and the side-panel state (open canvas ID, computer open, Members open), so any later user panel action wins.
+  `Room.test.ts` covers a close from the panel and from the header, Members and the computer opened while the fetch is pending, and the thread-switch test also checks the late answer does not navigate back; each fails without the panel state in the context.
+  On phones the Computer entry is always the More menu item, which keeps the header at its former worst case of six actions (with canvases, a recorded notice and a callable agent it held seven, clipping More Options at 320 px); `RoomViewHeader.test.ts` covers phones, and desktop and tablet keep the button.
+  `RoomViewHeader.test.ts` also fails now when the Canvas button is dropped from the header.
+  The menu style is private to its module, a test title no longer claims an order, and the attribute-absence test is gone.
+  The Runbook records that a rollback below this build leaves the Canvases list empty until the next login, and that a listed canvas whose agent left opens nothing from the header (accepted).
+  Validation: focused vitest, `npm run typecheck`, `npm run lint`, branch-wide Prettier.
 
 ### Keep the current build after a hard refresh (2026-10-08)
 
