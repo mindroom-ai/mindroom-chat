@@ -21,7 +21,7 @@ import { stopPropagation } from '../../utils/keyboard';
 import type { CanvasListEntry } from './canvasIndexStore';
 
 // A conversation can have many canvases: the menu stays inside the viewport and scrolls its choices.
-export const CANVAS_MENU_STYLE = {
+const CANVAS_MENU_STYLE = {
   display: 'flex',
   flexDirection: 'column',
   maxWidth: toRem(320),

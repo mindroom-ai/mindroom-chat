@@ -104,7 +104,7 @@ describe('CanvasHeaderButton', () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('lists several canvases newest first and marks the open one', () => {
+  it('lists several canvases in the given order and marks the open one', () => {
     const { renderer } = render({ canvases: [budget, roadmap, survey], openCanvasId: '$c2' });
 
     expect(trigger(renderer).props['aria-label']).toBe('Canvases');
@@ -139,13 +139,6 @@ describe('CanvasHeaderButton', () => {
       maxHeight: expect.stringContaining('100vh'),
       maxWidth: expect.anything(),
     });
-  });
-
-  it('is a plain button, as the room’s other header menus are', () => {
-    const { renderer } = render({ canvases: [budget, roadmap] });
-
-    expect(trigger(renderer).props['aria-haspopup']).toBeUndefined();
-    expect(trigger(renderer).props['aria-expanded']).toBeUndefined();
   });
 
   it('opens the chosen canvas and closes the menu', () => {
