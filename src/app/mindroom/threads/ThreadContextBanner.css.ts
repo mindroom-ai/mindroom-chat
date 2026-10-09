@@ -65,7 +65,10 @@ export const EyebrowRow = style({
 });
 
 // On short screens the approvals chip that stays in view sits beside the title.
+// A size container, so the byline can wrap by the room the title has: a tablet
+// with the room list open leaves as little as a phone.
 export const TitleColumn = style({
+  containerType: 'inline-size',
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
@@ -117,25 +120,26 @@ export const SubtitleRow = style({
 });
 
 // Who resolved the thread follows the title like the schedule does; below
-// the chip it made that column taller than the buttons beside it. A phone has
-// no room beside the title, so the byline takes a line of its own there.
-const narrowScreen = '(max-width: 480px)';
+// the chip it made that column taller than the buttons beside it. Where the
+// title column is narrow (phones, tablets with the room list) the byline would
+// squeeze the title to an ellipsis, so it takes a line of its own there.
+const narrowTitle = '(max-width: 26rem)';
 export const ResolutionByline = style({
   display: 'inline-flex',
   minWidth: 0,
   flexShrink: 0,
-  '@media': { [narrowScreen]: { flexBasis: '100%' } },
+  '@container': { [narrowTitle]: { flexBasis: '100%' } },
 });
 
 // The separator only makes sense beside the title.
 export const ResolutionBylineDot = style({
-  '@media': { [narrowScreen]: { display: 'none' } },
+  '@container': { [narrowTitle]: { display: 'none' } },
 });
 
 export const ResolverName = style({
   minWidth: 0,
   maxWidth: '10rem',
-  '@media': { [narrowScreen]: { maxWidth: 'none' } },
+  '@container': { [narrowTitle]: { maxWidth: 'none' } },
 });
 
 // The grey this used to hardcode (rgba(128,128,128,0.2)) is the same slab in

@@ -92,7 +92,8 @@ export function ThreadContextBanner({
   onExitThread,
 }: ThreadContextBannerProps) {
   const { t } = useTranslation();
-  const glassRef = useLiquidGlass<HTMLDivElement>();
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
@@ -120,7 +121,8 @@ export function ThreadContextBanner({
     trigger?.focus({ preventScroll: true });
   };
   // The button that toggled the banner unmounts with it, so focus moves to the
-  // control that toggles it back: Show details, or More, which offers Hide.
+  // control that toggles it back: Show details, or More, which offers Hide
+  // (or the banner while More waits for the thread root to be confirmed).
   const showDetailsRef = useRef<HTMLButtonElement>(null);
   const focusAfterToggle = useRef(false);
   const toggleCollapsed = (next: boolean) => {
@@ -130,7 +132,8 @@ export function ThreadContextBanner({
   useLayoutEffect(() => {
     if (!focusAfterToggle.current) return;
     focusAfterToggle.current = false;
-    (collapsed ? showDetailsRef : moreButtonRef).current?.focus({ preventScroll: true });
+    const target = (collapsed ? showDetailsRef : moreButtonRef).current;
+    (target && !target.disabled ? target : bannerRef.current)?.focus({ preventScroll: true });
   }, [collapsed]);
   useLayoutEffect(() => {
     menuRef.current = undefined;

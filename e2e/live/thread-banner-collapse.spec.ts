@@ -33,9 +33,11 @@ const openRoute = (page: Page, url: string) =>
 // The thread banner stays above the messages while they scroll. More collapses
 // it to a pill with back and Show details on every screen, and the choice
 // persists.
+// A tablet keeps the room list open, which leaves the title as little room as a phone.
 for (const viewport of [
-  { name: 'desktop', width: 1280, height: 800, touch: false },
-  { name: 'phone', width: 390, height: 844, touch: true },
+  { name: 'desktop', width: 1280, height: 800, touch: false, bylineBelow: false },
+  { name: 'tablet', width: 820, height: 1180, touch: true, bylineBelow: true },
+  { name: 'phone', width: 390, height: 844, touch: true, bylineBelow: true },
 ]) {
   test.describe(viewport.name, () => {
     test.use({ hasTouch: viewport.touch, isMobile: viewport.touch });
@@ -177,7 +179,7 @@ for (const viewport of [
         // Show details unmounted with the pill; More, which can hide it again, has focus.
         await expect(more).toBeFocused();
 
-        // Who resolved the thread follows its title (below it on a phone, which
+        // Who resolved the thread follows its title (below it where the title
         // has no room beside it), and the chip lines up with More.
         await press(page, viewport.touch, resolve);
         const resolved = banner.getByRole('button', { name: 'Resolved' });
@@ -187,7 +189,7 @@ for (const viewport of [
         const centerY = ({ y, height }: { y: number; height: number }) => y + height / 2;
         const title = await box(banner.locator('[data-thread-context-summary]'));
         const by = await box(byline);
-        if (viewport.touch) {
+        if (viewport.bylineBelow) {
           expect(by.y).toBeGreaterThanOrEqual(title.y + title.height);
           expect(title.width).toBeGreaterThan(100);
         } else {

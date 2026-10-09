@@ -32,6 +32,11 @@ vi.mock('../messages/ThreadApprovalControls', () => ({
   ThreadApprovalPermissions: () => React.createElement('b', { 'data-approvals': 'true' }),
 }));
 
+// The optical glass needs a real DOM node; pass the banner's own ref through.
+vi.mock('../../components/glass/liquid/useLiquidGlass', () => ({
+  useLiquidGlass: (ref?: unknown) => ref,
+}));
+
 const pinningMocks = vi.hoisted(() => ({
   pinnedEventIds: [] as string[],
   canPin: false,
@@ -705,6 +710,25 @@ describe('ThreadContextBanner rendering', () => {
     expect(focusable.more.focus).toHaveBeenCalledOnce();
     expect(focusable.more.focus).toHaveBeenCalledWith({ preventScroll: true });
     next.unmount();
+  });
+
+  it('focuses the banner on expanding while More waits for a confirmed root', () => {
+    store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    const banner = { focus: vi.fn() };
+    const more = { focus: vi.fn(), disabled: true };
+    let renderer: ReturnType<typeof renderBanner> | undefined;
+    act(() => {
+      renderer = renderBanner('A concise thread summary', (element) => {
+        if (element.props['data-thread-context-banner']) return banner;
+        if (element.props['aria-haspopup'] === 'menu') return more;
+        return null;
+      });
+    });
+    act(() => renderer!.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
+    expect(more.focus).not.toHaveBeenCalled();
+    expect(banner.focus).toHaveBeenCalledWith({ preventScroll: true });
+    renderer!.unmount();
   });
 
   it('keeps the resolved tint and offers no Hide item once collapsed', async () => {
