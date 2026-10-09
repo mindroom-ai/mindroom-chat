@@ -88,7 +88,7 @@ describe('CanvasHeaderButton', () => {
   it('toggles a single canvas', () => {
     const { renderer, onOpen, onClose, update } = render({ canvases: [budget] });
 
-    expect(trigger(renderer).props['aria-label']).toBe('Show canvas');
+    expect(trigger(renderer).props['aria-label']).toBe('Show Canvas');
     expect(trigger(renderer).props['aria-pressed']).toBe(false);
     act(() => trigger(renderer).props.onClick(anchorEvent));
     expect(onOpen).toHaveBeenCalledOnce();
@@ -97,7 +97,7 @@ describe('CanvasHeaderButton', () => {
     expect(menuItems(renderer)).toHaveLength(0);
 
     update({ openCanvasId: '$c1' });
-    expect(trigger(renderer).props['aria-label']).toBe('Hide canvas');
+    expect(trigger(renderer).props['aria-label']).toBe('Hide Canvas');
     expect(trigger(renderer).props['aria-pressed']).toBe(true);
     act(() => trigger(renderer).props.onClick(anchorEvent));
     expect(onClose).toHaveBeenCalledOnce();

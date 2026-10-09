@@ -723,7 +723,7 @@ test("the room header brings back a conversation's canvases: a menu for several,
   // The sidebar's Canvases tab shares the menu button's name, so look in the room header only.
   const header = page.locator('header');
   const canvasButton = header.getByRole('button', {
-    name: /^(Show canvas|Hide canvas|Canvases)$/,
+    name: /^(Show Canvas|Hide Canvas|Canvases)$/,
   });
   const panel = page.getByRole('complementary', { name: 'Canvas panel' });
   await expect(canvasButton).toHaveCount(0);
@@ -731,10 +731,10 @@ test("the room header brings back a conversation's canvases: a menu for several,
   // One canvas: the button toggles it directly.
   await sendCanvas('Packing list', fixture.rootId);
   await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
-  await expect(canvasButton).toHaveAccessibleName('Hide canvas');
+  await expect(canvasButton).toHaveAccessibleName('Hide Canvas');
   await canvasButton.click();
   await expect(panel).toHaveCount(0);
-  await expect(canvasButton).toHaveAccessibleName('Show canvas');
+  await expect(canvasButton).toHaveAccessibleName('Show Canvas');
   await canvasButton.click();
   await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
 
@@ -766,10 +766,10 @@ test("the room header brings back a conversation's canvases: a menu for several,
   await expect(canvasButton).toHaveCount(0);
   await sendCanvas('Move checklist', otherRootId);
   await expect(panel.getByText('Move checklist', { exact: true })).toBeVisible();
-  await expect(canvasButton).toHaveAccessibleName('Hide canvas');
+  await expect(canvasButton).toHaveAccessibleName('Hide Canvas');
   await canvasButton.click();
   await expect(panel).toHaveCount(0);
-  await expect(canvasButton).toHaveAccessibleName('Show canvas');
+  await expect(canvasButton).toHaveAccessibleName('Show Canvas');
   await canvasButton.click();
   await expect(panel.getByText('Move checklist', { exact: true })).toBeVisible();
 

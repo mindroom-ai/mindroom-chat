@@ -13,7 +13,7 @@
   The backend half (the first browser call in a thread sends the `show_computer` notice) is a separate mindroom PR; the two merge in either order.
 - Header Canvas button (`CanvasHeaderButton`, icon `Icons.Category`, the sidebar's Canvases icon) sits after the Computer button.
   It shows only where canvases are on, outside a call, and when the conversation (the routed thread, or the room's main timeline) has a listed canvas.
-  With one canvas it toggles it (`Show canvas` / `Hide canvas`, `aria-pressed`); with several it opens a menu titled `Canvases`, newest update first, each row with its title and update time, the open one marked (`aria-current="true"` and a check).
+  With one canvas it toggles it (`Show Canvas` / `Hide Canvas`, `aria-pressed`); with several it opens a menu titled `Canvases`, newest update first, each row with its title and update time, the open one marked (`aria-current="true"` and a check).
   Choosing the open one closes it, another opens it, and a reordering update keeps the menu open.
   Opening goes through `openCanvasById` (`loadCanvasEvent`, then the Chat UI action `activate`), the same validated path as the timeline button, so call and disabled-canvas rules, panel exclusivity and the latest version apply; a canvas whose request was deleted opens nothing.
   New keys `mindroomUi.threads.mindroomRoomViewHeader.showCanvas`, `hideCanvas` and `canvases` in all 17 catalogs.
