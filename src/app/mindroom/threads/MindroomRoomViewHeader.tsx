@@ -419,9 +419,11 @@ export function RoomViewHeader({
     if (canvasOpen) onCanvasClose?.();
     setPeopleDrawer(!membersOpen);
   };
-  // The button follows the computer's use; before then the room menu opens it.
+  // The button follows the computer's use; before then the room menu opens it. A phone's header fits
+  // six actions and the Canvas button is one more, so there the menu always opens the computer.
   const computerReachable = computerAvailable && !!onComputerToggle;
-  const computerButtonShown = computerReachable && (computerOpen || computerShown);
+  const computerButtonShown =
+    computerReachable && screenSize !== ScreenSize.Mobile && (computerOpen || computerShown);
   const computerMenuItemShown = computerReachable && !computerButtonShown;
   const memberButtonLabel = callView
     ? t('mindroomUi.threads.mindroomRoomViewHeader.members')

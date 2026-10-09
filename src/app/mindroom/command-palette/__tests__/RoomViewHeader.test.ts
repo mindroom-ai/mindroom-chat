@@ -669,6 +669,64 @@ describe('RoomViewHeader', () => {
       }
     );
 
+    it.each([
+      { screen: 'Desktop', shown: true, open: false },
+      { screen: 'Tablet', shown: true, open: false },
+      { screen: 'Tablet', shown: false, open: true },
+    ])(
+      'keeps the header button on $screen (shown $shown, open $open)',
+      async ({ screen, shown, open }) => {
+        screenSizeState.value = screen;
+        const { renderer } = await renderHeader(0, {
+          computerAvailable: true,
+          computerShown: shown,
+          computerOpen: open,
+          onComputerToggle: vi.fn(),
+        });
+
+        expect([
+          ...findButton(renderer, 'Show Computer'),
+          ...findButton(renderer, 'Hide Computer'),
+        ]).toHaveLength(1);
+        act(() => renderer.unmount());
+      }
+    );
+
+    // A phone's header already holds Schedules, Canvas, Pinned, Call, Members and More.
+    it.each([
+      { name: 'was shown', shown: true, open: false },
+      { name: 'is open', shown: false, open: true },
+      { name: 'was never shown', shown: false, open: false },
+    ])('offers the computer only through the room menu on phones when it $name', async (state) => {
+      screenSizeState.value = 'Mobile';
+      const { renderer } = await renderHeader(0, {
+        computerAvailable: true,
+        computerShown: state.shown,
+        computerOpen: state.open,
+        onComputerToggle: vi.fn(),
+      });
+      await openMoreMenu(renderer);
+
+      expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
+      expect(findButton(renderer, 'Hide Computer')).toHaveLength(0);
+      expect(findMenuItem(renderer)).toHaveLength(1);
+      act(() => renderer.unmount());
+    });
+
+    it('does not offer the computer on phones when it is unavailable', async () => {
+      screenSizeState.value = 'Mobile';
+      const { renderer } = await renderHeader(0, {
+        computerAvailable: false,
+        computerShown: true,
+        onComputerToggle: vi.fn(),
+      });
+      await openMoreMenu(renderer);
+
+      expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
+      expect(findMenuItem(renderer)).toHaveLength(0);
+      act(() => renderer.unmount());
+    });
+
     it('opens the computer from the room menu and closes the menu', async () => {
       const onComputerToggle = vi.fn();
       const { renderer } = await renderHeader(0, {
