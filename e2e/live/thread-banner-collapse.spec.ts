@@ -30,16 +30,19 @@ const openRoute = (page: Page, url: string) =>
     window.dispatchEvent(new PopStateEvent('popstate'));
   }, url);
 
-// The thread banner stays above the messages while they scroll. Collapsed it
-// keeps one row (back, title, More) on every screen, and the choice persists.
+// The thread banner stays above the messages while they scroll. More collapses
+// it to a pill with back and Show details on every screen, and the choice
+// persists.
+// A tablet keeps the room list open, which leaves the title as little room as a phone.
 for (const viewport of [
-  { name: 'desktop', width: 1280, height: 800, touch: false },
-  { name: 'phone', width: 390, height: 844, touch: true },
+  { name: 'desktop', width: 1280, height: 800, touch: false, bylineBelow: false },
+  { name: 'tablet', width: 820, height: 1180, touch: true, bylineBelow: true },
+  { name: 'phone', width: 390, height: 844, touch: true, bylineBelow: true },
 ]) {
   test.describe(viewport.name, () => {
     test.use({ hasTouch: viewport.touch, isMobile: viewport.touch });
 
-    test('collapses the thread banner to one row and keeps it collapsed', async ({
+    test('collapses the thread banner to a pill and keeps it collapsed', async ({
       page,
     }, testInfo) => {
       test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
@@ -130,52 +133,89 @@ for (const viewport of [
         expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
         // A titled thread drops the "Thread View" eyebrow.
         await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
+        const more = banner.getByRole('button', { name: 'Thread options' });
+        // Collapsing lives in More, not in the bar.
+        await expect(banner.getByRole('button', { name: 'Hide thread details' })).toHaveCount(0);
         const expandedHeight = (await banner.boundingBox())!.height;
 
-        await press(
-          page,
-          viewport.touch,
-          banner.getByRole('button', { name: 'Hide thread details' })
-        );
+        await press(page, viewport.touch, more);
+        const menu = page.getByRole('menu', { name: 'Thread options' });
+        await menu.locator('[data-thread-action="hideDetails"]').click();
+        await expect(menu).toBeHidden();
         const show = banner.getByRole('button', { name: 'Show thread details' });
-        await expect(show).toBeVisible();
-        await expect(resolve).toBeAttached();
-        await expect(resolve).toBeHidden();
+        await expect(show).toBeFocused();
+        await expect(banner.getByRole('button')).toHaveCount(2);
+        await expect(banner.locator('[data-thread-context-summary]')).toHaveCount(0);
+        await expect(resolve).toHaveCount(0);
         await expect(tag).toHaveCount(0);
-        await expect(banner.locator('[data-thread-context-summary]')).toBeVisible();
-        await expect(banner.getByRole('button', { name: 'Thread options' })).toBeVisible();
-        await expect.poll(async () => (await banner.boundingBox())!.height).toBeLessThanOrEqual(48);
+        await expect.poll(async () => (await banner.boundingBox())!.height).toBeLessThanOrEqual(44);
+        // A pill at the start of the row, not a bar across the timeline.
+        const collapsed = (await banner.boundingBox())!;
+        expect(collapsed.width).toBeLessThanOrEqual(80);
         // The reader stays at the latest message while the banner shrinks.
         await expect.poll(bottomGap).toBeLessThan(2);
         await expect(page.getByText('Step 14:', { exact: false })).toBeInViewport();
         await page.screenshot({ path: testInfo.outputPath('collapsed.png') });
-        await testInfo.attach('heights', {
+        await testInfo.attach('sizes', {
           body: JSON.stringify(
-            { expandedHeight, collapsedHeight: (await banner.boundingBox())!.height },
+            { expandedHeight, collapsedHeight: collapsed.height, collapsedWidth: collapsed.width },
             null,
             2
           ),
           contentType: 'application/json',
         });
 
-        // Tags and resolving stay reachable from the actions menu.
-        await banner.getByRole('button', { name: 'Thread options' }).click();
-        const menu = page.getByRole('menu', { name: 'Thread options' });
-        await expect(menu.locator('[data-thread-action="tags"]')).toBeVisible();
-        await expect(menu.locator('[data-thread-action="resolve"]')).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(menu).toBeHidden();
-
         // The choice holds for the next thread view, also after a reload.
         await page.reload();
-        await expect(banner.locator('[data-thread-context-summary]')).toHaveText(SUMMARY);
         await expect(show).toBeVisible();
-        await expect(resolve).toBeHidden();
+        await expect(banner.locator('[data-thread-context-summary]')).toHaveCount(0);
+        // The pill shows before the thread loads; wait for it, as a reader would.
+        await expect(page.getByText('Step 14:', { exact: false })).toBeInViewport();
 
         await press(page, viewport.touch, show);
+        await expect(banner.locator('[data-thread-context-summary]')).toHaveText(SUMMARY);
         await expect(resolve).toBeVisible();
         await expect(tag).toHaveCount(1);
-        await expect(banner.getByRole('button', { name: 'Hide thread details' })).toBeVisible();
+        // Show details unmounted with the pill; More, which can hide it again, has focus.
+        await expect(more).toBeFocused();
+
+        // Who resolved the thread follows its title (below it where the title
+        // has no room beside it), and the chip lines up with More.
+        await press(page, viewport.touch, resolve);
+        const resolved = banner.getByRole('button', { name: 'Resolved' });
+        const byline = banner.locator('[data-thread-resolution-byline]');
+        await expect(byline).toBeVisible();
+        const box = async (locator: Locator) => (await locator.boundingBox())!;
+        const centerY = ({ y, height }: { y: number; height: number }) => y + height / 2;
+        const title = await box(banner.locator('[data-thread-context-summary]'));
+        const by = await box(byline);
+        if (viewport.bylineBelow) {
+          expect(by.y).toBeGreaterThanOrEqual(title.y + title.height);
+          expect(title.width).toBeGreaterThan(100);
+        } else {
+          expect(Math.abs(centerY(by) - centerY(title))).toBeLessThan(2);
+          // Right after the title, not at the far end of the row.
+          expect(by.x - (title.x + title.width)).toBeLessThan(16);
+        }
+        expect(Math.abs(centerY(await box(resolved)) - centerY(await box(more)))).toBeLessThan(2);
+        // Resolve is an icon the size of More, named by a tooltip.
+        const resolvedBox = await box(resolved);
+        const moreBox = await box(more);
+        expect(Math.abs(resolvedBox.width - moreBox.width)).toBeLessThan(1);
+        expect(Math.abs(resolvedBox.height - moreBox.height)).toBeLessThan(1);
+        // Resolved fills green; More keeps its own surface.
+        const background = (locator: Locator) =>
+          locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+        expect(await background(resolved)).not.toBe(await background(more));
+        await expect(resolved).toHaveAccessibleDescription(/^Resolved by /);
+        if (!viewport.touch) {
+          // The click that resolved it closed the tooltip; point at it afresh.
+          await page.mouse.move(0, 0);
+          await page.mouse.move(resolvedBox.x + resolvedBox.width / 2, centerY(resolvedBox));
+          await expect(page.getByRole('tooltip')).toContainText('Resolved by');
+          await expect(page.getByRole('tooltip')).toContainText('Reopen thread');
+        }
+        await page.screenshot({ path: testInfo.outputPath('resolved.png') });
       } finally {
         await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
           method: 'POST',

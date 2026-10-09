@@ -140,9 +140,13 @@ test.describe('compact card display names', () => {
 
     const resolverByline = page.locator('[data-thread-resolution-byline="true"]');
     const resolvedButton = page.getByRole('button', { name: 'Resolved' });
-    await expect(resolvedButton).toHaveAttribute('title', `Resolved by ${displayName}`);
+    await resolvedButton.hover();
+    await expect(page.getByRole('tooltip')).toContainText(`Resolved by ${displayName}`);
+    await page.mouse.move(0, 0);
     await expect(resolverByline).toBeVisible();
-    await expect(resolverByline).toHaveText(`by ${displayName}`);
+    // After the title, so a separator may come first.
+    await expect(resolverByline).toContainText(`by ${displayName}`);
+    await expect(resolverByline).toHaveAttribute('aria-label', `Resolved by ${displayName}`);
 
     if (screenshotVariant) {
       await resolverByline.locator('xpath=../../..').screenshot({
@@ -151,6 +155,5 @@ test.describe('compact card display names', () => {
     }
 
     await expect(resolverByline).toBeVisible();
-    await expect(resolvedButton).toHaveAttribute('title', `Resolved by ${displayName}`);
   });
 });
