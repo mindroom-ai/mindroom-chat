@@ -20,6 +20,7 @@ import {
   Text,
   Tooltip,
   TooltipProvider,
+  type Align,
   type RectCords,
 } from 'folds';
 import { useTranslation } from 'react-i18next';
@@ -73,7 +74,7 @@ function BannerTooltip({
 }: {
   label: string;
   hint?: string;
-  align?: 'Start' | 'Center' | 'End';
+  align?: Align;
   children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
 }) {
   return (
@@ -138,7 +139,7 @@ export function ThreadContextBanner({
   summaryInfo,
   onExitThread,
 }: ThreadContextBannerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
@@ -281,7 +282,8 @@ export function ThreadContextBanner({
 
   const backButton = (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
-    <BannerTooltip label={t('thread.backToRoom')} align="Start">
+    // folds aligns to physical edges, and right-to-left puts the button on the right.
+    <BannerTooltip label={t('thread.backToRoom')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}

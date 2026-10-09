@@ -21,6 +21,7 @@ import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadCont
 import { settingsAtom } from '../../state/settings';
 
 const menuProps = vi.hoisted(() => vi.fn());
+const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
 vi.mock('./ThreadActionsMenu', () => ({
   ThreadActionsMenu: (props: unknown) => {
     menuProps(props);
@@ -84,16 +85,18 @@ vi.mock('folds', async () => {
     // Render the tooltip beside its trigger, so tests can read what it says.
     TooltipProvider: ({
       tooltip,
+      align,
       children,
     }: {
       tooltip: React.ReactNode;
+      align?: string;
       children: (triggerRef: () => void) => React.ReactNode;
     }) =>
       React.createElement(
         React.Fragment,
         null,
         children(() => undefined),
-        React.createElement('div', { role: 'tooltip' }, tooltip)
+        React.createElement('div', { role: 'tooltip', 'data-align': align }, tooltip)
       ),
     Text: ({
       as,
@@ -179,7 +182,7 @@ vi.mock('./ThreadIndicator.css', () => ({
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test-utils/i18n');
   return {
-    useTranslation: () => ({ t: translateFromEn }),
+    useTranslation: () => ({ t: translateFromEn, i18n: { dir: textDirection } }),
   };
 });
 
@@ -1047,6 +1050,20 @@ describe('ThreadContextBanner rendering', () => {
       []
     );
     renderer.unmount();
+  });
+
+  it('opens the back tooltip toward the banner in either text direction', () => {
+    const backTip = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back to room')!
+        .props['data-align'];
+    const ltr = renderBanner('A concise thread summary');
+    expect(backTip(ltr)).toBe('Start');
+    ltr.unmount();
+    textDirection.mockReturnValue('rtl');
+    const rtl = renderBanner('A concise thread summary');
+    expect(backTip(rtl)).toBe('End');
+    rtl.unmount();
+    textDirection.mockReturnValue('ltr');
   });
 
   it('shows who resolved the thread after its title, not below the chip', () => {

@@ -336,7 +336,7 @@
     "resolvedByShort": "от {{name}}",
     "hideDetails": "Скрыть сведения о ветке",
     "showDetails": "Показать сведения о ветке",
-    "backToRoom": "Назад в комнату",
+    "backToRoom": "Вернуться в комнату",
     "replyCount_one": "{{count}} ответ",
     "replyCount_other": "{{count}} ответов",
     "aria": {

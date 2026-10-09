@@ -334,7 +334,7 @@
     "resolvedByShort": "door {{name}}",
     "hideDetails": "Threaddetails verbergen",
     "showDetails": "Threaddetails tonen",
-    "backToRoom": "Terug naar kamer",
+    "backToRoom": "Terug naar de kamer",
     "replyCount_one": "{{count}} antwoord",
     "replyCount_other": "{{count}} antwoorden",
     "aria": {
