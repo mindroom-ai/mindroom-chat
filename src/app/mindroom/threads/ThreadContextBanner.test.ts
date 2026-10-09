@@ -896,6 +896,11 @@ describe('ThreadContextBanner rendering', () => {
 
     act(() => renderer.update(bannerElement('Fixing token refresh')));
     expect(summaryClass(renderer)).toBe('SummaryText SummaryTextChanged');
+    // Played once: remounting the title, as expanding the banner does, does not replay it.
+    act(() =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.onAnimationEnd()
+    );
+    expect(summaryClass(renderer)).toBe('SummaryText');
 
     act(() => renderer.update(bannerElement('Another thread', '$other')));
     expect(summaryClass(renderer)).toBe('SummaryText');

@@ -71,6 +71,59 @@ describe('thread summary timeline plan', () => {
     });
   });
 
+  it('compares the text a summary row shows, after its latest edit', () => {
+    const edited = summary('$s2', 'Push bug', 11);
+    const plan = planThreadSummaryTimeline([summary('$s1', 'Push bug'), edited], {
+      history: startLoaded,
+      getContent: (event) =>
+        event === edited
+          ? {
+              ...event.getContent(),
+              body: 'Token refresh',
+              'io.mindroom.thread_summary': { version: 1, summary: 'Token refresh' },
+            }
+          : event.getContent(),
+    });
+
+    expect(plan.hiddenEventIds.size).toBe(0);
+    expect(plan.markersByEventId.get('$s2')).toEqual({
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+  });
+
+  it('ignores summary edits, which have no row of their own', () => {
+    const edit = new MatrixEvent({
+      type: 'm.room.message',
+      event_id: '$edit',
+      room_id: '!room:example.org',
+      sender: '@code:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: '* Token refresh',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Token refresh', message_count: 1 },
+        'm.new_content': { msgtype: 'm.notice', body: 'Token refresh' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$s1' },
+      },
+    });
+    const plan = planThreadSummaryTimeline(
+      [
+        summary('$s1', 'Push bug'),
+        summary('$s2', 'APNs logs'),
+        edit,
+        summary('$s3', 'Token refresh'),
+      ],
+      { history: startLoaded }
+    );
+
+    expect(plan.hiddenEventIds.size).toBe(0);
+    expect(plan.markersByEventId.has('$edit')).toBe(false);
+    expect(plan.markersByEventId.get('$s3')).toEqual({
+      first: false,
+      previousSummaryText: 'APNs logs',
+    });
+  });
+
   it('does not call the earliest loaded summary the first while older history is missing', () => {
     const plan = planThreadSummaryTimeline([reply('$r9'), summary('$s2', 'Push bug', 11)], {
       history: { ...startLoaded, canPaginateBack: true },

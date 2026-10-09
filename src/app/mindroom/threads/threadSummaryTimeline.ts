@@ -1,4 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
+import { reactionOrEditEvent } from '../../utils/room';
 import {
   getMindroomThreadSummaryInfo,
   isMindroomThreadSummaryEvent,
@@ -15,11 +16,19 @@ export type ThreadSummaryTimelinePlan = {
   markersByEventId: ReadonlyMap<string, ThreadSummaryMarkerPlan>;
 };
 
+/** What is known about thread history older than the events given. */
+export type ThreadSummaryHistory = {
+  sdkLoaded: boolean;
+  canPaginateBack: boolean;
+  hasMoreCachedBack: boolean;
+};
+
 type PlanOptions = {
-  /** What is known about thread history older than the events given. */
-  history: { sdkLoaded: boolean; canPaginateBack: boolean; hasMoreCachedBack: boolean };
+  history: ThreadSummaryHistory;
   /** Events the route or a jump opened stay visible even when they repeat the previous summary. */
   revealedEventIds?: ReadonlySet<string>;
+  /** The content an event's row shows, after its latest edit. */
+  getContent?: (event: MatrixEvent) => Record<string, unknown>;
 };
 
 // MindRoom posts a summary after the first reply and then every ten messages,
@@ -27,7 +36,7 @@ type PlanOptions = {
 // a summary that repeats the previous one is hidden; the others become markers.
 export const planThreadSummaryTimeline = (
   events: readonly MatrixEvent[],
-  { history, revealedEventIds }: PlanOptions
+  { history, revealedEventIds, getContent = (event) => event.getContent() }: PlanOptions
 ): ThreadSummaryTimelinePlan => {
   // Only then is the earliest summary given also the thread's first.
   const historyStartLoaded =
@@ -38,9 +47,10 @@ export const planThreadSummaryTimeline = (
 
   events.forEach((event) => {
     const eventId = event.getId();
-    if (!eventId || !isMindroomThreadSummaryEvent(event)) return;
+    // Edits and reactions have no row of their own.
+    if (!eventId || reactionOrEditEvent(event) || !isMindroomThreadSummaryEvent(event)) return;
     // Parse as the timeline row does, so only rows that would show a marker are planned.
-    const summaryText = getMindroomThreadSummaryInfo(event.getContent())?.summaryText;
+    const summaryText = getMindroomThreadSummaryInfo(getContent(event))?.summaryText;
     if (!summaryText) return;
 
     const repeated = summaryText === previousSummaryText;

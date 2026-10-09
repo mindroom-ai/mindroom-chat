@@ -189,7 +189,7 @@ export function ThreadContextBanner({
     pickerDisabled,
     t,
   });
-  // A summary that changes while the thread is open tints briefly; opening a thread does not.
+  // A summary that changes while the thread is open tints once; opening a thread does not.
   const { summaryText } = headerModel;
   const [shownSummary, setShownSummary] = useState({ threadId, summaryText, changed: false });
   if (shownSummary.threadId !== threadId || shownSummary.summaryText !== summaryText) {
@@ -357,6 +357,9 @@ export function ThreadContextBanner({
                         css.SummaryText,
                         summaryChanged && css.SummaryTextChanged
                       )}
+                      onAnimationEnd={() =>
+                        setShownSummary((shown) => ({ ...shown, changed: false }))
+                      }
                       size="T300"
                       truncate
                       title={headerModel.summaryText}

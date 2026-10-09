@@ -38,7 +38,7 @@ import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { useAlive } from '../../hooks/useAlive';
 import { scrollToBottom } from '../../utils/dom';
 import { DefaultPlaceholder, CompactPlaceholder, MessageBase } from '../../components/message';
-import { reactionOrEditEvent } from '../../utils/room';
+import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
 import { MessageLayout, settingsAtom } from '../../state/settings';
 import { RoomIntro } from '../../components/room-intro';
@@ -155,7 +155,7 @@ import {
   useThreadApprovalTimeline,
   useThreadApprovalRowMeasurements,
 } from './useThreadApprovalTimeline';
-import { planThreadSummaryTimeline } from './threadSummaryTimeline';
+import { useThreadSummaryTimeline } from './useThreadSummaryTimeline';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -609,27 +609,35 @@ export function RoomTimeline({
     eventId,
     focusItem?.eventId
   );
-  // A jumped-to summary stays visible after its temporary highlight ends.
-  const revealedSummaryIds = useRef(new Set<string>());
-  const threadSummaryTimeline = useMemo(() => {
-    if (eventId) revealedSummaryIds.current.add(eventId);
-    if (focusItem?.eventId) revealedSummaryIds.current.add(focusItem.eventId);
-    return planThreadSummaryTimeline(threadEvents, {
-      history: {
-        sdkLoaded: !!threadInitialSdkLoaded,
-        canPaginateBack: canPaginateThreadBack,
-        hasMoreCachedBack: threadHasMoreCachedBack,
-      },
-      revealedEventIds: revealedSummaryIds.current,
-    });
-  }, [
-    threadEvents,
-    threadInitialSdkLoaded,
-    canPaginateThreadBack,
-    threadHasMoreCachedBack,
-    eventId,
-    focusItem?.eventId,
-  ]);
+  // A thread row resolves its event in the timeline set that holds it.
+  const getThreadEventTimelineSet = useCallback(
+    (mEventId: string) =>
+      threadTimelineSet?.getTimelineForEvent(mEventId)?.getTimelineSet() ??
+      roomTimelineSet.getTimelineForEvent(mEventId)?.getTimelineSet() ??
+      threadTimelineSet ??
+      roomTimelineSet,
+    [threadTimelineSet, roomTimelineSet]
+  );
+  const getThreadEventContent = useCallback(
+    (mEvent: MatrixEvent) => {
+      const mEventId = mEvent.getId() ?? '';
+      return getLatestMessageContent(
+        mEvent,
+        getEditedEvent(mEventId, mEvent, getThreadEventTimelineSet(mEventId))
+      );
+    },
+    [getThreadEventTimelineSet]
+  );
+  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
+    history: {
+      sdkLoaded: !!threadInitialSdkLoaded,
+      canPaginateBack: canPaginateThreadBack,
+      hasMoreCachedBack: threadHasMoreCachedBack,
+    },
+    getContent: getThreadEventContent,
+    routeId: eventId,
+    focusId: focusItem?.eventId,
+  });
   // Thread rows that stay in the virtualizer's index space but render nothing.
   const hiddenThreadEventIds = useMemo(
     () =>
@@ -2122,15 +2130,7 @@ export function RoomTimeline({
     if (!mEvent) return null;
     const mEventId = mEvent.getId();
     if (!mEventId) return null;
-    const threadTimeline = threadTimelineSet?.getTimelineForEvent(mEventId);
-    const roomTimeline = roomTimelineSet.getTimelineForEvent(mEventId);
-    const timelineSet =
-      threadTimeline?.getTimelineSet() ??
-      roomTimeline?.getTimelineSet() ??
-      threadTimelineSet ??
-      roomTimelineSet;
-
-    return renderResolvedEvent(mEvent, index, timelineSet);
+    return renderResolvedEvent(mEvent, index, getThreadEventTimelineSet(mEventId));
   };
 
   const renderVirtualThreadTimelineItems = () => {

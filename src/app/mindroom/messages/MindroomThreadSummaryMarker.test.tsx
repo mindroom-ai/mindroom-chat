@@ -12,7 +12,9 @@ vi.mock('folds', () => ({
   Tooltip: ({ children, ...props }: any) =>
     React.createElement('div', { ...props, 'data-tooltip': true }, children),
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
-    anchor ? React.createElement('div', { ...props, 'data-popout': true }, content) : null,
+    anchor
+      ? React.createElement('div', { ...props, 'data-popout': true, 'data-top': anchor.y }, content)
+      : null,
 }));
 
 vi.mock('@tabler/icons-react', () => ({
@@ -31,13 +33,14 @@ const text = (value: ReactTestInstance | string): string =>
     : value.children.map((child) => text(child as ReactTestInstance | string)).join('');
 
 const summaryInfo = { summaryText: 'Fixing token refresh', messageCount: 21 };
+const triggerRect = { x: 10, y: 20, width: 100, height: 16 };
 const renderers: ReactTestRenderer[] = [];
 const render = (element: React.ReactElement) => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element, {
       createNodeMock: () => ({
-        getBoundingClientRect: () => ({ x: 10, y: 20, width: 100, height: 16 }),
+        getBoundingClientRect: () => ({ ...triggerRect }),
         contains: () => false,
       }),
     });
@@ -166,11 +169,15 @@ describe('MindroomThreadSummaryMarker', () => {
     const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
+    expect(popout(renderer)[0].props['data-top']).toBe(20);
+    triggerRect.y = 140;
     act(() => {
       window.dispatchEvent(new Event('scroll'));
     });
 
     expect(popout(renderer)).toHaveLength(1);
+    expect(popout(renderer)[0].props['data-top']).toBe(140);
+    triggerRect.y = 20;
   });
 
   it('describes the marker with the full title for screen readers', () => {
