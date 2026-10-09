@@ -53,12 +53,13 @@ describe('withWordUndo', () => {
     expect(undoAll(editor)).toEqual(['a  ', '']);
   });
 
-  it('keeps a pasted sentence one undo step', async () => {
+  it('makes a pasted sentence its own undo step', async () => {
     const editor = makeEditor();
+    await type(editor, 'hi ');
     Editor.insertText(editor, 'hello world again');
     await Promise.resolve();
 
-    expect(undoAll(editor)).toEqual(['']);
+    expect(undoAll(editor)).toEqual(['hi ', '']);
   });
 
   it('does not split one change that inserts several words', async () => {
