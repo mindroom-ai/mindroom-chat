@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import React from 'react';
+import React, { Profiler } from 'react';
 import { EventEmitter } from 'events';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
@@ -21,6 +21,7 @@ import {
   useCanvasIndexRecorder,
   useComputerShown,
   useConversationCanvases,
+  useHasListedCanvases,
   useOpenCanvasById,
 } from './canvasIndex';
 import {
@@ -385,13 +386,26 @@ describe('recordCanvasEvent for the computer', () => {
 describe('conversation hooks', () => {
   const mountHook = <T,>(hook: () => T) => {
     const result: { current?: T } = {};
+    // React may call a component once more before it bails out of an unchanged state; only commits count.
+    let commits = 0;
     function Probe() {
       result.current = hook();
       return null;
     }
     const root = createRoot(document.createElement('div'));
-    act(() => root.render(<Probe />));
-    return { result, unmount: () => act(() => root.unmount()) };
+    act(() =>
+      root.render(
+        <Profiler
+          id="probe"
+          onRender={() => {
+            commits += 1;
+          }}
+        >
+          <Probe />
+        </Profiler>
+      )
+    );
+    return { result, commits: () => commits, unmount: () => act(() => root.unmount()) };
   };
   // Reads follow writes after a 100 ms debounce; each poll waits inside `act` for the state updates they make.
   const waitFor = (assertion: () => void) =>
@@ -443,6 +457,59 @@ describe('conversation hooks', () => {
     expect(other.result.current).toBe(false);
     shown.unmount();
     other.unmount();
+  });
+
+  it('commits again only when the answer changes, not for other writes to the index', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+    const canvases = mountHook(() => useConversationCanvases(mx, ROOM_ID, '$thread'));
+    const shown = mountHook(() => useComputerShown(mx, ROOM_ID, '$thread'));
+    await waitFor(() => expect(canvases.result.current).toHaveLength(1));
+    const held = canvases.result.current;
+    // The same canvas again and a canvas elsewhere write the index but leave both answers as they were.
+    const writeElsewhere = async () => {
+      await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+      await recordCanvas(SESSION, {
+        canvasId: '$elsewhere',
+        roomId: '!other:example.org',
+        agentUserId: AGENT,
+        title: 'Elsewhere',
+        revisionId: '$elsewhere',
+        createdTs: 4,
+        updatedTs: 4,
+        shared: false,
+      });
+      await act(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 300);
+          })
+      );
+    };
+    // React renders a component once more before it bails out of the first unchanged state.
+    await writeElsewhere();
+    const committed = [canvases.commits(), shown.commits()];
+    await writeElsewhere();
+    expect([canvases.commits(), shown.commits()]).toEqual(committed);
+    expect(canvases.result.current).toBe(held);
+    // A change here still comes through.
+    await recordCanvasEvent(mx, request({ id: '$b', ts: 2 }));
+    await waitFor(() => expect(canvases.result.current).toHaveLength(2));
+    canvases.unmount();
+    shown.unmount();
+  });
+
+  it('useHasListedCanvases follows the list and a remount starts from the last answer', async () => {
+    const { mx } = fixture();
+    const first = mountHook(() => useHasListedCanvases(mx));
+    await act(settle);
+    expect(first.result.current).toBe(false);
+    await recordCanvasEvent(mx, request());
+    await waitFor(() => expect(first.result.current).toBe(true));
+    first.unmount();
+    const again = mountHook(() => useHasListedCanvases(mx));
+    expect(again.result.current).toBe(true);
+    again.unmount();
   });
 });
 

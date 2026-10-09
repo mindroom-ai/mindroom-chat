@@ -163,29 +163,79 @@ export const watchCanvasIndex = <T>(
 
 const NO_CANVASES: CanvasListEntry[] = [];
 
+/** The one key rules for a conversation (`threadId` undefined: the room's main timeline). */
+const conversationKey = (sessionId: string, roomId: string, threadId: string | undefined) =>
+  `${sessionId}\n${roomId}\n${threadId ?? ''}`;
+
+/**
+ * What the index says about one conversation, read again after each burst of writes. Another
+ * conversation's answer is not this one's while the read is on its way, and an answer equal to the
+ * one held changes nothing, so a write elsewhere in the index does not render the room again.
+ * `read` and `same` must be module-level functions.
+ */
+function useConversationIndex<T>(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined,
+  read: (sessionId: string, roomId: string, threadId: string | undefined) => Promise<T>,
+  same: (held: T, read: T) => boolean,
+  fallback: T
+): T {
+  const sessionId = canvasSessionId(mx);
+  const key = conversationKey(sessionId, roomId, threadId);
+  const [found, setFound] = useState<{ key: string; value: T }>();
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        () => read(sessionId, roomId, threadId),
+        (value) =>
+          setFound((held) => (held?.key === key && same(held.value, value) ? held : { key, value }))
+      ),
+    [key, sessionId, roomId, threadId, read, same]
+  );
+  return found?.key === key ? found.value : fallback;
+}
+
+const readConversationCanvases = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string | undefined
+): Promise<CanvasListEntry[]> =>
+  (await listCanvases(sessionId))
+    .filter((entry) => entry.roomId === roomId && entry.threadId === threadId)
+    .sort((a, b) => b.updatedTs - a.updatedTs);
+
+// Only what the header shows decides whether a list changed.
+const sameCanvases = (held: CanvasListEntry[], read: CanvasListEntry[]): boolean =>
+  held.length === read.length &&
+  held.every(
+    (entry, index) =>
+      entry.canvasId === read[index].canvasId &&
+      entry.revisionId === read[index].revisionId &&
+      entry.updatedTs === read[index].updatedTs &&
+      entry.title === read[index].title
+  );
+
 /** This conversation's canvases (`threadId` undefined: the room's main timeline), newest update first. */
 export function useConversationCanvases(
   mx: MatrixClient,
   roomId: string,
   threadId: string | undefined
 ): CanvasListEntry[] {
-  const sessionId = canvasSessionId(mx);
-  const key = `${sessionId}\n${roomId}\n${threadId ?? ''}`;
-  const [found, setFound] = useState<{ key: string; entries: CanvasListEntry[] }>();
-  useEffect(
-    () =>
-      watchCanvasIndex(
-        async () =>
-          (await listCanvases(sessionId))
-            .filter((entry) => entry.roomId === roomId && entry.threadId === threadId)
-            .sort((a, b) => b.updatedTs - a.updatedTs),
-        (entries) => setFound({ key, entries })
-      ),
-    [key, sessionId, roomId, threadId]
+  return useConversationIndex(
+    mx,
+    roomId,
+    threadId,
+    readConversationCanvases,
+    sameCanvases,
+    NO_CANVASES
   );
-  // Another conversation's answer is not this one's while the read is on its way.
-  return found?.key === key ? found.entries : NO_CANVASES;
 }
+
+const readComputerShown = (sessionId: string, roomId: string, threadId: string | undefined) =>
+  isComputerShown(sessionId, roomId, threadId);
+
+const sameBoolean = (held: boolean, read: boolean): boolean => held === read;
 
 /** Whether an agent showed the computer in this conversation. */
 export function useComputerShown(
@@ -193,18 +243,7 @@ export function useComputerShown(
   roomId: string,
   threadId: string | undefined
 ): boolean {
-  const sessionId = canvasSessionId(mx);
-  const key = `${sessionId}\n${roomId}\n${threadId ?? ''}`;
-  const [found, setFound] = useState<{ key: string; shown: boolean }>();
-  useEffect(
-    () =>
-      watchCanvasIndex(
-        () => isComputerShown(sessionId, roomId, threadId),
-        (shown) => setFound({ key, shown })
-      ),
-    [key, sessionId, roomId, threadId]
-  );
-  return found?.key === key && found.shown;
+  return useConversationIndex(mx, roomId, threadId, readComputerShown, sameBoolean, false);
 }
 
 // The last answer per session: a remounted sidebar starts from it instead of popping the button in.
@@ -214,30 +253,21 @@ const listedBySession = new Map<string, boolean>();
 export function useHasListedCanvases(mx: MatrixClient): boolean {
   const sessionId = canvasSessionId(mx);
   const [listed, setListed] = useState<{ sessionId: string; value: boolean }>();
-  useEffect(() => {
-    let alive = true;
-    let timer: number | undefined;
-    const check = () => {
-      hasCanvases(sessionId).then(
-        (value) => {
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        async () => {
+          const value = await hasCanvases(sessionId);
           listedBySession.set(sessionId, value);
-          if (alive) setListed({ sessionId, value });
+          return value;
         },
-        () => undefined
-      );
-    };
-    check();
-    // Sync can list many canvases at once; one count follows each burst.
-    const unsubscribe = subscribeCanvasList(() => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(check, 100);
-    });
-    return () => {
-      alive = false;
-      window.clearTimeout(timer);
-      unsubscribe();
-    };
-  }, [sessionId]);
+        (value) =>
+          setListed((held) =>
+            held?.sessionId === sessionId && held.value === value ? held : { sessionId, value }
+          )
+      ),
+    [sessionId]
+  );
   return listed?.sessionId === sessionId ? listed.value : listedBySession.get(sessionId) ?? false;
 }
 
