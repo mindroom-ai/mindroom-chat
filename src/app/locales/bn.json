@@ -1531,6 +1531,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "কম্পিউটার দেখান",
         "hideComputer": "কম্পিউটার লুকান",
+        "showCanvas": "প্যানেল দেখান",
+        "hideCanvas": "প্যানেল লুকান",
+        "canvases": "ইন্টারঅ্যাকটিভ প্যানেল",
         "classic": "ক্লাসিক",
         "compact": "কমপ্যাক্ট",
         "copyLink": "লিংক কপি করুন",

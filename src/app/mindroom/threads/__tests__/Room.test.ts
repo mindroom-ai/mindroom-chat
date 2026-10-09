@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import type { ClientConfig } from '../../../hooks/useClientConfig';
+import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
   computerOpen?: boolean;
   canvasOpen?: boolean;
+  canvases?: CanvasListEntry[];
+  openCanvasId?: string;
+  onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
@@ -41,6 +45,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     removeRecentThreadMock: vi.fn(),
     mx: {
       getSafeUserId: () => '@alice:example.org',
+      getHomeserverUrl: () => 'https://example.org',
+      relations: vi.fn(),
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
       on: (name: string, handler: (...args: unknown[]) => void) =>
@@ -54,7 +60,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: (eventId: string) =>
-        roomState.loadedEvents.get(eventId) ?? roomState.routedEvent,
+        roomState.loadedEvents.get(eventId) ??
+        (eventId === roomState.routedEvent?.getId() ? roomState.routedEvent : undefined),
       on: (name: string, handler: (...args: unknown[]) => void) =>
         roomState.listeners.set(name, handler),
       removeListener: (name: string) => roomState.listeners.delete(name),
@@ -94,6 +101,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
       loadedEvents: new Map<string, MatrixEvent>(),
+      conversationCanvases: [] as CanvasListEntry[],
+      conversationCanvasesFor: [] as unknown[][],
       roomViewProps: undefined as MockRoomViewProps | undefined,
       setPeopleDrawer: vi.fn(),
     },
@@ -210,6 +219,14 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => mx,
 }));
 
+vi.mock('../../canvas/canvasIndex', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../canvas/canvasIndex')>()),
+  useConversationCanvases: (...conversation: unknown[]) => {
+    roomState.conversationCanvasesFor.push(conversation);
+    return roomState.conversationCanvases;
+  },
+}));
+
 vi.mock('../../../hooks/useClientConfig', () => ({
   useClientConfig: () => roomState.clientConfig,
 }));
@@ -321,6 +338,9 @@ describe('Room', () => {
     roomState.members = [];
     roomState.search = '';
     roomState.loadedEvents.clear();
+    roomState.conversationCanvases = [];
+    roomState.conversationCanvasesFor = [];
+    mx.relations.mockReset();
     roomState.roomViewProps = undefined;
     roomState.setPeopleDrawer.mockReset();
     navigateRoomMock.mockReset();
@@ -714,6 +734,77 @@ describe('Room', () => {
     expect(view.canvasOpen()).toBe(true);
     expect(roomState.canvasPanelProps?.expanded).toBe(false);
     await view.unmount();
+  });
+
+  describe('the header canvas button', () => {
+    const entry = (canvasId: string): CanvasListEntry => ({
+      canvasId,
+      roomId: '!room:example.org',
+      threadId: '$thread',
+      agentUserId: '@mindroom_helper:example.org',
+      title: 'Home',
+      createdTs: 1,
+      revisionId: canvasId,
+      updatedTs: 1,
+      shared: false,
+    });
+
+    it('lists the conversation’s canvases and opens, marks and closes the chosen one', async () => {
+      const canvas = listedCanvas();
+      roomState.loadedEvents.set('$listed', canvas);
+      roomState.conversationCanvases = [entry('$listed')];
+      const view = await renderCanvasRoom();
+
+      expect(roomState.conversationCanvasesFor.at(-1)).toEqual([mx, room.roomId, '$thread']);
+      expect(roomState.roomViewProps?.canvases).toBe(roomState.conversationCanvases);
+      expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+
+      await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$listed'));
+      expect(view.canvasOpen()).toBe(true);
+      expect(roomState.canvasPanelProps?.event).toBe(canvas);
+      expect(roomState.roomViewProps?.openCanvasId).toBe('$listed');
+
+      await act(async () => roomState.roomViewProps?.onCanvasClose?.());
+      expect(view.canvasOpen()).toBe(false);
+      expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+      await view.unmount();
+    });
+
+    it('opens nothing, and fails nowhere, when the chosen canvas was deleted', async () => {
+      mx.relations.mockResolvedValue({ originalEvent: null, events: [] });
+      roomState.conversationCanvases = [entry('$deleted')];
+      const view = await renderCanvasRoom();
+
+      await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$deleted'));
+
+      expect(mx.relations).toHaveBeenCalled();
+      expect(view.canvasOpen()).toBe(false);
+      expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+      await view.unmount();
+    });
+
+    it('lists no canvases during a call', async () => {
+      roomState.conversationCanvases = [entry('$listed')];
+      roomState.callEmbed = { mock: 'active call' };
+      const view = await renderCanvasRoom();
+
+      expect(roomState.roomViewProps).toBeDefined();
+      expect(roomState.roomViewProps?.canvases).toBeUndefined();
+      await view.unmount();
+    });
+
+    it('lists no canvases when the deployment has not enabled them', async () => {
+      roomState.conversationCanvases = [entry('$listed')];
+      const { Room } = await import('../../../features/room/Room');
+      let renderer: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Room));
+      });
+
+      expect(roomState.roomViewProps).toBeDefined();
+      expect(roomState.roomViewProps?.canvases).toBeUndefined();
+      await act(async () => renderer!.unmount());
+    });
   });
 
   it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {

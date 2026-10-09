@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import {
   loadCanvasEvent,
+  openCanvasById,
   recordCanvasEvent,
   useCanvasIndexRecorder,
   useComputerShown,
@@ -559,5 +560,27 @@ describe('loadCanvasEvent', () => {
     expect(await loadCanvasEvent(mx, room, '$canvas')).toBeUndefined();
     relations.mockResolvedValueOnce({ originalEvent: null, events: [] });
     expect(await loadCanvasEvent(mx, room, '$canvas')).toBeUndefined();
+  });
+});
+
+describe('openCanvasById', () => {
+  it('hands the loaded request to the opener', async () => {
+    const { mx, room, timeline } = fixture();
+    const canvas = request();
+    timeline.push(canvas);
+    const activate = vi.fn();
+    await openCanvasById(mx, room, '$canvas', activate);
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(canvas);
+  });
+
+  it('opens nothing and throws nothing when the request was deleted', async () => {
+    const { mx, room, relations } = fixture();
+    const activate = vi.fn();
+    relations.mockResolvedValueOnce({ originalEvent: null, events: [] });
+    await expect(openCanvasById(mx, room, '$canvas', activate)).resolves.toBeUndefined();
+    relations.mockRejectedValueOnce(new Error('M_NOT_FOUND'));
+    await expect(openCanvasById(mx, room, '$canvas', activate)).resolves.toBeUndefined();
+    expect(activate).not.toHaveBeenCalled();
   });
 });

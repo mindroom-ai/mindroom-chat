@@ -2788,6 +2788,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "컴퓨터 표시",
         "hideComputer": "컴퓨터 숨기기",
+        "showCanvas": "패널 표시",
+        "hideCanvas": "패널 숨기기",
+        "canvases": "대화형 패널",
         "notifications": "알림",
         "compact": "간결",
         "threads": "스레드",

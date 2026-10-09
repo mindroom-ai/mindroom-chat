@@ -301,3 +301,14 @@ export const loadCanvasEvent = async (
     return undefined;
   }
 };
+
+/** Opens a listed canvas: its request may be gone by now (deleted), and then nothing opens. */
+export const openCanvasById = async (
+  mx: MatrixClient,
+  room: Room,
+  canvasId: string,
+  activate: (event: MatrixEvent) => void
+): Promise<void> => {
+  const event = await loadCanvasEvent(mx, room, canvasId);
+  if (event) activate(event);
+};

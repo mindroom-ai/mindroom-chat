@@ -79,6 +79,8 @@ import {
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
 import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
+import { CanvasHeaderButton } from '../canvas/CanvasHeaderButton';
+import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { AgentCallHeaderButton } from '../calls/AgentCallHeaderButton';
 
 const ROOM_VIEW_MODE_MENU_ITEMS = {
@@ -313,6 +315,9 @@ export function RoomViewHeader({
   computerOpen = false,
   onComputerToggle,
   canvasOpen = false,
+  canvases,
+  openCanvasId,
+  onCanvasOpen,
   onCanvasClose,
   threadId,
   joinRequestCount = 0,
@@ -324,6 +329,10 @@ export function RoomViewHeader({
   onComputerToggle?: () => void;
   /** A canvas holds the side panel slot, so Members shows as closed and opening it replaces the canvas. */
   canvasOpen?: boolean;
+  /** The conversation's canvases; the button shows only when there are some. */
+  canvases?: CanvasListEntry[];
+  openCanvasId?: string;
+  onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   threadId?: string;
   joinRequestCount?: number;
@@ -500,6 +509,14 @@ export function RoomViewHeader({
             open={computerOpen}
             onToggle={onComputerToggle ?? (() => undefined)}
           />
+          {canvases && onCanvasOpen && onCanvasClose && (
+            <CanvasHeaderButton
+              canvases={canvases}
+              openCanvasId={openCanvasId}
+              onOpen={onCanvasOpen}
+              onClose={onCanvasClose}
+            />
+          )}
           {!simpleMode && (
             <>
               <TooltipProvider

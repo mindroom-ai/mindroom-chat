@@ -2788,6 +2788,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "显示计算机",
         "hideComputer": "隐藏计算机",
+        "showCanvas": "显示面板",
+        "hideCanvas": "隐藏面板",
+        "canvases": "交互式面板",
         "notifications": "通知",
         "compact": "紧凑",
         "threads": "讨论串",

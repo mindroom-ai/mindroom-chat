@@ -2788,6 +2788,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Show Computer",
         "hideComputer": "Hide Computer",
+        "showCanvas": "Show canvas",
+        "hideCanvas": "Hide canvas",
+        "canvases": "Canvases",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Threads",
