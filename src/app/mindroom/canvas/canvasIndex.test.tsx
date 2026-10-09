@@ -15,8 +15,19 @@ import {
 } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
-import { loadCanvasEvent, recordCanvasEvent, useCanvasIndexRecorder } from './canvasIndex';
-import { listCanvases, subscribeCanvasList } from './canvasIndexStore';
+import {
+  loadCanvasEvent,
+  recordCanvasEvent,
+  useCanvasIndexRecorder,
+  useComputerShown,
+  useConversationCanvases,
+} from './canvasIndex';
+import {
+  isComputerShown,
+  listCanvases,
+  recordCanvas,
+  subscribeCanvasList,
+} from './canvasIndexStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,7 +48,12 @@ const metadata = (title: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-const request = ({ id = '$canvas', ts = 1, extra = {} as Record<string, unknown> } = {}) =>
+const request = ({
+  id = '$canvas',
+  ts = 1,
+  thread = '$thread' as string | null,
+  extra = {} as Record<string, unknown>,
+} = {}) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM_ID,
@@ -47,14 +63,20 @@ const request = ({ id = '$canvas', ts = 1, extra = {} as Record<string, unknown>
     content: {
       msgtype: 'm.notice',
       body: 'Interactive panel: Plans.',
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
-      'io.mindroom.ui_action': metadata('Plans', extra),
+      ...(thread ? { 'm.relates_to': { rel_type: 'm.thread', event_id: thread } } : {}),
+      'io.mindroom.ui_action': metadata('Plans', { thread_id: thread, ...extra }),
     },
   });
 
 const edit = (
   title: string,
-  { id = '$edit', ts = 2, sender = AGENT, extra = {} as Record<string, unknown> } = {}
+  {
+    id = '$edit',
+    of = '$canvas',
+    ts = 2,
+    sender = AGENT,
+    extra = {} as Record<string, unknown>,
+  } = {}
 ) =>
   new MatrixEvent({
     event_id: id,
@@ -70,7 +92,35 @@ const edit = (
         body: `Interactive panel: ${title}.`,
         'io.mindroom.ui_action': metadata(title, extra),
       },
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$canvas' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: of },
+    },
+  });
+
+const computerNotice = ({
+  id = '$computer',
+  thread = '$thread' as string | null,
+  sender = AGENT,
+  extra = {} as Record<string, unknown>,
+} = {}) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: ROOM_ID,
+    sender,
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content: {
+      msgtype: 'm.notice',
+      body: 'Opening the computer.',
+      ...(thread ? { 'm.relates_to': { rel_type: 'm.thread', event_id: thread } } : {}),
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_computer',
+        requester_id: VIEWER,
+        agent_user_id: sender,
+        room_id: ROOM_ID,
+        thread_id: thread,
+        ...extra,
+      },
     },
   });
 
@@ -304,6 +354,94 @@ describe('recordCanvasEvent', () => {
     expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans', updatedTs: 1 });
     await recordCanvasEvent(mx, edit('Plans v2', { ts: 5 }));
     expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans v2', updatedTs: 5 });
+  });
+});
+
+describe('recordCanvasEvent for the computer', () => {
+  it('records a show_computer notice made for this user', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, computerNotice());
+    expect(await isComputerShown(SESSION, ROOM_ID, '$thread')).toBe(true);
+    expect(await isComputerShown(SESSION, ROOM_ID, undefined)).toBe(false);
+    await recordCanvasEvent(mx, computerNotice({ id: '$room-level', thread: null }));
+    expect(await isComputerShown(SESSION, ROOM_ID, undefined)).toBe(true);
+    expect(await listCanvases(SESSION)).toEqual([]);
+  });
+
+  it('ignores show_computer notices for other users or from non-agents', async () => {
+    const { mx } = fixture();
+    expect(
+      recordCanvasEvent(mx, computerNotice({ extra: { requester_id: '@bob:example.org' } }))
+    ).toBeUndefined();
+    expect(recordCanvasEvent(mx, computerNotice({ sender: '@bob:example.org' }))).toBeUndefined();
+    const echo = computerNotice();
+    echo.setStatus('sending' as never);
+    expect(recordCanvasEvent(mx, echo)).toBeUndefined();
+    expect(await isComputerShown(SESSION, ROOM_ID, '$thread')).toBe(false);
+  });
+});
+
+describe('conversation hooks', () => {
+  const mountHook = <T,>(hook: () => T) => {
+    const result: { current?: T } = {};
+    function Probe() {
+      result.current = hook();
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe />));
+    return { result, unmount: () => act(() => root.unmount()) };
+  };
+  // Reads follow writes after a 100 ms debounce; each poll waits inside `act` for the state updates they make.
+  const waitFor = (assertion: () => void) =>
+    vi.waitFor(async () => {
+      await act(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 150);
+          })
+      );
+      assertion();
+    });
+
+  it('useConversationCanvases lists only this conversation, newest update first', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+    await recordCanvasEvent(mx, request({ id: '$b', ts: 2 }));
+    await recordCanvasEvent(mx, request({ id: '$room', ts: 3, thread: null }));
+    await recordCanvas(SESSION, {
+      canvasId: '$elsewhere',
+      roomId: '!other:example.org',
+      threadId: '$thread',
+      agentUserId: AGENT,
+      title: 'Elsewhere',
+      revisionId: '$elsewhere',
+      createdTs: 4,
+      updatedTs: 4,
+      shared: false,
+    });
+    const thread = mountHook(() => useConversationCanvases(mx, ROOM_ID, '$thread'));
+    const main = mountHook(() => useConversationCanvases(mx, ROOM_ID, undefined));
+    const ids = (entries?: { canvasId: string }[]) => entries?.map((entry) => entry.canvasId);
+    await waitFor(() => expect(ids(thread.result.current)).toEqual(['$b', '$a']));
+    expect(ids(main.result.current)).toEqual(['$room']);
+    await recordCanvasEvent(mx, edit('Plans v2', { id: '$a-v2', of: '$a', ts: 9 }));
+    await waitFor(() => expect(ids(thread.result.current)).toEqual(['$a', '$b']));
+    thread.unmount();
+    main.unmount();
+  });
+
+  it('useComputerShown turns true when a notice is recorded', async () => {
+    const { mx } = fixture();
+    const shown = mountHook(() => useComputerShown(mx, ROOM_ID, '$thread'));
+    const other = mountHook(() => useComputerShown(mx, ROOM_ID, undefined));
+    await act(settle);
+    expect(shown.result.current).toBe(false);
+    await recordCanvasEvent(mx, computerNotice());
+    await waitFor(() => expect(shown.result.current).toBe(true));
+    expect(other.result.current).toBe(false);
+    shown.unmount();
+    other.unmount();
   });
 });
 

@@ -24,9 +24,11 @@ import {
   type CanvasListEntry,
   forgetCanvas,
   hasCanvases,
+  isComputerShown,
   listCanvases,
   recordCanvas,
   recordCanvasUpdate,
+  recordComputerShown,
   replaceDeletedVersion,
   subscribeCanvasList,
 } from './canvasIndexStore';
@@ -35,9 +37,10 @@ export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
 /**
- * Lists a canvas made for this user, applies an update of a listed one, or forgets a deleted one;
- * other events are ignored. Updates and deletions can arrive long after their canvas left memory,
- * where no timeline takes them, so they are applied to the listed entry.
+ * Lists a canvas made for this user, applies an update of a listed one, forgets a deleted one, or
+ * notes a conversation where an agent showed the computer; other events are ignored. Updates and
+ * deletions can arrive long after their canvas left memory, where no timeline takes them, so they
+ * are applied to the listed entry.
  */
 export const recordCanvasEvent = (
   mx: MatrixClient,
@@ -80,7 +83,15 @@ export const recordCanvasEvent = (
       return version && { title: version.canvas.title, revisionId: version.revisionEventId };
     });
   }
-  if (!isRecord(content[CHAT_UI_ACTION_KEY])) return undefined;
+  const data = content[CHAT_UI_ACTION_KEY];
+  if (!isRecord(data)) return undefined;
+  if (data.action === 'show_computer') {
+    const room = mx.getRoom(event.getRoomId());
+    const action = room ? readChatUiAction(event, mx.getSafeUserId(), room) : undefined;
+    return room && action?.action === 'show_computer'
+      ? recordComputerShown(canvasSessionId(mx), room.roomId, action.threadId)
+      : undefined;
+  }
   const entry = readCanvasEntry(mx, event);
   return entry && recordCanvas(canvasSessionId(mx), entry);
 };
@@ -119,6 +130,82 @@ const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void>
   // come in while the canvas loaded.
   if (entry) await replaceDeletedVersion(sessionId, deletedId, entry);
 };
+
+/**
+ * Reads the index now and again after each burst of writes: sync can write many entries at once.
+ * A failed read keeps the last value; returns the stop function.
+ */
+export const watchCanvasIndex = <T>(
+  read: () => Promise<T>,
+  onValue: (value: T) => void
+): (() => void) => {
+  let alive = true;
+  let timer: number | undefined;
+  const load = () => {
+    read().then(
+      (value) => {
+        if (alive) onValue(value);
+      },
+      () => undefined
+    );
+  };
+  load();
+  const unsubscribe = subscribeCanvasList(() => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(load, 100);
+  });
+  return () => {
+    alive = false;
+    window.clearTimeout(timer);
+    unsubscribe();
+  };
+};
+
+const NO_CANVASES: CanvasListEntry[] = [];
+
+/** This conversation's canvases (`threadId` undefined: the room's main timeline), newest update first. */
+export function useConversationCanvases(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined
+): CanvasListEntry[] {
+  const sessionId = canvasSessionId(mx);
+  const key = `${sessionId}\n${roomId}\n${threadId ?? ''}`;
+  const [found, setFound] = useState<{ key: string; entries: CanvasListEntry[] }>();
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        async () =>
+          (await listCanvases(sessionId))
+            .filter((entry) => entry.roomId === roomId && entry.threadId === threadId)
+            .sort((a, b) => b.updatedTs - a.updatedTs),
+        (entries) => setFound({ key, entries })
+      ),
+    [key, sessionId, roomId, threadId]
+  );
+  // Another conversation's answer is not this one's while the read is on its way.
+  return found?.key === key ? found.entries : NO_CANVASES;
+}
+
+/** Whether an agent showed the computer in this conversation. */
+export function useComputerShown(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined
+): boolean {
+  const sessionId = canvasSessionId(mx);
+  const key = `${sessionId}\n${roomId}\n${threadId ?? ''}`;
+  const [found, setFound] = useState<{ key: string; shown: boolean }>();
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        () => isComputerShown(sessionId, roomId, threadId),
+        (shown) => setFound({ key, shown })
+      ),
+    [key, sessionId, roomId, threadId]
+  );
+  return found?.key === key && found.shown;
+}
 
 // The last answer per session: a remounted sidebar starts from it instead of popping the button in.
 const listedBySession = new Map<string, boolean>();
