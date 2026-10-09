@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 討論串摘要"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI 為此討論串命名",
+        "updated": "AI 已更新標題",
+        "edited": "標題已編輯",
+        "previous": "原為：<old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "工具批准請求",
         "submitted": "已提交",

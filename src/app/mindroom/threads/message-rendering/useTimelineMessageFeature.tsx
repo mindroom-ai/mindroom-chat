@@ -262,6 +262,7 @@ export const useTimelineMessageFeature = ({
           kind={kind}
           policy={bodyPolicy}
           approvalTimeline={data.approvalTimeline}
+          threadSummaryTimeline={data.threadSummaryTimeline}
         />
       </TimelineMessageFrame>
     );

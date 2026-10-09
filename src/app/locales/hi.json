@@ -1363,6 +1363,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "एआई थ्रेड सारांश"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "एआई ने इस थ्रेड का शीर्षक रखा",
+        "updated": "एआई शीर्षक अपडेट हुआ",
+        "edited": "शीर्षक संपादित",
+        "previous": "पहले: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "argumentsMayDifferBetweenCalls": "हर कॉल के आर्ग्युमेंट अलग हो सकते हैं।",
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "स्वतः-अनुमोदन इस थ्रेड, अनुरोधकर्ता, एजेंट और टूल पर लागू होता है।",

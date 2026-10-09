@@ -1,4 +1,4 @@
-import { style, type CSSProperties } from '@vanilla-extract/css';
+import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { shortViewport } from './shortViewport';
@@ -198,6 +198,27 @@ export const SummaryText = style({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   ...whenCompact({ flexBasis: 'auto' }),
+});
+
+const SummaryChangedTint = keyframes({
+  from: {
+    backgroundColor: color.Primary.Container,
+    boxShadow: `0 0 0 ${config.space.S100} ${color.Primary.Container}`,
+  },
+  to: {
+    backgroundColor: 'transparent',
+    boxShadow: `0 0 0 ${config.space.S100} transparent`,
+  },
+});
+
+export const SummaryTextChanged = style({
+  borderRadius: config.radii.R300,
+  animation: `${SummaryChangedTint} 2.4s ease-out`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
 });
 
 export const ScheduledWrap = style({

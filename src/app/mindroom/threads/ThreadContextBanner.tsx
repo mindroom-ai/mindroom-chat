@@ -189,6 +189,24 @@ export function ThreadContextBanner({
     pickerDisabled,
     t,
   });
+  // A summary that changes while the thread is open tints once; opening a thread does not.
+  // The collapsed pill shows no title, so it drops a pending tint rather than replay it later.
+  const { summaryText } = headerModel;
+  const [shownSummary, setShownSummary] = useState({ threadId, summaryText, changed: false });
+  if (shownSummary.threadId !== threadId || shownSummary.summaryText !== summaryText) {
+    setShownSummary({
+      threadId,
+      summaryText,
+      changed:
+        !collapsed &&
+        shownSummary.threadId === threadId &&
+        !!shownSummary.summaryText &&
+        !!summaryText,
+    });
+  } else if (collapsed && shownSummary.changed) {
+    setShownSummary({ ...shownSummary, changed: false });
+  }
+  const summaryChanged = shownSummary.changed;
   const resolvedByDisplayName = getThreadResolverDisplayName(
     room,
     headerRecord.status.resolvedByUserId
@@ -338,9 +356,17 @@ export function ThreadContextBanner({
                 <div className={css.SubtitleRow}>
                   {headerModel.summaryText && (
                     <Text
+                      // Remounting replays the tint for each new summary.
+                      key={headerModel.summaryText}
                       as="span"
                       data-thread-context-summary="true"
-                      className={css.SummaryText}
+                      className={classNames(
+                        css.SummaryText,
+                        summaryChanged && css.SummaryTextChanged
+                      )}
+                      onAnimationEnd={() =>
+                        setShownSummary((shown) => ({ ...shown, changed: false }))
+                      }
                       size="T300"
                       truncate
                       title={headerModel.summaryText}

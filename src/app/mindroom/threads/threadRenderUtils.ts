@@ -3,7 +3,7 @@ import {
   hasMindroomMessageExtras,
   parseMindroomMessageExtras,
 } from '../messages/messageExtrasData';
-import { hasMindroomThreadSummary } from '../messages/threadSummary';
+import { getMindroomThreadSummaryInfo, hasMindroomThreadSummary } from '../messages/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 import { inSameDay } from '../../utils/time';
@@ -416,7 +416,9 @@ export const estimateThreadEventRowHeight = (
   const content = mEvent.getContent();
   const contentRecord = content as Record<string, unknown>;
   const body = typeof content.body === 'string' ? content.body : '';
-  // Always-expanded rows (agent tool traces / thread summaries) never
+  // Thread rows render a summary as a one-line marker under the reply before it.
+  if (getMindroomThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
+  // Always-expanded rows (agent tool traces / legacy thread summaries) never
   // fold: the body renders in full and each extras section adds a
   // collapsed accordion header. Estimating these at the fold cap made
   // every one of them mount ~hundreds of px small — the per-frame jumps

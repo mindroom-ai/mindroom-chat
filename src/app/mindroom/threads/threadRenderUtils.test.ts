@@ -311,6 +311,23 @@ describe('estimateThreadEventRowHeight', () => {
     expect(estimateThreadEventRowHeight(edit, modern)).toBe(0);
   });
 
+  it('estimates a thread summary at its one-line marker', () => {
+    const summary = 'Fixing iOS push token refresh while the app is suspended\n'.repeat(4);
+    const event = new MatrixEvent({
+      content: {
+        body: summary,
+        msgtype: 'm.notice',
+        'io.mindroom.thread_summary': { version: 1, summary, message_count: 21 },
+      },
+      event_id: '$summary',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@code:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(30);
+  });
+
   it('uses the smaller compact base', () => {
     expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(26);
   });

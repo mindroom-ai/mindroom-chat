@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Yapay zekâ konu özeti"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "Yapay zekâ bu konuya başlık verdi",
+        "updated": "Yapay zekâ başlığı güncelledi",
+        "edited": "Başlık düzenlendi",
+        "previous": "Önceki: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Araç onay isteği",
         "submitted": "Gönderildi",

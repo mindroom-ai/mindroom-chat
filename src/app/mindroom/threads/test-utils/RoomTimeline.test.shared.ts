@@ -483,6 +483,14 @@ vi.mock('@tanstack/react-virtual', () => {
         },
         measureElement: (node: Element | null) =>
           roomTimelineVirtualizerState.measureElementMock(node),
+        // Mirrors virtual-core: a resized row keeps its new size in the size cache.
+        resizeItem: (index: number, size: number) => {
+          const opts = optionsRef.current;
+          (instance!.itemSizeCache as Map<unknown, number>).set(
+            opts.getItemKey?.(index) ?? index,
+            size
+          );
+        },
         // virtual-core reads the row index from `data-index`; node mocks have none.
         indexFromElement: (node: Element) => {
           const value = node.getAttribute?.('data-index');
@@ -646,6 +654,12 @@ vi.mock('../ThreadIndicator', () => ({
 
 vi.mock('../../messages/MindroomThreadSummaryCard', () => ({
   MindroomThreadSummaryCard: passthrough,
+}));
+
+vi.mock('../../messages/MindroomThreadSummaryMarker.css', () => ({
+  Marker: 'Marker',
+  MarkerTrigger: 'MarkerTrigger',
+  MarkerDetails: 'MarkerDetails',
 }));
 
 vi.mock('../../../features/room/message', () => ({
@@ -1337,6 +1351,7 @@ const makeEvent = (
     getTs: () => opts.ts ?? 0,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
+    isEncrypted: () => opts.type === 'm.room.encrypted',
     getUnsigned: () => unsigned,
     setUnsigned: (next: Record<string, unknown>) => {
       unsigned = next;

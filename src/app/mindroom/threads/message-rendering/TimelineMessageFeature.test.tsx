@@ -26,6 +26,32 @@ import type { TimelineMessageRow } from './types';
 // Shared timeline fixtures stub the subscription. This suite deliberately exercises it.
 vi.doUnmock('../../../features/room/message/EncryptedContent');
 
+vi.mock('../../messages/MindroomThreadSummaryMarker', async () => {
+  const ReactImport = await import('react');
+  return {
+    MindroomThreadSummaryMarker: (props: Record<string, unknown>) =>
+      ReactImport.createElement('summary-marker', props),
+  };
+});
+
+const summaryEvent = (id: string) =>
+  makeEvent(id, {
+    threadRootId: '$thread',
+    content: {
+      msgtype: 'm.notice',
+      body: 'Fixing token refresh',
+      'io.mindroom.thread_summary': {
+        version: 1,
+        summary: 'Fixing token refresh',
+        message_count: 21,
+      },
+    },
+  }) as unknown as MatrixEvent;
+const summaryMarkers = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
+const renderedContent = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => typeof node.props.msgType === 'string');
+
 const rowFor = (event: MatrixEvent, index = 0, previousEventId?: string): TimelineMessageRow => ({
   eventId: event.getId()!,
   event,
@@ -50,6 +76,10 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
       hiddenEventIds: new Set<string>(),
       historyByResponseId: new Map(),
       fallbackGroupsByEventId: new Map(),
+    },
+    threadSummaryTimeline: {
+      hiddenEventIds: new Set<string>(),
+      markersByEventId: new Map(),
     },
   };
   const Harness = () => {
@@ -316,5 +346,27 @@ describe('timeline message feature', () => {
     expect(
       renderer.root.findAll((node) => node.props.getContent?.().body === 'Stream update').length
     ).toBeGreaterThan(0);
+  });
+
+  it('shrinks a summary in an open thread to a marker carrying its plan', async () => {
+    const event = summaryEvent('$summary');
+    const { renderer, data, update } = await mountFeature([rowFor(event)], '$thread');
+    data.threadSummaryTimeline.markersByEventId.set('$summary', {
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+    update();
+
+    const [marker] = summaryMarkers(renderer);
+    expect(marker.props.summaryInfo.summaryText).toBe('Fixing token refresh');
+    expect(marker.props.plan).toEqual({ first: false, previousSummaryText: 'Push bug' });
+    expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it('keeps the summary card for a summary outside an open thread', async () => {
+    const { renderer } = await mountFeature([rowFor(summaryEvent('$summary'))]);
+
+    expect(summaryMarkers(renderer)).toHaveLength(0);
+    expect(renderedContent(renderer)).toHaveLength(1);
   });
 });

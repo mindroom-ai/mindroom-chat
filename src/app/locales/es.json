@@ -2668,6 +2668,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Resumen del hilo de IA"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "La IA tituló este hilo",
+        "updated": "Título de IA actualizado",
+        "edited": "Título editado",
+        "previous": "Antes: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Solicitud de aprobación de herramienta",
         "submitted": "Enviado",

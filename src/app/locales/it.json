@@ -2668,6 +2668,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Riepilogo IA del thread"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "L’IA ha dato un titolo al thread",
+        "updated": "Titolo IA aggiornato",
+        "edited": "Titolo modificato",
+        "previous": "Prima: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Richiesta di approvazione strumento",
         "submitted": "Inviata",

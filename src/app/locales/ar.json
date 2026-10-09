@@ -2776,6 +2776,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "ملخص سلسلة المحادثة بالذكاء الاصطناعي"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "وضع الذكاء الاصطناعي عنوانًا لسلسلة المحادثة",
+        "updated": "حدّث الذكاء الاصطناعي العنوان",
+        "edited": "تم تعديل العنوان",
+        "previous": "السابق: <old>⁨{{summary}}⁩</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "طلب موافقة على أداة",
         "submitted": "تم الإرسال",

@@ -2632,6 +2632,12 @@
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI thread summary"
       },
+      "mindroomThreadSummaryMarker": {
+        "titled": "AI titled this thread",
+        "updated": "AI title updated",
+        "edited": "Title edited",
+        "previous": "Was: <old>{{summary}}</old>"
+      },
       "mindroomToolApprovalCard": {
         "toolApprovalRequest": "Tool approval request",
         "submitted": "Submitted",
