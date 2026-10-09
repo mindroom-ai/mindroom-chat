@@ -2788,6 +2788,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Toon computer",
         "hideComputer": "Verberg computer",
+        "showCanvas": "Toon paneel",
+        "hideCanvas": "Verberg paneel",
+        "canvases": "Interactieve panelen",
         "notifications": "Meldingen",
         "compact": "Compact",
         "threads": "Threads",

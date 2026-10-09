@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import React from 'react';
+import React, { Profiler } from 'react';
 import { EventEmitter } from 'events';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
@@ -15,8 +15,21 @@ import {
 } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
-import { loadCanvasEvent, recordCanvasEvent, useCanvasIndexRecorder } from './canvasIndex';
-import { listCanvases, subscribeCanvasList } from './canvasIndexStore';
+import {
+  loadCanvasEvent,
+  recordCanvasEvent,
+  useCanvasIndexRecorder,
+  useComputerShown,
+  useConversationCanvases,
+  useHasListedCanvases,
+  useOpenCanvasById,
+} from './canvasIndex';
+import {
+  isComputerShown,
+  listCanvases,
+  recordCanvas,
+  subscribeCanvasList,
+} from './canvasIndexStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,7 +50,12 @@ const metadata = (title: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-const request = ({ id = '$canvas', ts = 1, extra = {} as Record<string, unknown> } = {}) =>
+const request = ({
+  id = '$canvas',
+  ts = 1,
+  thread = '$thread' as string | null,
+  extra = {} as Record<string, unknown>,
+} = {}) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM_ID,
@@ -47,14 +65,20 @@ const request = ({ id = '$canvas', ts = 1, extra = {} as Record<string, unknown>
     content: {
       msgtype: 'm.notice',
       body: 'Interactive panel: Plans.',
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
-      'io.mindroom.ui_action': metadata('Plans', extra),
+      ...(thread ? { 'm.relates_to': { rel_type: 'm.thread', event_id: thread } } : {}),
+      'io.mindroom.ui_action': metadata('Plans', { thread_id: thread, ...extra }),
     },
   });
 
 const edit = (
   title: string,
-  { id = '$edit', ts = 2, sender = AGENT, extra = {} as Record<string, unknown> } = {}
+  {
+    id = '$edit',
+    of = '$canvas',
+    ts = 2,
+    sender = AGENT,
+    extra = {} as Record<string, unknown>,
+  } = {}
 ) =>
   new MatrixEvent({
     event_id: id,
@@ -70,7 +94,35 @@ const edit = (
         body: `Interactive panel: ${title}.`,
         'io.mindroom.ui_action': metadata(title, extra),
       },
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$canvas' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: of },
+    },
+  });
+
+const computerNotice = ({
+  id = '$computer',
+  thread = '$thread' as string | null,
+  sender = AGENT,
+  extra = {} as Record<string, unknown>,
+} = {}) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: ROOM_ID,
+    sender,
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content: {
+      msgtype: 'm.notice',
+      body: 'Opening the computer.',
+      ...(thread ? { 'm.relates_to': { rel_type: 'm.thread', event_id: thread } } : {}),
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_computer',
+        requester_id: VIEWER,
+        agent_user_id: sender,
+        room_id: ROOM_ID,
+        thread_id: thread,
+        ...extra,
+      },
     },
   });
 
@@ -307,6 +359,160 @@ describe('recordCanvasEvent', () => {
   });
 });
 
+describe('recordCanvasEvent for the computer', () => {
+  it('records a show_computer notice made for this user', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, computerNotice());
+    expect(await isComputerShown(SESSION, ROOM_ID, '$thread')).toBe(true);
+    expect(await isComputerShown(SESSION, ROOM_ID, undefined)).toBe(false);
+    await recordCanvasEvent(mx, computerNotice({ id: '$room-level', thread: null }));
+    expect(await isComputerShown(SESSION, ROOM_ID, undefined)).toBe(true);
+    expect(await listCanvases(SESSION)).toEqual([]);
+  });
+
+  it('ignores show_computer notices for other users or from non-agents', async () => {
+    const { mx } = fixture();
+    expect(
+      recordCanvasEvent(mx, computerNotice({ extra: { requester_id: '@bob:example.org' } }))
+    ).toBeUndefined();
+    expect(recordCanvasEvent(mx, computerNotice({ sender: '@bob:example.org' }))).toBeUndefined();
+    const echo = computerNotice();
+    echo.setStatus('sending' as never);
+    expect(recordCanvasEvent(mx, echo)).toBeUndefined();
+    expect(await isComputerShown(SESSION, ROOM_ID, '$thread')).toBe(false);
+  });
+});
+
+describe('conversation hooks', () => {
+  const mountHook = <T,>(hook: () => T) => {
+    const result: { current?: T } = {};
+    // React may call a component once more before it bails out of an unchanged state; only commits count.
+    let commits = 0;
+    function Probe() {
+      result.current = hook();
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() =>
+      root.render(
+        <Profiler
+          id="probe"
+          onRender={() => {
+            commits += 1;
+          }}
+        >
+          <Probe />
+        </Profiler>
+      )
+    );
+    return { result, commits: () => commits, unmount: () => act(() => root.unmount()) };
+  };
+  // Reads follow writes after a 100 ms debounce; each poll waits inside `act` for the state updates they make.
+  const waitFor = (assertion: () => void) =>
+    vi.waitFor(async () => {
+      await act(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 150);
+          })
+      );
+      assertion();
+    });
+
+  it('useConversationCanvases lists only this conversation, newest update first', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+    await recordCanvasEvent(mx, request({ id: '$b', ts: 2 }));
+    await recordCanvasEvent(mx, request({ id: '$room', ts: 3, thread: null }));
+    await recordCanvas(SESSION, {
+      canvasId: '$elsewhere',
+      roomId: '!other:example.org',
+      threadId: '$thread',
+      agentUserId: AGENT,
+      title: 'Elsewhere',
+      revisionId: '$elsewhere',
+      createdTs: 4,
+      updatedTs: 4,
+      shared: false,
+    });
+    const thread = mountHook(() => useConversationCanvases(mx, ROOM_ID, '$thread'));
+    const main = mountHook(() => useConversationCanvases(mx, ROOM_ID, undefined));
+    const ids = (entries?: { canvasId: string }[]) => entries?.map((entry) => entry.canvasId);
+    await waitFor(() => expect(ids(thread.result.current)).toEqual(['$b', '$a']));
+    expect(ids(main.result.current)).toEqual(['$room']);
+    await recordCanvasEvent(mx, edit('Plans v2', { id: '$a-v2', of: '$a', ts: 9 }));
+    await waitFor(() => expect(ids(thread.result.current)).toEqual(['$a', '$b']));
+    thread.unmount();
+    main.unmount();
+  });
+
+  it('useComputerShown turns true when a notice is recorded', async () => {
+    const { mx } = fixture();
+    const shown = mountHook(() => useComputerShown(mx, ROOM_ID, '$thread'));
+    const other = mountHook(() => useComputerShown(mx, ROOM_ID, undefined));
+    await act(settle);
+    expect(shown.result.current).toBe(false);
+    await recordCanvasEvent(mx, computerNotice());
+    await waitFor(() => expect(shown.result.current).toBe(true));
+    expect(other.result.current).toBe(false);
+    shown.unmount();
+    other.unmount();
+  });
+
+  it('commits again only when the answer changes, not for other writes to the index', async () => {
+    const { mx } = fixture();
+    await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+    const canvases = mountHook(() => useConversationCanvases(mx, ROOM_ID, '$thread'));
+    const shown = mountHook(() => useComputerShown(mx, ROOM_ID, '$thread'));
+    await waitFor(() => expect(canvases.result.current).toHaveLength(1));
+    const held = canvases.result.current;
+    // The same canvas again and a canvas elsewhere write the index but leave both answers as they were.
+    const writeElsewhere = async () => {
+      await recordCanvasEvent(mx, request({ id: '$a', ts: 1 }));
+      await recordCanvas(SESSION, {
+        canvasId: '$elsewhere',
+        roomId: '!other:example.org',
+        agentUserId: AGENT,
+        title: 'Elsewhere',
+        revisionId: '$elsewhere',
+        createdTs: 4,
+        updatedTs: 4,
+        shared: false,
+      });
+      await act(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, 300);
+          })
+      );
+    };
+    // React renders a component once more before it bails out of the first unchanged state.
+    await writeElsewhere();
+    const committed = [canvases.commits(), shown.commits()];
+    await writeElsewhere();
+    expect([canvases.commits(), shown.commits()]).toEqual(committed);
+    expect(canvases.result.current).toBe(held);
+    // A change here still comes through.
+    await recordCanvasEvent(mx, request({ id: '$b', ts: 2 }));
+    await waitFor(() => expect(canvases.result.current).toHaveLength(2));
+    canvases.unmount();
+    shown.unmount();
+  });
+
+  it('useHasListedCanvases follows the list and a remount starts from the last answer', async () => {
+    const { mx } = fixture();
+    const first = mountHook(() => useHasListedCanvases(mx));
+    await act(settle);
+    expect(first.result.current).toBe(false);
+    await recordCanvasEvent(mx, request());
+    await waitFor(() => expect(first.result.current).toBe(true));
+    first.unmount();
+    const again = mountHook(() => useHasListedCanvases(mx));
+    expect(again.result.current).toBe(true);
+    again.unmount();
+  });
+});
+
 describe('useCanvasIndexRecorder', () => {
   const mount = (mx: MatrixClient, enabled: boolean) => {
     function Recorder() {
@@ -421,5 +627,140 @@ describe('loadCanvasEvent', () => {
     expect(await loadCanvasEvent(mx, room, '$canvas')).toBeUndefined();
     relations.mockResolvedValueOnce({ originalEvent: null, events: [] });
     expect(await loadCanvasEvent(mx, room, '$canvas')).toBeUndefined();
+  });
+});
+
+describe('useOpenCanvasById', () => {
+  const mountOpener = (
+    mx: MatrixClient,
+    room: Room,
+    activate: (event: MatrixEvent) => void,
+    conversation = 'thread A'
+  ) => {
+    const opener: { open?: (canvasId: string) => void } = {};
+    function Probe({
+      conversation: shown,
+      onActivate,
+    }: {
+      conversation: string;
+      onActivate: typeof activate;
+    }) {
+      opener.open = useOpenCanvasById(mx, room, shown, onActivate);
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() => root.render(<Probe conversation={conversation} onActivate={activate} />));
+    return {
+      open: (canvasId: string) => act(async () => opener.open!(canvasId)),
+      show: (next: string, onActivate = activate) =>
+        act(() => root.render(<Probe conversation={next} onActivate={onActivate} />)),
+      unmount: () => act(() => root.unmount()),
+    };
+  };
+  const deferredRelations = (relations: ReturnType<typeof vi.fn>) => {
+    const pending: Array<(found: { originalEvent: MatrixEvent | null; events: [] }) => void> = [];
+    relations.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+        })
+    );
+    return pending;
+  };
+
+  it('hands the loaded request to the opener', async () => {
+    const { mx, room, timeline } = fixture();
+    const canvas = request();
+    timeline.push(canvas);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
+  });
+
+  it('opens nothing and throws nothing when the request was deleted', async () => {
+    const { mx, room, relations } = fixture();
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    relations.mockResolvedValueOnce({ originalEvent: null, events: [] });
+    await opener.open('$canvas');
+    relations.mockRejectedValueOnce(new Error('M_NOT_FOUND'));
+    await opener.open('$canvas');
+    expect(activate).not.toHaveBeenCalled();
+    opener.unmount();
+  });
+
+  it('opens a fetched request in the conversation it was chosen in', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    expect(activate).not.toHaveBeenCalled();
+    const canvas = request();
+    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
+  });
+
+  it('drops a fetched request when another conversation is shown by the time it arrives', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    await opener.show('thread B');
+    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    expect(activate).not.toHaveBeenCalled();
+    // A choice made in the new conversation opens there.
+    await opener.open('$canvas');
+    const canvas = request();
+    await act(async () => pending[1]({ originalEvent: canvas, events: [] }));
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(canvas);
+    opener.unmount();
+  });
+
+  it('drops a fetched request when the room left before it arrived', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$canvas');
+    opener.unmount();
+    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('lets a later choice win over an earlier, slower fetch', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const activate = vi.fn();
+    const opener = mountOpener(mx, room, activate);
+    await opener.open('$slow');
+    await opener.open('$fast');
+    const fast = request({ id: '$fast' });
+    await act(async () => pending[1]({ originalEvent: fast, events: [] }));
+    await act(async () => pending[0]({ originalEvent: request({ id: '$slow' }), events: [] }));
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith(fast);
+    opener.unmount();
+  });
+
+  it('acts through the latest opener', async () => {
+    const { mx, room, relations } = fixture();
+    const pending = deferredRelations(relations);
+    const first = vi.fn();
+    const second = vi.fn();
+    const opener = mountOpener(mx, room, first);
+    await opener.open('$canvas');
+    await opener.show('thread A', second);
+    const canvas = request();
+    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(canvas);
+    opener.unmount();
   });
 });

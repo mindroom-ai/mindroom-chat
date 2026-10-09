@@ -32,6 +32,11 @@ import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
 import { useRoomCanvasState } from '../canvas/useRoomCanvasState';
 import { useCanvasOpenRequest } from '../canvas/useCanvasOpenRequest';
+import {
+  useComputerShown,
+  useConversationCanvases,
+  useOpenCanvasById,
+} from '../canvas/canvasIndex';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -261,6 +266,24 @@ export function Room() {
     canvasEnabled && !callView && continuationReady,
     openRequestedCanvas
   );
+  // The header lists this conversation's canvases, so one closed (or far up the timeline) is one click away.
+  const conversationCanvases = useConversationCanvases(mx, room.roomId, computerThreadId);
+  const computerShown = useComputerShown(mx, room.roomId, computerThreadId);
+  // A canvas still loading is opened only into the panel state it was chosen in: closing the canvas,
+  // opening another, the computer or Members meanwhile is a later choice, and it wins.
+  const openCanvasFromHeader = useOpenCanvasById(
+    mx,
+    room,
+    [
+      room.roomId,
+      routedThreadId,
+      computerThreadId,
+      canvasEvent?.getId(),
+      effectiveComputerOpen,
+      isDrawer,
+    ].join('\n'),
+    uiActions.activate
+  );
   useEffect(() => {
     if (!expandCanvasId || canvasEvent?.getId() !== expandCanvasId) return;
     setCanvasExpanded(true);
@@ -286,8 +309,12 @@ export function Room() {
                   room={room}
                   computerAvailable={computerAvailable}
                   computerOpen={effectiveComputerOpen}
+                  computerShown={computerShown}
                   onComputerToggle={handleComputerToggle}
                   canvasOpen={canvasShown}
+                  canvases={canvasEnabled && !callActive ? conversationCanvases : undefined}
+                  openCanvasId={canvasShown ? canvasEvent?.getId() : undefined}
+                  onCanvasOpen={openCanvasFromHeader}
                   onCanvasClose={closeCanvas}
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}

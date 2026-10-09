@@ -13,12 +13,9 @@ import {
   canvasSessionId,
   loadCanvasEvent,
   recordCanvasEvent,
+  watchCanvasIndex,
 } from '../../../mindroom/canvas/canvasIndex';
-import {
-  listCanvases,
-  subscribeCanvasList,
-  type CanvasListEntry,
-} from '../../../mindroom/canvas/canvasIndexStore';
+import { listCanvases, type CanvasListEntry } from '../../../mindroom/canvas/canvasIndexStore';
 import { listSavedCanvasIds } from '../../../mindroom/canvas/canvasStateStore';
 import {
   PINNED_CANVASES_TYPE,
@@ -35,28 +32,18 @@ type CanvasList = { entries?: CanvasListEntry[]; savedIds: Set<string> };
 /** This session's listed canvases and which hold saved state, re-read after each change. */
 const useCanvasList = (sessionId: string): CanvasList => {
   const [list, setList] = useState<CanvasList>({ savedIds: new Set() });
-  useEffect(() => {
-    let alive = true;
-    let timer: number | undefined;
-    const load = () =>
-      Promise.all([
-        listCanvases(sessionId).catch(() => []),
-        listSavedCanvasIds(sessionId).catch(() => []),
-      ]).then(([entries, savedIds]) => {
-        if (alive) setList({ entries, savedIds: new Set(savedIds) });
-      });
-    load();
-    // Sync can list many canvases at once; one read follows each burst.
-    const unsubscribe = subscribeCanvasList(() => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(load, 100);
-    });
-    return () => {
-      alive = false;
-      window.clearTimeout(timer);
-      unsubscribe();
-    };
-  }, [sessionId]);
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        () =>
+          Promise.all([
+            listCanvases(sessionId).catch(() => []),
+            listSavedCanvasIds(sessionId).catch(() => []),
+          ]),
+        ([entries, savedIds]) => setList({ entries, savedIds: new Set(savedIds) })
+      ),
+    [sessionId]
+  );
   return list;
 };
 

@@ -2835,6 +2835,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Mostra computer",
         "hideComputer": "Nascondi computer",
+        "showCanvas": "Mostra pannello",
+        "hideCanvas": "Nascondi pannello",
+        "canvases": "Pannelli interattivi",
         "notifications": "Notifiche",
         "compact": "Compatto",
         "threads": "Thread",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ClientEvent,
   Direction,
@@ -24,9 +24,11 @@ import {
   type CanvasListEntry,
   forgetCanvas,
   hasCanvases,
+  isComputerShown,
   listCanvases,
   recordCanvas,
   recordCanvasUpdate,
+  recordComputerShown,
   replaceDeletedVersion,
   subscribeCanvasList,
 } from './canvasIndexStore';
@@ -35,9 +37,10 @@ export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
 /**
- * Lists a canvas made for this user, applies an update of a listed one, or forgets a deleted one;
- * other events are ignored. Updates and deletions can arrive long after their canvas left memory,
- * where no timeline takes them, so they are applied to the listed entry.
+ * Lists a canvas made for this user, applies an update of a listed one, forgets a deleted one, or
+ * notes a conversation where an agent showed the computer; other events are ignored. Updates and
+ * deletions can arrive long after their canvas left memory, where no timeline takes them, so they
+ * are applied to the listed entry.
  */
 export const recordCanvasEvent = (
   mx: MatrixClient,
@@ -80,7 +83,15 @@ export const recordCanvasEvent = (
       return version && { title: version.canvas.title, revisionId: version.revisionEventId };
     });
   }
-  if (!isRecord(content[CHAT_UI_ACTION_KEY])) return undefined;
+  const data = content[CHAT_UI_ACTION_KEY];
+  if (!isRecord(data)) return undefined;
+  if (data.action === 'show_computer') {
+    const room = mx.getRoom(event.getRoomId());
+    const action = room ? readChatUiAction(event, mx.getSafeUserId(), room) : undefined;
+    return room && action?.action === 'show_computer'
+      ? recordComputerShown(canvasSessionId(mx), room.roomId, action.threadId)
+      : undefined;
+  }
   const entry = readCanvasEntry(mx, event);
   return entry && recordCanvas(canvasSessionId(mx), entry);
 };
@@ -120,6 +131,121 @@ const forgetDeleted = async (mx: MatrixClient, deletedId: string): Promise<void>
   if (entry) await replaceDeletedVersion(sessionId, deletedId, entry);
 };
 
+/**
+ * Reads the index now and again after each burst of writes: sync can write many entries at once.
+ * A failed read keeps the last value; returns the stop function.
+ */
+export const watchCanvasIndex = <T>(
+  read: () => Promise<T>,
+  onValue: (value: T) => void
+): (() => void) => {
+  let alive = true;
+  let timer: number | undefined;
+  const load = () => {
+    read().then(
+      (value) => {
+        if (alive) onValue(value);
+      },
+      () => undefined
+    );
+  };
+  load();
+  const unsubscribe = subscribeCanvasList(() => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(load, 100);
+  });
+  return () => {
+    alive = false;
+    window.clearTimeout(timer);
+    unsubscribe();
+  };
+};
+
+const NO_CANVASES: CanvasListEntry[] = [];
+
+/** The one key rules for a conversation (`threadId` undefined: the room's main timeline). */
+const conversationKey = (sessionId: string, roomId: string, threadId: string | undefined) =>
+  `${sessionId}\n${roomId}\n${threadId ?? ''}`;
+
+/**
+ * What the index says about one conversation, read again after each burst of writes. Another
+ * conversation's answer is not this one's while the read is on its way, and an answer equal to the
+ * one held changes nothing, so a write elsewhere in the index does not render the room again.
+ * `read` and `same` must be module-level functions.
+ */
+function useConversationIndex<T>(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined,
+  read: (sessionId: string, roomId: string, threadId: string | undefined) => Promise<T>,
+  same: (held: T, read: T) => boolean,
+  fallback: T
+): T {
+  const sessionId = canvasSessionId(mx);
+  const key = conversationKey(sessionId, roomId, threadId);
+  const [found, setFound] = useState<{ key: string; value: T }>();
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        () => read(sessionId, roomId, threadId),
+        (value) =>
+          setFound((held) => (held?.key === key && same(held.value, value) ? held : { key, value }))
+      ),
+    [key, sessionId, roomId, threadId, read, same]
+  );
+  return found?.key === key ? found.value : fallback;
+}
+
+const readConversationCanvases = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string | undefined
+): Promise<CanvasListEntry[]> =>
+  (await listCanvases(sessionId))
+    .filter((entry) => entry.roomId === roomId && entry.threadId === threadId)
+    .sort((a, b) => b.updatedTs - a.updatedTs);
+
+// Only what the header shows decides whether a list changed.
+const sameCanvases = (held: CanvasListEntry[], read: CanvasListEntry[]): boolean =>
+  held.length === read.length &&
+  held.every(
+    (entry, index) =>
+      entry.canvasId === read[index].canvasId &&
+      entry.revisionId === read[index].revisionId &&
+      entry.updatedTs === read[index].updatedTs &&
+      entry.title === read[index].title
+  );
+
+/** This conversation's canvases (`threadId` undefined: the room's main timeline), newest update first. */
+export function useConversationCanvases(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined
+): CanvasListEntry[] {
+  return useConversationIndex(
+    mx,
+    roomId,
+    threadId,
+    readConversationCanvases,
+    sameCanvases,
+    NO_CANVASES
+  );
+}
+
+const readComputerShown = (sessionId: string, roomId: string, threadId: string | undefined) =>
+  isComputerShown(sessionId, roomId, threadId);
+
+const sameBoolean = (held: boolean, read: boolean): boolean => held === read;
+
+/** Whether an agent showed the computer in this conversation. */
+export function useComputerShown(
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string | undefined
+): boolean {
+  return useConversationIndex(mx, roomId, threadId, readComputerShown, sameBoolean, false);
+}
+
 // The last answer per session: a remounted sidebar starts from it instead of popping the button in.
 const listedBySession = new Map<string, boolean>();
 
@@ -127,34 +253,28 @@ const listedBySession = new Map<string, boolean>();
 export function useHasListedCanvases(mx: MatrixClient): boolean {
   const sessionId = canvasSessionId(mx);
   const [listed, setListed] = useState<{ sessionId: string; value: boolean }>();
-  useEffect(() => {
-    let alive = true;
-    let timer: number | undefined;
-    const check = () => {
-      hasCanvases(sessionId).then(
-        (value) => {
+  useEffect(
+    () =>
+      watchCanvasIndex(
+        async () => {
+          const value = await hasCanvases(sessionId);
           listedBySession.set(sessionId, value);
-          if (alive) setListed({ sessionId, value });
+          return value;
         },
-        () => undefined
-      );
-    };
-    check();
-    // Sync can list many canvases at once; one count follows each burst.
-    const unsubscribe = subscribeCanvasList(() => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(check, 100);
-    });
-    return () => {
-      alive = false;
-      window.clearTimeout(timer);
-      unsubscribe();
-    };
-  }, [sessionId]);
+        (value) =>
+          setListed((held) =>
+            held?.sessionId === sessionId && held.value === value ? held : { sessionId, value }
+          )
+      ),
+    [sessionId]
+  );
   return listed?.sessionId === sessionId ? listed.value : listedBySession.get(sessionId) ?? false;
 }
 
-/** Keeps the Canvases page's list current with every canvas this client sees, on any route. */
+/**
+ * Keeps the Canvases page's list current with every canvas this client sees, and notes the
+ * conversations where an agent showed its computer, on any route. Runs while canvases or computers are on.
+ */
 export function useCanvasIndexRecorder(mx: MatrixClient, enabled: boolean): void {
   useEffect(() => {
     if (!enabled) return undefined;
@@ -214,3 +334,40 @@ export const loadCanvasEvent = async (
     return undefined;
   }
 };
+
+/**
+ * Opens a listed canvas from the header. Its request may have to be fetched or be gone by now
+ * (deleted, and then nothing opens), so a user action made meanwhile wins over the late answer:
+ * it is dropped when `context` changed (the caller puts the conversation and the side-panel state
+ * in it: another canvas, the computer or Members opened, the canvas closed), when the room left,
+ * and when a later choice superseded it. `activate` acts on what is shown now.
+ */
+export function useOpenCanvasById(
+  mx: MatrixClient,
+  room: Room,
+  context: string,
+  activate: (event: MatrixEvent) => void
+): (canvasId: string) => void {
+  const latestActivate = useRef(activate);
+  useLayoutEffect(() => {
+    latestActivate.current = activate;
+  }, [activate]);
+  const choice = useRef(0);
+  // A layout effect, so the answer is dropped from the commit of the change on, not a task later.
+  useLayoutEffect(
+    () => () => {
+      choice.current += 1;
+    },
+    [mx, room, context]
+  );
+  return useCallback(
+    (canvasId: string) => {
+      choice.current += 1;
+      const mine = choice.current;
+      loadCanvasEvent(mx, room, canvasId).then((event) => {
+        if (event && choice.current === mine) latestActivate.current(event);
+      });
+    },
+    [mx, room]
+  );
+}

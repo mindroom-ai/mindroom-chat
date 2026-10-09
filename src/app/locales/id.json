@@ -2788,6 +2788,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Tampilkan komputer",
         "hideComputer": "Sembunyikan komputer",
+        "showCanvas": "Tampilkan panel",
+        "hideCanvas": "Sembunyikan panel",
+        "canvases": "Panel interaktif",
         "notifications": "Notifikasi",
         "compact": "Ringkas",
         "threads": "Utas",
