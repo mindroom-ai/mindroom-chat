@@ -136,6 +136,23 @@ describe('ThreadActionsMenu', () => {
     renderer.unmount();
   });
 
+  it('offers Hide thread details only from the banner, and closes after hiding', () => {
+    let renderer = render();
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'hideDetails' })).toHaveLength(0);
+    renderer.unmount();
+    const onHideDetails = vi.fn();
+    const onClose = vi.fn();
+    renderer = render({ onHideDetails, onClose });
+    const actions = renderer.root
+      .findAllByType('button')
+      .map((node) => node.props['data-thread-action']);
+    expect(actions.at(-1)).toBe('hideDetails');
+    click(renderer, 'hideDetails');
+    expect(onHideDetails).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
   it('hides tag and summary mutations until a confirmed thread root is loaded', () => {
     state.rootLoaded = false;
     state.pinning.canPin = false;

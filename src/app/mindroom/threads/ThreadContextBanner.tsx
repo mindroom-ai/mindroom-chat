@@ -115,8 +115,23 @@ export function ThreadContextBanner({
     menuRef.current = undefined;
     setMenu(undefined);
     const trigger = selectedMenu.trigger.isConnected ? selectedMenu.trigger : moreButtonRef.current;
-    trigger?.focus();
+    // Focusing inside the sticky banner would otherwise scroll the thread to
+    // the banner's place in the flow, its first message.
+    trigger?.focus({ preventScroll: true });
   };
+  // The button that toggled the banner unmounts with it, so focus moves to the
+  // control that toggles it back: Show details, or More, which offers Hide.
+  const showDetailsRef = useRef<HTMLButtonElement>(null);
+  const focusAfterToggle = useRef(false);
+  const toggleCollapsed = (next: boolean) => {
+    focusAfterToggle.current = true;
+    setCollapsed(next);
+  };
+  useLayoutEffect(() => {
+    if (!focusAfterToggle.current) return;
+    focusAfterToggle.current = false;
+    (collapsed ? showDetailsRef : moreButtonRef).current?.focus({ preventScroll: true });
+  }, [collapsed]);
   useLayoutEffect(() => {
     menuRef.current = undefined;
     setMenu(undefined);
@@ -208,10 +223,14 @@ export function ThreadContextBanner({
   const hasTags = headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   const hasSubtitle = !!headerModel.summaryText || hasScheduled;
-  const hasPinToggle = pinning.canPin && !!mutableThreadRootId;
-  // What CompactHidden hides; a resolved status and a solid pin stay in view.
-  const canCollapse =
-    hasTags || (!isPinned && (hasPinToggle || !headerModel.isResolved || !!resolvedByDisplayName));
+  // A pinned thread shows the pin instead of the resolve chip and its byline.
+  const showResolver = !isPinned && !!resolvedByDisplayName;
+
+  const backButton = (
+    <IconButton size="300" radii="300" onClick={onExitThread}>
+      <Icon data-directional src={Icons.ArrowLeft} />
+    </IconButton>
+  );
 
   return (
     <>
@@ -219,8 +238,7 @@ export function ThreadContextBanner({
         ref={glassRef}
         className={classNames(
           headerModel.isResolved ? css.BannerResolved : css.Banner,
-          // With nothing to fold there is no chevron, so nothing to expand.
-          collapsed && canCollapse && css.Collapsed
+          collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
         tabIndex={-1}
@@ -241,140 +259,185 @@ export function ThreadContextBanner({
           openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
         }}
       >
-        <div className={css.TitleRow}>
-          <IconButton size="300" radii="300" onClick={onExitThread}>
-            <Icon data-directional src={Icons.ArrowLeft} />
-          </IconButton>
-          <div className={css.TitleColumn}>
-            <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
-              {!hasSubtitle && (
-                <Text className={css.ViewLabel} size="L400" priority="300">
-                  {t('thread.view')}
-                </Text>
-              )}
-              {/* Desktop: tags inline on title row */}
-              <ThreadApprovalPermissions />
-              {/* More adds the first tag; + tag joins the ones already set. */}
-              {hasTags && (
-                <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
-                  <TagPills
-                    tags={headerModel.displayTags}
-                    maxPills={DESKTOP_MAX_PILLS}
-                    allTags={headerModel.displayTags}
-                    canEdit={headerModel.canEdit}
-                    onRemove={handleRemoveTag}
-                  />
-                  {headerModel.canEdit && (
-                    <ThreadTagPicker
-                      availableTags={headerModel.availableTags}
-                      onAddTag={handleAddTag}
-                      disabled={headerModel.pickerDisabled}
-                    />
-                  )}
-                </div>
-              )}
-            </Box>
-            {hasSubtitle && (
-              <div className={css.SubtitleRow}>
-                {headerModel.summaryText && (
-                  <Text
-                    as="span"
-                    data-thread-context-summary="true"
-                    className={css.SummaryText}
-                    size="T300"
-                    truncate
-                    title={headerModel.summaryText}
-                  >
-                    {headerModel.summaryText}
+        {collapsed ? (
+          // Collapsed to back and Show details; the tint still says resolved, and
+          // an active permissions grant stays in view.
+          <Box alignItems="Center" gap="100">
+            {backButton}
+            <ThreadApprovalPermissions />
+            <IconButton
+              ref={showDetailsRef}
+              size="300"
+              radii="300"
+              aria-label={t('thread.showDetails')}
+              title={t('thread.showDetails')}
+              onClick={() => toggleCollapsed(false)}
+            >
+              <Icon src={Icons.ChevronBottom} size="100" />
+            </IconButton>
+          </Box>
+        ) : (
+          <div className={css.TitleRow}>
+            {backButton}
+            <div className={css.TitleColumn}>
+              <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
+                {!hasSubtitle && (
+                  <Text className={css.ViewLabel} size="L400" priority="300">
+                    {t('thread.view')}
                   </Text>
                 )}
-                {hasScheduled && (
-                  <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                    {headerModel.summaryText && (
-                      <Text
-                        as="span"
-                        className={css.MetadataDot}
-                        size="T200"
-                        priority="300"
-                        aria-hidden="true"
-                      >
-                        ·
-                      </Text>
+                {/* Desktop: tags inline on title row */}
+                <ThreadApprovalPermissions />
+                {/* More adds the first tag; + tag joins the ones already set. */}
+                {hasTags && (
+                  <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
+                    <TagPills
+                      tags={headerModel.displayTags}
+                      maxPills={DESKTOP_MAX_PILLS}
+                      allTags={headerModel.displayTags}
+                      canEdit={headerModel.canEdit}
+                      onRemove={handleRemoveTag}
+                    />
+                    {headerModel.canEdit && (
+                      <ThreadTagPicker
+                        availableTags={headerModel.availableTags}
+                        onAddTag={handleAddTag}
+                        disabled={headerModel.pickerDisabled}
+                      />
                     )}
+                  </div>
+                )}
+              </Box>
+              {(hasSubtitle || showResolver) && (
+                <div className={css.SubtitleRow}>
+                  {headerModel.summaryText && (
+                    <Text
+                      as="span"
+                      data-thread-context-summary="true"
+                      className={css.SummaryText}
+                      size="T300"
+                      truncate
+                      title={headerModel.summaryText}
+                    >
+                      {headerModel.summaryText}
+                    </Text>
+                  )}
+                  {hasScheduled && (
+                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                      {headerModel.summaryText && (
+                        <Text
+                          as="span"
+                          className={css.MetadataDot}
+                          size="T200"
+                          priority="300"
+                          aria-hidden="true"
+                        >
+                          ·
+                        </Text>
+                      )}
+                      <Box
+                        as="span"
+                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                        alignItems="Center"
+                        gap="100"
+                        role="img"
+                        aria-label={headerModel.scheduledLabel}
+                        title={headerModel.scheduledLabel}
+                      >
+                        <IconCalendarEvent
+                          size={12}
+                          stroke={1.8}
+                          className={threadIndicatorCss.ThreadScheduledIcon}
+                          aria-hidden="true"
+                        />
+                        <Text as="span" size="T200" priority="300" truncate>
+                          {headerModel.bannerScheduledText}
+                        </Text>
+                      </Box>
+                    </Box>
+                  )}
+                  {showResolver && (
                     <Box
                       as="span"
-                      className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                      className={classNames(css.ResolutionByline, css.CompactHidden)}
+                      data-thread-resolution-byline="true"
                       alignItems="Center"
                       gap="100"
                       role="img"
-                      aria-label={headerModel.scheduledLabel}
-                      title={headerModel.scheduledLabel}
+                      aria-label={resolvedByLabel}
+                      title={resolvedByLabel}
                     >
-                      <IconCalendarEvent
-                        size={12}
-                        stroke={1.8}
-                        className={threadIndicatorCss.ThreadScheduledIcon}
-                        aria-hidden="true"
-                      />
-                      <Text as="span" size="T200" priority="300" truncate>
-                        {headerModel.bannerScheduledText}
+                      {hasSubtitle && (
+                        <Text
+                          as="span"
+                          className={classNames(css.MetadataDot, css.ResolutionBylineDot)}
+                          size="T200"
+                          priority="300"
+                          aria-hidden="true"
+                        >
+                          ·
+                        </Text>
+                      )}
+                      <Icon src={Icons.Check} size="50" aria-hidden="true" />
+                      <Text
+                        as="span"
+                        className={css.ResolverName}
+                        size="T200"
+                        priority="300"
+                        truncate
+                      >
+                        {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
                       </Text>
                     </Box>
-                  </Box>
-                )}
-              </div>
-            )}
-          </div>
-          <Box alignItems="Center" gap="100" shrink="No">
-            <IconButton
-              ref={moreButtonRef}
-              size="300"
-              radii="300"
-              aria-label={t('threadActions.more')}
-              title={t('threadActions.more')}
-              aria-haspopup="menu"
-              aria-expanded={!!activeMenu}
-              disabled={!canOpenMenu}
-              onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
-              }
-            >
-              <Icon src={Icons.VerticalDots} size="100" />
-            </IconButton>
-            {pinning.canPin && mutableThreadRootId ? (
+                  )}
+                </div>
+              )}
+            </div>
+            <Box alignItems="Center" gap="100" shrink="No">
               <IconButton
-                className={isPinned ? undefined : css.CompactHidden}
+                ref={moreButtonRef}
                 size="300"
                 radii="300"
-                aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                aria-pressed={isPinned}
-                disabled={pinning.updating || updating}
-                onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
+                aria-label={t('threadActions.more')}
+                title={t('threadActions.more')}
+                aria-haspopup="menu"
+                aria-expanded={!!activeMenu}
+                disabled={!canOpenMenu}
+                onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                  openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                }
               >
-                <Icon src={Icons.Pin} size="100" filled={isPinned} />
+                <Icon src={Icons.VerticalDots} size="100" />
               </IconButton>
-            ) : (
-              isPinned && (
-                <Box
-                  as="span"
-                  role="img"
-                  aria-label={t('threadNav.pinned')}
-                  title={t('threadNav.pinned')}
+              {pinning.canPin && mutableThreadRootId ? (
+                <IconButton
+                  className={isPinned ? undefined : css.CompactHidden}
+                  size="300"
+                  radii="300"
+                  aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                  title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                  aria-pressed={isPinned}
+                  disabled={pinning.updating || updating}
+                  onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
                 >
-                  <Icon src={Icons.Pin} size="100" filled />
-                </Box>
-              )
-            )}
-            {!isPinned && (
-              // Resolve is in More, but a resolved status stays visible for readers.
-              <div
-                className={classNames(
-                  css.ResolveChip,
-                  !headerModel.isResolved && css.CompactHidden
-                )}
-              >
+                  <Icon src={Icons.Pin} size="100" filled={isPinned} />
+                </IconButton>
+              ) : (
+                isPinned && (
+                  <Box
+                    as="span"
+                    role="img"
+                    aria-label={t('threadNav.pinned')}
+                    title={t('threadNav.pinned')}
+                  >
+                    <Icon src={Icons.Pin} size="100" filled />
+                  </Box>
+                )
+              )}
+              {!isPinned && (
+                // Resolve is in More, but a resolved status stays visible for readers.
                 <Button
+                  className={classNames(!headerModel.isResolved && css.CompactHidden)}
                   size="300"
                   variant={headerModel.isResolved ? 'Success' : 'Secondary'}
                   fill={headerModel.isResolved ? 'Solid' : 'Soft'}
@@ -388,52 +451,29 @@ export function ThreadContextBanner({
                     {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
                   </Text>
                 </Button>
-                {resolvedByDisplayName && (
-                  <Text
-                    className={classNames(css.ResolutionByline, css.CompactHidden)}
-                    data-thread-resolution-byline="true"
-                    size="T200"
-                    priority="300"
-                    truncate
-                  >
-                    {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
-                  </Text>
+              )}
+            </Box>
+            {/* Mobile: tags in a row of their own, under the title and the actions */}
+            {hasTags && (
+              <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
+                <TagPills
+                  tags={headerModel.displayTags}
+                  maxPills={MOBILE_MAX_PILLS}
+                  allTags={headerModel.displayTags}
+                  canEdit={headerModel.canEdit}
+                  onRemove={handleRemoveTag}
+                />
+                {headerModel.canEdit && (
+                  <ThreadTagPicker
+                    availableTags={headerModel.availableTags}
+                    onAddTag={handleAddTag}
+                    disabled={headerModel.pickerDisabled}
+                  />
                 )}
               </div>
             )}
-            {canCollapse && (
-              <IconButton
-                className={css.ShortViewportHidden}
-                size="300"
-                radii="300"
-                aria-label={t(collapsed ? 'thread.showDetails' : 'thread.hideDetails')}
-                title={t(collapsed ? 'thread.showDetails' : 'thread.hideDetails')}
-                onClick={() => setCollapsed(!collapsed)}
-              >
-                <Icon src={collapsed ? Icons.ChevronBottom : Icons.ChevronTop} size="100" />
-              </IconButton>
-            )}
-          </Box>
-          {/* Mobile: tags in a row of their own, under the title and the actions */}
-          {hasTags && (
-            <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-              <TagPills
-                tags={headerModel.displayTags}
-                maxPills={MOBILE_MAX_PILLS}
-                allTags={headerModel.displayTags}
-                canEdit={headerModel.canEdit}
-                onRemove={handleRemoveTag}
-              />
-              {headerModel.canEdit && (
-                <ThreadTagPicker
-                  availableTags={headerModel.availableTags}
-                  onAddTag={handleAddTag}
-                  disabled={headerModel.pickerDisabled}
-                />
-              )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         {!!pinning.error && (
           <Text role="alert" size="T200">
             {t('thread.pinFailed')}
@@ -447,6 +487,7 @@ export function ThreadContextBanner({
             room={room}
             rootId={threadRootId}
             summaryText={headerModel.summaryText}
+            onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />
