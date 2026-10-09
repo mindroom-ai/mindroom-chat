@@ -2792,6 +2792,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "コンピューターを表示",
         "hideComputer": "コンピューターを非表示",
+        "showCanvas": "パネルを表示",
+        "hideCanvas": "パネルを非表示",
+        "canvases": "インタラクティブパネル",
         "notifications": "通知",
         "compact": "コンパクト",
         "threads": "スレッド",

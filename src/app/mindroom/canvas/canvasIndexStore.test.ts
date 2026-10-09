@@ -1,12 +1,16 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
+import { openDB } from 'idb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type CanvasListEntry,
   forgetCanvas,
+  getCanvasIndexDbName,
+  isComputerShown,
   listCanvases,
   recordCanvas,
   recordCanvasUpdate,
+  recordComputerShown,
   subscribeCanvasList,
 } from './canvasIndexStore';
 
@@ -88,5 +92,37 @@ describe('canvasIndexStore', () => {
     unsubscribe();
     await forgetCanvas('session-a', '$canvas');
     expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it('records and reads a computer notice per conversation', async () => {
+    await recordComputerShown('session-a', '!r', '$t');
+    expect(await isComputerShown('session-a', '!r', '$t')).toBe(true);
+    expect(await isComputerShown('session-a', '!r', undefined)).toBe(false);
+    expect(await isComputerShown('session-a', '!r2', '$t')).toBe(false);
+    expect(await isComputerShown('session-b', '!r', '$t')).toBe(false);
+    await recordComputerShown('session-a', '!r', undefined);
+    expect(await isComputerShown('session-a', '!r', undefined)).toBe(true);
+  });
+
+  it('upgrades a version 1 index without losing canvases', async () => {
+    const old = await openDB(getCanvasIndexDbName('session-a'), 1, {
+      upgrade(db) {
+        db.createObjectStore('canvases', { keyPath: 'canvasId' });
+      },
+    });
+    await old.put('canvases', entry());
+    old.close();
+    expect(await listCanvases('session-a')).toEqual([entry()]);
+    await recordComputerShown('session-a', '!r', '$t');
+    expect(await isComputerShown('session-a', '!r', '$t')).toBe(true);
+    expect(await listCanvases('session-a')).toEqual([entry()]);
+  });
+
+  it('notifies listeners after recording a computer notice', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeCanvasList(listener);
+    await recordComputerShown('session-a', '!r', '$t');
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
   });
 });

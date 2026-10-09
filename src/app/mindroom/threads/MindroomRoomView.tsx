@@ -38,6 +38,7 @@ import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
+import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 
 import { useMindroomSyncEngine } from '../engine/engineContext';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
@@ -79,8 +80,12 @@ export function RoomView({
   room,
   computerAvailable = false,
   computerOpen = false,
+  computerShown = false,
   onComputerToggle,
   canvasOpen = false,
+  canvases,
+  openCanvasId,
+  onCanvasOpen,
   onCanvasClose,
   hasMindroomAgents = true,
   joinRequestCount = 0,
@@ -92,8 +97,12 @@ export function RoomView({
   room: Room;
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  computerShown?: boolean;
   onComputerToggle?: () => void;
   canvasOpen?: boolean;
+  canvases?: CanvasListEntry[];
+  openCanvasId?: string;
+  onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
@@ -207,8 +216,12 @@ export function RoomView({
             hasMindroomAgents={hasMindroomAgents}
             computerAvailable={computerAvailable}
             computerOpen={computerOpen}
+            computerShown={computerShown}
             onComputerToggle={onComputerToggle}
             canvasOpen={canvasOpen}
+            canvases={canvases}
+            openCanvasId={openCanvasId}
+            onCanvasOpen={onCanvasOpen}
             onCanvasClose={onCanvasClose}
             threadId={effectiveThreadId}
             joinRequestCount={joinRequestCount}

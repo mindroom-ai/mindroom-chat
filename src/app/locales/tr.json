@@ -2792,6 +2792,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Bilgisayarı göster",
         "hideComputer": "Bilgisayarı gizle",
+        "showCanvas": "Paneli göster",
+        "hideCanvas": "Paneli gizle",
+        "canvases": "Etkileşimli paneller",
         "notifications": "Bildirimler",
         "compact": "Kompakt",
         "threads": "Konular",

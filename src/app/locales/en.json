@@ -2792,6 +2792,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Show Computer",
         "hideComputer": "Hide Computer",
+        "showCanvas": "Show Canvas",
+        "hideCanvas": "Hide Canvas",
+        "canvases": "Canvases",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Threads",
@@ -2931,7 +2934,7 @@
     "uiActions": {
       "viewComputer": "View computer",
       "openMembers": "Open Members",
-      "openCanvas": "Open panel",
+      "openCanvas": "Open canvas",
       "canvasDisabled": "Interactive panels are turned off in this app.",
       "canvasDuringCall": "End the call to open interactive panels.",
       "computerUnavailable": "This agent’s computer is unavailable.",

@@ -2886,6 +2886,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "Показать компьютер",
         "hideComputer": "Скрыть компьютер",
+        "showCanvas": "Показать панель",
+        "hideCanvas": "Скрыть панель",
+        "canvases": "Интерактивные панели",
         "notifications": "Уведомления",
         "compact": "Компактный",
         "threads": "Ветки",

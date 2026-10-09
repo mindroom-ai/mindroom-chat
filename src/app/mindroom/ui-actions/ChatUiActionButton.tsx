@@ -17,7 +17,7 @@ export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
       : action.action === 'open_settings'
       ? t('commandPalette.actions.openSettings', { defaultValue: 'Open Settings' })
       : action.action === 'show_canvas'
-      ? t('mindroomUi.uiActions.openCanvas', { defaultValue: 'Open panel' })
+      ? t('mindroomUi.uiActions.openCanvas', { defaultValue: 'Open canvas' })
       : t('mindroomUi.uiActions.openMembers', { defaultValue: 'Open Members' });
 
   return (

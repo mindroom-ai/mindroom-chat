@@ -351,7 +351,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
 
   await panel.getByRole('button', { name: 'Close canvas' }).click();
   await expect(panel).toHaveCount(0);
-  const openPanel = page.getByRole('button', { name: 'Open panel', exact: true });
+  const openPanel = page.getByRole('button', { name: 'Open canvas', exact: true });
   await expect(openPanel).toBeVisible();
   await openPanel.click();
   await expect(panel).toBeVisible();
@@ -469,7 +469,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   });
   await page.reload();
   await expect(conversation).toBeVisible();
-  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
   await expect(frame.locator('#library')).toHaveText('loaded');
   await expect(frame.locator('#library')).toHaveCSS('color', 'rgb(1, 2, 3)');
   await page.waitForTimeout(1_000);
@@ -529,7 +529,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await page.waitForTimeout(1_000);
   await page.reload();
   await expect(page.getByText('Interactive panel: Notes.', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
   await expect(panel.getByText('Notes', { exact: true })).toBeVisible();
   await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
   await updateCanvas(notesId, notesPage('Notes, updated'), 'Notes');
@@ -558,7 +558,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await page.waitForTimeout(1_000);
   await page.reload();
   await expect(page.getByText('Interactive panel: Rates.', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
   await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
   await expect(frame.locator('#rate')).toHaveValue('7');
   await expect(frame.locator('#shown')).toHaveText('7');
@@ -620,4 +620,185 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await new Promise((resolve) => {
     listener.close(resolve);
   });
+});
+
+test("the room header brings back a conversation's canvases: a menu for several, a toggle for one", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  const password = randomUUID();
+  const register = (username: string) =>
+    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
+    });
+  const username = `canvas_header_${suffix}`;
+  const viewer = await register(username);
+  const agent = await register(`mindroom_header_${suffix}`);
+  const server = viewer.user_id.slice(viewer.user_id.indexOf(':') + 1);
+  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+    name: 'Canvas header',
+    topic: 'Header canvas button regression',
+    rootBody: 'Plan my trip',
+    replyBody: 'The trip conversation',
+    invite: [agent.user_id],
+  });
+  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  // A second conversation in the same room, whose canvases must stay apart from the first's.
+  const otherRootId = await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: 'Plan my move',
+  });
+  const otherReplyBody = 'The move conversation';
+  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: otherReplyBody,
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: otherRootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: otherRootId },
+    },
+  });
+  const sendCanvas = async (title: string, threadId: string) => {
+    // A canvas auto-opens only for a focused window, so move focus into the page first.
+    await page.bringToFront();
+    const close = page.getByRole('button', { name: 'Close canvas', exact: true });
+    if (await close.isVisible()) await close.focus();
+    else await page.locator('[data-slate-editor="true"]').click();
+    await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+    return sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+      msgtype: 'm.notice',
+      body: `Interactive panel: ${title}. Open it in MindRoom Chat to respond.`,
+      'm.relates_to': { rel_type: 'm.thread', event_id: threadId },
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_canvas',
+        requester_id: viewer.user_id,
+        agent_user_id: agent.user_id,
+        room_id: fixture.roomId,
+        thread_id: threadId,
+        canvas: { title, html: `<h1>${title}</h1>` },
+      },
+    });
+  };
+
+  await alignUiActionSync(context, page, homeserver!);
+  await context.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({
+      json: {
+        ...config,
+        homeserverList: [homeserver],
+        defaultHomeserver: 0,
+        allowCustomHomeservers: true,
+        hashRouter: { enabled: false },
+        auth: { allowRegistration: false, disablePasswordLogin: false },
+        mindroom: {
+          ...config.mindroom,
+          canvas: { enabled: true },
+          uiActions: { autoOpenFromHomeservers: [server] },
+        },
+      },
+    });
+  });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  const openThread = async (threadId: string, replyBody: string) => {
+    const liveSync = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
+    });
+    await page.goto(
+      `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(threadId)}`
+    );
+    await expect(page.getByText(replyBody, { exact: true })).toBeVisible();
+    await liveSync;
+  };
+  await openThread(fixture.rootId, fixture.replyBody);
+
+  // The sidebar's Canvases tab shares the menu button's name, so look in the room header only.
+  const header = page.locator('header');
+  const canvasButton = header.getByRole('button', {
+    name: /^(Show Canvas|Hide Canvas|Canvases)$/,
+  });
+  const panel = page.getByRole('complementary', { name: 'Canvas panel' });
+  await expect(canvasButton).toHaveCount(0);
+
+  // One canvas: the button toggles it directly.
+  await sendCanvas('Packing list', fixture.rootId);
+  await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
+  await expect(canvasButton).toHaveAccessibleName('Hide Canvas');
+  await canvasButton.click();
+  await expect(panel).toHaveCount(0);
+  await expect(canvasButton).toHaveAccessibleName('Show Canvas');
+  await canvasButton.click();
+  await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
+
+  // Two canvases: the button opens a menu, newest first, and a choice shows its canvas.
+  await sendCanvas('Travel plan', fixture.rootId);
+  await expect(panel.getByText('Travel plan', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Close canvas', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(canvasButton).toHaveAccessibleName('Canvases');
+  const choices = page.getByRole('button', { name: /^(Packing list|Travel plan)/ });
+  await canvasButton.click();
+  await expect(choices).toHaveCount(2);
+  await expect(choices.nth(0)).toContainText('Travel plan');
+  await expect(choices.nth(1)).toContainText('Packing list');
+  await page.screenshot({ path: testInfo.outputPath('canvas-header-menu.png') });
+  await choices.filter({ hasText: 'Packing list' }).click();
+  await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
+  await expect(choices).toHaveCount(0);
+
+  await canvasButton.click();
+  await expect(choices.filter({ hasText: 'Packing list' })).toHaveAttribute('aria-current', 'true');
+  await expect(choices.filter({ hasText: 'Travel plan' })).not.toHaveAttribute('aria-current');
+  await choices.filter({ hasText: 'Travel plan' }).click();
+  await expect(panel.getByText('Travel plan', { exact: true })).toBeVisible();
+  await expect(panel.getByText('Packing list', { exact: true })).toHaveCount(0);
+
+  // Another conversation in the room has no canvas yet, and then lists only its own.
+  await openThread(otherRootId, otherReplyBody);
+  await expect(canvasButton).toHaveCount(0);
+  await sendCanvas('Move checklist', otherRootId);
+  await expect(panel.getByText('Move checklist', { exact: true })).toBeVisible();
+  await expect(canvasButton).toHaveAccessibleName('Hide Canvas');
+  await canvasButton.click();
+  await expect(panel).toHaveCount(0);
+  await expect(canvasButton).toHaveAccessibleName('Show Canvas');
+  await canvasButton.click();
+  await expect(panel.getByText('Move checklist', { exact: true })).toBeVisible();
+
+  // Back in the first conversation, the menu still lists its two canvases and not the other's.
+  await openThread(fixture.rootId, fixture.replyBody);
+  await expect(canvasButton).toHaveAccessibleName('Canvases');
+  await canvasButton.click();
+  await expect(choices).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^Move checklist/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(choices).toHaveCount(0);
+
+  // Many canvases on a short window: the menu stays on screen and scrolls to the oldest choice.
+  for (let index = 1; index <= 10; index += 1) {
+    await sendCanvas(`Extra ${index}`, fixture.rootId);
+    await expect(panel.getByText(`Extra ${index}`, { exact: true })).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1600, height: 480 });
+  const allChoices = page.getByRole('button', { name: /^(Packing list|Travel plan|Extra \d+)/ });
+  await canvasButton.click();
+  await expect(allChoices).toHaveCount(12);
+  const menu = allChoices.first().locator('xpath=ancestor::*[contains(@style, "max-height")][1]');
+  const menuBox = await menu.boundingBox();
+  expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(480);
+  const oldest = allChoices.filter({ hasText: 'Packing list' });
+  await expect(oldest).not.toBeInViewport();
+  await oldest.scrollIntoViewIfNeeded();
+  await expect(oldest).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('canvas-header-menu-short.png') });
+  await oldest.click();
+  await expect(panel.getByText('Packing list', { exact: true })).toBeVisible();
 });

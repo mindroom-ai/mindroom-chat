@@ -30,6 +30,7 @@ import {
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
+import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
 
@@ -66,9 +67,12 @@ function CrossRoomThreadIndexFeature() {
   return null;
 }
 
-function CanvasIndexFeature() {
-  const enabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  useCanvasIndexRecorder(useMatrixClient(), enabled);
+// Canvases and computers are separate opt-ins, and the recorder serves both: it lists canvases and
+// notes where an agent showed its computer, which the header's Computer button needs.
+export function CanvasIndexFeature() {
+  const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
+  const computerApiUrl = useComputerApiUrl();
+  useCanvasIndexRecorder(useMatrixClient(), canvasesEnabled || !!computerApiUrl);
   return null;
 }
 

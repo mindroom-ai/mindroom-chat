@@ -2792,6 +2792,9 @@
       "mindroomRoomViewHeader": {
         "showComputer": "顯示電腦",
         "hideComputer": "隱藏電腦",
+        "showCanvas": "顯示面板",
+        "hideCanvas": "隱藏面板",
+        "canvases": "互動式面板",
         "notifications": "通知",
         "compact": "緊湊",
         "threads": "討論串",
