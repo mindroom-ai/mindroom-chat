@@ -336,15 +336,16 @@ export const loadCanvasEvent = async (
 };
 
 /**
- * Opens a listed canvas for the conversation the header shows. Its request may have to be fetched
- * or be gone by now (deleted, and then nothing opens), so the answer is dropped when the
- * conversation changed or the room left meanwhile, and when a later choice superseded it:
- * `activate` acts on the conversation shown now, not on the one the choice was made in.
+ * Opens a listed canvas from the header. Its request may have to be fetched or be gone by now
+ * (deleted, and then nothing opens), so a user action made meanwhile wins over the late answer:
+ * it is dropped when `context` changed (the caller puts the conversation and the side-panel state
+ * in it: another canvas, the computer or Members opened, the canvas closed), when the room left,
+ * and when a later choice superseded it. `activate` acts on what is shown now.
  */
 export function useOpenCanvasById(
   mx: MatrixClient,
   room: Room,
-  conversation: string,
+  context: string,
   activate: (event: MatrixEvent) => void
 ): (canvasId: string) => void {
   const latestActivate = useRef(activate);
@@ -352,11 +353,12 @@ export function useOpenCanvasById(
     latestActivate.current = activate;
   }, [activate]);
   const choice = useRef(0);
-  useEffect(
+  // A layout effect, so the answer is dropped from the commit of the change on, not a task later.
+  useLayoutEffect(
     () => () => {
       choice.current += 1;
     },
-    [mx, room, conversation]
+    [mx, room, context]
   );
   return useCallback(
     (canvasId: string) => {

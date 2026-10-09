@@ -624,12 +624,13 @@ describe('Room', () => {
     vi.stubGlobal('document', undefined);
   });
 
-  const renderCanvasRoom = async () => {
+  const renderCanvasRoom = async (mindroom: ClientConfig['mindroom'] = {}) => {
     vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
     roomState.clientConfig = {
       mindroom: {
         uiActions: { autoOpenFromHomeservers: ['example.org'] },
         canvas: { enabled: true },
+        ...mindroom,
       },
     };
     roomState.members = [
@@ -819,6 +820,65 @@ describe('Room', () => {
 
         expect(view.canvasOpen()).toBe(false);
         expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+        // Without the guard the late canvas would send the user back to its own thread instead.
+        expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+        await view.unmount();
+      });
+
+      const olderCanvas = () => new MatrixEvent({ ...listedCanvas().event, event_id: '$older' });
+
+      it.each([
+        ['the panel’s Close button', () => roomState.canvasPanelProps?.onClose()],
+        ['the header’s canvas button', () => roomState.roomViewProps?.onCanvasClose?.()],
+      ])(
+        'keeps the panel closed when %s closed it while the canvas loaded',
+        async (_name, close) => {
+          const pending = deferredRelations();
+          roomState.loadedEvents.set('$listed', listedCanvas());
+          roomState.conversationCanvases = [entry('$listed'), entry('$older')];
+          const view = await renderCanvasRoom();
+          await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$listed'));
+          expect(view.canvasOpen()).toBe(true);
+
+          await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$older'));
+          expect(pending).toHaveLength(1);
+          await act(async () => close());
+          expect(view.canvasOpen()).toBe(false);
+          await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+
+          expect(view.canvasOpen()).toBe(false);
+          expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
+          await view.unmount();
+        }
+      );
+
+      it('leaves Members open when it was opened while the canvas loaded', async () => {
+        const pending = deferredRelations();
+        roomState.conversationCanvases = [entry('$older')];
+        const view = await renderCanvasRoom();
+        await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$older'));
+        roomState.drawer = true;
+        await view.rerender();
+        await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+
+        expect(view.canvasOpen()).toBe(false);
+        expect(roomState.setPeopleDrawer).not.toHaveBeenCalled();
+        await view.unmount();
+      });
+
+      it('leaves the computer open when it was opened while the canvas loaded', async () => {
+        const pending = deferredRelations();
+        roomState.conversationCanvases = [entry('$older')];
+        const view = await renderCanvasRoom({
+          computers: { apiUrl: 'https://computer.example.org' },
+        });
+        await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$older'));
+        await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+        expect(roomState.roomViewProps?.computerOpen).toBe(true);
+        await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+
+        expect(view.canvasOpen()).toBe(false);
+        expect(roomState.roomViewProps?.computerOpen).toBe(true);
         await view.unmount();
       });
 

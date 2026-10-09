@@ -269,10 +269,19 @@ export function Room() {
   // The header lists this conversation's canvases, so one closed (or far up the timeline) is one click away.
   const conversationCanvases = useConversationCanvases(mx, room.roomId, computerThreadId);
   const computerShown = useComputerShown(mx, room.roomId, computerThreadId);
+  // A canvas still loading is opened only into the panel state it was chosen in: closing the canvas,
+  // opening another, the computer or Members meanwhile is a later choice, and it wins.
   const openCanvasFromHeader = useOpenCanvasById(
     mx,
     room,
-    `${room.roomId}\n${routedThreadId ?? ''}\n${computerThreadId ?? ''}`,
+    [
+      room.roomId,
+      routedThreadId,
+      computerThreadId,
+      canvasEvent?.getId(),
+      effectiveComputerOpen,
+      isDrawer,
+    ].join('\n'),
     uiActions.activate
   );
   useEffect(() => {
