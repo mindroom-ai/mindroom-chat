@@ -506,7 +506,8 @@ export const useRoomInputVoice = ({
     ? t('composer.voicePausedInOtherRoom', { roomName: otherPendingVoiceRoomName })
     : t('composer.recordVoice');
   const microphone = (
-    // The tooltip also says why the button is disabled while another room holds a draft.
+    // The label says why the button is disabled while another room holds a draft;
+    // the tooltip shows it too where the browser reports hovering a disabled button.
     <IconTooltip label={microphoneLabel} position="Top">
       {(triggerRef) => (
         <IconButton

@@ -296,7 +296,7 @@
     "sendMessage": "Enviar mensagem",
     "recordVoice": "Gravar mensagem de voz",
     "formatting": "Formatação",
-    "attach": "Anexar arquivos",
+    "attach": "Anexar ficheiros",
     "voicePausedInOtherRoom": "A gravação de voz está em pausa — termine ou descarte a gravação não enviada em {{roomName}}",
     "dropFiles": "Largue ficheiros em «{{roomName}}»",
     "dropFilesHint": "Arraste e largue ficheiros aqui ou clique para abrir a caixa de seleção",

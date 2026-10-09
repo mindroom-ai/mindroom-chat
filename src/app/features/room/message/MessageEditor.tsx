@@ -296,6 +296,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
                       <IconButton
                         ref={triggerRef}
                         aria-label={t('composer.formatting')}
+                        aria-pressed={toolbar}
                         variant="SurfaceVariant"
                         size="300"
                         radii="300"
