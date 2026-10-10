@@ -769,6 +769,22 @@ describe('ComputerPanel', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('stops starting when a throttled tab wakes after the start budget', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+    expect(createRequests(request)).toHaveLength(1);
+
+    vi.setSystemTime(Date.now() + 240_000);
+    await advance(2_000);
+    expect(createRequests(request)).toHaveLength(1);
+    expect(container.textContent).toContain('Computer unavailable');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('reconnects on its own after an unexpected close, reusing a valid session', async () => {
     vi.useFakeTimers();
     const request = createGateway();
@@ -796,7 +812,7 @@ describe('ComputerPanel', () => {
     renderPanel();
     await advance();
     for (let close = 1; close <= 6; close += 1) {
-      await advance(10_000);
+      await advance(35_000);
       act(() => screenConnections.at(-1)!.onDisconnected());
       await advance(500);
       expect(screenConnections).toHaveLength(close + 1);
@@ -804,7 +820,10 @@ describe('ComputerPanel', () => {
     }
   });
 
-  it('ends at Reconnect when each new session is revoked right after connecting', async () => {
+  it.each([
+    ['right after connecting', 0],
+    ['by the next periodic recheck', 15_000],
+  ])('ends at Reconnect when each new session is revoked %s', async (_when, livedMs) => {
     vi.useFakeTimers();
     const gateway = createGateway();
     const revoked = new Set<string>();
@@ -819,11 +838,13 @@ describe('ComputerPanel', () => {
     await advance();
 
     for (const [index, delay] of reconnectDelays.entries()) {
+      await advance(livedMs);
       revoked.add(`session-${index + 1}`);
       act(() => screenConnections.at(-1)!.onDisconnected());
       await advance(delay);
       expect(screenConnections.at(-1)!.url).toContain(`/sessions/session-${index + 2}/stream`);
     }
+    await advance(livedMs);
     revoked.add('session-6');
     act(() => screenConnections.at(-1)!.onDisconnected());
     expect(container.textContent).toContain('Computer disconnected');
@@ -907,6 +928,41 @@ describe('ComputerPanel', () => {
     }
   );
 
+  it('keeps reconnecting when a replacement session fails its first stream ticket', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let revoked = false;
+    let replacementTicketFailures = 1;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const { pathname } = new URL(input.toString());
+      if (revoked && pathname.startsWith('/api/computers/sessions/session-1')) {
+        return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+      }
+      if (
+        pathname === '/api/computers/sessions/session-2/stream-ticket' &&
+        replacementTicketFailures > 0
+      ) {
+        replacementTicketFailures -= 1;
+        return jsonResponse(503, { detail: 'Computer worker is unavailable.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    revoked = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(500);
+    expect(createRequests(request)).toHaveLength(2);
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    expect(container.textContent).not.toContain('Computer unavailable');
+
+    await advance(1_000);
+    expect(container.textContent).toContain('Watch mode');
+    expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+    expect(createRequests(request)).toHaveLength(2);
+  });
+
   it('offers Reconnect after the automatic attempts, which replaces a revoked session', async () => {
     vi.useFakeTimers();
     const gateway = createGateway();
@@ -941,6 +997,67 @@ describe('ComputerPanel', () => {
     await advance();
     expect(container.textContent).toContain('Watch mode');
     expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+  });
+
+  it('replaces a session in one Reconnect click after a 409', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let outage = false;
+    let stopped = false;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (outage) throw new TypeError('Failed to fetch');
+      if (stopped && input.toString().includes('/sessions/session-1')) {
+        return jsonResponse(409, {
+          detail: 'Computer stopped or restarted; create a new session.',
+        });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    outage = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(20_000);
+    expect(container.textContent).toContain('Computer disconnected');
+
+    outage = false;
+    stopped = true;
+    await click(findButton(container, 'Reconnect'));
+    await advance();
+    expect(container.textContent).toContain('Watch mode');
+    expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+    expect(container.textContent).not.toContain('create a new session');
+  });
+
+  it('aborts an in-flight reconnect request when the panel closes', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    const pending: AbortSignal[] = [];
+    let stalled = false;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (stalled && init?.method === 'GET') {
+        const { signal } = init;
+        if (signal) pending.push(signal);
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError'))
+          );
+        });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    stalled = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(500);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].aborted).toBe(false);
+
+    act(() => root.unmount());
+    expect(pending[0].aborted).toBe(true);
   });
 
   it('cancels a pending reconnect when the panel closes', async () => {

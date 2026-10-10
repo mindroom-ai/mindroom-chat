@@ -30,8 +30,10 @@ type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
 // After a connected stream closes unexpectedly, retry for about 15 seconds before offering Reconnect.
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000];
-// A stream that stayed connected this long earns a full set of attempts again.
-const STABLE_STREAM_MS = 10_000;
+// A stream that stayed connected this long earns a full set of attempts again. It outlasts the
+// runtime's 15-second recheck cadence plus its 15-second budget, so a session revoked by every
+// recheck keeps counting attempts.
+const STABLE_STREAM_MS = 35_000;
 // Starting a scaled-down worker can take minutes, and the proxy in front gives up after about 100 s.
 const START_RETRY_BUDGET_MS = 180_000;
 const START_RETRY_DELAY_MS = 2_000;
@@ -141,6 +143,9 @@ export function ComputerPanel({
   // Automatic reconnect attempts since a stream last stayed connected.
   const reconnectAttemptsRef = useRef(0);
   const recoverOnRestartRef = useRef(false);
+  // Lets the session effect hand a replacement session's failed first connect to the retry policy.
+  const reconnectAutomaticallyRef =
+    useRef<(session: ComputerSessionClient, message?: string) => Promise<void>>();
 
   const chosenAgent = useMemo(
     () => agents.find((agent) => agent.userId === chosenAgentId),
@@ -263,6 +268,8 @@ export function ComputerPanel({
             throw sessionError;
           }
           if (!(await wait(delay, signal))) return undefined;
+          // A throttled background tab can wake long after the delay.
+          if (Date.now() - startedAt > START_RETRY_BUDGET_MS) throw sessionError;
         }
       }
     };
@@ -276,7 +283,19 @@ export function ComputerPanel({
         }
         sessionRef.current = createdSession;
         setStatus(createdSession.status);
-        await connectStream(createdSession, lifecycle, false);
+        try {
+          await connectStream(createdSession, lifecycle, false, signal);
+        } catch (connectError) {
+          if (
+            !recovering ||
+            lifecycleRef.current !== lifecycle ||
+            !(isTransientError(connectError, signal) || isSessionGone(connectError))
+          ) {
+            throw connectError;
+          }
+          // A replacement session's first connect counts against the remaining reconnect attempts.
+          void reconnectAutomaticallyRef.current?.(createdSession, getErrorMessage(connectError));
+        }
       } catch (sessionError) {
         if (lifecycleRef.current !== lifecycle) return;
         setError(getErrorMessage(sessionError));
@@ -488,6 +507,8 @@ export function ComputerPanel({
     activeStreamTicketRef.current = undefined;
     onClose();
   };
+
+  reconnectAutomaticallyRef.current = reconnectAutomatically;
 
   const handleDisconnected = (streamTicket: string, message?: string) => {
     if (activeStreamTicketRef.current !== streamTicket) return;

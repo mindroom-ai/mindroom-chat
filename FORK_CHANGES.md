@@ -11,14 +11,17 @@
 - Status: implemented on `fix/computer-auto-recover`, validated below; in review, not merged or deployed.
 - Automatic reconnect (`ComputerPanel.tsx`, `reconnectAutomatically`): when a stream that had connected closes and no operation (take, Resume agent, Stop, Reconnect) is pending, the panel shows "Reconnecting to computer…" and retries after 0.5, 1, 2, 4 and 8 s (about 15 s in all).
   Each attempt refreshes the status and fetches a new ticket for the same session.
-  A stream opened by an attempt that closes before it connects uses the next attempt, and so does one that closes within 10 s of connecting; only a stream that stayed connected for 10 s gives the next close a full set again (`STABLE_STREAM_MS`).
+  A stream opened by an attempt that closes before it connects uses the next attempt, and so does one that closes within 35 s of connecting; only a stream that stayed connected for 35 s gives the next close a full set again (`STABLE_STREAM_MS`).
+  35 s outlasts the runtime's 15 s recheck cadence plus its 15 s budget, so a session revoked by every periodic recheck on a busy runtime also keeps counting.
   Without that, a server that revokes every new session right after it connects made the panel create sessions forever.
   After the last attempt, or on an error that is neither transient nor a revoked session, the panel shows "Computer disconnected" with the error and Reconnect, as before.
   Closing the panel, Stop, switching agent, room or thread, and Resume agent's own stream swap do not reconnect: they either clear the active stream first or are pending operations, and Resume keeps its `releasingStreamTicketRef` path.
 - Revoked sessions: a 401, 404 or 409 from the existing session, during an automatic or a manual Reconnect, drops it (`replaceSession`: best-effort DELETE) and restarts the session effect, which creates a new session for the same room, thread and agent.
   `recoverOnRestartRef` tells that restart to show "Reconnecting…" and to keep counting attempts, so a session that is revoked again and again cannot loop forever.
   The server released control with the old session, so a user who had control comes back watching.
+- A replacement session's first stream ticket goes through the same policy: a transient error or a revoked session on it uses the next automatic attempt instead of showing "Computer unavailable" (`reconnectAutomaticallyRef`).
 - Starting: the session effect retries `POST /sessions` after network failures and 502, 503, 504 and 524, with delays of 2, 4, 8 and then 10 s, for up to 3 minutes from the first try, keeping the "Connecting…" spinner; a new OpenID token is fetched per try.
+  The budget is checked again after each wait, so a throttled or sleeping tab that wakes after 3 minutes does not send another request.
   403, 409, 429 and every other status fail at once as before.
   While a session is being created the spinner adds "Starting the computer can take a minute."
 - Cancellation: every wait goes through `wait(ms, signal)` on the session effect's `AbortSignal` (`lifecycleSignalRef`), and reconnect requests pass the same signal, so the effect cleanup (close, scope change, unmount) clears pending timers and aborts requests.
@@ -36,7 +39,9 @@
   Each of these mutations fails at least one case: dropping the pending-operation guard, the timer clearing on abort, 409 from the revoked statuses, the retry of a stream that never connected, the kept count across a replaced session, the stop on a non-transient error, the 10 s threshold, or the reset after it.
 - Independent review (subagent): the state machine, cleanup and unchanged Stop and Resume paths checked out; it found the unbounded connect-then-drop loop and the three untested bounds above, now fixed and covered.
   Its other notes are the known limits above (another viewer's Stop, Stop disabled while retrying, a close during another operation) and a cosmetic one: during attempts the status alternates between "Reconnecting to computer…" and "Connecting display…".
-- Validation: `npx vitest run src/app/mindroom/computer/` (107 passed, the panel file 5 runs in a row), `npm run typecheck`, `npm run lint` (0 errors, the 18 existing warnings), Prettier on both files, `npm run build`.
+- PR #440 review (Opus, GPT-6.1 Sol, GPT-6 Astra): fixed a replacement session's failed first ticket bypassing the retries, its ticket request missing the abort signal, the start budget not being rechecked after a wait, and the 10 s stable threshold letting a session revoked by every 15 s recheck loop forever; added tests for each, for Reconnect after a 409 and for aborting an in-flight reconnect request.
+  Declined: holding off renewal in a hidden tab (an open viewer keeping its worker alive is the documented behavior), and retrying the rare transient 409 on `POST /sessions` or a failed OpenID token request.
+- Validation: `npx vitest run src/app/mindroom/computer/` (112 passed), `npm run typecheck`, `npm run lint` (0 errors, the 18 existing warnings), Prettier on both files, `npm run build`.
   `npm test`: 6,615 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases.
   Not run: the live `e2e/worker-computer.spec.ts`, which needs the backend's computer fixture.
 - Next: decide whether another viewer's Stop should stay stopped (needs a server answer that tells it apart); PR review; live check against a deployment that a worker restart and a session expiry reconnect without a click.
