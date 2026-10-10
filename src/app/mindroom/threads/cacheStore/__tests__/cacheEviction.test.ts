@@ -116,7 +116,7 @@ it('reports pressure and keeps the text when protected rooms alone exceed the bu
     budget_bytes: 1,
     bytes_before: result.bytesBefore,
     bytes_after: result.bytesBefore,
-    protected_text_bytes: result.bytesBefore,
+    protected_bytes: result.bytesBefore,
     evicted_media: 0,
     evicted_rooms: 0,
     under_pressure: true,
@@ -193,6 +193,26 @@ it('leaves unused rooms alone when protected text alone exceeds the budget', asy
     underPressure: true,
   });
   expect(await hasText('room-cold')).toBe(true);
+});
+
+it("leaves unused rooms alone when a protected room's media alone exceeds the budget", async () => {
+  await saveText('room-cold', 1);
+  await saveText('room-focused', 2);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/focused-body', bytes: new ArrayBuffer(4000), mimeType: 'text/plain' },
+    { roomId: 'room-focused', essential: true }
+  );
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(3000);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedRoomIds: [],
+    underPressure: true,
+  });
+  expect(await hasText('room-cold')).toBe(true);
+  expect(trace.mock.calls[0]?.[1]?.protected_bytes).toBeGreaterThan(4000);
 });
 
 it("counts an evicted room's attachment bytes toward the target", async () => {

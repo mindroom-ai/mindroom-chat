@@ -124,12 +124,12 @@ export const clearRoomCachedContent = async (
           const shared = remaining.result as CachedAttachmentReferenceRecord[];
           if (!shared.length) {
             blobs.delete(mxcUri);
-            // References carry the saved blob's size, so the blob is not read.
+            // References carry the blob's size, so the blob is not read. A
+            // reference marked missing can still describe a blob kept for
+            // another reason (too large for its slot, an unvalidated revision).
             freedBytes += Math.max(
               0,
-              ...rows
-                .filter((row) => row.mxcUri === mxcUri && row.status === 'cached')
-                .map((row) => row.byteLength)
+              ...rows.filter((row) => row.mxcUri === mxcUri).map((row) => row.byteLength)
             );
           } else {
             const blob = blobs.get(mxcUri);
@@ -221,12 +221,17 @@ const readCachedBytes = (db: IDBDatabase): Promise<number> =>
     transaction.onabort = () => reject(transaction.error);
   });
 
+type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & {
+  /** Text and blobs of protected rooms: bytes no eviction can free. */
+  protectedBytes: number;
+};
+
 /** Optional media of unprotected rooms, least recently used first. */
 const reclaimOptionalMedia = (
   sessionId: string,
   db: IDBDatabase,
   budget: number
-): Promise<Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'>> =>
+): Promise<MediaPhaseResult> =>
   new Promise((resolve, reject) => {
     const transaction = db.transaction(
       [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE, META_STORE],
@@ -239,7 +244,7 @@ const reclaimOptionalMedia = (
     const referencesRequest = refs.getAll();
     const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
     const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
-    let result: Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'>;
+    let result: MediaPhaseResult;
     cursorRequest.onsuccess = async () => {
       try {
         const cursor = cursorRequest.result;
@@ -256,6 +261,19 @@ const reclaimOptionalMedia = (
           ledger,
           metaRequest.result as CachedMetaRecord[]
         );
+        const ownersByMxcUri = new Map<string, CachedAttachmentReferenceRecord[]>();
+        references.forEach((row) =>
+          ownersByMxcUri.set(row.mxcUri, [...(ownersByMxcUri.get(row.mxcUri) ?? []), row])
+        );
+        const ownedByProtectedRoom = (mxcUri: string) =>
+          (ownersByMxcUri.get(mxcUri) ?? []).some((row) => protectedIds.has(row.roomId));
+        const protectedBytes =
+          ledger
+            .filter((row) => protectedIds.has(row.roomId))
+            .reduce((sum, row) => sum + row.approxBytes, 0) +
+          records
+            .filter((record) => ownedByProtectedRoom(record.mxcUri))
+            .reduce((sum, record) => sum + record.byteLength, 0);
         const bytesBefore =
           ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
           records.reduce((sum, row) => sum + row.byteLength, 0);
@@ -265,7 +283,7 @@ const reclaimOptionalMedia = (
           records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
           for (const record of records) {
             if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
-            const owners = references.filter((row) => row.mxcUri === record.mxcUri);
+            const owners = ownersByMxcUri.get(record.mxcUri) ?? [];
             if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
             // Only eviction candidates need a value read (unowned essentials also survive).
             // eslint-disable-next-line no-await-in-loop
@@ -284,7 +302,7 @@ const reclaimOptionalMedia = (
             evictedMxcUris.push(record.mxcUri);
           }
         }
-        result = { bytesAfter, evictedMxcUris };
+        result = { bytesAfter, evictedMxcUris, protectedBytes };
       } catch (error) {
         reject(error);
       }
@@ -300,10 +318,7 @@ const reclaimOptionalMedia = (
  * uses a room. A room whose last event was deleted has no ledger row but can
  * still own attachments, so rooms known only from references are included.
  */
-const readRoomEvictionOrder = (
-  sessionId: string,
-  db: IDBDatabase
-): Promise<{ roomIds: string[]; protectedTextBytes: number }> =>
+const readRoomEvictionOrder = (sessionId: string, db: IDBDatabase): Promise<string[]> =>
   new Promise((resolve, reject) => {
     const transaction = db.transaction(
       [ROOM_LEDGER_STORE, META_STORE, ATTACHMENT_REFERENCES_STORE],
@@ -333,18 +348,15 @@ const readRoomEvictionOrder = (
         )
       );
       const lastActivityTs = new Map(ledger.map((row) => [row.roomId, row.lastActivityTs]));
-      resolve({
-        roomIds: [...new Set([...ledger.map((row) => row.roomId), ...referencedRoomIds])]
+      resolve(
+        [...new Set([...ledger.map((row) => row.roomId), ...referencedRoomIds])]
           .filter((roomId) => !protectedIds.has(roomId))
           .sort(
             (a, b) =>
               (lastOpenedTs.get(a) ?? 0) - (lastOpenedTs.get(b) ?? 0) ||
               (lastActivityTs.get(a) ?? 0) - (lastActivityTs.get(b) ?? 0)
-          ),
-        protectedTextBytes: ledger
-          .filter((row) => protectedIds.has(row.roomId))
-          .reduce((sum, row) => sum + row.approxBytes, 0),
-      });
+          )
+      );
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -372,20 +384,16 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
     };
   const media = await reclaimOptionalMedia(sessionId, db, budget);
   let { bytesAfter } = media;
-  let protectedTextBytes: number | null = null;
   const evictedRoomIds: string[] = [];
-  if (bytesAfter > budget) {
+  // When protected rooms alone exceed the budget, clearing the others cannot
+  // end the pressure and would only empty them on every pass.
+  if (bytesAfter > budget && media.protectedBytes <= budget) {
     // Text counts toward the budget, so media alone cannot always bring it
     // back. Rooms go whole, with their markers and media, so no room keeps a
     // partial history that claims to be complete.
     const target = budget * EVICTION_TARGET_UTILIZATION;
-    const order = await readRoomEvictionOrder(sessionId, db);
-    protectedTextBytes = order.protectedTextBytes;
-    // When protected text alone exceeds the budget, clearing other rooms
-    // cannot end the pressure, and would only empty them on every pass.
-    const roomIds = protectedTextBytes > budget ? [] : order.roomIds;
     let estimated = false;
-    for (const roomId of roomIds) {
+    for (const roomId of await readRoomEvictionOrder(sessionId, db)) {
       if (bytesAfter <= target) break;
       // A pass can take seconds; the user may pin, open, focus or download a
       // room meanwhile. The in-memory check comes last: nothing awaits between
@@ -416,12 +424,12 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
     underPressure: bytesAfter > budget,
   };
   // An export showed only that eviction ran, not how full the cache was or why
-  // pressure stayed; the totals tell protected text from reclaimable bytes.
+  // pressure stayed; the totals tell protected bytes from reclaimable ones.
   recordDeepTraceEvent('storage.cache.eviction', {
     budget_bytes: budget,
     bytes_before: bytesBefore,
     bytes_after: bytesAfter,
-    protected_text_bytes: protectedTextBytes,
+    protected_bytes: media.protectedBytes,
     evicted_media: result.evictedMxcUris.length,
     evicted_rooms: evictedRoomIds.length,
     under_pressure: result.underPressure,
