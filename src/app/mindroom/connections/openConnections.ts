@@ -41,6 +41,7 @@ export function openConnectionsPortal({
 
   stopPreviousSession?.();
 
+  let stopped = false;
   const reply = async (): Promise<void> => {
     let openidToken: IOpenIDToken;
     try {
@@ -48,6 +49,8 @@ export function openConnectionsPortal({
     } catch {
       return;
     }
+    // A token requested before the session ended must not reach a window another account may now own.
+    if (stopped) return;
     // The backend origin as target origin makes the browser drop the token if the window navigated elsewhere.
     target.postMessage({ type: OPENID_MESSAGE_TYPE, openid_token: openidToken }, backendOrigin);
   };
@@ -60,6 +63,7 @@ export function openConnectionsPortal({
 
   let interval: ReturnType<typeof setInterval> | undefined;
   const stop = (): void => {
+    stopped = true;
     win.removeEventListener('message', onMessage);
     clearInterval(interval);
     if (stopPreviousSession === stop) stopPreviousSession = undefined;

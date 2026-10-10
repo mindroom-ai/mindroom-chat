@@ -234,6 +234,82 @@ describe('openConnectionsPortal', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('drops a pending token reply after the window closes', async () => {
+    const target = makeTarget();
+    const fake = makeWindow(target);
+    let resolveToken: (token: IOpenIDToken) => void = () => undefined;
+    const getOpenIdToken = vi.fn(
+      () =>
+        new Promise<IOpenIDToken>((resolve) => {
+          resolveToken = resolve;
+        })
+    );
+    openConnectionsPortal({ backendUrl: BACKEND, getOpenIdToken, win: fake.win, pollMs: 250 });
+
+    fake.dispatch({
+      data: { type: 'mindroom:connections-ready' },
+      source: target as unknown as MessageEventSource,
+      origin: BACKEND,
+    });
+    await flush();
+    expect(getOpenIdToken).toHaveBeenCalledTimes(1);
+
+    target.closed = true;
+    vi.advanceTimersByTime(250);
+    expect(fake.listenerCount()).toBe(0);
+
+    resolveToken(makeToken(1));
+    await flush();
+
+    expect(target.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('drops a pending token reply after a newer session replaces it', async () => {
+    const target = makeTarget();
+    const fake = makeWindow(target);
+    let resolveFirst: (token: IOpenIDToken) => void = () => undefined;
+    const firstGetOpenIdToken = vi.fn(
+      () =>
+        new Promise<IOpenIDToken>((resolve) => {
+          resolveFirst = resolve;
+        })
+    );
+    const secondGetOpenIdToken = vi.fn().mockResolvedValue(makeToken(2));
+    const ready = {
+      data: { type: 'mindroom:connections-ready' },
+      source: target as unknown as MessageEventSource,
+      origin: BACKEND,
+    };
+
+    openConnectionsPortal({
+      backendUrl: BACKEND,
+      getOpenIdToken: firstGetOpenIdToken,
+      win: fake.win,
+    });
+    fake.dispatch(ready);
+    await flush();
+    expect(firstGetOpenIdToken).toHaveBeenCalledTimes(1);
+
+    openConnectionsPortal({
+      backendUrl: BACKEND,
+      getOpenIdToken: secondGetOpenIdToken,
+      win: fake.win,
+    });
+    resolveFirst(makeToken(1));
+    await flush();
+
+    expect(target.postMessage).not.toHaveBeenCalled();
+
+    fake.dispatch(ready);
+    await flush();
+
+    expect(firstGetOpenIdToken).toHaveBeenCalledTimes(1);
+    expect(secondGetOpenIdToken).toHaveBeenCalledTimes(1);
+    expect(target.postMessage.mock.calls).toEqual([
+      [{ type: 'mindroom:connections-openid', openid_token: makeToken(2) }, BACKEND],
+    ]);
+  });
+
   it('polls once per second by default', () => {
     const target = makeTarget();
     const fake = makeWindow(target);
