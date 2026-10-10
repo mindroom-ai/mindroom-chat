@@ -4,7 +4,12 @@ import { createClient, Direction, MatrixEvent, Room, RoomEvent, type IEvent } fr
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMindroomSyncEngine, type MindroomSyncEngine } from '../engine';
-import { deleteCacheStoreDb, loadLatestCachedThreadEvents } from './cacheStore';
+import {
+  __setCacheStoreByteBudgetForTests,
+  deleteCacheStoreDb,
+  loadLatestCachedThreadEvents,
+  saveRoomEventsToCacheCommitted,
+} from './cacheStore';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { keepRecoveredEventsInLoadedSpan, useThreadGapRecovery } from './useThreadGapRecovery';
 import * as cacheController from './threadOpenCacheController';
@@ -68,13 +73,27 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
   vi.restoreAllMocks();
+  __setCacheStoreByteBudgetForTests(undefined);
 });
 
-const setup = (chunks: Partial<IEvent>[][], loaded?: MatrixEvent[]) => {
+const isRelationsRequest = (input: RequestInfo | URL) => String(input).includes('/relations/');
+
+const setup = (
+  chunks: Partial<IEvent>[][],
+  loaded?: MatrixEvent[],
+  relations: Partial<IEvent>[] = [],
+  render: (engine: MindroomSyncEngine, room: Room) => React.ReactElement = (engine, room) => (
+    <Harness engine={engine} room={room} threadId={ROOT_ID} loaded={loaded} />
+  )
+) => {
   const fetchFn = vi.fn(
-    async () =>
+    async (input: RequestInfo | URL) =>
       new Response(
-        JSON.stringify({ chunk: chunks.shift() ?? [], ...(chunks.length ? { end: 'older' } : {}) }),
+        JSON.stringify(
+          isRelationsRequest(input)
+            ? { chunk: relations }
+            : { chunk: chunks.shift() ?? [], ...(chunks.length ? { end: 'older' } : {}) }
+        ),
         { headers: { 'Content-Type': 'application/json' } }
       )
   );
@@ -99,15 +118,19 @@ const setup = (chunks: Partial<IEvent>[][], loaded?: MatrixEvent[]) => {
   engine.start();
   let renderer: ReactTestRenderer;
   act(() => {
-    renderer = create(<Harness engine={engine} room={room} threadId={ROOT_ID} loaded={loaded} />);
+    renderer = create(render(engine, room));
   });
   cleanups.push(async () => {
     act(() => renderer.unmount());
     engine.stop();
     await deleteCacheStoreDb(engine.sessionId);
   });
-  const recover = () =>
+  // The SDK emits a limited sync's reset on the room and re-emits it on the client.
+  // `onRoom: false` leaves only the engine's gap fill to react.
+  const recover = ({ onRoom = true } = {}) => {
+    if (onRoom) room.emit(RoomEvent.TimelineReset, room, room.getUnfilteredTimelineSet(), false);
     mx.emit(RoomEvent.TimelineReset, room, room.getUnfilteredTimelineSet(), false);
+  };
   return { mx, room, engine, renderer: renderer!, fetchFn, recover };
 };
 
@@ -143,7 +166,7 @@ describe('mounted thread gap recovery', () => {
       );
       fetchFn.mockImplementationOnce(() => heldPage);
       await act(async () => {
-        recover();
+        recover({ onRoom: false });
         await snapshotReady;
       });
       await act(async () => {
@@ -261,5 +284,154 @@ describe('mounted thread gap recovery', () => {
       await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Older history');
+  });
+
+  it('shows a reply missed in a sync gap when a full cache keeps the room gap unfilled', async () => {
+    const loaded = new MatrixEvent({ ...message('$loaded', 'Loaded'), origin_server_ts: 20 });
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, renderer, recover, fetchFn } = setup(
+      [],
+      [loaded],
+      [missed, message('$loaded', 'Loaded')]
+    );
+    await saveRoomEventsToCacheCommitted(engine.sessionId, ROOM_ID, [message('$cached', 'Cached')]);
+    // Over its byte budget, the cache refuses gap pages for every room.
+    __setCacheStoreByteBudgetForTests(1);
+    await act(async () => {
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Loaded'));
+    });
+    await act(async () => {
+      recover();
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+    expect(fetchFn.mock.calls.some(([input]) => String(input).includes('/messages'))).toBe(false);
+  });
+
+  const holdRelations = (fetchFn: ReturnType<typeof setup>['fetchFn']) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const respond = fetchFn.getMockImplementation()!;
+    fetchFn.mockImplementation(async (input) => {
+      if (isRelationsRequest(input)) await held;
+      return respond(input);
+    });
+    const requested = () =>
+      vi.waitFor(() =>
+        expect(fetchFn.mock.calls.some(([input]) => isRelationsRequest(input))).toBe(true)
+      );
+    return { release, requested };
+  };
+
+  it('reconciles again after a thread-open pass that was already running at the reset', async () => {
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, renderer, recover } = setup([], undefined, [missed]);
+    let finishOpenPass: (() => void) | undefined;
+    // An open's reconcile fetched before the gap and found nothing new.
+    const openPass = engine.scheduler.enqueue({
+      roomId: ROOM_ID,
+      threadId: ROOT_ID,
+      kind: 'reconcile',
+      priority: 0,
+      execute: () =>
+        new Promise((resolve) => {
+          finishOpenPass = () =>
+            resolve({ repaired: false, fetchedCount: 0, iterations: 1, aborted: false });
+        }),
+    });
+    const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+    const pendingJobs = vi.spyOn(engine.scheduler, 'pendingJobs');
+    await act(async () => {
+      await vi.waitFor(() => expect(finishOpenPass).toBeDefined());
+      recover();
+      // The reset's pass reaches the scheduler while the open pass runs.
+      await vi.waitFor(() =>
+        expect(
+          pendingJobs.mock.calls.length > 0 ||
+            enqueue.mock.calls.some(([job]) => job.kind === 'reconcile')
+        ).toBe(true)
+      );
+    });
+    await act(async () => {
+      finishOpenPass!();
+      await openPass;
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+  });
+
+  it('hands a reconciled reply to the current callback when it changes during the pass', async () => {
+    function AppendHarness({
+      engine,
+      room,
+      append,
+    }: {
+      engine: MindroomSyncEngine;
+      room: Room;
+      append: (threadId: string, events: MatrixEvent[]) => void;
+    }) {
+      useThreadGapRecovery({ engine, room, threadId: ROOT_ID, append });
+      return null;
+    }
+    const first = vi.fn();
+    const second = vi.fn();
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, room, renderer, recover, fetchFn } = setup([], undefined, [missed], (e, r) => (
+      <AppendHarness engine={e} room={r} append={first} />
+    ));
+    const relations = holdRelations(fetchFn);
+    await act(async () => {
+      recover();
+      await relations.requested();
+    });
+    // The render callback changes identity when the SDK creates the thread.
+    act(() => renderer.update(<AppendHarness engine={engine} room={room} append={second} />));
+    await act(async () => {
+      relations.release();
+      await vi.waitFor(() =>
+        expect(
+          second.mock.calls.flatMap(([, events]: [string, MatrixEvent[]]) =>
+            events.map((event) => event.getId())
+          )
+        ).toContain('$missed')
+      );
+    });
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  it('does not render a reconciled reply after navigating to another thread', async () => {
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, room, renderer, recover, fetchFn } = setup([], undefined, [missed]);
+    const relations = holdRelations(fetchFn);
+    await act(async () => {
+      recover();
+      await relations.requested();
+    });
+    const elsewhere = new MatrixEvent(message('$elsewhere-reply', 'Elsewhere', '$elsewhere'));
+    act(() =>
+      renderer.update(
+        <Harness engine={engine} room={room} threadId="$elsewhere" loaded={[elsewhere]} />
+      )
+    );
+    await act(async () => {
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Elsewhere'));
+    });
+    await act(async () => {
+      relations.release();
+      await vi.waitFor(async () =>
+        expect(
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events.map((event) => event.event_id)
+        ).toContain('$missed')
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('Elsewhere');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Missed reply');
   });
 });

@@ -437,14 +437,13 @@ export const createMindroomSyncEngine = ({
    * Bookkeeping performed:
    *   - Resolve the room's prefetch tier via `resolveRoomPrefetchTier`
    *     (D3, homeserver-domain comparison; never parses room ids).
-   *   - `noteRoomFederated` — stamp the ledger attribution so eviction
-   *     favors federated rooms first (D9).
+   *   - `noteRoomFederated` — stamp the ledger attribution.
    *   - `setEvictionProtectedRoomIds([roomId])` — single-element v1
-   *     (Deviations §8): only the currently focused room is protected;
-   *     LRU inside priority covers the rest.
+   *     (Deviations §8): only the currently focused room is protected
+   *     in memory.
    *   - `noteRoomOpened` / `noteThreadOpened` — bump the meta
-   *     `lastOpenedTs` so the recent-open guard skips this room for
-   *     eviction consideration until the window rolls past.
+   *     `lastOpenedTs`, which protects the room from eviction until the
+   *     window rolls past and then orders it by when it was last opened.
    */
   const noteRoomFocused = (roomId: string, threadId?: string): void => {
     const room = mx.getRoom?.(roomId);
@@ -455,6 +454,8 @@ export const createMindroomSyncEngine = ({
     // unconditionally — a room the user actively opens is always
     // eligible for a foreground fetch.
     focusedRoomId = roomId;
+    // Protect the room before its offline work can ask for space.
+    setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);
     gapFillExecutor?.recheckDeferred(roomId);
     const tier = resolveRoomPrefetchTier(mx, room);
@@ -464,7 +465,6 @@ export const createMindroomSyncEngine = ({
     if (tier !== 'background') {
       noteRoomFederated(sessionId, roomId, tier !== 'own').catch(() => undefined);
     }
-    setEvictionProtectedRoomIds([roomId]);
     noteRoomOpened(sessionId, roomId).catch(() => undefined);
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);

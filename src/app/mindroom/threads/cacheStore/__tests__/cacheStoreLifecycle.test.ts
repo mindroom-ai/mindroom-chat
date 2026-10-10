@@ -1,4 +1,4 @@
-import { IDBCursor as FakeIDBCursor, IDBFactory, IDBKeyRange } from 'fake-indexeddb';
+import { IDBFactory, IDBKeyRange, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const sessionId = 'cache-lifecycle';
@@ -98,16 +98,15 @@ it('rolls back a failed clear while cancelling earlier local writes', async () =
   const writer = await createRuntime();
   await writer.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent]);
   const oldLease = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  const remove = FakeIDBCursor.prototype.delete;
+  const remove = FakeIDBObjectStore.prototype.delete;
   const fault = vi
-    .spyOn(FakeIDBCursor.prototype, 'delete')
-    .mockImplementation(function abortDelete() {
-      const transaction =
-        'objectStore' in this.source
-          ? this.source.objectStore.transaction
-          : this.source.transaction;
-      const request = remove.call(this);
-      request.addEventListener('success', () => transaction.abort(), { once: true });
+    .spyOn(FakeIDBObjectStore.prototype, 'delete')
+    .mockImplementation(function abortDelete(key) {
+      const request = remove.call(this, key);
+      // Abort once the room's events are removed, so the clear must roll back.
+      if (key instanceof IDBKeyRange) {
+        request.addEventListener('success', () => this.transaction.abort(), { once: true });
+      }
       return request;
     });
   await expect(writer.clearRoomCachedContent(sessionId, roomId)).rejects.toBeDefined();

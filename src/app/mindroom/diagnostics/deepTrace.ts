@@ -246,6 +246,7 @@ const STATIC_EVENT_NAMES = new Set([
   'performance.event_loop_stall',
   'performance.scheduler_wakeup_replaced',
   'storage.cache.close',
+  'storage.cache.eviction',
   'storage.cache.open_settled',
   'storage.cache.open_stalled',
   'storage.cache.transaction_settled',
