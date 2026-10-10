@@ -6,6 +6,7 @@ export const UrlPreviewHolderGradient = recipe({
     DefaultReset,
     {
       position: 'absolute',
+      top: 0,
       height: '100%',
       width: toRem(10),
       zIndex: 1,
@@ -31,6 +32,7 @@ export const UrlPreviewHolderBtn = recipe({
     DefaultReset,
     {
       position: 'absolute',
+      top: '50%',
       zIndex: 1,
     },
   ],
@@ -38,13 +40,13 @@ export const UrlPreviewHolderBtn = recipe({
     position: {
       Left: {
         insetInlineStart: 0,
-        transform: 'translateX(-25%)',
-        selectors: { 'html[dir="rtl"] &': { transform: 'translateX(25%)' } },
+        transform: 'translate(-25%, -50%)',
+        selectors: { 'html[dir="rtl"] &': { transform: 'translate(25%, -50%)' } },
       },
       Right: {
         insetInlineEnd: 0,
-        transform: 'translateX(25%)',
-        selectors: { 'html[dir="rtl"] &': { transform: 'translateX(-25%)' } },
+        transform: 'translate(25%, -50%)',
+        selectors: { 'html[dir="rtl"] &': { transform: 'translate(-25%, -50%)' } },
       },
     },
   },

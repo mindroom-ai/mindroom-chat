@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Hide stale link-preview scroll arrows (2026-10-09)
+
+- Status: implemented and independently reviewed on `fix-url-preview-scroll-controls`, based on latest `dev`.
+- Evidence: the reported arrow is the link-preview strip's forward control. The owner's Brave
+  page had refreshed and received more messages before inspection, so the transient state was
+  gone; no Safari-specific failure or individual preview request failure was confirmed live.
+- Fix: replace end-marker intersection state with measured horizontal overflow, observe both
+  the viewport and content dimensions, and update after scrolling. Keep controls outside the
+  measured content. Failed cards leave no arrow or top margin, while mounted children remain
+  able to recover on subsequent preview loads. Preserve right-to-left scrolling.
+- Validation: focused tests pass (2 files / 10 tests), full `npm test` passes (695 files /
+  6,634 tests with `NODE_OPTIONS=--no-experimental-webstorage`), typecheck and production/PWA
+  build pass. Touched-file ESLint and Prettier pass; full ESLint has the existing 18 warnings.
+  Independent review approves overflow, lifecycle, geometry, and RTL behavior.
+- Live: Brave fixture using the actual holder, folds styles, and theme confirms horizontal
+  overflow, centered arrows, resize removal, RTL scrolling, and failed-card cleanup to zero
+  height, zero top margin, and zero buttons. The fixture was removed after validation.
+- Follow-up: the owner reports previews have never worked. Production `mindroom.chat`'s live
+  Tuwunel config has no URL-preview allowlist keys, so all domain lists default to empty and
+  every preview URL is refused. The config in dotfiles also omits those settings. Preparing
+  the server-side fix separately; preview support is not repaired by this frontend commit.
+
 ### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
 
 - Why: production logs showed the Computer panel dying whenever the server closed its stream (code 1008, which noVNC reports as a clean close).
