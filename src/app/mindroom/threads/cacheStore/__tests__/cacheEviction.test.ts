@@ -126,14 +126,91 @@ it('reports pressure and keeps the text when protected rooms alone exceed the bu
   expect(await hasText('room-recent')).toBe(true);
 });
 
-it('evicts federated rooms before less recently active ones', async () => {
-  await saveText('room-old', 1);
-  await saveText('room-federated', 2);
-  await store.noteRoomFederated(session, 'room-federated', true);
+it('evicts rooms never opened before rooms opened more than a day ago', async () => {
+  await saveText('room-opened', 1);
+  await saveText('room-busy', 2);
+  const openedAt = vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 25 * 60 * 60 * 1000);
+  await store.noteRoomOpened(session, 'room-opened');
+  openedAt.mockRestore();
+  // Federation and traffic do not say whether anyone uses a room.
+  await store.noteRoomFederated(session, 'room-opened', true);
   await budgetOverByHalfARoom(2);
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
-    evictedRoomIds: ['room-federated'],
+    evictedRoomIds: ['room-busy'],
   });
+});
+
+it('keeps a room focused while its protection is read', async () => {
+  for (let index = 1; index <= 3; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await saveText(`room-${index}`, index);
+  }
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const getKey = IDBObjectStore.prototype.get;
+  vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function getSpy(
+    this: IDBObjectStore,
+    key: IDBValidKey | IDBKeyRange
+  ) {
+    if (this.name === 'room_ledger' && key === 'room-2')
+      store.setEvictionProtectedRoomIds(['room-2']);
+    return getKey.call(this, key);
+  });
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result.evictedRoomIds).toEqual(['room-1', 'room-3']);
+  expect(await hasText('room-2')).toBe(true);
+});
+
+it('keeps a room opened and left again while the pass runs', async () => {
+  for (let index = 1; index <= 4; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await saveText(`room-${index}`, index);
+  }
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const deleteKey = IDBObjectStore.prototype.delete;
+  vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementation(function deleteSpy(
+    this: IDBObjectStore,
+    key: IDBValidKey | IDBKeyRange
+  ) {
+    // Opening stamps the room; leaving it clears the focus registry again.
+    if (key === 'room-1') store.noteRoomOpened(session, 'room-4');
+    return deleteKey.call(this, key);
+  });
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result.evictedRoomIds).toEqual(['room-1', 'room-2', 'room-3']);
+  expect(await hasText('room-4')).toBe(true);
+});
+
+it('leaves unused rooms alone when protected text alone exceeds the budget', async () => {
+  await saveText('room-cold', 1);
+  await saveText('room-focused', 2);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(1);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedRoomIds: [],
+    underPressure: true,
+  });
+  expect(await hasText('room-cold')).toBe(true);
+});
+
+it("counts an evicted room's attachment bytes toward the target", async () => {
+  await saveText('room-a', 1);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/a-body', bytes: new ArrayBuffer(4000), mimeType: 'text/plain' },
+    { roomId: 'room-a', essential: true }
+  );
+  await saveText('room-b', 2);
+  const { bytesBefore } = await store.runCacheEvictionIfOverBudget(session);
+  // Clearing room-a's text alone would not reach the target; its body does.
+  store.__setCacheStoreByteBudgetForTests(bytesBefore - 2000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedRoomIds: ['room-a'],
+    underPressure: false,
+  });
+  expect(await hasText('room-b')).toBe(true);
 });
 
 it('keeps a room focused while the pass runs', async () => {

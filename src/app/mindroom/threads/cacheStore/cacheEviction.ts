@@ -48,20 +48,17 @@ export const __resetEvictionForTests = (): void => {
   runningEvictions.clear();
 };
 
-export type ClearedRoomContent = {
-  deletedEventCount: number;
-  /** Text and unshared attachment bytes the clear removed from the budget. */
-  freedBytes: number;
-};
-
-/** Local storage cleanup; other active tabs may cache the room again. */
+/**
+ * Local storage cleanup; other active tabs may cache the room again. Resolves
+ * with the text and unshared attachment bytes it removed from the budget.
+ */
 export const clearRoomCachedContent = async (
   sessionId: string,
   roomId: string
-): Promise<ClearedRoomContent> => {
+): Promise<number> => {
   revokeRoomCacheStoreWrites(sessionId, roomId);
   const db = await openCacheStore(sessionId);
-  if (!db) return { deletedEventCount: 0, freedBytes: 0 };
+  if (!db) return 0;
   return new Promise((resolve, reject) => {
     const txn = db.transaction(
       [
@@ -79,7 +76,6 @@ export const clearRoomCachedContent = async (
     const ledgerStore = txn.objectStore(ROOM_LEDGER_STORE);
     const summariesStore = txn.objectStore(THREAD_SUMMARIES_STORE);
 
-    let deletedCount = 0;
     let freedBytes = 0;
 
     // Events: the primary key is `${roomId}|${scope}|${eventId}`, so one
@@ -87,12 +83,7 @@ export const clearRoomCachedContent = async (
     // clears many rooms, and a cursor deserialized every event while this
     // transaction locked all six stores. U+FFFF sorts above any scope or
     // event id character, and a room id cannot contain `|`.
-    const eventsRange = IDBKeyRange.bound(`${roomId}|`, `${roomId}|￿`);
-    const eventsCount = eventsStore.count(eventsRange);
-    eventsCount.onsuccess = () => {
-      deletedCount = eventsCount.result;
-    };
-    eventsStore.delete(eventsRange);
+    eventsStore.delete(IDBKeyRange.bound(`${roomId}|`, `${roomId}|￿`));
 
     // Meta: the primary key is `${roomId}|${scope}`, so a bounded key
     // range confines the cursor to this room's rows instead of walking
@@ -157,7 +148,7 @@ export const clearRoomCachedContent = async (
     };
     ledgerStore.delete(roomId);
 
-    txn.oncomplete = () => resolve({ deletedEventCount: deletedCount, freedBytes });
+    txn.oncomplete = () => resolve(freedBytes);
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });
@@ -171,6 +162,9 @@ export type EvictionResult = {
   underPressure: boolean;
 };
 
+const isRecentlyOpened = (row: CachedMetaRecord): boolean =>
+  (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS;
+
 /** Focused, downloading, pinned and recently opened rooms keep their text and media under pressure. */
 const collectProtectedRoomIds = (
   sessionId: string,
@@ -182,23 +176,25 @@ const collectProtectedRoomIds = (
     ...(downloadingRoomIdsBySession.get(sessionId) ?? []),
   ]);
   ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
-  meta
-    .filter((row) => (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS)
-    .forEach((row) => protectedIds.add(row.roomId));
+  meta.filter(isRecentlyOpened).forEach((row) => protectedIds.add(row.roomId));
   return protectedIds;
 };
 
-const readRoomLedger = (
-  db: IDBDatabase,
-  roomId: string
-): Promise<CachedRoomLedgerRecord | undefined> =>
+/** Pin and recent opening as stored now; either can change while a pass runs. */
+const isRoomProtectedInStore = (db: IDBDatabase, roomId: string): Promise<boolean> =>
   new Promise((resolve, reject) => {
-    const request = db
-      .transaction(ROOM_LEDGER_STORE, 'readonly')
-      .objectStore(ROOM_LEDGER_STORE)
-      .get(roomId);
-    request.onsuccess = () => resolve(request.result as CachedRoomLedgerRecord | undefined);
-    request.onerror = () => reject(request.error);
+    const transaction = db.transaction([ROOM_LEDGER_STORE, META_STORE], 'readonly');
+    const ledger = transaction.objectStore(ROOM_LEDGER_STORE).get(roomId);
+    const meta = transaction
+      .objectStore(META_STORE)
+      .getAll(IDBKeyRange.bound(`${roomId}|`, `${roomId}|￿`));
+    transaction.oncomplete = () =>
+      resolve(
+        (ledger.result as CachedRoomLedgerRecord | undefined)?.pinned === true ||
+          (meta.result as CachedMetaRecord[]).some(isRecentlyOpened)
+      );
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
 
 /** Admission reads index keys only, never attachment payloads or room references. */
@@ -299,9 +295,10 @@ const reclaimOptionalMedia = (
   });
 
 /**
- * Unprotected rooms, federated first, then least recently active. A room whose
- * last event was deleted has no ledger row but can still own attachments, so
- * rooms known only from references come first.
+ * Unprotected rooms, least recently opened first (never opened before any),
+ * then least recently active. Federation and traffic do not say whether anyone
+ * uses a room. A room whose last event was deleted has no ledger row but can
+ * still own attachments, so rooms known only from references are included.
  */
 const readRoomEvictionOrder = (
   sessionId: string,
@@ -326,23 +323,24 @@ const readRoomEvictionOrder = (
     };
     transaction.oncomplete = () => {
       const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
-      const protectedIds = collectProtectedRoomIds(
-        sessionId,
-        ledger,
-        metaRequest.result as CachedMetaRecord[]
+      const meta = metaRequest.result as CachedMetaRecord[];
+      const protectedIds = collectProtectedRoomIds(sessionId, ledger, meta);
+      const lastOpenedTs = new Map<string, number>();
+      meta.forEach((row) =>
+        lastOpenedTs.set(
+          row.roomId,
+          Math.max(lastOpenedTs.get(row.roomId) ?? 0, row.lastOpenedTs ?? 0)
+        )
       );
-      const ledgerRoomIds = new Set(ledger.map((row) => row.roomId));
+      const lastActivityTs = new Map(ledger.map((row) => [row.roomId, row.lastActivityTs]));
       resolve({
-        roomIds: [
-          ...referencedRoomIds.filter((roomId) => !ledgerRoomIds.has(roomId)),
-          ...ledger
-            .sort(
-              (a, b) =>
-                Number(b.federated === true) - Number(a.federated === true) ||
-                a.lastActivityTs - b.lastActivityTs
-            )
-            .map((row) => row.roomId),
-        ].filter((roomId) => !protectedIds.has(roomId)),
+        roomIds: [...new Set([...ledger.map((row) => row.roomId), ...referencedRoomIds])]
+          .filter((roomId) => !protectedIds.has(roomId))
+          .sort(
+            (a, b) =>
+              (lastOpenedTs.get(a) ?? 0) - (lastOpenedTs.get(b) ?? 0) ||
+              (lastActivityTs.get(a) ?? 0) - (lastActivityTs.get(b) ?? 0)
+          ),
         protectedTextBytes: ledger
           .filter((row) => protectedIds.has(row.roomId))
           .reduce((sum, row) => sum + row.approxBytes, 0),
@@ -383,16 +381,22 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
     const target = budget * EVICTION_TARGET_UTILIZATION;
     const order = await readRoomEvictionOrder(sessionId, db);
     protectedTextBytes = order.protectedTextBytes;
+    // When protected text alone exceeds the budget, clearing other rooms
+    // cannot end the pressure, and would only empty them on every pass.
+    const roomIds = protectedTextBytes > budget ? [] : order.roomIds;
     let estimated = false;
-    for (const roomId of order.roomIds) {
+    for (const roomId of roomIds) {
       if (bytesAfter <= target) break;
-      // A pass can take seconds; focus, Download and Pin may start meanwhile.
-      // eslint-disable-next-line no-continue, no-await-in-loop
-      if (isRoomInUse(sessionId, roomId) || (await readRoomLedger(db, roomId))?.pinned) continue;
+      // A pass can take seconds; the user may pin, open, focus or download a
+      // room meanwhile. The in-memory check comes last: nothing awaits between
+      // it and the clear revoking the room's writes.
       // eslint-disable-next-line no-await-in-loop
-      const cleared = await clearRoomCachedContent(sessionId, roomId);
+      if (await isRoomProtectedInStore(db, roomId)) continue;
+      if (isRoomInUse(sessionId, roomId)) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const freedBytes = await clearRoomCachedContent(sessionId, roomId);
       evictedRoomIds.push(roomId);
-      bytesAfter -= cleared.freedBytes;
+      bytesAfter -= freedBytes;
       estimated = true;
       // The freed bytes come from the ledger and references; confirm against
       // the stores once they say the target is met.
