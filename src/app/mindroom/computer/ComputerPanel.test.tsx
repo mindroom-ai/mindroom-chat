@@ -963,6 +963,71 @@ describe('ComputerPanel', () => {
     expect(createRequests(request)).toHaveLength(2);
   });
 
+  it.each([
+    ['still pending', false],
+    ['already complete', true],
+  ])(
+    'keeps Stop when a replacement session fails its first ticket with Stop %s',
+    async (_when, stopFirst) => {
+      vi.useFakeTimers();
+      const gateway = createGateway();
+      let revoked = false;
+      let resolveTicket: (response: Response) => void = () => undefined;
+      let resolveStop: (response: Response) => void = () => undefined;
+      const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const { pathname } = new URL(input.toString());
+        if (revoked && pathname.startsWith('/api/computers/sessions/session-1')) {
+          return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+        }
+        if (pathname.startsWith('/api/computers/sessions/session-2/stream-ticket')) {
+          return new Promise<Response>((resolve) => {
+            resolveTicket = resolve;
+          });
+        }
+        if (pathname === '/api/computers/sessions/session-2/control') {
+          return new Promise<Response>((resolve) => {
+            resolveStop = resolve;
+          });
+        }
+        if (pathname === '/api/computers/sessions/session-2' && init?.method === 'GET') {
+          return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+        }
+        return gateway(input, init);
+      }) as unknown as typeof fetch;
+      renderPanel({ request });
+      await advance();
+
+      revoked = true;
+      act(() => screenConnections[0].onDisconnected());
+      await advance(500);
+      expect(createRequests(request)).toHaveLength(2);
+
+      await click(findButton(container, 'Stop'));
+      const stopped = { ...makeStatus('session-2'), state: 'stopped' };
+      if (stopFirst) {
+        resolveStop(jsonResponse(200, stopped));
+        await advance();
+      }
+      resolveTicket(
+        stopFirst
+          ? jsonResponse(503, { detail: 'Computer worker is unavailable.' })
+          : jsonResponse(409, { detail: 'Computer stopped or restarted; create a new session.' })
+      );
+      await advance();
+      if (!stopFirst) {
+        // The Stop response outlasts the next automatic attempt's delay.
+        await advance(2_000);
+        resolveStop(jsonResponse(200, stopped));
+        await advance();
+      }
+      await advance(20_000);
+
+      expect(createRequests(request)).toHaveLength(2);
+      expect(container.textContent).toContain('Computer stopped');
+      expect(findButton(container, 'Start computer')).toBeInstanceOf(HTMLButtonElement);
+    }
+  );
+
   it('offers Reconnect after the automatic attempts, which replaces a revoked session', async () => {
     vi.useFakeTimers();
     const gateway = createGateway();

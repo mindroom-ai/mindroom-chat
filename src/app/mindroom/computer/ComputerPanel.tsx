@@ -286,9 +286,10 @@ export function ComputerPanel({
         try {
           await connectStream(createdSession, lifecycle, false, signal);
         } catch (connectError) {
+          // A session retired meanwhile, for example by Stop, keeps the state its owner set.
+          if (lifecycleRef.current !== lifecycle || sessionRef.current !== createdSession) return;
           if (
             !recovering ||
-            lifecycleRef.current !== lifecycle ||
             !(isTransientError(connectError, signal) || isSessionGone(connectError))
           ) {
             throw connectError;
@@ -468,6 +469,8 @@ export function ComputerPanel({
     const signal = lifecycleSignalRef.current;
     if (!signal) return;
     const current = () => lifecycleRef.current === lifecycle && sessionRef.current === session;
+    // A pending operation such as Stop owns the outcome.
+    if (!current() || operation) return;
     let failure = message ?? 'The computer connection closed.';
     setOperation('reconnect');
     setError(undefined);
