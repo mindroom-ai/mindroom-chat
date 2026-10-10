@@ -38,6 +38,52 @@
   `npm test`: everything passes except `xcodeCloudPostClone.test.ts` (3) and one `useRoomInputSendSessionController.test.ts` case, which fail the same way on the base commit `06a214d0` in a clean checkout.
   Not run live here: the card against a backend with `POST /api/connections/session`.
 
+### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
+
+- Why: production logs showed the Computer panel dying whenever the server closed its stream (code 1008, which noVNC reports as a clean close).
+  The server does that when a periodic re-authorization fails or times out, the worker restarts, the computer generation changes or the session expires, and it revokes the session at the same time, so the next status or stream-ticket call answers 401, sometimes 409 first ("Computer worker changed; create a new session.").
+  The panel showed "Computer disconnected"; Reconnect reused the revoked session, so it took a second click after a 401 and never recovered from a 409.
+  Session creation also failed hard on a cold worker: it takes 20 to 25 s after a scale to zero and up to about 3 minutes on a fresh node, and Cloudflare answers 524 after about 100 s.
+- Status: merged in #440; review follow-ups on `fix/computer-recover-followups`; not deployed.
+- Automatic reconnect (`ComputerPanel.tsx`, `reconnectAutomatically`): when a stream that had connected closes and no operation (take, Resume agent, Stop, Reconnect) is pending, the panel shows "Reconnecting to computer…" and retries after 0.5, 1, 2, 4 and 8 s (about 15 s in all).
+  Each attempt refreshes the status and fetches a new ticket for the same session.
+  A stream opened by an attempt that closes before it connects uses the next attempt, and so does one that closes within 35 s of connecting; only a stream that stayed connected for 35 s gives the next close a full set again (`STABLE_STREAM_MS`).
+  35 s outlasts the runtime's 15 s recheck cadence plus its 15 s budget, so a session revoked by every periodic recheck on a busy runtime also keeps counting.
+  Without that, a server that revokes every new session right after it connects made the panel create sessions forever.
+  After the last attempt, or on an error that is neither transient nor a revoked session, the panel shows "Computer disconnected" with the error and Reconnect, as before.
+  Closing the panel, Stop, switching agent, room or thread, and Resume agent's own stream swap do not reconnect: they either clear the active stream first or are pending operations, and Resume keeps its `releasingStreamTicketRef` path.
+- Revoked sessions: a 401, 404 or 409 from the existing session, during an automatic or a manual Reconnect, drops it (`replaceSession`: best-effort DELETE) and restarts the session effect, which creates a new session for the same room, thread and agent.
+  `recoverOnRestartRef` tells that restart to show "Reconnecting…" and to keep counting attempts, so a session that is revoked again and again cannot loop forever.
+  The server released control with the old session, so a user who had control comes back watching.
+- A replacement session's first stream ticket goes through the same policy: a transient error or a revoked session on it uses the next automatic attempt instead of showing "Computer unavailable" (`reconnectAutomaticallyRef`).
+- Starting: the session effect retries `POST /sessions` after network failures and 502, 503, 504 and 524, with delays of 2, 4, 8 and then 10 s, for up to 3 minutes from the first try, keeping the "Connecting…" spinner; a new OpenID token is fetched per try.
+  The budget is checked again after each wait, so a throttled or sleeping tab that wakes after 3 minutes does not send another request.
+  403, 409, 429 and every other status fail at once as before.
+  While a session is being created the spinner adds "Starting the computer can take a minute."
+- Cancellation: every wait goes through `wait(ms, signal)` on the session effect's `AbortSignal` (`lifecycleSignalRef`), and reconnect requests pass the same signal, so the effect cleanup (close, scope change, unmount) clears pending timers and aborts requests.
+  A session created after the cleanup is disposed, as before.
+- Known limits: a few 503s are configuration errors ("Computer authorization runtime is unavailable.", "A dedicated computer worker backend is required."), and the panel retries them for 3 minutes before showing them.
+  When Cloudflare gives up with 524 the backend still finishes starting the worker; since mindroom#2773 the runtime revokes a session whose request disconnected, so the retry does not leave it holding one of the requester's eight sessions.
+  Another viewer's Stop (or the same user's, in another tab) changes the computer's generation, so this panel gets 409 "Computer stopped or restarted; create a new session." and starts the computer again with a new session within a second.
+  The server sends the same answer when the display or the agent's browser restarts, which should recover, so the client cannot tell the two apart; a distinct server answer for an explicit stop would fix it.
+  Stop is disabled while the automatic attempts run (up to about 15 s), and the interaction stays locked, so an agent's request for another computer is refused meanwhile.
+  A close while another operation is pending (Take control in flight, or Resume agent still sending its continuation) shows "Computer disconnected" as before, without reconnecting.
+  The panel strings are still English only, like the rest of the panel.
+- Tests (`ComputerPanel.test.tsx`, fake timers): reconnect after a close reusing a valid session; a full set of attempts again after a stream stayed connected; Reconnect after five attempts when every new session is revoked right after connecting (6 sessions, then none), when the new streams never connect, and at once on a 403 status; a 401 and a 409 during reconnect create a new session and come back in watch mode after control; exhausted attempts show Reconnect, which replaces a revoked session in one click; 503 then 524 on creation retries and connects; creation gives up after about 3 minutes; 403, 409 and 429 on creation do not retry; closing cancels a pending reconnect and a pending start retry (no timers left), and disposes a replacement session that arrives afterwards.
+  Three existing cases changed: a 503 on creation is now retried, so the actionable-error case uses 403, 409 and 429; a close after a failed release, and a close after a failed continuation send, now reconnect on their own.
+  The first round of new cases fails on `dev` (11 of them).
+  Each of these mutations fails at least one case: dropping the pending-operation guard, the timer clearing on abort, 409 from the revoked statuses, the retry of a stream that never connected, the kept count across a replaced session, the stop on a non-transient error, the stable-stream threshold, or the reset after it.
+- Independent review (subagent): the state machine, cleanup and unchanged Stop and Resume paths checked out; it found the unbounded connect-then-drop loop and the three untested bounds above, now fixed and covered.
+  Its other notes are the known limits above (another viewer's Stop, Stop disabled while retrying, a close during another operation) and a cosmetic one: during attempts the status alternates between "Reconnecting to computer…" and "Connecting display…".
+- PR #440 review (Opus, GPT-6.1 Sol, GPT-6 Astra): fixed a replacement session's failed first ticket bypassing the retries, its ticket request missing the abort signal, the start budget not being rechecked after a wait, and the 10 s stable threshold letting a session revoked by every 15 s recheck loop forever; added tests for the retries, the budget and the threshold, for Reconnect after a 409 and for aborting an in-flight reconnect request (the replacement ticket's abort signal has no dedicated test).
+  Round 2 found that the replacement-ticket handoff could override Stop: a pending Stop no longer races an automatic attempt (`reconnectAutomatically` returns while another operation is pending), and a ticket failure for a session that Stop already retired keeps "Computer stopped"; both orderings are tested.
+  Declined: holding off renewal in a hidden tab (an open viewer keeping its worker alive is the documented behavior), and retrying the rare transient 409 on `POST /sessions`.
+- Follow-ups after #440 (CodeRabbit and Opus review): starting also retries a homeserver that cannot be reached for the OpenID token (matrix-js-sdk `ConnectionError`), and new tests pin the effect's retired-session guard (a 403 after Stop keeps "Computer stopped") and manual Reconnect restoring the automatic attempts.
+- Validation: `npx vitest run src/app/mindroom/computer/` (115 passed), `npm run typecheck`, `npm run lint` (0 errors, the 18 existing warnings), Prettier on both files, `npm run build`.
+  `npm test`: 6,615 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases.
+  Not run: the live `e2e/worker-computer.spec.ts`, which needs the backend's computer fixture.
+- Next: decide whether another viewer's Stop should stay stopped (needs a server answer that tells it apart); PR review; live check against a deployment that a worker restart and a session expiry reconnect without a click.
+
 ### Quiet thread summaries inside a thread (2026-10-09)
 
 - Why: someone told the owner the automatic AI thread summaries were intrusive, large and obnoxious inside a thread. MindRoom posts one after the first reply and then every ten messages, each a glass card in 15px semibold, and since the summary describes the thread's lasting topic, most cards repeated the banner's title word for word. The owner had no strong view on the room timeline, so its card under a thread root is unchanged.
