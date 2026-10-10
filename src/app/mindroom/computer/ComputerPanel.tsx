@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { ComputerApiError, ComputerSessionClient, createComputerSession } from './api';
 import type { ComputerScreenProps } from './ComputerScreen';
 import type { ComputerAgent, ComputerStatus, ComputerStreamConnection } from './types';
@@ -43,8 +43,11 @@ const TRANSIENT_STATUSES = new Set([0, 502, 503, 504, 524]);
 // The server revokes a session when it closes its stream; these mean a new session is needed.
 const SESSION_GONE_STATUSES = new Set([401, 404, 409]);
 
+// Also covers a homeserver that cannot be reached for the OpenID token.
 const isTransientError = (error: unknown, signal: AbortSignal): boolean =>
-  !signal.aborted && error instanceof ComputerApiError && TRANSIENT_STATUSES.has(error.status);
+  !signal.aborted &&
+  ((error instanceof ComputerApiError && TRANSIENT_STATUSES.has(error.status)) ||
+    error instanceof ConnectionError);
 
 const isSessionGone = (error: unknown): boolean =>
   error instanceof ComputerApiError && SESSION_GONE_STATUSES.has(error.status);
