@@ -148,6 +148,14 @@
         "httpNotice": "HTTP ne chiffre ni votre connexion ni le trafic de l’ordinateur. Utilisez-le uniquement sur un réseau local de confiance.",
         "saveFailed": "Impossible d’enregistrer le service d’ordinateurs sur cet appareil.",
         "saved": "Service d’ordinateurs enregistré."
+      },
+      "connections": {
+        "sectionTitle": "Connexions",
+        "title": "Comptes connectés",
+        "description": "Connectez les comptes que vos agents utilisent, comme Google ou GitHub, sur votre serveur MindRoom.",
+        "open": "Ouvrir les connexions",
+        "noBackend": "Définissez votre serveur MindRoom sous « Ordinateurs » pour utiliser les connexions.",
+        "blocked": "Votre navigateur a bloqué la fenêtre des connexions. Autorisez les fenêtres pop-up pour ce site et réessayez."
       }
     }
   },

@@ -148,6 +148,14 @@
         "httpNotice": "HTTP, oturum açma bilgilerinizi veya bilgisayar trafiğini şifrelemez. Yalnızca güvenilir bir yerel ağda kullanın.",
         "saveFailed": "Bilgisayar hizmeti bu cihazda kaydedilemedi.",
         "saved": "Bilgisayar hizmeti kaydedildi."
+      },
+      "connections": {
+        "sectionTitle": "Bağlantılar",
+        "title": "Bağlı hesaplar",
+        "description": "Ajanlarınızın kullandığı Google veya GitHub gibi hesapları MindRoom sunucunuza bağlayın.",
+        "open": "Bağlantıları aç",
+        "noBackend": "Bağlantıları kullanmak için MindRoom sunucunuzu “Bilgisayarlar” bölümünden ayarlayın.",
+        "blocked": "Tarayıcınız Bağlantılar penceresini engelledi. Bu site için açılır pencerelere izin verin ve tekrar deneyin."
       }
     }
   },

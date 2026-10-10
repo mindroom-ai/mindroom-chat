@@ -148,6 +148,14 @@
         "httpNotice": "HTTP 不会加密您的登录信息或计算机流量。请仅在可信任的局域网上使用。",
         "saveFailed": "无法在此设备上保存计算机服务。",
         "saved": "计算机服务已保存。"
+      },
+      "connections": {
+        "sectionTitle": "连接",
+        "title": "已连接的账户",
+        "description": "在您的 MindRoom 服务器上连接智能体使用的账户，例如 Google 或 GitHub。",
+        "open": "打开连接",
+        "noBackend": "请在“计算机”中设置您的 MindRoom 服务器，以使用连接。",
+        "blocked": "浏览器拦截了连接窗口。请允许此网站的弹出窗口，然后重试。"
       }
     }
   },

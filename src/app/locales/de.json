@@ -148,6 +148,14 @@
         "httpNotice": "HTTP verschlüsselt weder deine Anmeldung noch den Computer-Datenverkehr. Verwende es nur in einem vertrauenswürdigen lokalen Netzwerk.",
         "saveFailed": "Der Computerdienst konnte auf diesem Gerät nicht gespeichert werden.",
         "saved": "Computerdienst gespeichert."
+      },
+      "connections": {
+        "sectionTitle": "Verbindungen",
+        "title": "Verbundene Konten",
+        "description": "Verbinde die Konten, die deine Agenten nutzen, etwa Google oder GitHub, auf deinem MindRoom-Server.",
+        "open": "Verbindungen öffnen",
+        "noBackend": "Lege unter „Computer“ deinen MindRoom-Server fest, um Verbindungen zu nutzen.",
+        "blocked": "Dein Browser hat das Verbindungsfenster blockiert. Erlaube Pop-ups für diese Seite und versuche es erneut."
       }
     }
   },

@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
+import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 import { ComputerApiError, ComputerSessionClient, createComputerSession } from './api';
 import type { ComputerScreenProps } from './ComputerScreen';
 import type { ComputerAgent, ComputerStatus, ComputerStreamConnection } from './types';
@@ -252,7 +253,7 @@ export function ComputerPanel({
       const startedAt = Date.now();
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const openIdToken = await mx.getOpenIdToken();
+          const openIdToken = await requestAudienceOpenIdToken(mx, new URL(apiUrl).origin);
           if (lifecycleRef.current !== lifecycle) return undefined;
           return await createComputerSession({
             apiUrl,

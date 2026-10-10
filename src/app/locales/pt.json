@@ -148,6 +148,14 @@
         "httpNotice": "HTTP não encripta o início de sessão nem o tráfego do computador. Use-o apenas numa rede local de confiança.",
         "saveFailed": "Não foi possível salvar o serviço de computadores neste dispositivo.",
         "saved": "Serviço de computadores salvo."
+      },
+      "connections": {
+        "sectionTitle": "Conexões",
+        "title": "Contas conectadas",
+        "description": "Conecte as contas que seus agentes usam, como Google ou GitHub, no seu servidor MindRoom.",
+        "open": "Abrir Conexões",
+        "noBackend": "Defina seu servidor MindRoom em “Computadores” para usar Conexões.",
+        "blocked": "Seu navegador bloqueou a janela de Conexões. Permita pop-ups neste site e tente novamente."
       }
     }
   },
