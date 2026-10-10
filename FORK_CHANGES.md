@@ -19,10 +19,21 @@
 - Live: Brave fixture using the actual holder, folds styles, and theme confirms horizontal
   overflow, centered arrows, resize removal, RTL scrolling, and failed-card cleanup to zero
   height, zero top margin, and zero buttons. The fixture was removed after validation.
-- Follow-up: the owner reports previews have never worked. Production `mindroom.chat`'s live
-  Tuwunel config has no URL-preview allowlist keys, so all domain lists default to empty and
-  every preview URL is refused. The config in dotfiles also omits those settings. Preparing
-  the server-side fix separately; preview support is not repaired by this frontend commit.
+- Second bug: production `mindroom.chat` has no URL-preview allowlist keys, so every preview
+  URL is refused. The deployed binary is `v1.9.3-mindroom.27`. An isolated server using that
+  exact binary reproduces the default 403 "URL is not allowed to be previewed"; adding
+  `url_preview_domain_explicit_allowlist = ["*"]` returns a real public website preview.
+- Server fix: dotfiles branch `fix-public-url-previews` enables public URLs in
+  `configs/nixos/hosts/hetzner-matrix/tuwunel.nix`, retains default IP filtering, documents
+  the configuration, and adds `check-url-previews.py`. Full Nix module evaluation and
+  generated TOML assertions pass, as do Python lint/format checks. The isolated test
+  verifies real metadata and proves loopback, IPv4-mapped IPv6, and localhost previews
+  never connect to a reachable private HTTP fixture. Independent review approves the
+  current binary's literal/DNS/redirect/response-peer guards and the config change.
+- Deployment: neither frontend nor server fix has been pushed or deployed. Ordinary SSH
+  access works, but production sudo needs a password and root SSH is unavailable. Apply
+  the Nix configuration through the managed rebuild, deploy the frontend, and refresh
+  the browser to clear cached rejected preview requests before checking the live page.
 
 ### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
 
