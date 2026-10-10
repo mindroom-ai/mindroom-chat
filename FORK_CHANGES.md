@@ -30,10 +30,14 @@
   verifies real metadata and proves loopback, IPv4-mapped IPv6, and localhost previews
   never connect to a reachable private HTTP fixture. Independent review approves the
   current binary's literal/DNS/redirect/response-peer guards and the config change.
-- Deployment: neither frontend nor server fix has been pushed or deployed. Ordinary SSH
-  access works, but production sudo needs a password and root SSH is unavailable. Apply
-  the Nix configuration through the managed rebuild, deploy the frontend, and refresh
-  the browser to clear cached rejected preview requests before checking the live page.
+- PR review: Qodo found no bugs and requested a shared scroll-direction helper; measuring
+  overflow and both buttons now use the same helper. Existing LTR/RTL behavioral tests
+  cover this follow-up. Other CI and AI reviews are still running.
+- Deployment: pushed client PR #443 and SSH-signed dotfiles PR #115. Direct dotfiles `main`
+  push awaits explicit approval required by the approval hook; Comin trusts the original
+  SSH signature and can deploy it without manual sudo. The frontend publisher is writable
+  through ordinary SSH. Neither fix is live yet. Refresh the browser after rollout to
+  clear cached rejected preview requests.
 
 ### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
 

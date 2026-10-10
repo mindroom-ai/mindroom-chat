@@ -13,6 +13,8 @@ import { ImageViewer } from '../image-viewer';
 import { onEnterOrSpace } from '../../utils/keyboard';
 
 const linkStyles = { color: color.Success.Main };
+const getScrollDirection = (scroll: HTMLElement) =>
+  getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
 
 export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
   ({ url, ts, ...props }, ref) => {
@@ -117,7 +119,7 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
     const updateLayout = () => {
       const hasContent = content.childElementCount > 0;
       const maxScroll = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
-      const direction = getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
+      const direction = getScrollDirection(scroll);
       // Clamp elastic overscroll (Safari) and tolerate rounded scroll dimensions.
       const position = Math.max(0, Math.min(maxScroll, direction * scroll.scrollLeft));
       const overflow = hasContent && scroll.clientWidth > 0 && maxScroll > 1;
@@ -146,7 +148,7 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
     const scroll = scrollRef.current;
     if (!scroll) return;
     const { offsetWidth, scrollLeft } = scroll;
-    const direction = getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
+    const direction = getScrollDirection(scroll);
     scroll.scrollTo({
       left: scrollLeft - (direction * offsetWidth) / 1.3,
       behavior: 'smooth',
@@ -156,7 +158,7 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
     const scroll = scrollRef.current;
     if (!scroll) return;
     const { offsetWidth, scrollLeft } = scroll;
-    const direction = getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
+    const direction = getScrollDirection(scroll);
     scroll.scrollTo({
       left: scrollLeft + (direction * offsetWidth) / 1.3,
       behavior: 'smooth',
