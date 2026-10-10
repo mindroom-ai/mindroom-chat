@@ -4,7 +4,7 @@
 
 ### Open the Connections portal signed in from settings (2026-10-09)
 
-- Why: the owner wants the people who talk to his agents to connect their own OAuth accounts, such as Google or GitHub, in the MindRoom backend's Connections portal without dashboard access or an identity gateway in front of the API.
+- Why: the owner wants the people who talk to their agents to connect their own OAuth accounts, such as Google or GitHub, in the MindRoom backend's Connections portal without dashboard access or an identity gateway in front of the API.
   The portal could only be entered through trusted-upstream JWT auth.
   A signed-in Chat user now opens it from Settings, General, and lands there signed in as their Matrix user.
 - Design: a `postMessage` handoff, not a token in the URL.
@@ -21,7 +21,7 @@
   - The card is hidden on native builds (`Capacitor.isNativePlatform()`), because the shells have no pop-up window to hand a token to.
   - When `window.open` returns `null`, the card shows "Your browser blocked the Connections window. Allow pop-ups for this site and try again.", and the message clears after a later click opens the window.
   - With no backend URL configured, the button is disabled and the card says "Set your MindRoom server under Computers to use Connections."
-- Backend dependency: the mindroom PR that adds `POST /api/connections/session` (exchanges the token for a portal-only session cookie) and `MINDROOM_CONNECTIONS_ALLOWED_ORIGINS`.
+- Backend dependency: mindroom-ai/mindroom#2775, which adds `POST /api/connections/session` (exchanges the token for a portal-only session cookie) and `MINDROOM_CONNECTIONS_ALLOWED_ORIGINS`.
   That variable is a JSON list of exact Chat origins and must list the Chat origin that opens the portal, for example `["https://chat.mindroom.chat","https://chat.lab.mindroom.chat"]`, or the backend answers 403.
   The backend also needs `MINDROOM_CONNECTIONS_AGENT` set and a public HTTPS origin.
   Without the backend change the portal cannot sign the user in, so ship the two together.
