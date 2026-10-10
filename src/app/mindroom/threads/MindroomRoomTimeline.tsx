@@ -786,6 +786,7 @@ export function RoomTimeline({
     threadId,
     append: setSupplementalThreadEvents,
     getLoadedEvents: getLoadedThreadEvents,
+    debugTraceId: threadDebugTraceId,
   });
   const beginRoomCacheWrite = useCallback(
     () => syncEngine.persist.forRoom(room).persistRoomEventCache,
