@@ -116,7 +116,15 @@ export const clearRoomCachedContent = async (
     roomReferences.onsuccess = () => {
       const rows = roomReferences.result as CachedAttachmentReferenceRecord[];
       rows.forEach((row) => references.delete(row.referenceKey));
-      new Set(rows.map((row) => row.mxcUri).filter(Boolean)).forEach((mxcUri) => {
+      // References carry the blob's size, so the blob is not read. A reference
+      // marked missing can still describe a blob kept for another reason (too
+      // large for its slot, an unvalidated revision).
+      const blobBytes = new Map<string, number>();
+      rows.forEach((row) => {
+        if (row.mxcUri)
+          blobBytes.set(row.mxcUri, Math.max(blobBytes.get(row.mxcUri) ?? 0, row.byteLength));
+      });
+      blobBytes.forEach((byteLength, mxcUri) => {
         const remaining = references
           .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
           .getAll(mxcUri);
@@ -124,13 +132,7 @@ export const clearRoomCachedContent = async (
           const shared = remaining.result as CachedAttachmentReferenceRecord[];
           if (!shared.length) {
             blobs.delete(mxcUri);
-            // References carry the blob's size, so the blob is not read. A
-            // reference marked missing can still describe a blob kept for
-            // another reason (too large for its slot, an unvalidated revision).
-            freedBytes += Math.max(
-              0,
-              ...rows.filter((row) => row.mxcUri === mxcUri).map((row) => row.byteLength)
-            );
+            freedBytes += byteLength;
           } else {
             const blob = blobs.get(mxcUri);
             blob.onsuccess = () => {
@@ -261,10 +263,15 @@ const reclaimOptionalMedia = (
           ledger,
           metaRequest.result as CachedMetaRecord[]
         );
+        // Every edited message without media has a reference with an empty
+        // MXC URI; no blob has one, so those rows are skipped.
         const ownersByMxcUri = new Map<string, CachedAttachmentReferenceRecord[]>();
-        references.forEach((row) =>
-          ownersByMxcUri.set(row.mxcUri, [...(ownersByMxcUri.get(row.mxcUri) ?? []), row])
-        );
+        references.forEach((row) => {
+          if (!row.mxcUri) return;
+          const owners = ownersByMxcUri.get(row.mxcUri);
+          if (owners) owners.push(row);
+          else ownersByMxcUri.set(row.mxcUri, [row]);
+        });
         const ownedByProtectedRoom = (mxcUri: string) =>
           (ownersByMxcUri.get(mxcUri) ?? []).some((row) => protectedIds.has(row.roomId));
         const protectedBytes =
