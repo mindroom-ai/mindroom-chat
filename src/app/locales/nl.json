@@ -148,6 +148,14 @@
         "httpNotice": "HTTP versleutelt je aanmelding of computerverkeer niet. Gebruik het alleen op een vertrouwd lokaal netwerk.",
         "saveFailed": "De computerservice kon niet op dit apparaat worden opgeslagen.",
         "saved": "Computerservice opgeslagen."
+      },
+      "connections": {
+        "sectionTitle": "Verbindingen",
+        "title": "Verbonden accounts",
+        "description": "Verbind de accounts die je agents gebruiken, zoals Google of GitHub, met je MindRoom-server.",
+        "open": "Verbindingen openen",
+        "noBackend": "Stel je MindRoom-server in onder ‘Computers’ om Verbindingen te gebruiken.",
+        "blocked": "Je browser heeft het venster Verbindingen geblokkeerd. Sta pop-ups toe voor deze site en probeer het opnieuw."
       }
     }
   },

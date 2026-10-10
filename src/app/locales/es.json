@@ -148,6 +148,14 @@
         "httpNotice": "HTTP no cifra el inicio de sesión ni el tráfico del ordenador. Úsalo solo en una red local de confianza.",
         "saveFailed": "No se pudo guardar el servicio de ordenadores en este dispositivo.",
         "saved": "Servicio de ordenadores guardado."
+      },
+      "connections": {
+        "sectionTitle": "Conexiones",
+        "title": "Cuentas conectadas",
+        "description": "Conecta las cuentas que usan tus agentes, como Google o GitHub, en tu servidor MindRoom.",
+        "open": "Abrir Conexiones",
+        "noBackend": "Define tu servidor MindRoom en «Ordenadores» para usar Conexiones.",
+        "blocked": "Tu navegador bloqueó la ventana de Conexiones. Permite las ventanas emergentes de este sitio e inténtalo de nuevo."
       }
     }
   },

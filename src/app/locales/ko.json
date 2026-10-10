@@ -148,6 +148,14 @@
         "httpNotice": "HTTP는 로그인 정보나 컴퓨터 트래픽을 암호화하지 않습니다. 신뢰할 수 있는 로컬 네트워크에서만 사용하세요.",
         "saveFailed": "이 기기에 컴퓨터 서비스를 저장할 수 없습니다.",
         "saved": "컴퓨터 서비스를 저장했습니다."
+      },
+      "connections": {
+        "sectionTitle": "연결",
+        "title": "연결된 계정",
+        "description": "에이전트가 사용하는 Google, GitHub 같은 계정을 MindRoom 서버에 연결하세요.",
+        "open": "연결 열기",
+        "noBackend": "연결을 사용하려면 ‘컴퓨터’에서 MindRoom 서버를 설정하세요.",
+        "blocked": "브라우저가 연결 창을 차단했습니다. 이 사이트의 팝업을 허용한 다음 다시 시도하세요."
       }
     }
   },

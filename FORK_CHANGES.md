@@ -2,6 +2,42 @@
 
 ## Runbook
 
+### Open the Connections portal signed in from settings (2026-10-09)
+
+- Why: the owner wants the people who talk to his agents to connect their own OAuth accounts, such as Google or GitHub, in the MindRoom backend's Connections portal without dashboard access or an identity gateway in front of the API.
+  The portal could only be entered through trusted-upstream JWT auth.
+  A signed-in Chat user now opens it from Settings, General, and lands there signed in as their Matrix user.
+- Design: a `postMessage` handoff, not a token in the URL.
+  - The new "Connections" card renders right after the Computers card in `MindroomInterfaceSettings` (`settings/MindroomConnectionsSettings.tsx`).
+    Its **Open Connections** button calls `openConnectionsPortal` (`connections/openConnections.ts`) synchronously from the click handler, with no `await` before it, so popup blockers allow the window.
+  - The helper opens `<backend>/connections/` in the named window `mindroom-connections` without `noopener`, because the portal needs `window.opener` to ask for the token.
+  - The portal posts `{ type: "mindroom:connections-ready" }` to its opener.
+    Chat answers only when `event.source` is the window it opened and `event.origin` is the backend origin, and only for that message type.
+  - Chat then requests a fresh Matrix OpenID token (`mx.getOpenIdToken()`, once per ready message, never cached) and posts `{ type: "mindroom:connections-openid", openid_token }` with the backend origin as the target origin, so the browser drops the message if the window navigated elsewhere.
+    A portal reload after its session expired asks again and gets a new token.
+    A rejected token request sends nothing.
+  - Chat stops listening when the window closes (polled once per second), and a second click replaces the first session instead of adding a second listener.
+  - The backend origin is the Computers service URL (`useComputerApiUrl()`), so a URL saved under Computers or the deployment default applies, and a service turned off there disables the card's button.
+  - The card is hidden on native builds (`Capacitor.isNativePlatform()`), because the shells have no pop-up window to hand a token to.
+  - When `window.open` returns `null`, the card shows "Your browser blocked the Connections window. Allow pop-ups for this site and try again.", and the message clears after a later click opens the window.
+  - With no backend URL configured, the button is disabled and the card says "Set your MindRoom server under Computers to use Connections."
+- Backend dependency: the mindroom PR that adds `POST /api/connections/session` (exchanges the token for a portal-only session cookie) and `MINDROOM_CONNECTIONS_ALLOWED_ORIGINS`.
+  That variable is a JSON list of exact Chat origins and must list the Chat origin that opens the portal, for example `["https://chat.mindroom.chat","https://chat.lab.mindroom.chat"]`, or the backend answers 403.
+  The backend also needs `MINDROOM_CONNECTIONS_AGENT` set and a public HTTPS origin.
+  Without the backend change the portal cannot sign the user in, so ship the two together.
+- New keys in all 17 catalogs: `settings.general.connections.{sectionTitle,title,description,open,noBackend,blocked}`.
+  Each catalog names the Computers section with its own `settings.general.computers.sectionTitle` word.
+- Known limits: native (Capacitor) builds are not supported.
+  The card needs the Computers backend URL, so a backend that serves Connections from another origin than Computers cannot be targeted separately.
+  If the opened window navigates cross-origin but stays open, the listener lives until it closes, and its messages fail the source and origin checks.
+- Tests: `openConnections.test.ts` covers the synchronous open, a blocked window, the source, origin and type checks, the exact target origin, a fresh token per ready message, a failed token request, polling, cleanup after close and a reopened window.
+  `MindroomConnectionsSettings.test.tsx` covers the native build rendering nothing, the disabled button with the `noBackend` text when no server is set or Computers is turned off, the portal opening with the deployment and the saved Computers URL, the token getter passed to the helper, and the blocked message appearing and clearing.
+  Mutation checks failed the matching tests: an `await` before the open, no native check, no `disabled`, and ignoring a blocked result.
+  `i18n.test.ts` confirms every catalog has the keys.
+- Validation: typecheck and ESLint (0 errors, 18 existing warnings, none in the new files) pass, and Prettier is clean on the changed files.
+  `npm test`: everything passes except `xcodeCloudPostClone.test.ts` (3) and one `useRoomInputSendSessionController.test.ts` case, which fail the same way on the base commit `06a214d0` in a clean checkout.
+  Not run live here: the card against a backend with `POST /api/connections/session`.
+
 ### Quiet thread summaries inside a thread (2026-10-09)
 
 - Why: someone told the owner the automatic AI thread summaries were intrusive, large and obnoxious inside a thread. MindRoom posts one after the first reply and then every ten messages, each a glass card in 15px semibold, and since the summary describes the thread's lasting topic, most cards repeated the banner's title word for word. The owner had no strong view on the room timeline, so its card under a thread root is unchanged.

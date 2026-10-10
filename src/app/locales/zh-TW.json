@@ -148,6 +148,14 @@
         "httpNotice": "HTTP 不會加密您的登入資訊或電腦流量。請僅在可信任的區域網路上使用。",
         "saveFailed": "無法在此裝置上儲存電腦服務。",
         "saved": "電腦服務已儲存。"
+      },
+      "connections": {
+        "sectionTitle": "連線",
+        "title": "已連線的帳戶",
+        "description": "在您的 MindRoom 伺服器上連線代理程式使用的帳戶，例如 Google 或 GitHub。",
+        "open": "開啟連線",
+        "noBackend": "請在「電腦」中設定您的 MindRoom 伺服器，以使用連線。",
+        "blocked": "瀏覽器封鎖了連線視窗。請允許此網站的彈出式視窗，然後再試一次。"
       }
     }
   },
