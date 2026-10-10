@@ -7,6 +7,7 @@ import { SettingTile } from '../../components/setting-tile';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { openConnectionsPortal } from '../connections/openConnections';
+import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 
 export function MindroomConnectionsSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
@@ -20,12 +21,13 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
   // The window must open inside the click itself, so nothing here awaits before the call.
   const open = () => {
     if (!backendUrl) return;
+    const audience = new URL(backendUrl).origin;
     const result = openConnectionsPortal({
       backendUrl,
       getOpenIdToken: async () => {
         // An account switch stops this client but not the portal session, so a stopped client never answers.
         if (!mx.clientRunning) throw new Error('Matrix client stopped');
-        const token = await mx.getOpenIdToken();
+        const token = await requestAudienceOpenIdToken(mx, audience);
         if (!mx.clientRunning) throw new Error('Matrix client stopped');
         return token;
       },

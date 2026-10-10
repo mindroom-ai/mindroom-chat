@@ -13,7 +13,7 @@
   - The helper opens `<backend>/connections/` in the named window `mindroom-connections` without `noopener`, because the portal needs `window.opener` to ask for the token.
   - The portal posts `{ type: "mindroom:connections-ready" }` to its opener.
     Chat answers only when `event.source` is the window it opened and `event.origin` is the backend origin, and only for that message type.
-  - Chat then requests a fresh Matrix OpenID token (`mx.getOpenIdToken()`, once per ready message, never cached) and posts `{ type: "mindroom:connections-openid", openid_token }` with the backend origin as the target origin, so the browser drops the message if the window navigated elsewhere.
+  - Chat then requests a fresh Matrix OpenID token bound to the backend origin (`requestAudienceOpenIdToken(mx, new URL(backendUrl).origin)`, once per ready message, never cached) and posts `{ type: "mindroom:connections-openid", openid_token }` with the backend origin as the target origin, so the browser drops the message if the window navigated elsewhere.
     A portal reload after its session expired asks again and gets a new token.
     A rejected token request sends nothing.
   - Chat stops listening when the window closes (polled once per second), and a second click replaces the first session instead of adding a second listener.
@@ -25,6 +25,14 @@
   - The card is hidden on native builds (`Capacitor.isNativePlatform()`), because the shells have no pop-up window to hand a token to.
   - When `window.open` returns `null`, the card shows "Your browser blocked the Connections window. Allow pop-ups for this site and try again.", and the message clears after a later click opens the window.
   - With no backend URL configured, the button is disabled and the card says "Set your MindRoom server under Computers to use Connections."
+- Audience binding (follow-up): `requestAudienceOpenIdToken(mx, audience)` in `matrix/openidAudience.ts` posts `{"io.mindroom.audience": audience}` to `/user/{userId}/openid/request_token` through `mx.http.authedRequest`, the request `mx.getOpenIdToken()` makes with an empty body.
+  The point is that a backend operator cannot replay the token against another deployment on the same homeserver, because the homeserver only accepts a bound token for the audience it was issued for.
+  The Connections card uses the backend origin as the audience.
+  The Computers panel (`ComputerPanel.tsx`, session creation) uses it too, with the origin of the computer service it posts to.
+  The Element Call widget driver, Local MindRoom provisioning and the welcome page keep unbound `getOpenIdToken()` tokens on purpose.
+  - Dependency: the Tuwunel fork's `io.mindroom.openid_audience` capability (`unstable_features` in `/_matrix/client/versions`), which stores the audience with the token and enforces it in federation `openid/userinfo`.
+    Stock homeservers ignore the field and return an unbound token, which the backend accepts only when the homeserver lacks that capability.
+    Ship the Tuwunel release and the matching backend verifier (mindroom-ai/mindroom#2775) before relying on the binding.
 - Backend dependency: mindroom-ai/mindroom#2775, which adds `POST /api/connections/session` (exchanges the token for a portal-only session cookie) and `MINDROOM_CONNECTIONS_ALLOWED_ORIGINS`.
   That variable is a JSON list of exact Chat origins and must list the Chat origin that opens the portal, for example `["https://chat.mindroom.chat","https://chat.lab.mindroom.chat"]`, or the backend answers 403.
   The backend also needs `MINDROOM_CONNECTIONS_AGENT` set and a public HTTPS origin.
@@ -39,6 +47,8 @@
   `MindroomConnectionsSettings.test.tsx` covers the native build rendering nothing, the disabled button with the `noBackend` text when no server is set or Computers is turned off, the portal opening with the deployment and the saved Computers URL, the token getter passed to the helper, and the blocked message appearing and clearing.
   It also covers no token being handed out after the Matrix client stopped (the SDK is not called), and a token that resolves after the client stopped being dropped.
   Mutation checks failed the matching tests: an `await` before the open, no native check, no `disabled`, and ignoring a blocked result.
+  `matrix/openidAudience.test.ts` covers the exact path, method and body of the audience request and a failed request reaching the caller.
+  The card test checks that the token request carries the backend origin as its audience, and `ComputerPanel.test.tsx` checks that the panel passes its computer service origin.
   `i18n.test.ts` confirms every catalog has the keys.
 - Validation: typecheck and ESLint (0 errors, 18 existing warnings, none in the new files) pass, and Prettier is clean on the changed files.
   `npm test`: everything passes except `xcodeCloudPostClone.test.ts` (3) and one `useRoomInputSendSessionController.test.ts` case, which fail the same way on the base commit `06a214d0` in a clean checkout.

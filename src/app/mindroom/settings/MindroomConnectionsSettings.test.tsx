@@ -8,12 +8,16 @@ import { computerServicePreferenceAtom } from '../computer/computerServiceSettin
 import { MindroomConnectionsSettings } from './MindroomConnectionsSettings';
 
 const mocks = vi.hoisted(() => {
-  const getOpenIdToken = vi.fn();
+  const authedRequest = vi.fn();
   return {
     isNativePlatform: vi.fn(),
     openConnectionsPortal: vi.fn(),
-    getOpenIdToken,
-    client: { clientRunning: true, getOpenIdToken },
+    authedRequest,
+    client: {
+      clientRunning: true,
+      getSafeUserId: () => '@alice:example.org',
+      http: { authedRequest },
+    },
   };
 });
 
@@ -92,7 +96,7 @@ beforeEach(() => {
   store = createStore();
   mocks.isNativePlatform.mockReset().mockReturnValue(false);
   mocks.openConnectionsPortal.mockReset().mockReturnValue('opened');
-  mocks.getOpenIdToken.mockReset();
+  mocks.authedRequest.mockReset();
   mocks.client.clientRunning = true;
 });
 afterEach(() => {
@@ -159,13 +163,27 @@ describe('connections settings', () => {
 
   it('hands the portal the signed-in client token request', async () => {
     const token = { access_token: 'openid-token' };
-    mocks.getOpenIdToken.mockResolvedValue(token);
+    mocks.authedRequest.mockResolvedValue(token);
     render();
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
-    expect(mocks.getOpenIdToken).not.toHaveBeenCalled();
+    expect(mocks.authedRequest).not.toHaveBeenCalled();
     await expect(options.getOpenIdToken()).resolves.toBe(token);
-    expect(mocks.getOpenIdToken).toHaveBeenCalledTimes(1);
+    expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds the token to the backend origin', async () => {
+    mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
+    act(() => store.set(computerServicePreferenceAtom, 'https://custom.example'));
+    render('https://backend.example');
+    click();
+    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken();
+    expect(mocks.authedRequest).toHaveBeenCalledWith(
+      'POST',
+      '/user/%40alice%3Aexample.org/openid/request_token',
+      undefined,
+      { 'io.mindroom.audience': 'https://custom.example' }
+    );
   });
 
   it('does not hand out a token after the Matrix client stopped', async () => {
@@ -174,11 +192,11 @@ describe('connections settings', () => {
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
     await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
-    expect(mocks.getOpenIdToken).not.toHaveBeenCalled();
+    expect(mocks.authedRequest).not.toHaveBeenCalled();
   });
 
   it('drops a token that resolves after the Matrix client stopped', async () => {
-    mocks.getOpenIdToken.mockImplementation(async () => {
+    mocks.authedRequest.mockImplementation(async () => {
       mocks.client.clientRunning = false;
       return { access_token: 'openid-token' };
     });
@@ -186,7 +204,7 @@ describe('connections settings', () => {
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
     await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
-    expect(mocks.getOpenIdToken).toHaveBeenCalledTimes(1);
+    expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
   });
 
   it('shows the blocked message when the window is blocked', () => {
