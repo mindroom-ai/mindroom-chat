@@ -11,6 +11,7 @@ import {
   setRoomAttachmentPinned,
   runCacheEvictionIfOverBudget,
   loadRoomTailDiscontinuity,
+  setEvictionDownloadingRoomIds,
   type CacheStoreWriteLease,
 } from '../threads/cacheStore';
 import {
@@ -142,6 +143,12 @@ export const createRoomOfflineController = ({
     }
     return value;
   };
+  // Eviction frees whole unprotected rooms; a requested download must not be one.
+  const protectDownloads = () =>
+    setEvictionDownloadingRoomIds(
+      sessionId,
+      [...rooms].filter(([, intent]) => intent.explicit).map(([roomId]) => roomId)
+    );
   const publish = (roomId: string, patch: Partial<OfflineRoomSnapshot>) => {
     const intent = state(roomId);
     intent.snapshot = { ...intent.snapshot, ...patch, downloading: intent.explicit };
@@ -319,13 +326,16 @@ export const createRoomOfflineController = ({
       }
       const room = mx.getRoom(roomId);
       if (!room) return;
+      // Eviction clears a room's progress along with its text, so a room this
+      // session warmed before may come back empty.
+      const evictedSinceWarm = !intent.snapshot.opened;
       if (!(await updateRoomOfflineProgress(sessionId, roomId, { opened: true }, lease))) {
         publish(roomId, { status: isCacheWritable() ? 'error' : 'read-only' });
         return;
       }
       publish(roomId, { status: 'saving' });
       const recent = room.getLiveTimeline()?.getEvents?.().slice(-200) ?? [];
-      if (!intent.warmed && recent.length) {
+      if ((!intent.warmed || evictedSinceWarm) && recent.length) {
         const saved = await persistRoomChunkWithPreferLive({
           mx,
           sessionId,
@@ -436,6 +446,7 @@ export const createRoomOfflineController = ({
         if (intent.fullScanPending) return;
         if (page.exhausted) {
           intent.explicit = intent.explicit && intent.snapshot.hasGap;
+          protectDownloads();
           publish(roomId, { status: 'ready' });
           return;
         }
@@ -491,6 +502,7 @@ export const createRoomOfflineController = ({
       intent.fullScanPending = true;
       intent.canceled = false;
       intent.includeAllMedia = options?.includeAllMedia === true;
+      protectDownloads();
       onPolicyChange?.();
       void run(roomId);
     },
@@ -500,6 +512,7 @@ export const createRoomOfflineController = ({
       intent.fullScanPending = false;
       intent.canceled = true;
       intent.dirty = false;
+      protectDownloads();
       scheduler
         .pendingJobs()
         .filter(
@@ -581,6 +594,8 @@ export const createRoomOfflineController = ({
     },
     start: () => {
       started = true;
+      // stop() released the protection; downloads it paused resume on recheck.
+      protectDownloads();
       unsubscribe = connection.subscribe(recheck);
       void (typeof navigator === 'undefined' ? undefined : navigator.storage?.persist?.())?.catch(
         () => undefined
@@ -588,6 +603,7 @@ export const createRoomOfflineController = ({
     },
     stop: () => {
       started = false;
+      setEvictionDownloadingRoomIds(sessionId, []);
       unsubscribe?.();
       unsubscribe = undefined;
     },

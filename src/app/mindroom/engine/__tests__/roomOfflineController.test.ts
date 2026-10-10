@@ -24,6 +24,9 @@ import {
 import {
   __setCacheStoreByteBudgetForTests,
   __resetEvictionForTests,
+  clearRoomCachedContent,
+  noteRoomOpened,
+  runCacheEvictionIfOverBudget,
   saveRoomEventsToCacheCommitted,
 } from '../../threads/cacheStore';
 import { reportCacheWriteError, resetCacheHealthForTesting } from '../../threads/cacheHealth';
@@ -604,6 +607,80 @@ it('releases failed-page allowance and resumes on connection change', async () =
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
   expect(f.request).toHaveBeenCalledTimes(2);
 });
+it('saves the live tail again when a room returns after its cache was evicted', async () => {
+  const f = fixture();
+  const live = [new MatrixEvent(raw('$live'))];
+  const liveTimeline = { ...f.room.getLiveTimeline(), getEvents: () => live };
+  Object.assign(f.mx, {
+    getRoom: (id: string) => ({ ...f.room, roomId: id, getLiveTimeline: () => liveTimeline }),
+  });
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(async () =>
+    expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$live')).toBeDefined()
+  );
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).not.toBe('saving'));
+  engine.clearRoomFocus(roomId);
+  // Eviction removes a room that was not opened for a day, which a long-lived
+  // session may have warmed before.
+  await clearRoomCachedContent(engine.sessionId, roomId);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(async () =>
+    expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$live')).toBeDefined()
+  );
+});
+
+it("keeps a cold room's cache while its explicit download runs under pressure", async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  __setCacheStoreByteBudgetForTests(1);
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$retained')).toBeDefined();
+  engine.offline.cancel(roomId);
+  expect(await runCacheEvictionIfOverBudget(engine.sessionId)).toMatchObject({
+    evictedRoomIds: [roomId],
+    underPressure: false,
+  });
+});
+
+it('stops protecting a room once its download finishes or the engine stops', async () => {
+  const f = fixture();
+  const engine = f.make();
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$finished')]);
+  // Let the check the save scheduled settle under the default budget.
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  __setCacheStoreByteBudgetForTests(1);
+  expect(await runCacheEvictionIfOverBudget(engine.sessionId)).toMatchObject({
+    evictedRoomIds: [roomId],
+  });
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$stopped')]);
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  engine.stop();
+  expect(await runCacheEvictionIfOverBudget(engine.sessionId)).toMatchObject({
+    evictedRoomIds: [roomId],
+  });
+});
+
+it('protects a running download again after the engine restarts', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$kept')]);
+  __setCacheStoreByteBudgetForTests(1);
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  engine.stop();
+  engine.start();
+  expect(await runCacheEvictionIfOverBudget(engine.sessionId)).toMatchObject({
+    evictedRoomIds: [],
+  });
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$kept')).toBeDefined();
+});
+
 it('retains text and distinguishes soft pressure from quota read-only', async () => {
   const f = fixture();
   const engine = f.make();
@@ -1107,6 +1184,8 @@ it('preserves the storage pause after a live observed body is refused', async ()
   const f = fixture();
   const engine = f.make();
   await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true, exhausted: true });
+  // Recently opened, so eviction keeps the room and the pressure stays.
+  await noteRoomOpened(engine.sessionId, roomId);
   __setCacheStoreByteBudgetForTests(1);
   const fetch = vi.fn(
     async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))

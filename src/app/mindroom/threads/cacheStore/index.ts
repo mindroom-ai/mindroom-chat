@@ -97,6 +97,7 @@ export {
   maybeScheduleEvictionCheck,
   setEvictionProtectedRoomIds,
   getEvictionProtectedRoomIds,
+  setEvictionDownloadingRoomIds,
   __resetEvictionForTests,
 } from './cacheEviction';
 
