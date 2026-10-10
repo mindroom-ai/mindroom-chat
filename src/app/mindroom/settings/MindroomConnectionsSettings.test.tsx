@@ -7,11 +7,15 @@ import { ClientConfigProvider } from '../../hooks/useClientConfig';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import { MindroomConnectionsSettings } from './MindroomConnectionsSettings';
 
-const mocks = vi.hoisted(() => ({
-  isNativePlatform: vi.fn(),
-  openConnectionsPortal: vi.fn(),
-  getOpenIdToken: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const getOpenIdToken = vi.fn();
+  return {
+    isNativePlatform: vi.fn(),
+    openConnectionsPortal: vi.fn(),
+    getOpenIdToken,
+    client: { clientRunning: true, getOpenIdToken },
+  };
+});
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -61,7 +65,7 @@ vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: mocks.isNativePlatform },
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getOpenIdToken: mocks.getOpenIdToken }),
+  useMatrixClient: () => mocks.client,
 }));
 vi.mock('../connections/openConnections', () => ({
   openConnectionsPortal: mocks.openConnectionsPortal,
@@ -89,6 +93,7 @@ beforeEach(() => {
   mocks.isNativePlatform.mockReset().mockReturnValue(false);
   mocks.openConnectionsPortal.mockReset().mockReturnValue('opened');
   mocks.getOpenIdToken.mockReset();
+  mocks.client.clientRunning = true;
 });
 afterEach(() => {
   act(() => renderer?.unmount());
@@ -160,6 +165,27 @@ describe('connections settings', () => {
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
     expect(mocks.getOpenIdToken).not.toHaveBeenCalled();
     await expect(options.getOpenIdToken()).resolves.toBe(token);
+    expect(mocks.getOpenIdToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hand out a token after the Matrix client stopped', async () => {
+    mocks.client.clientRunning = false;
+    render();
+    click();
+    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
+    expect(mocks.getOpenIdToken).not.toHaveBeenCalled();
+  });
+
+  it('drops a token that resolves after the Matrix client stopped', async () => {
+    mocks.getOpenIdToken.mockImplementation(async () => {
+      mocks.client.clientRunning = false;
+      return { access_token: 'openid-token' };
+    });
+    render();
+    click();
+    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
     expect(mocks.getOpenIdToken).toHaveBeenCalledTimes(1);
   });
 

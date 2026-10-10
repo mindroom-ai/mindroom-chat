@@ -17,6 +17,10 @@
     A portal reload after its session expired asks again and gets a new token.
     A rejected token request sends nothing.
   - Chat stops listening when the window closes (polled once per second), and a second click replaces the first session instead of adding a second listener.
+  - A token reply still pending when its portal session ends, by window close or a newer click, is dropped (commit `188ad5c4`), so it never reaches a window another account may now own.
+  - Chat switches accounts without reloading the page, so the portal session outlives the old client, whose access token stays valid.
+    The card's token getter therefore rejects when `mx.clientRunning` is false, both before requesting the token and after it resolves.
+    A rejection makes `openConnections.ts` skip the reply, so after an account switch the portal reload shows its "Open Connections from MindRoom Chat" message instead of the old account.
   - The backend origin is the Computers service URL (`useComputerApiUrl()`), so a URL saved under Computers or the deployment default applies, and a service turned off there disables the card's button.
   - The card is hidden on native builds (`Capacitor.isNativePlatform()`), because the shells have no pop-up window to hand a token to.
   - When `window.open` returns `null`, the card shows "Your browser blocked the Connections window. Allow pop-ups for this site and try again.", and the message clears after a later click opens the window.
@@ -31,7 +35,9 @@
   The card needs the Computers backend URL, so a backend that serves Connections from another origin than Computers cannot be targeted separately.
   If the opened window navigates cross-origin but stays open, the listener lives until it closes, and its messages fail the source and origin checks.
 - Tests: `openConnections.test.ts` covers the synchronous open, a blocked window, the source, origin and type checks, the exact target origin, a fresh token per ready message, a failed token request, polling, cleanup after close and a reopened window.
+  Follow-up tests cover a token reply dropped when its session ends while the request is pending, by window close or a newer click.
   `MindroomConnectionsSettings.test.tsx` covers the native build rendering nothing, the disabled button with the `noBackend` text when no server is set or Computers is turned off, the portal opening with the deployment and the saved Computers URL, the token getter passed to the helper, and the blocked message appearing and clearing.
+  It also covers no token being handed out after the Matrix client stopped (the SDK is not called), and a token that resolves after the client stopped being dropped.
   Mutation checks failed the matching tests: an `await` before the open, no native check, no `disabled`, and ignoring a blocked result.
   `i18n.test.ts` confirms every catalog has the keys.
 - Validation: typecheck and ESLint (0 errors, 18 existing warnings, none in the new files) pass, and Prettier is clean on the changed files.

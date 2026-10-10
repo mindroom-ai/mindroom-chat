@@ -22,7 +22,13 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
     if (!backendUrl) return;
     const result = openConnectionsPortal({
       backendUrl,
-      getOpenIdToken: () => mx.getOpenIdToken(),
+      getOpenIdToken: async () => {
+        // An account switch stops this client but not the portal session, so a stopped client never answers.
+        if (!mx.clientRunning) throw new Error('Matrix client stopped');
+        const token = await mx.getOpenIdToken();
+        if (!mx.clientRunning) throw new Error('Matrix client stopped');
+        return token;
+      },
     });
     setBlocked(result === 'blocked');
   };
