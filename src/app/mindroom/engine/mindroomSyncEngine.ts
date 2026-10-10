@@ -455,6 +455,8 @@ export const createMindroomSyncEngine = ({
     // unconditionally — a room the user actively opens is always
     // eligible for a foreground fetch.
     focusedRoomId = roomId;
+    // Protect the room before its offline work can ask for space.
+    setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);
     gapFillExecutor?.recheckDeferred(roomId);
     const tier = resolveRoomPrefetchTier(mx, room);
@@ -464,7 +466,6 @@ export const createMindroomSyncEngine = ({
     if (tier !== 'background') {
       noteRoomFederated(sessionId, roomId, tier !== 'own').catch(() => undefined);
     }
-    setEvictionProtectedRoomIds([roomId]);
     noteRoomOpened(sessionId, roomId).catch(() => undefined);
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);

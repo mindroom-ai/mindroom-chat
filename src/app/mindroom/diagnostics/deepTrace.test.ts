@@ -239,6 +239,7 @@ describe('opt-in deep diagnostic trace', () => {
     expect(isDeepTraceRecording()).toBe(true);
     const names = [
       'storage.cache.close',
+      'storage.cache.eviction',
       'storage.cache.open_settled',
       'storage.cache.open_stalled',
       'storage.cache.transaction_settled',
@@ -247,7 +248,7 @@ describe('opt-in deep diagnostic trace', () => {
     names.forEach((name) => recordDeepTraceEvent(name, { readwrite: true, events: true }));
 
     const snapshot = await readDeepTraceSnapshot();
-    expect(snapshot.events.filter((event) => names.includes(event.name))).toHaveLength(5);
+    expect(snapshot.events.filter((event) => names.includes(event.name))).toHaveLength(6);
   });
 
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {
