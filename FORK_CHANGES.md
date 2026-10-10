@@ -8,10 +8,16 @@
 - Evidence: the reported arrow is the link-preview strip's forward control. The owner's Brave
   page had refreshed and received more messages before inspection, so the transient state was
   gone; no Safari-specific failure or individual preview request failure was confirmed live.
+  The stale-arrow trigger was never reproduced: the old end-marker IntersectionObserver code
+  recovered in every Chromium fixture tried (delayed/immediate failures, collapsed parent,
+  display:none, offscreen, streaming URL churn, zoom). Only the empty strip's top margin was
+  confirmed. This change is hardening that replaces the suspect mechanism, not a proven
+  root-cause fix; if the arrow returns after previews work, look outside the holder.
 - Fix: replace end-marker intersection state with measured horizontal overflow, observe both
   the viewport and content dimensions, and update after scrolling. Keep controls outside the
-  measured content. Failed cards leave no arrow or top margin, while mounted children remain
-  able to recover on subsequent preview loads. Preserve right-to-left scrolling.
+  measured content, with the back control before the cards in tab order as before. Failed
+  cards leave no arrow or top margin, while mounted children remain able to recover on
+  subsequent preview loads. Preserve right-to-left scrolling.
 - Validation: focused tests pass (2 files / 10 tests), full `npm test` passes (695 files /
   6,634 tests with `NODE_OPTIONS=--no-experimental-webstorage`), typecheck and production/PWA
   build pass. Touched-file ESLint and Prettier pass; full ESLint has the existing 18 warnings.
@@ -19,28 +25,13 @@
 - Live: Brave fixture using the actual holder, folds styles, and theme confirms horizontal
   overflow, centered arrows, resize removal, RTL scrolling, and failed-card cleanup to zero
   height, zero top margin, and zero buttons. The fixture was removed after validation.
-- Second bug: production `mindroom.chat` has no URL-preview allowlist keys, so every preview
-  URL is refused. The deployed binary is `v1.9.3-mindroom.27`. An isolated server using that
-  exact binary reproduces the default 403 "URL is not allowed to be previewed"; adding
-  `url_preview_domain_explicit_allowlist = ["*"]` returns a real public website preview.
-- Server fix: dotfiles branch `fix-public-url-previews` enables public URLs in
-  `configs/nixos/hosts/hetzner-matrix/tuwunel.nix`, retains default IP filtering, documents
-  the configuration, and adds `check-url-previews.py`. Full Nix module evaluation and
-  generated TOML assertions pass, as do Python lint/format checks. The isolated test
-  verifies real metadata and proves loopback, IPv4-mapped IPv6, and localhost previews
-  never connect to a reachable private HTTP fixture. Independent review approves the
-  current binary's literal/DNS/redirect/response-peer guards and the config change.
-- PR review: Qodo found no bugs and requested a shared scroll-direction helper; measuring
-  overflow and both buttons now use the same helper. Existing LTR/RTL behavioral tests
-  cover this follow-up. CodeRabbit's test teardown finding is fixed by resetting document
-  direction after each test, including when an assertion fails. Greptile's disposable
-  server cleanup finding is fixed in dotfiles with a kill-and-reap fallback scoped only
-  to the temporary test child; graceful and stalled-child cases both pass.
-- Deployment: pushed client PR #443 and SSH-signed dotfiles PR #115. Direct dotfiles `main`
-  push awaits explicit approval required by the approval hook; Comin trusts the original
-  SSH signature and can deploy it without manual sudo. The frontend publisher is writable
-  through ordinary SSH. Neither fix is live yet. Refresh the browser after rollout to
-  clear cached rejected preview requests.
+- Server cause (why no cards render): production `mindroom.chat` (`v1.9.3-mindroom.27`) has
+  no URL-preview allowlist, so every preview gets 403 "URL is not allowed to be previewed".
+  Dotfiles PR #115 sets `url_preview_domain_explicit_allowlist = ["*"]` in
+  `configs/nixos/hosts/hetzner-matrix/tuwunel.nix` and keeps default IP filtering; its
+  isolated test shows loopback, IPv4-mapped IPv6, and localhost previews never connect.
+- Next: deploy client #443 and dotfiles #115, then refresh the browser to clear cached
+  rejected preview requests.
 
 ### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
 

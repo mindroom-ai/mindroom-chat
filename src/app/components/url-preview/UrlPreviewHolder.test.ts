@@ -156,6 +156,14 @@ describe('UrlPreviewHolder', () => {
     expect(buttons()).toEqual(['ArrowRight']);
     moveTo(200);
     expect(buttons()).toEqual(['ArrowLeft', 'ArrowRight']);
+    // Keyboard order stays back control, cards, forward control.
+    const [back, forward] = Array.from(container.querySelectorAll('button'));
+    expect(
+      back.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      forward.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_PRECEDING
+    ).toBeTruthy();
     moveTo(contentWidth(viewport()) - viewportWidth);
     expect(buttons()).toEqual(['ArrowLeft']);
     container.querySelector('button')!.click();

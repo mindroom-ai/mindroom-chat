@@ -172,17 +172,6 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
       ref={ref}
       style={{ marginTop: layout.hasContent ? config.space.S200 : 0, position: 'relative' }}
     >
-      <Scroll ref={scrollRef} direction="Horizontal" size="0" visibility="Hover" hideTrack>
-        <Box
-          ref={contentRef}
-          shrink="No"
-          alignItems="Center"
-          gap="200"
-          style={{ width: 'max-content' }}
-        >
-          {children}
-        </Box>
-      </Scroll>
       {layout.back && (
         <>
           <div className={css.UrlPreviewHolderGradient({ position: 'Left' })} />
@@ -198,6 +187,17 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
           </IconButton>
         </>
       )}
+      <Scroll ref={scrollRef} direction="Horizontal" size="0" visibility="Hover" hideTrack>
+        <Box
+          ref={contentRef}
+          shrink="No"
+          alignItems="Center"
+          gap="200"
+          style={{ width: 'max-content' }}
+        >
+          {children}
+        </Box>
+      </Scroll>
       {layout.front && (
         <>
           <div className={css.UrlPreviewHolderGradient({ position: 'Right' })} />
