@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import {
   RelationType,
   RoomEvent,
@@ -66,9 +66,12 @@ export const useThreadGapRecovery = ({
 }: ThreadGapRecoveryOptions): void => {
   // The render callbacks change identity when the SDK creates the thread,
   // which a limited sync can do mid-read. Read them at delivery time, so the
-  // read in flight is not discarded with the old callbacks.
+  // read in flight is not discarded with the old callbacks. Updated after
+  // commit, so a discarded render's callbacks are never used.
   const latestRef = useRef({ append, getLoadedEvents, debugTraceId });
-  latestRef.current = { append, getLoadedEvents, debugTraceId };
+  useLayoutEffect(() => {
+    latestRef.current = { append, getLoadedEvents, debugTraceId };
+  });
   useEffect(() => {
     if (!threadId) return undefined;
     let active = true;
@@ -124,6 +127,22 @@ export const useThreadGapRecovery = ({
       try {
         while (active && reconcileAgain) {
           reconcileAgain = false;
+          // A pass that began before the reset fetched before the gap, and the
+          // scheduler would hand a new request that pass's result. Let it
+          // finish, so this one fetches after the gap.
+          // eslint-disable-next-line no-await-in-loop
+          await Promise.allSettled(
+            engine.scheduler
+              .pendingJobs()
+              .filter(
+                (job) =>
+                  job.kind === 'reconcile' &&
+                  job.roomId === room.roomId &&
+                  job.threadId === threadId
+              )
+              .map((job) => job.promise)
+          );
+          if (!active) return;
           // eslint-disable-next-line no-await-in-loop
           const cachedPage = await readCache().catch(() => undefined);
           if (!active) return;

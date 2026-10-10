@@ -324,6 +324,42 @@ describe('mounted thread gap recovery', () => {
     return { release, requested };
   };
 
+  it('reconciles again after a thread-open pass that was already running at the reset', async () => {
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, renderer, recover } = setup([], undefined, [missed]);
+    let finishOpenPass: (() => void) | undefined;
+    // An open's reconcile fetched before the gap and found nothing new.
+    const openPass = engine.scheduler.enqueue({
+      roomId: ROOM_ID,
+      threadId: ROOT_ID,
+      kind: 'reconcile',
+      priority: 0,
+      execute: () =>
+        new Promise((resolve) => {
+          finishOpenPass = () =>
+            resolve({ repaired: false, fetchedCount: 0, iterations: 1, aborted: false });
+        }),
+    });
+    const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+    const pendingJobs = vi.spyOn(engine.scheduler, 'pendingJobs');
+    await act(async () => {
+      await vi.waitFor(() => expect(finishOpenPass).toBeDefined());
+      recover();
+      // The reset's pass reaches the scheduler while the open pass runs.
+      await vi.waitFor(() =>
+        expect(
+          pendingJobs.mock.calls.length > 0 ||
+            enqueue.mock.calls.some(([job]) => job.kind === 'reconcile')
+        ).toBe(true)
+      );
+    });
+    await act(async () => {
+      finishOpenPass!();
+      await openPass;
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+  });
+
   it('hands a reconciled reply to the current callback when it changes during the pass', async () => {
     function AppendHarness({
       engine,
