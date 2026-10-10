@@ -14,6 +14,37 @@
 - Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings) and Prettier pass. `npm test`: 6,626 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases, which fail the same way on a clean checkout of this base. Not checked on a device yet.
 - Next: decide how a cache over budget should treat the focused room's tail gap (exempt the first gap page from `canSavePage`, or evict cached events, not only attachments); add gap-fill outcomes to the diagnostics export, which has no record of a deferred fill.
 
+### Hide stale link-preview scroll arrows (2026-10-09)
+
+- Status: implemented and independently reviewed on `fix-url-preview-scroll-controls`, based on latest `dev`.
+- Evidence: the reported arrow is the link-preview strip's forward control. The owner's Brave
+  page had refreshed and received more messages before inspection, so the transient state was
+  gone; no Safari-specific failure or individual preview request failure was confirmed live.
+  The stale-arrow trigger was never reproduced: the old end-marker IntersectionObserver code
+  recovered in every Chromium fixture tried (delayed/immediate failures, collapsed parent,
+  display:none, offscreen, streaming URL churn, zoom). Only the empty strip's top margin was
+  confirmed. This change is hardening that replaces the suspect mechanism, not a proven
+  root-cause fix; if the arrow returns after previews work, look outside the holder.
+- Fix: replace end-marker intersection state with measured horizontal overflow, observe both
+  the viewport and content dimensions, and update after scrolling. Keep controls outside the
+  measured content, with the back control before the cards in tab order as before. Failed
+  cards leave no arrow or top margin, while mounted children remain able to recover on
+  subsequent preview loads. Preserve right-to-left scrolling.
+- Validation: focused tests pass (2 files / 10 tests), full `npm test` passes (695 files /
+  6,634 tests with `NODE_OPTIONS=--no-experimental-webstorage`), typecheck and production/PWA
+  build pass. Touched-file ESLint and Prettier pass; full ESLint has the existing 18 warnings.
+  Independent review approves overflow, lifecycle, geometry, and RTL behavior.
+- Live: Brave fixture using the actual holder, folds styles, and theme confirms horizontal
+  overflow, centered arrows, resize removal, RTL scrolling, and failed-card cleanup to zero
+  height, zero top margin, and zero buttons. The fixture was removed after validation.
+- Server cause (why no cards render): production `mindroom.chat` (`v1.9.3-mindroom.27`) has
+  no URL-preview allowlist, so every preview gets 403 "URL is not allowed to be previewed".
+  Dotfiles PR #115 sets `url_preview_domain_explicit_allowlist = ["*"]` in
+  `configs/nixos/hosts/hetzner-matrix/tuwunel.nix` and keeps default IP filtering; its
+  isolated test shows loopback, IPv4-mapped IPv6, and localhost previews never connect.
+- Next: deploy client #443 and dotfiles #115, then refresh the browser to clear cached
+  rejected preview requests.
+
 ### Reconnect the computer panel on its own after the server closes the stream (2026-10-09)
 
 - Why: production logs showed the Computer panel dying whenever the server closed its stream (code 1008, which noVNC reports as a clean close).
