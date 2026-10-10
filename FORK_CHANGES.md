@@ -32,7 +32,10 @@
   current binary's literal/DNS/redirect/response-peer guards and the config change.
 - PR review: Qodo found no bugs and requested a shared scroll-direction helper; measuring
   overflow and both buttons now use the same helper. Existing LTR/RTL behavioral tests
-  cover this follow-up. Other CI and AI reviews are still running.
+  cover this follow-up. CodeRabbit's test teardown finding is fixed by resetting document
+  direction after each test, including when an assertion fails. Greptile's disposable
+  server cleanup finding is fixed in dotfiles with a kill-and-reap fallback scoped only
+  to the temporary test child; graceful and stalled-child cases both pass.
 - Deployment: pushed client PR #443 and SSH-signed dotfiles PR #115. Direct dotfiles `main`
   push awaits explicit approval required by the approval hook; Comin trusts the original
   SSH signature and can deploy it without manual sudo. The frontend publisher is writable

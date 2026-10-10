@@ -131,6 +131,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  document.documentElement.dir = '';
   observers.length = 0;
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollTo;
   vi.restoreAllMocks();
@@ -255,7 +256,6 @@ describe('UrlPreviewHolder', () => {
     expect(buttons()).toEqual(['ArrowLeft']);
     moveTo(30);
     expect(buttons()).toEqual(['ArrowRight']);
-    document.documentElement.dir = '';
   });
 
   it('tolerates fractional scroll positions and disconnects on unmount', async () => {
