@@ -27,29 +27,41 @@ export const setEvictionProtectedRoomIds = (roomIds: readonly string[]): void =>
   roomIds.forEach((id) => protectedRoomIds.add(id));
 };
 export const getEvictionProtectedRoomIds = (): string[] => [...protectedRoomIds];
-const downloadingRoomIds = new Set<string>();
+const downloadingRoomIdsBySession = new Map<string, ReadonlySet<string>>();
 /** Rooms with an explicit Download in progress keep their cache, wherever they are opened from. */
-export const setEvictionDownloadingRoomIds = (roomIds: readonly string[]): void => {
-  downloadingRoomIds.clear();
-  roomIds.forEach((id) => downloadingRoomIds.add(id));
+export const setEvictionDownloadingRoomIds = (
+  sessionId: string,
+  roomIds: readonly string[]
+): void => {
+  if (roomIds.length) downloadingRoomIdsBySession.set(sessionId, new Set(roomIds));
+  else downloadingRoomIdsBySession.delete(sessionId);
 };
+/** Focus and Download change while a pass runs, so the pass asks again before each deletion. */
+const isRoomInUse = (sessionId: string, roomId: string): boolean =>
+  protectedRoomIds.has(roomId) || downloadingRoomIdsBySession.get(sessionId)?.has(roomId) === true;
 const lastCheckAtBySession = new Map<string, number>();
 const runningEvictions = new Map<string, Promise<EvictionResult>>();
 export const __resetEvictionForTests = (): void => {
   protectedRoomIds.clear();
-  downloadingRoomIds.clear();
+  downloadingRoomIdsBySession.clear();
   lastCheckAtBySession.clear();
   runningEvictions.clear();
+};
+
+export type ClearedRoomContent = {
+  deletedEventCount: number;
+  /** Text and unshared attachment bytes the clear removed from the budget. */
+  freedBytes: number;
 };
 
 /** Local storage cleanup; other active tabs may cache the room again. */
 export const clearRoomCachedContent = async (
   sessionId: string,
   roomId: string
-): Promise<number> => {
+): Promise<ClearedRoomContent> => {
   revokeRoomCacheStoreWrites(sessionId, roomId);
   const db = await openCacheStore(sessionId);
-  if (!db) return 0;
+  if (!db) return { deletedEventCount: 0, freedBytes: 0 };
   return new Promise((resolve, reject) => {
     const txn = db.transaction(
       [
@@ -68,6 +80,7 @@ export const clearRoomCachedContent = async (
     const summariesStore = txn.objectStore(THREAD_SUMMARIES_STORE);
 
     let deletedCount = 0;
+    let freedBytes = 0;
 
     // Events: the primary key is `${roomId}|${scope}|${eventId}`, so one
     // key range removes every scope without reading each record; eviction
@@ -118,8 +131,16 @@ export const clearRoomCachedContent = async (
           .getAll(mxcUri);
         remaining.onsuccess = () => {
           const shared = remaining.result as CachedAttachmentReferenceRecord[];
-          if (!shared.length) blobs.delete(mxcUri);
-          else {
+          if (!shared.length) {
+            blobs.delete(mxcUri);
+            // References carry the saved blob's size, so the blob is not read.
+            freedBytes += Math.max(
+              0,
+              ...rows
+                .filter((row) => row.mxcUri === mxcUri && row.status === 'cached')
+                .map((row) => row.byteLength)
+            );
+          } else {
             const blob = blobs.get(mxcUri);
             blob.onsuccess = () => {
               if (blob.result)
@@ -129,10 +150,14 @@ export const clearRoomCachedContent = async (
         };
       });
     };
-    // Ledger row: primary key.
+    // Ledger row: primary key. Its byte total is what the room's text cost.
+    const ledgerRow = ledgerStore.get(roomId);
+    ledgerRow.onsuccess = () => {
+      freedBytes += (ledgerRow.result as CachedRoomLedgerRecord | undefined)?.approxBytes ?? 0;
+    };
     ledgerStore.delete(roomId);
 
-    txn.oncomplete = () => resolve(deletedCount);
+    txn.oncomplete = () => resolve({ deletedEventCount: deletedCount, freedBytes });
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });
@@ -148,16 +173,33 @@ export type EvictionResult = {
 
 /** Focused, downloading, pinned and recently opened rooms keep their text and media under pressure. */
 const collectProtectedRoomIds = (
+  sessionId: string,
   ledger: readonly CachedRoomLedgerRecord[],
   meta: readonly CachedMetaRecord[]
 ): Set<string> => {
-  const protectedIds = new Set([...protectedRoomIds, ...downloadingRoomIds]);
+  const protectedIds = new Set([
+    ...protectedRoomIds,
+    ...(downloadingRoomIdsBySession.get(sessionId) ?? []),
+  ]);
   ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
   meta
     .filter((row) => (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS)
     .forEach((row) => protectedIds.add(row.roomId));
   return protectedIds;
 };
+
+const readRoomLedger = (
+  db: IDBDatabase,
+  roomId: string
+): Promise<CachedRoomLedgerRecord | undefined> =>
+  new Promise((resolve, reject) => {
+    const request = db
+      .transaction(ROOM_LEDGER_STORE, 'readonly')
+      .objectStore(ROOM_LEDGER_STORE)
+      .get(roomId);
+    request.onsuccess = () => resolve(request.result as CachedRoomLedgerRecord | undefined);
+    request.onerror = () => reject(request.error);
+  });
 
 /** Admission reads index keys only, never attachment payloads or room references. */
 const readCachedBytes = (db: IDBDatabase): Promise<number> =>
@@ -185,6 +227,7 @@ const readCachedBytes = (db: IDBDatabase): Promise<number> =>
 
 /** Optional media of unprotected rooms, least recently used first. */
 const reclaimOptionalMedia = (
+  sessionId: string,
   db: IDBDatabase,
   budget: number
 ): Promise<Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'>> =>
@@ -213,6 +256,7 @@ const reclaimOptionalMedia = (
         const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
         const references = referencesRequest.result as CachedAttachmentReferenceRecord[];
         const protectedIds = collectProtectedRoomIds(
+          sessionId,
           ledger,
           metaRequest.result as CachedMetaRecord[]
         );
@@ -237,6 +281,7 @@ const reclaimOptionalMedia = (
               }
             );
             if (cached?.essential) continue;
+            if (owners.some((row) => isRoomInUse(sessionId, row.roomId))) continue;
             blobs.delete(record.mxcUri);
             owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
             bytesAfter -= record.byteLength;
@@ -253,29 +298,51 @@ const reclaimOptionalMedia = (
     transaction.onabort = () => reject(transaction.error);
   });
 
-/** Unprotected rooms, federated first, then least recently active. */
+/**
+ * Unprotected rooms, federated first, then least recently active. A room whose
+ * last event was deleted has no ledger row but can still own attachments, so
+ * rooms known only from references come first.
+ */
 const readRoomEvictionOrder = (
+  sessionId: string,
   db: IDBDatabase
 ): Promise<{ roomIds: string[]; protectedTextBytes: number }> =>
   new Promise((resolve, reject) => {
-    const transaction = db.transaction([ROOM_LEDGER_STORE, META_STORE], 'readonly');
+    const transaction = db.transaction(
+      [ROOM_LEDGER_STORE, META_STORE, ATTACHMENT_REFERENCES_STORE],
+      'readonly'
+    );
     const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
     const metaRequest = transaction.objectStore(META_STORE).getAll();
+    const referencedRoomIds: string[] = [];
+    const roomCursor = transaction
+      .objectStore(ATTACHMENT_REFERENCES_STORE)
+      .index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)
+      .openKeyCursor(null, 'nextunique');
+    roomCursor.onsuccess = () => {
+      if (!roomCursor.result) return;
+      referencedRoomIds.push(roomCursor.result.key as string);
+      roomCursor.result.continue();
+    };
     transaction.oncomplete = () => {
       const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
       const protectedIds = collectProtectedRoomIds(
+        sessionId,
         ledger,
         metaRequest.result as CachedMetaRecord[]
       );
+      const ledgerRoomIds = new Set(ledger.map((row) => row.roomId));
       resolve({
-        roomIds: ledger
-          .filter((row) => !protectedIds.has(row.roomId))
-          .sort(
-            (a, b) =>
-              Number(b.federated === true) - Number(a.federated === true) ||
-              a.lastActivityTs - b.lastActivityTs
-          )
-          .map((row) => row.roomId),
+        roomIds: [
+          ...referencedRoomIds.filter((roomId) => !ledgerRoomIds.has(roomId)),
+          ...ledger
+            .sort(
+              (a, b) =>
+                Number(b.federated === true) - Number(a.federated === true) ||
+                a.lastActivityTs - b.lastActivityTs
+            )
+            .map((row) => row.roomId),
+        ].filter((roomId) => !protectedIds.has(roomId)),
         protectedTextBytes: ledger
           .filter((row) => protectedIds.has(row.roomId))
           .reduce((sum, row) => sum + row.approxBytes, 0),
@@ -305,7 +372,7 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
       evictedRoomIds: [],
       underPressure: false,
     };
-  const media = await reclaimOptionalMedia(db, budget);
+  const media = await reclaimOptionalMedia(sessionId, db, budget);
   let { bytesAfter } = media;
   let protectedTextBytes: number | null = null;
   const evictedRoomIds: string[] = [];
@@ -313,19 +380,29 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
     // Text counts toward the budget, so media alone cannot always bring it
     // back. Rooms go whole, with their markers and media, so no room keeps a
     // partial history that claims to be complete.
-    const order = await readRoomEvictionOrder(db);
+    const target = budget * EVICTION_TARGET_UTILIZATION;
+    const order = await readRoomEvictionOrder(sessionId, db);
     protectedTextBytes = order.protectedTextBytes;
+    let estimated = false;
     for (const roomId of order.roomIds) {
-      if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
-      // A pass can take seconds; focus and Download may start meanwhile.
-      // eslint-disable-next-line no-continue
-      if (protectedRoomIds.has(roomId) || downloadingRoomIds.has(roomId)) continue;
+      if (bytesAfter <= target) break;
+      // A pass can take seconds; focus, Download and Pin may start meanwhile.
+      // eslint-disable-next-line no-continue, no-await-in-loop
+      if (isRoomInUse(sessionId, roomId) || (await readRoomLedger(db, roomId))?.pinned) continue;
       // eslint-disable-next-line no-await-in-loop
-      await clearRoomCachedContent(sessionId, roomId);
+      const cleared = await clearRoomCachedContent(sessionId, roomId);
       evictedRoomIds.push(roomId);
-      // eslint-disable-next-line no-await-in-loop
-      bytesAfter = await readCachedBytes(db);
+      bytesAfter -= cleared.freedBytes;
+      estimated = true;
+      // The freed bytes come from the ledger and references; confirm against
+      // the stores once they say the target is met.
+      if (bytesAfter <= target) {
+        // eslint-disable-next-line no-await-in-loop
+        bytesAfter = await readCachedBytes(db);
+        estimated = false;
+      }
     }
+    if (estimated) bytesAfter = await readCachedBytes(db);
   }
   const result = {
     bytesBefore,

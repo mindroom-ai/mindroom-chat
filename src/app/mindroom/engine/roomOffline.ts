@@ -146,6 +146,7 @@ export const createRoomOfflineController = ({
   // Eviction frees whole unprotected rooms; a requested download must not be one.
   const protectDownloads = () =>
     setEvictionDownloadingRoomIds(
+      sessionId,
       [...rooms].filter(([, intent]) => intent.explicit).map(([roomId]) => roomId)
     );
   const publish = (roomId: string, patch: Partial<OfflineRoomSnapshot>) => {
@@ -593,6 +594,8 @@ export const createRoomOfflineController = ({
     },
     start: () => {
       started = true;
+      // stop() released the protection; downloads it paused resume on recheck.
+      protectDownloads();
       unsubscribe = connection.subscribe(recheck);
       void (typeof navigator === 'undefined' ? undefined : navigator.storage?.persist?.())?.catch(
         () => undefined
@@ -600,7 +603,7 @@ export const createRoomOfflineController = ({
     },
     stop: () => {
       started = false;
-      setEvictionDownloadingRoomIds([]);
+      setEvictionDownloadingRoomIds(sessionId, []);
       unsubscribe?.();
       unsubscribe = undefined;
     },

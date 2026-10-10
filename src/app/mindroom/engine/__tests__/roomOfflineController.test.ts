@@ -666,6 +666,21 @@ it('stops protecting a room once its download finishes or the engine stops', asy
   });
 });
 
+it('protects a running download again after the engine restarts', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$kept')]);
+  __setCacheStoreByteBudgetForTests(1);
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  engine.stop();
+  engine.start();
+  expect(await runCacheEvictionIfOverBudget(engine.sessionId)).toMatchObject({
+    evictedRoomIds: [],
+  });
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$kept')).toBeDefined();
+});
+
 it('retains text and distinguishes soft pressure from quota read-only', async () => {
   const f = fixture();
   const engine = f.make();

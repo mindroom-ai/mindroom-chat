@@ -156,6 +156,85 @@ it('keeps a room focused while the pass runs', async () => {
   expect(await hasText('room-4')).toBe(true);
 });
 
+it('keeps a room pinned while the pass runs', async () => {
+  for (let index = 1; index <= 4; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await saveText(`room-${index}`, index);
+  }
+  store.__setCacheStoreByteBudgetForTests(1);
+  const deleteKey = IDBObjectStore.prototype.delete;
+  vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementation(function deleteSpy(
+    this: IDBObjectStore,
+    key: IDBValidKey | IDBKeyRange
+  ) {
+    if (key === 'room-1') store.setRoomAttachmentPinned(session, 'room-4', true);
+    return deleteKey.call(this, key);
+  });
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result.evictedRoomIds).toEqual(['room-1', 'room-2', 'room-3']);
+  expect(await hasText('room-4')).toBe(true);
+});
+
+it('evicts a room known only from its attachment references', async () => {
+  // No cached event left, so the room has no ledger row.
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/orphan-body', bytes: new ArrayBuffer(2000), mimeType: 'text/plain' },
+    { roomId: 'room-refs', essential: true }
+  );
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedRoomIds: ['room-refs'],
+    underPressure: false,
+  });
+  expect(await store.loadCachedAttachment(session, 'mxc://test/orphan-body')).toBeUndefined();
+});
+
+it("keeps a room's media when its download starts during the pass", async () => {
+  await save('old', 'room-old');
+  await save('new', 'room-new');
+  store.__setCacheStoreByteBudgetForTests(3000);
+  const getKey = IDBObjectStore.prototype.get;
+  vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function getSpy(
+    this: IDBObjectStore,
+    key: IDBValidKey | IDBKeyRange
+  ) {
+    if (key === 'mxc://test/old') store.setEvictionDownloadingRoomIds(session, ['room-old']);
+    return getKey.call(this, key);
+  });
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result.evictedMxcUris).toEqual(['mxc://test/new']);
+  expect(await store.loadCachedAttachment(session, 'mxc://test/old')).toBeDefined();
+});
+
+it("keeps one session's download protection when another session updates its own", async () => {
+  await saveText('room-a', 1);
+  // Let the check the save scheduled settle under the default budget.
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionDownloadingRoomIds(session, ['room-a']);
+  store.setEvictionDownloadingRoomIds('other-session', []);
+  store.__setCacheStoreByteBudgetForTests(1);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedRoomIds: [],
+    underPressure: true,
+  });
+});
+
+it('reads the attachment total once more after the freed bytes reach the target', async () => {
+  for (let index = 1; index <= 5; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await saveText(`room-${index}`, index);
+  }
+  store.__setCacheStoreByteBudgetForTests(1);
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result.evictedRoomIds).toHaveLength(5);
+  // Admission, the media phase and one final total, not one total per room.
+  expect(
+    keyCursor.mock.contexts.filter((index) => index.objectStore.name === 'attachments')
+  ).toHaveLength(3);
+});
+
 it('shares one pass between concurrent checks', async () => {
   await saveText('room-a', 1);
   await saveText('room-b', 2);
