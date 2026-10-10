@@ -105,6 +105,7 @@ const createGateway = () => {
 
 const screenConnections: ComputerScreenProps[] = [];
 const screenDisposals = vi.fn();
+let screensConnect = true;
 const TestScreen = (screenProps: ComputerScreenProps) => {
   const screenPropsRef = React.useRef(screenProps);
   screenPropsRef.current = screenProps;
@@ -115,7 +116,7 @@ const TestScreen = (screenProps: ComputerScreenProps) => {
       ...connection,
       onDisconnected: (message) => screenPropsRef.current.onDisconnected(message),
     });
-    connection.onConnected();
+    if (screensConnect) connection.onConnected();
     return () => screenDisposals();
   }, [url]);
   return <div data-testid="computer-screen" data-mode={mode} />;
@@ -152,6 +153,27 @@ const waitFor = async (assertion: () => void) => {
   });
 };
 
+/** Advances fake timers, then lets pending requests and renders settle. */
+const advance = async (ms = 0) => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+    await vi.advanceTimersByTimeAsync(0);
+  });
+};
+
+const requestsTo = (request: typeof fetch, method: string, path: string) =>
+  vi
+    .mocked(request)
+    .mock.calls.filter(
+      ([url, init]) => init?.method === method && new URL(url.toString()).pathname === path
+    );
+
+const createRequests = (request: typeof fetch) =>
+  requestsTo(request, 'POST', '/api/computers/sessions');
+
+const buttonNames = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll('button')).map((button) => button.textContent?.trim());
+
 describe('ComputerPanel', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -159,6 +181,7 @@ describe('ComputerPanel', () => {
   beforeEach(() => {
     screenConnections.length = 0;
     screenDisposals.mockReset();
+    screensConnect = true;
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -167,6 +190,7 @@ describe('ComputerPanel', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.useRealTimers();
   });
 
   const renderPanel = (overrides: Partial<ComputerPanelProps> = {}) => {
@@ -392,8 +416,8 @@ describe('ComputerPanel', () => {
     expect(container.textContent).toContain('You have control');
 
     act(() => screenConnections[0].onDisconnected());
-    await waitFor(() => findButton(container, 'Reconnect'));
-    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    expect(container.textContent).not.toContain('Computer disconnected');
   });
 
   it.each([
@@ -637,10 +661,12 @@ describe('ComputerPanel', () => {
     expect(container.textContent).toContain('Control released');
     expect(container.textContent).not.toContain('The agent was asked to continue.');
     expect(mx.sendMessage).toHaveBeenCalledOnce();
+    vi.useFakeTimers();
     act(() => screenConnections.at(-1)?.onDisconnected());
-    await waitFor(() => findButton(container, 'Reconnect'));
-    await click(findButton(container, 'Reconnect'));
-    await waitFor(() => findButton(container, 'Take control'));
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    await advance(500);
+    expect(findButton(container, 'Take control')).toBeInstanceOf(HTMLButtonElement);
+    expect(screenConnections).toHaveLength(3);
     expect(mx.sendMessage).toHaveBeenCalledOnce();
   });
 
@@ -665,18 +691,325 @@ describe('ComputerPanel', () => {
     expect(container.textContent).not.toContain('The computer changed.');
   });
 
-  it('shows an actionable retry after initial session creation fails', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(503, { detail: 'Computer capacity is unavailable.' }))
-      .mockImplementation(createGateway()) as unknown as typeof fetch;
+  it.each([
+    [403, 'Requester cannot use this agent.'],
+    [409, 'Computer requires exactly one browser provider.'],
+    [429, 'Computer session capacity reached.'],
+  ])(
+    'shows an actionable retry, without retrying, after session creation fails with %i',
+    async (status, detail) => {
+      vi.useFakeTimers();
+      const request = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(status, { detail }))
+        .mockImplementation(createGateway()) as unknown as typeof fetch;
+      renderPanel({ request });
+
+      await advance();
+      expect(container.textContent).toContain('Computer unavailable');
+      expect(container.textContent).toContain(detail);
+      await advance(200_000);
+      expect(createRequests(request)).toHaveLength(1);
+
+      await click(findButton(container, 'Reconnect'));
+      await advance();
+      expect(findButton(container, 'Take control')).toBeInstanceOf(HTMLButtonElement);
+    }
+  );
+
+  it('retries transient session creation failures while the computer starts', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    const failures = [
+      jsonResponse(503, {
+        detail: 'Computer worker is unavailable; create a new session to restart.',
+      }),
+      jsonResponse(524),
+    ];
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const failure =
+        init?.method === 'POST' && new URL(input.toString()).pathname === '/api/computers/sessions'
+          ? failures.shift()
+          : undefined;
+      return failure ?? gateway(input, init);
+    }) as unknown as typeof fetch;
     renderPanel({ request });
 
-    await waitFor(() => expect(container.textContent).toContain('Computer unavailable'));
-    expect(container.textContent).toContain('Computer capacity is unavailable.');
+    await advance();
+    expect(createRequests(request)).toHaveLength(1);
+    expect(container.textContent).toContain('Connecting to computer…');
+    expect(container.textContent).toContain('Starting the computer can take a minute.');
+    expect(container.textContent).not.toContain('Computer unavailable');
 
+    await advance(2_000);
+    expect(createRequests(request)).toHaveLength(2);
+    expect(container.textContent).not.toContain('Computer request failed (524).');
+
+    await advance(4_000);
+    expect(createRequests(request)).toHaveLength(3);
+    expect(container.textContent).toContain('Watch mode');
+    expect(container.textContent).not.toContain('Starting the computer can take a minute.');
+  });
+
+  it('gives up starting after about three minutes of transient failures', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+
+    await advance(170_000);
+    expect(container.textContent).toContain('Connecting to computer…');
+    await advance(10_000);
+    expect(container.textContent).toContain('Computer unavailable');
+    expect(container.textContent).toContain('Unable to reach the computer service.');
+    const attempts = createRequests(request).length;
+    await advance(60_000);
+    expect(createRequests(request)).toHaveLength(attempts);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('reconnects on its own after an unexpected close, reusing a valid session', async () => {
+    vi.useFakeTimers();
+    const request = createGateway();
+    renderPanel({ request });
+    await advance();
+    expect(container.textContent).toContain('Watch mode');
+
+    act(() => screenConnections[0].onDisconnected('The computer connection was interrupted.'));
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    expect(container.textContent).not.toContain('Computer disconnected');
+    expect(container.textContent).not.toContain('The computer connection was interrupted.');
+    expect(buttonNames(container)).not.toContain('Reconnect');
+
+    await advance(500);
+    expect(container.textContent).toContain('Watch mode');
+    expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+    expect(screenConnections[1].url).toContain('/sessions/session-1/stream');
+    expect(createRequests(request)).toHaveLength(1);
+  });
+
+  const reconnectDelays = [500, 1_000, 2_000, 4_000, 8_000];
+
+  it('gives a stream that stayed connected the full set of automatic attempts again', async () => {
+    vi.useFakeTimers();
+    renderPanel();
+    await advance();
+    for (let close = 1; close <= 6; close += 1) {
+      await advance(10_000);
+      act(() => screenConnections.at(-1)!.onDisconnected());
+      await advance(500);
+      expect(screenConnections).toHaveLength(close + 1);
+      expect(container.textContent).toContain('Watch mode');
+    }
+  });
+
+  it('ends at Reconnect when each new session is revoked right after connecting', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    const revoked = new Set<string>();
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const sessionId = new URL(input.toString()).pathname.split('/')[4];
+      if (sessionId && revoked.has(sessionId)) {
+        return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    for (const [index, delay] of reconnectDelays.entries()) {
+      revoked.add(`session-${index + 1}`);
+      act(() => screenConnections.at(-1)!.onDisconnected());
+      await advance(delay);
+      expect(screenConnections.at(-1)!.url).toContain(`/sessions/session-${index + 2}/stream`);
+    }
+    revoked.add('session-6');
+    act(() => screenConnections.at(-1)!.onDisconnected());
+    expect(container.textContent).toContain('Computer disconnected');
+    await advance(60_000);
+    expect(createRequests(request)).toHaveLength(6);
+  });
+
+  it('ends at Reconnect when the new streams never connect', async () => {
+    vi.useFakeTimers();
+    renderPanel();
+    await advance();
+
+    screensConnect = false;
+    for (const delay of reconnectDelays) {
+      act(() => screenConnections.at(-1)!.onDisconnected());
+      await advance(delay);
+      expect(container.textContent).not.toContain('Computer disconnected');
+    }
+    expect(screenConnections).toHaveLength(6);
+    act(() => screenConnections.at(-1)!.onDisconnected());
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(findButton(container, 'Reconnect')).toBeInstanceOf(HTMLButtonElement);
+    await advance(60_000);
+    expect(screenConnections).toHaveLength(6);
+  });
+
+  it('stops reconnecting at once on an error that is not transient', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let denied = false;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (denied && init?.method === 'GET') {
+        return jsonResponse(403, { detail: 'Requester cannot use this agent.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    denied = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(500);
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.textContent).toContain('Requester cannot use this agent.');
+    await advance(20_000);
+    expect(requestsTo(request, 'GET', '/api/computers/sessions/session-1')).toHaveLength(1);
+    expect(createRequests(request)).toHaveLength(1);
+  });
+
+  it.each([
+    [401, 'Invalid or expired computer session.'],
+    [409, 'Computer worker changed; create a new session.'],
+  ])(
+    'replaces a session revoked with %i during reconnect, back in watch mode',
+    async (status, detail) => {
+      vi.useFakeTimers();
+      const gateway = createGateway();
+      let revoked = false;
+      const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (revoked && input.toString().includes('/sessions/session-1')) {
+          return jsonResponse(status, { detail });
+        }
+        return gateway(input, init);
+      }) as unknown as typeof fetch;
+      renderPanel({ request });
+      await advance();
+      await click(findButton(container, 'Take control'));
+      await advance();
+      expect(container.textContent).toContain('You have control');
+
+      revoked = true;
+      act(() => screenConnections[0].onDisconnected());
+      expect(container.textContent).toContain('Reconnecting to computer…');
+      await advance(500);
+
+      expect(createRequests(request)).toHaveLength(2);
+      expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+      expect(container.textContent).toContain('Watch mode');
+      expect(findButton(container, 'Take control')).toBeInstanceOf(HTMLButtonElement);
+      expect(container.textContent).not.toContain(detail);
+    }
+  );
+
+  it('offers Reconnect after the automatic attempts, which replaces a revoked session', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let outage = false;
+    let revoked = false;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (outage) throw new TypeError('Failed to fetch');
+      if (revoked && input.toString().includes('/sessions/session-1')) {
+        return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    outage = true;
+    act(() => screenConnections[0].onDisconnected());
+    for (const delay of [500, 1_000, 2_000, 4_000]) {
+      await advance(delay);
+      expect(container.textContent).toContain('Reconnecting to computer…');
+    }
+    await advance(8_000);
+    expect(requestsTo(request, 'GET', '/api/computers/sessions/session-1')).toHaveLength(5);
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.textContent).toContain('Unable to reach the computer service.');
+    await advance(60_000);
+    expect(requestsTo(request, 'GET', '/api/computers/sessions/session-1')).toHaveLength(5);
+
+    outage = false;
+    revoked = true;
     await click(findButton(container, 'Reconnect'));
-    await waitFor(() => findButton(container, 'Take control'));
+    await advance();
+    expect(container.textContent).toContain('Watch mode');
+    expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+  });
+
+  it('cancels a pending reconnect when the panel closes', async () => {
+    vi.useFakeTimers();
+    const request = createGateway();
+    renderPanel({ request });
+    await advance();
+    act(() => screenConnections[0].onDisconnected());
+    expect(vi.getTimerCount()).toBe(1);
+
+    act(() => root.unmount());
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(20_000);
+    expect(requestsTo(request, 'GET', '/api/computers/sessions/session-1')).toHaveLength(0);
+    expect(
+      requestsTo(request, 'POST', '/api/computers/sessions/session-1/stream-ticket')
+    ).toHaveLength(1);
+    expect(requestsTo(request, 'DELETE', '/api/computers/sessions/session-1')).toHaveLength(1);
+  });
+
+  it('cancels a pending start retry when the panel closes', async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(async () =>
+      jsonResponse(503, { detail: 'Computer authorization is unavailable.' })
+    ) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+    expect(vi.getTimerCount()).toBe(1);
+
+    act(() => root.unmount());
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(200_000);
+    expect(createRequests(request)).toHaveLength(1);
+  });
+
+  it('disposes a replacement session that arrives after the panel closed', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let revoked = false;
+    let resolveReplacement: ((response: Response) => void) | undefined;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(input.toString());
+      if (revoked && init?.method === 'POST' && url.pathname === '/api/computers/sessions') {
+        return new Promise<Response>((resolve) => {
+          resolveReplacement = resolve;
+        });
+      }
+      if (revoked && url.pathname.startsWith('/api/computers/sessions/session-1')) {
+        return jsonResponse(401, { detail: 'Invalid or expired computer session.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+
+    revoked = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(500);
+    expect(resolveReplacement).toBeDefined();
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    expect(container.textContent).toContain('Starting the computer can take a minute.');
+
+    act(() => root.unmount());
+    resolveReplacement?.(jsonResponse(200, makeStatus('session-2')));
+    await advance();
+    expect(requestsTo(request, 'DELETE', '/api/computers/sessions/session-2')).toHaveLength(1);
+    expect(
+      requestsTo(request, 'POST', '/api/computers/sessions/session-2/stream-ticket')
+    ).toHaveLength(0);
   });
 
   it('disposes a session that arrives after its thread scope was replaced', async () => {
