@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComputerPanel, type ComputerPanelProps } from './ComputerPanel';
 import type { ComputerScreenProps } from './ComputerScreen';
@@ -751,6 +751,21 @@ describe('ComputerPanel', () => {
     expect(container.textContent).not.toContain('Starting the computer can take a minute.');
   });
 
+  it('retries starting when the homeserver cannot be reached for the OpenID token', async () => {
+    vi.useFakeTimers();
+    const mx = makeMatrixClient();
+    vi.mocked(mx.getOpenIdToken).mockRejectedValueOnce(new ConnectionError('fetch failed'));
+    const request = createGateway();
+    renderPanel({ mx, request });
+    await advance();
+    expect(container.textContent).toContain('Connecting to computer…');
+    expect(createRequests(request)).toHaveLength(0);
+
+    await advance(2_000);
+    expect(createRequests(request)).toHaveLength(1);
+    expect(container.textContent).toContain('Watch mode');
+  });
+
   it('gives up starting after about three minutes of transient failures', async () => {
     vi.useFakeTimers();
     const request = vi.fn(async () => {
@@ -1010,7 +1025,7 @@ describe('ComputerPanel', () => {
       }
       resolveTicket(
         stopFirst
-          ? jsonResponse(503, { detail: 'Computer worker is unavailable.' })
+          ? jsonResponse(403, { detail: 'Requester cannot use this agent.' })
           : jsonResponse(409, { detail: 'Computer stopped or restarted; create a new session.' })
       );
       await advance();
@@ -1062,6 +1077,12 @@ describe('ComputerPanel', () => {
     await advance();
     expect(container.textContent).toContain('Watch mode');
     expect(screenConnections.at(-1)!.url).toContain('/sessions/session-2/stream');
+
+    // Reconnect restores the automatic attempts, even for a stream that drops right away.
+    act(() => screenConnections.at(-1)!.onDisconnected());
+    expect(container.textContent).toContain('Reconnecting to computer…');
+    await advance(500);
+    expect(container.textContent).toContain('Watch mode');
   });
 
   it('replaces a session in one Reconnect click after a 409', async () => {
