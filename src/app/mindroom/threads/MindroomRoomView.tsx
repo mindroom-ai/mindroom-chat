@@ -37,6 +37,7 @@ import { isFailedLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
+import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 
@@ -280,6 +281,7 @@ export function RoomView({
       >
         <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
+        <BackgroundJobsBar room={room} threadId={effectiveThreadId ?? null} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
           {failedRootEvent ? (
             <RoomInputPlaceholder

@@ -73,6 +73,7 @@ vi.mock('./MindroomRoomViewHeader', () => ({ RoomViewHeader: () => null }));
 vi.mock('./ThreadContextBanner', () => ({ ThreadContextBanner: () => null }));
 vi.mock('./MindroomRoomTimeline', () => ({ RoomTimeline: () => null }));
 vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
