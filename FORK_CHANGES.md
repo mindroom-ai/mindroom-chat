@@ -26,14 +26,15 @@
   - When `window.open` returns `null`, the card shows "Your browser blocked the Connections window. Allow pop-ups for this site and try again.", and the message clears after a later click opens the window.
   - With no backend URL configured, the button is disabled and the card says "Set your MindRoom server under Computers to use Connections."
 - Audience binding (follow-up): `requestAudienceOpenIdToken(mx, audience)` in `matrix/openidAudience.ts` posts `{"io.mindroom.audience": audience}` to `/user/{userId}/openid/request_token` through `mx.http.authedRequest`, the request `mx.getOpenIdToken()` makes with an empty body.
-  The point is that a backend operator cannot replay the token against another deployment on the same homeserver, because the homeserver only accepts a bound token for the audience it was issued for.
+  The point is that a backend operator cannot replay the token against another deployment on the same homeserver, but only when the homeserver enforces the audience (MindRoom's Tuwunel fork with `mindroom_openid_audience` on).
+  Stock homeservers, and the fork with the option off, ignore the field and issue unbound tokens that remain replayable within their lifetime.
   The Connections card uses the backend origin as the audience.
   The Computers panel (`ComputerPanel.tsx`, session creation) uses it too, with the origin of the computer service it posts to.
   The Element Call widget driver, Local MindRoom provisioning and the welcome page keep unbound `getOpenIdToken()` tokens on purpose.
   - Dependency: the Tuwunel fork's `io.mindroom.openid_audience` capability (`unstable_features` in `/_matrix/client/versions`), which stores the audience with the token and enforces it in federation `openid/userinfo`.
     Stock homeservers ignore the field and return an unbound token, which the backend accepts only when the homeserver lacks that capability.
-    Roll out in this order: first MindRoom backends with audience support (mindroom-ai/mindroom#2775), then Chat including the iOS app (it only adds a body field that stock homeservers ignore), and the Tuwunel release that binds tokens last.
-    The iOS app update must be live before the Tuwunel release that binds tokens, because older clients send unbound tokens that new backends reject with 401 once binding is on.
+    Roll out in this order: first MindRoom backends with audience support (mindroom-ai/mindroom#2775), then Chat including the iOS app (it only adds a body field that stock homeservers ignore), and turning on `mindroom_openid_audience` in Tuwunel (from v1.9.3-mindroom.28) last.
+    The iOS app update must be live before the option is turned on, because older clients send unbound tokens that new backends reject with 401 once binding is on.
     Released backends verify Computers OpenID tokens without an audience (since v2026.9.147), so once the homeserver binds tokens and Chat requests them, those older backends reject the bound Computers tokens with 401.
 - Backend dependency: mindroom-ai/mindroom#2775, which adds `POST /api/connections/session` (exchanges the token for a portal-only session cookie) and `MINDROOM_CONNECTIONS_ALLOWED_ORIGINS`.
   That variable is a JSON list of exact Chat origins and must list the Chat origin that opens the portal, for example `["https://chat.mindroom.chat","https://chat.lab.mindroom.chat"]`, or the backend answers 403.
