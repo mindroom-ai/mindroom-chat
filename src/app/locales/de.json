@@ -2999,6 +2999,16 @@
       "unpin": "{{title}} lösen",
       "shared": "Mit Agent geteilt",
       "saved": "Enthält deine Werte"
+    },
+    "backgroundJobs": {
+      "runningOne": "Läuft: {{tool}}",
+      "approvalOne": "Wartet auf Freigabe: {{tool}}",
+      "many": "{{count}} Hintergrundaufgaben",
+      "subagent": "Subagent: {{tool}}",
+      "stopAll": "Alle stoppen",
+      "stopping": "Wird gestoppt…",
+      "cancel": "{{tool}} abbrechen",
+      "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut."
     }
   },
   "roomSchedules": {

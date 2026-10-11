@@ -3053,6 +3053,16 @@
       "unpin": "Rimuovi {{title}} dai fissati",
       "shared": "Condiviso con l’agente",
       "saved": "Contiene i tuoi valori"
+    },
+    "backgroundJobs": {
+      "runningOne": "In esecuzione: {{tool}}",
+      "approvalOne": "In attesa di approvazione: {{tool}}",
+      "many": "{{count}} attività in background",
+      "subagent": "Subagente: {{tool}}",
+      "stopAll": "Ferma tutto",
+      "stopping": "Arresto in corso…",
+      "cancel": "Annulla {{tool}}",
+      "cancelFailed": "Impossibile annullare {{tool}}. Riprova."
     }
   },
   "roomSchedules": {

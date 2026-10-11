@@ -2999,6 +2999,16 @@
       "unpin": "{{title}} のピン留めを解除",
       "shared": "エージェントと共有",
       "saved": "入力値を保存済み"
+    },
+    "backgroundJobs": {
+      "runningOne": "実行中: {{tool}}",
+      "approvalOne": "承認待ち: {{tool}}",
+      "many": "バックグラウンドジョブ {{count}} 件",
+      "subagent": "サブエージェント: {{tool}}",
+      "stopAll": "すべて停止",
+      "stopping": "停止中…",
+      "cancel": "{{tool}} をキャンセル",
+      "cancelFailed": "{{tool}} をキャンセルできませんでした。もう一度お試しください。"
     }
   },
   "roomSchedules": {

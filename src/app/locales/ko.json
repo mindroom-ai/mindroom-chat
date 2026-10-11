@@ -2999,6 +2999,16 @@
       "unpin": "{{title}} 고정 해제",
       "shared": "에이전트와 공유됨",
       "saved": "입력한 값 있음"
+    },
+    "backgroundJobs": {
+      "runningOne": "실행 중: {{tool}}",
+      "approvalOne": "승인 대기 중: {{tool}}",
+      "many": "백그라운드 작업 {{count}}개",
+      "subagent": "하위 에이전트: {{tool}}",
+      "stopAll": "모두 중지",
+      "stopping": "중지하는 중…",
+      "cancel": "{{tool}} 취소",
+      "cancelFailed": "{{tool}}을(를) 취소하지 못했습니다. 다시 시도하세요."
     }
   },
   "roomSchedules": {

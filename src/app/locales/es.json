@@ -3053,6 +3053,16 @@
       "unpin": "Desfijar {{title}}",
       "shared": "Compartido con el agente",
       "saved": "Tiene tus valores"
+    },
+    "backgroundJobs": {
+      "runningOne": "En ejecución: {{tool}}",
+      "approvalOne": "Esperando aprobación: {{tool}}",
+      "many": "{{count}} tareas en segundo plano",
+      "subagent": "Subagente: {{tool}}",
+      "stopAll": "Detener todo",
+      "stopping": "Deteniendo…",
+      "cancel": "Cancelar {{tool}}",
+      "cancelFailed": "No se pudo cancelar {{tool}}. Inténtalo de nuevo."
     }
   },
   "roomSchedules": {

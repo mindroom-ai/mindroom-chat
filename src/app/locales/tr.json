@@ -2999,6 +2999,16 @@
       "unpin": "{{title}} panelinin sabitlemesini kaldır",
       "shared": "Ajanla paylaşılıyor",
       "saved": "Değerleriniz kayıtlı"
+    },
+    "backgroundJobs": {
+      "runningOne": "Çalışıyor: {{tool}}",
+      "approvalOne": "Onay bekliyor: {{tool}}",
+      "many": "{{count}} arka plan işi",
+      "subagent": "Alt ajan: {{tool}}",
+      "stopAll": "Tümünü durdur",
+      "stopping": "Durduruluyor…",
+      "cancel": "{{tool}} iptal et",
+      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin."
     }
   },
   "roomSchedules": {

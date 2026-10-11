@@ -3215,6 +3215,16 @@
       "unpin": "إلغاء تثبيت ⁨{{title}}⁩",
       "shared": "تتم مشاركتها مع الوكيل",
       "saved": "تحتوي على قيمك"
+    },
+    "backgroundJobs": {
+      "runningOne": "قيد التشغيل: ⁨{{tool}}⁩",
+      "approvalOne": "بانتظار الموافقة: ⁨{{tool}}⁩",
+      "many": "⁨{{count}}⁩ مهام في الخلفية",
+      "subagent": "وكيل فرعي: ⁨{{tool}}⁩",
+      "stopAll": "إيقاف الكل",
+      "stopping": "جارٍ الإيقاف…",
+      "cancel": "إلغاء ⁨{{tool}}⁩",
+      "cancelFailed": "تعذّر إلغاء ⁨{{tool}}⁩. حاول مرة أخرى."
     }
   },
   "roomSchedules": {

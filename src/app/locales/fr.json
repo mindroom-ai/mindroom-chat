@@ -3053,6 +3053,16 @@
       "unpin": "Désépingler {{title}}",
       "shared": "Partagé avec l’agent",
       "saved": "Contient vos valeurs"
+    },
+    "backgroundJobs": {
+      "runningOne": "En cours : {{tool}}",
+      "approvalOne": "En attente d’approbation : {{tool}}",
+      "many": "{{count}} tâches en arrière-plan",
+      "subagent": "Sous-agent : {{tool}}",
+      "stopAll": "Tout arrêter",
+      "stopping": "Arrêt…",
+      "cancel": "Annuler {{tool}}",
+      "cancelFailed": "Impossible d’annuler {{tool}}. Réessayez."
     }
   },
   "roomSchedules": {

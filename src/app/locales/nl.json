@@ -2999,6 +2999,16 @@
       "unpin": "{{title}} losmaken",
       "shared": "Gedeeld met agent",
       "saved": "Bevat je waarden"
+    },
+    "backgroundJobs": {
+      "runningOne": "Bezig: {{tool}}",
+      "approvalOne": "Wacht op goedkeuring: {{tool}}",
+      "many": "{{count}} achtergrondtaken",
+      "subagent": "Subagent: {{tool}}",
+      "stopAll": "Alles stoppen",
+      "stopping": "Stoppen…",
+      "cancel": "{{tool}} annuleren",
+      "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw."
     }
   },
   "roomSchedules": {

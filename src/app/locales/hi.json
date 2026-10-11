@@ -1740,6 +1740,16 @@
       "unpin": "{{title}} अनपिन करें",
       "shared": "एजेंट के साथ साझा",
       "saved": "आपके मान सहेजे गए हैं"
+    },
+    "backgroundJobs": {
+      "runningOne": "चल रहा है: {{tool}}",
+      "approvalOne": "स्वीकृति की प्रतीक्षा: {{tool}}",
+      "many": "{{count}} बैकग्राउंड कार्य",
+      "subagent": "सब-एजेंट: {{tool}}",
+      "stopAll": "सब रोकें",
+      "stopping": "रोका जा रहा है…",
+      "cancel": "{{tool}} रद्द करें",
+      "cancelFailed": "{{tool}} रद्द नहीं हो सका। फिर से कोशिश करें।"
     }
   },
   "nav": {

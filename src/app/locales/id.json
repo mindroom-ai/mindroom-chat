@@ -2999,6 +2999,16 @@
       "unpin": "Lepas sematan {{title}}",
       "shared": "Dibagikan dengan agen",
       "saved": "Berisi nilai Anda"
+    },
+    "backgroundJobs": {
+      "runningOne": "Berjalan: {{tool}}",
+      "approvalOne": "Menunggu persetujuan: {{tool}}",
+      "many": "{{count}} tugas latar belakang",
+      "subagent": "Subagen: {{tool}}",
+      "stopAll": "Hentikan semua",
+      "stopping": "Menghentikan…",
+      "cancel": "Batalkan {{tool}}",
+      "cancelFailed": "Tidak dapat membatalkan {{tool}}. Coba lagi."
     }
   },
   "roomSchedules": {

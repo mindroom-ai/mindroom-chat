@@ -3107,6 +3107,16 @@
       "unpin": "Открепить «{{title}}»",
       "shared": "Доступна агенту",
       "saved": "Есть ваши значения"
+    },
+    "backgroundJobs": {
+      "runningOne": "Выполняется: {{tool}}",
+      "approvalOne": "Ожидает одобрения: {{tool}}",
+      "many": "Фоновых задач: {{count}}",
+      "subagent": "Субагент: {{tool}}",
+      "stopAll": "Остановить все",
+      "stopping": "Остановка…",
+      "cancel": "Отменить {{tool}}",
+      "cancelFailed": "Не удалось отменить {{tool}}. Попробуйте ещё раз."
     }
   },
   "roomSchedules": {
