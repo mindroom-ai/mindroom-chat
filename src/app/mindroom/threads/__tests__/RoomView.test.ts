@@ -268,6 +268,13 @@ vi.mock('../CompactRoomView.css', () => ({
   View: 'View',
 }));
 
+vi.mock('../CompactCardSwipe.css', () => ({
+  SwipeAction: 'SwipeAction',
+  SwipeTrack: 'SwipeTrack',
+  SwipeTrackEnabled: 'SwipeTrackEnabled',
+  SwipeTrackSettling: 'SwipeTrackSettling',
+}));
+
 vi.mock('../MindroomRoomTimeline', async () => {
   const ReactModule = await import('react');
   const { CompactRoomView } = await import('../CompactRoomView');

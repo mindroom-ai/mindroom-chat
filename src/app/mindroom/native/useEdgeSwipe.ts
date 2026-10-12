@@ -4,7 +4,7 @@ import { imageViewerOpenAtom } from '../../state/imageViewer';
 import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { isIOSStandaloneWebApp } from './nativeSso';
 
-const EDGE_START_MAX_X = 28;
+export const EDGE_START_MAX_X = 28;
 const MIN_SWIPE_DISTANCE_X = 72;
 const MAX_VERTICAL_DRIFT = 64;
 const HANDLED_EVENT_FLAG = '__mindroomEdgeSwipeHandled';
