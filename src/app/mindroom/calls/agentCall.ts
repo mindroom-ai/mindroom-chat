@@ -10,8 +10,8 @@ import {
   setRoomNotificationPreference,
 } from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
-import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../background-jobs/backgroundJobsContract';
 import { getStateEvent } from '../../utils/room';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../background-jobs/backgroundJobsContract';
 import { setRoomArchived } from '../rooms/archivedRooms';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 

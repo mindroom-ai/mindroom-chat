@@ -183,7 +183,7 @@ it('leaves a failed cancel behind when the view moves to another thread', async 
   expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
-it('drops a cancel failure that arrives after the view moved to another thread', async () => {
+it('keeps a late cancel failure out of the thread the view moved to', async () => {
   state.jobs = [job('a'), job('b', { threadId: '$other' })];
   let fail: (error: Error) => void = () => undefined;
   state.send = vi.fn(

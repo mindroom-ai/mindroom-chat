@@ -1,6 +1,5 @@
 import type { TFunction } from 'i18next';
 import type { BackgroundJob } from './backgroundJobsContract';
-import type { SentCancels } from './sentCancels';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
@@ -24,7 +23,8 @@ const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiti
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
 export const presentBackgroundJobs = (
   jobs: BackgroundJob[],
-  sent: SentCancels,
+  // Whether this client sent a cancel for the job.
+  cancelSent: (jobId: string) => boolean,
   t: TFunction
 ): BackgroundJobsBarModel | null => {
   const [first] = jobs;
@@ -40,7 +40,7 @@ export const presentBackgroundJobs = (
         several && awaitingApproval(job)
           ? t('mindroomUi.backgroundJobs.awaitingApproval', { tool: name })
           : name,
-      stopping: job.status === 'cancel_requested' || sent.has(job.jobId),
+      stopping: job.status === 'cancel_requested' || cancelSent(job.jobId),
     };
   });
   if (several)

@@ -5,6 +5,7 @@ import type { BackgroundJob } from './backgroundJobsContract';
 import { presentBackgroundJobs } from './backgroundJobsPresentation';
 
 let t: TFunction;
+const none = () => false;
 
 beforeAll(async () => {
   const language = createInstance();
@@ -24,17 +25,17 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
 
 describe('presentBackgroundJobs', () => {
   it('returns nothing without jobs', () => {
-    expect(presentBackgroundJobs([], new Map(), t)).toBeNull();
+    expect(presentBackgroundJobs([], none, t)).toBeNull();
   });
 
   it('names a single running job', () => {
-    expect(presentBackgroundJobs([job('job_1')], new Map(), t)?.title).toBe('Running: run_tests');
+    expect(presentBackgroundJobs([job('job_1')], none, t)?.title).toBe('Running: run_tests');
   });
 
   it('names a single job waiting for approval', () => {
     const presented = presentBackgroundJobs(
       [job('job_1', { status: 'awaiting_approval' })],
-      new Map(),
+      none,
       t
     );
     expect(presented?.title).toBe('Waiting for approval: run_tests');
@@ -44,7 +45,7 @@ describe('presentBackgroundJobs', () => {
   it('marks a job whose cancel was already requested as stopping', () => {
     const presented = presentBackgroundJobs(
       [job('job_1', { status: 'cancel_requested' }), job('job_2')],
-      new Map(),
+      none,
       t
     );
     expect(presented?.items.map((item) => item.stopping)).toEqual([true, false]);
@@ -53,11 +54,11 @@ describe('presentBackgroundJobs', () => {
   it('names a single job that is stopping, whether its cancel was sent here or elsewhere', () => {
     const elsewhere = presentBackgroundJobs(
       [job('job_1', { status: 'cancel_requested' })],
-      new Map(),
+      none,
       t
     );
     expect(elsewhere?.title).toBe('Stopping: run_tests');
-    const here = presentBackgroundJobs([job('job_1')], new Map([['job_1', new Set([1])]]), t);
+    const here = presentBackgroundJobs([job('job_1')], (jobId) => jobId === 'job_1', t);
     expect(here?.title).toBe('Stopping: run_tests');
     expect(here?.items[0].stopping).toBe(true);
   });
@@ -65,7 +66,7 @@ describe('presentBackgroundJobs', () => {
   it('counts several jobs and lists them in order', () => {
     const presented = presentBackgroundJobs(
       [job('job_1'), job('job_2', { tool: 'download' })],
-      new Map(),
+      none,
       t
     );
     expect(presented?.title).toBe('2 background jobs');
@@ -75,7 +76,7 @@ describe('presentBackgroundJobs', () => {
   it('marks a job waiting for approval among several', () => {
     const presented = presentBackgroundJobs(
       [job('job_1'), job('job_2', { tool: 'shell', status: 'awaiting_approval' })],
-      new Map(),
+      none,
       t
     );
     expect(presented?.items.map((item) => item.label)).toEqual([
@@ -86,7 +87,7 @@ describe('presentBackgroundJobs', () => {
   });
 
   it('shows a job with an unknown status as running and stoppable', () => {
-    const presented = presentBackgroundJobs([job('job_1', { status: 'paused' })], new Map(), t);
+    const presented = presentBackgroundJobs([job('job_1', { status: 'paused' })], none, t);
     expect(presented?.title).toBe('Running: run_tests');
     expect(presented?.items[0]).toMatchObject({ label: 'run_tests', stopping: false });
   });
@@ -94,7 +95,7 @@ describe('presentBackgroundJobs', () => {
   it('labels a subagent by its tool and an unknown kind by its tool', () => {
     const presented = presentBackgroundJobs(
       [job('job_1', { kind: 'subagent', tool: 'run_subagent' }), job('job_2', { kind: 'new' })],
-      new Map(),
+      none,
       t
     );
     expect(presented?.items.map((item) => item.label)).toEqual([

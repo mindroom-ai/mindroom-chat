@@ -401,8 +401,8 @@ export function RoomNavItem({
                 aria-label={notificationMode}
               />
             )}
-            {!optionsVisible && hasBackgroundJobs && (
-              // The clock also marks schedules, so a hover names it.
+            {hasBackgroundJobs && (
+              // The clock also marks schedules, so it stays while the row is hovered, where its tooltip names it.
               <IconTooltip label={t('mindroomUi.backgroundJobs.inRoom')} position="Top">
                 {(triggerRef) => (
                   <span ref={triggerRef} style={{ display: 'inline-flex' }}>

@@ -10,6 +10,7 @@ const testState = vi.hoisted(() => ({
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
   backgroundJobs: [] as { jobId: string }[],
+  setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
       ? `https://media.example.org/${mxc.slice('mxc://example.org/'.length)}`
@@ -55,7 +56,10 @@ vi.mock('folds', async () => {
 
 vi.mock('react-aria', () => ({
   useFocusWithin: () => ({ focusWithinProps: {} }),
-  useHover: () => ({ hoverProps: {} }),
+  useHover: ({ onHoverChange }: { onHoverChange: (hovering: boolean) => void }) => {
+    testState.setHover = onHoverChange;
+    return { hoverProps: {} };
+  },
 }));
 
 vi.mock('focus-trap-react', () => ({
@@ -382,5 +386,13 @@ describe('RoomNavItem background jobs', () => {
 
     expect(indicators).toHaveLength(1);
     expect(indicators[0].props['aria-label']).toBe('Background jobs running');
+  });
+
+  it('keeps the mark while the row is hovered, so its tooltip can name it', () => {
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    const renderer = renderRoomNavItem();
+    act(() => testState.setHover?.(true));
+
+    expect(jobsIndicators(renderer)).toHaveLength(1);
   });
 });

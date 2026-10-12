@@ -57,7 +57,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     [mx, room, threadId]
   );
 
-  const model = presentBackgroundJobs(jobs, sent, t);
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
@@ -93,7 +93,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
             <span className={css.Label} title={item.label}>
               {item.label}
             </span>
-            {!stoppable.includes(item) ? (
+            {item.stopping ? (
               <span>{t('mindroomUi.backgroundJobs.stopping')}</span>
             ) : (
               canCancel && (
