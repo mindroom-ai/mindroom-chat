@@ -171,20 +171,23 @@ export const prepareAgentCallRoom = async (
   if (membership !== Membership.Join && membership !== Membership.Invite) {
     await mx.invite(room.roomId, agentUserId);
   }
-  await sendAgentCall(mx, room.roomId, agentUserId, origin);
-  // A call room made before agents could publish their background jobs gains that power level; best effort.
+  // A call room made before agents could publish their background jobs gains that power level before the
+  // agent hears of the call, so its first jobs are not refused; best effort.
   const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
   if (powerLevels && powerLevels.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] === undefined) {
-    mx.sendStateEvent(
-      room.roomId,
-      StateEvent.RoomPowerLevels as never,
-      {
-        ...powerLevels,
-        events: { ...powerLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
-      } as never,
-      ''
-    ).catch(() => undefined);
+    await mx
+      .sendStateEvent(
+        room.roomId,
+        StateEvent.RoomPowerLevels as never,
+        {
+          ...powerLevels,
+          events: { ...powerLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
+        } as never,
+        ''
+      )
+      .catch(() => undefined);
   }
+  await sendAgentCall(mx, room.roomId, agentUserId, origin);
 };
 
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {

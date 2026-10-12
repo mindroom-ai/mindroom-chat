@@ -229,6 +229,35 @@ describe('MindRoom agent calls', () => {
     );
   });
 
+  it('starts the call only once an older call room lets the agent publish its jobs', async () => {
+    let land: () => void = () => undefined;
+    sendStateEvent.mockImplementation((_roomId: string, type: string) =>
+      type === StateEvent.RoomPowerLevels
+        ? new Promise((resolve) => {
+            land = () => resolve({});
+          })
+        : Promise.resolve({})
+    );
+    const powerLevels = { events: { 'org.matrix.msc3401.call.member': 0 } };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    let prepared = false;
+    const preparing = prepareAgentCallRoom(mx, room, HELPER, origin).then(() => {
+      prepared = true;
+    });
+    await vi.waitFor(() =>
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        '!call:mindroom.test',
+        StateEvent.RoomPowerLevels,
+        expect.anything(),
+        ''
+      )
+    );
+    expect(prepared).toBe(false);
+    land();
+    await preparing;
+    expect(prepared).toBe(true);
+  });
+
   it('leaves the power levels of a call room that already allows it alone', async () => {
     const powerLevels = { events: { 'io.mindroom.background_jobs': 0 } };
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
