@@ -30,10 +30,11 @@ export const Item = style([
   },
 ]);
 
-// A long tool name is cut short, so its cancel button stays in view; the full name is its title.
+// A long tool name is cut short, in a chip or the title, so the controls stay in view; the full text is its title.
 export const Label = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   minWidth: 0,
 });
 

@@ -137,6 +137,17 @@ it('keeps a cancel stopping across a switch to another thread and back', async (
   expect(button(cancelA)).toBeUndefined();
 });
 
+it('drops the error of a failed cancel once the job is cancelled from elsewhere', async () => {
+  state.jobs = [job('a')];
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render();
+  await click(cancelA);
+  expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  state.jobs = [job('a', { status: 'cancel_requested' })];
+  render();
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
 it('shows a failed cancel only while its job is listed', async () => {
   state.jobs = [job('a')];
   state.send = vi.fn().mockRejectedValue(new Error('offline'));

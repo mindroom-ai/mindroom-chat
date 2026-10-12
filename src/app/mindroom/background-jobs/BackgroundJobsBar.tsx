@@ -80,7 +80,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     <div className={css.Bar} role="region" aria-label={model.title}>
       <small className={css.Status} role="status">
         <Icon src={Icons.Clock} size="50" aria-hidden />
-        <span>{model.title}</span>
+        <span className={css.Label} title={model.title}>
+          {model.title}
+        </span>
       </small>
       <div className={css.Items}>
         {model.items.map((item) => (
@@ -122,8 +124,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
         </button>
       )}
       {error &&
-        // A failure matters while one of its jobs is listed and no other cancel reached it.
-        jobs.some((job) => error.jobIds.includes(job.jobId) && !stopping.has(job.jobId)) && (
+        // A failure matters while one of its jobs is listed and no other cancel reached it, here or elsewhere.
+        stoppable.some((item) => error.jobIds.includes(item.jobId)) && (
           <small role="alert" className={css.Status}>
             {error.text}
           </small>
