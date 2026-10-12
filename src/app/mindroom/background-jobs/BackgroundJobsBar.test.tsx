@@ -8,7 +8,7 @@ import type { BackgroundJob } from './backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 
 const state = vi.hoisted(() => ({ jobs: [] as BackgroundJob[], send: vi.fn() }));
-vi.mock('./useBackgroundJobs', () => ({ useBackgroundJobs: () => state.jobs }));
+vi.mock('./useBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.jobs }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ sendEvent: state.send }),
 }));
@@ -33,7 +33,6 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
   kind: 'tool',
   tool: `tool_${jobId}`,
   status: 'running',
-  requesterId: '@alice:example.org',
   startedAt: '2026-10-11T00:00:00+00:00',
   ...overrides,
 });
@@ -42,9 +41,15 @@ const room = { roomId: '!room:example.org' } as Room;
 let container: HTMLDivElement;
 let root: Root;
 
-const render = () =>
+const render = (threadId: string | null = '$thread') =>
   act(() => {
-    root.render(<BackgroundJobsBar room={room} threadId="$thread" />);
+    root.render(<BackgroundJobsBar room={room} threadId={threadId} />);
+  });
+const cancelA = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}';
+const cancelB = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_b"}';
+const click = (label: string) =>
+  act(async () => {
+    button(label)?.click();
   });
 const button = (label: string) =>
   [...container.querySelectorAll('button')].find(
@@ -72,13 +77,46 @@ it('renders nothing without jobs', () => {
 it('shows Stopping until the job leaves the state', async () => {
   state.jobs = [job('a')];
   render();
-  await act(async () => {
-    button('mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}')?.click();
-  });
+  await click(cancelA);
+  state.jobs = [job('a')];
+  render();
   expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(button(cancelA)).toBeUndefined();
   state.jobs = [];
   render();
   expect(container.innerHTML).toBe('');
+});
+
+it('keeps a sent cancel stopping when a later Stop all fails', async () => {
+  state.jobs = [job('a'), job('b')];
+  render();
+  await click(cancelA);
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render();
+  await click('mindroomUi.backgroundJobs.stopAll');
+  expect(button(cancelA)).toBeUndefined();
+  expect(button(cancelB)).toBeDefined();
+});
+
+it('keeps a cancel stopping across a switch to another thread and back', async () => {
+  state.jobs = [job('a'), job('b', { threadId: '$other' })];
+  render('$thread');
+  await click(cancelA);
+  render('$other');
+  render('$thread');
+  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(button(cancelA)).toBeUndefined();
+});
+
+it('shows a failed cancel only while its job is listed', async () => {
+  state.jobs = [job('a')];
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render();
+  await click(cancelA);
+  expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  state.jobs = [job('b')];
+  render();
+  expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
 it('shows Stopping without a cancel button for a job cancelled elsewhere', () => {

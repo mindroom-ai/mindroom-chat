@@ -3055,9 +3055,9 @@
       "saved": "Contiene i tuoi valori"
     },
     "backgroundJobs": {
-      "runningOne": "In esecuzione: {{tool}}",
-      "approvalOne": "In attesa di approvazione: {{tool}}",
-      "many": "{{count}} attività in background",
+      "running": "In esecuzione: {{tool}}",
+      "awaitingApproval": "In attesa di approvazione: {{tool}}",
+      "jobCount": "{{count}} attività in background",
       "subagent": "Subagente: {{tool}}",
       "stopAll": "Ferma tutto",
       "stopping": "Arresto in corso…",

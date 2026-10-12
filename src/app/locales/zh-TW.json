@@ -3001,9 +3001,9 @@
       "saved": "包含您的輸入"
     },
     "backgroundJobs": {
-      "runningOne": "執行中：{{tool}}",
-      "approvalOne": "等待核准：{{tool}}",
-      "many": "{{count}} 個背景工作",
+      "running": "執行中：{{tool}}",
+      "awaitingApproval": "等待核准：{{tool}}",
+      "jobCount": "{{count}} 個背景工作",
       "subagent": "子代理：{{tool}}",
       "stopAll": "全部停止",
       "stopping": "正在停止…",

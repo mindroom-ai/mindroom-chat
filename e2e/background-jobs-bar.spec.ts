@@ -164,7 +164,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
 
-  // When the last job ends, the bar and the room mark go away.
+  // When the last job ends, the bar goes away.
   await publish(coder, []);
   await publish(researcher, []);
   await expect(page.getByRole('region', { name: /background jobs|Running|Waiting/ })).toHaveCount(

@@ -1,12 +1,13 @@
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons } from 'folds';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import * as css from './backgroundJobsBar.css';
+import { jobsInView } from './backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
-import { useBackgroundJobs } from './useBackgroundJobs';
+import { useRoomBackgroundJobs } from './useBackgroundJobs';
 
 type BackgroundJobsBarProps = {
   room: Room;
@@ -17,30 +18,40 @@ type BackgroundJobsBarProps = {
 export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const jobs = useBackgroundJobs(room, threadId);
-  // Jobs whose cancel was sent; each stays "Stopping…" until it leaves the published state.
-  const [stopping, setStopping] = useState<ReadonlySet<string>>(new Set());
-  const [error, setError] = useState<string>();
+  const roomJobs = useRoomBackgroundJobs(room);
+  const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
+  // Each job whose cancel was sent, with the request that sent it; it stays "Stopping…" until it
+  // leaves the room's published jobs, also while another view of the room is open.
+  const [stopping, setStopping] = useState<ReadonlyMap<string, number>>(new Map());
+  const [error, setError] = useState<{ text: string; jobIds: string[] }>();
+  const requests = useRef(0);
 
   useEffect(() => {
-    const live = new Set(jobs.map((job) => job.jobId));
+    const live = new Set(roomJobs.map((job) => job.jobId));
     setStopping((previous) => {
-      const kept = [...previous].filter((jobId) => live.has(jobId));
-      return kept.length === previous.size ? previous : new Set(kept);
+      const kept = [...previous].filter(([jobId]) => live.has(jobId));
+      return kept.length === previous.size ? previous : new Map(kept);
     });
-  }, [jobs]);
+  }, [roomJobs]);
 
   const cancel = useCallback(
     async (request: BackgroundJobCancelRequest, jobIds: string[], tool: string) => {
+      requests.current += 1;
+      const sent = requests.current;
       setError(undefined);
-      setStopping((previous) => new Set([...previous, ...jobIds]));
+      setStopping((previous) => {
+        const next = new Map(previous);
+        jobIds.forEach((jobId) => {
+          if (!next.has(jobId)) next.set(jobId, sent);
+        });
+        return next;
+      });
       try {
         await cancelBackgroundJob(mx, room.roomId, threadId, request);
       } catch {
-        setStopping(
-          (previous) => new Set([...previous].filter((jobId) => !jobIds.includes(jobId)))
-        );
-        setError(t('mindroomUi.backgroundJobs.cancelFailed', { tool }));
+        // Only this request's marks go; a job an earlier cancel already reached stays stopping.
+        setStopping((previous) => new Map([...previous].filter(([, owner]) => owner !== sent)));
+        setError({ text: t('mindroomUi.backgroundJobs.cancelFailed', { tool }), jobIds });
       }
     },
     [mx, room.roomId, threadId, t]
@@ -91,9 +102,9 @@ export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
           </button>
         )}
       </div>
-      {error && (
+      {error && jobs.some((job) => error.jobIds.includes(job.jobId)) && (
         <small role="alert" className={css.Status}>
-          {error}
+          {error.text}
         </small>
       )}
     </div>

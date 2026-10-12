@@ -19,7 +19,6 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
   kind: 'tool',
   tool: 'run_tests',
   status: 'running',
-  requesterId: '@alice:example.org',
   startedAt: `2026-10-11T00:00:0${jobId.slice(-1)}+00:00`,
   ...overrides,
 });
@@ -62,6 +61,12 @@ describe('presentBackgroundJobs', () => {
       'run_tests',
       'Waiting for approval: shell',
     ]);
+  });
+
+  it('shows a job with an unknown status as running and stoppable', () => {
+    const presented = presentBackgroundJobs([job('job_1', { status: 'paused' })], t);
+    expect(presented?.title).toBe('Running: run_tests');
+    expect(presented?.items[0]).toMatchObject({ waitingForApproval: false, stopping: false });
   });
 
   it('labels a subagent by its tool and an unknown kind by its tool', () => {

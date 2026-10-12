@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_BACKGROUND_JOBS_EVENT,
   parseBackgroundJobsStateEvent,
+  jobsInView,
   selectBackgroundJobs,
 } from './backgroundJobsContract';
 
@@ -43,7 +44,6 @@ describe('parseBackgroundJobsStateEvent', () => {
         kind: 'tool',
         tool: 'run_tests',
         status: 'running',
-        requesterId: '@alice:example.org',
         startedAt: '2026-10-11T00:00:01+00:00',
       },
     ]);
@@ -70,13 +70,11 @@ describe('parseBackgroundJobsStateEvent', () => {
 describe('selectBackgroundJobs', () => {
   it('ignores state from a non-agent sender', () => {
     const event = jobsEvent([job('job_1')], { sender: '@mallory:example.org' });
-    expect(selectBackgroundJobs([event], viewer, joined, '$thread')).toEqual([]);
+    expect(selectBackgroundJobs([event], viewer, joined)).toEqual([]);
   });
 
   it('ignores state from an agent that left the room', () => {
-    expect(
-      selectBackgroundJobs([jobsEvent([job('job_1')])], viewer, () => false, '$thread')
-    ).toEqual([]);
+    expect(selectBackgroundJobs([jobsEvent([job('job_1')])], viewer, () => false)).toEqual([]);
   });
 
   it('shows a thread only its own jobs, and the main timeline every job of the room', () => {
@@ -84,8 +82,8 @@ describe('selectBackgroundJobs', () => {
       jobsEvent([job('job_1'), job('job_2', { thread_id: '$other' })]),
       jobsEvent([job('job_3', { thread_id: null })], { sender: '@mindroom_research:example.org' }),
     ];
-    const ids = (threadId: string | null) =>
-      selectBackgroundJobs(events, viewer, joined, threadId).map((item) => item.jobId);
+    const jobs = selectBackgroundJobs(events, viewer, joined);
+    const ids = (threadId: string | null) => jobsInView(jobs, threadId).map((item) => item.jobId);
     expect(ids('$thread')).toEqual(['job_1']);
     expect(ids(null)).toEqual(['job_1', 'job_2', 'job_3']);
   });

@@ -3055,9 +3055,9 @@
       "saved": "Tem seus valores"
     },
     "backgroundJobs": {
-      "runningOne": "Em execução: {{tool}}",
-      "approvalOne": "Aguardando aprovação: {{tool}}",
-      "many": "{{count}} tarefas em segundo plano",
+      "running": "Em execução: {{tool}}",
+      "awaitingApproval": "Aguardando aprovação: {{tool}}",
+      "jobCount": "{{count}} tarefas em segundo plano",
       "subagent": "Subagente: {{tool}}",
       "stopAll": "Parar tudo",
       "stopping": "Parando…",

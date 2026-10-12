@@ -3109,9 +3109,9 @@
       "saved": "Есть ваши значения"
     },
     "backgroundJobs": {
-      "runningOne": "Выполняется: {{tool}}",
-      "approvalOne": "Ожидает одобрения: {{tool}}",
-      "many": "Фоновых задач: {{count}}",
+      "running": "Выполняется: {{tool}}",
+      "awaitingApproval": "Ожидает одобрения: {{tool}}",
+      "jobCount": "Фоновых задач: {{count}}",
       "subagent": "Субагент: {{tool}}",
       "stopAll": "Остановить все",
       "stopping": "Остановка…",

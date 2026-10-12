@@ -3001,9 +3001,9 @@
       "saved": "입력한 값 있음"
     },
     "backgroundJobs": {
-      "runningOne": "실행 중: {{tool}}",
-      "approvalOne": "승인 대기 중: {{tool}}",
-      "many": "백그라운드 작업 {{count}}개",
+      "running": "실행 중: {{tool}}",
+      "awaitingApproval": "승인 대기 중: {{tool}}",
+      "jobCount": "백그라운드 작업 {{count}}개",
       "subagent": "하위 에이전트: {{tool}}",
       "stopAll": "모두 중지",
       "stopping": "중지하는 중…",

@@ -3001,9 +3001,9 @@
       "saved": "Has your values"
     },
     "backgroundJobs": {
-      "runningOne": "Running: {{tool}}",
-      "approvalOne": "Waiting for approval: {{tool}}",
-      "many": "{{count}} background jobs",
+      "running": "Running: {{tool}}",
+      "awaitingApproval": "Waiting for approval: {{tool}}",
+      "jobCount": "{{count}} background jobs",
       "subagent": "Subagent: {{tool}}",
       "stopAll": "Stop all",
       "stopping": "Stopping…",

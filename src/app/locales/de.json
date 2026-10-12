@@ -3001,9 +3001,9 @@
       "saved": "Enthält deine Werte"
     },
     "backgroundJobs": {
-      "runningOne": "Läuft: {{tool}}",
-      "approvalOne": "Wartet auf Freigabe: {{tool}}",
-      "many": "{{count}} Hintergrundaufgaben",
+      "running": "Läuft: {{tool}}",
+      "awaitingApproval": "Wartet auf Freigabe: {{tool}}",
+      "jobCount": "{{count}} Hintergrundaufgaben",
       "subagent": "Subagent: {{tool}}",
       "stopAll": "Alle stoppen",
       "stopping": "Wird gestoppt…",

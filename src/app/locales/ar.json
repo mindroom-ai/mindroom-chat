@@ -3217,9 +3217,9 @@
       "saved": "تحتوي على قيمك"
     },
     "backgroundJobs": {
-      "runningOne": "قيد التشغيل: ⁨{{tool}}⁩",
-      "approvalOne": "بانتظار الموافقة: ⁨{{tool}}⁩",
-      "many": "⁨{{count}}⁩ مهام في الخلفية",
+      "running": "قيد التشغيل: ⁨{{tool}}⁩",
+      "awaitingApproval": "بانتظار الموافقة: ⁨{{tool}}⁩",
+      "jobCount": "مهام في الخلفية: ⁨{{count}}⁩",
       "subagent": "وكيل فرعي: ⁨{{tool}}⁩",
       "stopAll": "إيقاف الكل",
       "stopping": "جارٍ الإيقاف…",

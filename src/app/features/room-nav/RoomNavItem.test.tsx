@@ -195,7 +195,7 @@ vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
 }));
 
 vi.mock('../../mindroom/background-jobs/useBackgroundJobs', () => ({
-  useBackgroundJobs: () => testState.backgroundJobs,
+  useRoomBackgroundJobs: () => testState.backgroundJobs,
 }));
 
 vi.mock('../../utils/matrix', () => ({

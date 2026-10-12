@@ -3001,9 +3001,9 @@
       "saved": "Bevat je waarden"
     },
     "backgroundJobs": {
-      "runningOne": "Bezig: {{tool}}",
-      "approvalOne": "Wacht op goedkeuring: {{tool}}",
-      "many": "{{count}} achtergrondtaken",
+      "running": "Bezig: {{tool}}",
+      "awaitingApproval": "Wacht op goedkeuring: {{tool}}",
+      "jobCount": "{{count}} achtergrondtaken",
       "subagent": "Subagent: {{tool}}",
       "stopAll": "Alles stoppen",
       "stopping": "Stoppen…",

@@ -1742,9 +1742,9 @@
       "saved": "आपके मान सहेजे गए हैं"
     },
     "backgroundJobs": {
-      "runningOne": "चल रहा है: {{tool}}",
-      "approvalOne": "स्वीकृति की प्रतीक्षा: {{tool}}",
-      "many": "{{count}} बैकग्राउंड कार्य",
+      "running": "चल रहा है: {{tool}}",
+      "awaitingApproval": "स्वीकृति की प्रतीक्षा: {{tool}}",
+      "jobCount": "{{count}} बैकग्राउंड कार्य",
       "subagent": "सब-एजेंट: {{tool}}",
       "stopAll": "सब रोकें",
       "stopping": "रोका जा रहा है…",

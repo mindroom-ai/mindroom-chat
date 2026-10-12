@@ -3001,9 +3001,9 @@
       "saved": "Berisi nilai Anda"
     },
     "backgroundJobs": {
-      "runningOne": "Berjalan: {{tool}}",
-      "approvalOne": "Menunggu persetujuan: {{tool}}",
-      "many": "{{count}} tugas latar belakang",
+      "running": "Berjalan: {{tool}}",
+      "awaitingApproval": "Menunggu persetujuan: {{tool}}",
+      "jobCount": "{{count}} tugas latar belakang",
       "subagent": "Subagen: {{tool}}",
       "stopAll": "Hentikan semua",
       "stopping": "Menghentikan…",
