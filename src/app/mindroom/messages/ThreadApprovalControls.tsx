@@ -471,7 +471,26 @@ export function ThreadApprovalPermissions() {
   );
 }
 
-const SINGLE_HISTORY_STATUSES = new Set(['approved', 'denied', 'expired']);
+type HistoryStatus = 'approved' | 'denied' | 'expired';
+const HISTORY_LABEL_KEYS = {
+  you: {
+    approved: 'mindroomUi.messages.threadApprovalControls.historyYouApproved',
+    denied: 'mindroomUi.messages.threadApprovalControls.historyYouDenied',
+    expired: 'mindroomUi.messages.threadApprovalControls.historyYouExpired',
+  },
+  user: {
+    approved: 'mindroomUi.messages.threadApprovalControls.historyUserApproved',
+    denied: 'mindroomUi.messages.threadApprovalControls.historyUserDenied',
+    expired: 'mindroomUi.messages.threadApprovalControls.historyUserExpired',
+  },
+  nobody: {
+    approved: 'mindroomUi.messages.threadApprovalControls.historyApproved',
+    denied: 'mindroomUi.messages.threadApprovalControls.historyDenied',
+    expired: 'mindroomUi.messages.threadApprovalControls.historyExpired',
+  },
+} as const;
+const isHistoryStatus = (status: string): status is HistoryStatus =>
+  status === 'approved' || status === 'denied' || status === 'expired';
 
 export function ApprovalHistory({ records }: { records: readonly ThreadApprovalRecord[] }) {
   const glassRef = useGlassHighlight<HTMLDetailsElement>();
@@ -483,23 +502,21 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   const summary = describeApprovalHistory(records, mx.getUserId());
   const single =
-    summary.kind === 'single' && SINGLE_HISTORY_STATUSES.has(summary.status) ? summary : undefined;
+    summary.kind === 'single' && isHistoryStatus(summary.status)
+      ? { ...summary, status: summary.status }
+      : undefined;
   const room = mx.getRoom?.(context?.roomId ?? '') as MemberRoom | null | undefined;
-  const singleStatus = single && single.status.charAt(0).toUpperCase() + single.status.slice(1);
-  const singleLabel =
-    single &&
-    (single.actor === 'you'
-      ? t(`mindroomUi.messages.threadApprovalControls.historyYou${singleStatus}`, {
-          operation: single.operation,
-        })
-      : single.actor
-      ? t(`mindroomUi.messages.threadApprovalControls.historyUser${singleStatus}`, {
-          user: userDisplayName(room, single.actor.userId),
-          operation: single.operation,
-        })
-      : t(`mindroomUi.messages.threadApprovalControls.history${singleStatus}`, {
-          operation: single.operation,
-        }));
+  let singleLabel: string | undefined;
+  if (single?.actor === 'you') {
+    singleLabel = t(HISTORY_LABEL_KEYS.you[single.status], { operation: single.operation });
+  } else if (single?.actor) {
+    singleLabel = t(HISTORY_LABEL_KEYS.user[single.status], {
+      user: userDisplayName(room, single.actor.userId),
+      operation: single.operation,
+    });
+  } else if (single) {
+    singleLabel = t(HISTORY_LABEL_KEYS.nobody[single.status], { operation: single.operation });
+  }
   return (
     <details
       ref={glassRef}
