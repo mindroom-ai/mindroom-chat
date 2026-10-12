@@ -123,7 +123,7 @@ function MindroomCollapsibleBlock({
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
           {pending !== undefined && <ToolStatusBadge pending={pending} />}
-          <Text size="L400" truncate>
+          <Text size="L400" truncate className={css.BlockLabel}>
             {label}
           </Text>
           {subtitle && (

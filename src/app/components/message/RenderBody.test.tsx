@@ -41,6 +41,7 @@ vi.mock('../../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
+  BlockLabel: 'BlockLabel',
   BlockInlineResult: 'BlockInlineResult',
   BlockResult: 'BlockResult',
   PasteMarkerBadge: 'PasteMarkerBadge',

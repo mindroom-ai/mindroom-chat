@@ -20,10 +20,13 @@ export const Bar = style([
 ]);
 export const BarDetail = style({
   minWidth: 0,
+  // Shrink the tool list before the waiting text wraps.
+  flexShrink: 1000,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   opacity: 0.75,
+  '@media': { '(max-width: 599px)': { display: 'none' } },
 });
 export const BarStatus = style({
   display: 'flex',
@@ -242,3 +245,5 @@ export const DenyRow = style({
   alignItems: 'center',
   gap: config.space.S200,
 });
+// The reason field fills the row; the confirm and cancel buttons wrap below when narrow.
+globalStyle(`${DenyRow} > :first-child`, { flex: '1 1 12rem', minWidth: 0 });

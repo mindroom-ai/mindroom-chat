@@ -129,6 +129,7 @@ vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   BlockChevron: 'MindroomBlockChevron',
   BlockHeader: 'MindroomBlockHeader',
   BlockHeaderMeta: 'MindroomBlockHeaderMeta',
+  BlockLabel: 'MindroomBlockLabel',
   BlockInlineResult: 'MindroomBlockInlineResult',
   BlockResult: 'MindroomBlockResult',
   ToolGroupItem: 'MindroomToolGroupItem',

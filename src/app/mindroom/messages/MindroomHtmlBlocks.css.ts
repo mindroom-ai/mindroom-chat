@@ -37,6 +37,9 @@ export const BlockHeaderMeta = style({
   minWidth: 0,
 });
 
+// The label carries the count; the tool names after it truncate first.
+export const BlockLabel = style({ flexShrink: 0 });
+
 export const BlockBody = disclosure.Body;
 
 export const BlockInlineResult = style({

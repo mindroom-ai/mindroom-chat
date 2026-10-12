@@ -376,7 +376,18 @@ it('presents one pending call with its status, people, and decisions', async () 
 });
 
 it('asks for a reason only after Deny all, then denies every call with it', async () => {
-  const records = [approvalRecord(0), approvalRecord(1)];
+  const timed = {
+    thread_id: '$thread',
+    requester_id: '@alice:example.org',
+    auto_approve_options: [300, 600, 1800],
+    approval_scope: {
+      id: 'scope-1',
+      entity_name: 'assistant',
+      invoking_agent: 'assistant',
+      operation: { tool_name: 'search' },
+    },
+  };
+  const records = [approvalRecord(0, timed), approvalRecord(1, timed)];
   const submit = reviewContext(records);
   const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
   const button = (label: string) =>
@@ -384,8 +395,14 @@ it('asks for a reason only after Deny all, then denies every call with it', asyn
   const reasonInput = () =>
     container.querySelector<HTMLInputElement>('[aria-label="Reason for denying all (optional)"]');
   try {
+    const fiveMinutes = () =>
+      buttonsIn(container).find(
+        (candidate) => candidate.getAttribute('aria-label') === 'Allow for 5 minutes'
+      );
+    expect(fiveMinutes()).toBeDefined();
     await act(async () => button('Deny all 2')?.click());
     expect(button('Deny all 2')).toBeUndefined();
+    expect(fiveMinutes()).toBeUndefined();
     await act(async () => button('Cancel')?.click());
     expect(reasonInput()).toBeNull();
     expect(submit).not.toHaveBeenCalled();

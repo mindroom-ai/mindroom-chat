@@ -302,7 +302,7 @@ export function ApprovalReviewGroup({
         </form>
       )}
       <ApprovalDurations
-        durations={timed}
+        durations={denyingAll ? [] : timed}
         disabled={approvable.length === 0}
         onPick={(duration) => {
           if (approvable[0]) void context.submit(approvable[0], { status: 'approved', duration });
