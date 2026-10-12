@@ -25,22 +25,27 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // Each job whose cancel was sent, with the requests that sent one; it stays "Stopping…" while any of
   // them may have arrived, until it leaves the room's published jobs, also while another view is open.
   const [stopping, setStopping] = useState<ReadonlyMap<string, ReadonlySet<number>>>(new Map());
-  const [error, setError] = useState<{ text: string; jobIds: string[] }>();
+  // The last failed cancel of each job; it shows while that job is listed and no other cancel reached it.
+  const [failures, setFailures] = useState<ReadonlyMap<string, string>>(new Map());
   const requests = useRef(0);
 
   useEffect(() => {
     const live = new Set(roomJobs.map((job) => job.jobId));
-    setStopping((previous) => {
+    const keepLive = <T,>(previous: ReadonlyMap<string, T>) => {
       const kept = [...previous].filter(([jobId]) => live.has(jobId));
       return kept.length === previous.size ? previous : new Map(kept);
-    });
+    };
+    setStopping(keepLive);
+    setFailures(keepLive);
   }, [roomJobs]);
 
   const cancel = useCallback(
     async (request: BackgroundJobCancelRequest, jobIds: string[], failure: string) => {
       requests.current += 1;
       const sent = requests.current;
-      setError(undefined);
+      setFailures(
+        (previous) => new Map([...previous].filter(([jobId]) => !jobIds.includes(jobId)))
+      );
       setStopping(
         (previous) =>
           new Map([
@@ -66,7 +71,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                 .filter(([, sends]) => sends.size > 0)
             )
         );
-        setError({ text: failure, jobIds });
+        setFailures(
+          (previous) =>
+            new Map([...previous, ...jobIds.map((jobId): [string, string] => [jobId, failure])])
+        );
       }
     },
     [mx, room, threadId]
@@ -76,6 +84,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   if (!model) return null;
   const isStopping = (item: BackgroundJobsBarItem) => item.stopping || stopping.has(item.jobId);
   const stoppable = model.items.filter((item) => !isStopping(item));
+  // A failure matters while its job is listed and no other cancel reached it, here or elsewhere.
+  const shownFailures = [...new Set(stoppable.flatMap((item) => failures.get(item.jobId) ?? []))];
   return (
     <div className={css.Bar} role="region" aria-label={model.title}>
       <small className={css.Status} role="status">
@@ -129,13 +139,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           {t('mindroomUi.backgroundJobs.stopAll')}
         </button>
       )}
-      {error &&
-        // A failure matters while one of its jobs is listed and no other cancel reached it, here or elsewhere.
-        stoppable.some((item) => error.jobIds.includes(item.jobId)) && (
-          <small role="alert" className={css.Status}>
-            {error.text}
-          </small>
-        )}
+      {shownFailures.length > 0 && (
+        <small role="alert" className={css.Status}>
+          {shownFailures.join(' ')}
+        </small>
+      )}
     </div>
   );
 }

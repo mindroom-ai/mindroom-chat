@@ -148,6 +148,25 @@ it('drops the error of a failed cancel once the job is cancelled from elsewhere'
   expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
+it('keeps the error of a job still listed when a cancel of a job that ended fails later', async () => {
+  state.jobs = [job('a'), job('b')];
+  const fails: Array<(error: Error) => void> = [];
+  state.send = vi.fn(
+    () =>
+      new Promise((_resolve, reject) => {
+        fails.push(reject);
+      })
+  );
+  render();
+  await click(cancelA);
+  await click(cancelB);
+  await act(async () => fails[1](new Error('offline')));
+  state.jobs = [job('b')];
+  render();
+  await act(async () => fails[0](new Error('offline')));
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('"tool":"tool_b"');
+});
+
 it('shows a failed cancel only while its job is listed', async () => {
   state.jobs = [job('a')];
   state.send = vi.fn().mockRejectedValue(new Error('offline'));
