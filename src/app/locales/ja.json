@@ -678,7 +678,11 @@
       "openLocation": "位置を開く",
       "voiceMessage": "音声メッセージ",
       "audio": "オーディオ",
-      "unnamedFile": "名前のないファイル"
+      "unnamedFile": "名前のないファイル",
+      "file": "ファイル",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF ドキュメント",
+      "textFile": "テキストファイル"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "このメッセージは削除されました",
@@ -696,7 +700,8 @@
       "openFile": "ファイルを開く",
       "loadFailed": "ファイルのロードに失敗しました!",
       "retryDownload": "ダウンロードを再試行します ({{size}})",
-      "downloadSize": "ダウンロード ({{size}})"
+      "downloadSize": "ダウンロード ({{size}})",
+      "openValue1": "{{value1}} を開く"
     },
     "imageContent": {
       "view": "表示",
@@ -2446,7 +2451,9 @@
         "onlyATruncatedPreviewIsAvailable": "切り詰められたプレビューのみが利用可能です。",
         "retry": "再試行",
         "sensitiveValuesMayBeRedacted": "機密性の高い値は編集される場合があります。",
-        "loadFailed": "完全な引数をロードできませんでした。"
+        "loadFailed": "完全な引数をロードできませんでした。",
+        "hideArguments": "引数を隠す",
+        "showAllArguments": "すべての引数を表示"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "このリクエストはここでは承認できません。",
@@ -2572,7 +2579,8 @@
         },
         "toolNumber": "ツール #{{index}}: {{command}}",
         "toolCallCount_one": "{{count}} ツール呼び出し",
-        "toolCallCount_other": "{{count}} 個のツール呼び出し"
+        "toolCallCount_other": "{{count}} 個のツール呼び出し",
+        "usedToolCount_other": "{{count}} 個のツールを使用"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "完全な応答を読み込んでいます..."
@@ -2692,7 +2700,31 @@
         "toolApprovalCount_one": "ツール承認 {{count}} 件",
         "toolApprovalCount_other": "ツール承認 {{count}} 件",
         "approvedCount_one": "{{count}} 件承認済み",
-        "approvedCount_other": "{{count}} 件承認済み"
+        "approvedCount_other": "{{count}} 件承認済み",
+        "agentWaitingForYou": "{{agent}} があなたを待っています",
+        "agentsWaitingForYou_other": "{{count}} つのエージェントがあなたを待っています",
+        "autoApproveFor": "自動承認の期間",
+        "callCount_other": "{{count}} 件の呼び出し",
+        "chipSending": "送信中…",
+        "chipSubmitted": "送信済み",
+        "confirmDenyAll": "{{count}} 件すべての拒否を確定",
+        "expires": "期限: {{time}}",
+        "hideCalls": "呼び出しを隠す",
+        "historyApproved": "{{operation}} を承認済み",
+        "historyDenied": "{{operation}} を拒否済み",
+        "historyExpired": "{{operation}} の期限切れ",
+        "historyUserApproved": "{{user}} が {{operation}} を承認しました",
+        "historyUserDenied": "{{user}} が {{operation}} を拒否しました",
+        "historyUserExpired": "{{operation}} の期限切れ",
+        "historyYouApproved": "{{operation}} を承認しました",
+        "historyYouDenied": "{{operation}} を拒否しました",
+        "historyYouExpired": "{{operation}} の期限切れ",
+        "minutesShort_other": "{{count}} 分",
+        "sectionMeta": "{{agent}} · リクエスト元: {{requester}}",
+        "showCalls_other": "{{count}} 件の呼び出しを表示",
+        "waitingForApproval": "承認待ち",
+        "waitingForYou": "あなたの対応待ち",
+        "you": "あなた"
       },
       "pendingSendIndicator": {
         "messageSending": "メッセージを送信中",

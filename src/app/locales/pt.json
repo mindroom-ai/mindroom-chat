@@ -681,7 +681,11 @@
       "openLocation": "Abrir localização",
       "voiceMessage": "mensagem de voz",
       "audio": "áudio",
-      "unnamedFile": "Ficheiro sem nome"
+      "unnamedFile": "Ficheiro sem nome",
+      "file": "Arquivo",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "Documento PDF",
+      "textFile": "Arquivo de texto"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Esta mensagem foi eliminada",
@@ -699,7 +703,8 @@
       "openFile": "Abrir ficheiro",
       "loadFailed": "Não foi possível carregar o ficheiro!",
       "retryDownload": "Tentar transferir novamente ({{size}})",
-      "downloadSize": "Transferir ({{size}})"
+      "downloadSize": "Transferir ({{size}})",
+      "openValue1": "Abrir {{value1}}"
     },
     "imageContent": {
       "view": "Ver",
@@ -2475,7 +2480,9 @@
         "loadFailed": "Não foi possível carregar todos os argumentos.",
         "onlyATruncatedPreviewIsAvailable": "Só está disponível uma pré-visualização truncada.",
         "retry": "Tentar novamente",
-        "sensitiveValuesMayBeRedacted": "Os valores confidenciais podem estar ocultados."
+        "sensitiveValuesMayBeRedacted": "Os valores confidenciais podem estar ocultados.",
+        "hideArguments": "Ocultar argumentos",
+        "showAllArguments": "Mostrar todos os argumentos"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Este pedido não pode ser aprovado aqui.",
@@ -2606,7 +2613,10 @@
         "toolCallCount_one": "{{count}} chamada de ferramenta",
         "toolCallCount_other": "{{count}} chamadas de ferramenta",
         "characterCount_many": "{{formattedCount}} carateres",
-        "toolCallCount_many": "{{count}} chamadas de ferramenta"
+        "toolCallCount_many": "{{count}} chamadas de ferramenta",
+        "usedToolCount_one": "{{count}} ferramenta usada",
+        "usedToolCount_many": "{{count}} ferramentas usadas",
+        "usedToolCount_other": "{{count}} ferramentas usadas"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "A carregar a resposta completa..."
@@ -2735,7 +2745,39 @@
         "pausedForApproval_many": "{{count}} chamadas em pausa para aprovação",
         "activePermissionCount_many": "{{count}} permissões ativas",
         "toolApprovalCount_many": "{{count}} aprovações de ferramentas",
-        "approvedCount_many": "{{count}} aprovadas"
+        "approvedCount_many": "{{count}} aprovadas",
+        "agentWaitingForYou": "{{agent}} está esperando por você",
+        "agentsWaitingForYou_one": "{{count}} agente está esperando por você",
+        "agentsWaitingForYou_many": "{{count}} agentes estão esperando por você",
+        "agentsWaitingForYou_other": "{{count}} agentes estão esperando por você",
+        "autoApproveFor": "Aprovar automaticamente por",
+        "callCount_one": "{{count}} chamada",
+        "callCount_many": "{{count}} chamadas",
+        "callCount_other": "{{count}} chamadas",
+        "chipSending": "Enviando…",
+        "chipSubmitted": "Enviada",
+        "confirmDenyAll": "Confirmar negar todas as {{count}}",
+        "expires": "expira {{time}}",
+        "hideCalls": "Ocultar chamadas",
+        "historyApproved": "{{operation}} aprovado",
+        "historyDenied": "{{operation}} negado",
+        "historyExpired": "{{operation}} expirou",
+        "historyUserApproved": "{{user}} aprovou {{operation}}",
+        "historyUserDenied": "{{user}} negou {{operation}}",
+        "historyUserExpired": "{{operation}} expirou",
+        "historyYouApproved": "Você aprovou {{operation}}",
+        "historyYouDenied": "Você negou {{operation}}",
+        "historyYouExpired": "{{operation}} expirou",
+        "minutesShort_one": "{{count}} min",
+        "minutesShort_many": "{{count}} min",
+        "minutesShort_other": "{{count}} min",
+        "sectionMeta": "{{agent}} · solicitado por {{requester}}",
+        "showCalls_one": "Mostrar {{count}} chamada",
+        "showCalls_many": "Mostrar {{count}} chamadas",
+        "showCalls_other": "Mostrar {{count}} chamadas",
+        "waitingForApproval": "Aguardando aprovação",
+        "waitingForYou": "Aguardando você",
+        "you": "você"
       },
       "pendingSendIndicator": {
         "messageSending": "A enviar mensagem",

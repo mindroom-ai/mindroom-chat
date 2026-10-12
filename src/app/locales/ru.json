@@ -684,7 +684,11 @@
       "openLocation": "Открыть местоположение",
       "voiceMessage": "голосовое сообщение",
       "audio": "аудио",
-      "unnamedFile": "Файл без названия"
+      "unnamedFile": "Файл без названия",
+      "file": "Файл",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF-документ",
+      "textFile": "Текстовый файл"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Это сообщение удалено",
@@ -702,7 +706,8 @@
       "openFile": "Открыть файл",
       "loadFailed": "Не удалось загрузить файл!",
       "retryDownload": "Повторить скачивание ({{size}})",
-      "downloadSize": "Скачать ({{size}})"
+      "downloadSize": "Скачать ({{size}})",
+      "openValue1": "Открыть {{value1}}"
     },
     "imageContent": {
       "view": "Просмотреть",
@@ -2504,7 +2509,9 @@
         "onlyATruncatedPreviewIsAvailable": "Доступен только сокращённый предпросмотр.",
         "retry": "Повторить",
         "sensitiveValuesMayBeRedacted": "Конфиденциальные значения могут быть скрыты.",
-        "loadFailed": "Не удалось загрузить аргументы целиком."
+        "loadFailed": "Не удалось загрузить аргументы целиком.",
+        "hideArguments": "Скрыть аргументы",
+        "showAllArguments": "Показать все аргументы"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Этот запрос нельзя одобрить здесь.",
@@ -2640,7 +2647,11 @@
         "characterCount_few": "{{formattedCount}} символа",
         "characterCount_many": "{{formattedCount}} символов",
         "toolCallCount_few": "{{count}} вызова инструмента",
-        "toolCallCount_many": "{{count}} вызовов инструмента"
+        "toolCallCount_many": "{{count}} вызовов инструмента",
+        "usedToolCount_one": "Использован {{count}} инструмент",
+        "usedToolCount_few": "Использовано {{count}} инструмента",
+        "usedToolCount_many": "Использовано {{count}} инструментов",
+        "usedToolCount_other": "Использовано {{count}} инструмента"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Загрузка полного ответа…"
@@ -2778,7 +2789,43 @@
         "pausedForApproval_few": "{{count}} вызова приостановлено для одобрения",
         "pausedForApproval_many": "{{count}} вызовов приостановлено для одобрения",
         "toolApprovalCount_few": "{{count}} одобрения инструмента",
-        "toolApprovalCount_many": "{{count}} одобрений инструмента"
+        "toolApprovalCount_many": "{{count}} одобрений инструмента",
+        "agentWaitingForYou": "{{agent}} ждёт вас",
+        "agentsWaitingForYou_one": "{{count}} агент ждёт вас",
+        "agentsWaitingForYou_few": "{{count}} агента ждут вас",
+        "agentsWaitingForYou_many": "{{count}} агентов ждут вас",
+        "agentsWaitingForYou_other": "{{count}} агента ждут вас",
+        "autoApproveFor": "Автоодобрение на",
+        "callCount_one": "{{count}} вызов",
+        "callCount_few": "{{count}} вызова",
+        "callCount_many": "{{count}} вызовов",
+        "callCount_other": "{{count}} вызова",
+        "chipSending": "Отправка…",
+        "chipSubmitted": "Отправлено",
+        "confirmDenyAll": "Подтвердить запрет всех {{count}}",
+        "expires": "истекает {{time}}",
+        "hideCalls": "Скрыть вызовы",
+        "historyApproved": "{{operation}}: одобрено",
+        "historyDenied": "{{operation}}: запрещено",
+        "historyExpired": "{{operation}}: срок истёк",
+        "historyUserApproved": "{{operation}} — одобрил(а) {{user}}",
+        "historyUserDenied": "{{operation}} — запретил(а) {{user}}",
+        "historyUserExpired": "{{operation}}: срок истёк",
+        "historyYouApproved": "Вы одобрили {{operation}}",
+        "historyYouDenied": "Вы запретили {{operation}}",
+        "historyYouExpired": "{{operation}}: срок истёк",
+        "minutesShort_one": "{{count}} мин",
+        "minutesShort_few": "{{count}} мин",
+        "minutesShort_many": "{{count}} мин",
+        "minutesShort_other": "{{count}} мин",
+        "sectionMeta": "{{agent}} · запрос от {{requester}}",
+        "showCalls_one": "Показать {{count}} вызов",
+        "showCalls_few": "Показать {{count}} вызова",
+        "showCalls_many": "Показать {{count}} вызовов",
+        "showCalls_other": "Показать {{count}} вызова",
+        "waitingForApproval": "Ожидает одобрения",
+        "waitingForYou": "Ждёт вас",
+        "you": "вас"
       },
       "pendingSendIndicator": {
         "messageSending": "Сообщение отправляется",

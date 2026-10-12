@@ -1170,7 +1170,9 @@
         "loadingCompleteArguments": "সম্পূর্ণ আর্গুমেন্ট লোড হচ্ছে…",
         "onlyATruncatedPreviewIsAvailable": "শুধুমাত্র একটি ছাঁটা পূর্বরূপ উপলব্ধ.",
         "retry": "আবার চেষ্টা করুন",
-        "sensitiveValuesMayBeRedacted": "সংবেদনশীল মান লুকানো থাকতে পারে।"
+        "sensitiveValuesMayBeRedacted": "সংবেদনশীল মান লুকানো থাকতে পারে।",
+        "hideArguments": "আর্গুমেন্ট লুকান",
+        "showAllArguments": "সব আর্গুমেন্ট দেখান"
       },
       "approvalDecisionControls": {
         "approve": "অনুমোদন করুন",
@@ -1300,7 +1302,9 @@
         "pastedText": "পাঠ্য আটকানো হয়েছে",
         "toolCallCount_one": "{{count}} টুল কল",
         "toolCallCount_other": "{{count}} টুল কল",
-        "toolNumber": "টুল #{{index}}: {{command}}"
+        "toolNumber": "টুল #{{index}}: {{command}}",
+        "usedToolCount_one": "{{count}}টি টুল ব্যবহার করা হয়েছে",
+        "usedToolCount_other": "{{count}}টি টুল ব্যবহার করা হয়েছে"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "সম্পূর্ণ প্রতিক্রিয়া লোড হচ্ছে..."
@@ -1429,7 +1433,35 @@
         "threadApprovals": "থ্রেড অনুমোদন",
         "toolApprovalCount_one": "{{count}} টুল অনুমোদন",
         "toolApprovalCount_other": "{{count}} টুল অনুমোদন",
-        "unknown": "অজানা"
+        "unknown": "অজানা",
+        "agentWaitingForYou": "{{agent}} আপনার জন্য অপেক্ষা করছে",
+        "agentsWaitingForYou_one": "{{count}}টি এজেন্ট আপনার জন্য অপেক্ষা করছে",
+        "agentsWaitingForYou_other": "{{count}}টি এজেন্ট আপনার জন্য অপেক্ষা করছে",
+        "autoApproveFor": "এত সময়ের জন্য স্বয়ংক্রিয় অনুমোদন",
+        "callCount_one": "{{count}}টি কল",
+        "callCount_other": "{{count}}টি কল",
+        "chipSending": "পাঠানো হচ্ছে…",
+        "chipSubmitted": "জমা দেওয়া হয়েছে",
+        "confirmDenyAll": "সব {{count}}টি প্রত্যাখ্যান নিশ্চিত করুন",
+        "expires": "মেয়াদ শেষ {{time}}",
+        "hideCalls": "কল লুকান",
+        "historyApproved": "{{operation}} অনুমোদিত",
+        "historyDenied": "{{operation}} প্রত্যাখ্যাত",
+        "historyExpired": "{{operation}}-এর মেয়াদ শেষ",
+        "historyUserApproved": "{{user}} {{operation}} অনুমোদন করেছেন",
+        "historyUserDenied": "{{user}} {{operation}} প্রত্যাখ্যান করেছেন",
+        "historyUserExpired": "{{operation}}-এর মেয়াদ শেষ",
+        "historyYouApproved": "আপনি {{operation}} অনুমোদন করেছেন",
+        "historyYouDenied": "আপনি {{operation}} প্রত্যাখ্যান করেছেন",
+        "historyYouExpired": "{{operation}}-এর মেয়াদ শেষ",
+        "minutesShort_one": "{{count}} মিনিট",
+        "minutesShort_other": "{{count}} মিনিট",
+        "sectionMeta": "{{agent}} · অনুরোধকারী {{requester}}",
+        "showCalls_one": "{{count}}টি কল দেখান",
+        "showCalls_other": "{{count}}টি কল দেখান",
+        "waitingForApproval": "অনুমোদনের অপেক্ষায়",
+        "waitingForYou": "আপনার অপেক্ষায়",
+        "you": "আপনি"
       }
     },
     "native": {
@@ -2195,7 +2227,8 @@
       "loadFailed": "ফাইল লোড করতে ব্যর্থ!",
       "openFile": "ফাইল খুলুন",
       "openPdf": "PDF খুলুন",
-      "retryDownload": "আবার ডাউনলোড করার চেষ্টা করুন ({{size}})"
+      "retryDownload": "আবার ডাউনলোড করার চেষ্টা করুন ({{size}})",
+      "openValue1": "{{value1}} খুলুন"
     },
     "fileHeader": {
       "downloadValue1": "{{value1}} ডাউনলোড করুন"
@@ -2392,7 +2425,11 @@
       "audio": "অডিও",
       "openLocation": "লোকেশন খুলুন",
       "unnamedFile": "নামহীন ফাইল",
-      "voiceMessage": "ভয়েস বার্তা"
+      "voiceMessage": "ভয়েস বার্তা",
+      "file": "ফাইল",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF নথি",
+      "textFile": "টেক্সট ফাইল"
     },
     "noStickerPacks": {
       "addStickersFromUserRoomOrSpaceSettings": "ব্যবহারকারী, রুম বা স্পেস সেটিংস থেকে স্টিকার যোগ করুন।",

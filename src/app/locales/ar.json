@@ -690,7 +690,11 @@
       "openLocation": "فتح الموقع",
       "voiceMessage": "رسالة صوتية",
       "audio": "صوت",
-      "unnamedFile": "ملف بلا اسم"
+      "unnamedFile": "ملف بلا اسم",
+      "file": "ملف",
+      "fileMeta": "⁨{{type}}⁩ · ⁨{{size}}⁩",
+      "pdfDocument": "مستند PDF",
+      "textFile": "ملف نصي"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "حُذفت هذه الرسالة",
@@ -708,7 +712,8 @@
       "openFile": "فتح الملف",
       "loadFailed": "تعذر تحميل الملف!",
       "retryDownload": "إعادة محاولة التنزيل (⁨{{size}}⁩)",
-      "downloadSize": "تنزيل (⁨{{size}}⁩)"
+      "downloadSize": "تنزيل (⁨{{size}}⁩)",
+      "openValue1": "فتح ⁨{{value1}}⁩"
     },
     "imageContent": {
       "view": "عرض",
@@ -2562,7 +2567,9 @@
         "onlyATruncatedPreviewIsAvailable": "لا تتوفر إلا معاينة مختصرة.",
         "retry": "إعادة المحاولة",
         "sensitiveValuesMayBeRedacted": "قد تُحجب القيم الحساسة.",
-        "loadFailed": "تعذر تحميل الوسيطات كاملةً."
+        "loadFailed": "تعذر تحميل الوسيطات كاملةً.",
+        "hideArguments": "إخفاء الوسائط",
+        "showAllArguments": "عرض كل الوسائط"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "لا يمكن الموافقة على هذا الطلب هنا.",
@@ -2708,7 +2715,13 @@
         "toolCallCount_few": "⁨{{count}}⁩ استدعاءات أداة",
         "toolCallCount_many": "⁨{{count}}⁩ استدعاءً أداة",
         "toolCallCount_two": "⁨{{count}}⁩ استدعاءان أداة",
-        "toolCallCount_zero": "⁨{{count}}⁩ استدعاءات أداة"
+        "toolCallCount_zero": "⁨{{count}}⁩ استدعاءات أداة",
+        "usedToolCount_zero": "تم استخدام ⁨{{count}}⁩ أداة",
+        "usedToolCount_one": "تم استخدام ⁨{{count}}⁩ أداة",
+        "usedToolCount_two": "تم استخدام ⁨{{count}}⁩ أداتين",
+        "usedToolCount_few": "تم استخدام ⁨{{count}}⁩ أدوات",
+        "usedToolCount_many": "تم استخدام ⁨{{count}}⁩ أداة",
+        "usedToolCount_other": "تم استخدام ⁨{{count}}⁩ أداة"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "جارٍ تحميل الرد الكامل..."
@@ -2864,7 +2877,51 @@
         "toolApprovalCount_few": "⁨{{count}}⁩ موافقات الأداة",
         "toolApprovalCount_many": "⁨{{count}}⁩ موافقات الأداة",
         "toolApprovalCount_two": "⁨{{count}}⁩ من موافقات الأدوات",
-        "toolApprovalCount_zero": "⁨{{count}}⁩ موافقات الأداة"
+        "toolApprovalCount_zero": "⁨{{count}}⁩ موافقات الأداة",
+        "agentWaitingForYou": "⁨{{agent}}⁩ في انتظارك",
+        "agentsWaitingForYou_zero": "⁨{{count}}⁩ وكيل في انتظارك",
+        "agentsWaitingForYou_one": "⁨{{count}}⁩ وكيل في انتظارك",
+        "agentsWaitingForYou_two": "⁨{{count}}⁩ وكيلان في انتظارك",
+        "agentsWaitingForYou_few": "⁨{{count}}⁩ وكلاء في انتظارك",
+        "agentsWaitingForYou_many": "⁨{{count}}⁩ وكيلًا في انتظارك",
+        "agentsWaitingForYou_other": "⁨{{count}}⁩ وكيل في انتظارك",
+        "autoApproveFor": "الموافقة التلقائية لمدة",
+        "callCount_zero": "⁨{{count}}⁩ استدعاء",
+        "callCount_one": "⁨{{count}}⁩ استدعاء",
+        "callCount_two": "⁨{{count}}⁩ استدعاءان",
+        "callCount_few": "⁨{{count}}⁩ استدعاءات",
+        "callCount_many": "⁨{{count}}⁩ استدعاءً",
+        "callCount_other": "⁨{{count}}⁩ استدعاء",
+        "chipSending": "جارٍ الإرسال…",
+        "chipSubmitted": "تم الإرسال",
+        "confirmDenyAll": "تأكيد رفض الكل (⁨{{count}}⁩)",
+        "expires": "تنتهي ⁨{{time}}⁩",
+        "hideCalls": "إخفاء الاستدعاءات",
+        "historyApproved": "تمت الموافقة على ⁨{{operation}}⁩",
+        "historyDenied": "تم رفض ⁨{{operation}}⁩",
+        "historyExpired": "انتهت صلاحية ⁨{{operation}}⁩",
+        "historyUserApproved": "وافق ⁨{{user}}⁩ على ⁨{{operation}}⁩",
+        "historyUserDenied": "رفض ⁨{{user}}⁩ ⁨{{operation}}⁩",
+        "historyUserExpired": "انتهت صلاحية ⁨{{operation}}⁩",
+        "historyYouApproved": "وافقت على ⁨{{operation}}⁩",
+        "historyYouDenied": "رفضت ⁨{{operation}}⁩",
+        "historyYouExpired": "انتهت صلاحية ⁨{{operation}}⁩",
+        "minutesShort_zero": "⁨{{count}}⁩ دقيقة",
+        "minutesShort_one": "⁨{{count}}⁩ دقيقة",
+        "minutesShort_two": "⁨{{count}}⁩ دقيقة",
+        "minutesShort_few": "⁨{{count}}⁩ دقائق",
+        "minutesShort_many": "⁨{{count}}⁩ دقيقة",
+        "minutesShort_other": "⁨{{count}}⁩ دقيقة",
+        "sectionMeta": "⁨{{agent}}⁩ · مقدّم الطلب: ⁨{{requester}}⁩",
+        "showCalls_zero": "عرض ⁨{{count}}⁩ استدعاء",
+        "showCalls_one": "عرض ⁨{{count}}⁩ استدعاء",
+        "showCalls_two": "عرض ⁨{{count}}⁩ استدعاءين",
+        "showCalls_few": "عرض ⁨{{count}}⁩ استدعاءات",
+        "showCalls_many": "عرض ⁨{{count}}⁩ استدعاءً",
+        "showCalls_other": "عرض ⁨{{count}}⁩ استدعاء",
+        "waitingForApproval": "في انتظار الموافقة",
+        "waitingForYou": "في انتظارك",
+        "you": "أنت"
       },
       "pendingSendIndicator": {
         "messageSending": "جارٍ إرسال الرسالة",

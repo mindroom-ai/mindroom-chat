@@ -678,7 +678,11 @@
       "openLocation": "위치 열기",
       "voiceMessage": "음성 메시지",
       "audio": "오디오",
-      "unnamedFile": "이름 없는 파일"
+      "unnamedFile": "이름 없는 파일",
+      "file": "파일",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF 문서",
+      "textFile": "텍스트 파일"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "삭제된 메시지입니다",
@@ -696,7 +700,8 @@
       "openFile": "파일 열기",
       "loadFailed": "파일을 불러오지 못했습니다!",
       "retryDownload": "다운로드 재시도 ({{size}})",
-      "downloadSize": "다운로드 ({{size}})"
+      "downloadSize": "다운로드 ({{size}})",
+      "openValue1": "{{value1}} 열기"
     },
     "imageContent": {
       "view": "보기",
@@ -2446,7 +2451,9 @@
         "onlyATruncatedPreviewIsAvailable": "잘린 미리보기만 사용할 수 있습니다.",
         "retry": "다시 시도",
         "sensitiveValuesMayBeRedacted": "민감한 값은 가려질 수 있습니다.",
-        "loadFailed": "전체 인수를 불러오지 못했습니다."
+        "loadFailed": "전체 인수를 불러오지 못했습니다.",
+        "hideArguments": "인수 숨기기",
+        "showAllArguments": "모든 인수 보기"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "여기에서는 이 요청을 승인할 수 없습니다.",
@@ -2572,7 +2579,8 @@
         },
         "toolNumber": "도구 #{{index}}: {{command}}",
         "toolCallCount_one": "도구 호출 {{count}}회",
-        "toolCallCount_other": "도구 호출 {{count}}회"
+        "toolCallCount_other": "도구 호출 {{count}}회",
+        "usedToolCount_other": "도구 {{count}}개 사용됨"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "전체 응답을 불러오는 중..."
@@ -2692,7 +2700,31 @@
         "toolApprovalCount_one": "도구 승인 {{count}}개",
         "toolApprovalCount_other": "도구 승인 {{count}}개",
         "approvedCount_one": "{{count}}개 승인됨",
-        "approvedCount_other": "{{count}}개 승인됨"
+        "approvedCount_other": "{{count}}개 승인됨",
+        "agentWaitingForYou": "{{agent}}이(가) 기다리고 있습니다",
+        "agentsWaitingForYou_other": "에이전트 {{count}}개가 기다리고 있습니다",
+        "autoApproveFor": "자동 승인 기간",
+        "callCount_other": "호출 {{count}}개",
+        "chipSending": "보내는 중…",
+        "chipSubmitted": "제출됨",
+        "confirmDenyAll": "{{count}}개 모두 거부 확인",
+        "expires": "{{time}} 만료",
+        "hideCalls": "호출 숨기기",
+        "historyApproved": "{{operation}} 승인됨",
+        "historyDenied": "{{operation}} 거부됨",
+        "historyExpired": "{{operation}} 만료됨",
+        "historyUserApproved": "{{user}}님이 {{operation}}을(를) 승인했습니다",
+        "historyUserDenied": "{{user}}님이 {{operation}}을(를) 거부했습니다",
+        "historyUserExpired": "{{operation}} 만료됨",
+        "historyYouApproved": "{{operation}}을(를) 승인했습니다",
+        "historyYouDenied": "{{operation}}을(를) 거부했습니다",
+        "historyYouExpired": "{{operation}} 만료됨",
+        "minutesShort_other": "{{count}}분",
+        "sectionMeta": "{{agent}} · 요청자: {{requester}}",
+        "showCalls_other": "호출 {{count}}개 보기",
+        "waitingForApproval": "승인 대기 중",
+        "waitingForYou": "내 응답 대기 중",
+        "you": "나"
       },
       "pendingSendIndicator": {
         "messageSending": "메시지 전송 중",

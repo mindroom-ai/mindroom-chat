@@ -678,7 +678,11 @@
       "openLocation": "Locatie openen",
       "voiceMessage": "spraakbericht",
       "audio": "audio",
-      "unnamedFile": "Naamloos bestand"
+      "unnamedFile": "Naamloos bestand",
+      "file": "Bestand",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF-document",
+      "textFile": "Tekstbestand"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Dit bericht is verwijderd",
@@ -696,7 +700,8 @@
       "openFile": "Bestand openen",
       "loadFailed": "Bestand kon niet worden geladen!",
       "retryDownload": "Download opnieuw proberen ({{size}})",
-      "downloadSize": "Downloaden ({{size}})"
+      "downloadSize": "Downloaden ({{size}})",
+      "openValue1": "{{value1}} openen"
     },
     "imageContent": {
       "view": "Bekijken",
@@ -2446,7 +2451,9 @@
         "loadFailed": "De volledige argumenten konden niet worden geladen.",
         "onlyATruncatedPreviewIsAvailable": "Alleen een ingekort voorbeeld is beschikbaar.",
         "retry": "Opnieuw proberen",
-        "sensitiveValuesMayBeRedacted": "Gevoelige waarden kunnen zijn geredigeerd."
+        "sensitiveValuesMayBeRedacted": "Gevoelige waarden kunnen zijn geredigeerd.",
+        "hideArguments": "Argumenten verbergen",
+        "showAllArguments": "Alle argumenten tonen"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Dit verzoek kan hier niet worden goedgekeurd.",
@@ -2572,7 +2579,9 @@
         },
         "toolNumber": "Gereedschap {{index}}: {{command}}",
         "toolCallCount_one": "{{count}} gereedschapsaanroep",
-        "toolCallCount_other": "{{count}} gereedschapsaanroepen"
+        "toolCallCount_other": "{{count}} gereedschapsaanroepen",
+        "usedToolCount_one": "{{count}} tool gebruikt",
+        "usedToolCount_other": "{{count}} tools gebruikt"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Volledig antwoord laden..."
@@ -2692,7 +2701,35 @@
         "toolApprovalCount_one": "{{count}} gereedschapsgoedkeuring",
         "toolApprovalCount_other": "{{count}} gereedschapsgoedkeuringen",
         "approvedCount_one": "{{count}} goedgekeurd",
-        "approvedCount_other": "{{count}} goedgekeurd"
+        "approvedCount_other": "{{count}} goedgekeurd",
+        "agentWaitingForYou": "{{agent}} wacht op je",
+        "agentsWaitingForYou_one": "{{count}} agent wacht op je",
+        "agentsWaitingForYou_other": "{{count}} agents wachten op je",
+        "autoApproveFor": "Automatisch goedkeuren voor",
+        "callCount_one": "{{count}} aanroep",
+        "callCount_other": "{{count}} aanroepen",
+        "chipSending": "Verzenden…",
+        "chipSubmitted": "Verzonden",
+        "confirmDenyAll": "Alle {{count}} weigeren bevestigen",
+        "expires": "verloopt {{time}}",
+        "hideCalls": "Aanroepen verbergen",
+        "historyApproved": "{{operation}} goedgekeurd",
+        "historyDenied": "{{operation}} geweigerd",
+        "historyExpired": "{{operation}} verlopen",
+        "historyUserApproved": "{{user}} heeft {{operation}} goedgekeurd",
+        "historyUserDenied": "{{user}} heeft {{operation}} geweigerd",
+        "historyUserExpired": "{{operation}} verlopen",
+        "historyYouApproved": "Je hebt {{operation}} goedgekeurd",
+        "historyYouDenied": "Je hebt {{operation}} geweigerd",
+        "historyYouExpired": "{{operation}} verlopen",
+        "minutesShort_one": "{{count}} min",
+        "minutesShort_other": "{{count}} min",
+        "sectionMeta": "{{agent}} · aangevraagd door {{requester}}",
+        "showCalls_one": "{{count}} aanroep tonen",
+        "showCalls_other": "{{count}} aanroepen tonen",
+        "waitingForApproval": "Wacht op goedkeuring",
+        "waitingForYou": "Wacht op jou",
+        "you": "jou"
       },
       "pendingSendIndicator": {
         "messageSending": "Bericht wordt verzonden",
