@@ -60,6 +60,9 @@ export const shouldTrackLiveCollapsibleMessage = ({
 }: ShouldTrackLiveCollapsibleMessage): boolean => {
   const mEventId = mEvent.getId();
   if (!mEventId || !isCollapsibleTextMessageEvent(mEvent)) return false;
+  // Expand-once keeps streamed replies readable as they arrive. The viewer wrote their own
+  // messages, so a long send or edit folds like history.
+  if (mEvent.getSender() === room.myUserId) return false;
 
   if (
     !isRenderableEvent(

@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Fold a long message the user just sent (2026-10-12)
+
+- Why: the owner asked for T3 Code's behavior, where a long pasted or typed message shows folded once it is sent.
+  T3 Code (`MessagesTimeline.tsx`) folds user messages over 600 characters or 8 lines to an 11rem preview with a bottom fade and "Show full message" / "Show less"; it never folds the agent's output.
+  This client already folds long messages the same way (an `11em` cap measured by height, a fade, the same labels), but in a thread a long message the user sent opened a moment after sending.
+- Root cause: the live expand-once policy (`getLiveCollapsibleMessageExpandId`), which keeps streamed replies readable while they arrive, also took the viewer's own messages.
+  In a thread, the local echo fires no `Room.timeline` (the main timeline rejects thread events); the server's echo fires it with `liveEvent: true` under the real `$` ID, which marked the row `initially-expanded` and opened it for good.
+  In the room view, the local echo fires `Room.timeline` live under its `~` transaction ID and was marked too, but rows are keyed by event ID, so the row remounts under its `$` ID and folds; a live room run passes without the fix.
+  The viewer's own live edits opened their message the same way.
+- Change: `shouldTrackLiveCollapsibleMessage` skips events from `room.myUserId`, so own sends and edits, including those from the user's other devices, keep the default mode: folded when they overflow, or open under "Expand long messages by default".
+  Live messages from agents and other people still open once; history is unchanged.
+- Tests: `RoomTimelineCollapsible.test.ts`: an own live message and an own live edit stay in `default` mode, and an own thread reply is not tracked (each fails without the fix); the existing expand-once cases now use an agent sender, since the fixture's viewer sent them.
+  New live spec `e2e/live/own-long-message-folds.spec.ts`, for the room and a thread: a live 24-line agent message opens, and a 24-line message typed in the composer is folded and clipped once a later agent message has synced (sync is ordered, so the sent message's echo was processed), then opens on click.
+  On a disposable tuwunel stack the thread case fails without the fix ("Show full message" is gone) and both cases passed 2 of 2 runs with it; repeated logins on one account hit the login rate limit, so each run used its own account.
+  `perf-thread-streaming.spec.ts` now streams its replies and edits from an agent account: from the viewer's account its streamed row would now stay folded, unlike an agent's; a 40-reply, 10-edit run passes.
+- Independent review (subagent): confirmed the single call site covers room, thread, and edits, that the SDK local echo's sender equals `room.myUserId`, and that MindRoom agents never send as the viewer. Fixed: the spec's `$` ID wait was not a barrier for the thread view's sync echo (now a later agent message), the root cause was described only for the thread view, the perf probe streamed as the viewer, the code comment assumed the composer, and redundant checks and test names.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings) and Prettier pass.
+  `npm test`: 6,655 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases, which fail the same way on a clean `HEAD`.
+- Next: messages from other people in shared rooms still open when they arrive live; folding every non-agent message would need reliable agent detection, so it is left out.
+
 ### Record the shared UI design rules (2026-10-12)
 
 - `docs/ui-design.md` collects the current surface roles, flat scrolling headers, directional rims, composer/footer behavior, shared primitives, accessibility, and browser-validation expectations.

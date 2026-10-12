@@ -836,6 +836,9 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
 });
 
 const ROOM_ID = '!room:example.org';
+// `makeRoom`'s viewer is the default `makeEvent` sender, so live tests that expect
+// expand-once use another sender.
+const AGENT_USER_ID = '@mindroom_general:example.org';
 const mountedRenderers = new Set<ReactTestRenderer>();
 
 const createTrackedRenderer = (element: React.ReactElement) => {
@@ -960,6 +963,7 @@ const makeRoom = ({
   return {
     __listeners: listeners,
     roomId: ROOM_ID,
+    myUserId: '@alice:example.org',
     client: {
       getUserId: () => '@alice:example.org',
     },
@@ -1410,6 +1414,7 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Live message',
         msgtype: 'm.text',
       },
+      sender: AGENT_USER_ID,
     });
     const liveEvents = [historicalEvent];
     const room = makeRoom({ liveEvents });
@@ -1442,6 +1447,81 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapseModeForEvent(renderer, '$live')).toBe('default');
   });
 
+  it("keeps the viewer's own live message in default mode", async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const ownLiveEvent = makeEvent('$own-live', {
+      content: {
+        body: 'Own live message',
+        msgtype: 'm.text',
+      },
+    });
+    const liveEvents = [makeEvent('$historical')];
+    const room = makeRoom({ liveEvents });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    liveEvents.push(ownLiveEvent);
+    await emitLiveTimelineEvent(room, ownLiveEvent);
+
+    expect(findCollapseModeForEvent(renderer, '$own-live')).toBe('default');
+  });
+
+  it("keeps the viewer's own message in default mode when its live edit arrives", async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const liveEvents = [
+      makeEvent('$own-target', {
+        content: {
+          body: 'Original message',
+          msgtype: 'm.text',
+        },
+        editedContent: {
+          body: 'Edited message',
+          msgtype: 'm.text',
+        },
+      }),
+    ];
+    const room = makeRoom({ liveEvents });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    const ownEdit = makeEvent('$own-replace', {
+      content: {
+        body: 'Edited message',
+        msgtype: 'm.text',
+        'm.new_content': {
+          body: 'Edited message',
+          msgtype: 'm.text',
+        },
+      },
+      relation: {
+        event_id: '$own-target',
+        rel_type: RELATION_REPLACE,
+      },
+    });
+    liveEvents.push(ownEdit);
+    await emitLiveTimelineEvent(room, ownEdit);
+
+    expect(findCollapseModeForEvent(renderer, '$own-target')).toBe('default');
+  });
+
   it('marks live edit targets for initially-expanded mode and consumes the flag after rerender', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const targetEvent = makeEvent('$target', {
@@ -1453,6 +1533,7 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Expanded message after streaming edit',
         msgtype: 'm.text',
       },
+      sender: AGENT_USER_ID,
     });
     const liveEvents = [targetEvent];
     const room = makeRoom({ liveEvents });
@@ -1482,6 +1563,7 @@ describe('RoomTimeline collapsible wiring', () => {
           event_id: '$target',
           rel_type: RELATION_REPLACE,
         },
+        sender: AGENT_USER_ID,
       })
     );
     await emitLiveTimelineEvent(room, liveEvents[liveEvents.length - 1]);
@@ -1623,6 +1705,14 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Live thread reply',
         msgtype: 'm.text',
       },
+      sender: AGENT_USER_ID,
+      threadRootId: '$thread-root',
+    });
+    const ownThreadReply = makeEvent('$own-thread-reply', {
+      content: {
+        body: 'Own thread reply',
+        msgtype: 'm.text',
+      },
       threadRootId: '$thread-root',
     });
     const room = makeRoom({
@@ -1630,20 +1720,23 @@ describe('RoomTimeline collapsible wiring', () => {
       threadRootEvent,
     });
     const liveExpandOnceIds = new Set<string>();
+    const trackOptions = {
+      room: room as never,
+      threadId: '$thread-root',
+      threadFilterState: createDefaultThreadFilterState(),
+      threadResolutionMap: threadResolutionMapMock,
+      ignoredUsersSet: new Set<string>(),
+      showHiddenEvents: false,
+      hideMembershipEvents: false,
+      hideNickAvatarEvents: false,
+    };
 
     expect(
-      shouldTrackLiveCollapsibleMessage({
-        mEvent: liveThreadReply as never,
-        room: room as never,
-        threadId: '$thread-root',
-        threadFilterState: createDefaultThreadFilterState(),
-        threadResolutionMap: threadResolutionMapMock,
-        ignoredUsersSet: new Set(),
-        showHiddenEvents: false,
-        hideMembershipEvents: false,
-        hideNickAvatarEvents: false,
-      })
+      shouldTrackLiveCollapsibleMessage({ ...trackOptions, mEvent: liveThreadReply as never })
     ).toBe(true);
+    expect(
+      shouldTrackLiveCollapsibleMessage({ ...trackOptions, mEvent: ownThreadReply as never })
+    ).toBe(false);
 
     liveExpandOnceIds.add(liveThreadReply.getId());
 
