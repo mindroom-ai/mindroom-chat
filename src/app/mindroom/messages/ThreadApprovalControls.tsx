@@ -27,24 +27,13 @@ import { getApprovalCapabilities, getApprovalGrantState } from './approvalAction
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { ApprovalReceipt } from './ApprovalReceipt';
 import { describeApprovalHistory, describeWaitingApprovals } from './approvalLabels';
-import { getMxIdLocalPart } from '../../utils/matrix';
+import {
+  agentDisplayName,
+  useApprovalRoom,
+  userDisplayName,
+} from './approvalPeople';
+import { ApprovalDurations, ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
-
-type MemberRoom = { getMember: (userId: string) => { name?: string } | null } & {
-  getJoinedMembers: () => { userId: string; name?: string }[];
-};
-
-// MindRoom names agent accounts mindroom_<agent>, optionally followed by a namespace.
-const agentDisplayName = (room: MemberRoom | null | undefined, agentName: string): string => {
-  const prefix = `mindroom_${agentName.toLowerCase()}`;
-  const member = room
-    ?.getJoinedMembers()
-    .find((item) => (getMxIdLocalPart(item.userId) ?? '').toLowerCase().startsWith(prefix));
-  return member?.name || agentName;
-};
-
-const userDisplayName = (room: MemberRoom | null | undefined, userId: string): string =>
-  room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId;
 
 function ApprovalDialog({
   title,
@@ -106,23 +95,47 @@ function ApprovalDialog({
   );
 }
 
-export function ApprovalGroup({ children }: { children: React.ReactNode }) {
-  const glassRef = useGlassHighlight<HTMLElement>();
+export function ApprovalGroup({
+  children,
+  flat = false,
+}: {
+  children: React.ReactNode;
+  flat?: boolean;
+}) {
+  const glassRef = useGlassHighlight<HTMLElement>(undefined, !flat);
   return (
-    <section ref={glassRef} className={css.Group}>
+    <section ref={glassRef} className={flat ? css.Section : css.Group}>
       {children}
     </section>
   );
 }
 
-export function ApprovalReviewGroup({ records }: { records: readonly ThreadApprovalRecord[] }) {
+export function ApprovalReviewGroup({
+  records,
+  flat = false,
+}: {
+  records: readonly ThreadApprovalRecord[];
+  flat?: boolean;
+}) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
   const user = useMatrixClient().getUserId();
+  const room = useApprovalRoom();
   const [reason, setReason] = useState('');
   const reasonId = useId();
-  if (!context || records.length === 0) return null;
-  const { approval } = records[0];
+  const callsId = useId();
+  const records0 = records[0];
+  const availableCount = context
+    ? records.filter(
+        (record) =>
+          getApprovalCapabilities(record, user, context.actions.get(record.eventId), context.now)
+            .deny && record.approval.approvable
+      ).length
+    : 0;
+  // Bulk approval stands in for the calls; without it, each call needs its own controls.
+  const [showCalls, setShowCalls] = useState(availableCount <= 1);
+  if (!context || !records0) return null;
+  const { approval } = records0;
   const available = records.filter(
     (record) =>
       getApprovalCapabilities(record, user, context.actions.get(record.eventId), context.now).deny
@@ -141,41 +154,77 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
           )
         )
       : [];
+  const states = records.map((record) => context.actions.get(record.eventId)?.status);
+  const chip = states.every((status) => status === 'submitted')
+    ? { label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'), tone: 'done' as const }
+    : states.some((status) => status === 'sending')
+    ? { label: t('mindroomUi.messages.threadApprovalControls.chipSending'), tone: 'neutral' as const }
+    : available.length > 0
+    ? {
+        label: t('mindroomUi.messages.threadApprovalControls.waitingForYou'),
+        tone: 'attention' as const,
+      }
+    : {
+        label: t('mindroomUi.messages.threadApprovalControls.waitingForApproval'),
+        tone: 'neutral' as const,
+      };
+  const single = records.length === 1;
+  const calls = records.map((record, index) => (
+    <ApprovalReviewCall
+      key={record.eventId}
+      record={record}
+      index={index}
+      single={single}
+      offersDurations={timed.length > 0}
+      userId={user}
+      action={context.actions.get(record.eventId)}
+      now={context.now}
+      submit={context.submit}
+    />
+  ));
   return (
-    <ApprovalGroup>
-      <b>
-        {t('mindroomUi.messages.threadApprovalControls.operationCallCount', {
-          operation: getToolApprovalOperationLabel(approval),
-          count: records.length,
-        })}
-      </b>
-      <small>
-        {t('mindroomUi.messages.threadApprovalControls.requestedBy', {
-          agent: approval.agentName,
-          requester:
-            approval.requesterId ?? t('mindroomUi.messages.threadApprovalControls.unknown'),
-        })}
-      </small>
-      {records.map((record, index) => (
-        <ApprovalReviewCall
-          key={record.eventId}
-          record={record}
-          index={index}
-          userId={user}
-          action={context.actions.get(record.eventId)}
-          now={context.now}
-          submit={context.submit}
-        />
-      ))}
+    <ApprovalGroup flat={flat}>
+      <ApprovalSectionHeader
+        operation={getToolApprovalOperationLabel(approval)}
+        count={records.length}
+        chip={chip}
+      />
+      <ApprovalMeta approval={approval} room={room} viewerId={user} />
+      {single ? (
+        calls
+      ) : (
+        <>
+          <Button
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            radii="300"
+            className={css.CallsToggle}
+            aria-expanded={showCalls}
+            aria-controls={callsId}
+            onClick={() => setShowCalls((value) => !value)}
+            before={<Icon size="50" src={showCalls ? Icons.ChevronTop : Icons.ChevronBottom} />}
+          >
+            <Text size="B300">
+              {showCalls
+                ? t('mindroomUi.messages.threadApprovalControls.hideCalls')
+                : t('mindroomUi.messages.threadApprovalControls.showCalls', {
+                    count: records.length,
+                  })}
+            </Text>
+          </Button>
+          {showCalls && <div id={callsId}>{calls}</div>}
+        </>
+      )}
       {available.length > 1 && (
         <>
           <div className={css.Actions}>
             {approvable.length > 1 && (
               <Button
                 size="300"
-                variant="Success"
-                fill="Soft"
-                outlined
+                variant="Primary"
+                fill="Solid"
                 onClick={() => {
                   approvable.forEach((record) => {
                     void context.submit(record, { status: 'approved' });
@@ -191,8 +240,8 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
             )}
             <Button
               size="300"
-              variant="Critical"
-              fill="Soft"
+              variant="Secondary"
+              fill="None"
               outlined
               onClick={() => {
                 available.forEach((record) => {
@@ -220,37 +269,19 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
           </div>
         </>
       )}
-      {timed.length > 0 && (
-        <>
-          <small>
-            {t(
-              'mindroomUi.messages.threadApprovalControls.allowThisOperationForThisThreadRequesterAndAgentArguments'
-            )}
-          </small>
-          <div className={css.Actions}>
-            {timed.map((duration) => (
-              <Button
-                key={duration}
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                outlined
-                disabled={approvable.length === 0}
-                onClick={() => {
-                  if (approvable[0])
-                    void context.submit(approvable[0], { status: 'approved', duration });
-                }}
-              >
-                <Text size="B300">
-                  {t('mindroomUi.messages.threadApprovalControls.allowForMinutes', {
-                    count: duration / 60,
-                  })}
-                </Text>
-              </Button>
-            ))}
-          </div>
-        </>
-      )}
+      <ApprovalDurations
+        durations={timed}
+        disabled={approvable.length === 0}
+        onPick={(duration) => {
+          if (approvable[0]) void context.submit(approvable[0], { status: 'approved', duration });
+        }}
+        accessibleLabel={(duration) =>
+          t('mindroomUi.messages.threadApprovalControls.allowForMinutes', { count: duration / 60 })
+        }
+        explanation={t(
+          'mindroomUi.messages.threadApprovalControls.allowThisOperationForThisThreadRequesterAndAgentArguments'
+        )}
+      />
       {records.some(
         (record) =>
           context.actions.get(record.eventId)?.status === 'submitted' &&
@@ -269,6 +300,7 @@ export function ThreadApprovalQueue() {
   const context = useThreadApprovals();
   const mx = useMatrixClient();
   const user = mx.getUserId();
+  const room = useApprovalRoom();
   const [selection, setSelection] = useState<string[][]>();
   const trigger = useRef<HTMLButtonElement>(null);
   const noticed = useRef(new Set<string>());
@@ -310,7 +342,6 @@ export function ThreadApprovalQueue() {
           groups.map((group) => group.filter((record) => actionableIds.includes(record.eventId)))
         )
       : undefined;
-  const room = mx.getRoom?.(context.roomId) as MemberRoom | null | undefined;
   const waitingText = waiting
     ? waiting.agents.length === 1
       ? t('mindroomUi.messages.threadApprovalControls.agentWaitingForYou', {
@@ -402,7 +433,7 @@ export function ThreadApprovalQueue() {
               .flat()
               .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
           ).map((records) => (
-            <ApprovalReviewGroup key={records[0].eventId} records={records} />
+            <ApprovalReviewGroup key={records[0].eventId} records={records} flat />
           ))}
           {selection
             .flat()
@@ -496,7 +527,7 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   const glassRef = useGlassHighlight<HTMLDetailsElement>();
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const context = useThreadApprovals();
+  const room = useApprovalRoom();
   const [open, setOpen] = useState(false);
   if (records.length === 0) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
@@ -505,7 +536,6 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
     summary.kind === 'single' && isHistoryStatus(summary.status)
       ? { ...summary, status: summary.status }
       : undefined;
-  const room = mx.getRoom?.(context?.roomId ?? '') as MemberRoom | null | undefined;
   let singleLabel: string | undefined;
   if (single?.actor === 'you') {
     singleLabel = t(HISTORY_LABEL_KEYS.you[single.status], { operation: single.operation });

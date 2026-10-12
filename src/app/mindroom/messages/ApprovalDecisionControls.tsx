@@ -6,6 +6,7 @@ import {
   getApprovalCapabilities,
   isApprovalPending,
 } from './approvalActions';
+import { ApprovalDurations } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
 
 export function ApprovalDecisionControls({
@@ -16,8 +17,9 @@ export function ApprovalDecisionControls({
   now,
   canSend = true,
   showDurations = false,
+  offersDurations = false,
   index,
-}: ApprovalControlProps & { showDurations?: boolean; index?: number }) {
+}: ApprovalControlProps & { showDurations?: boolean; offersDurations?: boolean; index?: number }) {
   const { t } = useTranslation();
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState('');
@@ -61,9 +63,8 @@ export function ApprovalDecisionControls({
             {eligibility.approve && (
               <Button
                 size="300"
-                variant="Success"
-                fill="Soft"
-                outlined
+                variant="Primary"
+                fill="Solid"
                 disabled={disabled}
                 onClick={() => {
                   if (!canSend) return;
@@ -78,7 +79,7 @@ export function ApprovalDecisionControls({
                 <Text size="B300">
                   {scheduledScopes.length > 0
                     ? t('mindroomUi.messages.approvalDecisionControls.approveExactCall')
-                    : durations.length > 0
+                    : durations.length > 0 || offersDurations
                     ? t('mindroomUi.messages.approvalDecisionControls.approveOnce')
                     : t('mindroomUi.messages.approvalDecisionControls.approve')}
                 </Text>
@@ -87,8 +88,8 @@ export function ApprovalDecisionControls({
             <Button
               ref={denyTrigger}
               size="300"
-              variant="Critical"
-              fill="Soft"
+              variant="Secondary"
+              fill="None"
               outlined
               disabled={disabled}
               onClick={() => {
@@ -129,39 +130,23 @@ export function ApprovalDecisionControls({
               </Text>
             </div>
           )}
-          {durations.length > 0 && (
-            <div
-              className={css.Actions}
-              role="group"
-              aria-label={t('mindroomUi.messages.approvalDecisionControls.autoApprovalDuration')}
-            >
-              {durations.map((duration) => (
-                <Button
-                  key={duration}
-                  type="button"
-                  size="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  outlined
-                  disabled={disabled}
-                  onClick={() => {
-                    if (canSend) void submit(record, { status: 'approved', duration });
-                  }}
-                >
-                  <Text size="B300">
-                    {t('mindroomUi.messages.approvalDecisionControls.autoApproveMinutes', {
-                      count: duration / 60,
-                    })}
-                  </Text>
-                </Button>
-              ))}
-            </div>
-          )}
+          <ApprovalDurations
+            durations={durations}
+            disabled={disabled}
+            onPick={(duration) => {
+              if (canSend) void submit(record, { status: 'approved', duration });
+            }}
+            accessibleLabel={(duration) =>
+              t('mindroomUi.messages.approvalDecisionControls.autoApproveMinutes', {
+                count: duration / 60,
+              })
+            }
+          />
         </>
       )}
       {eligibility.deny && !submitted && denying && (
         <form
-          className={css.Stack}
+          className={css.DenyRow}
           onSubmit={(event) => {
             event.preventDefault();
             if (canSend) void submit(record, { status: 'denied', reason });

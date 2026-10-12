@@ -21,6 +21,23 @@ vi.mock('./ThreadApprovals.css', () => ({
   ReceiptTool: 'ReceiptTool',
   Actions: 'Actions',
   Stack: 'Stack',
+  Section: 'Section',
+  SectionHeader: 'SectionHeader',
+  SectionIcon: 'SectionIcon',
+  SectionTitle: 'SectionTitle',
+  SectionCount: 'SectionCount',
+  SectionMeta: 'SectionMeta',
+  StatusChip: 'StatusChip',
+  StatusChipAttention: 'StatusChipAttention',
+  StatusChipDone: 'StatusChipDone',
+  Durations: 'Durations',
+  DurationRow: 'DurationRow',
+  Segmented: 'Segmented',
+  Segment: 'Segment',
+  SingleCall: 'SingleCall',
+  CallsToggle: 'CallsToggle',
+  DenyRow: 'DenyRow',
+  BarDetail: 'BarDetail',
 }));
 let threadApprovals: ThreadApprovals | undefined;
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => threadApprovals }));
@@ -163,10 +180,11 @@ const getNodeText = (value: ReactTestInstance | string): string => {
   return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
 };
 
+// Matches a button by its visible text or its accessible name, as a screen reader would.
 const findButtonByText = (root: ReactTestInstance, label: string): ReactTestInstance =>
   root.findAllByType('button').find((node) => {
     const text = getNodeText(node);
-    return text.includes(label);
+    return text.includes(label) || node.props['aria-label'] === label;
   }) as ReactTestInstance;
 
 const getReactNodeText = (node: React.ReactNode): string => {
@@ -281,7 +299,7 @@ describe('MindroomToolApprovalCard', () => {
     });
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Pending approval');
+    expect(text).toContain('Waiting for');
     expect(findButtonByText(renderer.root, 'Approve')).toBeDefined();
     expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
 
@@ -300,7 +318,7 @@ describe('MindroomToolApprovalCard', () => {
       });
     });
 
-    expect(getNodeText(renderer.root)).toContain('Pending approval');
+    expect(getNodeText(renderer.root)).toContain('Waiting for');
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -514,7 +532,7 @@ describe('MindroomToolApprovalCard', () => {
         expiresAt,
       });
 
-      expect(getNodeText(renderer.root)).toContain('Pending approval');
+      expect(getNodeText(renderer.root)).toContain('Waiting for');
       expect(findButtonByText(renderer.root, 'Approve')).toBeDefined();
       expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
 
@@ -527,7 +545,7 @@ describe('MindroomToolApprovalCard', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('web_search');
-    expect(text).toContain('Pending approval');
+    expect(text).toContain('Waiting for');
     expect(text).toContain('Show all arguments');
     expect(text).toContain('release date');
     expect(text).toContain('Approve');
@@ -570,7 +588,7 @@ describe('MindroomToolApprovalCard', () => {
     const renderer = renderCard(timedPendingApproval);
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Requested by @alice:example.org');
+    expect(text).toContain('requested by you');
     expect(text).toContain('this thread, requester, agent, and tool');
     expect(text).toContain('Arguments may differ');
     expect(findButtonByText(renderer.root, 'Approve once')).toBeDefined();
@@ -996,7 +1014,7 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(getNodeText(renderer.root)).toContain('Pending approval');
+    expect(getNodeText(renderer.root)).toContain('Waiting for');
     expect(findButtonByText(renderer.root, 'Approve')).toBeDefined();
 
     renderer.unmount();

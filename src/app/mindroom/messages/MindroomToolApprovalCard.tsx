@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, Icons, Text } from 'folds';
+import { Box, Text } from 'folds';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import {
   getEffectiveToolApprovalStatus,
+  getToolApprovalOperationLabel,
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   parseToolApprovalExpiryTimestamp,
   ToolApprovalData,
@@ -26,6 +27,8 @@ import { ThreadApprovalRecord } from './threadApprovalModel';
 import { ApprovalDecisionControls } from './ApprovalDecisionControls';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
+import { ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
+import { useApprovalRoom } from './approvalPeople';
 
 type MindroomToolApprovalCardProps = {
   approval: ToolApprovalData;
@@ -81,6 +84,7 @@ function StandaloneToolApprovalCard({
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const mx = useMatrixClient();
+  const room = useApprovalRoom(roomId);
   const requestedTs = getTimestamp(approval.requestedAt);
   const expiresTs = parseToolApprovalExpiryTimestamp(approval.expiresAt);
   const requestedRelative = useRelativeTime(requestedTs);
@@ -168,39 +172,32 @@ function StandaloneToolApprovalCard({
       gap="200"
       aria-label={t('mindroomUi.messages.mindroomToolApprovalCard.toolApprovalRequest')}
     >
-      <Box className={css.Header}>
-        <Text size="T300" className={css.ToolName}>
-          {approval.toolName}
+      <ApprovalSectionHeader
+        operation={getToolApprovalOperationLabel(approval)}
+        count={1}
+        chip={
+          submitted
+            ? {
+                label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'),
+                tone: 'done',
+              }
+            : getApprovalCapabilities(record, currentUserId, action, now).deny
+            ? {
+                label: t('mindroomUi.messages.threadApprovalControls.waitingForYou'),
+                tone: 'attention',
+              }
+            : {
+                label: t('mindroomUi.messages.threadApprovalControls.waitingForApproval'),
+                tone: 'neutral',
+              }
+        }
+      />
+      <ApprovalMeta approval={approval} room={room} viewerId={currentUserId} />
+      {requestedRelative && (
+        <Text size="T200" className={css.MetaDot}>
+          {requestedRelative}
         </Text>
-        <Box as="span" className={css.StatusLabel}>
-          <Icon size="50" src={submitted ? Icons.Check : Icons.Code} />
-          <Text size="T200">
-            {submitted
-              ? t('mindroomUi.messages.mindroomToolApprovalCard.submitted')
-              : t('mindroomUi.messages.mindroomToolApprovalCard.pendingApproval')}
-          </Text>
-        </Box>
-      </Box>
-
-      <Box className={css.Meta}>
-        <Text size="T200">{approval.agentName}</Text>
-        {approval.requesterId && <Text className={css.MetaDot}>•</Text>}
-        {approval.requesterId && (
-          <Text size="T200">
-            {t('mindroomUi.messages.mindroomToolApprovalCard.requestedBy', {
-              requester: approval.requesterId,
-            })}
-          </Text>
-        )}
-        {requestedRelative && <Text className={css.MetaDot}>•</Text>}
-        {requestedRelative && <Text size="T200">{requestedRelative}</Text>}
-        {!requestedRelative && approval.requestedAt && (
-          <>
-            <Text className={css.MetaDot}>•</Text>
-            <Text size="T200">{approval.requestedAt}</Text>
-          </>
-        )}
-      </Box>
+      )}
 
       {canUseTimedApproval && (
         <Box className={css.Scope} direction="Column" gap="100">

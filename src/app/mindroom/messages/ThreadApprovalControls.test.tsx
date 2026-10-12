@@ -58,6 +58,22 @@ vi.mock('./ThreadApprovals.css', () => ({
   Actions: 'Actions',
   Call: 'Call',
   CallHeader: 'CallHeader',
+  Section: 'Section',
+  SectionHeader: 'SectionHeader',
+  SectionIcon: 'SectionIcon',
+  SectionTitle: 'SectionTitle',
+  SectionCount: 'SectionCount',
+  SectionMeta: 'SectionMeta',
+  StatusChip: 'StatusChip',
+  StatusChipAttention: 'StatusChipAttention',
+  StatusChipDone: 'StatusChipDone',
+  Durations: 'Durations',
+  DurationRow: 'DurationRow',
+  Segmented: 'Segmented',
+  Segment: 'Segment',
+  SingleCall: 'SingleCall',
+  CallsToggle: 'CallsToggle',
+  DenyRow: 'DenyRow',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
   const { default: FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
@@ -197,6 +213,10 @@ it.each([
     };
     try {
       await act(async () => root.render(<ApprovalReviewGroup records={records} />));
+      const toggle = [...container.querySelectorAll('button')].find(
+        (button) => button.getAttribute('aria-expanded') === 'false'
+      );
+      if (toggle) await act(async () => toggle.click());
       const labels = [...container.querySelectorAll('button')].map((button) => button.textContent);
       expect(labels.filter((label) => label === 'Approve')).toHaveLength(
         calls - submitted - unapprovable
@@ -290,6 +310,78 @@ it('names the person who decided a single historical approval', async () => {
   );
   try {
     expect(container.querySelector('summary')?.textContent).toContain('You approved search');
+  } finally {
+    cleanup();
+  }
+});
+
+const reviewContext = (records: ReturnType<typeof approvalRecord>[], submit = vi.fn()) => {
+  current = {
+    roomId: '!room:example.org',
+    threadId: '$thread',
+    records,
+    now: Date.now(),
+    pendingEventIds: new Set(records.map((record) => record.eventId)),
+    loading: false,
+    refresh: () => undefined,
+    ingestTimeline: () => undefined,
+    actions: new Map(),
+    submit,
+  };
+  return submit;
+};
+const buttonsIn = (container: HTMLElement) => [...container.querySelectorAll('button')];
+
+it('presents one pending call with its status, people, and decisions', async () => {
+  const records = [
+    approvalRecord(0, {
+      tool_name: 'send_email',
+      requester_id: '@alice:example.org',
+      thread_id: '$thread',
+      auto_approve_options: [300, 600, 1800],
+      approval_scope: {
+        id: 'scope-1',
+        entity_name: 'assistant',
+        invoking_agent: 'assistant',
+        operation: { tool_name: 'send_email' },
+      },
+    }),
+  ];
+  const submit = reviewContext(records);
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  try {
+    expect(container.textContent).toContain('send_email');
+    expect(container.textContent).toContain('Waiting for you');
+    expect(container.textContent).toContain('assistant · requested by you');
+    const fiveMinutes = buttonsIn(container).find(
+      (button) => button.getAttribute('aria-label') === 'Allow for 5 minutes'
+    );
+    expect(fiveMinutes?.textContent).toBe('5 min');
+    await act(async () => fiveMinutes?.click());
+    expect(submit).toHaveBeenLastCalledWith(records[0], { status: 'approved', duration: 300 });
+    await act(async () =>
+      buttonsIn(container)
+        .find((button) => button.textContent === 'Approve once')
+        ?.click()
+    );
+    expect(submit).toHaveBeenLastCalledWith(records[0], { status: 'approved' });
+  } finally {
+    cleanup();
+  }
+});
+
+it('folds the calls of a group behind a toggle while bulk approval is offered', async () => {
+  const records = [approvalRecord(0), approvalRecord(1)];
+  reviewContext(records);
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  try {
+    const labels = () => buttonsIn(container).map((button) => button.textContent);
+    expect(labels().filter((label) => label === 'Approve')).toHaveLength(0);
+    expect(labels()).toContain('Approve all 2 once');
+    const toggle = buttonsIn(container).find((button) => button.textContent?.startsWith('Show 2 calls'));
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => toggle?.click());
+    expect(labels().filter((label) => label === 'Approve')).toHaveLength(2);
   } finally {
     cleanup();
   }

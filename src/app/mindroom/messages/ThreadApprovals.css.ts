@@ -145,3 +145,98 @@ export {
   Meta as ReceiptMeta,
   Chevron as ReceiptChevron,
 } from './MessageDisclosure.css';
+
+// A group inside the glass review dialog: the dialog owns the glass, sections are divided.
+export const Section = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  minWidth: 0,
+  padding: `${config.space.S300} 0`,
+  overflowWrap: 'anywhere',
+  selectors: {
+    '& + &': { borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}` },
+    '&:first-child': { paddingTop: 0 },
+  },
+});
+export const SectionHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+export const SectionIcon = style({
+  width: 26,
+  height: 26,
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+});
+export const SectionTitle = style({
+  minWidth: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 13.5,
+  fontWeight: config.fontWeight.W600,
+  overflowWrap: 'anywhere',
+});
+export const SectionCount = style({ opacity: config.opacity.P400, whiteSpace: 'nowrap' });
+export const SectionMeta = style({ opacity: config.opacity.P400 });
+export const StatusChip = style({
+  marginInlineStart: 'auto',
+  flexShrink: 0,
+  padding: '2px 10px',
+  borderRadius: config.radii.Pill,
+  fontSize: 12,
+  fontWeight: config.fontWeight.W600,
+  whiteSpace: 'nowrap',
+  backgroundColor: color.SurfaceVariant.ContainerActive,
+  color: color.SurfaceVariant.OnContainer,
+});
+export const StatusChipAttention = style({
+  backgroundColor: color.Warning.Container,
+  color: color.Warning.OnContainer,
+});
+export const StatusChipDone = style({
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+});
+export const Durations = style({ display: 'flex', flexDirection: 'column', gap: 6 });
+export const DurationRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: config.space.S200,
+});
+export const Segmented = style({
+  display: 'inline-flex',
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  overflow: 'hidden',
+});
+export const Segment = style({
+  border: 0,
+  padding: '5px 11px',
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  fontSize: 13,
+  fontWeight: config.fontWeight.W600,
+  cursor: 'pointer',
+  selectors: {
+    '& + &': { borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}` },
+    '&:hover:not(:disabled)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
+    '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },
+  },
+});
+export const SingleCall = style({ display: 'flex', flexDirection: 'column', gap: 10 });
+export const CallsToggle = style({ alignSelf: 'flex-start' });
+export const DenyRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: config.space.S200,
+});

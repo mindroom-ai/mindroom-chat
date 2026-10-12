@@ -17,6 +17,23 @@ vi.mock('./ThreadApprovals.css', () => ({
   Call: 'Call',
   Actions: 'Actions',
   Stack: 'Stack',
+  Section: 'Section',
+  SectionHeader: 'SectionHeader',
+  SectionIcon: 'SectionIcon',
+  SectionTitle: 'SectionTitle',
+  SectionCount: 'SectionCount',
+  SectionMeta: 'SectionMeta',
+  StatusChip: 'StatusChip',
+  StatusChipAttention: 'StatusChipAttention',
+  StatusChipDone: 'StatusChipDone',
+  Durations: 'Durations',
+  DurationRow: 'DurationRow',
+  Segmented: 'Segmented',
+  Segment: 'Segment',
+  SingleCall: 'SingleCall',
+  CallsToggle: 'CallsToggle',
+  DenyRow: 'DenyRow',
+  BarDetail: 'BarDetail',
 }));
 vi.mock('folds', () => ({
   Button: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
