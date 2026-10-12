@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Record the shared UI design rules (2026-10-12)
+
+- `docs/ui-design.md` collects the current surface roles, flat scrolling headers, directional rims, composer/footer behavior, shared primitives, accessibility, and browser-validation expectations.
+  `AGENTS.md` points UI work to it; the Runbook remains the implementation history.
+- Documentation only; no component, style, dependency, or runtime behavior changes.
+
 ### Evict whole unused rooms when media cannot bring the cache under budget (2026-10-09)
 
 - Why: an iPhone diagnostics export showed cache eviction running at every app start and again before each suspension, which only happens over the 1 GiB budget, and no gap-fill or history page in 11 hours. Since #298, eviction deleted optional media only ("text, essential bodies and pinned rooms survive pressure"), while the budget counts text and essential bodies too. Once those alone exceeded it, `canSavePage` refused every room's gap pages, history pages and downloads for good, and nothing but a manual Clear could lower the total. The owner chose to evict text from rooms nobody is using rather than exempt the focused room's gap. This restores the room eviction the original D9 design had (#298 replaced it).
