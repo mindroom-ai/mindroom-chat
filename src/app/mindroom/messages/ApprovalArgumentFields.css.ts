@@ -30,7 +30,7 @@ export const Value = style({
 
 export const Clamped = style({
   display: '-webkit-box',
-  WebkitLineClamp: 2,
+  WebkitLineClamp: 1,
   WebkitBoxOrient: 'vertical',
   overflow: 'hidden',
 });

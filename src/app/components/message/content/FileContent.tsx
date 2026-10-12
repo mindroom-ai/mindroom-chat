@@ -155,7 +155,7 @@ export function ReadTextFile({
       {iconOnly ? (
         <FileIconButton
           label={t('sharedUi.fileContent.openValue1', { value1: body })}
-          icon={Icons.Eye}
+          icon={Icons.External}
           onClick={() =>
             textState.status === AsyncStatus.Success ? setTextViewer(true) : loadText()
           }
@@ -277,7 +277,7 @@ export function ReadPdfFile({
       {iconOnly ? (
         <FileIconButton
           label={t('sharedUi.fileContent.openValue1', { value1: body })}
-          icon={Icons.Eye}
+          icon={Icons.External}
           onClick={() => (pdfState.status === AsyncStatus.Success ? setPdfViewer(true) : loadPdf())}
           loading={pdfState.status === AsyncStatus.Loading}
           failedLabel={

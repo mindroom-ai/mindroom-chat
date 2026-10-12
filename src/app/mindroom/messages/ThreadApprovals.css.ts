@@ -18,6 +18,7 @@ export const Bar = style([
     flexShrink: 0,
   },
 ]);
+export const BarTitle = style({ fontWeight: config.fontWeight.W600 });
 export const BarDetail = style({
   minWidth: 0,
   // Shrink the tool list before the waiting text wraps.
@@ -31,8 +32,9 @@ export const BarDetail = style({
 export const BarStatus = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
+  gap: 10,
   minWidth: 0,
+  fontSize: '0.875rem',
 });
 export const ReviewButton = style({
   position: 'relative',
@@ -85,15 +87,8 @@ export const ReceiptTool = style([
 export const ReceiptBody = style([disclosure.Body, { fontSize: 13, overflowWrap: 'anywhere' }]);
 globalStyle(`${ReceiptBody} p`, { margin: '0 0 6px' });
 export const Stack = style({ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 });
-export const HistoryBody = style([
-  Stack,
-  {
-    gap: 0,
-    padding: '0 6px',
-    borderTop: `1px solid ${color.Surface.ContainerLine}`,
-  },
-]);
-// The enclosing history owns the glass; its rows remain flat and unfiltered.
+export const HistoryBody = style([Stack, { gap: 0, padding: '0 4px' }]);
+// The activity panel owns the surface; receipts inside it stay flat and unfiltered.
 globalStyle(`${HistoryBody} > ${Receipt}${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
@@ -112,6 +107,7 @@ globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
 export const DialogScroll = style({
   maxHeight: 'min(80dvh, calc(100dvh - 24px))',
 });
+export const DialogHeading = style({ minWidth: 0, lineHeight: 1.25 });
 export const DialogBody = style({
   padding: config.space.S400,
   display: 'flex',
@@ -165,12 +161,12 @@ export const Section = style({
 export const SectionHeader = style({
   display: 'flex',
   alignItems: 'center',
-  gap: config.space.S200,
+  gap: 10,
   minWidth: 0,
 });
 export const SectionIcon = style({
-  width: 26,
-  height: 26,
+  width: 28,
+  height: 28,
   flexShrink: 0,
   display: 'grid',
   placeItems: 'center',
@@ -180,10 +176,25 @@ export const SectionIcon = style({
 });
 export const SectionTitle = style({
   minWidth: 0,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 13.5,
+  fontSize: '0.9375rem',
   fontWeight: config.fontWeight.W600,
   overflowWrap: 'anywhere',
+});
+export const SectionTool = style({
+  minWidth: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.75rem',
+  opacity: config.opacity.P400,
+  overflowWrap: 'anywhere',
+});
+// Details line up with the title, past the icon tile; phones use the full width.
+export const SectionBody = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  minWidth: 0,
+  paddingInlineStart: 38,
+  '@media': { '(max-width: 599px)': { paddingInlineStart: 0 } },
 });
 export const SectionCount = style({ opacity: config.opacity.P400, whiteSpace: 'nowrap' });
 export const SectionMeta = style({ opacity: config.opacity.P400 });
@@ -207,11 +218,13 @@ export const StatusChipDone = style({
   color: color.Success.OnContainer,
 });
 export const Durations = style({ display: 'flex', flexDirection: 'column', gap: 6 });
+export const DurationInfo = style({ opacity: config.opacity.P400 });
 export const DurationRow = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: config.space.S200,
+  color: color.Surface.OnContainer,
 });
 export const Segmented = style({
   display: 'inline-flex',

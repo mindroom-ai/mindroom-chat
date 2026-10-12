@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeApprovalChip,
+  describeReviewHeader,
+  toolTitle,
   describeApprovalHistory,
   describeWaitingApprovals,
 } from './approvalLabels';
@@ -145,5 +147,47 @@ describe('describeApprovalChip', () => {
     expect(
       chip([record({ status: 'approved' }, '$a'), record({ status: 'denied' }, '$b')])
     ).toEqual({ label: 'resolved', tone: 'done' });
+  });
+});
+
+describe('toolTitle', () => {
+  it('reads a tool name as words', () => {
+    expect(toolTitle('send_email')).toBe('Send email');
+    expect(toolTitle('run-shell-command')).toBe('Run shell command');
+    expect(toolTitle('github / create_issue')).toBe('Create issue');
+  });
+});
+
+describe('describeReviewHeader', () => {
+  it('names the one agent, the call count, the requester, and the earliest expiry', () => {
+    expect(
+      describeReviewHeader(
+        [
+          record({ requesterId: '@me:example.org', expiresAt: '2026-10-13T12:00:00Z' }, '$a'),
+          record({ requesterId: '@me:example.org', expiresAt: '2026-10-13T09:00:00Z' }, '$b'),
+        ],
+        '@me:example.org'
+      )
+    ).toEqual({
+      agents: ['research'],
+      count: 2,
+      requester: 'you',
+      expiresAt: '2026-10-13T09:00:00Z',
+    });
+  });
+
+  it('leaves out the requester when calls came from different people', () => {
+    expect(
+      describeReviewHeader(
+        [
+          record({ requesterId: '@me:example.org', expiresAt: null }, '$a'),
+          record(
+            { requesterId: '@grace:example.org', agentName: 'planner', expiresAt: null },
+            '$b'
+          ),
+        ],
+        '@me:example.org'
+      )
+    ).toEqual({ agents: ['research', 'planner'], count: 2, requester: null, expiresAt: null });
   });
 });

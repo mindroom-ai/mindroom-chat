@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
-import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
+import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import {
   MINDROOM_TOOL_REF_ICON,
   MindroomToolRefParseResult,
@@ -26,6 +26,8 @@ import {
   isMindroomToolTraceV2,
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
+import * as activityCss from './ThreadActivity.css';
+import { ActivityIcon, ActivityResult, ThreadActivity } from './ThreadActivity';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
 import { toToolArgumentFields } from './approvalArgumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
@@ -53,14 +55,6 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
     icon: Icons.Explore,
   },
 };
-
-function ToolStatusBadge({ pending }: { pending: boolean }) {
-  return pending ? (
-    <Spinner size="100" variant="Secondary" />
-  ) : (
-    <Icon size="50" src={Icons.Check} />
-  );
-}
 
 function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
   const { t } = useTranslation();
@@ -97,16 +91,10 @@ function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
 function MindroomCollapsibleBlock({
   icon,
   label,
-  subtitle,
-  pending,
-  inlineResult,
   children,
 }: {
   icon: IconSrc;
   label: string;
-  subtitle?: string;
-  pending?: boolean;
-  inlineResult?: string;
   children?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -122,21 +110,9 @@ function MindroomCollapsibleBlock({
       >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
-          {pending !== undefined && <ToolStatusBadge pending={pending} />}
-          <Text size="L400" truncate className={css.BlockLabel}>
+          <Text size="L400" truncate>
             {label}
           </Text>
-          {subtitle && (
-            <Text size="T200" truncate>
-              {subtitle}
-            </Text>
-          )}
-          {inlineResult && (
-            <Text size="T200" truncate className={css.BlockInlineResult}>
-              {'-> '}
-              {inlineResult}
-            </Text>
-          )}
         </Box>
         <Icon
           size="50"
@@ -265,26 +241,20 @@ const buildToolRefRenderData = (
 };
 
 function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBlockRenderData }) {
+  const pending = parsedTool.status === 'pending';
   return (
-    <Box className={css.ToolGroupItem} data-tool-index={parsedTool.index}>
-      <Box className={css.ToolRowHeader} alignItems="Center">
-        <ToolStatusBadge pending={parsedTool.status === 'pending'} />
-        <Text as="span" size="T200" className={css.ToolRowIndex}>
-          {`[${parsedTool.index}]`}
-        </Text>
-        <Text as="span" size="T300" className={css.ToolRowName}>
-          {parsedTool.toolName}
-        </Text>
-      </Box>
-      {parsedTool.argsPreview && (
-        <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
-      )}
-      {parsedTool.result && (
-        <Text as="pre" size="T200" className={css.BlockResult}>
-          {parsedTool.result}
-        </Text>
-      )}
-    </Box>
+    <div className={activityCss.Row} data-tool-index={parsedTool.index}>
+      <ActivityIcon src={Icons.Check} tone={pending ? 'neutral' : 'success'} pending={pending} />
+      <div className={activityCss.RowBody}>
+        <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+        {parsedTool.argsPreview && (
+          <div className={activityCss.RowText}>
+            <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
+          </div>
+        )}
+        {parsedTool.result && <ActivityResult text={parsedTool.result} />}
+      </div>
+    </div>
   );
 }
 
@@ -294,9 +264,6 @@ function MindroomToolRefGroupBlock({
   parsedTools: MindroomToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
-  const label = t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
-    count: parsedTools.length,
-  });
   const toolNames = [...new Set(parsedTools.map((tool) => tool.toolName))].join(', ');
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
@@ -304,34 +271,39 @@ function MindroomToolRefGroupBlock({
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;
-  const pending =
-    parsedTools.length === 1 && !metadataStatus ? parsedTools[0].status === 'pending' : undefined;
 
   return (
-    <MindroomCollapsibleBlock
-      icon={Icons.Terminal}
-      label={label}
-      subtitle={toolNames}
-      pending={pending}
+    <ThreadActivity
+      icon={
+        <ActivityIcon
+          src={Icons.Terminal}
+          pending={parsedTools.some((tool) => tool.status === 'pending')}
+        />
+      }
+      title={t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
+        count: parsedTools.length,
+      })}
+      detail={toolNames}
     >
-      <Box className={css.ToolGroupList}>
-        {loadedTools.map((parsedTool) => (
-          <MindroomToolRefGroupItem
-            key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-            parsedTool={parsedTool}
-          />
-        ))}
-        {metadataStatus && (
-          <Text size="T200" role="status">
+      {loadedTools.map((parsedTool) => (
+        <MindroomToolRefGroupItem
+          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+          parsedTool={parsedTool}
+        />
+      ))}
+      {metadataStatus && (
+        <div className={activityCss.Row}>
+          <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
+          <Text size="T200" role="status" className={activityCss.RowText}>
             {t(
               metadataStatus === 'loading'
                 ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
                 : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
             )}
           </Text>
-        )}
-      </Box>
-    </MindroomCollapsibleBlock>
+        </div>
+      )}
+    </ThreadActivity>
   );
 }
 

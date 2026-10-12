@@ -94,6 +94,45 @@ export const pickPreviewFields = (fields: ArgumentField[], limit: number): Argum
     .map(({ field }) => field);
 };
 
+const valueText = (value: ArgumentValue): string =>
+  value.kind === 'nested'
+    ? value.fields.map((field) => `${field.key}: ${valueText(field.value)}`).join(', ')
+    : value.text;
+
+/**
+ * One set of fields for several calls of the same tool: values they share show once,
+ * values that differ are joined, so a group reads like the mockup's "#a · #b".
+ */
+export const mergeArgumentFields = (values: unknown): ArgumentFields => {
+  const parsed = (Array.isArray(values) ? values : [values]).map(toArgumentFields);
+  const [first] = parsed;
+  if (!first) return { raw: '' };
+  const labeled = parsed.filter((item): item is { fields: ArgumentField[] } => 'fields' in item);
+  if (parsed.length === 1 || labeled.length !== parsed.length) return first;
+  return {
+    fields: labeled[0].fields.map(({ key, value }) => {
+      const texts = labeled.map((item) => {
+        const match = item.fields.find((field) => field.key === key);
+        return match ? valueText(match.value) : '';
+      });
+      const distinct = [...new Set(texts)];
+      return distinct.length === 1
+        ? { key, value }
+        : { key, value: { kind: 'text', text: distinct.filter(Boolean).join(' · ') } };
+    }),
+  };
+};
+
+/** The most telling argument as "key value" on one line, for a summary next to a decision. */
+export const summarizeArguments = (value: unknown): string | undefined => {
+  const parsed = toArgumentFields(value);
+  if (!('fields' in parsed)) return undefined;
+  const [field] = pickPreviewFields(parsed.fields, 1);
+  if (!field) return undefined;
+  const text = field.value.kind === 'nested' ? '{…}' : field.value.text;
+  return `${field.key} ${text.replace(/\s+/g, ' ').trim()}`;
+};
+
 // MindRoom writes tool-call previews as `key=value, key=value`; values are text or compact JSON.
 const TOOL_ARGUMENT_KEY = /(?:^|, )([A-Za-z_][\w.-]*)=/g;
 

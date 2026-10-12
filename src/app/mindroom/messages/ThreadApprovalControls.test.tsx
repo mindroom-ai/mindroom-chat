@@ -29,6 +29,18 @@ vi.mock('../../components/page', () => ({
     </div>
   ),
 }));
+vi.mock('./ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
+}));
+vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => current }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
@@ -74,6 +86,11 @@ vi.mock('./ThreadApprovals.css', () => ({
   SingleCall: 'SingleCall',
   CallsToggle: 'CallsToggle',
   DenyRow: 'DenyRow',
+  SectionBody: 'SectionBody',
+  SectionTool: 'SectionTool',
+  BarTitle: 'BarTitle',
+  DialogHeading: 'DialogHeading',
+  DurationInfo: 'DurationInfo',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
   const { default: FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
@@ -314,7 +331,10 @@ it('names the person who decided a single historical approval', async () => {
     />
   );
   try {
-    expect(container.querySelector('summary')?.textContent).toContain('You approved search');
+    const line = container.querySelector('button[aria-expanded]')?.textContent;
+    expect(line).toContain('You approved search');
+    // The most telling argument follows the decision, as in "path docs/changelog.md".
+    expect(line).toContain('index 0');
   } finally {
     cleanup();
   }

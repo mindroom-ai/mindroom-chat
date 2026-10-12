@@ -495,6 +495,17 @@ const collectStructuralTableWhitespace = (
   return current.concat(nested);
 };
 
+// Text of the expanded tool row for the marker's index ([1], [2], ...).
+type TextNode = { children: (TextNode | string)[] } | string;
+const nodeText = (node: TextNode): string =>
+  typeof node === 'string' ? node : node.children.map(nodeText).join('');
+const toolRowText = (renderer: ReturnType<typeof renderTreeWithToolTrace>, index: number) =>
+  nodeText(
+    renderer.root.find(
+      (node) => typeof node.type === 'string' && node.props['data-tool-index'] === index
+    )
+  );
+
 describe('withMindroomToolTraceMarkerParserOptions', () => {
   it.each(['', '\n  '])(
     'preserves custom rendering after tool groups separated by %j',
@@ -621,7 +632,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('[1]run_shell_command');
+    expect(toolRowText(renderer, 1)).toContain('run_shell_command');
     expect(renderer.root.findAll((node) => node.props.src === 'Check')).not.toHaveLength(0);
     expect(expanded).not.toContain('🔧');
   });
@@ -655,13 +666,15 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('[1]first_tool');
+    expect(toolRowText(renderer, 1)).toContain('first_tool');
     expect(expanded).toContain('FIRST');
-    expect(expanded).toContain('[2]second_tool');
-    expect(expanded).toContain('[3]third_tool');
-    expect(expanded.match(/\[1\]first_tool/g)).toHaveLength(1);
-    expect(expanded.match(/\[2\]second_tool/g)).toHaveLength(1);
-    expect(expanded.match(/\[3\]third_tool/g)).toHaveLength(1);
+    expect(toolRowText(renderer, 2)).toContain('second_tool');
+    expect(toolRowText(renderer, 3)).toContain('third_tool');
+    expect(
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
+      )
+    ).toHaveLength(3);
     expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
   });
@@ -803,7 +816,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('[1]search_web');
+    expect(toolRowText(renderer, 1)).toContain('search_web');
     expect(expanded).toContain('Found it');
   });
 
@@ -818,7 +831,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     const header = renderer.root.findByType('button');
     const headerSpans = header.findAllByType('span');
     const spinnerSpan = headerSpans.find(
-      (s) => s.props.size === '100' && s.props.variant === 'Secondary'
+      (s) => s.props.size === '50' && s.props.variant === 'Secondary'
     );
     expect(spinnerSpan).toBeDefined();
 
@@ -832,12 +845,12 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     const completedHeader = completedRenderer.root.findByType('button');
     const completedSpans = completedHeader.findAllByType('span');
     const completedSpinnerSpan = completedSpans.find(
-      (s) => s.props.size === '100' && s.props.variant === 'Secondary'
+      (s) => s.props.size === '50' && s.props.variant === 'Secondary'
     );
     expect(completedSpinnerSpan).toBeUndefined();
 
-    const checkIcon = completedSpans.find((s) => s.props.src === 'Check' && s.props.size === '50');
-    expect(checkIcon).toBeDefined();
+    const toolIcon = completedSpans.find((s) => s.props.src === 'Terminal');
+    expect(toolIcon).toBeDefined();
   });
 
   it('shows single-line inline result inside expanded body for copyability', () => {
@@ -852,15 +865,18 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
 
-    expect(() => renderer.root.findByType('pre')).toThrow();
+    expect(collectTextContent(renderer.toJSON())).not.toContain('Single-line output');
 
     const toggle = renderer.root.findByType('button');
     act(() => {
       toggle.props.onClick();
     });
 
-    const resultBody = renderer.root.findByType('pre');
-    expect(resultBody.children.join('')).toContain('Single-line output');
+    // The result shows on one line and opens to its full text when selected.
+    const result = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-expanded'] === false
+    );
+    expect(result.children.join('')).toContain('Single-line output');
   });
 });
 

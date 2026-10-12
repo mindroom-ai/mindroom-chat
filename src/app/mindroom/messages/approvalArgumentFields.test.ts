@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mergeArgumentFields,
   pickPreviewFields,
+  summarizeArguments,
   toArgumentFields,
   toToolArgumentFields,
 } from './approvalArgumentFields';
@@ -151,5 +153,44 @@ describe('pickPreviewFields', () => {
       'to',
       'body',
     ]);
+  });
+});
+
+describe('summarizeArguments', () => {
+  it('names the most telling argument on one line', () => {
+    expect(summarizeArguments({ encoding: '', path: 'docs/changelog.md' })).toBe(
+      'path docs/changelog.md'
+    );
+    expect(summarizeArguments({ body: 'Hi\n\nGrace', to: 'grace@example.org' })).toBe(
+      'body Hi Grace'
+    );
+  });
+
+  it('returns nothing when there are no labeled arguments', () => {
+    expect(summarizeArguments('not json')).toBeUndefined();
+    expect(summarizeArguments({})).toBeUndefined();
+  });
+});
+
+describe('mergeArgumentFields', () => {
+  it('shows shared values once and joins values that differ between calls', () => {
+    expect(
+      mergeArgumentFields([
+        { room: '#launch-war-room', text: 'Release notes are out' },
+        { room: '#research', text: 'Release notes are out' },
+      ])
+    ).toEqual({
+      fields: [
+        { key: 'room', value: { kind: 'text', text: '#launch-war-room · #research' } },
+        { key: 'text', value: { kind: 'text', text: 'Release notes are out' } },
+      ],
+    });
+  });
+
+  it('keeps the first call when the calls are not all labeled objects', () => {
+    expect(mergeArgumentFields(['raw', { room: '#a' }])).toEqual({ raw: 'raw' });
+    expect(mergeArgumentFields([{ room: '#a' }])).toEqual({
+      fields: [{ key: 'room', value: { kind: 'text', text: '#a' } }],
+    });
   });
 });

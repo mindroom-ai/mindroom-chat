@@ -29,6 +29,7 @@ import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import { ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
 import { describeApprovalChip } from './approvalLabels';
+import * as sectionCss from './ThreadApprovals.css';
 import { useApprovalRoom } from './approvalPeople';
 
 type MindroomToolApprovalCardProps = {
@@ -182,29 +183,31 @@ function StandaloneToolApprovalCard({
           getApprovalCapabilities(record, currentUserId, action, now).deny
         )}
       />
-      <ApprovalMeta approval={approval} room={room} viewerId={currentUserId} />
-      {requestedRelative && (
-        <Text size="T200" className={css.MetaDot}>
-          {requestedRelative}
-        </Text>
-      )}
-
-      {canUseTimedApproval && (
-        <Box className={css.Scope} direction="Column" gap="100">
-          <Text size="T200">
-            {t(
-              'mindroomUi.messages.mindroomToolApprovalCard.autoApprovalAppliesToThisThreadRequesterAgentAndTool'
-            )}
+      <div className={sectionCss.SectionBody}>
+        <ApprovalMeta approval={approval} room={room} viewerId={currentUserId} />
+        {requestedRelative && (
+          <Text size="T200" className={css.MetaDot}>
+            {requestedRelative}
           </Text>
-          <Text size="T200">
-            {t('mindroomUi.messages.mindroomToolApprovalCard.argumentsMayDifferBetweenCalls')}
-          </Text>
-        </Box>
-      )}
+        )}
 
-      <ApprovalSchedule approval={approval} />
-      <ApprovalArguments approval={approval} />
-      <ApprovalDecisionControls {...controls} showDurations />
+        {canUseTimedApproval && (
+          <Box className={css.Scope} direction="Column" gap="100">
+            <Text size="T200">
+              {t(
+                'mindroomUi.messages.mindroomToolApprovalCard.autoApprovalAppliesToThisThreadRequesterAgentAndTool'
+              )}
+            </Text>
+            <Text size="T200">
+              {t('mindroomUi.messages.mindroomToolApprovalCard.argumentsMayDifferBetweenCalls')}
+            </Text>
+          </Box>
+        )}
+
+        <ApprovalSchedule approval={approval} />
+        <ApprovalArguments approval={approval} />
+        <ApprovalDecisionControls {...controls} showDurations />
+      </div>
     </Box>
   );
 }

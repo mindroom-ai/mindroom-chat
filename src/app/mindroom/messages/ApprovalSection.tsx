@@ -1,11 +1,21 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import classNames from 'classnames';
-import { Icon, Icons, Text } from 'folds';
+import { Avatar, Icon, IconButton, Icons, IconSrc, Text, Tooltip, TooltipProvider } from 'folds';
 import { ToolApprovalData, ToolApprovalDuration } from './toolApproval';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
-import { agentDisplayName, ApprovalMemberRoom, userDisplayName } from './approvalPeople';
+import {
+  agentDisplayName,
+  agentMember,
+  ApprovalMemberRoom,
+  userDisplayName,
+} from './approvalPeople';
+import { UserAvatar } from '../../components/user-avatar';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { mxcUrlToHttp } from '../../utils/mediaUrl';
+import { toolTitle } from './approvalLabels';
 import type { ApprovalChipLabel, describeApprovalChip } from './approvalLabels';
 import * as css from './ThreadApprovals.css';
 
@@ -19,6 +29,47 @@ const CHIP_LABEL_KEYS = {
   expired: 'mindroomUi.messages.approvalReviewCall.status.expired',
   resolved: 'mindroomUi.messages.threadApprovalControls.chipResolved',
 } as const satisfies Record<ApprovalChipLabel, string>;
+
+// A recognizable glyph for common tools; anything else reads as a command.
+const toolIcon = (operation: string): IconSrc => {
+  const name = operation.toLowerCase();
+  if (/mail/.test(name)) return Icons.Mail;
+  if (/message|chat|post_to|notify/.test(name)) return Icons.Message;
+  if (/webhook|http|url|fetch|request/.test(name)) return Icons.Link;
+  if (/schedule|calendar|event/.test(name)) return Icons.Clock;
+  if (/search|query|lookup/.test(name)) return Icons.Search;
+  if (/file|write|read|edit|upload|download/.test(name)) return Icons.File;
+  return Icons.Terminal;
+};
+
+/** The agent's room avatar, falling back to its colored initial tile. */
+export function ApprovalAgentAvatar({
+  room,
+  agentName,
+  size = '200',
+}: {
+  room: ApprovalMemberRoom | null | undefined;
+  agentName: string;
+  size?: '200' | '300';
+}) {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const member = agentMember(room, agentName);
+  const mxc = member?.getMxcAvatarUrl?.();
+  const name = member?.name || agentName;
+  return (
+    <Avatar size={size} radii="400" aria-hidden>
+      <UserAvatar
+        userId={member?.userId ?? agentName}
+        src={
+          mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, 64, 64, 'crop') ?? undefined : undefined
+        }
+        alt={name}
+        renderFallback={() => <Icon size="100" src={Icons.User} filled />}
+      />
+    </Avatar>
+  );
+}
 
 /** Operation, call count, and status for one approval section. */
 export function ApprovalSectionHeader({
@@ -34,9 +85,10 @@ export function ApprovalSectionHeader({
   return (
     <div className={css.SectionHeader}>
       <span className={css.SectionIcon} aria-hidden>
-        <Icon size="50" src={Icons.Terminal} />
+        <Icon size="100" src={toolIcon(operation)} />
       </span>
-      <span className={css.SectionTitle}>{operation}</span>
+      <span className={css.SectionTitle}>{toolTitle(operation)}</span>
+      <span className={css.SectionTool}>{operation}</span>
       {count > 1 && (
         <Text as="span" size="T200" className={css.SectionCount}>
           {t('mindroomUi.messages.threadApprovalControls.callCount', { count })}
@@ -132,12 +184,31 @@ export function ApprovalDurations({
             </button>
           ))}
         </div>
+        {explanation && (
+          <TooltipProvider
+            tooltip={
+              <Tooltip style={{ maxWidth: '18rem' }}>
+                <Text size="T200">{explanation}</Text>
+              </Tooltip>
+            }
+            position="Top"
+            align="Center"
+          >
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                size="300"
+                radii="300"
+                variant="Surface"
+                aria-label={explanation}
+                className={css.DurationInfo}
+              >
+                <Icon size="50" src={Icons.Info} />
+              </IconButton>
+            )}
+          </TooltipProvider>
+        )}
       </div>
-      {explanation && (
-        <Text size="T200" className={css.SectionMeta}>
-          {explanation}
-        </Text>
-      )}
     </div>
   );
 }

@@ -21,7 +21,12 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { glassOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
-import { getToolApprovalOperationLabel } from './toolApproval';
+import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from './toolApproval';
+import { mergeArgumentFields, summarizeArguments } from './approvalArgumentFields';
+import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
+import { ApprovalArgumentFields } from './ApprovalArgumentFields';
+import { ActivityIcon, ThreadActivity } from './ThreadActivity';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { getApprovalCapabilities, getApprovalGrantState } from './approvalActions';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
@@ -29,19 +34,29 @@ import { ApprovalReceipt } from './ApprovalReceipt';
 import {
   describeApprovalChip,
   describeApprovalHistory,
+  describeReviewHeader,
   describeWaitingApprovals,
 } from './approvalLabels';
 import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
-import { ApprovalDurations, ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
+import {
+  ApprovalAgentAvatar,
+  ApprovalDurations,
+  ApprovalMeta,
+  ApprovalSectionHeader,
+} from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
 
 function ApprovalDialog({
   title,
+  subtitle,
+  leading,
   onClose,
   children,
   returnFocus,
 }: {
   title: string;
+  subtitle?: string;
+  leading?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
   returnFocus: React.RefObject<HTMLButtonElement>;
@@ -72,9 +87,21 @@ function ApprovalDialog({
             <PageScroll
               className={css.DialogScroll}
               header={
-                <Header size="500" variant="Surface" style={{ padding: '0 12px' }}>
-                  <Box grow="Yes">
-                    <Text size="H4">{title}</Text>
+                <Header
+                  size={subtitle ? '600' : '500'}
+                  variant="Surface"
+                  style={{ padding: '0 12px' }}
+                >
+                  <Box grow="Yes" alignItems="Center" gap="300">
+                    {leading}
+                    <Box direction="Column" className={css.DialogHeading}>
+                      <Text size={subtitle ? 'H5' : 'H4'}>{title}</Text>
+                      {subtitle && (
+                        <Text size="T200" priority="300">
+                          {subtitle}
+                        </Text>
+                      )}
+                    </Box>
                   </Box>
                   <IconButton
                     size="300"
@@ -113,9 +140,12 @@ export function ApprovalGroup({
 export function ApprovalReviewGroup({
   records,
   flat = false,
+  showMeta = true,
 }: {
   records: readonly ThreadApprovalRecord[];
   flat?: boolean;
+  /** The review sheet names the agent and requester once in its header. */
+  showMeta?: boolean;
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
@@ -182,140 +212,154 @@ export function ApprovalReviewGroup({
         count={records.length}
         chip={chip}
       />
-      <ApprovalMeta approval={approval} room={room} viewerId={user} />
-      {single || !bulk ? (
-        calls
-      ) : (
-        <>
-          <Button
-            type="button"
-            size="300"
-            variant="Secondary"
-            fill="Soft"
-            radii="300"
-            className={css.CallsToggle}
-            aria-expanded={showCalls}
-            aria-controls={callsId}
-            onClick={() => setShowCalls((value) => !value)}
-            before={<Icon size="50" src={showCalls ? Icons.ChevronTop : Icons.ChevronBottom} />}
-          >
-            <Text size="B300">
-              {showCalls
-                ? t('mindroomUi.messages.threadApprovalControls.hideCalls')
-                : t('mindroomUi.messages.threadApprovalControls.showCalls', {
-                    count: records.length,
-                  })}
-            </Text>
-          </Button>
-          {showCalls && <div id={callsId}>{calls}</div>}
-        </>
-      )}
-      {bulk && !denyingAll && (
-        <div className={css.Actions}>
-          {approvable.length > 1 && (
-            <Button
-              size="300"
-              variant="Primary"
-              fill="Solid"
-              onClick={() => {
-                approvable.forEach((record) => {
-                  void context.submit(record, { status: 'approved' });
-                });
-              }}
-            >
-              <Text size="B300">
-                {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
-                  count: approvable.length,
-                })}
-              </Text>
-            </Button>
-          )}
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            outlined
-            onClick={() => setDenyingAll(true)}
-          >
-            <Text size="B300">
-              {t('mindroomUi.messages.threadApprovalControls.denyAll', {
-                count: available.length,
-              })}
-            </Text>
-          </Button>
-        </div>
-      )}
-      {bulk && denyingAll && (
-        <form
-          className={css.DenyRow}
-          onSubmit={(event) => {
-            event.preventDefault();
-            available.forEach((record) => {
-              void context.submit(record, { status: 'denied', reason });
-            });
-            setDenyingAll(false);
-            setReason('');
-          }}
-        >
-          <Input
-            ref={reasonInput}
-            aria-label={t('mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional')}
-            placeholder={t('mindroomUi.messages.approvalDecisionControls.denialReasonOptional')}
-            value={reason}
-            onChange={(event) => setReason(event.currentTarget.value)}
-          />
-          <div className={css.Actions}>
-            <Button type="submit" size="300" variant="Critical" fill="Soft" outlined>
-              <Text size="B300">
-                {t('mindroomUi.messages.threadApprovalControls.confirmDenyAll', {
-                  count: available.length,
-                })}
-              </Text>
-            </Button>
+      <div className={css.SectionBody}>
+        {showMeta && <ApprovalMeta approval={approval} room={room} viewerId={user} />}
+        {single || !bulk ? (
+          calls
+        ) : (
+          <>
+            {!showCalls && (
+              <ApprovalArgumentFields
+                value={records.map((record) => record.approval.arguments)}
+                limit={3}
+                parse={mergeArgumentFields}
+              />
+            )}
             <Button
               type="button"
               size="300"
               variant="Secondary"
               fill="Soft"
-              outlined
-              onClick={() => {
-                setDenyingAll(false);
-                setReason('');
-              }}
+              radii="300"
+              className={css.CallsToggle}
+              aria-expanded={showCalls}
+              aria-controls={callsId}
+              onClick={() => setShowCalls((value) => !value)}
+              before={<Icon size="50" src={showCalls ? Icons.ChevronTop : Icons.ChevronBottom} />}
             >
-              <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
+              <Text size="B300">
+                {showCalls
+                  ? t('mindroomUi.messages.threadApprovalControls.hideCalls')
+                  : t('mindroomUi.messages.threadApprovalControls.showCalls', {
+                      count: records.length,
+                    })}
+              </Text>
+            </Button>
+            {showCalls && <div id={callsId}>{calls}</div>}
+          </>
+        )}
+        {bulk && !denyingAll && (
+          <div className={css.Actions}>
+            {approvable.length > 1 && (
+              <Button
+                size="300"
+                variant="Primary"
+                fill="Solid"
+                onClick={() => {
+                  approvable.forEach((record) => {
+                    void context.submit(record, { status: 'approved' });
+                  });
+                }}
+              >
+                <Text size="B300">
+                  {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
+                    count: approvable.length,
+                  })}
+                </Text>
+              </Button>
+            )}
+            <Button
+              size="300"
+              variant="Secondary"
+              fill="None"
+              outlined
+              onClick={() => setDenyingAll(true)}
+            >
+              <Text size="B300">
+                {t('mindroomUi.messages.threadApprovalControls.denyAll', {
+                  count: available.length,
+                })}
+              </Text>
             </Button>
           </div>
-        </form>
-      )}
-      <ApprovalDurations
-        durations={bulk && denyingAll ? [] : timed}
-        disabled={approvable.length === 0}
-        onPick={(duration) => {
-          if (approvable[0]) void context.submit(approvable[0], { status: 'approved', duration });
-        }}
-        accessibleLabel={(duration) =>
-          t('mindroomUi.messages.threadApprovalControls.allowForMinutes', { count: duration / 60 })
-        }
-        explanation={t(
-          'mindroomUi.messages.threadApprovalControls.allowThisOperationForThisThreadRequesterAndAgentArguments'
         )}
-      />
-      {records.some(
-        (record) =>
-          context.actions.get(record.eventId)?.status === 'submitted' &&
-          context.pendingEventIds.has(record.eventId)
-      ) && (
-        <small role="status">
-          {t('mindroomUi.messages.threadApprovalControls.submittedWaitingForRoomUpdate')}
-        </small>
-      )}
+        {bulk && denyingAll && (
+          <form
+            className={css.DenyRow}
+            onSubmit={(event) => {
+              event.preventDefault();
+              available.forEach((record) => {
+                void context.submit(record, { status: 'denied', reason });
+              });
+              setDenyingAll(false);
+              setReason('');
+            }}
+          >
+            <Input
+              ref={reasonInput}
+              aria-label={t(
+                'mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional'
+              )}
+              placeholder={t('mindroomUi.messages.approvalDecisionControls.denialReasonOptional')}
+              value={reason}
+              onChange={(event) => setReason(event.currentTarget.value)}
+            />
+            <div className={css.Actions}>
+              <Button type="submit" size="300" variant="Critical" fill="Soft" outlined>
+                <Text size="B300">
+                  {t('mindroomUi.messages.threadApprovalControls.confirmDenyAll', {
+                    count: available.length,
+                  })}
+                </Text>
+              </Button>
+              <Button
+                type="button"
+                size="300"
+                variant="Secondary"
+                fill="Soft"
+                outlined
+                onClick={() => {
+                  setDenyingAll(false);
+                  setReason('');
+                }}
+              >
+                <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
+              </Button>
+            </div>
+          </form>
+        )}
+        <ApprovalDurations
+          durations={bulk && denyingAll ? [] : timed}
+          disabled={approvable.length === 0}
+          onPick={(duration) => {
+            if (approvable[0]) void context.submit(approvable[0], { status: 'approved', duration });
+          }}
+          accessibleLabel={(duration) =>
+            t('mindroomUi.messages.threadApprovalControls.allowForMinutes', {
+              count: duration / 60,
+            })
+          }
+          explanation={t(
+            'mindroomUi.messages.threadApprovalControls.allowThisOperationForThisThreadRequesterAndAgentArguments'
+          )}
+        />
+        {records.some(
+          (record) =>
+            context.actions.get(record.eventId)?.status === 'submitted' &&
+            context.pendingEventIds.has(record.eventId)
+        ) && (
+          <small role="status">
+            {t('mindroomUi.messages.threadApprovalControls.submittedWaitingForRoomUpdate')}
+          </small>
+        )}
+      </div>
     </ApprovalGroup>
   );
 }
 
 export function ThreadApprovalQueue() {
   const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const context = useThreadApprovals();
   const mx = useMatrixClient();
   const user = mx.getUserId();
@@ -394,6 +438,43 @@ export function ThreadApprovalQueue() {
       status: statusText,
     });
   }
+  const reviewGroups = selection
+    ? groupApprovalRecords(
+        selection
+          .flat()
+          .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
+      )
+    : [];
+  const review = describeReviewHeader(reviewGroups.flat(), user);
+  const reviewTitle =
+    review.agents.length === 1
+      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentWants', {
+          agent: agentDisplayName(room, review.agents[0]),
+          count: review.count,
+        })
+      : review.agents.length > 1
+      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
+          agents: review.agents.length,
+          count: review.count,
+        })
+      : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
+  const reviewSubtitle = [
+    review.requester &&
+      t('mindroomUi.messages.threadApprovalControls.reviewRequestedBy', {
+        requester:
+          review.requester === 'you'
+            ? t('mindroomUi.messages.threadApprovalControls.you')
+            : userDisplayName(room, review.requester),
+      }),
+    review.expiresAt &&
+      t('mindroomUi.messages.threadApprovalControls.expires', {
+        time:
+          formatExpiryDistance(review.expiresAt, Date.now(), language) ??
+          formatApprovalTime(review.expiresAt, language),
+      }),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <>
       {(pendingCount > 0 || context.error) && (
@@ -403,8 +484,12 @@ export function ThreadApprovalQueue() {
           aria-label={t('mindroomUi.messages.threadApprovalControls.threadApprovals')}
         >
           <small className={css.BarStatus} role="status">
-            {pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />}
-            <span>{statusText}</span>
+            {waiting?.agents.length === 1 ? (
+              <ApprovalAgentAvatar room={room} agentName={waiting.agents[0]} />
+            ) : (
+              pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />
+            )}
+            <span className={classNames(waiting && css.BarTitle)}>{statusText}</span>
             {waitingTools && <span className={css.BarDetail}>{` · ${waitingTools}`}</span>}
           </small>
           {pendingCount > 0 && (
@@ -443,16 +528,23 @@ export function ThreadApprovalQueue() {
       )}
       {selection && (
         <ApprovalDialog
-          title={t('mindroomUi.messages.threadApprovalControls.reviewToolCalls')}
+          title={reviewTitle}
+          subtitle={reviewSubtitle || undefined}
+          leading={
+            review.agents.length === 1 ? (
+              <ApprovalAgentAvatar room={room} agentName={review.agents[0]} size="300" />
+            ) : undefined
+          }
           onClose={() => setSelection(undefined)}
           returnFocus={trigger}
         >
-          {groupApprovalRecords(
-            selection
-              .flat()
-              .flatMap((id) => context.records.find((record) => record.eventId === id) ?? [])
-          ).map((records) => (
-            <ApprovalReviewGroup key={records[0].eventId} records={records} flat />
+          {reviewGroups.map((records) => (
+            <ApprovalReviewGroup
+              key={records[0].eventId}
+              records={records}
+              flat
+              showMeta={review.agents.length > 1 || review.requester === null}
+            />
           ))}
           {selection
             .flat()
@@ -543,11 +635,10 @@ const isHistoryStatus = (status: string): status is HistoryStatus =>
   status === 'approved' || status === 'denied' || status === 'expired';
 
 export function ApprovalHistory({ records }: { records: readonly ThreadApprovalRecord[] }) {
-  const glassRef = useGlassHighlight<HTMLDetailsElement>();
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useApprovalRoom();
-  const [open, setOpen] = useState(false);
+  const language = useAppLanguageCode();
   if (records.length === 0) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   const summary = describeApprovalHistory(records, mx.getUserId());
@@ -566,14 +657,22 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   } else if (single) {
     singleLabel = t(HISTORY_LABEL_KEYS.nobody[single.status], { operation: single.operation });
   }
+  const resolvedTs = single
+    ? parseToolApprovalExpiryTimestamp(records[0].approval.resolvedAt ?? '')
+    : undefined;
+  const detail = single
+    ? [
+        summarizeArguments(records[0].approval.arguments),
+        resolvedTs !== undefined &&
+          new Date(resolvedTs).toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' }),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : t('mindroomUi.messages.threadApprovalControls.approvedCount', { count: approved });
   return (
-    <details
-      ref={glassRef}
-      className={css.Receipt}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className={css.ReceiptHeader}>
-        <Icon
+    <ThreadActivity
+      icon={
+        <ActivityIcon
           src={
             single?.status === 'approved'
               ? Icons.Check
@@ -581,29 +680,28 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
               ? Icons.Cross
               : Icons.Terminal
           }
-          size="50"
-          aria-hidden
+          tone={
+            single?.status === 'approved'
+              ? 'success'
+              : single?.status === 'denied'
+              ? 'critical'
+              : 'neutral'
+          }
         />
-        <span className={css.ReceiptLabel}>
-          {singleLabel ??
-            t('mindroomUi.messages.threadApprovalControls.toolApprovalCount', {
-              count: records.length,
-            })}
-        </span>
-        {!single && (
-          <span className={css.ReceiptMeta}>
-            {t('mindroomUi.messages.threadApprovalControls.approvedCount', { count: approved })}
-          </span>
-        )}
-        <Icon src={Icons.ChevronBottom} size="50" className={css.ReceiptChevron} aria-hidden />
-      </summary>
-      {open && (
-        <div className={css.HistoryBody}>
-          {records.map((record) => (
-            <ApprovalReceipt key={record.eventId} approval={record.approval} nested />
-          ))}
-        </div>
-      )}
-    </details>
+      }
+      title={
+        singleLabel ??
+        t('mindroomUi.messages.threadApprovalControls.toolApprovalCount', {
+          count: records.length,
+        })
+      }
+      detail={detail || undefined}
+    >
+      <div className={css.HistoryBody}>
+        {records.map((record) => (
+          <ApprovalReceipt key={record.eventId} approval={record.approval} nested />
+        ))}
+      </div>
+    </ThreadActivity>
   );
 }

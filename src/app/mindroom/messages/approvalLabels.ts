@@ -97,3 +97,38 @@ export const describeApprovalChip = (
     tone: 'done',
   };
 };
+
+/** "send_email" reads as "Send email"; MCP operations use their tool part. */
+export const toolTitle = (operation: string): string => {
+  const words = (operation.split('/').pop() ?? operation).replace(/[_-]+/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+export type ReviewHeader = {
+  agents: string[];
+  count: number;
+  /** "you", another requester's user ID, or null when the calls came from different people. */
+  requester: string | null;
+  expiresAt: string | null;
+};
+
+/** Who wants what, for the review sheet's title: agents, call count, requester, earliest expiry. */
+export const describeReviewHeader = (
+  records: readonly ThreadApprovalRecord[],
+  viewerId: string | null
+): ReviewHeader => {
+  const requesters = [...new Set(records.map(({ approval }) => approval.requesterId))];
+  const [requester] = requesters;
+  const expiries = records
+    .map(({ approval }) => approval.expiresAt)
+    .filter((value): value is string => !!value)
+    .map((value) => ({ value, ts: parseToolApprovalExpiryTimestamp(value) ?? Infinity }))
+    .sort((a, b) => a.ts - b.ts);
+  return {
+    agents: [...new Set(records.map(({ approval }) => approval.agentName))],
+    count: records.length,
+    requester:
+      requesters.length === 1 && requester ? (requester === viewerId ? 'you' : requester) : null,
+    expiresAt: expiries[0]?.value ?? null,
+  };
+};
