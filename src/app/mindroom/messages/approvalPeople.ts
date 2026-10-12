@@ -15,15 +15,22 @@ export const useApprovalRoom = (roomId?: string): ApprovalMemberRoom | null | un
   return id ? (mx.getRoom?.(id) as ApprovalMemberRoom | null | undefined) : undefined;
 };
 
-// MindRoom names agent accounts mindroom_<agent>, optionally followed by a namespace.
+// MindRoom names agent accounts mindroom_<agent>, or mindroom_<agent>_<namespace> where the
+// namespace is 4-32 lowercase letters and digits. Prefix matching would mistake
+// mindroom_assistant_pro for the account of `assistant`.
+const NAMESPACE = '[a-z0-9]{4,32}';
+
 export const agentDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
   agentName: string
 ): string => {
-  const prefix = `mindroom_${agentName.toLowerCase()}`;
-  const member = room
-    ?.getJoinedMembers()
-    .find((item) => (getMxIdLocalPart(item.userId) ?? '').toLowerCase().startsWith(prefix));
+  const base = `mindroom_${agentName.toLowerCase()}`;
+  const namespaced = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_${NAMESPACE}$`);
+  const members = room?.getJoinedMembers() ?? [];
+  const localpart = (userId: string) => (getMxIdLocalPart(userId) ?? '').toLowerCase();
+  const member =
+    members.find((item) => localpart(item.userId) === base) ??
+    members.find((item) => namespaced.test(localpart(item.userId)));
   return member?.name || agentName;
 };
 
