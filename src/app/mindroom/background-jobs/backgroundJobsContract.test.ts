@@ -76,6 +76,19 @@ describe('selectBackgroundJobs', () => {
     expect(selectBackgroundJobs([jobsEvent([job('job_1')])], viewer, () => false)).toEqual([]);
   });
 
+  it('orders jobs by start time as written, also a time without a fraction', () => {
+    const events = [
+      jobsEvent([
+        job('job_2', { started_at: '2026-10-11T00:00:00.123456+00:00' }),
+        job('job_1', { started_at: '2026-10-11T00:00:00+00:00' }),
+      ]),
+    ];
+    expect(selectBackgroundJobs(events, viewer, joined).map((item) => item.jobId)).toEqual([
+      'job_1',
+      'job_2',
+    ]);
+  });
+
   it('shows a thread only its own jobs, and the main timeline every job of the room', () => {
     const events = [
       jobsEvent([job('job_1'), job('job_2', { thread_id: '$other' })]),

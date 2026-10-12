@@ -210,6 +210,36 @@ describe('MindRoom agent calls', () => {
     expect(forget).not.toHaveBeenCalled();
   });
 
+  it('lets the agent publish its background jobs in a call room made before it could', async () => {
+    const powerLevels = {
+      users: { [ALICE]: 100 },
+      events: { 'org.matrix.msc3401.call.member': 0 },
+    };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.RoomPowerLevels,
+      {
+        users: { [ALICE]: 100 },
+        events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 0 },
+      },
+      ''
+    );
+  });
+
+  it('leaves the power levels of a call room that already allows it alone', async () => {
+    const powerLevels = { events: { 'io.mindroom.background_jobs': 0 } };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      StateEvent.RoomPowerLevels,
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
   it('keeps a permanent call room on hang-up and drops its origin before the stamp synced back', async () => {
     // The stamp landed on the server, but the room's cached state does not show its origin yet.
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join' });

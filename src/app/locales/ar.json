@@ -3220,7 +3220,7 @@
       "running": "قيد التشغيل: ⁨{{tool}}⁩",
       "awaitingApproval": "بانتظار الموافقة: ⁨{{tool}}⁩",
       "jobCount": "مهام في الخلفية: ⁨{{count}}⁩",
-      "subagent": "وكيل فرعي: ⁨{{tool}}⁩",
+      "subagent": "⁨{{tool}}⁩ (وكيل فرعي)",
       "stopAll": "إيقاف الكل",
       "stopping": "جارٍ الإيقاف…",
       "cancel": "إلغاء ⁨{{tool}}⁩",

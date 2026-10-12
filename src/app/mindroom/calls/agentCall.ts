@@ -95,6 +95,12 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
     : undefined;
 };
 
+// The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
+const agentCallEventPowerLevels = () => ({
+  ...createVoiceRoomPowerLevelsOverride().events,
+  [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+});
+
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
 /** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
@@ -132,12 +138,9 @@ export const createAgentVoiceRoom = async (
     creation_content: {
       type: RoomType.Call,
     },
-    // The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
     power_level_content_override: {
-      events: {
-        ...createVoiceRoomPowerLevelsOverride().events,
-        [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
-      },
+      ...createVoiceRoomPowerLevelsOverride(),
+      events: agentCallEventPowerLevels(),
     },
     initial_state: initialState,
   });
@@ -171,6 +174,19 @@ export const prepareAgentCallRoom = async (
     await mx.invite(room.roomId, agentUserId);
   }
   await sendAgentCall(mx, room.roomId, agentUserId, origin);
+  // A call room made before agents could publish their background jobs gains that power level; best effort.
+  const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
+  if (powerLevels && powerLevels.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] === undefined) {
+    mx.sendStateEvent(
+      room.roomId,
+      StateEvent.RoomPowerLevels as never,
+      {
+        ...powerLevels,
+        events: { ...powerLevels.events, ...agentCallEventPowerLevels() },
+      } as never,
+      ''
+    ).catch(() => undefined);
+  }
 };
 
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {

@@ -3004,7 +3004,7 @@
       "running": "実行中: {{tool}}",
       "awaitingApproval": "承認待ち: {{tool}}",
       "jobCount": "バックグラウンドジョブ {{count}} 件",
-      "subagent": "サブエージェント: {{tool}}",
+      "subagent": "{{tool}}（サブエージェント）",
       "stopAll": "すべて停止",
       "stopping": "停止中…",
       "cancel": "{{tool}} をキャンセル",

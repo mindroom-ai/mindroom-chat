@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import type { BackgroundJob } from './backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
+import { keepCancelsOf } from './sentCancels';
 
 const state = vi.hoisted(() => ({ jobs: [] as BackgroundJob[], send: vi.fn() }));
 vi.mock('./useRoomBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.jobs }));
@@ -57,6 +58,7 @@ const button = (label: string) =>
   );
 
 beforeEach(() => {
+  keepCancelsOf(room.roomId, new Set());
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.jobs = [];
   state.send = vi.fn().mockResolvedValue({ event_id: '$sent' });
@@ -192,6 +194,42 @@ it('drops a cancel failure that arrives after the view moved to another thread',
   await act(async () => fail(new Error('offline')));
   expect(container.querySelector('[role="alert"]')).toBeNull();
   expect(button(cancelA)).toBeDefined();
+});
+
+it('keeps a sent cancel stopping after the bar is unmounted and shown again', async () => {
+  state.send = vi.fn(() => new Promise<never>(() => {}));
+  state.jobs = [job('a')];
+  render();
+  await click(cancelA);
+  act(() => root.unmount());
+  root = createRoot(container);
+  render();
+  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(button(cancelA)).toBeUndefined();
+});
+
+it('moves keyboard focus to the next cancel button, and to the bar after Stop all', async () => {
+  state.send = vi.fn(() => new Promise<never>(() => {}));
+  state.jobs = [job('a'), job('b'), job('c')];
+  render();
+  button(cancelA)?.focus();
+  await click(cancelA);
+  expect(document.activeElement).toBe(button(cancelB));
+  await click('mindroomUi.backgroundJobs.stopAll');
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
+});
+
+it('shows a failed cancel again in the view it was sent from', async () => {
+  state.jobs = [job('a'), job('b', { threadId: '$other' })];
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render(null);
+  await click('mindroomUi.backgroundJobs.stopAll');
+  render('$thread');
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  render(null);
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.stopAllFailed'
+  );
 });
 
 it('shows a failed cancel only while its job is listed', async () => {

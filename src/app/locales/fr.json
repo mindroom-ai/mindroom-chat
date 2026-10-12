@@ -3058,7 +3058,7 @@
       "running": "En cours : {{tool}}",
       "awaitingApproval": "En attente d’approbation : {{tool}}",
       "jobCount": "{{count}} tâches en arrière-plan",
-      "subagent": "Sous-agent : {{tool}}",
+      "subagent": "{{tool}} (sous-agent)",
       "stopAll": "Tout arrêter",
       "stopping": "Arrêt…",
       "cancel": "Annuler {{tool}}",

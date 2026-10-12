@@ -3112,7 +3112,7 @@
       "running": "Выполняется: {{tool}}",
       "awaitingApproval": "Ожидает одобрения: {{tool}}",
       "jobCount": "Фоновых задач: {{count}}",
-      "subagent": "Субагент: {{tool}}",
+      "subagent": "{{tool}} (субагент)",
       "stopAll": "Остановить все",
       "stopping": "Остановка…",
       "cancel": "Отменить {{tool}}",

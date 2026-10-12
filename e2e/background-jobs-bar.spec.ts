@@ -113,7 +113,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect(bar).toBeVisible();
   await expect(bar).toContainText('run_tests');
   await expect(bar).toContainText('Waiting for approval: shell');
-  await expect(bar).toContainText('Subagent: research');
+  await expect(bar).toContainText('research (subagent)');
   await expect(bar).not.toContainText('web_search');
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -145,7 +145,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]]);
   await expect(bar.getByRole('button', { name: 'Cancel run_tests' })).toHaveCount(0);
   // A job cancelled from another client shows Stopping… here too, without its ✕.
-  const researchCancel = bar.getByRole('button', { name: 'Cancel Subagent: research' });
+  const researchCancel = bar.getByRole('button', { name: 'Cancel research (subagent)' });
   await expect(researchCancel).toBeVisible();
   await publish(researcher, [
     job('job_3', fixture.rootId, 'research', { kind: 'subagent', status: 'cancel_requested' }),

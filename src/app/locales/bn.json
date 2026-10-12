@@ -1745,7 +1745,7 @@
       "running": "চলছে: {{tool}}",
       "awaitingApproval": "অনুমোদনের অপেক্ষায়: {{tool}}",
       "jobCount": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
-      "subagent": "সাব-এজেন্ট: {{tool}}",
+      "subagent": "{{tool}} (সাব-এজেন্ট)",
       "stopAll": "সব থামান",
       "stopping": "থামানো হচ্ছে…",
       "cancel": "{{tool}} বাতিল করুন",

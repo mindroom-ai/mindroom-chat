@@ -4,8 +4,6 @@ import * as approvals from '../messages/ThreadApprovals.css';
 // The approval bar's composer-bar look, wrapping when a view has many jobs.
 export const Bar = style([approvals.Bar, { flexWrap: 'wrap' }]);
 
-export const Status = style([approvals.BarStatus]);
-
 // Many jobs scroll inside the bar, so it never grows past the screen; Stop all stays outside the list.
 export const Items = style({
   display: 'flex',
@@ -38,4 +36,4 @@ export const Label = style({
   minWidth: 0,
 });
 
-export const Chip = style([approvals.Chip]);
+export { BarStatus as Status, Chip } from '../messages/ThreadApprovals.css';

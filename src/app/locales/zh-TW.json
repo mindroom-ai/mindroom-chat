@@ -3004,7 +3004,7 @@
       "running": "執行中：{{tool}}",
       "awaitingApproval": "等待核准：{{tool}}",
       "jobCount": "{{count}} 個背景工作",
-      "subagent": "子代理：{{tool}}",
+      "subagent": "{{tool}}（子代理）",
       "stopAll": "全部停止",
       "stopping": "正在停止…",
       "cancel": "取消 {{tool}}",

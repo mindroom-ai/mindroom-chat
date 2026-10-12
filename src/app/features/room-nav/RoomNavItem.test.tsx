@@ -194,6 +194,11 @@ vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => undefined,
 }));
 
+vi.mock('../../mindroom/tooltip/IconTooltip', () => ({
+  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
+    children(() => undefined),
+}));
+
 vi.mock('../../mindroom/background-jobs/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => testState.backgroundJobs,
 }));

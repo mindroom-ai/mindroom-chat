@@ -3004,7 +3004,7 @@
       "running": "실행 중: {{tool}}",
       "awaitingApproval": "승인 대기 중: {{tool}}",
       "jobCount": "백그라운드 작업 {{count}}개",
-      "subagent": "하위 에이전트: {{tool}}",
+      "subagent": "{{tool}} (하위 에이전트)",
       "stopAll": "모두 중지",
       "stopping": "중지하는 중…",
       "cancel": "{{tool}} 취소",

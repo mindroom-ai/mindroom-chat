@@ -3004,7 +3004,7 @@
       "running": "Bezig: {{tool}}",
       "awaitingApproval": "Wacht op goedkeuring: {{tool}}",
       "jobCount": "{{count}} achtergrondtaken",
-      "subagent": "Subagent: {{tool}}",
+      "subagent": "{{tool}} (subagent)",
       "stopAll": "Alles stoppen",
       "stopping": "Stoppen…",
       "cancel": "{{tool}} annuleren",

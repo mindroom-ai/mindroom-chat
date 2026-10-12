@@ -402,11 +402,18 @@ export function RoomNavItem({
               />
             )}
             {!optionsVisible && hasBackgroundJobs && (
-              <Icon
-                size="50"
-                src={Icons.Clock}
-                aria-label={t('mindroomUi.backgroundJobs.inRoom')}
-              />
+              // The clock also marks schedules, so a hover names it.
+              <IconTooltip label={t('mindroomUi.backgroundJobs.inRoom')} position="Top">
+                {(triggerRef) => (
+                  <span ref={triggerRef} style={{ display: 'inline-flex' }}>
+                    <Icon
+                      size="50"
+                      src={Icons.Clock}
+                      aria-label={t('mindroomUi.backgroundJobs.inRoom')}
+                    />
+                  </span>
+                )}
+              </IconTooltip>
             )}
             {callMembers.length > 0 && (
               <Badge variant="Critical" fill="Solid" size="400">

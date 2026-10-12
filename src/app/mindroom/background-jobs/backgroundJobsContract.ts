@@ -43,6 +43,12 @@ export const parseBackgroundJobsStateEvent = (event: MatrixEvent): BackgroundJob
   return jobs.flatMap((value) => parseJob(value) ?? []);
 };
 
+// Machine strings sort as the backend sorts them; locale collation would misplace an ISO time without a fraction.
+const byCodePoint = (a: string, b: string): number => {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+};
+
 /**
  * Every job of the room, oldest first. Only MindRoom agents on the viewer's homeserver that are still
  * in the room publish jobs; an agent known to have left cannot clear its state, so its last list is ignored.
@@ -58,7 +64,7 @@ export const selectBackgroundJobs = (
       return !!sender && isMindroomAgentUserIdForViewer(sender, viewerUserId) && isJoined(sender);
     })
     .flatMap(parseBackgroundJobsStateEvent)
-    .sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.jobId.localeCompare(b.jobId));
+    .sort((a, b) => byCodePoint(a.startedAt, b.startedAt) || byCodePoint(a.jobId, b.jobId));
 
 /** The jobs a view shows: the open thread's, or every job of the room in the main timeline. */
 export const jobsInView = (jobs: BackgroundJob[], threadId: string | null): BackgroundJob[] =>
