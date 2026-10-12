@@ -14,3 +14,4 @@ describe('isMindroomMessageMetadataKey', () => {
     expect(isMindroomMessageMetadataKey('com.example.key')).toBe(false);
   });
 });
+
