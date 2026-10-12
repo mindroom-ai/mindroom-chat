@@ -68,7 +68,9 @@ export const ToolGroupItem = style({
   minWidth: 0,
   padding: `${config.space.S200} 0`,
   selectors: {
-    '& + &': { borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}` },
+    '& + &': {
+      borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    },
   },
 });
 

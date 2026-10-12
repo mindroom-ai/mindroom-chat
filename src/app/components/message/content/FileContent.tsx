@@ -161,7 +161,9 @@ export function ReadTextFile({
           }
           loading={textState.status === AsyncStatus.Loading}
           failedLabel={
-            textState.status === AsyncStatus.Error ? t('sharedUi.fileContent.loadFailed') : undefined
+            textState.status === AsyncStatus.Error
+              ? t('sharedUi.fileContent.loadFailed')
+              : undefined
           }
         />
       ) : textState.status === AsyncStatus.Error ? (

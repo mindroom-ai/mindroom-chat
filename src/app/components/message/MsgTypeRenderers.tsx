@@ -419,8 +419,9 @@ export function MFile({ content, renderFileContent, outlined }: MFileProps) {
   const fileName = getFileName(content);
   const mimeType = typeof fileInfo?.mimetype === 'string' ? fileInfo.mimetype : FALLBACK_MIMETYPE;
   const name = fileName ?? t('sharedUi.msgTypeRenderers.unnamedFile');
-  const ext = (fileName?.includes('.') ? getFileNameExt(fileName) : mimeTypeToExt(mimeType))
-    .toUpperCase();
+  const ext = (
+    fileName?.includes('.') ? getFileNameExt(fileName) : mimeTypeToExt(mimeType)
+  ).toUpperCase();
   const type =
     READABLE_TEXT_MIME_TYPES.includes(mimeType) || READABLE_EXT_TO_MIME_TYPE[getFileNameExt(name)]
       ? t('sharedUi.msgTypeRenderers.textFile')

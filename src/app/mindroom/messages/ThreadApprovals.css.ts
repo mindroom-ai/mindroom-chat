@@ -226,7 +226,9 @@ export const Segment = style({
   fontWeight: config.fontWeight.W600,
   cursor: 'pointer',
   selectors: {
-    '& + &': { borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}` },
+    '& + &': {
+      borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    },
     '&:hover:not(:disabled)': { backgroundColor: color.SurfaceVariant.ContainerHover },
     '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
     '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },

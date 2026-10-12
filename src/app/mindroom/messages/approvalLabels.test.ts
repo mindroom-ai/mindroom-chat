@@ -13,13 +13,21 @@ const record = (overrides: Partial<ToolApprovalData>, eventId = '$one'): ThreadA
     scope: null,
     ...overrides,
   } as ToolApprovalData;
-  return { eventId, sender: '@mindroom_research:example.org', approval, wireStatus: approval.status };
+  return {
+    eventId,
+    sender: '@mindroom_research:example.org',
+    approval,
+    wireStatus: approval.status,
+  };
 };
 
 describe('describeApprovalHistory', () => {
   it('names one decision by its resolver, using "you" for the viewer', () => {
     expect(
-      describeApprovalHistory([record({ status: 'approved', resolvedBy: '@me:example.org' })], '@me:example.org')
+      describeApprovalHistory(
+        [record({ status: 'approved', resolvedBy: '@me:example.org' })],
+        '@me:example.org'
+      )
     ).toEqual({ kind: 'single', status: 'approved', actor: 'you', operation: 'read_file' });
     expect(
       describeApprovalHistory(

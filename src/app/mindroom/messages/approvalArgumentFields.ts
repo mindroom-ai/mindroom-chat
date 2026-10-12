@@ -72,7 +72,10 @@ const EMPTY_TEXT = new Set(['', '[]', '{}', 'null']);
 
 const renderedLength = (value: ArgumentValue): number =>
   value.kind === 'nested'
-    ? value.fields.reduce((total, field) => total + field.key.length + renderedLength(field.value), 0)
+    ? value.fields.reduce(
+        (total, field) => total + field.key.length + renderedLength(field.value),
+        0
+      )
     : value.text.length;
 
 const isEmptyValue = (value: ArgumentValue): boolean =>
@@ -104,7 +107,8 @@ export const toToolArgumentFields = (preview: unknown): ArgumentFields => {
   return {
     fields: matches.map((match, index) => {
       const start = (match.index ?? 0) + match[0].length;
-      const end = index + 1 < matches.length ? matches[index + 1].index ?? preview.length : preview.length;
+      const end =
+        index + 1 < matches.length ? matches[index + 1].index ?? preview.length : preview.length;
       return { key: match[1], value: toValue(preview.slice(start, end), false) };
     }),
   };

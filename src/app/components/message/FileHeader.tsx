@@ -33,7 +33,13 @@ type FileIconButtonProps = {
   failedLabel?: string;
 };
 /** Icon-only file action; the tooltip and accessible name carry the label. */
-export function FileIconButton({ label, icon, onClick, loading, failedLabel }: FileIconButtonProps) {
+export function FileIconButton({
+  label,
+  icon,
+  onClick,
+  loading,
+  failedLabel,
+}: FileIconButtonProps) {
   return (
     <TooltipProvider
       tooltip={
@@ -133,7 +139,9 @@ export function FileDownloadButton({
       onClick={handleDownload}
       loading={downloadState.status === AsyncStatus.Loading}
       failedLabel={
-        downloadState.status === AsyncStatus.Error ? t('sharedUi.fileContent.loadFailed') : undefined
+        downloadState.status === AsyncStatus.Error
+          ? t('sharedUi.fileContent.loadFailed')
+          : undefined
       }
     />
   );

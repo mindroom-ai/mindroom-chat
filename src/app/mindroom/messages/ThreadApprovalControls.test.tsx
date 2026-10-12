@@ -270,7 +270,11 @@ const renderInto = async (element: React.ReactElement) => {
 };
 
 it('says which agent is waiting for the viewer and for which tools', async () => {
-  const records = [approvalRecord(0, { tool_name: 'send_email' }), approvalRecord(1), approvalRecord(2)];
+  const records = [
+    approvalRecord(0, { tool_name: 'send_email' }),
+    approvalRecord(1),
+    approvalRecord(2),
+  ];
   current = {
     roomId: '!room:example.org',
     threadId: '$thread',
@@ -288,7 +292,9 @@ it('says which agent is waiting for the viewer and for which tools', async () =>
     const status = container.querySelector('[role="status"]')?.textContent;
     expect(status).toContain('assistant is waiting for you');
     expect(status).toContain('send_email, 2× search');
-    expect(container.querySelector('button.ReviewButtonPending')?.textContent).toContain('Review 3');
+    expect(container.querySelector('button.ReviewButtonPending')?.textContent).toContain(
+      'Review 3'
+    );
   } finally {
     cleanup();
   }
@@ -407,7 +413,9 @@ it('folds the calls of a group behind a toggle while bulk approval is offered', 
     const labels = () => buttonsIn(container).map((button) => button.textContent);
     expect(labels().filter((label) => label === 'Approve')).toHaveLength(0);
     expect(labels()).toContain('Approve all 2 once');
-    const toggle = buttonsIn(container).find((button) => button.textContent?.startsWith('Show 2 calls'));
+    const toggle = buttonsIn(container).find((button) =>
+      button.textContent?.startsWith('Show 2 calls')
+    );
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     await act(async () => toggle?.click());
     expect(labels().filter((label) => label === 'Approve')).toHaveLength(2);

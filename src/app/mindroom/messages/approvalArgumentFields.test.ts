@@ -95,12 +95,14 @@ describe('toArgumentFields', () => {
 
 describe('toToolArgumentFields', () => {
   it('splits the key=value preview MindRoom writes for tool calls', () => {
-    expect(toToolArgumentFields('query=MindRoom v2026.10.12 release notes, max_results=5')).toEqual({
-      fields: [
-        { key: 'query', value: { kind: 'text', text: 'MindRoom v2026.10.12 release notes' } },
-        { key: 'max_results', value: { kind: 'text', text: '5' } },
-      ],
-    });
+    expect(toToolArgumentFields('query=MindRoom v2026.10.12 release notes, max_results=5')).toEqual(
+      {
+        fields: [
+          { key: 'query', value: { kind: 'text', text: 'MindRoom v2026.10.12 release notes' } },
+          { key: 'max_results', value: { kind: 'text', text: '5' } },
+        ],
+      }
+    );
   });
 
   it('unpacks values MindRoom wrote as compact JSON', () => {

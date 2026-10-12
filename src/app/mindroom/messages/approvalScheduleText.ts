@@ -19,7 +19,8 @@ export const formatExpiryDistance = (
   if (timestamp === undefined || timestamp <= now) return undefined;
   const remaining = timestamp - now;
   const format = new Intl.RelativeTimeFormat(language, { numeric: 'always' });
-  if (remaining < HOUR_MS) return format.format(Math.max(1, Math.round(remaining / MINUTE_MS)), 'minute');
+  if (remaining < HOUR_MS)
+    return format.format(Math.max(1, Math.round(remaining / MINUTE_MS)), 'minute');
   if (remaining < 48 * HOUR_MS) return format.format(Math.round(remaining / HOUR_MS), 'hour');
   return format.format(Math.round(remaining / (24 * HOUR_MS)), 'day');
 };

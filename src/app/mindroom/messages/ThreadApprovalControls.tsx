@@ -27,11 +27,7 @@ import { getApprovalCapabilities, getApprovalGrantState } from './approvalAction
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { ApprovalReceipt } from './ApprovalReceipt';
 import { describeApprovalHistory, describeWaitingApprovals } from './approvalLabels';
-import {
-  agentDisplayName,
-  useApprovalRoom,
-  userDisplayName,
-} from './approvalPeople';
+import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
 import { ApprovalDurations, ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
 
@@ -160,9 +156,15 @@ export function ApprovalReviewGroup({
       : [];
   const states = records.map((record) => context.actions.get(record.eventId)?.status);
   const chip = states.every((status) => status === 'submitted')
-    ? { label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'), tone: 'done' as const }
+    ? {
+        label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'),
+        tone: 'done' as const,
+      }
     : states.some((status) => status === 'sending')
-    ? { label: t('mindroomUi.messages.threadApprovalControls.chipSending'), tone: 'neutral' as const }
+    ? {
+        label: t('mindroomUi.messages.threadApprovalControls.chipSending'),
+        tone: 'neutral' as const,
+      }
     : available.length > 0
     ? {
         label: t('mindroomUi.messages.threadApprovalControls.waitingForYou'),

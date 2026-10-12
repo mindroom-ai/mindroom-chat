@@ -572,7 +572,11 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
             args_preview: 'query=MindRoom release notes, max_results=5',
             result_preview: '5 results',
           },
-          { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'reading the changelog' },
+          {
+            type: 'tool_call_started',
+            tool_name: 'read_file',
+            args_preview: 'reading the changelog',
+          },
         ],
       },
     });
@@ -589,7 +593,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
     );
     expect(rows.map((row) => row.props['data-tool-index'])).toEqual([1, 2]);
-    const textOf = (row: (typeof rows)[number]) =>
+    const textOf = (row: typeof rows[number]) =>
       row
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
