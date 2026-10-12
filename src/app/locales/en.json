@@ -2442,6 +2442,8 @@
     "messages": {
       "approvalArguments": {
         "arguments": "Arguments",
+        "showAllArguments": "Show all arguments",
+        "hideArguments": "Hide arguments",
         "loadingCompleteArguments": "Loading complete arguments…",
         "onlyATruncatedPreviewIsAvailable": "Only a truncated preview is available.",
         "retry": "Retry",

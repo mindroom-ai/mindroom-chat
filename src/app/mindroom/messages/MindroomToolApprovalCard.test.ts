@@ -56,6 +56,7 @@ vi.mock('folds', () => ({
     Check: 'Check',
     CheckTwice: 'CheckTwice',
     ChevronBottom: 'ChevronBottom',
+    ChevronTop: 'ChevronTop',
     Code: 'Code',
     Cross: 'Cross',
     Warning: 'Warning',
@@ -70,6 +71,18 @@ vi.mock('folds', () => ({
   Spinner: () => React.createElement('span', null, 'spinner'),
   Text: ({ as: Tag = 'span', children, ...props }: any) =>
     React.createElement(Tag, props, children),
+}));
+
+vi.mock('./ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
 }));
 
 vi.mock('./MindroomToolApprovalCard.css.ts', () => ({
@@ -515,7 +528,8 @@ describe('MindroomToolApprovalCard', () => {
 
     expect(text).toContain('web_search');
     expect(text).toContain('Pending approval');
-    expect(text).toContain('Arguments');
+    expect(text).toContain('Show all arguments');
+    expect(text).toContain('release date');
     expect(text).toContain('Approve');
     expect(text).toContain('Deny');
 
@@ -684,7 +698,7 @@ describe('MindroomToolApprovalCard', () => {
 
     expect(getNodeText(renderer.root)).toContain('Auto-approval active');
     expect(getNodeText(renderer.root)).toContain('Arguments may differ');
-    expect(getNodeText(renderer.root)).toContain('Arguments');
+    expect(getNodeText(renderer.root)).toContain('Show all arguments');
 
     await act(async () => {
       findButtonByText(renderer.root, 'Stop auto-approval').props.onClick();
@@ -954,7 +968,7 @@ describe('MindroomToolApprovalCard', () => {
     });
 
     expect(getNodeText(renderer.root)).toContain(label);
-    expect(getNodeText(renderer.root)).toContain('Arguments');
+    expect(getNodeText(renderer.root)).toContain('Show all arguments');
     expect(getNodeText(renderer.root)).not.toContain('Stop auto-approval');
 
     renderer.unmount();
@@ -1206,8 +1220,11 @@ describe('MindroomToolApprovalCard', () => {
       vi.advanceTimersByTime(2000);
     });
     expect(getNodeText(renderer.root)).toContain('Submitted. Waiting for room update.');
+    // Only the arguments toggle stays usable once a decision is submitted.
     expect(
-      renderer.root.findAllByType('button').filter((button) => !button.props.disabled)
+      renderer.root
+        .findAllByType('button')
+        .filter((button) => !button.props.disabled && button.props['aria-expanded'] === undefined)
     ).toHaveLength(0);
     act(() =>
       renderer.update(
@@ -1235,7 +1252,8 @@ describe('MindroomToolApprovalCard', () => {
 
     expect(text).toContain('web_search');
     expect(text).toContain('Denied by @ops:example.org');
-    expect(text).toContain('Arguments');
+    expect(text).toContain('Show all arguments');
+    expect(text).toContain('release date');
     expect(
       renderer.root.findByProps({ 'aria-label': 'Resolved tool approval request' }).props.open
     ).not.toBe(true);
