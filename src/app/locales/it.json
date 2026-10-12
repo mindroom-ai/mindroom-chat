@@ -3063,6 +3063,7 @@
       "stopping": "Arresto in corso…",
       "cancel": "Annulla {{tool}}",
       "cancelFailed": "Impossibile annullare {{tool}}. Riprova.",
+      "stopAllFailed": "Impossibile interrompere le attività in background. Riprova.",
       "inRoom": "Attività in background in corso"
     }
   },

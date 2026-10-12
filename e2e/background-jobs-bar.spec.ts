@@ -144,6 +144,18 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     ]);
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]]);
   await expect(bar.getByRole('button', { name: 'Cancel run_tests' })).toHaveCount(0);
+  // A job cancelled from another client shows Stopping… here too, without its ✕.
+  const researchCancel = bar.getByRole('button', { name: 'Cancel Subagent: research' });
+  await expect(researchCancel).toBeVisible();
+  await publish(researcher, [
+    job('job_3', fixture.rootId, 'research', { kind: 'subagent', status: 'cancel_requested' }),
+    job('job_4', null, 'web_search'),
+  ]);
+  await expect(researchCancel).toHaveCount(0);
+  await publish(researcher, [
+    job('job_3', fixture.rootId, 'research', { kind: 'subagent' }),
+    job('job_4', null, 'web_search'),
+  ]);
   await publish(coder, [coderJobs[1]]);
   await expect(page.getByRole('region', { name: '2 background jobs' })).not.toContainText(
     'run_tests'

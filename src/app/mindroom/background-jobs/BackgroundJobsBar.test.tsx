@@ -178,6 +178,16 @@ it('restores the button and shows an error when the send fails', async () => {
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('cancelFailed');
 });
 
+it('says the jobs could not be stopped when Stop all fails', async () => {
+  state.jobs = [job('a'), job('b')];
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render();
+  await click('mindroomUi.backgroundJobs.stopAll');
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.stopAllFailed'
+  );
+});
+
 it('stop all sends one event for the view and marks every job stopping', async () => {
   state.jobs = [job('a'), job('b')];
   render();

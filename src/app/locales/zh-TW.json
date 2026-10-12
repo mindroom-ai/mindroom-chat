@@ -3009,6 +3009,7 @@
       "stopping": "正在停止…",
       "cancel": "取消 {{tool}}",
       "cancelFailed": "無法取消 {{tool}}，請再試一次。",
+      "stopAllFailed": "無法停止背景工作，請再試一次。",
       "inRoom": "背景工作執行中"
     }
   },

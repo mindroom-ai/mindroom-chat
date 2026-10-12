@@ -37,7 +37,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   }, [roomJobs]);
 
   const cancel = useCallback(
-    async (request: BackgroundJobCancelRequest, jobIds: string[], tool: string) => {
+    async (request: BackgroundJobCancelRequest, jobIds: string[], failure: string) => {
       requests.current += 1;
       const sent = requests.current;
       setError(undefined);
@@ -66,7 +66,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                 .filter(([, sends]) => sends.size > 0)
             )
         );
-        setError({ text: t('mindroomUi.backgroundJobs.cancelFailed', { tool }), jobIds });
+        setError({ text: failure, jobIds });
       }
     },
     [mx, room, threadId, t]
@@ -99,7 +99,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   radii="Pill"
                   variant="SurfaceVariant"
                   aria-label={t('mindroomUi.backgroundJobs.cancel', { tool: item.name })}
-                  onClick={() => cancel({ jobId: item.jobId }, [item.jobId], item.name)}
+                  onClick={() =>
+                    cancel(
+                      { jobId: item.jobId },
+                      [item.jobId],
+                      t('mindroomUi.backgroundJobs.cancelFailed', { tool: item.name })
+                    )
+                  }
                 >
                   <Icon src={Icons.Cross} size="50" />
                 </IconButton>
@@ -116,7 +122,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
             cancel(
               { all: true },
               model.items.map((item) => item.jobId),
-              model.title
+              t('mindroomUi.backgroundJobs.stopAllFailed')
             )
           }
         >

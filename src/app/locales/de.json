@@ -3009,6 +3009,7 @@
       "stopping": "Wird gestoppt…",
       "cancel": "{{tool}} abbrechen",
       "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut.",
+      "stopAllFailed": "Die Hintergrundaufgaben konnten nicht gestoppt werden. Versuche es erneut.",
       "inRoom": "Hintergrundaufgaben laufen"
     }
   },

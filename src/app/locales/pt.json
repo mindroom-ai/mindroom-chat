@@ -3063,6 +3063,7 @@
       "stopping": "Parando…",
       "cancel": "Cancelar {{tool}}",
       "cancelFailed": "Não foi possível cancelar {{tool}}. Tente novamente.",
+      "stopAllFailed": "Não foi possível parar as tarefas em segundo plano. Tente novamente.",
       "inRoom": "Tarefas em segundo plano em execução"
     }
   },

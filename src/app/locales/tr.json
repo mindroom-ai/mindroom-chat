@@ -3009,6 +3009,7 @@
       "stopping": "Durduruluyor…",
       "cancel": "{{tool}} iptal et",
       "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin.",
+      "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"
     }
   },

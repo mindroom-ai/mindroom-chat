@@ -3009,6 +3009,7 @@
       "stopping": "Stoppen…",
       "cancel": "{{tool}} annuleren",
       "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw.",
+      "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"
     }
   },
