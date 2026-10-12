@@ -69,7 +69,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
         setError({ text: failure, jobIds });
       }
     },
-    [mx, room, threadId, t]
+    [mx, room, threadId]
   );
 
   const model = presentBackgroundJobs(jobs, t);
