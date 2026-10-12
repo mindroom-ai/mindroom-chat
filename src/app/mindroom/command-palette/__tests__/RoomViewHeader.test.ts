@@ -360,7 +360,7 @@ const renderHeader = async (
   const store = createStore();
   store.set(mindroomAccountSettingsAtom, {
     simpleMode,
-    expandLongMessagesByDefault: true,
+    longMessageFolding: 'off',
   });
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
@@ -394,7 +394,7 @@ describe('RoomViewHeader', () => {
     act(() => {
       store.set(mindroomAccountSettingsAtom, {
         simpleMode: true,
-        expandLongMessagesByDefault: true,
+        longMessageFolding: 'off',
       });
     });
     expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
@@ -428,7 +428,7 @@ describe('RoomViewHeader', () => {
     act(() => {
       store.set(mindroomAccountSettingsAtom, {
         simpleMode: true,
-        expandLongMessagesByDefault: true,
+        longMessageFolding: 'off',
       });
     });
     expect(renderer.root.findByProps({ 'aria-label': 'Scheduled tasks (0)' })).toBeDefined();

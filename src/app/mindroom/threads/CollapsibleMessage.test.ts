@@ -506,6 +506,25 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('folds at the given height and measures overflow against it', () => {
+    // 16px font: 320px fits under 30em (480px) but not under the default 11em (176px).
+    const fits = renderCollapsibleMessage({ collapseMode: 'default', collapsedHeightEm: 30 });
+    expect(getContentContainer(fits).props.style.maxHeight).toBe('30em');
+    expect(findExpandButtons(fits)).toHaveLength(0);
+
+    const overflows = renderCollapsibleMessage(
+      { collapseMode: 'default', collapsedHeightEm: 30 },
+      { clientHeight: 480, scrollHeight: 600 }
+    );
+    expect(getContentContainer(overflows).props.style.maxHeight).toBe('30em');
+    expect(findExpandButtons(overflows)).toHaveLength(1);
+
+    act(() => {
+      fits.unmount();
+      overflows.unmount();
+    });
+  });
+
   it('non-overflowing content shows no expand or collapse button', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },

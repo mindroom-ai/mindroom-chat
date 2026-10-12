@@ -66,8 +66,11 @@
         "sectionTitle": "Interface",
         "simpleMode": "Eenvoudige modus",
         "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
-        "expandLongMessagesByDefault": "Lange berichten standaard uitklappen",
-        "expandLongMessagesByDefaultDescription": "Toont lange berichten volledig in plaats van ze achter ‘Meer tonen’ in te klappen. Gesynchroniseerd tussen je apparaten.",
+        "longMessageFolding": "Lange berichten inklappen",
+        "longMessageFoldingDescription": "‘Automatisch’ klapt lange berichten van mensen in, en antwoorden van agents alleen als ze erg lang zijn. ‘Aan’ klapt elk lang bericht in achter ‘Meer tonen’. ‘Uit’ toont elk bericht volledig. Gesynchroniseerd tussen je apparaten.",
+        "longMessageFoldingAuto": "Automatisch",
+        "longMessageFoldingOn": "Aan",
+        "longMessageFoldingOff": "Uit",
         "showCanvasesInSidebar": "Interactieve panelen in de zijbalk tonen",
         "showCanvasesInSidebarDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."

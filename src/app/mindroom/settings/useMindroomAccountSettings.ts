@@ -5,6 +5,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
   DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
+  type LongMessageFolding,
   type MindroomAccountSettings,
   mergeMindroomAccountSettings,
   sanitizeMindroomAccountSettings,
@@ -92,8 +93,8 @@ export const useSetMindroomAccountSettings = (): ((
 
 export const useSimpleMode = (): boolean => useMindroomAccountSettings().simpleMode;
 
-export const useExpandLongMessagesByDefault = (): boolean =>
-  useMindroomAccountSettings().expandLongMessagesByDefault;
+export const useLongMessageFolding = (): LongMessageFolding =>
+  useMindroomAccountSettings().longMessageFolding;
 
 export const useShowCanvasesInSidebar = (): boolean =>
   useMindroomAccountSettings().showCanvasesInSidebar;

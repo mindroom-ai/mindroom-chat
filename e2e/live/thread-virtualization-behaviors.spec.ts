@@ -391,7 +391,7 @@ test.describe('virtualized thread behaviors', () => {
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
+      longMessageFolding: 'on',
     });
     const seeded = await seedThread(homeserver, session.accessToken, { longBodies: true });
 
@@ -429,7 +429,7 @@ test.describe('virtualized thread behaviors', () => {
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
+      longMessageFolding: 'on',
     });
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,
@@ -469,7 +469,7 @@ test.describe('virtualized thread behaviors', () => {
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
+      longMessageFolding: 'on',
     });
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,

@@ -57,7 +57,7 @@ const {
     threadInitialRenderMode: 'live' as 'loading' | 'cached' | 'live',
   },
   accountSettingsState: {
-    expandLongMessagesByDefault: false,
+    longMessageFolding: 'on' as 'auto' | 'on' | 'off',
   },
 }));
 
@@ -116,7 +116,7 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../settings/useMindroomAccountSettings', () => ({
-  useExpandLongMessagesByDefault: () => accountSettingsState.expandLongMessagesByDefault,
+  useLongMessageFolding: () => accountSettingsState.longMessageFolding,
 }));
 
 vi.mock('../../../hooks/useAlive', () => ({
@@ -407,7 +407,8 @@ vi.mock('../TimelineMinimap.css', () => ({
 vi.mock('../../../utils/matrix', () => ({
   eventWithShortcode: (_packs: unknown, body: string) => body,
   factoryEventSentBy: () => false,
-  getMxIdLocalPart: (userId: string) => userId,
+  getMxIdLocalPart: (userId: string) => /^@([^:]+):/.exec(userId)?.[1] ?? userId,
+  getMxIdServer: (userId: string) => /:(.+)$/.exec(userId)?.[1],
 }));
 
 vi.mock('../../../utils/room', () => ({
@@ -587,17 +588,21 @@ vi.mock('../CollapsibleMessage', async () => {
     collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({
       children,
+      collapsedHeightEm,
       collapseMode = 'default',
       expansionKey,
       forceOverflowing,
+      measurementKey,
       onInitialExpandConsumed,
     }: {
       children:
         | React.ReactNode
         | ((state: { expanded: boolean; loadFullContent: boolean }) => React.ReactNode);
+      collapsedHeightEm?: number;
       collapseMode?: string;
       expansionKey?: string;
       forceOverflowing?: boolean;
+      measurementKey?: string;
       onInitialExpandConsumed?: () => void;
     }) => {
       const previousCollapseModeRef = ReactImport.useRef<string | undefined>(undefined);
@@ -618,9 +623,11 @@ vi.mock('../CollapsibleMessage', async () => {
       return ReactImport.createElement(
         collapsibleType,
         {
+          collapsedHeightEm,
           collapseMode,
           expansionKey,
           forceOverflowing,
+          measurementKey,
           'data-testid': collapsibleTestId,
         },
         renderedChildren
@@ -1129,7 +1136,7 @@ beforeEach(() => {
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];
   threadRenderStateControl.threadInitialRenderMode = 'live';
-  accountSettingsState.expandLongMessagesByDefault = false;
+  accountSettingsState.longMessageFolding = 'on';
 });
 
 afterEach(() => {
@@ -1221,7 +1228,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('uses the account preference as the expand-all baseline', async () => {
-    accountSettingsState.expandLongMessagesByDefault = true;
+    accountSettingsState.longMessageFolding = 'off';
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const { collapseAllMessages } = await import('../CollapsibleMessage');
     const historicalEvent = makeEvent('$historical', {
@@ -1379,6 +1386,46 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(
       findRenderMessageContentPropsForEvent(renderer, '$encrypted-long-text').hydrateLongText
     ).toBe(true);
+  });
+
+  it("folds agent messages at a taller height than people's only in auto mode", async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const room = makeRoom({
+      liveEvents: [
+        makeEvent('$person'),
+        makeEvent('$agent', { sender: AGENT_USER_ID }),
+        makeEvent('$agent-metadata', {
+          content: { body: 'Bridged agent reply', msgtype: 'm.text', 'io.mindroom.tool_trace': [] },
+          sender: '@bridged:example.org',
+        }),
+      ],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+    const heightOf = (eventId: string) =>
+      findCollapsibleForEvent(renderer, eventId).props.collapsedHeightEm;
+
+    accountSettingsState.longMessageFolding = 'auto';
+    await act(async () => {
+      renderer = createTrackedRenderer(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(2);
+    });
+
+    expect(renderer.root.findByType('collapsible-message-state-provider').props.expandAllInit).toBe(
+      false
+    );
+    expect(heightOf('$person')).toBe(11);
+    expect(heightOf('$agent')).toBe(30);
+    expect(heightOf('$agent-metadata')).toBe(30);
+
+    accountSettingsState.longMessageFolding = 'on';
+    await act(async () => {
+      renderer.update(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(2);
+    });
+
+    expect(heightOf('$person')).toBe(11);
+    expect(heightOf('$agent')).toBe(11);
   });
 
   it('forces overflow for very long plain text without measuring the collapsed row', async () => {
@@ -1687,6 +1734,24 @@ describe('RoomTimeline collapsible wiring', () => {
         'io.mindroom.canvas_response': marker,
       })
     ).toBe(false);
+  });
+
+  it('scales the forced-overflow length with the fold height', async () => {
+    const { shouldForceCollapsibleMessageOverflow } = await import('../threadCollapsibleMessages');
+    const content = (length: number) => ({ body: 'x'.repeat(length), msgtype: 'm.text' });
+
+    expect(shouldForceCollapsibleMessageOverflow(content(1500))).toBe(true);
+    expect(shouldForceCollapsibleMessageOverflow(content(1500), 30)).toBe(false);
+    expect(shouldForceCollapsibleMessageOverflow(content(3500), 30)).toBe(true);
+  });
+
+  it('measures a row again when its fold height changes', async () => {
+    const { getCollapsibleMessageMeasurementKey } = await import('../threadCollapsibleMessages');
+    const event = makeEvent('$event');
+
+    expect(getCollapsibleMessageMeasurementKey(event as never, 'default', undefined, 11)).not.toBe(
+      getCollapsibleMessageMeasurementKey(event as never, 'default', undefined, 30)
+    );
   });
 
   it('marks visible live thread replies for initially-expanded mode', async () => {

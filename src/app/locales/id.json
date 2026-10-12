@@ -66,8 +66,11 @@
         "sectionTitle": "Antarmuka",
         "simpleMode": "Mode sederhana",
         "simpleModeDescription": "Sembunyikan fitur lanjutan seperti palet perintah dan filter utas. Disinkronkan di semua perangkat Anda.",
-        "expandLongMessagesByDefault": "Perluas pesan panjang secara default",
-        "expandLongMessagesByDefaultDescription": "Tampilkan pesan panjang secara utuh tanpa meringkasnya di balik Tampilkan pesan lengkap. Disinkronkan di semua perangkat Anda.",
+        "longMessageFolding": "Lipat pesan panjang",
+        "longMessageFoldingDescription": "Otomatis melipat pesan panjang dari orang, dan balasan agen hanya jika sangat panjang. Aktif melipat setiap pesan panjang di balik Tampilkan pesan lengkap. Nonaktif menampilkan setiap pesan secara utuh. Disinkronkan di semua perangkat Anda.",
+        "longMessageFoldingAuto": "Otomatis",
+        "longMessageFoldingOn": "Aktif",
+        "longMessageFoldingOff": "Nonaktif",
         "showCanvasesInSidebar": "Tampilkan panel interaktif di bilah sisi",
         "showCanvasesInSidebarDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Disinkronkan di semua perangkat Anda.",
         "saveFailed": "Perubahan tidak dapat disimpan. Periksa koneksi Anda dan coba lagi."

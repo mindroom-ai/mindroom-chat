@@ -3,6 +3,11 @@ import { hasMindroomMessageExtras } from '../messages/messageExtrasData';
 import { getMindroomLongTextMxcUri } from '../messages/longText';
 import { CANVAS_RESPONSE_KEY } from '../canvas/canvasMessages';
 import { hasMindroomThreadSummary } from '../messages/threadSummary';
+import type { LongMessageFolding } from '../settings/mindroomAccountSettings';
+import {
+  AGENT_COLLAPSED_MESSAGE_HEIGHT_EM,
+  COLLAPSED_MESSAGE_HEIGHT_EM,
+} from './collapsedMessageHeight';
 import type { ThreadFilterState } from './roomThreadOverviewModel';
 import { isRenderableEvent } from './roomTimelineEvents';
 import { getThreadFilteredEvents } from './threadRoomFocus';
@@ -13,24 +18,35 @@ import { eventBelongsToThread, isVisibleThreadTextMessageEventType } from './thr
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
   isVisibleThreadTextMessageEventType(mEvent.getType());
 
+export const getCollapsedMessageHeightEm = (
+  folding: LongMessageFolding,
+  isAgentMessage: boolean
+): number =>
+  folding === 'auto' && isAgentMessage
+    ? AGENT_COLLAPSED_MESSAGE_HEIGHT_EM
+    : COLLAPSED_MESSAGE_HEIGHT_EM;
+
+// Text this long overflows the default fold height; a taller fold needs proportionally more.
 const FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH = 1200;
 
-export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolean => {
+export const shouldForceCollapsibleMessageOverflow = (
+  content: IContent,
+  collapsedHeightEm = COLLAPSED_MESSAGE_HEIGHT_EM
+): boolean => {
   // A canvas answer shows as a one-line receipt however long its data is; a forged one that
   // renders as text still folds by its measured height.
   if (content[CANVAS_RESPONSE_KEY] !== undefined) return false;
   if (getMindroomLongTextMxcUri(content as Record<string, unknown>)) return true;
 
+  const minLength =
+    (FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH * collapsedHeightEm) / COLLAPSED_MESSAGE_HEIGHT_EM;
   const body = content.body;
-  if (typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH) {
+  if (typeof body === 'string' && body.length >= minLength) {
     return true;
   }
 
   const formattedBody = content.formatted_body;
-  return (
-    typeof formattedBody === 'string' &&
-    formattedBody.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH
-  );
+  return typeof formattedBody === 'string' && formattedBody.length >= minLength;
 };
 
 export type ShouldTrackLiveCollapsibleMessage = {
@@ -153,13 +169,15 @@ export const getCollapsibleMessageMode = (
 export const getCollapsibleMessageMeasurementKey = (
   mEvent: MatrixEvent,
   collapseMode: ReturnType<typeof getCollapsibleMessageMode>,
-  editedEvent?: MatrixEvent
+  editedEvent: MatrixEvent | undefined,
+  collapsedHeightEm: number
 ): string =>
   [
     mEvent.getId() ?? '',
     mEvent.isRedacted() ? 'redacted' : 'active',
     editedEvent?.getId() ?? '',
     collapseMode,
+    collapsedHeightEm,
   ].join('|');
 
 export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId: string) => {

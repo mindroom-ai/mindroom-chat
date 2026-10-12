@@ -66,8 +66,11 @@
         "sectionTitle": "Arayüz",
         "simpleMode": "Basit mod",
         "simpleModeDescription": "Komut paleti ve konu filtreleri gibi gelişmiş özellikleri gizler. Cihazlarınız arasında eşitlenir.",
-        "expandLongMessagesByDefault": "Uzun mesajları varsayılan olarak genişlet",
-        "expandLongMessagesByDefaultDescription": "Uzun mesajları Tam mesajı göster düğmesinin arkasına katlamak yerine bütünüyle gösterir. Cihazlarınız arasında eşitlenir.",
+        "longMessageFolding": "Uzun mesajları katla",
+        "longMessageFoldingDescription": "Otomatik, kişilerden gelen uzun mesajları katlar; ajan yanıtlarını yalnızca çok uzun olduklarında katlar. Açık, her uzun mesajı Tam mesajı göster düğmesinin arkasına katlar. Kapalı, her mesajı bütünüyle gösterir. Cihazlarınız arasında eşitlenir.",
+        "longMessageFoldingAuto": "Otomatik",
+        "longMessageFoldingOn": "Açık",
+        "longMessageFoldingOff": "Kapalı",
         "showCanvasesInSidebar": "Etkileşimli panelleri kenar çubuğunda göster",
         "showCanvasesInSidebarDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Cihazlarınız arasında eşitlenir.",
         "saveFailed": "Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin."

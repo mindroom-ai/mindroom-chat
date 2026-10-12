@@ -21,6 +21,7 @@ import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
+import { isMindroomAgentMessageEvent } from '../../matrix/agentIdentity';
 import { CollapsibleMessage } from '../CollapsibleMessage';
 import {
   getCollapsibleMessageMeasurementKey,
@@ -141,7 +142,11 @@ export function TimelineMessageBody({
             plan={threadSummaryTimeline.markersByEventId.get(eventId)}
           />
         );
-      const expansion = getExpansion(eventId, content);
+      const expansion = getExpansion(
+        eventId,
+        content,
+        isMindroomAgentMessageEvent({ getSender: () => senderId, getContent: () => content })
+      );
       const renderMessage = (loadFullContent = true) => (
         <RenderMessageContent
           {...common}
@@ -155,11 +160,15 @@ export function TimelineMessageBody({
         <CollapsibleMessage
           {...expansion}
           expansionKey={eventId}
-          forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
+          forceOverflowing={shouldForceCollapsibleMessageOverflow(
+            content,
+            expansion.collapsedHeightEm
+          )}
           measurementKey={getCollapsibleMessageMeasurementKey(
             event,
             expansion.collapseMode,
-            editedEvent
+            editedEvent,
+            expansion.collapsedHeightEm
           )}
         >
           {({ loadFullContent }) => renderMessage(loadFullContent)}

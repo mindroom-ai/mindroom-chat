@@ -2,25 +2,36 @@
 
 ## Runbook
 
-### Fold a long message the user just sent (2026-10-12)
+### Fold long messages by default: Auto, On, Off (2026-10-12)
 
 - Why: the owner asked for T3 Code's behavior, where a long pasted or typed message shows folded once it is sent.
   T3 Code (`MessagesTimeline.tsx`) folds user messages over 600 characters or 8 lines to an 11rem preview with a bottom fade and "Show full message" / "Show less"; it never folds the agent's output.
-  This client already folds long messages the same way (an `11em` cap measured by height, a fade, the same labels), but in a thread a long message the user sent opened a moment after sending.
-- Root cause: the live expand-once policy (`getLiveCollapsibleMessageExpandId`), which keeps streamed replies readable while they arrive, also took the viewer's own messages.
+  This client folds the same way (an `11em` cap measured by height, a fade, the same labels), but the account switch "Expand long messages by default" has been on by default since 2026-09-13 (`7842a0d5`), so nothing folded, a long paste included.
+- Setting: Settings → Interface → "Fold long messages" replaces the switch, stored as `longMessageFolding` in `io.mindroom.settings`:
+  - **Auto** (default): people's messages, the viewer's included, fold past `11em`; MindRoom agent replies fold only past `30em` (about 20 lines), so typical answers stay open (owner's choice).
+  - **On**: every long message folds past `11em` (the old switch off).
+  - **Off**: nothing folds (the old switch on).
+  A stored old switch keeps its meaning: it is only written when flipped, so `true` reads as Off and `false` as On; no stored value reads as Auto. The `[+all]` / `[-all]` timeline override is unchanged.
+- Agent detection: `isMindroomAgentMessageEvent` (a `mindroom_` localpart, or MindRoom run, stream, or tool metadata on the shown content). A bot it misses folds like a person.
+- Fold height: `CollapsibleMessage` takes `collapsedHeightEm` (constants in `collapsedMessageHeight.ts`); the measurement key includes it, so a changed height re-measures instead of reusing a cached verdict, and the forced-overflow length (1200 characters at `11em`) scales with the height.
+- Own messages: the live expand-once policy (`getLiveCollapsibleMessageExpandId`), which keeps streamed replies readable while they arrive, also took the viewer's own messages.
   In a thread, the local echo fires no `Room.timeline` (the main timeline rejects thread events); the server's echo fires it with `liveEvent: true` under the real `$` ID, which marked the row `initially-expanded` and opened it for good.
-  In the room view, the local echo fires `Room.timeline` live under its `~` transaction ID and was marked too, but rows are keyed by event ID, so the row remounts under its `$` ID and folds; a live room run passes without the fix.
-  The viewer's own live edits opened their message the same way.
-- Change: `shouldTrackLiveCollapsibleMessage` skips events from `room.myUserId`, so own sends and edits, including those from the user's other devices, keep the default mode: folded when they overflow, or open under "Expand long messages by default".
-  Live messages from agents and other people still open once; history is unchanged.
-- Tests: `RoomTimelineCollapsible.test.ts`: an own live message and an own live edit stay in `default` mode, and an own thread reply is not tracked (each fails without the fix); the existing expand-once cases now use an agent sender, since the fixture's viewer sent them.
-  New live spec `e2e/live/own-long-message-folds.spec.ts`, for the room and a thread: a live 24-line agent message opens, and a 24-line message typed in the composer is folded and clipped once a later agent message has synced (sync is ordered, so the sent message's echo was processed), then opens on click.
-  On a disposable tuwunel stack the thread case fails without the fix ("Show full message" is gone) and both cases passed 2 of 2 runs with it; repeated logins on one account hit the login rate limit, so each run used its own account.
-  `perf-thread-streaming.spec.ts` now streams its replies and edits from an agent account: from the viewer's account its streamed row would now stay folded, unlike an agent's; a 40-reply, 10-edit run passes.
-- Independent review (subagent): confirmed the single call site covers room, thread, and edits, that the SDK local echo's sender equals `room.myUserId`, and that MindRoom agents never send as the viewer. Fixed: the spec's `$` ID wait was not a barrier for the thread view's sync echo (now a later agent message), the root cause was described only for the thread view, the perf probe streamed as the viewer, the code comment assumed the composer, and redundant checks and test names.
+  In the room view, the local echo fires `Room.timeline` live under its `~` transaction ID and was marked too, but rows are keyed by event ID, so the row remounts under its `$` ID and folds.
+  `shouldTrackLiveCollapsibleMessage` now skips events from `room.myUserId`, so own sends and edits, including those from the user's other devices, keep the default mode.
+  Live messages from agents and other people still open once.
+- Settings UI: a menu like App Language, with `menu` / `menuitemradio` roles and `aria-checked`; it shows the chosen value before the write settles and the save-failed notice on error, as the switches do. Strings in all 17 locales; the old switch strings are gone.
+- Tests:
+  - `mindroomAccountSettings.test.ts`: Auto by default, invalid values fall back, and the old switch maps to Off and On (fails without the mapping).
+  - `MindroomInterfaceSettings.test.tsx`: the menu shows Auto, writes `longMessageFolding`, and shows the choice before the write settles.
+  - `CollapsibleMessage.test.ts`: a `30em` fold caps at `30em` and measures overflow against it.
+  - `RoomTimelineCollapsible.test.ts`: in Auto an agent message (by username or by metadata) folds at `30em` and a person's at `11em`, On folds both at `11em`, Off sets the expand-all baseline; the forced-overflow length scales; the measurement key varies with the height; own live messages, edits, and thread replies are not expand-once. The test mock of `getMxIdLocalPart` now strips the server, as the real one does.
+  - Live `own-long-message-folds.spec.ts`, room and thread, with no stored choice: a 16-line agent reply stays open, a 40-line one folds to a preview over twice as tall as a person's, a live 40-line agent reply opens once, and a 24-line message typed in the composer folds and stays folded after a later message syncs. It fails on `dev` (the 40-line reply never folds) and passes on this branch for both surfaces.
+  - `long-message-expansion-default.spec.ts` now drives the menu (On to Off and back) and checks `longMessageFolding`; it passes against a local stack (`E2E_DEPLOYED_*` pointed at it), anchor drift included. `message-collapse-style` (room dark, thread light) passes with its seed now `longMessageFolding: 'on'`.
+  - e2e seeds and unit fixtures use the new key; `perf-thread-streaming.spec.ts` streams from an agent account, since the viewer's own streamed row would stay folded.
 - Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings) and Prettier pass.
-  `npm test`: 6,655 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases, which fail the same way on a clean `HEAD`.
-- Next: messages from other people in shared rooms still open when they arrive live; folding every non-agent message would need reliable agent detection, so it is left out.
+  `npm test`: 6,660 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases, which fail the same way on a clean `dev`.
+- Known limits: another person's long message that arrives live opens once, then folds when its row remounts (only the viewer's own messages skip expand-once). Older clients still read the old switch, so a choice made here does not reach them.
+- Next: tune the `30em` agent height from real use.
 
 ### Record the shared UI design rules (2026-10-12)
 
