@@ -3008,7 +3008,8 @@
       "stopAll": "Tümünü durdur",
       "stopping": "Durduruluyor…",
       "cancel": "{{tool}} iptal et",
-      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin."
+      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin.",
+      "inRoom": "Arka plan işleri çalışıyor"
     }
   },
   "roomSchedules": {

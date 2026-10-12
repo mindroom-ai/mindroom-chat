@@ -3008,7 +3008,8 @@
       "stopAll": "すべて停止",
       "stopping": "停止中…",
       "cancel": "{{tool}} をキャンセル",
-      "cancelFailed": "{{tool}} をキャンセルできませんでした。もう一度お試しください。"
+      "cancelFailed": "{{tool}} をキャンセルできませんでした。もう一度お試しください。",
+      "inRoom": "バックグラウンドジョブを実行中"
     }
   },
   "roomSchedules": {

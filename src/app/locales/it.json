@@ -3062,7 +3062,8 @@
       "stopAll": "Ferma tutto",
       "stopping": "Arresto in corso…",
       "cancel": "Annulla {{tool}}",
-      "cancelFailed": "Impossibile annullare {{tool}}. Riprova."
+      "cancelFailed": "Impossibile annullare {{tool}}. Riprova.",
+      "inRoom": "Attività in background in corso"
     }
   },
   "roomSchedules": {

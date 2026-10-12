@@ -6,6 +6,8 @@ export type BackgroundJobsBarItem = {
   agentId: string;
   label: string;
   waitingForApproval: boolean;
+  // Its cancel was already requested, from this view or anywhere else.
+  stopping: boolean;
 };
 
 export type BackgroundJobsBarModel = {
@@ -29,9 +31,16 @@ export const presentBackgroundJobs = (
     agentId: job.agentId,
     label: label(job, t),
     waitingForApproval: isWaitingForApproval(job),
+    stopping: job.status === 'cancel_requested',
   }));
   if (items.length > 1) {
-    return { title: t('mindroomUi.backgroundJobs.many', { count: items.length }), items };
+    // With one job the title says it waits for approval; with several, its own label does.
+    const labelled = items.map((item) =>
+      item.waitingForApproval
+        ? { ...item, label: t('mindroomUi.backgroundJobs.approvalOne', { tool: item.label }) }
+        : item
+    );
+    return { title: t('mindroomUi.backgroundJobs.many', { count: items.length }), items: labelled };
   }
   const [only] = items;
   const title = only.waitingForApproval

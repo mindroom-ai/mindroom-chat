@@ -3062,7 +3062,8 @@
       "stopAll": "Parar tudo",
       "stopping": "Parando…",
       "cancel": "Cancelar {{tool}}",
-      "cancelFailed": "Não foi possível cancelar {{tool}}. Tente novamente."
+      "cancelFailed": "Não foi possível cancelar {{tool}}. Tente novamente.",
+      "inRoom": "Tarefas em segundo plano em execução"
     }
   },
   "roomSchedules": {

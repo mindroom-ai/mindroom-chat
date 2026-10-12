@@ -3008,7 +3008,8 @@
       "stopAll": "Hentikan semua",
       "stopping": "Menghentikan…",
       "cancel": "Batalkan {{tool}}",
-      "cancelFailed": "Tidak dapat membatalkan {{tool}}. Coba lagi."
+      "cancelFailed": "Tidak dapat membatalkan {{tool}}. Coba lagi.",
+      "inRoom": "Tugas latar belakang sedang berjalan"
     }
   },
   "roomSchedules": {

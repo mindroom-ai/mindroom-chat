@@ -3008,7 +3008,8 @@
       "stopAll": "Alle stoppen",
       "stopping": "Wird gestoppt…",
       "cancel": "{{tool}} abbrechen",
-      "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut."
+      "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut.",
+      "inRoom": "Hintergrundaufgaben laufen"
     }
   },
   "roomSchedules": {

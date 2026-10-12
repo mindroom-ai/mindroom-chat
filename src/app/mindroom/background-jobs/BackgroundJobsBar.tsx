@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import * as css from './backgroundJobsBar.css';
-import { presentBackgroundJobs } from './backgroundJobsPresentation';
+import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
 import { useBackgroundJobs } from './useBackgroundJobs';
 
@@ -48,7 +48,8 @@ export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
 
   const model = presentBackgroundJobs(jobs, t);
   if (!model) return null;
-  const stoppable = model.items.filter((item) => !stopping.has(item.jobId));
+  const isStopping = (item: BackgroundJobsBarItem) => item.stopping || stopping.has(item.jobId);
+  const stoppable = model.items.filter((item) => !isStopping(item));
   return (
     <div className={css.Bar} role="region" aria-label={model.title}>
       <small className={css.Status} role="status">
@@ -59,7 +60,7 @@ export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
         {model.items.map((item) => (
           <span key={item.jobId} className={css.Item}>
             <span>{item.label}</span>
-            {stopping.has(item.jobId) ? (
+            {isStopping(item) ? (
               <span>{t('mindroomUi.backgroundJobs.stopping')}</span>
             ) : (
               <IconButton

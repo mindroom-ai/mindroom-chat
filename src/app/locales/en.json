@@ -3008,7 +3008,8 @@
       "stopAll": "Stop all",
       "stopping": "Stopping…",
       "cancel": "Cancel {{tool}}",
-      "cancelFailed": "Could not cancel {{tool}}. Try again."
+      "cancelFailed": "Could not cancel {{tool}}. Try again.",
+      "inRoom": "Background jobs running"
     }
   },
   "roomSchedules": {

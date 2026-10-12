@@ -3008,7 +3008,8 @@
       "stopAll": "Alles stoppen",
       "stopping": "Stoppen…",
       "cancel": "{{tool}} annuleren",
-      "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw."
+      "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw.",
+      "inRoom": "Achtergrondtaken actief"
     }
   },
   "roomSchedules": {

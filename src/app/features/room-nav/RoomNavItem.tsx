@@ -61,6 +61,7 @@ import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
 import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
+import { useBackgroundJobs } from '../../mindroom/background-jobs/useBackgroundJobs';
 
 type RoomNavItemMenuProps = {
   room: Room;
@@ -266,6 +267,7 @@ export function RoomNavItem({
   const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
+  const backgroundJobs = useBackgroundJobs(room, null);
   const typingMember = useRoomTypingMember(room.roomId).filter(
     (receipt) => receipt.userId !== mx.getUserId()
   );
@@ -397,6 +399,13 @@ export function RoomNavItem({
                 size="50"
                 src={getRoomNotificationModeIcon(notificationMode)}
                 aria-label={notificationMode}
+              />
+            )}
+            {!optionsVisible && backgroundJobs.length > 0 && (
+              <Icon
+                size="50"
+                src={Icons.Clock}
+                aria-label={t('mindroomUi.backgroundJobs.inRoom')}
               />
             )}
             {callMembers.length > 0 && (

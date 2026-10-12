@@ -81,6 +81,13 @@ it('shows Stopping until the job leaves the state', async () => {
   expect(container.innerHTML).toBe('');
 });
 
+it('shows Stopping without a cancel button for a job cancelled elsewhere', () => {
+  state.jobs = [job('a', { status: 'cancel_requested' }), job('b', { status: 'cancel_requested' })];
+  render();
+  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(container.querySelectorAll('button')).toHaveLength(0);
+});
+
 it('restores the button and shows an error when the send fails', async () => {
   state.jobs = [job('a')];
   state.send = vi.fn().mockRejectedValue(new Error('offline'));

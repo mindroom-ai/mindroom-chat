@@ -39,10 +39,29 @@ describe('presentBackgroundJobs', () => {
     expect(presented?.items[0].waitingForApproval).toBe(true);
   });
 
+  it('marks a job whose cancel was already requested as stopping', () => {
+    const presented = presentBackgroundJobs(
+      [job('job_1', { status: 'cancel_requested' }), job('job_2')],
+      t
+    );
+    expect(presented?.items.map((item) => item.stopping)).toEqual([true, false]);
+  });
+
   it('counts several jobs and lists them in order', () => {
     const presented = presentBackgroundJobs([job('job_1'), job('job_2', { tool: 'download' })], t);
     expect(presented?.title).toBe('2 background jobs');
     expect(presented?.items.map((item) => item.label)).toEqual(['run_tests', 'download']);
+  });
+
+  it('marks a job waiting for approval among several', () => {
+    const presented = presentBackgroundJobs(
+      [job('job_1'), job('job_2', { tool: 'shell', status: 'awaiting_approval' })],
+      t
+    );
+    expect(presented?.items.map((item) => item.label)).toEqual([
+      'run_tests',
+      'Waiting for approval: shell',
+    ]);
   });
 
   it('labels a subagent by its tool and an unknown kind by its tool', () => {

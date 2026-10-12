@@ -3224,7 +3224,8 @@
       "stopAll": "إيقاف الكل",
       "stopping": "جارٍ الإيقاف…",
       "cancel": "إلغاء ⁨{{tool}}⁩",
-      "cancelFailed": "تعذّر إلغاء ⁨{{tool}}⁩. حاول مرة أخرى."
+      "cancelFailed": "تعذّر إلغاء ⁨{{tool}}⁩. حاول مرة أخرى.",
+      "inRoom": "مهام في الخلفية قيد التشغيل"
     }
   },
   "roomSchedules": {
