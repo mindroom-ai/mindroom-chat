@@ -61,7 +61,7 @@ import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
 import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
-import { useRoomBackgroundJobs } from '../../mindroom/background-jobs/useBackgroundJobs';
+import { useRoomBackgroundJobs } from '../../mindroom/background-jobs/useRoomBackgroundJobs';
 
 type RoomNavItemMenuProps = {
   room: Room;

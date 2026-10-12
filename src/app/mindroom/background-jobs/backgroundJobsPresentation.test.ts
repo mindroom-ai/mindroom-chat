@@ -14,7 +14,6 @@ beforeAll(async () => {
 
 const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJob => ({
   jobId,
-  agentId: '@mindroom_code:example.org',
   threadId: '$thread',
   kind: 'tool',
   tool: 'run_tests',
@@ -61,6 +60,7 @@ describe('presentBackgroundJobs', () => {
       'run_tests',
       'Waiting for approval: shell',
     ]);
+    expect(presented?.items.map((item) => item.name)).toEqual(['run_tests', 'shell']);
   });
 
   it('shows a job with an unknown status as running and stoppable', () => {

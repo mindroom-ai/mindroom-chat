@@ -9,7 +9,6 @@ export const MINDROOM_BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_
 
 export type BackgroundJob = {
   jobId: string;
-  agentId: string;
   threadId: string | null;
   kind: string;
   tool: string;
@@ -20,7 +19,7 @@ export type BackgroundJob = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined => {
+const parseJob = (value: unknown): BackgroundJob | undefined => {
   if (!isRecord(value)) return undefined;
   const { job_id: jobId, thread_id: threadId, kind, tool, status, started_at: startedAt } = value;
   if (
@@ -33,7 +32,7 @@ const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined =>
   ) {
     return undefined;
   }
-  return { jobId, agentId, threadId: threadId ?? null, kind, tool, status, startedAt };
+  return { jobId, threadId: threadId ?? null, kind, tool, status, startedAt };
 };
 
 /** Read one agent's jobs; an agent may only describe its own jobs, under its own user ID. */
@@ -41,12 +40,12 @@ export const parseBackgroundJobsStateEvent = (event: MatrixEvent): BackgroundJob
   const sender = event.getSender();
   const jobs = event.getContent().jobs;
   if (!sender || event.getStateKey() !== sender || !Array.isArray(jobs)) return [];
-  return jobs.flatMap((value) => parseJob(sender, value) ?? []);
+  return jobs.flatMap((value) => parseJob(value) ?? []);
 };
 
 /**
  * Every job of the room, oldest first. Only MindRoom agents on the viewer's homeserver that are still
- * in the room publish jobs; an agent that left cannot clear its state, so its last list is ignored.
+ * in the room publish jobs; an agent known to have left cannot clear its state, so its last list is ignored.
  */
 export const selectBackgroundJobs = (
   events: MatrixEvent[],

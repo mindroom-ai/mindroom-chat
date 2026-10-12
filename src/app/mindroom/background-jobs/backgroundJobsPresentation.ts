@@ -3,6 +3,8 @@ import type { BackgroundJob } from './backgroundJobsContract';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
+  // The job's own name, for its cancel button and errors; `label` may add its status.
+  name: string;
   label: string;
   waitingForApproval: boolean;
   // Its cancel was already requested, from this view or anywhere else.
@@ -16,7 +18,7 @@ export type BackgroundJobsBarModel = {
 
 const isWaitingForApproval = (job: BackgroundJob): boolean => job.status === 'awaiting_approval';
 
-const label = (job: BackgroundJob, t: TFunction): string =>
+const name = (job: BackgroundJob, t: TFunction): string =>
   job.kind === 'subagent' ? t('mindroomUi.backgroundJobs.subagent', { tool: job.tool }) : job.tool;
 
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
@@ -27,7 +29,8 @@ export const presentBackgroundJobs = (
   if (jobs.length === 0) return null;
   const items = jobs.map((job) => ({
     jobId: job.jobId,
-    label: label(job, t),
+    name: name(job, t),
+    label: name(job, t),
     waitingForApproval: isWaitingForApproval(job),
     stopping: job.status === 'cancel_requested',
   }));
@@ -35,7 +38,7 @@ export const presentBackgroundJobs = (
     // With one job the title says it waits for approval; with several, its own label does.
     const labelled = items.map((item) =>
       item.waitingForApproval
-        ? { ...item, label: t('mindroomUi.backgroundJobs.awaitingApproval', { tool: item.label }) }
+        ? { ...item, label: t('mindroomUi.backgroundJobs.awaitingApproval', { tool: item.name }) }
         : item
     );
     return {
@@ -45,7 +48,7 @@ export const presentBackgroundJobs = (
   }
   const [only] = items;
   const title = only.waitingForApproval
-    ? t('mindroomUi.backgroundJobs.awaitingApproval', { tool: only.label })
-    : t('mindroomUi.backgroundJobs.running', { tool: only.label });
+    ? t('mindroomUi.backgroundJobs.awaitingApproval', { tool: only.name })
+    : t('mindroomUi.backgroundJobs.running', { tool: only.name });
   return { title, items };
 };

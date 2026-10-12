@@ -7,7 +7,7 @@ import * as css from './backgroundJobsBar.css';
 import { jobsInView } from './backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
-import { useRoomBackgroundJobs } from './useBackgroundJobs';
+import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
 
 type BackgroundJobsBarProps = {
   room: Room;
@@ -52,7 +52,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           ])
       );
       try {
-        await cancelBackgroundJob(mx, room.roomId, threadId, request);
+        await cancelBackgroundJob(mx, room, threadId, request);
       } catch {
         // Only this request's marks go; a job another cancel also reached stays stopping.
         setStopping(
@@ -69,7 +69,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
         setError({ text: t('mindroomUi.backgroundJobs.cancelFailed', { tool }), jobIds });
       }
     },
-    [mx, room.roomId, threadId, t]
+    [mx, room, threadId, t]
   );
 
   const model = presentBackgroundJobs(jobs, t);
@@ -96,8 +96,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   size="300"
                   radii="Pill"
                   variant="SurfaceVariant"
-                  aria-label={t('mindroomUi.backgroundJobs.cancel', { tool: item.label })}
-                  onClick={() => cancel({ jobId: item.jobId }, [item.jobId], item.label)}
+                  aria-label={t('mindroomUi.backgroundJobs.cancel', { tool: item.name })}
+                  onClick={() => cancel({ jobId: item.jobId }, [item.jobId], item.name)}
                 >
                   <Icon src={Icons.Cross} size="50" />
                 </IconButton>

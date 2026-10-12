@@ -35,11 +35,10 @@ const viewer = '@alice:example.org';
 const joined = () => true;
 
 describe('parseBackgroundJobsStateEvent', () => {
-  it('parses each listed job with its agent', () => {
+  it('parses each listed job', () => {
     expect(parseBackgroundJobsStateEvent(jobsEvent([job('job_1')]))).toEqual([
       {
         jobId: 'job_1',
-        agentId: AGENT,
         threadId: '$thread',
         kind: 'tool',
         tool: 'run_tests',

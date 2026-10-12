@@ -194,7 +194,7 @@ vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => undefined,
 }));
 
-vi.mock('../../mindroom/background-jobs/useBackgroundJobs', () => ({
+vi.mock('../../mindroom/background-jobs/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => testState.backgroundJobs,
 }));
 

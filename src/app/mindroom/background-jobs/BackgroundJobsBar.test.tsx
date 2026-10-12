@@ -8,9 +8,9 @@ import type { BackgroundJob } from './backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 
 const state = vi.hoisted(() => ({ jobs: [] as BackgroundJob[], send: vi.fn() }));
-vi.mock('./useBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.jobs }));
+vi.mock('./useRoomBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.jobs }));
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ sendEvent: state.send }),
+  useMatrixClient: () => ({ sendEvent: state.send, makeTxnId: () => 'txn' }),
 }));
 vi.mock('./backgroundJobsBar.css', () => ({
   Bar: 'Bar',
@@ -29,7 +29,6 @@ vi.mock('react-i18next', () => ({
 
 const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJob => ({
   jobId,
-  agentId: '@mindroom_code:example.org',
   threadId: '$thread',
   kind: 'tool',
   tool: `tool_${jobId}`,
@@ -38,7 +37,7 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
   ...overrides,
 });
 
-const room = { roomId: '!room:example.org' } as Room;
+const room = { roomId: '!room:example.org', getEventForTxnId: () => undefined } as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;
 
@@ -58,6 +57,7 @@ const button = (label: string) =>
   );
 
 beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.jobs = [];
   state.send = vi.fn().mockResolvedValue({ event_id: '$sent' });
   container = document.createElement('div');
@@ -68,6 +68,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 it('renders nothing without jobs', () => {
@@ -167,7 +168,7 @@ it('restores the button and shows an error when the send fails', async () => {
 });
 
 it('stop all sends one event for the view and marks every job stopping', async () => {
-  state.jobs = [job('a'), job('b', { agentId: '@mindroom_research:example.org' })];
+  state.jobs = [job('a'), job('b')];
   render();
   await act(async () => {
     button('mindroomUi.backgroundJobs.stopAll')?.click();
