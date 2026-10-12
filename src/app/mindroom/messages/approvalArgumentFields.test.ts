@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toArgumentFields } from './approvalArgumentFields';
+import { toArgumentFields, toToolArgumentFields } from './approvalArgumentFields';
 
 describe('toArgumentFields', () => {
   it('keeps object keys in event order as labeled fields', () => {
@@ -86,5 +86,47 @@ describe('toArgumentFields', () => {
   it('falls back to formatted JSON when the top level is not an object', () => {
     expect(toArgumentFields(['a', 'b'])).toEqual({ raw: '[\n  "a",\n  "b"\n]' });
     expect(toArgumentFields(undefined)).toEqual({ raw: '' });
+  });
+});
+
+describe('toToolArgumentFields', () => {
+  it('splits the key=value preview MindRoom writes for tool calls', () => {
+    expect(toToolArgumentFields('query=MindRoom v2026.10.12 release notes, max_results=5')).toEqual({
+      fields: [
+        { key: 'query', value: { kind: 'text', text: 'MindRoom v2026.10.12 release notes' } },
+        { key: 'max_results', value: { kind: 'text', text: '5' } },
+      ],
+    });
+  });
+
+  it('unpacks values MindRoom wrote as compact JSON', () => {
+    expect(toToolArgumentFields('payload={"channel": "#research"}, dry_run=true')).toEqual({
+      fields: [
+        {
+          key: 'payload',
+          value: {
+            kind: 'nested',
+            fields: [{ key: 'channel', value: { kind: 'text', text: '#research' } }],
+          },
+        },
+        { key: 'dry_run', value: { kind: 'text', text: 'true' } },
+      ],
+    });
+  });
+
+  it('keeps commas that are not followed by another key inside the value', () => {
+    expect(toToolArgumentFields('text=Hi Grace, three changes, to=grace@example.org')).toEqual({
+      fields: [
+        { key: 'text', value: { kind: 'text', text: 'Hi Grace, three changes' } },
+        { key: 'to', value: { kind: 'text', text: 'grace@example.org' } },
+      ],
+    });
+  });
+
+  it('accepts a JSON preview and falls back to raw text without a leading key', () => {
+    expect(toToolArgumentFields('{"query": "x"}')).toEqual({
+      fields: [{ key: 'query', value: { kind: 'text', text: 'x' } }],
+    });
+    expect(toToolArgumentFields('reading the notes')).toEqual({ raw: 'reading the notes' });
   });
 });

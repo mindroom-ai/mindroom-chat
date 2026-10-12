@@ -27,6 +27,7 @@ import {
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
+import { toToolArgumentFields } from './approvalArgumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
@@ -275,7 +276,9 @@ function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBloc
           {parsedTool.toolName}
         </Text>
       </Box>
-      {parsedTool.argsPreview && <ApprovalArgumentFields value={parsedTool.argsPreview} />}
+      {parsedTool.argsPreview && (
+        <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
+      )}
       {parsedTool.result && (
         <Text as="pre" size="T200" className={css.BlockResult}>
           {parsedTool.result}

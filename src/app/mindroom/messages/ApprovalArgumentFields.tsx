@@ -1,6 +1,6 @@
 import React from 'react';
 import classNames from 'classnames';
-import { ArgumentField, toArgumentFields } from './approvalArgumentFields';
+import { ArgumentField, ArgumentFields, toArgumentFields } from './approvalArgumentFields';
 import * as css from './ApprovalArgumentFields.css';
 
 function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean }) {
@@ -29,8 +29,16 @@ function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean 
 }
 
 /** Tool arguments as labeled fields; `limit` shows a clamped preview of the first fields. */
-export function ApprovalArgumentFields({ value, limit }: { value: unknown; limit?: number }) {
-  const parsed = toArgumentFields(value);
+export function ApprovalArgumentFields({
+  value,
+  limit,
+  parse = toArgumentFields,
+}: {
+  value: unknown;
+  limit?: number;
+  parse?: (value: unknown) => ArgumentFields;
+}) {
+  const parsed = parse(value);
   if ('raw' in parsed) {
     return parsed.raw ? (
       <pre className={classNames(css.Code, limit !== undefined && css.Clamped)}>{parsed.raw}</pre>

@@ -569,10 +569,10 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
           {
             type: 'tool_call_completed',
             tool_name: 'web_search',
-            args_preview: '{"query": "MindRoom release notes"}',
+            args_preview: 'query=MindRoom release notes, max_results=5',
             result_preview: '5 results',
           },
-          { type: 'tool_call_started', tool_name: 'read_file', args_preview: '{"path": "CHANGE' },
+          { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'reading the changelog' },
         ],
       },
     });
@@ -594,11 +594,14 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
         .join(' ');
-    expect(rows[0].findAllByType('dt').map((node) => node.children.join(''))).toEqual(['query']);
+    expect(rows[0].findAllByType('dt').map((node) => node.children.join(''))).toEqual([
+      'query',
+      'max_results',
+    ]);
     expect(textOf(rows[0])).toContain('MindRoom release notes');
     expect(textOf(rows[0])).toContain('5 results');
     expect(rows[1].findAll((node) => node.props.variant === 'Secondary')).not.toHaveLength(0);
-    expect(rows[1].findByType('pre').children.join('')).toBe('{"path": "CHANGE');
+    expect(rows[1].findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
   it('expands marker-only tool refs with the marker tool name', () => {
