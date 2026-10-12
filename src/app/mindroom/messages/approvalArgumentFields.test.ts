@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { toArgumentFields, toToolArgumentFields } from './approvalArgumentFields';
+import {
+  pickPreviewFields,
+  toArgumentFields,
+  toToolArgumentFields,
+} from './approvalArgumentFields';
 
 describe('toArgumentFields', () => {
   it('keeps object keys in event order as labeled fields', () => {
@@ -128,5 +132,22 @@ describe('toToolArgumentFields', () => {
       fields: [{ key: 'query', value: { kind: 'text', text: 'x' } }],
     });
     expect(toToolArgumentFields('reading the notes')).toEqual({ raw: 'reading the notes' });
+  });
+});
+
+describe('pickPreviewFields', () => {
+  it('previews the shortest non-empty fields first, since Matrix sorts keys alphabetically', () => {
+    const parsed = toArgumentFields({
+      body: 'Hi Grace,\n\nHere is what changed between the releases.',
+      cc: [],
+      subject: 'Release notes',
+      to: 'grace@example.org',
+    });
+    if (!('fields' in parsed)) throw new Error('expected fields');
+    expect(pickPreviewFields(parsed.fields, 3).map((field) => field.key)).toEqual([
+      'subject',
+      'to',
+      'body',
+    ]);
   });
 });

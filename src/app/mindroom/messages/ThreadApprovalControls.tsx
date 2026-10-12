@@ -122,7 +122,8 @@ export function ApprovalReviewGroup({
   const user = useMatrixClient().getUserId();
   const room = useApprovalRoom();
   const [reason, setReason] = useState('');
-  const reasonId = useId();
+  const [denyingAll, setDenyingAll] = useState(false);
+  const reasonInput = useRef<HTMLInputElement>(null);
   const callsId = useId();
   const records0 = records[0];
   const availableCount = context
@@ -134,6 +135,9 @@ export function ApprovalReviewGroup({
     : 0;
   // Bulk approval stands in for the calls; without it, each call needs its own controls.
   const [showCalls, setShowCalls] = useState(availableCount <= 1);
+  useEffect(() => {
+    if (denyingAll) reasonInput.current?.focus();
+  }, [denyingAll]);
   if (!context || !records0) return null;
   const { approval } = records0;
   const available = records.filter(
@@ -217,57 +221,83 @@ export function ApprovalReviewGroup({
           {showCalls && <div id={callsId}>{calls}</div>}
         </>
       )}
-      {available.length > 1 && (
-        <>
-          <div className={css.Actions}>
-            {approvable.length > 1 && (
-              <Button
-                size="300"
-                variant="Primary"
-                fill="Solid"
-                onClick={() => {
-                  approvable.forEach((record) => {
-                    void context.submit(record, { status: 'approved' });
-                  });
-                }}
-              >
-                <Text size="B300">
-                  {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
-                    count: approvable.length,
-                  })}
-                </Text>
-              </Button>
-            )}
+      {available.length > 1 && !denyingAll && (
+        <div className={css.Actions}>
+          {approvable.length > 1 && (
             <Button
               size="300"
-              variant="Secondary"
-              fill="None"
-              outlined
+              variant="Primary"
+              fill="Solid"
               onClick={() => {
-                available.forEach((record) => {
-                  void context.submit(record, { status: 'denied', reason });
+                approvable.forEach((record) => {
+                  void context.submit(record, { status: 'approved' });
                 });
               }}
             >
               <Text size="B300">
-                {t('mindroomUi.messages.threadApprovalControls.denyAll', {
+                {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
+                  count: approvable.length,
+                })}
+              </Text>
+            </Button>
+          )}
+          <Button
+            size="300"
+            variant="Secondary"
+            fill="None"
+            outlined
+            onClick={() => setDenyingAll(true)}
+          >
+            <Text size="B300">
+              {t('mindroomUi.messages.threadApprovalControls.denyAll', {
+                count: available.length,
+              })}
+            </Text>
+          </Button>
+        </div>
+      )}
+      {available.length > 1 && denyingAll && (
+        <form
+          className={css.DenyRow}
+          onSubmit={(event) => {
+            event.preventDefault();
+            available.forEach((record) => {
+              void context.submit(record, { status: 'denied', reason });
+            });
+            setDenyingAll(false);
+            setReason('');
+          }}
+        >
+          <Input
+            ref={reasonInput}
+            aria-label={t('mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional')}
+            placeholder={t('mindroomUi.messages.approvalDecisionControls.denialReasonOptional')}
+            value={reason}
+            onChange={(event) => setReason(event.currentTarget.value)}
+          />
+          <div className={css.Actions}>
+            <Button type="submit" size="300" variant="Critical" fill="Soft" outlined>
+              <Text size="B300">
+                {t('mindroomUi.messages.threadApprovalControls.confirmDenyAll', {
                   count: available.length,
                 })}
               </Text>
             </Button>
+            <Button
+              type="button"
+              size="300"
+              variant="Secondary"
+              fill="Soft"
+              outlined
+              onClick={() => {
+                setDenyingAll(false);
+                setReason('');
+              }}
+            >
+              <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
+            </Button>
           </div>
-          <div>
-            <small id={reasonId}>
-              {t('mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional')}
-            </small>
-            <Input
-              aria-labelledby={reasonId}
-              value={reason}
-              onChange={(event) => setReason(event.currentTarget.value)}
-              style={{ display: 'block', width: '100%', padding: 6 }}
-            />
-          </div>
-        </>
+        </form>
       )}
       <ApprovalDurations
         durations={timed}

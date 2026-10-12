@@ -2706,6 +2706,7 @@
         "requestedBy": "{{agent}} · Requested by {{requester}}",
         "approveAllOnce": "Approve all {{count}} once",
         "denyAll": "Deny all {{count}}",
+        "confirmDenyAll": "Confirm deny all {{count}}",
         "allowForMinutes_one": "Allow for {{count}} minute",
         "allowForMinutes_other": "Allow for {{count}} minutes",
         "awaitingConfirmation_one": "{{count}} call awaiting confirmation",

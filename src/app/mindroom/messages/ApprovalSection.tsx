@@ -3,7 +3,7 @@ import React from 'react';
 import classNames from 'classnames';
 import { Icon, Icons, Text } from 'folds';
 import { ToolApprovalData, ToolApprovalDuration } from './toolApproval';
-import { formatApprovalTime } from './approvalScheduleText';
+import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { agentDisplayName, ApprovalMemberRoom, userDisplayName } from './approvalPeople';
 import * as css from './ThreadApprovals.css';
@@ -72,7 +72,9 @@ export function ApprovalMeta({
       })}
       {approval.expiresAt &&
         ` · ${t('mindroomUi.messages.threadApprovalControls.expires', {
-          time: formatApprovalTime(approval.expiresAt, language),
+          time:
+            formatExpiryDistance(approval.expiresAt, Date.now(), language) ??
+            formatApprovalTime(approval.expiresAt, language),
         })}`}
     </Text>
   );

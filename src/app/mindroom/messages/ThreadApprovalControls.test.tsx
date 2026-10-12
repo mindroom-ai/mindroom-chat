@@ -227,9 +227,7 @@ it.each([
       expect(labels.filter((label) => label?.startsWith('Deny all'))).toEqual(
         denyAll ? [`Deny all ${denyAll}`] : []
       );
-      expect(container.textContent?.includes('Reason for denying all (optional)')).toBe(
-        denyAll > 0
-      );
+      expect(container.textContent).not.toContain('Reason for denying all');
     } finally {
       act(() => root.unmount());
       document.body.replaceChildren();
@@ -338,6 +336,7 @@ it('presents one pending call with its status, people, and decisions', async () 
       tool_name: 'send_email',
       requester_id: '@alice:example.org',
       thread_id: '$thread',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       auto_approve_options: [300, 600, 1800],
       approval_scope: {
         id: 'scope-1',
@@ -352,7 +351,7 @@ it('presents one pending call with its status, people, and decisions', async () 
   try {
     expect(container.textContent).toContain('send_email');
     expect(container.textContent).toContain('Waiting for you');
-    expect(container.textContent).toContain('assistant · requested by you');
+    expect(container.textContent).toContain('assistant · requested by you · expires in 24 hours');
     const fiveMinutes = buttonsIn(container).find(
       (button) => button.getAttribute('aria-label') === 'Allow for 5 minutes'
     );
@@ -365,6 +364,36 @@ it('presents one pending call with its status, people, and decisions', async () 
         ?.click()
     );
     expect(submit).toHaveBeenLastCalledWith(records[0], { status: 'approved' });
+  } finally {
+    cleanup();
+  }
+});
+
+it('asks for a reason only after Deny all, then denies every call with it', async () => {
+  const records = [approvalRecord(0), approvalRecord(1)];
+  const submit = reviewContext(records);
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  const button = (label: string) =>
+    buttonsIn(container).find((candidate) => candidate.textContent === label);
+  const reasonInput = () =>
+    container.querySelector<HTMLInputElement>('[aria-label="Reason for denying all (optional)"]');
+  try {
+    await act(async () => button('Deny all 2')?.click());
+    expect(button('Deny all 2')).toBeUndefined();
+    await act(async () => button('Cancel')?.click());
+    expect(reasonInput()).toBeNull();
+    expect(submit).not.toHaveBeenCalled();
+    await act(async () => button('Deny all 2')?.click());
+    const input = reasonInput();
+    expect(input).not.toBeNull();
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setValue?.call(input, 'Wrong channel');
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => button('Confirm deny all 2')?.click());
+    expect(submit).toHaveBeenCalledWith(records[0], { status: 'denied', reason: 'Wrong channel' });
+    expect(submit).toHaveBeenCalledWith(records[1], { status: 'denied', reason: 'Wrong channel' });
   } finally {
     cleanup();
   }

@@ -1,9 +1,18 @@
 import React from 'react';
 import classNames from 'classnames';
-import { ArgumentField, ArgumentFields, toArgumentFields } from './approvalArgumentFields';
+import {
+  ArgumentField,
+  ArgumentFields,
+  pickPreviewFields,
+  toArgumentFields,
+} from './approvalArgumentFields';
 import * as css from './ApprovalArgumentFields.css';
 
+// A clamped preview shows each value on its own lines, so blank lines would hide the text.
+const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+
 function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean }) {
+  const shown = (text: string) => (clamp ? oneLine(text) : text);
   return (
     <dl className={css.Fields}>
       {fields.map(({ key, value }) => (
@@ -13,12 +22,12 @@ function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean 
             {value.kind === 'nested' ? (
               <FieldRows fields={value.fields} clamp={clamp} />
             ) : value.kind === 'json' ? (
-              <pre className={classNames(css.Code, clamp && css.Clamped)}>{value.text}</pre>
+              <pre className={classNames(css.Code, clamp && css.Clamped)}>{shown(value.text)}</pre>
             ) : (
               <span
                 className={classNames(value.kind === 'scalar' && css.Scalar, clamp && css.Clamped)}
               >
-                {value.text}
+                {shown(value.text)}
               </span>
             )}
           </dd>
@@ -28,7 +37,7 @@ function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean 
   );
 }
 
-/** Tool arguments as labeled fields; `limit` shows a clamped preview of the first fields. */
+/** Tool arguments as labeled fields; `limit` shows a clamped preview of the most telling fields. */
 export function ApprovalArgumentFields({
   value,
   limit,
@@ -41,10 +50,12 @@ export function ApprovalArgumentFields({
   const parsed = parse(value);
   if ('raw' in parsed) {
     return parsed.raw ? (
-      <pre className={classNames(css.Code, limit !== undefined && css.Clamped)}>{parsed.raw}</pre>
+      <pre className={classNames(css.Code, limit !== undefined && css.Clamped)}>
+        {limit === undefined ? parsed.raw : oneLine(parsed.raw)}
+      </pre>
     ) : null;
   }
-  const fields = limit === undefined ? parsed.fields : parsed.fields.slice(0, limit);
+  const fields = limit === undefined ? parsed.fields : pickPreviewFields(parsed.fields, limit);
   return fields.length > 0 ? <FieldRows fields={fields} clamp={limit !== undefined} /> : null;
 }
 

@@ -154,13 +154,15 @@ it('translates a retained failure without downloading again on language changes'
   expect(mocks.download).toHaveBeenCalledTimes(1);
 });
 
-it('previews the first three arguments as fields and reveals the rest on request', async () => {
+it('previews the shortest filled-in arguments on one line each and reveals all on request', async () => {
+  // Matrix canonical JSON sorts keys, so events arrive with body before to.
+  const body = 'Hi Grace,\n\nHere is what changed between the releases.';
   const email = parseToolApprovalContent('io.mindroom.tool_approval', {
     approval_id: 'email',
     tool_name: 'send_email',
     agent_name: 'research',
     status: 'pending',
-    arguments: { to: 'grace@example.org', subject: 'Notes', body: 'Hi Grace', cc: [] },
+    arguments: { body, cc: [], subject: 'Notes', to: 'grace@example.org' },
     requested_at: '2026-09-12T12:00:00Z',
     expires_at: '2026-09-12T12:30:00Z',
   })!;
@@ -168,11 +170,13 @@ it('previews the first three arguments as fields and reveals the rest on request
     renderer = create(<ApprovalArguments approval={email} />);
   });
   const keys = () => renderer.root.findAllByType('dt').map((node) => node.children.join(''));
-  expect(keys()).toEqual(['to', 'subject', 'body']);
+  expect(keys()).toEqual(['subject', 'to', 'body']);
+  expect(rendered()).toContain('Hi Grace, Here is what changed between the releases.');
   expect(rendered()).toContain('Show all arguments');
   expect(rendered()).toContain('"4"');
   await toggle(true);
-  expect(keys()).toEqual(['to', 'subject', 'body', 'cc']);
+  expect(keys()).toEqual(['body', 'cc', 'subject', 'to']);
+  expect(rendered()).toContain(JSON.stringify(body).slice(1, -1));
   expect(rendered()).toContain('Hide arguments');
   expect(mocks.download).not.toHaveBeenCalled();
 });

@@ -68,6 +68,29 @@ export const toArgumentFields = (value: unknown): ArgumentFields => {
   return { raw: value === undefined ? '' : formatJson(value) };
 };
 
+const EMPTY_TEXT = new Set(['', '[]', '{}', 'null']);
+
+const renderedLength = (value: ArgumentValue): number =>
+  value.kind === 'nested'
+    ? value.fields.reduce((total, field) => total + field.key.length + renderedLength(field.value), 0)
+    : value.text.length;
+
+const isEmptyValue = (value: ArgumentValue): boolean =>
+  value.kind === 'nested' ? value.fields.length === 0 : EMPTY_TEXT.has(value.text.trim());
+
+/**
+ * Fields worth a glance before expanding: Matrix stores event JSON with sorted keys, so event
+ * order puts `body` before `to`. Prefer filled-in fields, shortest first.
+ */
+export const pickPreviewFields = (fields: ArgumentField[], limit: number): ArgumentField[] => {
+  const filled = fields.filter((field) => !isEmptyValue(field.value));
+  return (filled.length > 0 ? filled : fields)
+    .map((field, index) => ({ field, index, length: renderedLength(field.value) }))
+    .sort((a, b) => a.length - b.length || a.index - b.index)
+    .slice(0, limit)
+    .map(({ field }) => field);
+};
+
 // MindRoom writes tool-call previews as `key=value, key=value`; values are text or compact JSON.
 const TOOL_ARGUMENT_KEY = /(?:^|, )([A-Za-z_][\w.-]*)=/g;
 
