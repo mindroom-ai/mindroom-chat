@@ -18,6 +18,13 @@ export const Bar = style([
     flexShrink: 0,
   },
 ]);
+export const BarDetail = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  opacity: 0.75,
+});
 export const BarStatus = style({
   display: 'flex',
   alignItems: 'center',

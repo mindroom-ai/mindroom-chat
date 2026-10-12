@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { expect, it, vi } from 'vitest';
 import {
+  ApprovalHistory,
   ApprovalReviewGroup,
   ThreadApprovalPermissions,
   ThreadApprovalQueue,
@@ -36,6 +37,7 @@ vi.mock('./ApprovalArguments', () => ({ ApprovalArguments: () => null }));
 vi.mock('../../styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
 vi.mock('./ThreadApprovals.css', () => ({
   Bar: 'Bar',
+  BarDetail: 'BarDetail',
   BarStatus: 'BarStatus',
   ReviewButton: 'ReviewButton',
   ReviewButtonPending: 'ReviewButtonPending',
@@ -215,3 +217,80 @@ it.each([
     }
   }
 );
+
+const approvalRecord = (index: number, overrides: Record<string, unknown> = {}) => ({
+  eventId: `$approval-${index}`,
+  sender: '@router:example.org',
+  wireStatus: (overrides.status as 'pending' | 'approved') ?? 'pending',
+  approval: parseToolApprovalContent('io.mindroom.tool_approval', {
+    approval_id: `call-${index}`,
+    tool_name: 'search',
+    agent_name: 'assistant',
+    status: 'pending',
+    approver_user_id: '@alice:example.org',
+    arguments: { index },
+    requested_at: '2026-09-12T12:00:00Z',
+    expires_at: '2999-09-12T12:00:00Z',
+    ...overrides,
+  })!,
+});
+
+const renderInto = async (element: React.ReactElement) => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => root.render(element));
+  return {
+    container,
+    cleanup: () => {
+      act(() => root.unmount());
+      document.body.replaceChildren();
+      vi.unstubAllGlobals();
+    },
+  };
+};
+
+it('says which agent is waiting for the viewer and for which tools', async () => {
+  const records = [approvalRecord(0, { tool_name: 'send_email' }), approvalRecord(1), approvalRecord(2)];
+  current = {
+    roomId: '!room:example.org',
+    threadId: '$thread',
+    records,
+    now: Date.now(),
+    pendingEventIds: new Set(records.map((record) => record.eventId)),
+    loading: false,
+    refresh: () => undefined,
+    ingestTimeline: () => undefined,
+    actions: new Map(),
+    submit: async () => undefined,
+  };
+  const { container, cleanup } = await renderInto(<ThreadApprovalQueue />);
+  try {
+    const status = container.querySelector('[role="status"]')?.textContent;
+    expect(status).toContain('assistant is waiting for you');
+    expect(status).toContain('send_email, 2× search');
+    expect(container.querySelector('button.ReviewButtonPending')?.textContent).toContain('Review 3');
+  } finally {
+    cleanup();
+  }
+});
+
+it('names the person who decided a single historical approval', async () => {
+  const { container, cleanup } = await renderInto(
+    <ApprovalHistory
+      records={[
+        approvalRecord(0, {
+          status: 'approved',
+          resolved_by: '@alice:example.org',
+          resolved_at: '2026-09-12T12:01:00Z',
+        }),
+      ]}
+    />
+  );
+  try {
+    expect(container.querySelector('summary')?.textContent).toContain('You approved search');
+  } finally {
+    cleanup();
+  }
+});

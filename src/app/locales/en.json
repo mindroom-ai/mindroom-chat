@@ -2657,6 +2657,17 @@
         "aiIsResponding": "AI is responding"
       },
       "threadApprovalControls": {
+        "agentWaitingForYou": "{{agent}} is waiting for you",
+        "agentsWaitingForYou": "{{count}} agents are waiting for you",
+        "historyYouApproved": "You approved {{operation}}",
+        "historyYouDenied": "You denied {{operation}}",
+        "historyYouExpired": "{{operation}} expired",
+        "historyUserApproved": "{{user}} approved {{operation}}",
+        "historyUserDenied": "{{user}} denied {{operation}}",
+        "historyUserExpired": "{{operation}} expired",
+        "historyApproved": "{{operation}} approved",
+        "historyDenied": "{{operation}} denied",
+        "historyExpired": "{{operation}} expired",
         "close": "Close",
         "call": "call",
         "calls": "calls",

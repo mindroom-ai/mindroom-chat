@@ -26,7 +26,25 @@ import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { getApprovalCapabilities, getApprovalGrantState } from './approvalActions';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { ApprovalReceipt } from './ApprovalReceipt';
+import { describeApprovalHistory, describeWaitingApprovals } from './approvalLabels';
+import { getMxIdLocalPart } from '../../utils/matrix';
 import * as css from './ThreadApprovals.css';
+
+type MemberRoom = { getMember: (userId: string) => { name?: string } | null } & {
+  getJoinedMembers: () => { userId: string; name?: string }[];
+};
+
+// MindRoom names agent accounts mindroom_<agent>, optionally followed by a namespace.
+const agentDisplayName = (room: MemberRoom | null | undefined, agentName: string): string => {
+  const prefix = `mindroom_${agentName.toLowerCase()}`;
+  const member = room
+    ?.getJoinedMembers()
+    .find((item) => (getMxIdLocalPart(item.userId) ?? '').toLowerCase().startsWith(prefix));
+  return member?.name || agentName;
+};
+
+const userDisplayName = (room: MemberRoom | null | undefined, userId: string): string =>
+  room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId;
 
 function ApprovalDialog({
   title,
@@ -249,7 +267,8 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
 export function ThreadApprovalQueue() {
   const { t } = useTranslation();
   const context = useThreadApprovals();
-  const user = useMatrixClient().getUserId();
+  const mx = useMatrixClient();
+  const user = mx.getUserId();
   const [selection, setSelection] = useState<string[][]>();
   const trigger = useRef<HTMLButtonElement>(null);
   const noticed = useRef(new Set<string>());
@@ -285,13 +304,33 @@ export function ThreadApprovalQueue() {
         context.actions.get(record.eventId)?.status === 'sending'
     );
   const pendingCount = groups.reduce((sum, group) => sum + group.length, 0);
+  const waiting =
+    needsAttention && !awaitingOnly
+      ? describeWaitingApprovals(
+          groups.map((group) => group.filter((record) => actionableIds.includes(record.eventId)))
+        )
+      : undefined;
+  const room = mx.getRoom?.(context.roomId) as MemberRoom | null | undefined;
+  const waitingText = waiting
+    ? waiting.agents.length === 1
+      ? t('mindroomUi.messages.threadApprovalControls.agentWaitingForYou', {
+          agent: agentDisplayName(room, waiting.agents[0]),
+        })
+      : t('mindroomUi.messages.threadApprovalControls.agentsWaitingForYou', {
+          count: waiting.agents.length,
+        })
+    : undefined;
+  const waitingTools = waiting?.tools
+    .map(({ operation, count }) => (count > 1 ? `${count}× ${operation}` : operation))
+    .join(', ');
   let statusText =
     pendingCount > 0
       ? awaitingOnly
         ? t('mindroomUi.messages.threadApprovalControls.awaitingConfirmation', {
             count: pendingCount,
           })
-        : t('mindroomUi.messages.threadApprovalControls.pausedForApproval', {
+        : waitingText ??
+          t('mindroomUi.messages.threadApprovalControls.pausedForApproval', {
             count: pendingCount,
           })
       : context.error ?? '';
@@ -316,6 +355,7 @@ export function ThreadApprovalQueue() {
           <small className={css.BarStatus} role="status">
             {pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />}
             <span>{statusText}</span>
+            {waitingTools && <span className={css.BarDetail}>{` · ${waitingTools}`}</span>}
           </small>
           {pendingCount > 0 && (
             <Button
@@ -431,12 +471,35 @@ export function ThreadApprovalPermissions() {
   );
 }
 
+const SINGLE_HISTORY_STATUSES = new Set(['approved', 'denied', 'expired']);
+
 export function ApprovalHistory({ records }: { records: readonly ThreadApprovalRecord[] }) {
   const glassRef = useGlassHighlight<HTMLDetailsElement>();
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const context = useThreadApprovals();
   const [open, setOpen] = useState(false);
   if (records.length === 0) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
+  const summary = describeApprovalHistory(records, mx.getUserId());
+  const single =
+    summary.kind === 'single' && SINGLE_HISTORY_STATUSES.has(summary.status) ? summary : undefined;
+  const room = mx.getRoom?.(context?.roomId ?? '') as MemberRoom | null | undefined;
+  const singleStatus = single && single.status.charAt(0).toUpperCase() + single.status.slice(1);
+  const singleLabel =
+    single &&
+    (single.actor === 'you'
+      ? t(`mindroomUi.messages.threadApprovalControls.historyYou${singleStatus}`, {
+          operation: single.operation,
+        })
+      : single.actor
+      ? t(`mindroomUi.messages.threadApprovalControls.historyUser${singleStatus}`, {
+          user: userDisplayName(room, single.actor.userId),
+          operation: single.operation,
+        })
+      : t(`mindroomUi.messages.threadApprovalControls.history${singleStatus}`, {
+          operation: single.operation,
+        }));
   return (
     <details
       ref={glassRef}
@@ -444,15 +507,28 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className={css.ReceiptHeader}>
-        <Icon src={Icons.Terminal} size="50" aria-hidden />
+        <Icon
+          src={
+            single?.status === 'approved'
+              ? Icons.Check
+              : single?.status === 'denied'
+              ? Icons.Cross
+              : Icons.Terminal
+          }
+          size="50"
+          aria-hidden
+        />
         <span className={css.ReceiptLabel}>
-          {t('mindroomUi.messages.threadApprovalControls.toolApprovalCount', {
-            count: records.length,
-          })}
+          {singleLabel ??
+            t('mindroomUi.messages.threadApprovalControls.toolApprovalCount', {
+              count: records.length,
+            })}
         </span>
-        <span className={css.ReceiptMeta}>
-          {t('mindroomUi.messages.threadApprovalControls.approvedCount', { count: approved })}
-        </span>
+        {!single && (
+          <span className={css.ReceiptMeta}>
+            {t('mindroomUi.messages.threadApprovalControls.approvedCount', { count: approved })}
+          </span>
+        )}
         <Icon src={Icons.ChevronBottom} size="50" className={css.ReceiptChevron} aria-hidden />
       </summary>
       {open && (
