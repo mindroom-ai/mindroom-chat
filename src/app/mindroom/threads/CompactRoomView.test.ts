@@ -4,6 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactRoomView } from './CompactRoomView';
+import { CompactCardSwipe } from './CompactCardSwipe';
 
 vi.mock('../../components/inset-scrollbar/InsetScrollbar', () => ({
   InsetScrollbar: () => null,
@@ -165,6 +166,13 @@ vi.mock('./CompactRoomView.css', () => ({
   CardMenuButton: 'CardMenuButton',
   CardShell: 'CardShell',
   PinnedSection: 'PinnedSection',
+}));
+
+vi.mock('./CompactCardSwipe.css', () => ({
+  SwipeAction: 'SwipeAction',
+  SwipeTrack: 'SwipeTrack',
+  SwipeTrackEnabled: 'SwipeTrackEnabled',
+  SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
 const makeRoom = () =>
@@ -437,6 +445,7 @@ describe('CompactRoomView', () => {
       canToggle: false,
       setResolved: setResolvedMock,
       updating: false,
+      updatingThreadRootIds: new Set(),
       error: undefined,
     });
     const readOnly = create(
@@ -458,6 +467,7 @@ describe('CompactRoomView', () => {
       canToggle: true,
       setResolved: setResolvedMock,
       updating: false,
+      updatingThreadRootIds: new Set(),
       error: undefined,
     });
     const resolved = create(
@@ -497,6 +507,76 @@ describe('CompactRoomView', () => {
 
     const actions = renderer.root.findAllByProps({ 'data-compact-thread-resolve': 'true' });
     expect(actions.map((action) => action.props.disabled)).toEqual([true, false]);
+  });
+
+  it('resolves a card swiped on a touch screen and reopens a resolved one', () => {
+    const onThreadClick = vi.fn();
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$open'),
+      makeViewModel('$done', { isResolved: true }),
+    ]);
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$open', '$done'],
+        threadRecordMap: new Map(),
+        onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const [open, done] = renderer.root.findAllByType(CompactCardSwipe);
+
+    expect(open.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
+    expect(done.props).toMatchObject({ enabled: true, resolved: true, label: 'Reopen thread' });
+    act(() => open.props.onSwipe());
+    act(() => done.props.onSwipe());
+
+    expect(setResolvedMock.mock.calls).toEqual([
+      ['$open', true],
+      ['$done', false],
+    ]);
+    expect(onThreadClick).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('turns the swipe off for pins, readers, and a pending update', () => {
+    pinningMocks.pinnedEventIds = ['$pinned'];
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$pinned'),
+      makeViewModel('$pending'),
+      makeViewModel('$idle'),
+    ]);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: true,
+      updatingThreadRootIds: new Set(['$pending']),
+      error: undefined,
+    });
+    const props = {
+      room: makeRoom(),
+      threadRootIds: ['$pinned', '$pending', '$idle'],
+      threadRecordMap: new Map(),
+      onThreadClick: vi.fn(),
+      compactRoomScrollStateRef: { current: new Map() },
+    };
+    const editor = create(React.createElement(CompactRoomView, props));
+    const swipeEnabled = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findAllByType(CompactCardSwipe).map((swipe) => swipe.props.enabled);
+
+    expect(swipeEnabled(editor)).toEqual([false, false, true]);
+    editor.unmount();
+
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: false,
+      setResolved: setResolvedMock,
+      updating: false,
+      updatingThreadRootIds: new Set(),
+      error: undefined,
+    });
+    const reader = create(React.createElement(CompactRoomView, props));
+    expect(swipeEnabled(reader)).toEqual([false, false, false]);
+    reader.unmount();
   });
 
   it('reports a failed thread resolution mutation', () => {
@@ -600,7 +680,10 @@ describe('CompactRoomView', () => {
   };
   const nodeMockFor =
     (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement) =>
-      element.props['data-compact-room-view'] === 'true' ? scrollElement : {};
+      element.props['data-compact-room-view'] === 'true'
+        ? scrollElement
+        : // The card swipe track listens for touchmove.
+          { addEventListener: () => undefined, removeEventListener: () => undefined };
 
   it('marks each card as a scroll anchor by its thread root', () => {
     let renderer: ReturnType<typeof create> | undefined;

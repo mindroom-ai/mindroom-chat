@@ -61,6 +61,13 @@ vi.mock('./CompactRoomView.css', () => ({
   PinnedSection: 'PinnedSection',
 }));
 
+vi.mock('./CompactCardSwipe.css', () => ({
+  SwipeAction: 'SwipeAction',
+  SwipeTrack: 'SwipeTrack',
+  SwipeTrackEnabled: 'SwipeTrackEnabled',
+  SwipeTrackSettling: 'SwipeTrackSettling',
+}));
+
 vi.mock('./compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: () => state.models,
 }));
