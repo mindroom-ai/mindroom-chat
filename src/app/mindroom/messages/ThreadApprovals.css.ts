@@ -175,17 +175,20 @@ export const SectionIcon = style({
   color: color.Primary.OnContainer,
 });
 export const SectionTitle = style({
-  minWidth: 0,
+  flexShrink: 0,
   fontSize: '0.9375rem',
   fontWeight: config.fontWeight.W600,
-  overflowWrap: 'anywhere',
+  whiteSpace: 'nowrap',
 });
+// The raw tool name gives way first when the header is narrow.
 export const SectionTool = style({
   minWidth: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: '0.75rem',
   opacity: config.opacity.P400,
-  overflowWrap: 'anywhere',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 // Details line up with the title, past the icon tile; phones use the full width.
 export const SectionBody = style({
