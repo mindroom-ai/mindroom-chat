@@ -34,6 +34,7 @@ import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentR
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { saveFile } from '../../../mindroom/native/nativeFileSave';
 import { ModalWide } from '../../../styles/Modal.css';
+import { FileIconButton } from '../FileHeader';
 
 const renderErrorButton = (retry: () => void, text: string, errorLabel: string) => (
   <TooltipProvider
@@ -81,6 +82,7 @@ type ReadTextFileProps = {
   buttonText?: string;
   errorButtonText?: string;
   buttonSize?: FileActionButtonSize;
+  iconOnly?: boolean;
 };
 export function ReadTextFile({
   owner,
@@ -92,6 +94,7 @@ export function ReadTextFile({
   buttonText,
   errorButtonText,
   buttonSize = '400',
+  iconOnly = false,
 }: ReadTextFileProps) {
   const { t } = useTranslation();
   const resolvedButtonText = buttonText ?? t('sharedUi.fileContent.openFile');
@@ -149,7 +152,19 @@ export function ReadTextFile({
           </OverlayCenter>
         </Overlay>
       )}
-      {textState.status === AsyncStatus.Error ? (
+      {iconOnly ? (
+        <FileIconButton
+          label={t('sharedUi.fileContent.openValue1', { value1: body })}
+          icon={Icons.Eye}
+          onClick={() =>
+            textState.status === AsyncStatus.Success ? setTextViewer(true) : loadText()
+          }
+          loading={textState.status === AsyncStatus.Loading}
+          failedLabel={
+            textState.status === AsyncStatus.Error ? t('sharedUi.fileContent.loadFailed') : undefined
+          }
+        />
+      ) : textState.status === AsyncStatus.Error ? (
         renderErrorButton(
           loadText,
           errorButtonText ?? resolvedButtonText,
@@ -194,6 +209,7 @@ export type ReadPdfFileProps = {
   url: string;
   encInfo?: EncryptedAttachmentInfo;
   renderViewer: (props: RenderPdfViewerProps) => ReactNode;
+  iconOnly?: boolean;
 };
 export function ReadPdfFile({
   owner,
@@ -202,6 +218,7 @@ export function ReadPdfFile({
   url,
   encInfo,
   renderViewer,
+  iconOnly = false,
 }: ReadPdfFileProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -255,7 +272,17 @@ export function ReadPdfFile({
           </OverlayCenter>
         </Overlay>
       )}
-      {pdfState.status === AsyncStatus.Error ? (
+      {iconOnly ? (
+        <FileIconButton
+          label={t('sharedUi.fileContent.openValue1', { value1: body })}
+          icon={Icons.Eye}
+          onClick={() => (pdfState.status === AsyncStatus.Success ? setPdfViewer(true) : loadPdf())}
+          loading={pdfState.status === AsyncStatus.Loading}
+          failedLabel={
+            pdfState.status === AsyncStatus.Error ? t('sharedUi.fileContent.loadFailed') : undefined
+          }
+        />
+      ) : pdfState.status === AsyncStatus.Error ? (
         renderErrorButton(
           loadPdf,
           t('sharedUi.fileContent.openPdf'),
@@ -395,7 +422,7 @@ type FileContentProps = {
 };
 export const FileContent = as<'div', FileContentProps>(
   ({ body, mimeType, renderAsTextFile, renderAsPdfFile, children, ...props }, ref) => (
-    <Box direction="Column" gap="300" {...props} ref={ref}>
+    <Box alignItems="Center" gap="100" shrink="No" {...props} ref={ref}>
       {(READABLE_TEXT_MIME_TYPES.includes(mimeType) ||
         READABLE_EXT_TO_MIME_TYPE[getFileNameExt(body)]) &&
         renderAsTextFile()}

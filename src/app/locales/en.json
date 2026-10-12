@@ -678,7 +678,11 @@
       "openLocation": "Open Location",
       "voiceMessage": "voice message",
       "audio": "audio",
-      "unnamedFile": "Unnamed File"
+      "unnamedFile": "Unnamed File",
+      "textFile": "Text file",
+      "pdfDocument": "PDF document",
+      "file": "File",
+      "fileMeta": "{{type}} · {{size}}"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "This message has been deleted",
@@ -696,7 +700,8 @@
       "openFile": "Open File",
       "loadFailed": "Failed to load file!",
       "retryDownload": "Retry Download ({{size}})",
-      "downloadSize": "Download ({{size}})"
+      "downloadSize": "Download ({{size}})",
+      "openValue1": "Open {{value1}}"
     },
     "imageContent": {
       "view": "View",

@@ -5,8 +5,8 @@ import { Opts } from 'linkifyjs';
 import { config } from 'folds';
 import { getEventAttachmentOwner } from '../mindroom/messages/eventAttachments';
 import {
-  DownloadFile,
   FileContent,
+  FileDownloadButton,
   ImageContent,
   MAudio,
   MBadEncrypted,
@@ -143,7 +143,7 @@ export function RenderMessageContent({
   const renderFileTile = () => (
     <MFile
       content={getContent()}
-      renderFileContent={({ body, mimeType, info, encInfo, url }) => (
+      renderFileContent={({ body, mimeType, encInfo, url }) => (
         <FileContent
           body={body}
           mimeType={mimeType}
@@ -155,6 +155,7 @@ export function RenderMessageContent({
               url={url}
               encInfo={encInfo}
               renderViewer={(p) => <PdfViewer {...p} />}
+              iconOnly
             />
           )}
           renderAsTextFile={() => (
@@ -165,16 +166,16 @@ export function RenderMessageContent({
               url={url}
               encInfo={encInfo}
               renderViewer={(p) => <TextViewer {...p} />}
+              iconOnly
             />
           )}
         >
-          <DownloadFile
+          <FileDownloadButton
             owner={owner}
-            body={body}
+            filename={body}
             mimeType={mimeType}
             url={url}
             encInfo={encInfo}
-            info={info}
           />
         </FileContent>
       )}

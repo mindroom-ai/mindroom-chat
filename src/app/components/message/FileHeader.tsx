@@ -1,5 +1,18 @@
 import { useTranslation } from 'react-i18next';
-import { Badge, Box, Icon, IconButton, Icons, Spinner, Text, as, toRem } from 'folds';
+import {
+  Badge,
+  Box,
+  Icon,
+  IconButton,
+  IconSrc,
+  Icons,
+  Spinner,
+  Text,
+  Tooltip,
+  TooltipProvider,
+  as,
+  toRem,
+} from 'folds';
 import React, { ReactNode, useCallback, useRef } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
@@ -11,6 +24,46 @@ import { saveFile } from '../../mindroom/native/nativeFileSave';
 import { downloadCachedAttachment } from '../../mindroom/messages/attachmentRepository';
 
 const badgeStyles = { maxWidth: toRem(100) };
+
+type FileIconButtonProps = {
+  label: string;
+  icon: IconSrc;
+  onClick: () => void;
+  loading?: boolean;
+  failedLabel?: string;
+};
+/** Icon-only file action; the tooltip and accessible name carry the label. */
+export function FileIconButton({ label, icon, onClick, loading, failedLabel }: FileIconButtonProps) {
+  return (
+    <TooltipProvider
+      tooltip={
+        <Tooltip variant={failedLabel ? 'Critical' : undefined}>
+          <Text>{failedLabel ?? label}</Text>
+        </Tooltip>
+      }
+      position="Top"
+      align="Center"
+    >
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          disabled={loading}
+          onClick={onClick}
+          variant={failedLabel ? 'Critical' : 'SurfaceVariant'}
+          size="300"
+          radii="300"
+          aria-label={label}
+        >
+          {loading ? (
+            <Spinner size="100" variant={failedLabel ? 'Critical' : 'Secondary'} />
+          ) : (
+            <Icon size="100" src={icon} />
+          )}
+        </IconButton>
+      )}
+    </TooltipProvider>
+  );
+}
 
 type FileDownloadButtonProps = {
   owner?: EventAttachmentOwner;
@@ -70,26 +123,19 @@ export function FileDownloadButton({
       await saveFile(fileContent, filename);
     }, [owner, mx, url, useAuthentication, mimeType, encInfo, filename])
   );
-  const downloading = downloadState.status === AsyncStatus.Loading;
-  const hasError = downloadState.status === AsyncStatus.Error;
   const handleDownload = () => {
     void download().catch(() => undefined);
   };
   return (
-    <IconButton
-      disabled={downloading}
+    <FileIconButton
+      label={t('sharedUi.fileHeader.downloadValue1', { value1: filename })}
+      icon={Icons.Download}
       onClick={handleDownload}
-      variant={hasError ? 'Critical' : 'SurfaceVariant'}
-      size="300"
-      radii="300"
-      aria-label={t('sharedUi.fileHeader.downloadValue1', { value1: filename })}
-    >
-      {downloading ? (
-        <Spinner size="100" variant={hasError ? 'Critical' : 'Secondary'} />
-      ) : (
-        <Icon size="100" src={Icons.Download} />
-      )}
-    </IconButton>
+      loading={downloadState.status === AsyncStatus.Loading}
+      failedLabel={
+        downloadState.status === AsyncStatus.Error ? t('sharedUi.fileContent.loadFailed') : undefined
+      }
+    />
   );
 }
 

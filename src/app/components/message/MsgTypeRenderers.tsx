@@ -28,11 +28,19 @@ import {
   MATRIX_SPOILER_PROPERTY_NAME,
   MATRIX_SPOILER_REASON_PROPERTY_NAME,
 } from '../../../types/matrix/common';
-import { FALLBACK_MIMETYPE, getBlobSafeMimeType } from '../../utils/mimeTypes';
-import { parseGeoUri, scaleYDimension } from '../../utils/common';
+import {
+  FALLBACK_MIMETYPE,
+  READABLE_EXT_TO_MIME_TYPE,
+  READABLE_TEXT_MIME_TYPES,
+  getBlobSafeMimeType,
+  getFileNameExt,
+  mimeTypeToExt,
+} from '../../utils/mimeTypes';
+import { bytesToSize, parseGeoUri, scaleYDimension } from '../../utils/common';
 import { getVoiceMessageAudioDetails, isVoiceMessageContent } from '../../utils/voiceMessage';
-import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
+import { Attachment, AttachmentBox, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
+import * as fileRowCss from './FileRow.css';
 
 export function MBadEncrypted() {
   return (
@@ -410,26 +418,39 @@ export function MFile({ content, renderFileContent, outlined }: MFileProps) {
 
   const fileName = getFileName(content);
   const mimeType = typeof fileInfo?.mimetype === 'string' ? fileInfo.mimetype : FALLBACK_MIMETYPE;
+  const name = fileName ?? t('sharedUi.msgTypeRenderers.unnamedFile');
+  const ext = (fileName?.includes('.') ? getFileNameExt(fileName) : mimeTypeToExt(mimeType))
+    .toUpperCase();
+  const type =
+    READABLE_TEXT_MIME_TYPES.includes(mimeType) || READABLE_EXT_TO_MIME_TYPE[getFileNameExt(name)]
+      ? t('sharedUi.msgTypeRenderers.textFile')
+      : mimeType === 'application/pdf'
+      ? t('sharedUi.msgTypeRenderers.pdfDocument')
+      : t('sharedUi.msgTypeRenderers.file');
+  const size = typeof fileInfo?.size === 'number' ? bytesToSize(fileInfo.size) : undefined;
 
   return (
     <Attachment outlined={outlined}>
-      <AttachmentHeader>
-        <FileHeader
-          body={fileName ?? t('sharedUi.msgTypeRenderers.unnamedFile')}
-          mimeType={mimeType}
-        />
-      </AttachmentHeader>
-      <AttachmentBox>
-        <AttachmentContent>
-          {renderFileContent({
-            body: fileName ?? t('mindroomUi.message-search.searchResultPreview.file'),
-            info: fileInfo ?? {},
-            mimeType,
-            url: mxcUrl,
-            encInfo: content.file,
-          })}
-        </AttachmentContent>
-      </AttachmentBox>
+      <div className={fileRowCss.FileRow}>
+        <span className={fileRowCss.FileTile} aria-hidden>
+          {ext && ext.length <= 4 ? ext : <Icon size="100" src={Icons.File} />}
+        </span>
+        <div className={fileRowCss.FileInfo}>
+          <Text size="T300" truncate className={fileRowCss.FileName}>
+            {name}
+          </Text>
+          <Text size="T200" priority="300" truncate>
+            {size ? t('sharedUi.msgTypeRenderers.fileMeta', { type, size }) : type}
+          </Text>
+        </div>
+        {renderFileContent({
+          body: fileName ?? t('mindroomUi.message-search.searchResultPreview.file'),
+          info: fileInfo ?? {},
+          mimeType,
+          url: mxcUrl,
+          encInfo: content.file,
+        })}
+      </div>
     </Attachment>
   );
 }

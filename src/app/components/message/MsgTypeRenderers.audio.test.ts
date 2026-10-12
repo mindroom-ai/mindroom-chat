@@ -48,6 +48,13 @@ vi.mock('./attachment', () => {
   };
 });
 
+vi.mock('./FileRow.css', () => ({
+  FileRow: 'FileRow',
+  FileTile: 'FileTile',
+  FileInfo: 'FileInfo',
+  FileName: 'FileName',
+}));
+
 vi.mock('./FileHeader', () => ({
   FileDownloadButton: () => React.createElement('button', { 'aria-label': 'Download file' }),
   FileHeader: ({ after, body }: { after?: React.ReactNode; body: string }) =>

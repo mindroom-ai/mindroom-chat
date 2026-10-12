@@ -36,6 +36,7 @@ vi.mock('folds', () => ({
 
 vi.mock('../../../components/message', () => ({
   DownloadFile: () => null,
+  FileDownloadButton: () => null,
   FileContent: () => null,
   ImageContent: () => null,
   MAudio: () => null,
