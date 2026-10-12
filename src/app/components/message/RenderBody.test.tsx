@@ -23,6 +23,18 @@ vi.mock('../../plugins/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => React.createElement('span', null, text),
 }));
 
+vi.mock('../../mindroom/messages/ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
+}));
+
 vi.mock('../../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
@@ -35,6 +47,9 @@ vi.mock('../../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   PasteMarkerBadgeMeta: 'PasteMarkerBadgeMeta',
   ToolGroupItem: 'ToolGroupItem',
   ToolGroupList: 'ToolGroupList',
+  ToolRowHeader: 'ToolRowHeader',
+  ToolRowIndex: 'ToolRowIndex',
+  ToolRowName: 'ToolRowName',
 }));
 
 // eslint-disable-next-line import/first

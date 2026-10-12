@@ -110,6 +110,18 @@ vi.mock('../html/ScrollableTable.css', () => ({
   Table: 'Table',
   Hint: 'TableHint',
 }));
+vi.mock('./ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
+}));
+
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',
@@ -120,6 +132,9 @@ vi.mock('./MindroomHtmlBlocks.css', () => ({
   BlockResult: 'MindroomBlockResult',
   ToolGroupItem: 'MindroomToolGroupItem',
   ToolGroupList: 'MindroomToolGroupList',
+  ToolRowHeader: 'ToolRowHeader',
+  ToolRowIndex: 'ToolRowIndex',
+  ToolRowName: 'ToolRowName',
 }));
 vi.mock('../threads/CollapsibleMessage.css', () => ({
   CollapsibleContent: () => 'collapsible-content',
@@ -778,7 +793,7 @@ describe('MindroomLongTextText hydration identity', () => {
       expect(getCollapsibleContent()).toBeDefined();
       expect(renderer.root.findByType('strong').children).toContain('response');
       const rendered = JSON.stringify(renderer.toJSON());
-      expect(rendered).toContain('1 tool call');
+      expect(rendered).toContain('Used 1 tool');
       expect(rendered).not.toContain('🔧');
       expect(rendered).not.toContain('**response**');
     } finally {
@@ -829,8 +844,8 @@ describe('MindroomLongTextText hydration identity', () => {
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
     expect(renderer.root.findByType('strong').children).toContain('now');
     const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain('3 tool calls');
-    expect(rendered).not.toContain('1 tool call');
+    expect(rendered).toContain('Used 3 tools');
+    expect(rendered).not.toContain('Used 1 tool');
     expect(rendered).not.toContain('🔧');
     expect(rendered).not.toContain('**now**');
 
@@ -867,8 +882,13 @@ describe('MindroomLongTextText hydration identity', () => {
       });
       try {
         expect(renderer.root.findAllByType('button')).toHaveLength(1);
-        expect(JSON.stringify(renderer.toJSON())).toContain('2 tool calls');
-        expect(JSON.stringify(renderer.toJSON())).not.toContain('read_file');
+        expect(JSON.stringify(renderer.toJSON())).toContain('Used 2 tools');
+        // Collapsed groups name their tools but render no rows until opened.
+        expect(
+          renderer.root.findAll(
+            (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
+          )
+        ).toHaveLength(0);
         await act(async () => {
           renderer.root.findByType('button').props.onClick();
         });
@@ -904,7 +924,7 @@ describe('MindroomLongTextText hydration identity', () => {
           );
         });
         const rendered = JSON.stringify(renderer.toJSON());
-        expect(rendered).toContain('2 tool calls');
+        expect(rendered).toContain('Used 2 tools');
         expect(rendered).not.toContain('Still loading');
         expect(rendered).toContain(
           outcome === 'resolved' ? 'Saved notes' : 'Tool details unavailable'
@@ -957,13 +977,14 @@ describe('MindroomLongTextText hydration identity', () => {
     try {
       expect(renderer.root.findAllByType('button')).toHaveLength(2);
       const rendered = JSON.stringify(renderer.toJSON());
-      expect(rendered).toContain('1 tool call');
-      expect(rendered).toContain('2 tool calls');
+      expect(rendered).toContain('Used 1 tool');
+      expect(rendered).toContain('Used 2 tools');
       expect(rendered).toContain('Now update the file.');
       expect(renderer.root.findByType('pre').findByType('code').children.join('')).toContain(
         '🔧 `example_tool` [4]'
       );
-      expect(rendered).not.toContain('edit_file');
+      expect(rendered).toContain('edit_file, read_file');
+      expect(rendered).not.toContain('🔧 `edit_file`');
     } finally {
       await act(async () => {
         renderer.unmount();
@@ -1032,7 +1053,7 @@ describe('MindroomLongTextText hydration identity', () => {
     });
 
     const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain('1 tool call');
+    expect(rendered).toContain('Used 1 tool');
     expect(rendered).not.toContain('🔧');
 
     await act(async () => {
@@ -1070,7 +1091,7 @@ describe('MindroomLongTextText hydration identity', () => {
     expect(rendered).toContain('foo');
     expect(rendered).toContain('bar');
     expect(rendered).toContain('trailing text');
-    expect(rendered).not.toContain('1 tool call');
+    expect(rendered).not.toContain('Used 1 tool');
 
     await act(async () => {
       renderer.unmount();

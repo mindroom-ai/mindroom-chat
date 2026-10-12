@@ -57,19 +57,31 @@ export const BlockResult = style([
 export const ToolGroupList = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: config.space.S200,
 });
 
-export const ToolGroupItem = style([
-  BaseCode,
-  {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: config.space.S100,
-    padding: `${config.space.S100} ${config.space.S200}`,
+// Rows share the disclosure's glass; quiet dividers separate them.
+export const ToolGroupItem = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'stretch',
+  gap: config.space.S200,
+  minWidth: 0,
+  padding: `${config.space.S200} 0`,
+  selectors: {
+    '& + &': { borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}` },
   },
-]);
+});
+
+export const ToolRowHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+
+export const ToolRowIndex = style([CodeFont, { opacity: config.opacity.P400 }]);
+
+export const ToolRowName = style([CodeFont, { fontWeight: config.fontWeight.W600 }]);
 
 export const PasteMarkerBadge = style([
   DefaultReset,

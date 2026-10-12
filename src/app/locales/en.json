@@ -2573,6 +2573,8 @@
           "research": "Research & Sources"
         },
         "toolNumber": "Tool #{{index}}: {{command}}",
+        "usedToolCount_one": "Used {{count}} tool",
+        "usedToolCount_other": "Used {{count}} tools",
         "toolCallCount_one": "{{count}} tool call",
         "toolCallCount_other": "{{count}} tool calls"
       },

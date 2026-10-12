@@ -133,6 +133,21 @@ vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   BlockResult: 'MindroomBlockResult',
   ToolGroupItem: 'MindroomToolGroupItem',
   ToolGroupList: 'MindroomToolGroupList',
+  ToolRowHeader: 'MindroomToolRowHeader',
+  ToolRowIndex: 'MindroomToolRowIndex',
+  ToolRowName: 'MindroomToolRowName',
+}));
+
+vi.mock('../mindroom/messages/ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
 }));
 
 const createBaseOpts = (): HTMLReactParserOptions => {
@@ -500,7 +515,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       expect(markup).toContain('class="TableScrollArea"');
       expect(markup).toContain('<table class="Table">');
       expect(markup).toContain('<td>Sample</td>');
-      expect(markup.match(/2 tool calls/g)).toHaveLength(1);
+      expect(markup.match(/Used 2 tools/g)).toHaveLength(1);
       expect(markup).not.toContain('🔧');
     }
   );
@@ -531,7 +546,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       body: 'preview',
       formatted_body: html,
     });
-    expect(previewMarkup).toContain('1 tool call');
+    expect(previewMarkup).toContain('Used 1 tool');
     expect(previewMarkup).not.toContain('🔧');
 
     const hydratedMarkup = renderWithToolTrace(html, {
@@ -542,14 +557,55 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
         events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
       },
     });
-    expect(hydratedMarkup).toContain('1 tool call');
+    expect(hydratedMarkup).toContain('Used 1 tool');
+  });
+
+  it('summarizes tool calls and lists each with its arguments and result', () => {
+    const html = '<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>read_file</code> [2]</p>';
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_completed',
+            tool_name: 'web_search',
+            args_preview: '{"query": "MindRoom release notes"}',
+            result_preview: '5 results',
+          },
+          { type: 'tool_call_started', tool_name: 'read_file', args_preview: '{"path": "CHANGE' },
+        ],
+      },
+    });
+
+    const collapsed = collectTextContent(renderer.toJSON());
+    expect(collapsed).toContain('Used 2 tools');
+    expect(collapsed).toContain('web_search, read_file');
+
+    act(() => {
+      renderer.root.findByType('button').props.onClick();
+    });
+
+    const rows = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
+    );
+    expect(rows.map((row) => row.props['data-tool-index'])).toEqual([1, 2]);
+    const textOf = (row: (typeof rows)[number]) =>
+      row
+        .findAll(() => true)
+        .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
+        .join(' ');
+    expect(rows[0].findAllByType('dt').map((node) => node.children.join(''))).toEqual(['query']);
+    expect(textOf(rows[0])).toContain('MindRoom release notes');
+    expect(textOf(rows[0])).toContain('5 results');
+    expect(rows[1].findAll((node) => node.props.variant === 'Secondary')).not.toHaveLength(0);
+    expect(rows[1].findByType('pre').children.join('')).toBe('{"path": "CHANGE');
   });
 
   it('expands marker-only tool refs with the marker tool name', () => {
     const markerHtml = '<p>🔧 <code>run_shell_command</code> [1]</p>';
     const renderer = renderTreeWithToolTrace(markerHtml, { formatted_body: markerHtml });
 
-    expect(collectTextContent(renderer.toJSON())).toContain('1 tool call');
+    expect(collectTextContent(renderer.toJSON())).toContain('Used 1 tool');
 
     const toggle = renderer.root.findByType('button');
     act(() => {
@@ -557,8 +613,8 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: run_shell_command');
-    expect(expanded).toContain('✓');
+    expect(expanded).toContain('[1]run_shell_command');
+    expect(renderer.root.findAll((node) => node.props.src === 'Check')).not.toHaveLength(0);
     expect(expanded).not.toContain('🔧');
   });
 
@@ -582,7 +638,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     );
 
     const collapsed = collectTextContent(renderer.toJSON());
-    expect(collapsed).toContain('3 tool calls');
+    expect(collapsed).toContain('Used 3 tools');
     expect(renderer.root.findAllByType('button')).toHaveLength(1);
 
     const toggle = renderer.root.findByType('button');
@@ -591,13 +647,13 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: first_tool');
+    expect(expanded).toContain('[1]first_tool');
     expect(expanded).toContain('FIRST');
-    expect(expanded).toContain('Tool #2: second_tool ⏳');
-    expect(expanded).toContain('Tool #3: third_tool');
-    expect(expanded.match(/Tool #1: first_tool/g)).toHaveLength(1);
-    expect(expanded.match(/Tool #2: second_tool/g)).toHaveLength(1);
-    expect(expanded.match(/Tool #3: third_tool/g)).toHaveLength(1);
+    expect(expanded).toContain('[2]second_tool');
+    expect(expanded).toContain('[3]third_tool');
+    expect(expanded.match(/\[1\]first_tool/g)).toHaveLength(1);
+    expect(expanded.match(/\[2\]second_tool/g)).toHaveLength(1);
+    expect(expanded.match(/\[3\]third_tool/g)).toHaveLength(1);
     expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
   });
@@ -623,8 +679,8 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       }
     );
 
-    expect(markup).not.toContain('2 tool calls');
-    expect(markup.match(/1 tool call/g)).toHaveLength(2);
+    expect(markup).not.toContain('Used 2 tools');
+    expect(markup.match(/Used 1 tool(?!s)/g)).toHaveLength(2);
     expect(markup).toContain('Now let me find one');
     expect(markup).toContain('Now let me find two');
     expect(markup).not.toContain('🔧');
@@ -680,7 +736,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
 
-    expect(markup).toContain('1 tool call');
+    expect(markup).toContain('Used 1 tool');
     expect(markup).toContain('<p>Waiting</p>');
     expect(markup).not.toContain('⏳');
   });
@@ -699,7 +755,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       }
     );
 
-    expect(markup).toContain('1 tool call');
+    expect(markup).toContain('Used 1 tool');
     expect(markup).toContain('<p>No magic - just dropping old turns when the window fills up.</p>');
     expect(markup).not.toContain('<p><br/>No magic');
   });
@@ -716,7 +772,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
 
-    expect(markup).toContain('1 tool call');
+    expect(markup).toContain('Used 1 tool');
     expect(markup).not.toContain('⏳');
   });
 
@@ -731,7 +787,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const collapsed = collectTextContent(renderer.toJSON());
-    expect(collapsed).toContain('1 tool call');
+    expect(collapsed).toContain('Used 1 tool');
 
     const toggle = renderer.root.findByType('button');
     act(() => {
@@ -739,7 +795,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(expanded).toContain('Tool #1: search_web');
+    expect(expanded).toContain('[1]search_web');
     expect(expanded).toContain('Found it');
   });
 
