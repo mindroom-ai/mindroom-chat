@@ -12,17 +12,19 @@ import { useRoomBackgroundJobs } from './useBackgroundJobs';
 type BackgroundJobsBarProps = {
   room: Room;
   threadId: string | null;
+  // Whether the viewer may send the cancel event here; without it the jobs show without controls.
+  canCancel: boolean;
 };
 
 /** The view's background jobs above the composer, each with a cancel button, and Stop all for several. */
-export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
+export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const roomJobs = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
-  // Each job whose cancel was sent, with the request that sent it; it stays "Stopping…" until it
-  // leaves the room's published jobs, also while another view of the room is open.
-  const [stopping, setStopping] = useState<ReadonlyMap<string, number>>(new Map());
+  // Each job whose cancel was sent, with the requests that sent one; it stays "Stopping…" while any of
+  // them may have arrived, until it leaves the room's published jobs, also while another view is open.
+  const [stopping, setStopping] = useState<ReadonlyMap<string, ReadonlySet<number>>>(new Map());
   const [error, setError] = useState<{ text: string; jobIds: string[] }>();
   const requests = useRef(0);
 
@@ -39,18 +41,31 @@ export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
       requests.current += 1;
       const sent = requests.current;
       setError(undefined);
-      setStopping((previous) => {
-        const next = new Map(previous);
-        jobIds.forEach((jobId) => {
-          if (!next.has(jobId)) next.set(jobId, sent);
-        });
-        return next;
-      });
+      setStopping(
+        (previous) =>
+          new Map([
+            ...previous,
+            ...jobIds.map((jobId): [string, ReadonlySet<number>] => [
+              jobId,
+              new Set([...(previous.get(jobId) ?? []), sent]),
+            ]),
+          ])
+      );
       try {
         await cancelBackgroundJob(mx, room.roomId, threadId, request);
       } catch {
-        // Only this request's marks go; a job an earlier cancel already reached stays stopping.
-        setStopping((previous) => new Map([...previous].filter(([, owner]) => owner !== sent)));
+        // Only this request's marks go; a job another cancel also reached stays stopping.
+        setStopping(
+          (previous) =>
+            new Map(
+              [...previous]
+                .map(([jobId, sends]): [string, ReadonlySet<number>] => [
+                  jobId,
+                  new Set([...sends].filter((other) => other !== sent)),
+                ])
+                .filter(([, sends]) => sends.size > 0)
+            )
+        );
         setError({ text: t('mindroomUi.backgroundJobs.cancelFailed', { tool }), jobIds });
       }
     },
@@ -70,43 +85,49 @@ export function BackgroundJobsBar({ room, threadId }: BackgroundJobsBarProps) {
       <div className={css.Items}>
         {model.items.map((item) => (
           <span key={item.jobId} className={css.Item}>
-            <span>{item.label}</span>
+            <span className={css.Label} title={item.label}>
+              {item.label}
+            </span>
             {isStopping(item) ? (
               <span>{t('mindroomUi.backgroundJobs.stopping')}</span>
             ) : (
-              <IconButton
-                size="300"
-                radii="Pill"
-                variant="SurfaceVariant"
-                aria-label={t('mindroomUi.backgroundJobs.cancel', { tool: item.label })}
-                onClick={() => cancel({ jobId: item.jobId }, [item.jobId], item.label)}
-              >
-                <Icon src={Icons.Cross} size="50" />
-              </IconButton>
+              canCancel && (
+                <IconButton
+                  size="300"
+                  radii="Pill"
+                  variant="SurfaceVariant"
+                  aria-label={t('mindroomUi.backgroundJobs.cancel', { tool: item.label })}
+                  onClick={() => cancel({ jobId: item.jobId }, [item.jobId], item.label)}
+                >
+                  <Icon src={Icons.Cross} size="50" />
+                </IconButton>
+              )
             )}
           </span>
         ))}
-        {model.items.length > 1 && stoppable.length > 0 && (
-          <button
-            type="button"
-            className={css.Chip}
-            onClick={() =>
-              cancel(
-                { all: true },
-                model.items.map((item) => item.jobId),
-                model.title
-              )
-            }
-          >
-            {t('mindroomUi.backgroundJobs.stopAll')}
-          </button>
-        )}
       </div>
-      {error && jobs.some((job) => error.jobIds.includes(job.jobId)) && (
-        <small role="alert" className={css.Status}>
-          {error.text}
-        </small>
+      {canCancel && model.items.length > 1 && stoppable.length > 0 && (
+        <button
+          type="button"
+          className={css.Chip}
+          onClick={() =>
+            cancel(
+              { all: true },
+              model.items.map((item) => item.jobId),
+              model.title
+            )
+          }
+        >
+          {t('mindroomUi.backgroundJobs.stopAll')}
+        </button>
       )}
+      {error &&
+        // A failure matters while one of its jobs is listed and no other cancel reached it.
+        jobs.some((job) => error.jobIds.includes(job.jobId) && !stopping.has(job.jobId)) && (
+          <small role="alert" className={css.Status}>
+            {error.text}
+          </small>
+        )}
     </div>
   );
 }

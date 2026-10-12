@@ -17,6 +17,7 @@ vi.mock('./backgroundJobsBar.css', () => ({
   Status: 'Status',
   Items: 'Items',
   Item: 'Item',
+  Label: 'Label',
   Chip: 'Chip',
 }));
 vi.mock('react-i18next', () => ({
@@ -41,9 +42,9 @@ const room = { roomId: '!room:example.org' } as Room;
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (threadId: string | null = '$thread') =>
+const render = (threadId: string | null = '$thread', canCancel = true) =>
   act(() => {
-    root.render(<BackgroundJobsBar room={room} threadId={threadId} />);
+    root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
 const cancelA = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}';
 const cancelB = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_b"}';
@@ -96,6 +97,33 @@ it('keeps a sent cancel stopping when a later Stop all fails', async () => {
   await click('mindroomUi.backgroundJobs.stopAll');
   expect(button(cancelA)).toBeUndefined();
   expect(button(cancelB)).toBeDefined();
+});
+
+it('keeps a job stopping when Stop all reached it, though its own earlier cancel then fails', async () => {
+  state.jobs = [job('a'), job('b')];
+  let failSingle: (error: Error) => void = () => undefined;
+  state.send = vi.fn().mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        failSingle = reject;
+      })
+  );
+  render();
+  await click(cancelA);
+  state.send.mockResolvedValue({ event_id: '$all' });
+  render();
+  await click('mindroomUi.backgroundJobs.stopAll');
+  await act(async () => failSingle(new Error('offline')));
+  expect(button(cancelA)).toBeUndefined();
+  expect(button(cancelB)).toBeUndefined();
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
+it('lists jobs without cancel controls for a viewer who may not cancel', () => {
+  state.jobs = [job('a'), job('b')];
+  render('$thread', false);
+  expect(container.textContent).toContain('tool_a');
+  expect(container.querySelectorAll('button')).toHaveLength(0);
 });
 
 it('keeps a cancel stopping across a switch to another thread and back', async () => {

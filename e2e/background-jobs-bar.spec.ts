@@ -164,6 +164,25 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
 
+  // A long tool name is cut short and many jobs scroll inside the bar, so every ✕ stays reachable.
+  const longTool = 'mcp_github_create_pull_request_review_with_inline_comments';
+  await publish(
+    researcher,
+    Array.from({ length: 14 }, (_, index) =>
+      job(`job_${index + 5}`, fixture.rootId, index === 0 ? longTool : `tool_${index}`)
+    )
+  );
+  const crowded = page.getByRole('region', { name: '15 background jobs' });
+  await expect(crowded).toBeVisible();
+  const longCancel = crowded.getByRole('button', { name: `Cancel ${longTool}` });
+  await longCancel.scrollIntoViewIfNeeded();
+  const cancelBox = await longCancel.boundingBox();
+  expect(cancelBox && cancelBox.x + cancelBox.width).toBeLessThanOrEqual(390);
+  const barBox = await crowded.boundingBox();
+  expect(barBox && barBox.height).toBeLessThan(844 / 2);
+  await expect(crowded.getByRole('button', { name: 'Stop all' })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('phone-many-jobs.png') });
+
   // When the last job ends, the bar goes away.
   await publish(coder, []);
   await publish(researcher, []);

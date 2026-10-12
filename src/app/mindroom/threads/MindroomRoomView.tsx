@@ -38,6 +38,7 @@ import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
+import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../background-jobs/backgroundJobsContract';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 
@@ -134,6 +135,7 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
+  const canCancelJobs = permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
   const {
     effectiveThreadId,
     handleAddTag,
@@ -281,7 +283,11 @@ export function RoomView({
       >
         <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
-        <BackgroundJobsBar room={room} threadId={effectiveThreadId ?? null} />
+        <BackgroundJobsBar
+          room={room}
+          threadId={effectiveThreadId ?? null}
+          canCancel={canCancelJobs}
+        />
         <div style={{ padding: `0 ${config.space.S400}` }}>
           {failedRootEvent ? (
             <RoomInputPlaceholder
