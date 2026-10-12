@@ -96,10 +96,7 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
 };
 
 // The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
-const agentCallEventPowerLevels = () => ({
-  ...createVoiceRoomPowerLevelsOverride().events,
-  [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
-});
+const AGENT_JOBS_EVENT_LEVEL = { [MINDROOM_BACKGROUND_JOBS_EVENT]: 0 };
 
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
@@ -129,6 +126,7 @@ export const createAgentVoiceRoom = async (
     },
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
+  const voiceLevels = createVoiceRoomPowerLevelsOverride();
 
   const result = await mx.createRoom({
     name: `Call with ${displayName ?? getMxIdLocalPart(agentUserId) ?? agentUserId}`,
@@ -139,8 +137,8 @@ export const createAgentVoiceRoom = async (
       type: RoomType.Call,
     },
     power_level_content_override: {
-      ...createVoiceRoomPowerLevelsOverride(),
-      events: agentCallEventPowerLevels(),
+      ...voiceLevels,
+      events: { ...voiceLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
     },
     initial_state: initialState,
   });
@@ -182,7 +180,7 @@ export const prepareAgentCallRoom = async (
       StateEvent.RoomPowerLevels as never,
       {
         ...powerLevels,
-        events: { ...powerLevels.events, ...agentCallEventPowerLevels() },
+        events: { ...powerLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
       } as never,
       ''
     ).catch(() => undefined);

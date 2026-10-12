@@ -211,9 +211,10 @@ describe('MindRoom agent calls', () => {
   });
 
   it('lets the agent publish its background jobs in a call room made before it could', async () => {
+    // The room's own levels stay as they are; only the jobs event is added.
     const powerLevels = {
       users: { [ALICE]: 100 },
-      events: { 'org.matrix.msc3401.call.member': 0 },
+      events: { 'org.matrix.msc3401.call.member': 50 },
     };
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
     await prepareAgentCallRoom(mx, room, HELPER, origin);
@@ -222,7 +223,7 @@ describe('MindRoom agent calls', () => {
       StateEvent.RoomPowerLevels,
       {
         users: { [ALICE]: 100 },
-        events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 0 },
+        events: { 'org.matrix.msc3401.call.member': 50, 'io.mindroom.background_jobs': 0 },
       },
       ''
     );
