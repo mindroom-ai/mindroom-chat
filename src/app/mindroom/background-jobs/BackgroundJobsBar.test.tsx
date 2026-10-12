@@ -177,6 +177,23 @@ it('leaves a failed cancel behind when the view moves to another thread', async 
   expect(container.querySelector('[role="alert"]')).toBeNull();
 });
 
+it('drops a cancel failure that arrives after the view moved to another thread', async () => {
+  state.jobs = [job('a'), job('b', { threadId: '$other' })];
+  let fail: (error: Error) => void = () => undefined;
+  state.send = vi.fn(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      })
+  );
+  render(null);
+  await click('mindroomUi.backgroundJobs.stopAll');
+  render('$thread');
+  await act(async () => fail(new Error('offline')));
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(button(cancelA)).toBeDefined();
+});
+
 it('shows a failed cancel only while its job is listed', async () => {
   state.jobs = [job('a')];
   state.send = vi.fn().mockRejectedValue(new Error('offline'));

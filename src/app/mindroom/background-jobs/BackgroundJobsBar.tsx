@@ -40,7 +40,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   }, [roomJobs]);
 
   // A failure belongs to the view it happened in; marks of sent cancels stay across views.
-  useEffect(() => setFailures(new Map()), [threadId]);
+  const view = useRef(threadId);
+  useEffect(() => {
+    view.current = threadId;
+    setFailures(new Map());
+  }, [threadId]);
 
   const cancel = useCallback(
     async (request: BackgroundJobCancelRequest, jobIds: string[], failure: string) => {
@@ -74,10 +78,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                 .filter(([, sends]) => sends.size > 0)
             )
         );
-        setFailures(
-          (previous) =>
-            new Map([...previous, ...jobIds.map((jobId): [string, string] => [jobId, failure])])
-        );
+        if (view.current === threadId) {
+          setFailures(
+            (previous) =>
+              new Map([...previous, ...jobIds.map((jobId): [string, string] => [jobId, failure])])
+          );
+        }
       }
     },
     [mx, room, threadId]
