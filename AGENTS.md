@@ -22,6 +22,11 @@ It is the single source of truth for:
 
 Treat the Runbook section in `FORK_CHANGES.md` as a living document and keep it updated continuously.
 
+## UI design
+
+For UI changes, read [docs/ui-design.md](docs/ui-design.md) before choosing materials, headers, scrolling behavior, or component styling.
+Reuse the shared primitives described there and update the guide when an intentional design decision changes.
+
 ## Working agreement
 
 - Implement in small logical steps.

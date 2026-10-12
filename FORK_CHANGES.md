@@ -16,6 +16,14 @@
 - Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings) and Prettier pass. `npm test`: the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) failures only. `npx playwright test e2e/compact-thread-cards.spec.ts` passes in Chromium.
 - Next: check on an iPhone (WebKit was not driven; Playwright's WebKit cannot send touch moves); consider a haptic tick on arming.
 
+### Record the shared UI design rules (2026-10-12)
+
+- `docs/ui-design.md` collects the current surface roles, flat scrolling headers, directional rims, composer/footer behavior, shared primitives, accessibility, and browser-validation expectations.
+  `AGENTS.md` and `CLAUDE.md` point UI work to it; the Runbook remains the implementation history.
+- Documentation only; no component, style, dependency, or runtime behavior changes.
+- Validation: independent source review approved; relative links, formatting, and whitespace checks pass; all 6,657 unit tests pass with Git available in the Node 24 test container.
+- Next: consult this guide for UI work and update it alongside intentional changes to shared visual behavior.
+
 ### Evict whole unused rooms when media cannot bring the cache under budget (2026-10-09)
 
 - Why: an iPhone diagnostics export showed cache eviction running at every app start and again before each suspension, which only happens over the 1 GiB budget, and no gap-fill or history page in 11 hours. Since #298, eviction deleted optional media only ("text, essential bodies and pinned rooms survive pressure"), while the budget counts text and essential bodies too. Once those alone exceeded it, `canSavePage` refused every room's gap pages, history pages and downloads for good, and nothing but a manual Clear could lower the total. The owner chose to evict text from rooms nobody is using rather than exempt the focused room's gap. This restores the room eviction the original D9 design had (#298 replaced it).
