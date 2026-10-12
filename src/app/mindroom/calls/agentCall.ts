@@ -10,6 +10,7 @@ import {
   setRoomNotificationPreference,
 } from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../background-jobs/backgroundJobsContract';
 import { getStateEvent } from '../../utils/room';
 import { setRoomArchived } from '../rooms/archivedRooms';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
@@ -131,7 +132,13 @@ export const createAgentVoiceRoom = async (
     creation_content: {
       type: RoomType.Call,
     },
-    power_level_content_override: createVoiceRoomPowerLevelsOverride(),
+    // The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
+    power_level_content_override: {
+      events: {
+        ...createVoiceRoomPowerLevelsOverride().events,
+        [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+      },
+    },
     initial_state: initialState,
   });
   // Calls open the room from the call bar, so it is archived out of navigation, and muted so its

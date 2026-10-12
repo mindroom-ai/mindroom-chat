@@ -10,6 +10,10 @@ import { TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 
+const jobsBar = vi.hoisted(() => ({
+  canCancel: true,
+  props: [] as { threadId: string | null; canCancel: boolean }[],
+}));
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
 mx.store.storeRoom(room);
@@ -51,7 +55,9 @@ vi.mock('../../hooks/useStateEvent', () => ({ useStateEvent: () => undefined }))
 vi.mock('../../hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../../hooks/useRoomCreators', () => ({ useRoomCreators: () => [] }));
 vi.mock('../../hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ event: () => true }),
+  useRoomPermissions: () => ({
+    event: (type: string) => type !== 'io.mindroom.background_job_cancel' || jobsBar.canCancel,
+  }),
 }));
 vi.mock('../../hooks/useKeyDown', () => ({ useKeyDown: () => undefined }));
 vi.mock('../../state/hooks/settings', () => ({ useSetting: () => [false] }));
@@ -73,7 +79,12 @@ vi.mock('./MindroomRoomViewHeader', () => ({ RoomViewHeader: () => null }));
 vi.mock('./ThreadContextBanner', () => ({ ThreadContextBanner: () => null }));
 vi.mock('./MindroomRoomTimeline', () => ({ RoomTimeline: () => null }));
 vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
-vi.mock('../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
+vi.mock('../background-jobs/BackgroundJobsBar', () => ({
+  BackgroundJobsBar: (props: { threadId: string | null; canCancel: boolean }) => {
+    jobsBar.props.push({ threadId: props.threadId, canCancel: props.canCancel });
+    return null;
+  },
+}));
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
@@ -214,6 +225,24 @@ it('continues the pending second upload and caption when the first upload opens 
   } finally {
     act(() => renderer?.unmount());
     send.mockRestore();
+  }
+});
+
+it('gives the jobs bar the open thread and whether the viewer may send a cancel', async () => {
+  let renderer!: ReturnType<typeof create>;
+  try {
+    await act(async () => {
+      renderer = create(<RoomView room={room} threadId="$thread" />);
+    });
+    expect(jobsBar.props.at(-1)).toEqual({ threadId: '$thread', canCancel: true });
+    jobsBar.canCancel = false;
+    await act(async () => {
+      renderer.update(<RoomView room={room} />);
+    });
+    expect(jobsBar.props.at(-1)).toEqual({ threadId: null, canCancel: false });
+  } finally {
+    jobsBar.canCancel = true;
+    act(() => renderer?.unmount());
   }
 });
 

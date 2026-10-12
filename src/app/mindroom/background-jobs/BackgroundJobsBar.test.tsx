@@ -167,6 +167,16 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('"tool":"tool_b"');
 });
 
+it('leaves a failed cancel behind when the view moves to another thread', async () => {
+  state.jobs = [job('a'), job('b', { threadId: '$other' })];
+  state.send = vi.fn().mockRejectedValue(new Error('offline'));
+  render(null);
+  await click('mindroomUi.backgroundJobs.stopAll');
+  expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  render('$thread');
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
 it('shows a failed cancel only while its job is listed', async () => {
   state.jobs = [job('a')];
   state.send = vi.fn().mockRejectedValue(new Error('offline'));

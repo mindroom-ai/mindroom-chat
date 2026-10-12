@@ -68,7 +68,7 @@ describe('MindRoom agent calls', () => {
       preset: 'private_chat',
       creation_content: { type: 'org.matrix.msc3417.call' },
       power_level_content_override: {
-        events: { 'org.matrix.msc3401.call.member': 0 },
+        events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 0 },
       },
       initial_state: [
         {

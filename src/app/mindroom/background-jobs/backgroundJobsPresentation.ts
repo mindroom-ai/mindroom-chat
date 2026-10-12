@@ -27,13 +27,16 @@ export const presentBackgroundJobs = (
   t: TFunction
 ): BackgroundJobsBarModel | null => {
   if (jobs.length === 0) return null;
-  const items = jobs.map((job) => ({
-    jobId: job.jobId,
-    name: name(job, t),
-    label: name(job, t),
-    waitingForApproval: isWaitingForApproval(job),
-    stopping: job.status === 'cancel_requested',
-  }));
+  const items = jobs.map((job) => {
+    const jobName = name(job, t);
+    return {
+      jobId: job.jobId,
+      name: jobName,
+      label: jobName,
+      waitingForApproval: isWaitingForApproval(job),
+      stopping: job.status === 'cancel_requested',
+    };
+  });
   if (items.length > 1) {
     // With one job the title says it waits for approval; with several, its own label does.
     const labelled = items.map((item) =>
