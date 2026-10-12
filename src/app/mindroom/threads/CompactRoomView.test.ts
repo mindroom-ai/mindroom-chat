@@ -528,21 +528,25 @@ describe('CompactRoomView', () => {
 
     expect(open.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
     expect(done.props).toMatchObject({ enabled: true, resolved: true, label: 'Reopen thread' });
-    act(() => open.props.onSwipe());
-    act(() => done.props.onSwipe());
+    act(() => open.props.onSwipe(false));
+    act(() => done.props.onSwipe(true));
+    // The swipe acts on the state it started from, even if the thread changed since.
+    act(() => done.props.onSwipe(false));
 
     expect(setResolvedMock.mock.calls).toEqual([
       ['$open', true],
       ['$done', false],
+      ['$done', true],
     ]);
     expect(onThreadClick).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
-  it('turns the swipe off for pins, readers, and a pending update', () => {
+  it('turns the swipe off for pins, unsent roots, readers, and a pending update', () => {
     pinningMocks.pinnedEventIds = ['$pinned'];
     useCompactThreadCardViewModelsMock.mockReturnValue([
       makeViewModel('$pinned'),
+      makeViewModel('~local-echo'),
       makeViewModel('$pending'),
       makeViewModel('$idle'),
     ]);
@@ -555,7 +559,7 @@ describe('CompactRoomView', () => {
     });
     const props = {
       room: makeRoom(),
-      threadRootIds: ['$pinned', '$pending', '$idle'],
+      threadRootIds: ['$pinned', '~local-echo', '$pending', '$idle'],
       threadRecordMap: new Map(),
       onThreadClick: vi.fn(),
       compactRoomScrollStateRef: { current: new Map() },
@@ -564,7 +568,7 @@ describe('CompactRoomView', () => {
     const swipeEnabled = (renderer: ReturnType<typeof create>) =>
       renderer.root.findAllByType(CompactCardSwipe).map((swipe) => swipe.props.enabled);
 
-    expect(swipeEnabled(editor)).toEqual([false, false, true]);
+    expect(swipeEnabled(editor)).toEqual([false, false, false, true]);
     editor.unmount();
 
     useToggleThreadResolutionMock.mockReturnValue({
@@ -575,7 +579,7 @@ describe('CompactRoomView', () => {
       error: undefined,
     });
     const reader = create(React.createElement(CompactRoomView, props));
-    expect(swipeEnabled(reader)).toEqual([false, false, false]);
+    expect(swipeEnabled(reader)).toEqual([false, false, false, false]);
     reader.unmount();
   });
 

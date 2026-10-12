@@ -121,7 +121,7 @@ const CompactThreadCardRow = React.memo(
           enabled={swipeEnabled}
           resolved={viewModel.isResolved}
           label={viewModel.isResolved ? reopenLabel : resolveLabel}
-          onSwipe={() => onSetResolved(rootId, !viewModel.isResolved)}
+          onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
         >
           <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
           <div className={css.CardAction}>
@@ -305,7 +305,11 @@ export function CompactRoomView({
     const pinned = pinning.pinnedEventIds.includes(rootId);
     const showResolveAction = canToggle && !viewModel.isResolved && !pinned;
     // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
-    const swipeEnabled = canToggle && !pinned && !updatingThreadRootIds.has(rootId);
+    const swipeEnabled =
+      canToggle &&
+      !pinned &&
+      isConfirmedMatrixEventId(rootId) &&
+      !updatingThreadRootIds.has(rootId);
     const showPinAction = pinning.canPin && isConfirmedMatrixEventId(rootId);
     return (
       <CompactThreadCardRow

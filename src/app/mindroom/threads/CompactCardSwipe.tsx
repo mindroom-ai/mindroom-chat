@@ -15,6 +15,9 @@ export const getSwipeThreshold = (cardWidth: number): number =>
 type Swipe = {
   // Where the touch was when it locked sideways, so the card does not jump.
   originX: number;
+  // The state the strip shows; letting go acts on it even if the thread
+  // toggled elsewhere mid-swipe.
+  resolved: boolean;
   // 1 when the inline start is on the left, -1 in right-to-left layouts.
   towardStart: 1 | -1;
   width: number;
@@ -36,7 +39,8 @@ export type CompactCardSwipeProps = {
   enabled: boolean;
   resolved: boolean;
   label: string;
-  onSwipe: () => void;
+  /** Receives whether the thread was resolved when the swipe started. */
+  onSwipe: (wasResolved: boolean) => void;
   children: ReactNode;
 };
 
@@ -90,7 +94,7 @@ export function CompactCardSwipe({
     if (!swipe) return;
     swipedRef.current = true;
     if (trackRef.current) trackRef.current.style.transform = '';
-    if (commit && swipe.armed && enabled) onSwipe();
+    if (commit && swipe.armed && enabled) onSwipe(swipe.resolved);
     else setArmed(false);
     // A card already at rest has no transition to wait for.
     if (swipe.offset === 0) {
@@ -134,6 +138,7 @@ export function CompactCardSwipe({
       const { width } = track.getBoundingClientRect();
       gesture.swipe = {
         originX: event.clientX,
+        resolved,
         towardStart: getComputedStyle(track).direction === 'rtl' ? -1 : 1,
         width,
         threshold: getSwipeThreshold(width),

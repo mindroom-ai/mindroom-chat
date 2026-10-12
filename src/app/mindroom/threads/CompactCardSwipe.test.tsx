@@ -119,6 +119,7 @@ describe('CompactCardSwipe', () => {
     swipe(300, 150);
 
     expect(onSwipe).toHaveBeenCalledTimes(1);
+    expect(onSwipe).toHaveBeenCalledWith(false);
     expect(track.style.transform).toBe('');
   });
 
@@ -183,6 +184,18 @@ describe('CompactCardSwipe', () => {
     expect(actionStrip()[0].props['data-armed']).toBe('true');
     expect(actionStrip()[0].props['data-resolved']).toBeUndefined();
     expect(actionStrip()[0].findByType('span').props.children).toBe('Resolve');
+  });
+
+  it('runs the action the strip showed when the thread toggles mid-swipe', () => {
+    const { onSwipe, pointer, rerender } = render();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    rerender({ resolved: true, label: 'Reopen thread' });
+    pointer('onPointerMove', 150);
+    pointer('onPointerUp', 150);
+
+    expect(onSwipe).toHaveBeenCalledWith(false);
   });
 
   it('leaves a vertical drag to the scroller', () => {

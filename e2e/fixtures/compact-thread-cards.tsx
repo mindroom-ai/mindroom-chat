@@ -155,11 +155,9 @@ const openThread = (threadRootId: string) => {
 
 function Fixture() {
   const [items, setItems] = useState(samples);
-  const toggleResolved = (index: number) =>
+  const setResolved = (index: number, isResolved: boolean) =>
     setItems((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, isResolved: !item.isResolved } : item
-      )
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, isResolved } : item))
     );
 
   return (
@@ -171,7 +169,7 @@ function Fixture() {
               enabled
               resolved={viewModel.isResolved}
               label={i18n.t(viewModel.isResolved ? 'threadActions.reopen' : 'thread.resolve')}
-              onSwipe={() => toggleResolved(index)}
+              onSwipe={(wasResolved) => setResolved(index, !wasResolved)}
             >
               <CompactThreadCard viewModel={viewModel} onClick={openThread} />
               <div className={css.CardAction}>
