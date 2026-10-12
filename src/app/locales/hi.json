@@ -1442,6 +1442,7 @@
         "callCount_other": "{{count}} कॉल",
         "chipSending": "भेजा जा रहा है…",
         "chipSubmitted": "सबमिट किया गया",
+        "chipResolved": "निपटाया गया",
         "confirmDenyAll": "सभी {{count}} अस्वीकार करने की पुष्टि करें",
         "expires": "{{time}} समाप्त होगा",
         "hideCalls": "कॉल छिपाएँ",

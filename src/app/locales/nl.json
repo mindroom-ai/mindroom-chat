@@ -2710,6 +2710,7 @@
         "callCount_other": "{{count}} aanroepen",
         "chipSending": "Verzenden…",
         "chipSubmitted": "Verzonden",
+        "chipResolved": "Afgehandeld",
         "confirmDenyAll": "Alle {{count}} weigeren bevestigen",
         "expires": "verloopt {{time}}",
         "hideCalls": "Aanroepen verbergen",

@@ -2707,6 +2707,7 @@
         "callCount_other": "호출 {{count}}개",
         "chipSending": "보내는 중…",
         "chipSubmitted": "제출됨",
+        "chipResolved": "처리됨",
         "confirmDenyAll": "{{count}}개 모두 거부 확인",
         "expires": "{{time}} 만료",
         "hideCalls": "호출 숨기기",

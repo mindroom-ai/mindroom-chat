@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { describeApprovalHistory, describeWaitingApprovals } from './approvalLabels';
+import {
+  describeApprovalChip,
+  describeApprovalHistory,
+  describeWaitingApprovals,
+} from './approvalLabels';
+import type { ApprovalActionState } from './approvalActions';
 import type { ThreadApprovalRecord } from './threadApprovalModel';
 import type { ToolApprovalData } from './toolApproval';
 
@@ -84,5 +89,61 @@ describe('describeWaitingApprovals', () => {
         [record({ agentName: 'planner', toolName: 'create_event' }, '$b')],
       ]).agents
     ).toEqual(['research', 'planner']);
+  });
+});
+
+describe('describeApprovalChip', () => {
+  const now = Date.parse('2026-10-12T12:00:00Z');
+  const open = (eventId: string) => record({ expiresAt: '2026-10-13T12:00:00Z' }, eventId);
+  const chip = (
+    records: ThreadApprovalRecord[],
+    states: Record<string, ApprovalActionState['status']> = {},
+    canAct = true
+  ) =>
+    describeApprovalChip(
+      records,
+      new Map(
+        Object.entries(states).map(([eventId, status]) => [eventId, { kind: 'decision', status }])
+      ),
+      now,
+      canAct
+    );
+
+  it('asks for attention while a call is open and the viewer can act', () => {
+    expect(chip([open('$a')])).toEqual({ label: 'waitingForYou', tone: 'attention' });
+    expect(chip([open('$a')], {}, false)).toEqual({ label: 'waitingForApproval', tone: 'neutral' });
+    expect(chip([open('$a')], { $a: 'error' })).toEqual({
+      label: 'waitingForYou',
+      tone: 'attention',
+    });
+  });
+
+  it('reports sending before submitted, and submitted once every open call was sent', () => {
+    expect(chip([open('$a'), open('$b')], { $a: 'sending', $b: 'submitted' })).toEqual({
+      label: 'sending',
+      tone: 'neutral',
+    });
+    expect(chip([open('$a'), record({ status: 'approved' }, '$b')], { $a: 'submitted' })).toEqual({
+      label: 'submitted',
+      tone: 'done',
+    });
+  });
+
+  it('shows the outcome once the room confirms every call', () => {
+    expect(chip([record({ status: 'approved' }, '$a')])).toEqual({
+      label: 'approved',
+      tone: 'done',
+    });
+    expect(chip([record({ status: 'denied' }, '$a'), record({ status: 'denied' }, '$b')])).toEqual({
+      label: 'denied',
+      tone: 'done',
+    });
+    expect(chip([record({ expiresAt: '2026-10-12T11:00:00Z' }, '$a')])).toEqual({
+      label: 'expired',
+      tone: 'done',
+    });
+    expect(
+      chip([record({ status: 'approved' }, '$a'), record({ status: 'denied' }, '$b')])
+    ).toEqual({ label: 'resolved', tone: 'done' });
   });
 });

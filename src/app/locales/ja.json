@@ -2707,6 +2707,7 @@
         "callCount_other": "{{count}} 件の呼び出し",
         "chipSending": "送信中…",
         "chipSubmitted": "送信済み",
+        "chipResolved": "対応済み",
         "confirmDenyAll": "{{count}} 件すべての拒否を確定",
         "expires": "期限: {{time}}",
         "hideCalls": "呼び出しを隠す",

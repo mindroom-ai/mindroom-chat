@@ -2707,6 +2707,7 @@
         "callCount_other": "{{count}} panggilan",
         "chipSending": "Mengirim…",
         "chipSubmitted": "Terkirim",
+        "chipResolved": "Selesai",
         "confirmDenyAll": "Konfirmasi tolak semua {{count}}",
         "expires": "kedaluwarsa {{time}}",
         "hideCalls": "Sembunyikan panggilan",

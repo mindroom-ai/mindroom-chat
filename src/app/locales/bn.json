@@ -1442,6 +1442,7 @@
         "callCount_other": "{{count}}টি কল",
         "chipSending": "পাঠানো হচ্ছে…",
         "chipSubmitted": "জমা দেওয়া হয়েছে",
+        "chipResolved": "নিষ্পন্ন",
         "confirmDenyAll": "সব {{count}}টি প্রত্যাখ্যান নিশ্চিত করুন",
         "expires": "মেয়াদ শেষ {{time}}",
         "hideCalls": "কল লুকান",

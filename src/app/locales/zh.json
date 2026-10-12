@@ -2707,6 +2707,7 @@
         "callCount_other": "{{count}} 次调用",
         "chipSending": "发送中…",
         "chipSubmitted": "已提交",
+        "chipResolved": "已处理",
         "confirmDenyAll": "确认全部拒绝 {{count}} 项",
         "expires": "{{time}}过期",
         "hideCalls": "隐藏调用",

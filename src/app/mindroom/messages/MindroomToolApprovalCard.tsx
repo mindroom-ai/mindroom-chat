@@ -28,6 +28,7 @@ import { ApprovalDecisionControls } from './ApprovalDecisionControls';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import { ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
+import { describeApprovalChip } from './approvalLabels';
 import { useApprovalRoom } from './approvalPeople';
 
 type MindroomToolApprovalCardProps = {
@@ -124,7 +125,6 @@ function StandaloneToolApprovalCard({
   const grant = approval.status === 'approved' ? approval.autoApproval : null;
   const grantState = getApprovalGrantState(record.approval, now);
   const grantExpiresTs = grant ? parseToolApprovalExpiryTimestamp(grant.expiresAt) : undefined;
-  const submitted = action?.status === 'submitted';
   const controls = {
     record,
     userId: currentUserId,
@@ -175,22 +175,12 @@ function StandaloneToolApprovalCard({
       <ApprovalSectionHeader
         operation={getToolApprovalOperationLabel(approval)}
         count={1}
-        chip={
-          submitted
-            ? {
-                label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'),
-                tone: 'done',
-              }
-            : getApprovalCapabilities(record, currentUserId, action, now).deny
-            ? {
-                label: t('mindroomUi.messages.threadApprovalControls.waitingForYou'),
-                tone: 'attention',
-              }
-            : {
-                label: t('mindroomUi.messages.threadApprovalControls.waitingForApproval'),
-                tone: 'neutral',
-              }
-        }
+        chip={describeApprovalChip(
+          [record],
+          new Map(action ? [[record.eventId, action]] : []),
+          now,
+          getApprovalCapabilities(record, currentUserId, action, now).deny
+        )}
       />
       <ApprovalMeta approval={approval} room={room} viewerId={currentUserId} />
       {requestedRelative && (

@@ -261,6 +261,7 @@ const renderInto = async (element: React.ReactElement) => {
   await act(async () => root.render(element));
   return {
     container,
+    rerender: (next: React.ReactElement) => act(async () => root.render(next)),
     cleanup: () => {
       act(() => root.unmount());
       document.body.replaceChildren();
@@ -417,6 +418,41 @@ it('asks for a reason only after Deny all, then denies every call with it', asyn
     await act(async () => button('Confirm deny all 2')?.click());
     expect(submit).toHaveBeenCalledWith(records[0], { status: 'denied', reason: 'Wrong channel' });
     expect(submit).toHaveBeenCalledWith(records[1], { status: 'denied', reason: 'Wrong channel' });
+  } finally {
+    cleanup();
+  }
+});
+
+it('shows the confirmed outcome when a call resolves while the review is open', async () => {
+  const records = [approvalRecord(0, { status: 'approved', resolved_by: '@alice:example.org' })];
+  reviewContext(records);
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  try {
+    expect(container.textContent).toContain('Approved');
+    expect(container.textContent).not.toContain('Waiting for');
+  } finally {
+    cleanup();
+  }
+});
+
+it('lists the calls with their errors once bulk actions no longer apply', async () => {
+  const records = [approvalRecord(0), approvalRecord(1)];
+  reviewContext(records);
+  const { container, rerender, cleanup } = await renderInto(
+    <ApprovalReviewGroup records={records} />
+  );
+  try {
+    expect(container.textContent).toContain('Show 2 calls');
+    current = {
+      ...current,
+      actions: new Map([
+        [records[0].eventId, { kind: 'decision', status: 'submitted' }],
+        [records[1].eventId, { kind: 'decision', status: 'error', error: 'Network down' }],
+      ]),
+    };
+    await rerender(<ApprovalReviewGroup records={records} />);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Network down');
+    expect(container.textContent).not.toContain('Show 2 calls');
   } finally {
     cleanup();
   }

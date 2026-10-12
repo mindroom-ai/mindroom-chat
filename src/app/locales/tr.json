@@ -2710,6 +2710,7 @@
         "callCount_other": "{{count}} çağrı",
         "chipSending": "Gönderiliyor…",
         "chipSubmitted": "Gönderildi",
+        "chipResolved": "Sonuçlandı",
         "confirmDenyAll": "{{count}} çağrının tümünü reddetmeyi onayla",
         "expires": "{{time}} sona eriyor",
         "hideCalls": "Çağrıları gizle",

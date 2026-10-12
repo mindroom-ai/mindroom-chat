@@ -6,9 +6,19 @@ import { ToolApprovalData, ToolApprovalDuration } from './toolApproval';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { agentDisplayName, ApprovalMemberRoom, userDisplayName } from './approvalPeople';
+import type { ApprovalChipLabel, describeApprovalChip } from './approvalLabels';
 import * as css from './ThreadApprovals.css';
 
-export type ApprovalChipTone = 'attention' | 'neutral' | 'done';
+const CHIP_LABEL_KEYS = {
+  waitingForYou: 'mindroomUi.messages.threadApprovalControls.waitingForYou',
+  waitingForApproval: 'mindroomUi.messages.threadApprovalControls.waitingForApproval',
+  sending: 'mindroomUi.messages.threadApprovalControls.chipSending',
+  submitted: 'mindroomUi.messages.threadApprovalControls.chipSubmitted',
+  approved: 'mindroomUi.messages.approvalReviewCall.status.approved',
+  denied: 'mindroomUi.messages.approvalReviewCall.status.denied',
+  expired: 'mindroomUi.messages.approvalReviewCall.status.expired',
+  resolved: 'mindroomUi.messages.threadApprovalControls.chipResolved',
+} as const satisfies Record<ApprovalChipLabel, string>;
 
 /** Operation, call count, and status for one approval section. */
 export function ApprovalSectionHeader({
@@ -18,7 +28,7 @@ export function ApprovalSectionHeader({
 }: {
   operation: string;
   count: number;
-  chip?: { label: string; tone: ApprovalChipTone };
+  chip?: ReturnType<typeof describeApprovalChip>;
 }) {
   const { t } = useTranslation();
   return (
@@ -40,7 +50,7 @@ export function ApprovalSectionHeader({
             chip.tone === 'done' && css.StatusChipDone
           )}
         >
-          {chip.label}
+          {t(CHIP_LABEL_KEYS[chip.label])}
         </span>
       )}
     </div>

@@ -2668,6 +2668,7 @@
         "sectionMeta": "{{agent}} · requested by {{requester}}",
         "expires": "expires {{time}}",
         "chipSubmitted": "Submitted",
+        "chipResolved": "Resolved",
         "chipSending": "Sending…",
         "waitingForYou": "Waiting for you",
         "waitingForApproval": "Waiting for approval",

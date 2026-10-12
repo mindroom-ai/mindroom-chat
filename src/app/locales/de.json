@@ -2710,6 +2710,7 @@
         "callCount_other": "{{count}} Aufrufe",
         "chipSending": "Wird gesendet…",
         "chipSubmitted": "Übermittelt",
+        "chipResolved": "Erledigt",
         "confirmDenyAll": "Ablehnung aller {{count}} bestätigen",
         "expires": "Ablauf {{time}}",
         "hideCalls": "Aufrufe ausblenden",

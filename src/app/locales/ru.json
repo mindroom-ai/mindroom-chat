@@ -2802,6 +2802,7 @@
         "callCount_other": "{{count}} вызова",
         "chipSending": "Отправка…",
         "chipSubmitted": "Отправлено",
+        "chipResolved": "Решено",
         "confirmDenyAll": "Подтвердить запрет всех {{count}}",
         "expires": "истекает {{time}}",
         "hideCalls": "Скрыть вызовы",

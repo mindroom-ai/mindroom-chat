@@ -26,7 +26,11 @@ import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { getApprovalCapabilities, getApprovalGrantState } from './approvalActions';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { ApprovalReceipt } from './ApprovalReceipt';
-import { describeApprovalHistory, describeWaitingApprovals } from './approvalLabels';
+import {
+  describeApprovalChip,
+  describeApprovalHistory,
+  describeWaitingApprovals,
+} from './approvalLabels';
 import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
 import { ApprovalDurations, ApprovalMeta, ApprovalSectionHeader } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
@@ -154,26 +158,9 @@ export function ApprovalReviewGroup({
           )
         )
       : [];
-  const states = records.map((record) => context.actions.get(record.eventId)?.status);
-  const chip = states.every((status) => status === 'submitted')
-    ? {
-        label: t('mindroomUi.messages.threadApprovalControls.chipSubmitted'),
-        tone: 'done' as const,
-      }
-    : states.some((status) => status === 'sending')
-    ? {
-        label: t('mindroomUi.messages.threadApprovalControls.chipSending'),
-        tone: 'neutral' as const,
-      }
-    : available.length > 0
-    ? {
-        label: t('mindroomUi.messages.threadApprovalControls.waitingForYou'),
-        tone: 'attention' as const,
-      }
-    : {
-        label: t('mindroomUi.messages.threadApprovalControls.waitingForApproval'),
-        tone: 'neutral' as const,
-      };
+  const chip = describeApprovalChip(records, context.actions, context.now, available.length > 0);
+  // Bulk actions stand in for the calls; once they no longer apply, list every call.
+  const bulk = available.length > 1;
   const single = records.length === 1;
   const calls = records.map((record, index) => (
     <ApprovalReviewCall
@@ -196,7 +183,7 @@ export function ApprovalReviewGroup({
         chip={chip}
       />
       <ApprovalMeta approval={approval} room={room} viewerId={user} />
-      {single ? (
+      {single || !bulk ? (
         calls
       ) : (
         <>
@@ -223,7 +210,7 @@ export function ApprovalReviewGroup({
           {showCalls && <div id={callsId}>{calls}</div>}
         </>
       )}
-      {available.length > 1 && !denyingAll && (
+      {bulk && !denyingAll && (
         <div className={css.Actions}>
           {approvable.length > 1 && (
             <Button
@@ -258,7 +245,7 @@ export function ApprovalReviewGroup({
           </Button>
         </div>
       )}
-      {available.length > 1 && denyingAll && (
+      {bulk && denyingAll && (
         <form
           className={css.DenyRow}
           onSubmit={(event) => {
@@ -302,7 +289,7 @@ export function ApprovalReviewGroup({
         </form>
       )}
       <ApprovalDurations
-        durations={denyingAll ? [] : timed}
+        durations={bulk && denyingAll ? [] : timed}
         disabled={approvable.length === 0}
         onPick={(duration) => {
           if (approvable[0]) void context.submit(approvable[0], { status: 'approved', duration });

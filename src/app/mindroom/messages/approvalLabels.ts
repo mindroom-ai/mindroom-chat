@@ -1,5 +1,10 @@
+import type { ApprovalActionState } from './approvalActions';
 import type { ThreadApprovalRecord } from './threadApprovalModel';
-import { getToolApprovalOperationLabel } from './toolApproval';
+import {
+  getEffectiveToolApprovalStatus,
+  getToolApprovalOperationLabel,
+  parseToolApprovalExpiryTimestamp,
+} from './toolApproval';
 
 export type ApprovalHistorySummary =
   | {
@@ -49,5 +54,46 @@ export const describeWaitingApprovals = (
   return {
     agents: [...new Set(records.map(({ approval }) => approval.agentName))],
     tools: [...tools].map(([operation, count]) => ({ operation, count })),
+  };
+};
+
+export type ApprovalChipLabel =
+  | 'waitingForYou'
+  | 'waitingForApproval'
+  | 'sending'
+  | 'submitted'
+  | 'approved'
+  | 'denied'
+  | 'expired'
+  | 'resolved';
+
+/** Status chip for a request: open, in flight, sent, or the outcome the room confirmed. */
+export const describeApprovalChip = (
+  records: readonly ThreadApprovalRecord[],
+  actions: ReadonlyMap<string, ApprovalActionState>,
+  now: number,
+  canAct: boolean
+): { label: ApprovalChipLabel; tone: 'attention' | 'neutral' | 'done' } => {
+  const outcomes = records.map(({ approval }) =>
+    getEffectiveToolApprovalStatus(
+      approval.status,
+      parseToolApprovalExpiryTimestamp(approval.expiresAt),
+      now
+    )
+  );
+  const open = records.filter((_, index) => outcomes[index] === 'pending');
+  const states = open.map((record) => actions.get(record.eventId)?.status);
+  if (states.includes('sending')) return { label: 'sending', tone: 'neutral' };
+  if (states.some((status) => status !== 'submitted')) {
+    return canAct
+      ? { label: 'waitingForYou', tone: 'attention' }
+      : { label: 'waitingForApproval', tone: 'neutral' };
+  }
+  if (open.length > 0) return { label: 'submitted', tone: 'done' };
+  const resolved = new Set(outcomes);
+  const [only] = resolved;
+  return {
+    label: resolved.size === 1 && only !== 'pending' ? only : 'resolved',
+    tone: 'done',
   };
 };

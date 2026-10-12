@@ -2756,6 +2756,7 @@
         "callCount_other": "{{count}} appels",
         "chipSending": "Envoi…",
         "chipSubmitted": "Envoyée",
+        "chipResolved": "Traitée",
         "confirmDenyAll": "Confirmer le refus des {{count}}",
         "expires": "expire {{time}}",
         "hideCalls": "Masquer les appels",
