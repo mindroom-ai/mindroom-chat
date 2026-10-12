@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Record the shared UI design rules (2026-10-12)
+
+- `docs/ui-design.md` collects the current surface roles, flat scrolling headers, directional rims, composer/footer behavior, shared primitives, accessibility, and browser-validation expectations.
+  `AGENTS.md` and `CLAUDE.md` point UI work to it; the Runbook remains the implementation history.
+- Documentation only; no component, style, dependency, or runtime behavior changes.
+- Validation: independent source review approved; relative links, formatting, and whitespace checks pass; all 6,657 unit tests pass with Git available in the Node 24 test container.
+- Next: consult this guide for UI work and update it alongside intentional changes to shared visual behavior.
+
 ### Show MindRoom background jobs above the composer, with cancel (2026-10-11)
 
 - Why: MindRoom PR #2113 lets a tool call, a subagent, or a gated call waiting for approval keep running after the reply that started it, as a job of its conversation. People need to see those jobs and cancel them at any time, since 🛑 now stops only the reply.
