@@ -20,8 +20,20 @@ vi.mock('folds', async () => {
   return {
     Box: ({ children, ...rest }: { children?: React.ReactNode }) =>
       reactModule.createElement('div', rest, children),
-    Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) =>
-      reactModule.createElement('button', { 'data-menu-trigger': true, onClick }, children),
+    Button: ({
+      children,
+      onClick,
+      'aria-label': ariaLabel,
+    }: {
+      children?: React.ReactNode;
+      onClick?: () => void;
+      'aria-label'?: string;
+    }) =>
+      reactModule.createElement(
+        'button',
+        { 'data-menu-trigger': true, 'aria-label': ariaLabel, onClick },
+        children
+      ),
     Icon: () => null,
     Icons: { ChevronBottom: 'chevron-bottom' },
     PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
@@ -49,11 +61,20 @@ vi.mock('../../components/glass/GlassPrimitives', () => ({
     children,
     onClick,
     variant,
+    role,
+    'aria-checked': ariaChecked,
   }: {
     children?: React.ReactNode;
     onClick?: () => void;
     variant?: string;
-  }) => React.createElement('button', { 'data-menu-item': variant, onClick }, children),
+    role?: string;
+    'aria-checked'?: boolean;
+  }) =>
+    React.createElement(
+      'button',
+      { 'data-menu-item': variant, role, 'aria-checked': ariaChecked, onClick },
+      children
+    ),
 }));
 
 vi.mock('../../components/sequence-card', () => ({
@@ -116,9 +137,9 @@ describe('MindroomInterfaceSettings', () => {
 
     const tile = renderer.root.findByProps({ 'data-title': 'Fold long messages' });
     expect(tile.props['data-description']).toContain('Show full message');
-    expect(tile.findByProps({ 'data-menu-trigger': true }).findByType('span').children).toEqual([
-      'Auto',
-    ]);
+    const trigger = tile.findByProps({ 'data-menu-trigger': true });
+    expect(trigger.findByType('span').children).toEqual(['Auto']);
+    expect(trigger.props['aria-label']).toBe('Fold long messages: Auto');
   });
 
   it('writes the chosen folding mode and shows it before the write settles', async () => {
@@ -140,6 +161,11 @@ describe('MindroomInterfaceSettings', () => {
       'Primary',
       'Surface',
       'Surface',
+    ]);
+    expect(items.map((item) => [item.props.role, item.props['aria-checked']])).toEqual([
+      ['menuitemradio', true],
+      ['menuitemradio', false],
+      ['menuitemradio', false],
     ]);
 
     await act(async () => {

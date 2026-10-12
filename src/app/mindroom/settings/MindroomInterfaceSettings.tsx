@@ -104,6 +104,8 @@ const LONG_MESSAGE_FOLDING_LABEL_KEYS = {
 function LongMessageFoldingSetting() {
   const { t } = useTranslation();
   const { value, save, saveFailed } = usePendingAccountSetting('longMessageFolding');
+  const title = t('settings.general.interface.longMessageFolding');
+  const valueLabel = t(LONG_MESSAGE_FOLDING_LABEL_KEYS[value]);
   const [menuCords, setMenuCords] = useState<RectCords>();
 
   const handleMenu: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -117,7 +119,7 @@ function LongMessageFoldingSetting() {
 
   return (
     <SettingTile
-      title={t('settings.general.interface.longMessageFolding')}
+      title={title}
       description={t('settings.general.interface.longMessageFoldingDescription')}
       after={
         <>
@@ -128,11 +130,12 @@ function LongMessageFoldingSetting() {
             fill="Soft"
             radii="300"
             after={<Icon size="300" src={Icons.ChevronBottom} />}
+            aria-label={`${title}: ${valueLabel}`}
             aria-haspopup="menu"
             aria-expanded={menuCords !== undefined}
             onClick={handleMenu}
           >
-            <Text size="T300">{t(LONG_MESSAGE_FOLDING_LABEL_KEYS[value])}</Text>
+            <Text size="T300">{valueLabel}</Text>
           </Button>
           <PopOut
             anchor={menuCords}

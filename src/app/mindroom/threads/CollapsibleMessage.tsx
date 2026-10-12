@@ -146,9 +146,10 @@ const isContentOverflowing = (
 // `applyOverflowVerdict` — so a stale hint (e.g. the same message
 // rendered at a different container width) self-corrects within a
 // layout pass and updates the cache. `measurementKey` already varies
-// by event id, redaction state, edit event id, and collapse mode
-// (see getCollapsibleMessageMeasurementKey), so content edits and
-// redactions produce a fresh key rather than a stale hit.
+// by event id, redaction state, edit event id, collapse mode, and fold
+// height (see getCollapsibleMessageMeasurementKey), so content edits,
+// redactions, and folding-mode changes produce a fresh key rather than
+// a stale hit.
 const overflowVerdictCache = new Map<string, boolean>();
 const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
 const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {

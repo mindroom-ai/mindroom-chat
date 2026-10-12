@@ -27,6 +27,8 @@ export const getCollapsedMessageHeightEm = (
     : COLLAPSED_MESSAGE_HEIGHT_EM;
 
 // Text this long overflows the default fold height; a taller fold needs proportionally more.
+// Only the plain body counts: HTML markup (links, tables) adds length without height, and a
+// forced row is never measured, so a false positive would fold a message with nothing hidden.
 const FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH = 1200;
 
 export const shouldForceCollapsibleMessageOverflow = (
@@ -41,12 +43,7 @@ export const shouldForceCollapsibleMessageOverflow = (
   const minLength =
     (FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH * collapsedHeightEm) / COLLAPSED_MESSAGE_HEIGHT_EM;
   const body = content.body;
-  if (typeof body === 'string' && body.length >= minLength) {
-    return true;
-  }
-
-  const formattedBody = content.formatted_body;
-  return typeof formattedBody === 'string' && formattedBody.length >= minLength;
+  return typeof body === 'string' && body.length >= minLength;
 };
 
 export type ShouldTrackLiveCollapsibleMessage = {

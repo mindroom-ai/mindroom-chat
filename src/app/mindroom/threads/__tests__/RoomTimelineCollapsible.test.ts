@@ -1745,6 +1745,23 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(shouldForceCollapsibleMessageOverflow(content(3500), 30)).toBe(true);
   });
 
+  it('does not force overflow from markup length alone', async () => {
+    const { shouldForceCollapsibleMessageOverflow } = await import('../threadCollapsibleMessages');
+    const links = Array.from({ length: 12 }, (_, index) => `source ${index}`);
+
+    // A few short lines of links: the HTML passes the length, the text renders well under a fold.
+    expect(
+      shouldForceCollapsibleMessageOverflow({
+        msgtype: 'm.text',
+        body: links.join('\n'),
+        format: 'org.matrix.custom.html',
+        formatted_body: links
+          .map((link) => `<p><a href="https://example.org/${'path/'.repeat(20)}">${link}</a></p>`)
+          .join(''),
+      })
+    ).toBe(false);
+  });
+
   it('measures a row again when its fold height changes', async () => {
     const { getCollapsibleMessageMeasurementKey } = await import('../threadCollapsibleMessages');
     const event = makeEvent('$event');

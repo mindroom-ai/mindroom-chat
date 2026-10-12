@@ -666,6 +666,41 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('measures again when a mounted row changes fold height', () => {
+    // 16px font: 320px overflows 11em (176px) but fits under 30em (480px).
+    const renderer = renderCollapsibleMessage({
+      collapseMode: 'default',
+      measurementKey: '$fold-height|active||default|11',
+    });
+    const rerender = (collapsedHeightEm: number) =>
+      act(() => {
+        renderer.update(
+          React.createElement(
+            CollapsibleMessage as never,
+            {
+              collapsedHeightEm,
+              collapseMode: 'default',
+              measurementKey: `$fold-height|active||default|${collapsedHeightEm}`,
+            } as never,
+            React.createElement('span', undefined, 'message')
+          )
+        );
+      });
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+
+    rerender(30);
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('30em');
+    expect(findExpandButtons(renderer)).toHaveLength(0);
+
+    rerender(11);
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it('reruns overflow measurement when the measurement key changes', () => {
     const { contentElement, getScrollHeightReads } = createMeasuredContentElement();
     const renderer = renderCollapsibleMessage(

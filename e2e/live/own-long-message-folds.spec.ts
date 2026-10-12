@@ -87,9 +87,12 @@ for (const surface of ['room', 'thread'] as const) {
     await expect(showFullIn('Agent long line 1')).toBeVisible();
     const agentPreview = await previewOf(row('Agent long line 1'));
     expect(agentPreview.clipped).toBe(true);
-    // The room view opens at the unread marker above the seeded replies.
-    const jumpToLatest = page.getByRole('button', { name: 'Jump to Latest', exact: true });
-    if (await jumpToLatest.isVisible()) await jumpToLatest.click();
+    if (surface === 'room') {
+      // The room view opens at the unread marker above the seeded replies.
+      const jumpToLatest = page.getByRole('button', { name: 'Jump to Latest', exact: true });
+      await expect(jumpToLatest).toBeVisible();
+      await jumpToLatest.click();
+    }
 
     // A long message that arrives live from an agent still opens once.
     await sendAgentMessage(lines('Agent live', 40));
