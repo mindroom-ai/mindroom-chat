@@ -11,7 +11,7 @@ Update this guide alongside intentional changes to shared visual behavior.
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Room toolbar, navigation titles, Members title, scrolling settings/dialog titles              | Flat translucent glass: content scrolls behind it; no rim, border, shadow, or pointer glow.                                                                  |
 | Full-height icon rail                                                                         | Flat glass, without a raised outer edge; preserve individual buttons, avatars, badges, and selection indicators.                                             |
-| Command palette, menus, dialogs, floating thread banner and filters                           | Rounded glass surface with a restrained directional rim; preserve rounded bottom corners when scrolling or when the keyboard opens.                          |
+| Command palette, menus, dialogs, floating thread banner, and thread filter panels             | Rounded glass surface with a restrained directional rim; preserve rounded bottom corners when scrolling or when the keyboard opens.                          |
 | Composer, audio player, inline summaries, tool/approval disclosures, typing and approval bars | Reuse the shared material and rim, with spacing between separate surfaces.                                                                                   |
 | Rows within a glass panel, including nested approval receipts                                 | Let the enclosing surface own the glass; avoid stacking opaque fills, rims, or blur on every child. Selection and semantic states can retain their own fill. |
 | Following/status strip below the composer                                                     | Flat blur only while it contains status text; an empty strip stays fully clear and unblurred so messages remain visible.                                     |
@@ -36,7 +36,7 @@ The same navigation treatment applies across Home, rooms, DMs, invites, spaces, 
 - Flat headers have no decorative hover glow, including light on their enclosing panel triggered by hovering a header control.
   Keep keyboard focus visible and preserve deliberate control-state feedback.
 - Dividers are quiet theme-colored lines, never specular edges.
-  Recently Opened keeps its inset 1px divider, 16px from each side; do not turn it into another floating glass shelf.
+  Recently Opened keeps its quiet inset divider; do not turn it into another floating glass shelf.
 
 ## Scrolling and layout
 
@@ -100,6 +100,8 @@ Fix a repeated inconsistency in its shared primitive or component family, with a
   Avoid perpetual decorative animation; do not rely on hover to expose essential actions on touch devices.
 
 ## Review visual changes
+
+Scale these checks to the affected surfaces and risk; a small local tweak needs a focused check, while shared material or layout changes need the broader coverage below.
 
 1. Capture before/after views with the same theme, viewport, content, and scroll position, using disposable data.
    Include content visibly scrolled beneath the header; an empty panel does not demonstrate transparency.
