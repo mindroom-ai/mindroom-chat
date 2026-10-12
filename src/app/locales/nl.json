@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "Bezig: {{tool}}",
       "awaitingApproval": "Wacht op goedkeuring: {{tool}}",
+      "stoppingJob": "Wordt gestopt: {{tool}}",
       "jobCount": "{{count}} achtergrondtaken",
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Alles stoppen",

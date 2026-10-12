@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "実行中: {{tool}}",
       "awaitingApproval": "承認待ち: {{tool}}",
+      "stoppingJob": "停止中: {{tool}}",
       "jobCount": "バックグラウンドジョブ {{count}} 件",
       "subagent": "{{tool}}（サブエージェント）",
       "stopAll": "すべて停止",

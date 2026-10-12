@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "Läuft: {{tool}}",
       "awaitingApproval": "Wartet auf Freigabe: {{tool}}",
+      "stoppingJob": "Wird gestoppt: {{tool}}",
       "jobCount": "{{count}} Hintergrundaufgaben",
       "subagent": "{{tool}} (Subagent)",
       "stopAll": "Alle stoppen",

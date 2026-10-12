@@ -1,12 +1,13 @@
 import type { TFunction } from 'i18next';
 import type { BackgroundJob } from './backgroundJobsContract';
+import type { SentCancels } from './sentCancels';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
   // The job's own name, for its cancel button and errors; `label` may add that it waits for approval.
   name: string;
   label: string;
-  // Its cancel was already requested, from this view or anywhere else.
+  // Its cancel was sent from this client, or requested anywhere else.
   stopping: boolean;
 };
 
@@ -23,6 +24,7 @@ const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiti
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
 export const presentBackgroundJobs = (
   jobs: BackgroundJob[],
+  sent: SentCancels,
   t: TFunction
 ): BackgroundJobsBarModel | null => {
   const [first] = jobs;
@@ -38,13 +40,15 @@ export const presentBackgroundJobs = (
         several && awaitingApproval(job)
           ? t('mindroomUi.backgroundJobs.awaitingApproval', { tool: name })
           : name,
-      stopping: job.status === 'cancel_requested',
+      stopping: job.status === 'cancel_requested' || sent.has(job.jobId),
     };
   });
-  let title: string;
-  if (several) title = t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
-  else if (awaitingApproval(first))
-    title = t('mindroomUi.backgroundJobs.awaitingApproval', { tool: items[0].name });
-  else title = t('mindroomUi.backgroundJobs.running', { tool: items[0].name });
-  return { title, items };
+  if (several)
+    return { title: t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length }), items };
+  const tool = items[0].name;
+  if (items[0].stopping)
+    return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), items };
+  if (awaitingApproval(first))
+    return { title: t('mindroomUi.backgroundJobs.awaitingApproval', { tool }), items };
+  return { title: t('mindroomUi.backgroundJobs.running', { tool }), items };
 };

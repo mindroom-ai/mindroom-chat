@@ -3111,6 +3111,7 @@
     "backgroundJobs": {
       "running": "Выполняется: {{tool}}",
       "awaitingApproval": "Ожидает одобрения: {{tool}}",
+      "stoppingJob": "Остановка: {{tool}}",
       "jobCount": "Фоновых задач: {{count}}",
       "subagent": "{{tool}} (субагент)",
       "stopAll": "Остановить все",

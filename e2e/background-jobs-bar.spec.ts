@@ -207,7 +207,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // When the last job ends, the bar goes away.
   await publish(coder, []);
   await publish(researcher, []);
-  await expect(page.getByRole('region', { name: /background jobs|Running|Waiting/ })).toHaveCount(
-    0
-  );
+  await expect(
+    page.getByRole('region', { name: /background jobs|Running|Waiting|Stopping/ })
+  ).toHaveCount(0);
 });

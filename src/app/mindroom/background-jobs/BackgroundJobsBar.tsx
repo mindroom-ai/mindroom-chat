@@ -57,9 +57,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     [mx, room, threadId]
   );
 
-  const model = presentBackgroundJobs(jobs, t);
+  const model = presentBackgroundJobs(jobs, sent, t);
   if (!model) return null;
-  const stoppable = model.items.filter((item) => !item.stopping && !sent.has(item.jobId));
+  const stoppable = model.items.filter((item) => !item.stopping);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
   const shownFailures = [
     ...new Set(

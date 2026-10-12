@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "Running: {{tool}}",
       "awaitingApproval": "Waiting for approval: {{tool}}",
+      "stoppingJob": "Stopping: {{tool}}",
       "jobCount": "{{count}} background jobs",
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Stop all",

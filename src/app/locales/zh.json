@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "运行中：{{tool}}",
       "awaitingApproval": "等待批准：{{tool}}",
+      "stoppingJob": "正在停止：{{tool}}",
       "jobCount": "{{count}} 个后台任务",
       "subagent": "{{tool}}（子代理）",
       "stopAll": "全部停止",

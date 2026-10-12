@@ -3003,6 +3003,7 @@
     "backgroundJobs": {
       "running": "Berjalan: {{tool}}",
       "awaitingApproval": "Menunggu persetujuan: {{tool}}",
+      "stoppingJob": "Menghentikan: {{tool}}",
       "jobCount": "{{count}} tugas latar belakang",
       "subagent": "{{tool}} (subagen)",
       "stopAll": "Hentikan semua",

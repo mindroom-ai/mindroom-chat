@@ -3057,6 +3057,7 @@
     "backgroundJobs": {
       "running": "En cours : {{tool}}",
       "awaitingApproval": "En attente d’approbation : {{tool}}",
+      "stoppingJob": "Arrêt en cours : {{tool}}",
       "jobCount": "{{count}} tâches en arrière-plan",
       "subagent": "{{tool}} (sous-agent)",
       "stopAll": "Tout arrêter",

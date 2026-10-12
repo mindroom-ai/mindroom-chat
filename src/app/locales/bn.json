@@ -1744,6 +1744,7 @@
     "backgroundJobs": {
       "running": "চলছে: {{tool}}",
       "awaitingApproval": "অনুমোদনের অপেক্ষায়: {{tool}}",
+      "stoppingJob": "থামানো হচ্ছে: {{tool}}",
       "jobCount": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "subagent": "{{tool}} (সাব-এজেন্ট)",
       "stopAll": "সব থামান",

@@ -86,6 +86,10 @@ it('shows Stopping until the job leaves the state', async () => {
   render();
   expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
   expect(button(cancelA)).toBeUndefined();
+  // The bar's title and region name say so too, not that the job is running.
+  expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe(
+    'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}'
+  );
   state.jobs = [];
   render();
   expect(container.innerHTML).toBe('');
