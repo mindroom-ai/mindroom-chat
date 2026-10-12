@@ -21,7 +21,7 @@ import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
-import { isMindroomAgentMessageEvent } from '../../matrix/agentIdentity';
+import { hasMindroomAgentMessageMetadata, isMindroomAgentUserId } from '../../matrix/agentIdentity';
 import { CollapsibleMessage } from '../CollapsibleMessage';
 import {
   getCollapsibleMessageMeasurementKey,
@@ -145,7 +145,7 @@ export function TimelineMessageBody({
       const expansion = getExpansion(
         eventId,
         content,
-        isMindroomAgentMessageEvent({ getSender: () => senderId, getContent: () => content })
+        isMindroomAgentUserId(senderId) || hasMindroomAgentMessageMetadata(content)
       );
       const renderMessage = (loadFullContent = true) => (
         <RenderMessageContent
