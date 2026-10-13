@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { MouseEventHandler, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Text, config, toRem } from 'folds';
+import { Avatar, Box, Chip, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
 import { useSearchParams } from 'react-router-dom';
 import {
   MatrixEvent,
@@ -18,7 +18,14 @@ import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useAtomValue } from 'jotai';
 import { getEventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Header } from '../../../components/glass/GlassPrimitives';
-import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeader,
+  PageScroll,
+} from '../../../components/page';
+import { PageScrollToTop } from '../../../components/page/style.css';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { InboxNotificationsPathSearchParams } from '../../paths';
@@ -346,7 +353,7 @@ function RoomNotificationsGroupComp({
 
   return (
     <Box direction="Column" gap="200">
-      <Header size="300">
+      <Header size="300" appearance="plain">
         <Box gap="200" grow="Yes">
           <Avatar size="200" radii="300">
             <RoomAvatar
@@ -572,145 +579,116 @@ export function Notifications() {
 
   return (
     <Page>
-      <PageHeader balance>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" basis="No">
-            {screenSize === ScreenSize.Mobile && (
-              <BackRouteHandler>
-                {(onBack) => (
-                  <IconButton onClick={onBack}>
-                    <Icon data-directional src={Icons.ArrowLeft} />
-                  </IconButton>
+      <PageScroll
+        scrollRef={scrollRef}
+        header={
+          <PageHeader flat balance>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" basis="No">
+                {screenSize === ScreenSize.Mobile && (
+                  <BackRouteHandler>
+                    {(onBack) => (
+                      <IconButton onClick={onBack}>
+                        <Icon data-directional src={Icons.ArrowLeft} />
+                      </IconButton>
+                    )}
+                  </BackRouteHandler>
                 )}
-              </BackRouteHandler>
-            )}
-          </Box>
-          <Box alignItems="Center" gap="200">
-            {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Message} />}
-            <Text size="H3" truncate>
-              {t('sharedUi.notifications.notificationMessages')}
-            </Text>
-          </Box>
-          <Box grow="Yes" basis="No" />
-        </Box>
-      </PageHeader>
-
-      <Box style={{ position: 'relative' }} grow="Yes">
-        <Scroll ref={scrollRef} hideTrack visibility="Hover">
-          <PageContent>
-            <PageContentCenter>
-              <Box direction="Column" gap="200">
-                <Box ref={scrollTopAnchorRef} direction="Column" gap="100">
-                  <span data-spacing-node />
-                  <Text size="L400">{t('sharedUi.notifications.filter')}</Text>
-                  <Box gap="200">
-                    <Chip
-                      onClick={() => setOnlyHighlighted(false)}
-                      variant={!onlyHighlight ? 'Success' : 'Surface'}
-                      aria-pressed={!onlyHighlight}
-                      before={!onlyHighlight && <Icon size="100" src={Icons.Check} />}
-                      outlined
-                    >
-                      <Text size="T200">{t('sharedUi.notifications.allNotifications')}</Text>
-                    </Chip>
-                    <Chip
-                      onClick={() => setOnlyHighlighted(true)}
-                      variant={onlyHighlight ? 'Success' : 'Surface'}
-                      aria-pressed={onlyHighlight}
-                      before={onlyHighlight && <Icon size="100" src={Icons.Check} />}
-                      outlined
-                    >
-                      <Text size="T200">{t('sharedUi.notifications.highlighted')}</Text>
-                    </Chip>
-                  </Box>
-                </Box>
-                <ScrollTopContainer
-                  scrollRef={scrollRef}
-                  anchorRef={scrollTopAnchorRef}
-                  onVisibilityChange={handleScrollTopVisibility}
-                >
-                  <IconButton
-                    onClick={() => virtualizer.scrollToOffset(0)}
-                    variant="SurfaceVariant"
-                    radii="Pill"
+              </Box>
+              <Box alignItems="Center" gap="200">
+                {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Message} />}
+                <Text size="H3" truncate>
+                  {t('sharedUi.notifications.notificationMessages')}
+                </Text>
+              </Box>
+              <Box grow="Yes" basis="No" />
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <PageContentCenter>
+            <Box direction="Column" gap="200">
+              <Box ref={scrollTopAnchorRef} direction="Column" gap="100">
+                <span data-spacing-node />
+                <Text size="L400">{t('sharedUi.notifications.filter')}</Text>
+                <Box gap="200">
+                  <Chip
+                    onClick={() => setOnlyHighlighted(false)}
+                    variant={!onlyHighlight ? 'Success' : 'Surface'}
+                    aria-pressed={!onlyHighlight}
+                    before={!onlyHighlight && <Icon size="100" src={Icons.Check} />}
                     outlined
-                    size="300"
-                    aria-label={t('sharedUi.notifications.scrollToTop')}
                   >
-                    <Icon src={Icons.ChevronTop} size="300" />
-                  </IconButton>
-                </ScrollTopContainer>
-                <div
-                  style={{
-                    position: 'relative',
-                    height: virtualizer.getTotalSize(),
-                  }}
+                    <Text size="T200">{t('sharedUi.notifications.allNotifications')}</Text>
+                  </Chip>
+                  <Chip
+                    onClick={() => setOnlyHighlighted(true)}
+                    variant={onlyHighlight ? 'Success' : 'Surface'}
+                    aria-pressed={onlyHighlight}
+                    before={onlyHighlight && <Icon size="100" src={Icons.Check} />}
+                    outlined
+                  >
+                    <Text size="T200">{t('sharedUi.notifications.highlighted')}</Text>
+                  </Chip>
+                </Box>
+              </Box>
+              <ScrollTopContainer
+                respectScrollPadding
+                className={PageScrollToTop}
+                scrollRef={scrollRef}
+                anchorRef={scrollTopAnchorRef}
+                onVisibilityChange={handleScrollTopVisibility}
+              >
+                <IconButton
+                  onClick={() => virtualizer.scrollToOffset(0)}
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  size="300"
+                  aria-label={t('sharedUi.notifications.scrollToTop')}
                 >
-                  {vItems.map((vItem) => {
-                    const group = notificationTimeline.groups[vItem.index];
-                    if (!group) return null;
-                    const groupRoom = mx.getRoom(group.roomId);
-                    if (!groupRoom) return null;
+                  <Icon src={Icons.ChevronTop} size="300" />
+                </IconButton>
+              </ScrollTopContainer>
+              <div
+                style={{
+                  position: 'relative',
+                  height: virtualizer.getTotalSize(),
+                }}
+              >
+                {vItems.map((vItem) => {
+                  const group = notificationTimeline.groups[vItem.index];
+                  if (!group) return null;
+                  const groupRoom = mx.getRoom(group.roomId);
+                  if (!groupRoom) return null;
 
-                    return (
-                      <VirtualTile
-                        virtualItem={vItem}
-                        style={{ paddingTop: config.space.S500 }}
-                        ref={virtualizer.measureElement}
-                        key={vItem.index}
-                      >
-                        <RoomNotificationsGroupComp
-                          room={groupRoom}
-                          notifications={group.notifications}
-                          mediaAutoLoad={mediaAutoLoad}
-                          urlPreview={urlPreview}
-                          onOpen={navigateRoom}
-                          legacyUsernameColor={
-                            legacyUsernameColor || mDirects.has(groupRoom.roomId)
-                          }
-                          hour24Clock={hour24Clock}
-                          dateFormatString={dateFormatString}
-                        />
-                      </VirtualTile>
-                    );
-                  })}
-                </div>
-
-                {timelineState.status === AsyncStatus.Success &&
-                  notificationTimeline.groups.length === 0 && (
-                    <Box
-                      className={ContainerColor({ variant: 'SurfaceVariant' })}
-                      style={{
-                        padding: config.space.S300,
-                        borderRadius: config.radii.R400,
-                      }}
-                      direction="Column"
-                      gap="200"
+                  return (
+                    <VirtualTile
+                      virtualItem={vItem}
+                      style={{ paddingTop: config.space.S500 }}
+                      ref={virtualizer.measureElement}
+                      key={vItem.index}
                     >
-                      <Text>{t('sharedUi.notifications.noNotifications')}</Text>
-                      <Text size="T200">
-                        {t('sharedUi.notifications.youDonTHaveAnyNewNotificationsToDisplayYet')}
-                      </Text>
-                    </Box>
-                  )}
-
-                {shouldRenderNotificationLoadingPlaceholders(
-                  timelineState.status,
-                  notificationTimeline.groups.length
-                ) && (
-                  <Box direction="Column" gap="100">
-                    {[...Array(8).keys()].map((key) => (
-                      <SequenceCard
-                        variant="SurfaceVariant"
-                        key={key}
-                        style={{ minHeight: toRem(80) }}
+                      <RoomNotificationsGroupComp
+                        room={groupRoom}
+                        notifications={group.notifications}
+                        mediaAutoLoad={mediaAutoLoad}
+                        urlPreview={urlPreview}
+                        onOpen={navigateRoom}
+                        legacyUsernameColor={legacyUsernameColor || mDirects.has(groupRoom.roomId)}
+                        hour24Clock={hour24Clock}
+                        dateFormatString={dateFormatString}
                       />
-                    ))}
-                  </Box>
-                )}
-                {timelineState.status === AsyncStatus.Error && (
+                    </VirtualTile>
+                  );
+                })}
+              </div>
+
+              {timelineState.status === AsyncStatus.Success &&
+                notificationTimeline.groups.length === 0 && (
                   <Box
-                    className={ContainerColor({ variant: 'Critical' })}
+                    className={ContainerColor({ variant: 'SurfaceVariant' })}
                     style={{
                       padding: config.space.S300,
                       borderRadius: config.radii.R400,
@@ -718,15 +696,45 @@ export function Notifications() {
                     direction="Column"
                     gap="200"
                   >
-                    <Text size="L400">{(timelineState.error as Error).name}</Text>
-                    <Text size="T300">{(timelineState.error as Error).message}</Text>
+                    <Text>{t('sharedUi.notifications.noNotifications')}</Text>
+                    <Text size="T200">
+                      {t('sharedUi.notifications.youDonTHaveAnyNewNotificationsToDisplayYet')}
+                    </Text>
                   </Box>
                 )}
-              </Box>
-            </PageContentCenter>
-          </PageContent>
-        </Scroll>
-      </Box>
+
+              {shouldRenderNotificationLoadingPlaceholders(
+                timelineState.status,
+                notificationTimeline.groups.length
+              ) && (
+                <Box direction="Column" gap="100">
+                  {[...Array(8).keys()].map((key) => (
+                    <SequenceCard
+                      variant="SurfaceVariant"
+                      key={key}
+                      style={{ minHeight: toRem(80) }}
+                    />
+                  ))}
+                </Box>
+              )}
+              {timelineState.status === AsyncStatus.Error && (
+                <Box
+                  className={ContainerColor({ variant: 'Critical' })}
+                  style={{
+                    padding: config.space.S300,
+                    borderRadius: config.radii.R400,
+                  }}
+                  direction="Column"
+                  gap="200"
+                >
+                  <Text size="L400">{(timelineState.error as Error).name}</Text>
+                  <Text size="T300">{(timelineState.error as Error).message}</Text>
+                </Box>
+              )}
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }
