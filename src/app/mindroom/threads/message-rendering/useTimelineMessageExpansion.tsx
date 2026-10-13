@@ -9,18 +9,14 @@ import React, {
 } from 'react';
 import { color, config } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
-import { useLongMessageFolding } from '../../settings/useMindroomAccountSettings';
+import { useExpandLongMessagesByDefault } from '../../settings/useMindroomAccountSettings';
 import {
   CollapsibleMessageStateProvider,
   collapseAllMessages,
   expandAllMessages,
 } from '../CollapsibleMessage';
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
-import {
-  consumeLiveExpandOnceId,
-  getCollapsedMessageHeightEm,
-  getCollapsibleMessageMode,
-} from '../threadCollapsibleMessages';
+import { consumeLiveExpandOnceId, getCollapsibleMessageMode } from '../threadCollapsibleMessages';
 
 export const useTimelineMessageExpansion = (
   roomId: string,
@@ -28,10 +24,10 @@ export const useTimelineMessageExpansion = (
   scrollRef: RefObject<HTMLDivElement>
 ) => {
   const { t } = useTranslation();
-  const longMessageFolding = useLongMessageFolding();
+  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   // The owning timeline is keyed by room:thread; manual choices reset on remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean>();
-  const expandAll = expandAllOverride ?? longMessageFolding === 'off';
+  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
   const manualExpansionState = useRef(new Map<string, boolean>());
   const liveExpandOnceIds = useRef(new Set<string>());
   const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
@@ -42,10 +38,9 @@ export const useTimelineMessageExpansion = (
   const markLiveExpansionCandidate = useCallback((eventId: string) => {
     liveExpandOnceIds.current.add(eventId);
   }, []);
-  const getExpansion = (eventId: string, content: IContent, isAgentMessage: boolean) => {
+  const getExpansion = (eventId: string, content: IContent) => {
     const collapseMode = getCollapsibleMessageMode(eventId, content, liveExpandOnceIds.current);
     return {
-      collapsedHeightEm: getCollapsedMessageHeightEm(longMessageFolding, isAgentMessage),
       collapseMode,
       onInitialExpandConsumed:
         collapseMode === 'initially-expanded'

@@ -335,7 +335,7 @@ describe('SettingsTab', () => {
     const store = createStore();
     store.set(mindroomAccountSettingsAtom, {
       simpleMode: false,
-      longMessageFolding: 'off',
+      expandLongMessagesByDefault: true,
     });
     const renderer = create(
       React.createElement(Provider, { store }, React.createElement(SettingsTab))

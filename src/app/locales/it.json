@@ -66,11 +66,8 @@
         "sectionTitle": "Interfaccia",
         "simpleMode": "Modalità semplice",
         "simpleModeDescription": "Nasconde le funzioni avanzate come la tavolozza dei comandi e i filtri dei thread. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
-        "longMessageFolding": "Comprimi i messaggi lunghi",
-        "longMessageFoldingDescription": "Automatico comprime i messaggi lunghi delle persone, e le risposte degli agenti solo quando sono molto lunghe. Attivato comprime ogni messaggio lungo dietro Mostra messaggio completo. Disattivato mostra ogni messaggio per intero. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
-        "longMessageFoldingAuto": "Automatico",
-        "longMessageFoldingOn": "Attivato",
-        "longMessageFoldingOff": "Disattivato",
+        "expandLongMessagesByDefault": "Espandi i messaggi lunghi per impostazione predefinita",
+        "expandLongMessagesByDefaultDescription": "Mostra per intero i messaggi lunghi anziché comprimerli dietro Mostra messaggio completo. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "showCanvasesInSidebar": "Mostra i pannelli interattivi nella barra laterale",
         "showCanvasesInSidebarDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "saveFailed": "Impossibile salvare la modifica. Controlla la connessione e riprova."

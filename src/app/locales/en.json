@@ -77,11 +77,8 @@
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",
         "simpleModeDescription": "Hide advanced features like the command palette and thread filters. Synced across your devices.",
-        "longMessageFolding": "Fold long messages",
-        "longMessageFoldingDescription": "Auto folds long messages from people, and agent replies only when they are very long. On folds every long message behind Show full message. Off shows every message in full. Synced across your devices.",
-        "longMessageFoldingAuto": "Auto",
-        "longMessageFoldingOn": "On",
-        "longMessageFoldingOff": "Off",
+        "expandLongMessagesByDefault": "Expand long messages by default",
+        "expandLongMessagesByDefaultDescription": "Show long messages in full instead of folding them behind Show full message. Synced across your devices.",
         "showCanvasesInSidebar": "Show Canvases in the sidebar",
         "showCanvasesInSidebarDescription": "Show a Canvases button for the pages your agents made, once you have one. Synced across your devices.",
         "saveFailed": "Could not save the change. Check your connection and try again."

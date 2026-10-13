@@ -33,7 +33,7 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      longMessageFolding: 'on',
+      expandLongMessagesByDefault: false,
     });
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `Scroll stability ${Date.now()}`,

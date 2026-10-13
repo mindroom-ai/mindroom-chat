@@ -191,7 +191,7 @@ test.describe('live long-message expansion default', () => {
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, SETTINGS_EVENT_TYPE, {
       simpleMode: false,
-      longMessageFolding: 'on',
+      expandLongMessagesByDefault: false,
     });
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
@@ -244,18 +244,13 @@ test.describe('live long-message expansion default', () => {
     if (!anchorBeforeToggle) throw new Error('No visible anchor before changing the default.');
 
     await openSettingsFromAccountRail(page);
-    const settingTitle = page.getByText('Fold long messages', { exact: true });
+    const settingTitle = page.getByText('Expand long messages by default', { exact: true });
     await expect(settingTitle).toBeVisible();
-    const foldingMenu = settingTitle
-      .locator('xpath=ancestor::*[.//button[@aria-haspopup="menu"]][1]')
-      .locator('button[aria-haspopup="menu"]');
-    const chooseFolding = async (current: string, next: string) => {
-      await expect(foldingMenu).toHaveText(current);
-      await foldingMenu.click();
-      await page.getByRole('menuitemradio', { name: next, exact: true }).click();
-      await expect(foldingMenu).toHaveText(next);
-    };
-    await chooseFolding('On', 'Off');
+    const settingTile = settingTitle.locator('xpath=ancestor::*[.//*[@role="switch"]][1]');
+    const expansionSwitch = settingTile.getByRole('switch');
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'false');
+    await expansionSwitch.click();
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'true');
     await expect.poll(() => showMore.count()).toBe(0);
     await expect.poll(() => showLess.count()).toBeGreaterThan(1);
     await expect.poll(() => readAnchorTop(page, anchorBeforeToggle.messageId)).not.toBeUndefined();
@@ -274,7 +269,7 @@ test.describe('live long-message expansion default', () => {
       )}`,
       { accessToken: session.accessToken }
     );
-    expect(storedSettings.longMessageFolding).toBe('off');
+    expect(storedSettings.expandLongMessagesByDefault).toBe(true);
 
     const expandedScreenshot = testInfo.outputPath('expanded-by-default.png');
     await page.screenshot({ path: expandedScreenshot });
@@ -398,7 +393,9 @@ test.describe('live long-message expansion default', () => {
     expect(anchorBeforeCollapse.fullyVisible).toBe(false);
 
     await openSettingsFromAccountRail(page);
-    await chooseFolding('Off', 'On');
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'true');
+    await expansionSwitch.click();
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'false');
     await expect.poll(() => showMore.count()).toBeGreaterThan(1);
     await page.keyboard.press('Escape');
     await expect(settingTitle).toHaveCount(0);
@@ -415,7 +412,7 @@ test.describe('live long-message expansion default', () => {
       )}`,
       { accessToken: session.accessToken }
     );
-    expect(collapsedSettings.longMessageFolding).toBe('on');
+    expect(collapsedSettings.expandLongMessagesByDefault).toBe(false);
 
     const collapsedScreenshot = testInfo.outputPath('folded-from-tall-message.png');
     await page.screenshot({ path: collapsedScreenshot });

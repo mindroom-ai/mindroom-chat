@@ -232,7 +232,7 @@ function Fixture() {
 }
 
 const store = createStore();
-store.set(mindroomAccountSettingsAtom, { simpleMode: false, longMessageFolding: 'off' });
+store.set(mindroomAccountSettingsAtom, { simpleMode: false, expandLongMessagesByDefault: true });
 const matrixClient = createClient({
   baseUrl: window.location.origin,
   userId: '@fixture:localhost',

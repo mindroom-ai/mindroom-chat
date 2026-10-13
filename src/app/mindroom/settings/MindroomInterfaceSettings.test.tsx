@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   settings: {
     simpleMode: false,
-    longMessageFolding: 'auto' as 'auto' | 'on' | 'off',
+    expandLongMessagesByDefault: false,
     showCanvasesInSidebar: true,
   },
   clientConfig: {} as { mindroom?: { canvas?: { enabled?: boolean } } },
@@ -20,25 +20,6 @@ vi.mock('folds', async () => {
   return {
     Box: ({ children, ...rest }: { children?: React.ReactNode }) =>
       reactModule.createElement('div', rest, children),
-    Button: ({
-      children,
-      onClick,
-      'aria-label': ariaLabel,
-    }: {
-      children?: React.ReactNode;
-      onClick?: () => void;
-      'aria-label'?: string;
-    }) =>
-      reactModule.createElement(
-        'button',
-        { 'data-menu-trigger': true, 'aria-label': ariaLabel, onClick },
-        children
-      ),
-    Icon: () => null,
-    Icons: { ChevronBottom: 'chevron-bottom' },
-    PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
-      anchor ? content : null,
-    config: { space: { S100: '4px' } },
     Switch: ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) =>
       reactModule.createElement('button', {
         'aria-pressed': value,
@@ -49,33 +30,6 @@ vi.mock('folds', async () => {
     color: { Critical: { Main: 'red' } },
   };
 });
-
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
-}));
-
-vi.mock('../../components/glass/GlassPrimitives', () => ({
-  Menu: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', { role: 'menu' }, children),
-  MenuItem: ({
-    children,
-    onClick,
-    variant,
-    role,
-    'aria-checked': ariaChecked,
-  }: {
-    children?: React.ReactNode;
-    onClick?: () => void;
-    variant?: string;
-    role?: string;
-    'aria-checked'?: boolean;
-  }) =>
-    React.createElement(
-      'button',
-      { 'data-menu-item': variant, role, 'aria-checked': ariaChecked, onClick },
-      children
-    ),
-}));
 
 vi.mock('../../components/sequence-card', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
@@ -119,7 +73,7 @@ vi.mock('react-i18next', async () => {
 
 afterEach(() => {
   state.settings.simpleMode = false;
-  state.settings.longMessageFolding = 'auto';
+  state.settings.expandLongMessagesByDefault = false;
   state.settings.showCanvasesInSidebar = true;
   state.clientConfig = {};
   state.setAccountSettings.mockReset();
@@ -127,7 +81,7 @@ afterEach(() => {
 });
 
 describe('MindroomInterfaceSettings', () => {
-  it('offers long-message folding as an account-level choice, Auto by default', async () => {
+  it('renders the folded-message default as an account-level interface option', async () => {
     const { MindroomInterfaceSettings } = await import('./MindroomInterfaceSettings');
     let renderer!: ReactTestRenderer;
 
@@ -135,48 +89,31 @@ describe('MindroomInterfaceSettings', () => {
       renderer = create(React.createElement(MindroomInterfaceSettings));
     });
 
-    const tile = renderer.root.findByProps({ 'data-title': 'Fold long messages' });
+    const tile = renderer.root.findByProps({
+      'data-title': 'Expand long messages by default',
+    });
     expect(tile.props['data-description']).toContain('Show full message');
-    const trigger = tile.findByProps({ 'data-menu-trigger': true });
-    expect(trigger.findByType('span').children).toEqual(['Auto']);
-    expect(trigger.props['aria-label']).toBe('Fold long messages: Auto');
+    expect(tile.findByType('button').props['aria-pressed']).toBe(false);
   });
 
-  it('writes the chosen folding mode and shows it before the write settles', async () => {
+  it('writes the expanded-message preference when toggled', async () => {
     const { MindroomInterfaceSettings } = await import('./MindroomInterfaceSettings');
     let renderer!: ReactTestRenderer;
-    state.setAccountSettings.mockReturnValue(new Promise<void>(() => {}));
 
     act(() => {
       renderer = create(React.createElement(MindroomInterfaceSettings));
     });
-    const tile = renderer.root.findByProps({ 'data-title': 'Fold long messages' });
-    act(() => {
-      tile.findByProps({ 'data-menu-trigger': true }).props.onClick({
-        currentTarget: { getBoundingClientRect: () => ({}) },
-      });
+    const tile = renderer.root.findByProps({
+      'data-title': 'Expand long messages by default',
     });
-    const items = tile.findAll((node) => node.type === 'button' && 'data-menu-item' in node.props);
-    expect(items.map((item) => item.props['data-menu-item'])).toEqual([
-      'Primary',
-      'Surface',
-      'Surface',
-    ]);
-    expect(items.map((item) => [item.props.role, item.props['aria-checked']])).toEqual([
-      ['menuitemradio', true],
-      ['menuitemradio', false],
-      ['menuitemradio', false],
-    ]);
 
     await act(async () => {
-      items[2].props.onClick();
+      tile.findByType('button').props.onClick();
     });
 
-    expect(state.setAccountSettings).toHaveBeenCalledWith({ longMessageFolding: 'off' });
-    expect(tile.findByProps({ 'data-menu-trigger': true }).findByType('span').children).toEqual([
-      'Off',
-    ]);
-    expect(tile.findAll((node) => 'data-menu-item' in node.props)).toHaveLength(0);
+    expect(state.setAccountSettings).toHaveBeenCalledWith({
+      expandLongMessagesByDefault: true,
+    });
   });
 
   it('offers the sidebar Canvases button only where the deployment has canvases', async () => {

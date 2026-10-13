@@ -53,7 +53,7 @@ test.describe('live room view-mode thread-list load ownership', () => {
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
       simpleMode: false,
-      longMessageFolding: 'off',
+      expandLongMessagesByDefault: true,
     });
     const stamp = Date.now();
     const roomName = `View mode load ownership ${stamp}`;

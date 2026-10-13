@@ -298,7 +298,7 @@ test.describe('live cinny073 persistent thread navigation', () => {
     const { fixtures, homeserver, password, session, username } = await prepareThreadFixtures(2);
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
       simpleMode: false,
-      longMessageFolding: 'off',
+      expandLongMessagesByDefault: true,
     });
 
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -371,7 +371,7 @@ test.describe('live cinny073 persistent thread navigation', () => {
         'io.mindroom.settings',
         {
           simpleMode: false,
-          longMessageFolding: 'off',
+          expandLongMessagesByDefault: true,
         }
       );
 

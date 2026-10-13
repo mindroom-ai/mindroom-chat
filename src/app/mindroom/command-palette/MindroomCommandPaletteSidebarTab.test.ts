@@ -71,7 +71,7 @@ const renderSearchTab = (open = false) => {
   store.set(commandPaletteOpenAtom, open);
   store.set(mindroomAccountSettingsAtom, {
     simpleMode: false,
-    longMessageFolding: 'off',
+    expandLongMessagesByDefault: true,
   });
 
   const renderer = create(

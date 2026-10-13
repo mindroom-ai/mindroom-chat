@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -14,29 +14,19 @@ import {
 test.use({ viewport: { width: 1100, height: 900 } });
 test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
 
-const lines = (label: string, count: number) =>
-  Array.from({ length: count }, (_, index) => `${label} line ${index + 1}`).join('\n');
-
-const previewOf = (row: Locator) =>
-  row.getByRole('button', { name: 'Show full message', exact: true }).evaluate((button) => {
-    const content = document.getElementById(button.getAttribute('aria-controls')!);
-    if (!content) throw new Error('Folded content missing.');
-    return {
-      clipped: content.scrollHeight > content.clientHeight + 1,
-      height: content.clientHeight,
-    };
-  });
+const longBody = (label: string) =>
+  Array.from({ length: 24 }, (_, index) => `${label} line ${index + 1}`).join('\n');
 
 for (const surface of ['room', 'thread'] as const) {
-  test(`${surface}: by default a long message you send folds, and only very long agent replies fold`, async ({
+  test(`${surface}: a long message sent from the composer folds, while a live agent reply opens`, async ({
     page,
   }) => {
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-    // No folding choice stored: the default (Auto) applies.
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
       simpleMode: false,
+      expandLongMessagesByDefault: false,
     });
     const agent = await registerAgentAccount(homeserver, 'general');
     const fixture = await createThreadFixture(homeserver, session.accessToken, {
@@ -62,9 +52,6 @@ for (const surface of ['room', 'thread'] as const) {
             }
           : {}),
       });
-    // About 16 and 40 lines: taller than a person's fold, and shorter or taller than an agent's.
-    await sendAgentMessage(lines('Agent medium', 16));
-    await sendAgentMessage(lines('Agent long', 40));
 
     await loginWithPassword(page, { homeserver, ...credentials });
     await seedRoomOverviewState({
@@ -79,30 +66,17 @@ for (const surface of ['room', 'thread'] as const) {
     );
     const timeline = surface === 'thread' ? page.locator('div[data-thread-count]') : page;
     const row = (text: string) => timeline.locator('[data-message-id]').filter({ hasText: text });
-    const showFullIn = (text: string) =>
-      row(text).getByRole('button', { name: 'Show full message', exact: true });
+    await expect(timeline.locator(`[data-message-id="${fixture.rootId}"]`).first()).toBeVisible();
 
-    await expect(row('Agent medium line 16')).toBeVisible();
-    await expect(showFullIn('Agent medium line 1')).toHaveCount(0);
-    await expect(showFullIn('Agent long line 1')).toBeVisible();
-    const agentPreview = await previewOf(row('Agent long line 1'));
-    expect(agentPreview.clipped).toBe(true);
-    if (surface === 'room') {
-      // The room view opens at the unread marker above the seeded replies.
-      const jumpToLatest = page.getByRole('button', { name: 'Jump to Latest', exact: true });
-      await expect(jumpToLatest).toBeVisible();
-      await jumpToLatest.click();
-    }
-
-    // A long message that arrives live from an agent still opens once.
-    await sendAgentMessage(lines('Agent live', 40));
+    // Contrast: a long message that arrives live from an agent still opens once.
+    await sendAgentMessage(longBody('Agent'));
     await expect(
-      row('Agent live line 1').getByRole('button', { name: 'Show less', exact: true })
+      row('Agent line 1').getByRole('button', { name: 'Show less', exact: true })
     ).toBeVisible();
 
     const composer = page.getByRole('textbox').first();
     await composer.click();
-    for (const [index, line] of lines('Pasted', 24).split('\n').entries()) {
+    for (const [index, line] of longBody('Pasted').split('\n').entries()) {
       if (index > 0) await page.keyboard.press('Shift+Enter');
       await page.keyboard.insertText(line);
     }
@@ -116,12 +90,16 @@ for (const surface of ['room', 'thread'] as const) {
     await sendAgentMessage('Sync barrier');
     await expect(row('Sync barrier')).toBeVisible();
 
-    await expect(showFullIn('Pasted line 1')).toBeVisible();
-    const ownPreview = await previewOf(ownRow);
-    expect(ownPreview.clipped).toBe(true);
-    expect(agentPreview.height).toBeGreaterThan(ownPreview.height * 2);
+    const showFull = ownRow.getByRole('button', { name: 'Show full message', exact: true });
+    await expect(showFull).toBeVisible();
+    expect(
+      await showFull.evaluate((button) => {
+        const content = document.getElementById(button.getAttribute('aria-controls')!);
+        return content ? content.scrollHeight > content.clientHeight + 1 : false;
+      })
+    ).toBe(true);
 
-    await showFullIn('Pasted line 1').click();
+    await showFull.click();
     await expect(ownRow.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
   });
 }

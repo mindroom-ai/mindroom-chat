@@ -9,8 +9,9 @@ import React, {
   useId,
 } from 'react';
 import { countCacheProbe } from './cacheProbe';
-import { COLLAPSED_MESSAGE_HEIGHT_EM } from './collapsedMessageHeight';
 import * as css from './CollapsibleMessage.css';
+
+const MAX_HEIGHT = '11em';
 
 // Global expand/collapse event bus that toggles already-mounted rows.
 type ExpandAllListener = (expand: boolean) => void;
@@ -89,13 +90,20 @@ function useExpandAllListener(onToggle: (expand: boolean) => void, enabled: bool
   }, [enabled, onToggle]);
 }
 
-const getCollapsedMaxHeight = (el: HTMLDivElement, heightEm: number): number | undefined => {
-  if (typeof globalThis.getComputedStyle !== 'function') return undefined;
+const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
+  if (MAX_HEIGHT.endsWith('px')) {
+    const pixelHeight = Number.parseFloat(MAX_HEIGHT);
+    return Number.isFinite(pixelHeight) ? pixelHeight : undefined;
+  }
+
+  if (!MAX_HEIGHT.endsWith('em') || typeof globalThis.getComputedStyle !== 'function') {
+    return undefined;
+  }
 
   const fontSize = Number.parseFloat(globalThis.getComputedStyle(el).fontSize);
   if (!Number.isFinite(fontSize)) return undefined;
 
-  return heightEm * fontSize;
+  return Number.parseFloat(MAX_HEIGHT) * fontSize;
 };
 
 /**
@@ -104,15 +112,11 @@ const getCollapsedMaxHeight = (el: HTMLDivElement, heightEm: number): number | u
  * so callers can preserve their current assumption instead of recording a
  * false negative.
  */
-const isContentOverflowing = (
-  el: HTMLDivElement,
-  expanded: boolean,
-  heightEm: number
-): boolean | null => {
+const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | null => {
   const { scrollHeight } = el;
   if (scrollHeight === 0) return null;
 
-  const collapsedMaxHeight = getCollapsedMaxHeight(el, heightEm);
+  const collapsedMaxHeight = getCollapsedMaxHeight(el);
   if (collapsedMaxHeight !== undefined) {
     return scrollHeight > collapsedMaxHeight + 1;
   }
@@ -146,10 +150,9 @@ const isContentOverflowing = (
 // `applyOverflowVerdict` — so a stale hint (e.g. the same message
 // rendered at a different container width) self-corrects within a
 // layout pass and updates the cache. `measurementKey` already varies
-// by event id, redaction state, edit event id, collapse mode, and fold
-// height (see getCollapsibleMessageMeasurementKey), so content edits,
-// redactions, and folding-mode changes produce a fresh key rather than
-// a stale hit.
+// by event id, redaction state, edit event id, and collapse mode
+// (see getCollapsibleMessageMeasurementKey), so content edits and
+// redactions produce a fresh key rather than a stale hit.
 const overflowVerdictCache = new Map<string, boolean>();
 const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
 const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {
@@ -173,8 +176,6 @@ export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'in
 
 type CollapsibleMessageProps = {
   children: ReactNode | ((state: CollapsibleMessageRenderState) => ReactNode);
-  /** Height of the folded preview; taller content folds behind Show full message. */
-  collapsedHeightEm?: number;
   collapseMode?: CollapsibleMessageCollapseMode;
   expansionKey?: string;
   forceOverflowing?: boolean;
@@ -189,7 +190,6 @@ export type CollapsibleMessageRenderState = {
 
 export function CollapsibleMessage({
   children,
-  collapsedHeightEm = COLLAPSED_MESSAGE_HEIGHT_EM,
   collapseMode = 'default',
   expansionKey,
   forceOverflowing = false,
@@ -261,11 +261,11 @@ export function CollapsibleMessage({
     }
     const el = contentRef.current;
     if (!el) return;
-    const result = isContentOverflowing(el, expanded, collapsedHeightEm);
+    const result = isContentOverflowing(el, expanded);
     if (result !== null) {
       applyOverflowVerdict(result);
     }
-  }, [applyOverflowVerdict, collapsedHeightEm, expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   useEffect(() => {
     if (
@@ -333,21 +333,14 @@ export function CollapsibleMessage({
     if (isExempt || forceOverflowing || !el || typeof ResizeObserver === 'undefined')
       return undefined;
     const observer = new ResizeObserver(() => {
-      const result = isContentOverflowing(el, expanded, collapsedHeightEm);
+      const result = isContentOverflowing(el, expanded);
       if (result !== null) {
         applyOverflowVerdict(result);
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [
-    applyOverflowVerdict,
-    collapsedHeightEm,
-    expanded,
-    forceOverflowing,
-    isExempt,
-    measurementKey,
-  ]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt, measurementKey]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.
@@ -364,7 +357,7 @@ export function CollapsibleMessage({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          const result = isContentOverflowing(el, expanded, collapsedHeightEm);
+          const result = isContentOverflowing(el, expanded);
           if (result !== null) {
             applyOverflowVerdict(result);
           }
@@ -374,7 +367,7 @@ export function CollapsibleMessage({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [applyOverflowVerdict, collapsedHeightEm, expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // Subscribe to global expand/collapse events
   const handleGlobalToggle = useCallback((expand: boolean) => {
@@ -424,7 +417,7 @@ export function CollapsibleMessage({
         className={css.CollapsibleContent({ collapsed: isCollapsed })}
         aria-expanded={isExempt ? undefined : expanded}
         style={{
-          maxHeight: effectiveExpanded ? undefined : `${collapsedHeightEm}em`,
+          maxHeight: effectiveExpanded ? undefined : MAX_HEIGHT,
           overflow: effectiveExpanded ? undefined : 'hidden',
         }}
       >

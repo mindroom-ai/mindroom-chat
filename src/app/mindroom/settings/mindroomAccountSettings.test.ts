@@ -33,42 +33,27 @@ describe('sanitizeMindroomAccountSettings', () => {
     ).toBe(true);
   });
 
-  it('folds long messages automatically by default', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.longMessageFolding).toBe('auto');
-    expect(sanitizeMindroomAccountSettings({}).longMessageFolding).toBe('auto');
-    expect(sanitizeMindroomAccountSettings({ longMessageFolding: 'on' }).longMessageFolding).toBe(
-      'on'
-    );
-    expect(sanitizeMindroomAccountSettings({ longMessageFolding: 'off' }).longMessageFolding).toBe(
-      'off'
-    );
+  it('defaults long messages to expanded while preserving explicit booleans', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(true);
+    expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(true);
     expect(
-      sanitizeMindroomAccountSettings({ longMessageFolding: 'sometimes' }).longMessageFolding
-    ).toBe('auto');
-  });
-
-  it('keeps the choice stored by the old expand-long-messages switch', () => {
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: true })
+        .expandLongMessagesByDefault
+    ).toBe(true);
     expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: true }).longMessageFolding
-    ).toBe('off');
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: false })
+        .expandLongMessagesByDefault
+    ).toBe(false);
     expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: false }).longMessageFolding
-    ).toBe('on');
-    expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 0 }).longMessageFolding
-    ).toBe('auto');
-    expect(
-      sanitizeMindroomAccountSettings({
-        expandLongMessagesByDefault: true,
-        longMessageFolding: 'auto',
-      }).longMessageFolding
-    ).toBe('auto');
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 0 })
+        .expandLongMessagesByDefault
+    ).toBe(true);
   });
 
   it('ignores unknown keys when reading', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: true, futureKey: 'x' })).toEqual({
       simpleMode: true,
-      longMessageFolding: 'auto',
+      expandLongMessagesByDefault: true,
       showCanvasesInSidebar: true,
     });
   });

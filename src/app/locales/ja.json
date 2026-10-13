@@ -66,11 +66,8 @@
         "sectionTitle": "インターフェース",
         "simpleMode": "シンプルモード",
         "simpleModeDescription": "コマンド パレットやスレッド フィルターなどの高度な機能を非表示にします。デバイス間で同期されます。",
-        "longMessageFolding": "長いメッセージを折りたたむ",
-        "longMessageFoldingDescription": "「自動」は人からの長いメッセージを折りたたみ、エージェントの返信はとても長い場合のみ折りたたみます。「オン」はすべての長いメッセージを「メッセージ全体を表示」の後ろに折りたたみます。「オフ」はすべてのメッセージを完全に表示します。デバイス間で同期されます。",
-        "longMessageFoldingAuto": "自動",
-        "longMessageFoldingOn": "オン",
-        "longMessageFoldingOff": "オフ",
+        "expandLongMessagesByDefault": "長いメッセージをデフォルトで展開する",
+        "expandLongMessagesByDefaultDescription": "長いメッセージを「メッセージ全体を表示」の後ろに折りたたむのではなく、完全に表示します。デバイス間で同期されます。",
         "showCanvasesInSidebar": "サイドバーにインタラクティブパネルを表示する",
         "showCanvasesInSidebarDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。デバイス間で同期されます。",
         "saveFailed": "変更を保存できませんでした。接続を確認して、もう一度試してください。"

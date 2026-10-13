@@ -506,25 +506,6 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('folds at the given height and measures overflow against it', () => {
-    // 16px font: 320px fits under 30em (480px) but not under the default 11em (176px).
-    const fits = renderCollapsibleMessage({ collapseMode: 'default', collapsedHeightEm: 30 });
-    expect(getContentContainer(fits).props.style.maxHeight).toBe('30em');
-    expect(findExpandButtons(fits)).toHaveLength(0);
-
-    const overflows = renderCollapsibleMessage(
-      { collapseMode: 'default', collapsedHeightEm: 30 },
-      { clientHeight: 480, scrollHeight: 600 }
-    );
-    expect(getContentContainer(overflows).props.style.maxHeight).toBe('30em');
-    expect(findExpandButtons(overflows)).toHaveLength(1);
-
-    act(() => {
-      fits.unmount();
-      overflows.unmount();
-    });
-  });
-
   it('non-overflowing content shows no expand or collapse button', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
@@ -660,41 +641,6 @@ describe('CollapsibleMessage', () => {
     });
 
     expect(getScrollHeightReads()).toBe(readsAfterMount);
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('measures again when a mounted row changes fold height', () => {
-    // 16px font: 320px overflows 11em (176px) but fits under 30em (480px).
-    const renderer = renderCollapsibleMessage({
-      collapseMode: 'default',
-      measurementKey: '$fold-height|active||default|11',
-    });
-    const rerender = (collapsedHeightEm: number) =>
-      act(() => {
-        renderer.update(
-          React.createElement(
-            CollapsibleMessage as never,
-            {
-              collapsedHeightEm,
-              collapseMode: 'default',
-              measurementKey: `$fold-height|active||default|${collapsedHeightEm}`,
-            } as never,
-            React.createElement('span', undefined, 'message')
-          )
-        );
-      });
-    expect(findExpandButtons(renderer)).toHaveLength(1);
-
-    rerender(30);
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('30em');
-    expect(findExpandButtons(renderer)).toHaveLength(0);
-
-    rerender(11);
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
-    expect(findExpandButtons(renderer)).toHaveLength(1);
 
     act(() => {
       renderer.unmount();
