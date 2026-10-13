@@ -46,7 +46,9 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
 vi.mock('./ApprovalArguments', () => ({ ApprovalArguments: () => null }));
-vi.mock('../../styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
+vi.mock('../../styles/Glass.css', () => ({
+  glassDenseOverBackdrop: 'glass-dense-over-backdrop',
+}));
 vi.mock('./ThreadApprovals.css', () => ({
   Bar: 'Bar',
   BarDetail: 'BarDetail',

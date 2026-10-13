@@ -229,26 +229,30 @@ export const DurationRow = style({
   gap: config.space.S200,
   color: color.Surface.OnContainer,
 });
+// Solid segments: on a glass sheet, see-through buttons read as disabled.
 export const Segmented = style({
   display: 'inline-flex',
   borderRadius: config.radii.R300,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   overflow: 'hidden',
 });
 export const Segment = style({
   border: 0,
   padding: '5px 11px',
-  background: 'transparent',
-  color: 'inherit',
+  backgroundColor: color.Surface.Container,
+  color: color.Surface.OnContainer,
   font: 'inherit',
   fontSize: 13,
   fontWeight: config.fontWeight.W600,
   cursor: 'pointer',
   selectors: {
     '& + &': {
-      borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+      borderInlineStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
     },
-    '&:hover:not(:disabled)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '&:hover:not(:disabled)': {
+      backgroundColor: color.Primary.Container,
+      color: color.Primary.OnContainer,
+    },
     '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
     '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },
   },

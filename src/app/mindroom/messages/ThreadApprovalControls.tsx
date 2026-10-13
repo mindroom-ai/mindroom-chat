@@ -18,7 +18,7 @@ import { PageScroll } from '../../components/page';
 import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { glassOverBackdrop } from '../../styles/Glass.css';
+import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
 import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from './toolApproval';
@@ -77,7 +77,7 @@ function ApprovalDialog({
           }}
         >
           <Dialog
-            className={glassOverBackdrop}
+            className={glassDenseOverBackdrop}
             variant="Background"
             role="dialog"
             aria-modal="true"
@@ -268,13 +268,7 @@ export function ApprovalReviewGroup({
                 </Text>
               </Button>
             )}
-            <Button
-              size="300"
-              variant="Secondary"
-              fill="None"
-              outlined
-              onClick={() => setDenyingAll(true)}
-            >
+            <Button size="300" variant="Critical" fill="Soft" onClick={() => setDenyingAll(true)}>
               <Text size="B300">
                 {t('mindroomUi.messages.threadApprovalControls.denyAll', {
                   count: available.length,
@@ -305,7 +299,7 @@ export function ApprovalReviewGroup({
               onChange={(event) => setReason(event.currentTarget.value)}
             />
             <div className={css.Actions}>
-              <Button type="submit" size="300" variant="Critical" fill="Soft" outlined>
+              <Button type="submit" size="300" variant="Critical" fill="Solid">
                 <Text size="B300">
                   {t('mindroomUi.messages.threadApprovalControls.confirmDenyAll', {
                     count: available.length,

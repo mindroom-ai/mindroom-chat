@@ -12,6 +12,7 @@ vi.mock('./app/styles/Glass.css', () => ({
   glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
   glassOutline: 'glass-outline',
+  glassDenseOverBackdrop: 'glass-dense-over-backdrop',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({

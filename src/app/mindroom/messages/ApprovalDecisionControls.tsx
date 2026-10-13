@@ -88,9 +88,8 @@ export function ApprovalDecisionControls({
             <Button
               ref={denyTrigger}
               size="300"
-              variant="Secondary"
-              fill="None"
-              outlined
+              variant="Critical"
+              fill="Soft"
               disabled={disabled}
               onClick={() => {
                 if (!disabled) {
@@ -166,14 +165,7 @@ export function ApprovalDecisionControls({
             onChange={(event) => setReason(event.currentTarget.value)}
           />
           <div className={css.Actions}>
-            <Button
-              type="submit"
-              size="300"
-              variant="Critical"
-              fill="Soft"
-              outlined
-              disabled={disabled}
-            >
+            <Button type="submit" size="300" variant="Critical" fill="Solid" disabled={disabled}>
               <Text size="B300">
                 {index === undefined
                   ? t('mindroomUi.messages.approvalDecisionControls.confirmDeny')
