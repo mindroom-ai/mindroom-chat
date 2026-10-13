@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Make standalone headers flat by default (2026-10-13)
+
+- Why: after #451–#454 fixed headers one at a time, the owner hit the same bordered, raised header on the join-before-navigate page and asked to fix every header at once.
+  The shared cause: a neutral `Header` with no enclosing surface (outside any Modal, Menu, Dialog, glass panel, or `PageScroll` header slot) defaulted to raised glass with a rim, and `PageHeader` added its default bottom outline.
+- Change:
+  - `Header` (`GlassPrimitives.tsx`) now defaults to `flat` when it is neutral, has no enclosing surface, and has no explicit `appearance`. That covers every standalone `PageHeader` (join-before-navigate, Home/Space search, Threads, Canvases, direct and room creation, call chat, and similar). `glassFlat` also clears `PageHeader`'s outline. Explicit `appearance="glass"`, `flat={false}`, and semantic variants (`Critical`, `Primary`, …) stay raised; headers inside Modals, Menus, and Dialogs are unchanged (they inherit their surface).
+  - Section labels inside lists use `appearance="plain"`, as Notifications does since #454: message-search room groups (`SearchResultGroup.tsx`) and the call view's participant label (`CallView.tsx`).
+  - `Threads` and `Canvases` drop their now-ineffective `outlined` prop.
+  - `docs/ui-design.md` records the new default and the section-label rule.
+- Tests: `GlassPrimitives.test.tsx` covers the standalone default (flat, no pointer light), explicit glass, a semantic variant, and `flat={false}` staying raised; a header inside a plain header is now flat.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), and Prettier pass. `npm test`: 6727 pass; the 4 failures are the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases that also fail on `dev`. A temporary fixture of a standalone `PageHeader` page (not committed) showed in Chromium, light and dark themes: before, a 1px bottom border and the `::before` rim; after, `data-glass-flat`, no border, shadow, or rim.
+- Self-review only, for speed. Not changed: dialog titles that set their own inline `borderBottomWidth` divider (Explore's add-server dialog and other prompts) keep that divider.
+
 ### Flatten the Notifications page and room-group headers (2026-10-13)
 
 - Why: the owner reported the Notifications page drew a bordered header and a bordered box around each room group's name ("Luna", "Personal"), the look already removed from Invites in #452.

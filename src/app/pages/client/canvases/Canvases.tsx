@@ -139,7 +139,7 @@ export function Canvases() {
 
   return (
     <Page data-testid="canvases-view">
-      <PageHeader outlined>
+      <PageHeader>
         <Box grow="Yes" alignItems="Center" gap="200">
           <Icon src={Icons.Category} size="300" />
           <Text as="h1" size="H3" truncate>

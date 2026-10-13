@@ -76,7 +76,7 @@ export function SearchResultGroupHeader({ room }: { room: Room }) {
   const useAuthentication = useMediaAuthentication();
 
   return (
-    <Header size="300">
+    <Header size="300" appearance="plain">
       <Box gap="200" grow="Yes">
         <Avatar size="200" radii="300">
           <RoomAvatar

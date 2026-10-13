@@ -65,7 +65,9 @@ Custom component families should compose `glassSurface` and shared modifiers ins
 - `appearance="glass"` supplies a material, `"inherit"` reveals the enclosing surface, and `"plain"` keeps ordinary styling.
   These options belong to the surface primitives; they are not a universal prop on every control.
 - A `Header` in a `PageScroll` header slot becomes flat automatically.
-  A standalone `Header` does not: choose `flat` explicitly when it serves as page chrome.
+  So does a neutral `Header` with no enclosing surface: standalone page chrome is flat, with no raised rim or bottom border.
+  Pass `appearance="glass"` or `flat={false}` only for a deliberately raised standalone header.
+- Section labels inside a list or card (room groups in Notifications or message search, a call's participant label) use `appearance="plain"`: they are rows, not chrome.
 - Neutral nested headers inherit the panel treatment; semantic variants retain matching foreground and background colors for contrast.
   Menus default to transparent rows, with explicit selected states where needed.
 - Keep the existing surface/context boundaries and separate panel backdrop layer.

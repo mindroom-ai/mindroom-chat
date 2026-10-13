@@ -113,7 +113,7 @@ function CallPrescreen() {
       <Box className={css.CallViewContent} alignItems="Center" justifyContent="Center">
         <Box style={{ maxWidth: toRem(382), width: '100%' }} direction="Column" gap="100">
           {hasParticipant && (
-            <Header size="300">
+            <Header size="300" appearance="plain">
               <Box grow="Yes" alignItems="Center">
                 <Text size="L400">{t('featureUi.call.callView.participant')}</Text>
               </Box>

@@ -23,7 +23,7 @@ export function Threads() {
 
   return (
     <Page data-testid="cross-room-threads-view">
-      <PageHeader outlined>
+      <PageHeader>
         <Box grow="Yes" alignItems="Center" gap="200">
           <Icon src={Icons.Thread} size="300" />
           <Text as="h1" size="H3" truncate>
