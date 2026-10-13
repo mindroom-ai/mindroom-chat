@@ -390,7 +390,7 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    // Reset to default settings, where long messages fold.
+    // Reset the account settings to their defaults.
     await setAccountData(
       homeserver,
       session.accessToken,
@@ -433,7 +433,7 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    // Reset to default settings, where long messages fold.
+    // Reset the account settings to their defaults.
     await setAccountData(
       homeserver,
       session.accessToken,
@@ -478,7 +478,7 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    // Reset to default settings, where long messages fold.
+    // Reset the account settings to their defaults.
     await setAccountData(
       homeserver,
       session.accessToken,

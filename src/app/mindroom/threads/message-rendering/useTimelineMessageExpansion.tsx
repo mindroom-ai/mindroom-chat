@@ -20,8 +20,7 @@ export const useTimelineMessageExpansion = (
 ) => {
   const { t } = useTranslation();
   // The owning timeline is keyed by room:thread; manual choices reset on remount.
-  const [expandAllOverride, setExpandAllOverride] = useState<boolean>();
-  const expandAll = expandAllOverride ?? false;
+  const [expandAll, setExpandAll] = useState(false);
   const manualExpansionState = useRef(new Map<string, boolean>());
   const liveExpandOnceIds = useRef(new Set<string>());
   const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
@@ -65,7 +64,7 @@ export const useTimelineMessageExpansion = (
         e.preventDefault();
         manualExpansionState.current.clear();
         // Rows follow the new baseline one commit later, so the anchor is captured before they resize.
-        setExpandAllOverride(!expandAll);
+        setExpandAll(!expandAll);
       }}
       style={{
         position: 'absolute',

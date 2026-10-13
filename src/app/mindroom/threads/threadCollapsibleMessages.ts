@@ -54,8 +54,9 @@ export const shouldTrackLiveCollapsibleMessage = ({
 }: ShouldTrackLiveCollapsibleMessage): boolean => {
   const mEventId = mEvent.getId();
   if (!mEventId || !isCollapsibleTextMessageEvent(mEvent)) return false;
-  // Expand-once keeps streamed replies readable as they arrive. The viewer wrote their own
-  // messages, so a long send or edit folds like history.
+  // Expand-once opens a long message once as it arrives live; agent replies already show in
+  // full, so it applies to other people. The viewer wrote their own, so a long send or edit
+  // folds like history.
   if (mEvent.getSender() === room.myUserId) return false;
 
   if (
@@ -129,13 +130,14 @@ export const getCollapsibleMessageMode = (
   liveExpandOnceIds: Set<string>,
   isAgentMessage = false
 ) => {
-  // NOTE deliberately NOT exempt: messages whose body was replaced by an
-  // attached long text (getMindroomLongTextMxcUri). They fold like every
-  // other long message — `shouldForceCollapsibleMessageOverflow` already
-  // guarantees the "Show more" affordance. Auto-expanding them on
-  // hydration unfolded giant rows unprompted (device report 2026-07-06)
-  // and flipped their measurement keys mid-life.
-  // Like T3 Code, agent replies always show in full; people's long messages fold.
+  // Like T3 Code, agent replies always show in full, attached long text
+  // (getMindroomLongTextMxcUri) included; people's long messages fold.
+  // NOTE deliberately NOT exempt by content: a long-text attachment from a
+  // person folds like every other long message, and
+  // `shouldForceCollapsibleMessageOverflow` guarantees the "Show more"
+  // affordance. Exempting it on hydration unfolded giant rows unprompted
+  // (device report 2026-07-06) and flipped their measurement keys mid-life;
+  // the agent exemption keys on the sender, which never changes.
   if (
     isAgentMessage ||
     hasMindroomThreadSummary(resolvedContent as Record<string, unknown>) ||
