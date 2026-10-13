@@ -144,7 +144,7 @@ export function AuthLayout() {
       >
         <ParticleBackgroundSurface />
         <Box direction="Column" className={css.AuthCard}>
-          <Header className={css.AuthHeader} size="600" variant="Surface">
+          <Header className={css.AuthHeader} size="600" variant="Surface" appearance="plain">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">
               <img
                 className={css.AuthLogo}

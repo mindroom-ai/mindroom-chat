@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Drop the band and border from the sign-in and Connect cards' headers (2026-10-13)
+
+- Why: the owner reported that the MindRoom Chat header on the Connect Local MindRoom card drew a bordered band, as the Files bar (#451) and Invites header (#452) did.
+  `AuthCard` (sign-in and `ConnectPage`) is a translucent bordered card with no glass surface context, so its `Header` painted its own glass panel, and `AuthHeader` added a bottom border.
+- Change: both `AuthLayout` and `ConnectPage` render `<Header appearance="plain">`, and `AuthHeader` drops `borderBottomWidth`. The header now shares the card's translucent fill.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, and the `ConnectPage` and auth tests pass. A temporary fixture of the card (not committed) showed a 1px border and a glass band before and neither after, in Chromium in light and dark themes. The owner asked to skip the deep review.
+- Next: `Notifications.tsx` still has the standalone Invites-style header (see #452).
+
 ### Flatten the Invites page header (2026-10-13)
 
 - Why: the owner reported the Invites page header drew a rim and a bottom border, like the Files bar fixed in #451.
