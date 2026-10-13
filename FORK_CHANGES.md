@@ -2,6 +2,11 @@
 
 ## Runbook
 
+### Ask for screenshots in every PR with a visible change (2026-10-13)
+
+- `AGENTS.md` now asks agents to put screenshots of user-visible changes (before and after for visual bugs) in the PR description, uploaded with `gh pr create --attach` or `gh pr edit --attach`, and never to attach screenshots the owner shared privately.
+- Documentation only.
+
 ### Drop the glass rim from the composer's Files bar (2026-10-13)
 
 - Why: the owner reported that the Files bar at the foot of the composer's upload board drew a bordered rectangle inside the board.
