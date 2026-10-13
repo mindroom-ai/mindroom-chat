@@ -21,7 +21,9 @@ const rethrowForSdkRefreshPolicy = (error: unknown): never => {
   // The SDK treats every MatrixError from a tokenRefreshFunction as a
   // definitive logout. Refresh endpoints can also return MatrixError for
   // rate limits and server failures, so make the intended policy explicit.
-  if (error.errcode === 'M_UNKNOWN_TOKEN') {
+  // Tuwunel returns M_FORBIDDEN for malformed or unrecognized refresh
+  // tokens. Retrying those cannot recover the session either.
+  if (error.errcode === 'M_UNKNOWN_TOKEN' || error.errcode === 'M_FORBIDDEN') {
     throw new TokenRefreshLogoutError(error);
   }
 

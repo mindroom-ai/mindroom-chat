@@ -4,8 +4,10 @@ import {
   MatrixError,
   TokenRefreshError,
   TokenRefreshLogoutError,
+  createClient,
   type IRefreshTokenResponse,
 } from 'matrix-js-sdk';
+import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
@@ -88,11 +90,11 @@ describe('createSessionTokenRefresh', () => {
     await expect(refresh('refresh-a')).rejects.toBe(networkError);
   });
 
-  it('classifies an invalid refresh token as a definitive SDK logout', async () => {
-    const invalidToken = new MatrixError(
-      { errcode: 'M_UNKNOWN_TOKEN', error: 'Invalid refresh token' },
-      401
-    );
+  it.each([
+    { errcode: 'M_UNKNOWN_TOKEN', status: 401 },
+    { errcode: 'M_FORBIDDEN', status: 403 },
+  ])('classifies $errcode from refresh as a definitive SDK logout', async ({ errcode, status }) => {
+    const invalidToken = new MatrixError({ errcode, error: 'Invalid refresh token' }, status);
     const refresh = createRefresh(vi.fn().mockRejectedValue(invalidToken));
 
     const result = refresh('refresh-a');
@@ -100,6 +102,42 @@ describe('createSessionTokenRefresh', () => {
     await expect(result).rejects.toBeInstanceOf(TokenRefreshLogoutError);
     await expect(result).rejects.not.toBeInstanceOf(TokenRefreshError);
   });
+
+  it.each([
+    { errcode: 'M_UNKNOWN_TOKEN', status: 401, logout: true },
+    { errcode: 'M_FORBIDDEN', status: 403, logout: true },
+    { errcode: 'M_LIMIT_EXCEEDED', status: 429, logout: false },
+    { errcode: 'M_UNKNOWN', status: 503, logout: false },
+  ])(
+    'SDK emits logout only for a rejected session: $errcode',
+    async ({ errcode, status, logout }) => {
+      const invalidAccessToken = { errcode: 'M_UNKNOWN_TOKEN', error: 'Unknown access token.' };
+      const refresh = vi
+        .fn()
+        .mockRejectedValue(new MatrixError({ errcode, error: 'Refresh failed.' }, status));
+      const mx = createClient({
+        baseUrl: 'https://example.com',
+        accessToken: 'access-a',
+        refreshToken: 'refresh-a',
+        tokenRefreshFunction: createRefresh(refresh),
+        fetchFn: vi.fn(
+          async () =>
+            new Response(JSON.stringify(invalidAccessToken), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            })
+        ),
+      });
+      const onLogout = vi.fn();
+      mx.on(HttpApiEvent.SessionLoggedOut, onLogout);
+
+      const result = mx.getPushRules();
+
+      await expect(result).rejects.toBeInstanceOf(logout ? MatrixError : TokenRefreshError);
+      expect(refresh).toHaveBeenCalledWith('refresh-a');
+      expect(onLogout).toHaveBeenCalledTimes(logout ? 1 : 0);
+    }
+  );
 });
 
 describe('cross-tab refresh-token rotation', () => {

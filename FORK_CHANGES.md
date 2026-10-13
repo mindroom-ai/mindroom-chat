@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Recover sessions rejected by Tuwunel's refresh endpoint (2026-10-13)
+
+- Why: Brave showed the homeserver connectivity dialog while Matrix requests returned `401 M_UNKNOWN_TOKEN` and `/refresh` returned `403 M_FORBIDDEN` with "Refresh token is unrecognized."
+  `createSessionTokenRefresh` treated only `M_UNKNOWN_TOKEN` as a definitive rejection, so the SDK retried the unusable session instead of emitting `Session.logged_out`.
+- Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
+  Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
+- Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
+  The two `M_FORBIDDEN` regressions fail before the fix.
+- Independent review: approved; the startup logout listener attaches before `startClient`.
+- Validation: all 6,736 tests pass under Node 24 on Linux, including 76 focused refresh/startup/cleanup tests also passing locally.
+  Linux typecheck and lint pass (0 errors, 18 existing warnings); the production build passes under Node 24 on a temporary case-sensitive macOS volume.
+  The ordinary macOS checkout encounters the existing `ApprovalArgumentFields.tsx` / `approvalArgumentFields.ts` filename casing collision, so full validation uses fresh case-sensitive copies.
+
 ### Make standalone headers flat by default (2026-10-13)
 
 - Why: after #451–#454 fixed headers one at a time, the owner hit the same bordered, raised header on the join-before-navigate page and asked to fix every header at once.
