@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Drop the glass rim from the composer's Files bar (2026-10-13)
+
+- Why: the owner reported that the Files bar at the foot of the composer's upload board drew a bordered rectangle inside the board.
+  The board (`UploadBoard.css.ts`) is an opaque `Surface.Container` panel with its own border, but not a glass surface, so its glass `Header` found no enclosing surface and painted its own panel material with a rim, inset into the board.
+- Change: `UploadBoardHeader` uses `<Header appearance="plain">` (ordinary styling, per `docs/ui-design.md`), as `NavCategoryHeader` already does to avoid a second inset glass edge. The Files bar takes no fill or rim and reads as one surface with the board, as in upstream Cinny. `flat` would not fit: nothing scrolls beneath the bar.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, and `UploadBoard.test.ts` pass. A temporary fixture of the board (not committed) showed the inset rectangle before and none after in Chromium, light and dark themes.
+- Independent review (subagent): approved. It flagged the same likely bug, unverified, for the `Header`s inside `AuthCard` (`AuthLayout.tsx`, `ConnectPage.tsx`), a bordered panel with its own backdrop filter and no surface context.
+- Next: check the `AuthCard` headers in a browser and make them plain if they show the same inset rim.
+
 ### Fold people's long messages and show agent replies in full, as T3 Code does (2026-10-12)
 
 - Why: the owner asked for T3 Code's behavior, where a long pasted or typed message shows folded once it is sent.
