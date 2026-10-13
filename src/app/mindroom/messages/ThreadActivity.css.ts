@@ -10,15 +10,17 @@ export const Activity = style([
   },
 ]);
 
-// A quiet line inside the message, not a box: icon tile, bold title, muted detail.
+// One full-width row per activity: no border at rest, a tint on hover, and the chevron
+// pinned to the right edge so every row has the same geometry.
 export const Line = style([
   DefaultReset,
   {
-    display: 'inline-flex',
+    display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,
-    maxWidth: '100%',
-    padding: `${toRem(2)} ${config.space.S100} ${toRem(2)} 0`,
+    width: `calc(100% + ${config.space.S200})`,
+    marginInline: `calc(${config.space.S100} * -1)`,
+    padding: `${toRem(3)} ${config.space.S100}`,
     border: 'none',
     borderRadius: config.radii.R300,
     background: 'none',
@@ -28,9 +30,10 @@ export const Line = style([
     textAlign: 'start',
     cursor: 'pointer',
     selectors: {
+      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
       '&:focus-visible': {
         outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-        outlineOffset: toRem(2),
+        outlineOffset: toRem(1),
       },
     },
   },
@@ -74,7 +77,11 @@ export const Detail = style({
   opacity: config.opacity.P400,
 });
 
-export const Chevron = style({ flexShrink: 0, opacity: config.opacity.P400 });
+export const Chevron = style({
+  flexShrink: 0,
+  marginInlineStart: 'auto',
+  opacity: config.opacity.P400,
+});
 
 export const Panel = style({
   marginTop: config.space.S200,

@@ -39,7 +39,8 @@ export function ThreadActivity({
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   return (
-    <div className={css.Activity}>
+    // Lets the message content take the full column, so every row lines up its chevron.
+    <div className={css.Activity} data-message-disclosure="">
       <button
         type="button"
         className={css.Line}
