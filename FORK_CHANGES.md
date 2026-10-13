@@ -2,25 +2,25 @@
 
 ## Runbook
 
-### Fold a long message the user just sent (2026-10-12)
+### Fold people's long messages and show agent replies in full, as T3 Code does (2026-10-12)
 
 - Why: the owner asked for T3 Code's behavior, where a long pasted or typed message shows folded once it is sent.
-  T3 Code (`MessagesTimeline.tsx`) folds user messages over 600 characters or 8 lines to an 11rem preview with a bottom fade and "Show full message" / "Show less"; it never folds the agent's output.
-  This client already folds long messages the same way (an `11em` cap measured by height, a fade, the same labels), but in a thread a long message the user sent opened a moment after sending.
-- Root cause: the live expand-once policy (`getLiveCollapsibleMessageExpandId`), which keeps streamed replies readable while they arrive, also took the viewer's own messages.
-  In a thread, the local echo fires no `Room.timeline` (the main timeline rejects thread events); the server's echo fires it with `liveEvent: true` under the real `$` ID, which marked the row `initially-expanded` and opened it for good.
-  In the room view, the local echo fires `Room.timeline` live under its `~` transaction ID and was marked too, but rows are keyed by event ID, so the row remounts under its `$` ID and folds; a live room run passes without the fix.
-  The viewer's own live edits opened their message the same way.
-- Change: `shouldTrackLiveCollapsibleMessage` skips events from `room.myUserId`, so own sends and edits, including those from the user's other devices, keep the default mode: folded when they overflow, or open under "Expand long messages by default".
-  Live messages from agents and other people still open once; history is unchanged.
-- Tests: `RoomTimelineCollapsible.test.ts`: an own live message and an own live edit stay in `default` mode, and an own thread reply is not tracked (each fails without the fix); the existing expand-once cases now use an agent sender, since the fixture's viewer sent them.
-  New live spec `e2e/live/own-long-message-folds.spec.ts`, for the room and a thread: a live 24-line agent message opens, and a 24-line message typed in the composer is folded and clipped once a later agent message has synced (sync is ordered, so the sent message's echo was processed), then opens on click.
-  On a disposable tuwunel stack the thread case fails without the fix ("Show full message" is gone) and both cases passed 2 of 2 runs with it; repeated logins on one account hit the login rate limit, so each run used its own account.
-  `perf-thread-streaming.spec.ts` now streams its replies and edits from an agent account: from the viewer's account its streamed row would now stay folded, unlike an agent's; a 40-reply, 10-edit run passes.
-- Independent review (subagent): confirmed the single call site covers room, thread, and edits, that the SDK local echo's sender equals `room.myUserId`, and that MindRoom agents never send as the viewer. Fixed: the spec's `$` ID wait was not a barrier for the thread view's sync echo (now a later agent message), the root cause was described only for the thread view, the perf probe streamed as the viewer, the code comment assumed the composer, and redundant checks and test names.
-- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings) and Prettier pass.
-  `npm test`: 6,655 passed and 4 failed, the known `xcodeCloudPostClone.test.ts` (3) and `useRoomInputSendSessionController.test.ts` (1) cases, which fail the same way on a clean `HEAD`.
-- Next: messages from other people in shared rooms still open when they arrive live; folding every non-agent message would need reliable agent detection, so it is left out.
+  T3 Code (`MessagesTimeline.tsx`, `CollapsibleUserMessageBody`) folds user messages over 600 characters or 8 lines to an 11rem preview with a bottom fade and "Show full message" / "Show less"; agent replies never fold by length, and there is no setting.
+  This client folds the same way (an `11em` cap measured by height, a fade, the same labels), but its account switch "Expand long messages by default" has been on by default since 2026-09-13 (`7842a0d5`), so nothing folded, a long paste included.
+- Change:
+  - The switch (`expandLongMessagesByDefault` in `io.mindroom.settings`, its Settings row, and its strings in all 17 locales) is gone; a stored value is ignored. Every timeline starts folded, and `[+all]` / `[-all]` remain the per-timeline override.
+  - Agent replies (`isMindroomAgentUserId`, a `mindroom_` localpart) use `always-expanded`: they never fold and have no toggle. Detection is by sender only, not by MindRoom metadata, so metadata arriving with a streamed edit cannot flip a row's mode mid-life.
+  - People's messages, the viewer's included, fold past `11em` as before.
+  - Forced overflow (folding without measuring) counts only the plain `body` length: link- and table-heavy HTML passed the 1200-character check while rendering short, and a forced row is never measured, so it folded with nothing hidden.
+  - The viewer's own messages no longer use live expand-once. That policy (`getLiveCollapsibleMessageExpandId`) keeps streamed replies readable while they arrive, and took own messages too. In a thread, the local echo fires no `Room.timeline` (the main timeline rejects thread events); the server's echo fires it with `liveEvent: true` under the real `$` ID, which marked the row `initially-expanded` and opened it for good. In the room view, the local echo fires live under its `~` transaction ID and was marked too, but rows are keyed by event ID, so the row remounted under its `$` ID and folded. `shouldTrackLiveCollapsibleMessage` now skips events from `room.myUserId`, covering sends and edits from any of the viewer's devices.
+- Decision history: PR #449 first grew a three-way setting (Auto, On, Off) with a `30em` fold for agent replies; both reviewers approved it, and the owner then dropped it as over-engineered in favor of T3 Code's behavior with no setting.
+- Tests:
+  - `RoomTimelineCollapsible.test.ts`: every timeline starts folded; an agent reply is `always-expanded` while a person's message and a metadata-only sender stay `default`; forced overflow ignores markup length; own live messages, edits, and thread replies are not expand-once (each fails without its part). Expand-once cases now use another person as sender. The test mock of `getMxIdLocalPart` now strips the server, as the real one does.
+  - Settings tests drop the switch; `sanitizeMindroomAccountSettings` ignores a stored `expandLongMessagesByDefault`.
+  - Live `own-long-message-folds.spec.ts`, room and thread: a 40-line agent reply shows in full with no fold controls, and a 24-line message typed in the composer folds, stays folded after a later message syncs, and opens on click.
+  - `long-message-expansion-default.spec.ts` now checks that long messages fold by default and drives `[+all]` / `[-all]` (anchor drift and expanded scrolling) instead of the switch.
+  - e2e seeds drop the old key; seeds that only set it now reset settings to the defaults. `perf-thread-streaming.spec.ts` streams from an agent account, matching real agent streaming.
+- Known limits: very long agent replies, long-text attachments included, never fold, as `dev`'s default already did. Another person's long message that arrives live opens once, then folds when its row remounts. A bridged or renamed agent without the `mindroom_` prefix folds like a person.
 
 ### Record the shared UI design rules (2026-10-12)
 

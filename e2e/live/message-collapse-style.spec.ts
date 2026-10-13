@@ -48,7 +48,6 @@ for (const surface of ['room', 'thread'] as const) {
         'io.mindroom.settings',
         {
           simpleMode: false,
-          expandLongMessagesByDefault: false,
         }
       );
       const fixture = await createThreadFixture(homeserver, session.accessToken, {

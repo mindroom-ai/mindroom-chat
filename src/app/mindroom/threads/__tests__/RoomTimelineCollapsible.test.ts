@@ -27,7 +27,6 @@ const {
   shouldAutoScrollRoomOnLiveEventMock,
   threadResolutionMapMock,
   threadRenderStateControl,
-  accountSettingsState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -55,9 +54,6 @@ const {
     currentThreadEvents: [] as unknown[],
     initialThreadEvents: [] as unknown[],
     threadInitialRenderMode: 'live' as 'loading' | 'cached' | 'live',
-  },
-  accountSettingsState: {
-    expandLongMessagesByDefault: false,
   },
 }));
 
@@ -113,10 +109,6 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => matrixClientMock,
-}));
-
-vi.mock('../../settings/useMindroomAccountSettings', () => ({
-  useExpandLongMessagesByDefault: () => accountSettingsState.expandLongMessagesByDefault,
 }));
 
 vi.mock('../../../hooks/useAlive', () => ({
@@ -407,7 +399,7 @@ vi.mock('../TimelineMinimap.css', () => ({
 vi.mock('../../../utils/matrix', () => ({
   eventWithShortcode: (_packs: unknown, body: string) => body,
   factoryEventSentBy: () => false,
-  getMxIdLocalPart: (userId: string) => userId,
+  getMxIdLocalPart: (userId: string) => /^@([^:]+):/.exec(userId)?.[1] ?? userId,
 }));
 
 vi.mock('../../../utils/room', () => ({
@@ -837,7 +829,8 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
 
 const ROOM_ID = '!room:example.org';
 // `makeRoom`'s viewer is the default `makeEvent` sender, so live tests that expect
-// expand-once use another sender.
+// expand-once use another person; agent replies always show in full.
+const OTHER_PERSON_ID = '@bob:example.org';
 const AGENT_USER_ID = '@mindroom_general:example.org';
 const mountedRenderers = new Set<ReactTestRenderer>();
 
@@ -1129,7 +1122,6 @@ beforeEach(() => {
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];
   threadRenderStateControl.threadInitialRenderMode = 'live';
-  accountSettingsState.expandLongMessagesByDefault = false;
 });
 
 afterEach(() => {
@@ -1220,49 +1212,46 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapsibleForEvent(renderer, '$historical').props.expansionKey).toBe('$historical');
   });
 
-  it('uses the account preference as the expand-all baseline', async () => {
-    accountSettingsState.expandLongMessagesByDefault = true;
+  it('starts every timeline with long messages folded', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const { collapseAllMessages } = await import('../CollapsibleMessage');
-    const historicalEvent = makeEvent('$historical', {
-      content: {
-        body: 'Historical message',
-        msgtype: 'm.text',
-      },
-    });
-    const room = makeRoom({ liveEvents: [historicalEvent] });
+    const room = makeRoom({ liveEvents: [makeEvent('$historical')] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
-      renderer = createTrackedRenderer(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-        })
-      );
+      renderer = createTrackedRenderer(React.createElement(ControlledRoomTimeline, { room }));
       await flushAsyncWork(2);
     });
 
-    const provider = renderer.root.findByType('collapsible-message-state-provider');
-    expect(provider.props.expandAllInit).toBe(true);
-    const collapseAllButton = renderer.root.find(
-      (node) =>
-        node.type === 'button' &&
-        node.children.some(
-          (child) =>
-            typeof child === 'string' &&
-            (child === '[-all]' || child === 'Collapse all' || child.endsWith('.all'))
-        )
-    );
-
-    act(() => {
-      collapseAllButton.props.onClick({ preventDefault: vi.fn() });
-    });
-
-    expect(collapseAllMessages).toHaveBeenCalledTimes(1);
     expect(renderer.root.findByType('collapsible-message-state-provider').props.expandAllInit).toBe(
       false
     );
+  });
+
+  it("shows agent replies in full and folds people's long messages", async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const room = makeRoom({
+      liveEvents: [
+        makeEvent('$person'),
+        makeEvent('$agent', { sender: AGENT_USER_ID }),
+        // Detected by sender only, so streamed metadata cannot flip a row's mode mid-life.
+        makeEvent('$metadata-only', {
+          content: { body: 'Reply', msgtype: 'm.text', 'io.mindroom.tool_trace': [] },
+          sender: '@bridged:example.org',
+        }),
+      ],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(2);
+    });
+
+    expect(findCollapseModeForEvent(renderer, '$person')).toBe('default');
+    expect(findCollapseModeForEvent(renderer, '$agent')).toBe('always-expanded');
+    expect(findCollapseModeForEvent(renderer, '$metadata-only')).toBe('default');
   });
 
   it('clears remembered per-message choices before applying an expand-all baseline', async () => {
@@ -1414,7 +1403,7 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Live message',
         msgtype: 'm.text',
       },
-      sender: AGENT_USER_ID,
+      sender: OTHER_PERSON_ID,
     });
     const liveEvents = [historicalEvent];
     const room = makeRoom({ liveEvents });
@@ -1533,7 +1522,7 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Expanded message after streaming edit',
         msgtype: 'm.text',
       },
-      sender: AGENT_USER_ID,
+      sender: OTHER_PERSON_ID,
     });
     const liveEvents = [targetEvent];
     const room = makeRoom({ liveEvents });
@@ -1563,7 +1552,7 @@ describe('RoomTimeline collapsible wiring', () => {
           event_id: '$target',
           rel_type: RELATION_REPLACE,
         },
-        sender: AGENT_USER_ID,
+        sender: OTHER_PERSON_ID,
       })
     );
     await emitLiveTimelineEvent(room, liveEvents[liveEvents.length - 1]);
@@ -1689,6 +1678,26 @@ describe('RoomTimeline collapsible wiring', () => {
     ).toBe(false);
   });
 
+  it('does not force overflow from markup length alone', async () => {
+    const { shouldForceCollapsibleMessageOverflow } = await import('../threadCollapsibleMessages');
+    const links = Array.from({ length: 12 }, (_, index) => `source ${index}`);
+
+    expect(
+      shouldForceCollapsibleMessageOverflow({ body: 'x'.repeat(1500), msgtype: 'm.text' })
+    ).toBe(true);
+    // A few short lines of links: the HTML passes the length, the text renders well under a fold.
+    expect(
+      shouldForceCollapsibleMessageOverflow({
+        msgtype: 'm.text',
+        body: links.join('\n'),
+        format: 'org.matrix.custom.html',
+        formatted_body: links
+          .map((link) => `<p><a href="https://example.org/${'path/'.repeat(20)}">${link}</a></p>`)
+          .join(''),
+      })
+    ).toBe(false);
+  });
+
   it('marks visible live thread replies for initially-expanded mode', async () => {
     const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } = await import(
       '../threadCollapsibleMessages'
@@ -1705,7 +1714,7 @@ describe('RoomTimeline collapsible wiring', () => {
         body: 'Live thread reply',
         msgtype: 'm.text',
       },
-      sender: AGENT_USER_ID,
+      sender: OTHER_PERSON_ID,
       threadRootId: '$thread-root',
     });
     const ownThreadReply = makeEvent('$own-thread-reply', {

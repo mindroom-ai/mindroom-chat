@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import { color, config } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
-import { useExpandLongMessagesByDefault } from '../../settings/useMindroomAccountSettings';
 import {
   CollapsibleMessageStateProvider,
   collapseAllMessages,
@@ -24,10 +23,9 @@ export const useTimelineMessageExpansion = (
   scrollRef: RefObject<HTMLDivElement>
 ) => {
   const { t } = useTranslation();
-  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   // The owning timeline is keyed by room:thread; manual choices reset on remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean>();
-  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
+  const expandAll = expandAllOverride ?? false;
   const manualExpansionState = useRef(new Map<string, boolean>());
   const liveExpandOnceIds = useRef(new Set<string>());
   const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
@@ -38,8 +36,13 @@ export const useTimelineMessageExpansion = (
   const markLiveExpansionCandidate = useCallback((eventId: string) => {
     liveExpandOnceIds.current.add(eventId);
   }, []);
-  const getExpansion = (eventId: string, content: IContent) => {
-    const collapseMode = getCollapsibleMessageMode(eventId, content, liveExpandOnceIds.current);
+  const getExpansion = (eventId: string, content: IContent, isAgentMessage: boolean) => {
+    const collapseMode = getCollapsibleMessageMode(
+      eventId,
+      content,
+      liveExpandOnceIds.current,
+      isAgentMessage
+    );
     return {
       collapseMode,
       onInitialExpandConsumed:

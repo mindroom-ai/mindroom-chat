@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getRequiredEnv, hasRequiredEnv } from '../env';
-import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -9,7 +8,6 @@ import {
 import {
   createPrivateRoom,
   loginToMatrix,
-  matrixFetch,
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
@@ -174,14 +172,14 @@ const readAnchorTop = (page: Page, messageId: string): Promise<number | undefine
 
 test.use({ baseURL: DEPLOYED_BASE_URL });
 
-test.describe('live long-message expansion default', () => {
+test.describe('live long-message expand-all and collapse-all', () => {
   test.skip(
     !hasDeployedFixtureEnv,
     'Deployed preview, Matrix homeserver, and live account credentials are required.'
   );
   test.setTimeout(600_000);
 
-  test('both defaults persist and expanded virtualized scrolling stays stable', async ({
+  test('long messages fold by default, the toggles keep the anchor, and expanded scrolling stays stable', async ({
     page,
   }, testInfo) => {
     const diagnostics = attachBrowserDiagnostics(page);
@@ -191,7 +189,6 @@ test.describe('live long-message expansion default', () => {
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, SETTINGS_EVENT_TYPE, {
       simpleMode: false,
-      expandLongMessagesByDefault: false,
     });
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
@@ -241,48 +238,27 @@ test.describe('live long-message expansion default', () => {
     ).toBeGreaterThan(1_000);
     const anchorBeforeToggle = await readVisibleAnchor(page);
     expect(anchorBeforeToggle).toBeTruthy();
-    if (!anchorBeforeToggle) throw new Error('No visible anchor before changing the default.');
+    if (!anchorBeforeToggle) throw new Error('No visible anchor before expanding all.');
 
-    await openSettingsFromAccountRail(page);
-    const settingTitle = page.getByText('Expand long messages by default', { exact: true });
-    await expect(settingTitle).toBeVisible();
-    const settingTile = settingTitle.locator('xpath=ancestor::*[.//*[@role="switch"]][1]');
-    const expansionSwitch = settingTile.getByRole('switch');
-    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'false');
-    await expansionSwitch.click();
-    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'true');
+    const expandAll = page.getByRole('button', { name: '[+all]', exact: true });
+    const collapseAll = page.getByRole('button', { name: '[-all]', exact: true });
+    await expandAll.click();
+    await expect(collapseAll).toBeVisible();
     await expect.poll(() => showMore.count()).toBe(0);
     await expect.poll(() => showLess.count()).toBeGreaterThan(1);
     await expect.poll(() => readAnchorTop(page, anchorBeforeToggle.messageId)).not.toBeUndefined();
 
-    await page.keyboard.press('Escape');
-    await expect(settingTitle).toHaveCount(0);
     const anchorTopAfterToggle = await readAnchorTop(page, anchorBeforeToggle.messageId);
     expect(anchorTopAfterToggle).toBeDefined();
     const toggleAnchorDriftPx = Math.abs((anchorTopAfterToggle as number) - anchorBeforeToggle.top);
     expect(toggleAnchorDriftPx).toBeLessThan(ANCHOR_DRIFT_BUDGET_PX);
 
-    const storedSettings = await matrixFetch<Record<string, unknown>>(
-      homeserver,
-      `/user/${encodeURIComponent(session.userId)}/account_data/${encodeURIComponent(
-        SETTINGS_EVENT_TYPE
-      )}`,
-      { accessToken: session.accessToken }
-    );
-    expect(storedSettings.expandLongMessagesByDefault).toBe(true);
-
-    const expandedScreenshot = testInfo.outputPath('expanded-by-default.png');
+    const expandedScreenshot = testInfo.outputPath('expanded-all.png');
     await page.screenshot({ path: expandedScreenshot });
-    await testInfo.attach('expanded-by-default.png', {
+    await testInfo.attach('expanded-all.png', {
       path: expandedScreenshot,
       contentType: 'image/png',
     });
-
-    await page.reload();
-    await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
-    await page.waitForTimeout(3_000);
-    await expect(showMore).toHaveCount(0);
-    await expect(showLess.first()).toBeVisible();
 
     await page.evaluate(() => {
       const row = document.querySelector<HTMLElement>('[data-message-item]');
@@ -367,7 +343,6 @@ test.describe('live long-message expansion default', () => {
       rootId: seeded.rootId,
       replyCount: REPLY_COUNT,
       foldedShowMoreCount,
-      storedSettings,
       toggleAnchorDriftPx,
       expandedMountedRows: realWheelEnd.mountedRows,
       realWheelTravelPx,
@@ -388,31 +363,18 @@ test.describe('live long-message expansion default', () => {
     expect(ride.appWrites).toEqual([]);
 
     const anchorBeforeCollapse = await readVisibleAnchor(page);
-    if (!anchorBeforeCollapse)
-      throw new Error('No tall-message anchor before folding the default.');
+    if (!anchorBeforeCollapse) throw new Error('No tall-message anchor before collapsing all.');
     expect(anchorBeforeCollapse.fullyVisible).toBe(false);
 
-    await openSettingsFromAccountRail(page);
-    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'true');
-    await expansionSwitch.click();
-    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'false');
+    await collapseAll.click();
+    await expect(expandAll).toBeVisible();
     await expect.poll(() => showMore.count()).toBeGreaterThan(1);
-    await page.keyboard.press('Escape');
-    await expect(settingTitle).toHaveCount(0);
     const anchorTopAfterCollapse = await readAnchorTop(page, anchorBeforeCollapse.messageId);
     expect(anchorTopAfterCollapse).toBeDefined();
     const collapseAnchorDriftPx = Math.abs(
       (anchorTopAfterCollapse as number) - anchorBeforeCollapse.top
     );
     expect(collapseAnchorDriftPx).toBeLessThan(ANCHOR_DRIFT_BUDGET_PX);
-    const collapsedSettings = await matrixFetch<Record<string, unknown>>(
-      homeserver,
-      `/user/${encodeURIComponent(session.userId)}/account_data/${encodeURIComponent(
-        SETTINGS_EVENT_TYPE
-      )}`,
-      { accessToken: session.accessToken }
-    );
-    expect(collapsedSettings.expandLongMessagesByDefault).toBe(false);
 
     const collapsedScreenshot = testInfo.outputPath('folded-from-tall-message.png');
     await page.screenshot({ path: collapsedScreenshot });
@@ -421,16 +383,13 @@ test.describe('live long-message expansion default', () => {
       contentType: 'image/png',
     });
 
-    Object.assign(report, {
-      collapseAnchorDriftPx,
-      collapsedSettings,
-    });
+    Object.assign(report, { collapseAnchorDriftPx });
     // eslint-disable-next-line no-console
     console.log(`LONG-MESSAGE-DEFAULT-LIVE ${JSON.stringify(report)}`);
     await testInfo.attach('long-message-default-live.json', {
       body: JSON.stringify({ report, ride }, null, 2),
       contentType: 'application/json',
     });
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'long-message expansion default live');
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'long-message expand-all live');
   });
 });

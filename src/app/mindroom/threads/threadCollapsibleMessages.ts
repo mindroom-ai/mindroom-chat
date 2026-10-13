@@ -13,6 +13,8 @@ import { eventBelongsToThread, isVisibleThreadTextMessageEventType } from './thr
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
   isVisibleThreadTextMessageEventType(mEvent.getType());
 
+// Only the plain body counts: HTML markup (links, tables) adds length without height, and a
+// forced row is never measured, so a false positive would fold a message with nothing hidden.
 const FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH = 1200;
 
 export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolean => {
@@ -22,15 +24,7 @@ export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolea
   if (getMindroomLongTextMxcUri(content as Record<string, unknown>)) return true;
 
   const body = content.body;
-  if (typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH) {
-    return true;
-  }
-
-  const formattedBody = content.formatted_body;
-  return (
-    typeof formattedBody === 'string' &&
-    formattedBody.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH
-  );
+  return typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH;
 };
 
 export type ShouldTrackLiveCollapsibleMessage = {
@@ -132,7 +126,8 @@ export const getLiveCollapsibleMessageExpandId = (
 export const getCollapsibleMessageMode = (
   mEventId: string,
   resolvedContent: IContent,
-  liveExpandOnceIds: Set<string>
+  liveExpandOnceIds: Set<string>,
+  isAgentMessage = false
 ) => {
   // NOTE deliberately NOT exempt: messages whose body was replaced by an
   // attached long text (getMindroomLongTextMxcUri). They fold like every
@@ -140,7 +135,9 @@ export const getCollapsibleMessageMode = (
   // guarantees the "Show more" affordance. Auto-expanding them on
   // hydration unfolded giant rows unprompted (device report 2026-07-06)
   // and flipped their measurement keys mid-life.
+  // Like T3 Code, agent replies always show in full; people's long messages fold.
   if (
+    isAgentMessage ||
     hasMindroomThreadSummary(resolvedContent as Record<string, unknown>) ||
     hasMindroomMessageExtras(resolvedContent as Record<string, unknown>)
   ) {

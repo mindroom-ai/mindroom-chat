@@ -261,9 +261,14 @@ test.describe('thread fast-scroll overlap', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
-    });
+    // Reset to default settings, where long messages fold.
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     const { roomId, rootId } = await seedVarietyThread(homeserver, session.accessToken);
 
     await loginWithPassword(page, { homeserver, username, password });

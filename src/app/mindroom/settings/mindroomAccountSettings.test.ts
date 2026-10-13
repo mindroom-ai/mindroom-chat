@@ -33,27 +33,15 @@ describe('sanitizeMindroomAccountSettings', () => {
     ).toBe(true);
   });
 
-  it('defaults long messages to expanded while preserving explicit booleans', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(true);
-    expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(true);
-    expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: true })
-        .expandLongMessagesByDefault
-    ).toBe(true);
-    expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: false })
-        .expandLongMessagesByDefault
-    ).toBe(false);
-    expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 0 })
-        .expandLongMessagesByDefault
-    ).toBe(true);
-  });
-
   it('ignores unknown keys when reading', () => {
-    expect(sanitizeMindroomAccountSettings({ simpleMode: true, futureKey: 'x' })).toEqual({
+    expect(
+      sanitizeMindroomAccountSettings({
+        simpleMode: true,
+        futureKey: 'x',
+        expandLongMessagesByDefault: true,
+      })
+    ).toEqual({
       simpleMode: true,
-      expandLongMessagesByDefault: true,
       showCanvasesInSidebar: true,
     });
   });
