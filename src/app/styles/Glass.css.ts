@@ -170,6 +170,15 @@ export const glassOverBackdrop = style({
   },
 });
 
+// Approval review holds dense text and decisions: keep the rim and blur, but tint the
+// panel nearly opaque so the thread behind it does not compete with what is being approved.
+export const glassDenseOverBackdrop = style({
+  selectors: {
+    '&&&': { vars: { [surfaceTint]: '94%' } },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': { vars: { [surfaceTint]: '90%' } },
+  },
+});
+
 export const glassSurface = recipe({
   base: {
     boxShadow: glassShadow,

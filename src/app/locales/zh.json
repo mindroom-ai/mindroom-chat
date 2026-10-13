@@ -676,7 +676,11 @@
       "openLocation": "打开位置",
       "voiceMessage": "语音消息",
       "audio": "音频",
-      "unnamedFile": "未命名文件"
+      "unnamedFile": "未命名文件",
+      "file": "文件",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF 文档",
+      "textFile": "文本文件"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "此消息已被删除",
@@ -694,7 +698,8 @@
       "openFile": "打开文件",
       "loadFailed": "加载文件失败！",
       "retryDownload": "重试下载 ({{size}})",
-      "downloadSize": "下载（{{size}}）"
+      "downloadSize": "下载（{{size}}）",
+      "openValue1": "打开 {{value1}}"
     },
     "imageContent": {
       "view": "查看",
@@ -2444,7 +2449,9 @@
         "onlyATruncatedPreviewIsAvailable": "仅提供截断的预览。",
         "retry": "重试",
         "sensitiveValuesMayBeRedacted": "敏感值可能会被隐去。",
-        "loadFailed": "无法加载完整参数。"
+        "loadFailed": "无法加载完整参数。",
+        "hideArguments": "隐藏参数",
+        "showAllArguments": "显示所有参数"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "此请求无法在此获得批准。",
@@ -2570,7 +2577,13 @@
         },
         "toolNumber": "工具#{{index}}：{{command}}",
         "toolCallCount_one": "{{count}} 工具调用",
-        "toolCallCount_other": "{{count}} 工具调用"
+        "toolCallCount_other": "{{count}} 工具调用",
+        "usedToolCount_other": "使用了 {{count}} 个工具",
+        "toolCallsRunning_other": "正在执行 {{count}} 次工具调用",
+        "toolCallsWaiting_other": "{{count}} 次工具调用等待批准",
+        "toolCallsRan_other": "已执行 {{count}} 次工具调用",
+        "toolCallsDenied_other": "已拒绝 {{count}} 次工具调用",
+        "toolCallsExpired_other": "{{count}} 次工具调用已过期"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "正在加载完整回复..."
@@ -2663,6 +2676,9 @@
         "historyIncomplete": " · 历史不完整",
         "retryHistory": "重试历史记录",
         "reviewToolCalls": "审核工具调用",
+        "reviewAgentWants_other": "{{agent}} 想执行 {{count}} 项操作",
+        "reviewAgentsWant_other": "{{agents}} 个智能体想执行 {{count}} 项操作",
+        "reviewRequestedBy": "请求者：{{requester}}",
         "someRequestsAreNoLongerAvailable": "有些请求不再可用。",
         "permission": "权限",
         "permissions": "权限",
@@ -2690,7 +2706,32 @@
         "toolApprovalCount_one": "{{count}} 工具批准",
         "toolApprovalCount_other": "{{count}} 个工具批准",
         "approvedCount_one": "{{count}} 已批准",
-        "approvedCount_other": "{{count}} 已批准"
+        "approvedCount_other": "{{count}} 已批准",
+        "agentWaitingForYou": "{{agent}} 正在等您",
+        "agentsWaitingForYou_other": "{{count}} 个智能体正在等您",
+        "autoApproveFor": "自动批准时长",
+        "callCount_other": "{{count}} 次调用",
+        "chipSending": "发送中…",
+        "chipSubmitted": "已提交",
+        "chipResolved": "已处理",
+        "confirmDenyAll": "确认全部拒绝 {{count}} 项",
+        "expires": "{{time}}过期",
+        "hideCalls": "隐藏调用",
+        "historyApproved": "{{operation}} 已批准",
+        "historyDenied": "{{operation}} 已拒绝",
+        "historyExpired": "{{operation}} 已过期",
+        "historyUserApproved": "{{user}} 批准了 {{operation}}",
+        "historyUserDenied": "{{user}} 拒绝了 {{operation}}",
+        "historyUserExpired": "{{operation}} 已过期",
+        "historyYouApproved": "您批准了 {{operation}}",
+        "historyYouDenied": "您拒绝了 {{operation}}",
+        "historyYouExpired": "{{operation}} 已过期",
+        "minutesShort_other": "{{count}} 分钟",
+        "sectionMeta": "{{agent}} · 请求者：{{requester}}",
+        "showCalls_other": "显示 {{count}} 次调用",
+        "waitingForApproval": "等待批准",
+        "waitingForYou": "等您处理",
+        "you": "您"
       },
       "pendingSendIndicator": {
         "messageSending": "消息发送",

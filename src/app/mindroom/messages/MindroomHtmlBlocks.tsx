@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useContext, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
-import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
+import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import {
   MINDROOM_TOOL_REF_ICON,
   MindroomToolRefParseResult,
@@ -26,6 +26,18 @@ import {
   isMindroomToolTraceV2,
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
+import * as activityCss from './ThreadActivity.css';
+import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from './ThreadActivity';
+import {
+  resolveToolCallStates,
+  summarizeToolCalls,
+  ToolCallMessageContext,
+  ToolCallState,
+} from './toolCallStatus';
+import { useThreadApprovals } from './ThreadApprovalProvider';
+import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from './toolApproval';
+import { ApprovalArgumentFields } from './ApprovalArgumentFields';
+import { toToolArgumentFields } from './approvalArgumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
@@ -51,14 +63,6 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
     icon: Icons.Explore,
   },
 };
-
-function ToolStatusBadge({ pending }: { pending: boolean }) {
-  return pending ? (
-    <Spinner size="100" variant="Secondary" />
-  ) : (
-    <Icon size="50" src={Icons.Check} />
-  );
-}
 
 function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
   const { t } = useTranslation();
@@ -95,16 +99,10 @@ function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
 function MindroomCollapsibleBlock({
   icon,
   label,
-  subtitle,
-  pending,
-  inlineResult,
   children,
 }: {
   icon: IconSrc;
   label: string;
-  subtitle?: string;
-  pending?: boolean;
-  inlineResult?: string;
   children?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -120,21 +118,9 @@ function MindroomCollapsibleBlock({
       >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
-          {pending !== undefined && <ToolStatusBadge pending={pending} />}
           <Text size="L400" truncate>
             {label}
           </Text>
-          {subtitle && (
-            <Text size="T200" truncate>
-              {subtitle}
-            </Text>
-          )}
-          {inlineResult && (
-            <Text size="T200" truncate className={css.BlockInlineResult}>
-              {'-> '}
-              {inlineResult}
-            </Text>
-          )}
         </Box>
         <Icon
           size="50"
@@ -195,6 +181,8 @@ type MindroomToolBlockRenderData = {
   index: number;
   status: MindroomToolBlockStatus;
   command: string;
+  toolName: string;
+  argsPreview?: string;
   result?: string;
   resultInline: boolean;
 };
@@ -214,7 +202,14 @@ const buildToolRefRenderData = (
   const command = argsPreview ? `${traceToolName}(${argsPreview})` : traceToolName;
 
   if (!eventRaw && metadataStatus) {
-    return { index: toolRef.index, status: metadataStatus, command, resultInline: false };
+    return {
+      index: toolRef.index,
+      status: metadataStatus,
+      command,
+      toolName: traceToolName,
+      argsPreview,
+      resultInline: false,
+    };
   }
 
   if (
@@ -225,6 +220,8 @@ const buildToolRefRenderData = (
       index: toolRef.index,
       status: 'pending',
       command,
+      toolName: traceToolName,
+      argsPreview,
       resultInline: false,
     };
   }
@@ -234,6 +231,8 @@ const buildToolRefRenderData = (
       index: toolRef.index,
       status: 'completed_with_result',
       command,
+      toolName: traceToolName,
+      argsPreview,
       result: resultPreview,
       resultInline: !resultPreview.includes('\n'),
     };
@@ -243,43 +242,68 @@ const buildToolRefRenderData = (
     index: toolRef.index,
     status: 'completed',
     command,
+    toolName: traceToolName,
+    argsPreview,
     resultInline: false,
   };
 };
 
-function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBlockRenderData }) {
-  const { t } = useTranslation();
-  const prefix = t('mindroomUi.messages.mindroomHtmlBlocks.toolNumber', {
-    index: parsedTool.index,
-    command: parsedTool.command,
-  });
-  const key = `tool-group-item-${parsedTool.index}-${parsedTool.command}`;
+const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone }> = {
+  running: { src: Icons.Terminal, tone: 'neutral' },
+  waiting: { src: Icons.Pause, tone: 'warning' },
+  done: { src: Icons.Check, tone: 'success' },
+  denied: { src: Icons.Cross, tone: 'critical' },
+  expired: { src: Icons.Clock, tone: 'neutral' },
+};
 
-  if (parsedTool.status === 'pending') {
-    return (
-      <Box key={key} className={css.ToolGroupItem}>
-        <Text size="T200">{`${prefix} ⏳`}</Text>
-      </Box>
-    );
-  }
+const TOOL_STATE_TITLE = {
+  running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
+  waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
+  done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
+  denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
+  expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
+} as const satisfies Record<ToolCallState, string>;
 
-  if (parsedTool.status === 'completed_with_result' && parsedTool.result) {
-    return (
-      <Box key={key} className={css.ToolGroupItem}>
-        <Text size="T200">{prefix}</Text>
-        <Text as="pre" size="T200" className={css.BlockResult}>
-          {parsedTool.result}
-        </Text>
-      </Box>
-    );
-  }
-
+function MindroomToolRefGroupItem({
+  parsedTool,
+  state,
+}: {
+  parsedTool: MindroomToolBlockRenderData;
+  state: ToolCallState;
+}) {
+  const { src, tone } = TOOL_STATE_ICON[state];
   return (
-    <Box key={key} className={css.ToolGroupItem}>
-      <Text size="T200">{`${prefix} ✓`}</Text>
-    </Box>
+    <div className={activityCss.Row} data-tool-index={parsedTool.index}>
+      <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
+      <div className={activityCss.RowBody}>
+        <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+        {parsedTool.argsPreview && (
+          <div className={activityCss.RowText}>
+            <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
+          </div>
+        )}
+        {parsedTool.result && <ActivityResult text={parsedTool.result} />}
+      </div>
+    </div>
   );
 }
+
+// Calls that needed approval take their state from the cards MindRoom posted for this reply.
+const useToolCallApprovals = () => {
+  const eventId = useContext(ToolCallMessageContext);
+  const context = useThreadApprovals();
+  if (!eventId || !context) return [];
+  return context.records
+    .filter(({ approval }) => approval.responseEventId === eventId)
+    .map(({ approval }) => ({
+      toolName: approval.toolName,
+      status: getEffectiveToolApprovalStatus(
+        approval.status,
+        parseToolApprovalExpiryTimestamp(approval.expiresAt),
+        context.now
+      ),
+    }));
+};
 
 function MindroomToolRefGroupBlock({
   parsedTools,
@@ -287,38 +311,59 @@ function MindroomToolRefGroupBlock({
   parsedTools: MindroomToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
-  const label = t('mindroomUi.messages.mindroomHtmlBlocks.toolCallCount', {
-    count: parsedTools.length,
-  });
+  const approvals = useToolCallApprovals();
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;
-  const pending =
-    parsedTools.length === 1 && !metadataStatus ? parsedTools[0].status === 'pending' : undefined;
+  const states = resolveToolCallStates(
+    loadedTools.map((tool) => ({ toolName: tool.toolName, pending: tool.status === 'pending' })),
+    approvals
+  );
+  const summary = summarizeToolCalls(parsedTools, states);
+  // Without the trace details the calls' states are unknown, so only count them.
+  const icon = metadataStatus
+    ? { src: Icons.Terminal, tone: 'neutral' as const }
+    : TOOL_STATE_ICON[summary.state];
 
   return (
-    <MindroomCollapsibleBlock icon={Icons.Terminal} label={label} pending={pending}>
-      <Box className={css.ToolGroupList}>
-        {loadedTools.map((parsedTool) => (
-          <MindroomToolRefGroupItem
-            key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-            parsedTool={parsedTool}
-          />
-        ))}
-        {metadataStatus && (
-          <Text size="T200" role="status">
+    <ThreadActivity
+      icon={
+        <ActivityIcon
+          src={icon.src}
+          tone={icon.tone}
+          pending={!metadataStatus && summary.state === 'running'}
+        />
+      }
+      title={
+        metadataStatus
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
+          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+      }
+      detail={summary.names}
+    >
+      {loadedTools.map((parsedTool, index) => (
+        <MindroomToolRefGroupItem
+          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+          parsedTool={parsedTool}
+          state={states[index]}
+        />
+      ))}
+      {metadataStatus && (
+        <div className={activityCss.Row}>
+          <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
+          <Text size="T200" role="status" className={activityCss.RowText}>
             {t(
               metadataStatus === 'loading'
                 ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
                 : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
             )}
           </Text>
-        )}
-      </Box>
-    </MindroomCollapsibleBlock>
+        </div>
+      )}
+    </ThreadActivity>
   );
 }
 

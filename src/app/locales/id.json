@@ -676,7 +676,11 @@
       "openLocation": "Buka lokasi",
       "voiceMessage": "pesan suara",
       "audio": "audio",
-      "unnamedFile": "File tanpa nama"
+      "unnamedFile": "File tanpa nama",
+      "file": "File",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "Dokumen PDF",
+      "textFile": "File teks"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Pesan ini telah dihapus",
@@ -694,7 +698,8 @@
       "openFile": "Buka file",
       "loadFailed": "Gagal memuat file!",
       "retryDownload": "Coba unduh lagi ({{size}})",
-      "downloadSize": "Unduh ({{size}})"
+      "downloadSize": "Unduh ({{size}})",
+      "openValue1": "Buka {{value1}}"
     },
     "imageContent": {
       "view": "Lihat",
@@ -2444,7 +2449,9 @@
         "onlyATruncatedPreviewIsAvailable": "Hanya pratinjau terpotong yang tersedia.",
         "retry": "Coba lagi",
         "sensitiveValuesMayBeRedacted": "Nilai sensitif mungkin disamarkan.",
-        "loadFailed": "Gagal memuat argumen lengkap."
+        "loadFailed": "Gagal memuat argumen lengkap.",
+        "hideArguments": "Sembunyikan argumen",
+        "showAllArguments": "Tampilkan semua argumen"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Permintaan ini tidak dapat disetujui di sini.",
@@ -2570,7 +2577,13 @@
         },
         "toolNumber": "Alat #{{index}}: {{command}}",
         "toolCallCount_one": "{{count}} panggilan alat",
-        "toolCallCount_other": "{{count}} panggilan alat"
+        "toolCallCount_other": "{{count}} panggilan alat",
+        "usedToolCount_other": "Menggunakan {{count}} alat",
+        "toolCallsRunning_other": "Menjalankan {{count}} panggilan alat",
+        "toolCallsWaiting_other": "{{count}} panggilan alat menunggu persetujuan",
+        "toolCallsRan_other": "{{count}} panggilan alat selesai dijalankan",
+        "toolCallsDenied_other": "{{count}} panggilan alat ditolak",
+        "toolCallsExpired_other": "{{count}} panggilan alat kedaluwarsa"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Memuat respons lengkap..."
@@ -2663,6 +2676,9 @@
         "historyIncomplete": " · Riwayat tidak lengkap",
         "retryHistory": "Coba muat riwayat lagi",
         "reviewToolCalls": "Tinjau panggilan alat",
+        "reviewAgentWants_other": "{{agent}} ingin melakukan {{count}} hal",
+        "reviewAgentsWant_other": "{{agents}} agen ingin melakukan {{count}} hal",
+        "reviewRequestedBy": "Diminta oleh {{requester}}",
         "someRequestsAreNoLongerAvailable": "Beberapa permintaan tidak lagi tersedia.",
         "permission": "izin",
         "permissions": "izin",
@@ -2690,7 +2706,32 @@
         "toolApprovalCount_one": "{{count}} persetujuan alat",
         "toolApprovalCount_other": "{{count}} persetujuan alat",
         "approvedCount_one": "{{count}} disetujui",
-        "approvedCount_other": "{{count}} disetujui"
+        "approvedCount_other": "{{count}} disetujui",
+        "agentWaitingForYou": "{{agent}} sedang menunggu Anda",
+        "agentsWaitingForYou_other": "{{count}} agen sedang menunggu Anda",
+        "autoApproveFor": "Setujui otomatis selama",
+        "callCount_other": "{{count}} panggilan",
+        "chipSending": "Mengirim…",
+        "chipSubmitted": "Terkirim",
+        "chipResolved": "Selesai",
+        "confirmDenyAll": "Konfirmasi tolak semua {{count}}",
+        "expires": "kedaluwarsa {{time}}",
+        "hideCalls": "Sembunyikan panggilan",
+        "historyApproved": "{{operation}} disetujui",
+        "historyDenied": "{{operation}} ditolak",
+        "historyExpired": "{{operation}} kedaluwarsa",
+        "historyUserApproved": "{{user}} menyetujui {{operation}}",
+        "historyUserDenied": "{{user}} menolak {{operation}}",
+        "historyUserExpired": "{{operation}} kedaluwarsa",
+        "historyYouApproved": "Anda menyetujui {{operation}}",
+        "historyYouDenied": "Anda menolak {{operation}}",
+        "historyYouExpired": "{{operation}} kedaluwarsa",
+        "minutesShort_other": "{{count}} mnt",
+        "sectionMeta": "{{agent}} · diminta oleh {{requester}}",
+        "showCalls_other": "Tampilkan {{count}} panggilan",
+        "waitingForApproval": "Menunggu persetujuan",
+        "waitingForYou": "Menunggu Anda",
+        "you": "Anda"
       },
       "pendingSendIndicator": {
         "messageSending": "Pesan sedang dikirim",

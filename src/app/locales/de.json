@@ -676,7 +676,11 @@
       "openLocation": "Standort öffnen",
       "voiceMessage": "Sprachnachricht",
       "audio": "Audio",
-      "unnamedFile": "Unbenannte Datei"
+      "unnamedFile": "Unbenannte Datei",
+      "file": "Datei",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF-Dokument",
+      "textFile": "Textdatei"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Diese Nachricht wurde gelöscht",
@@ -694,7 +698,8 @@
       "openFile": "Datei öffnen",
       "loadFailed": "Datei konnte nicht geladen werden!",
       "retryDownload": "Download erneut versuchen ({{size}})",
-      "downloadSize": "Herunterladen ({{size}})"
+      "downloadSize": "Herunterladen ({{size}})",
+      "openValue1": "{{value1}} öffnen"
     },
     "imageContent": {
       "view": "Anzeigen",
@@ -2444,7 +2449,9 @@
         "loadFailed": "Die vollständigen Argumente konnten nicht geladen werden.",
         "onlyATruncatedPreviewIsAvailable": "Es ist nur eine gekürzte Vorschau verfügbar.",
         "retry": "Erneut versuchen",
-        "sensitiveValuesMayBeRedacted": "Vertrauliche Werte können redigiert sein."
+        "sensitiveValuesMayBeRedacted": "Vertrauliche Werte können redigiert sein.",
+        "hideArguments": "Argumente ausblenden",
+        "showAllArguments": "Alle Argumente anzeigen"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Diese Anfrage kann hier nicht genehmigt werden.",
@@ -2570,7 +2577,19 @@
         },
         "toolNumber": "Werkzeug Nr. {{index}}: {{command}}",
         "toolCallCount_one": "{{count}} Werkzeugaufruf",
-        "toolCallCount_other": "{{count}} Werkzeugaufrufe"
+        "toolCallCount_other": "{{count}} Werkzeugaufrufe",
+        "usedToolCount_one": "{{count}} Tool verwendet",
+        "usedToolCount_other": "{{count}} Tools verwendet",
+        "toolCallsRunning_one": "{{count}} Tool-Aufruf läuft",
+        "toolCallsRunning_other": "{{count}} Tool-Aufrufe laufen",
+        "toolCallsWaiting_one": "{{count}} Tool-Aufruf wartet auf Genehmigung",
+        "toolCallsWaiting_other": "{{count}} Tool-Aufrufe warten auf Genehmigung",
+        "toolCallsRan_one": "{{count}} Tool-Aufruf ausgeführt",
+        "toolCallsRan_other": "{{count}} Tool-Aufrufe ausgeführt",
+        "toolCallsDenied_one": "{{count}} Tool-Aufruf abgelehnt",
+        "toolCallsDenied_other": "{{count}} Tool-Aufrufe abgelehnt",
+        "toolCallsExpired_one": "{{count}} Tool-Aufruf abgelaufen",
+        "toolCallsExpired_other": "{{count}} Tool-Aufrufe abgelaufen"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Vollständige Antwort wird geladen..."
@@ -2663,6 +2682,11 @@
         "historyIncomplete": " · Verlauf unvollständig",
         "retryHistory": "Verlauf erneut laden",
         "reviewToolCalls": "Werkzeugaufrufe prüfen",
+        "reviewAgentWants_one": "{{agent}} möchte {{count}} Sache erledigen",
+        "reviewAgentWants_other": "{{agent}} möchte {{count}} Dinge erledigen",
+        "reviewAgentsWant_one": "{{agents}} Agenten möchten {{count}} Sache erledigen",
+        "reviewAgentsWant_other": "{{agents}} Agenten möchten {{count}} Dinge erledigen",
+        "reviewRequestedBy": "Angefordert von {{requester}}",
         "someRequestsAreNoLongerAvailable": "Einige Anfragen sind nicht mehr verfügbar.",
         "permission": "Berechtigung",
         "permissions": "Berechtigungen",
@@ -2690,7 +2714,36 @@
         "toolApprovalCount_one": "{{count}} Werkzeuggenehmigung",
         "toolApprovalCount_other": "{{count}} Werkzeuggenehmigungen",
         "approvedCount_one": "{{count}} genehmigt",
-        "approvedCount_other": "{{count}} genehmigt"
+        "approvedCount_other": "{{count}} genehmigt",
+        "agentWaitingForYou": "{{agent}} wartet auf dich",
+        "agentsWaitingForYou_one": "{{count}} Agent wartet auf dich",
+        "agentsWaitingForYou_other": "{{count}} Agenten warten auf dich",
+        "autoApproveFor": "Automatisch genehmigen für",
+        "callCount_one": "{{count}} Aufruf",
+        "callCount_other": "{{count}} Aufrufe",
+        "chipSending": "Wird gesendet…",
+        "chipSubmitted": "Übermittelt",
+        "chipResolved": "Erledigt",
+        "confirmDenyAll": "Ablehnung aller {{count}} bestätigen",
+        "expires": "Ablauf {{time}}",
+        "hideCalls": "Aufrufe ausblenden",
+        "historyApproved": "{{operation}} genehmigt",
+        "historyDenied": "{{operation}} abgelehnt",
+        "historyExpired": "{{operation}} abgelaufen",
+        "historyUserApproved": "{{user}} hat {{operation}} genehmigt",
+        "historyUserDenied": "{{user}} hat {{operation}} abgelehnt",
+        "historyUserExpired": "{{operation}} abgelaufen",
+        "historyYouApproved": "Du hast {{operation}} genehmigt",
+        "historyYouDenied": "Du hast {{operation}} abgelehnt",
+        "historyYouExpired": "{{operation}} abgelaufen",
+        "minutesShort_one": "{{count}} Min.",
+        "minutesShort_other": "{{count}} Min.",
+        "sectionMeta": "{{agent}} · angefordert von {{requester}}",
+        "showCalls_one": "{{count}} Aufruf anzeigen",
+        "showCalls_other": "{{count}} Aufrufe anzeigen",
+        "waitingForApproval": "Wartet auf Genehmigung",
+        "waitingForYou": "Wartet auf dich",
+        "you": "dir"
       },
       "pendingSendIndicator": {
         "messageSending": "Nachricht wird gesendet",

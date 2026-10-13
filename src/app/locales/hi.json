@@ -1170,7 +1170,9 @@
         "loadingCompleteArguments": "पूरे आर्ग्युमेंट लोड हो रहे हैं…",
         "onlyATruncatedPreviewIsAvailable": "केवल एक संक्षिप्त पूर्वावलोकन उपलब्ध है।",
         "retry": "पुन: प्रयास करें",
-        "sensitiveValuesMayBeRedacted": "संवेदनशील मान छिपाए जा सकते हैं।"
+        "sensitiveValuesMayBeRedacted": "संवेदनशील मान छिपाए जा सकते हैं।",
+        "hideArguments": "आर्गुमेंट छिपाएँ",
+        "showAllArguments": "सभी आर्गुमेंट दिखाएँ"
       },
       "approvalDecisionControls": {
         "approve": "मंज़ूरी दें",
@@ -1300,7 +1302,19 @@
         "pastedText": "चिपकाया गया पाठ",
         "toolCallCount_one": "{{count}} टूल कॉल",
         "toolCallCount_other": "{{count}} टूल कॉल",
-        "toolNumber": "टूल #{{index}}: {{command}}"
+        "toolNumber": "टूल #{{index}}: {{command}}",
+        "usedToolCount_one": "{{count}} टूल इस्तेमाल किया गया",
+        "usedToolCount_other": "{{count}} टूल इस्तेमाल किए गए",
+        "toolCallsRunning_one": "{{count}} टूल कॉल चल रहा है",
+        "toolCallsRunning_other": "{{count}} टूल कॉल चल रहे हैं",
+        "toolCallsWaiting_one": "{{count}} टूल कॉल स्वीकृति की प्रतीक्षा में",
+        "toolCallsWaiting_other": "{{count}} टूल कॉल स्वीकृति की प्रतीक्षा में",
+        "toolCallsRan_one": "{{count}} टूल कॉल चलाया गया",
+        "toolCallsRan_other": "{{count}} टूल कॉल चलाए गए",
+        "toolCallsDenied_one": "{{count}} टूल कॉल अस्वीकृत",
+        "toolCallsDenied_other": "{{count}} टूल कॉल अस्वीकृत",
+        "toolCallsExpired_one": "{{count}} टूल कॉल की समय-सीमा समाप्त",
+        "toolCallsExpired_other": "{{count}} टूल कॉल की समय-सीमा समाप्त"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "पूर्ण प्रतिक्रिया लोड हो रही है..."
@@ -1422,6 +1436,11 @@
         "retryHistory": "इतिहास फिर से लोड करें",
         "reviewCount": "{{count}} की समीक्षा करें",
         "reviewToolCalls": "टूल कॉल की समीक्षा करें",
+        "reviewAgentWants_one": "{{agent}} {{count}} काम करना चाहता है",
+        "reviewAgentWants_other": "{{agent}} {{count}} काम करना चाहता है",
+        "reviewAgentsWant_one": "{{agents}} एजेंट {{count}} काम करना चाहते हैं",
+        "reviewAgentsWant_other": "{{agents}} एजेंट {{count}} काम करना चाहते हैं",
+        "reviewRequestedBy": "{{requester}} द्वारा अनुरोधित",
         "someRequestsAreNoLongerAvailable": "कुछ अनुरोध अब उपलब्ध नहीं हैं.",
         "statusCheckingHistory": "{{status}} · इतिहास जांचा जा रहा है…",
         "statusHistoryIncomplete": "{{status}} · इतिहास अधूरा",
@@ -1429,7 +1448,36 @@
         "threadApprovals": "थ्रेड अनुमोदन",
         "toolApprovalCount_one": "{{count}} टूल अनुमोदन",
         "toolApprovalCount_other": "{{count}} उपकरण अनुमोदन",
-        "unknown": "अज्ञात"
+        "unknown": "अज्ञात",
+        "agentWaitingForYou": "{{agent}} आपका इंतज़ार कर रहा है",
+        "agentsWaitingForYou_one": "{{count}} एजेंट आपका इंतज़ार कर रहा है",
+        "agentsWaitingForYou_other": "{{count}} एजेंट आपका इंतज़ार कर रहे हैं",
+        "autoApproveFor": "इतनी देर के लिए अपने-आप स्वीकृत करें",
+        "callCount_one": "{{count}} कॉल",
+        "callCount_other": "{{count}} कॉल",
+        "chipSending": "भेजा जा रहा है…",
+        "chipSubmitted": "सबमिट किया गया",
+        "chipResolved": "निपटाया गया",
+        "confirmDenyAll": "सभी {{count}} अस्वीकार करने की पुष्टि करें",
+        "expires": "{{time}} समाप्त होगा",
+        "hideCalls": "कॉल छिपाएँ",
+        "historyApproved": "{{operation}} स्वीकृत",
+        "historyDenied": "{{operation}} अस्वीकृत",
+        "historyExpired": "{{operation}} की समय-सीमा समाप्त",
+        "historyUserApproved": "{{user}} ने {{operation}} स्वीकृत किया",
+        "historyUserDenied": "{{user}} ने {{operation}} अस्वीकार किया",
+        "historyUserExpired": "{{operation}} की समय-सीमा समाप्त",
+        "historyYouApproved": "आपने {{operation}} स्वीकृत किया",
+        "historyYouDenied": "आपने {{operation}} अस्वीकार किया",
+        "historyYouExpired": "{{operation}} की समय-सीमा समाप्त",
+        "minutesShort_one": "{{count}} मिनट",
+        "minutesShort_other": "{{count}} मिनट",
+        "sectionMeta": "{{agent}} · {{requester}} द्वारा अनुरोधित",
+        "showCalls_one": "{{count}} कॉल दिखाएँ",
+        "showCalls_other": "{{count}} कॉल दिखाएँ",
+        "waitingForApproval": "स्वीकृति की प्रतीक्षा",
+        "waitingForYou": "आपकी प्रतीक्षा",
+        "you": "आप"
       }
     },
     "native": {
@@ -2193,7 +2241,8 @@
       "loadFailed": "फ़ाइल लोड करने में विफल!",
       "openFile": "फ़ाइल खोलें",
       "openPdf": "पीडीएफ खोलें",
-      "retryDownload": "पुनः डाउनलोड करने का प्रयास करें ({{size}})"
+      "retryDownload": "पुनः डाउनलोड करने का प्रयास करें ({{size}})",
+      "openValue1": "{{value1}} खोलें"
     },
     "fileHeader": {
       "downloadValue1": "{{value1}} डाउनलोड करें"
@@ -2390,7 +2439,11 @@
       "audio": "ऑडियो",
       "openLocation": "स्थान खोलें",
       "unnamedFile": "अनाम फ़ाइल",
-      "voiceMessage": "स्वर संदेश"
+      "voiceMessage": "स्वर संदेश",
+      "file": "फ़ाइल",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF दस्तावेज़",
+      "textFile": "टेक्स्ट फ़ाइल"
     },
     "noStickerPacks": {
       "addStickersFromUserRoomOrSpaceSettings": "उपयोगकर्ता, रूम या स्पेस सेटिंग से स्टिकर जोड़ें।",

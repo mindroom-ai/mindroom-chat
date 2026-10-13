@@ -2315,10 +2315,11 @@ describe('RoomTimeline', () => {
         unread: 0,
         idle: 0,
       });
+      // The row renders once; its message content also carries the event ID.
       expect(
-        renderer.root.findAllByProps({
-          eventId: fallbackRoot.getId(),
-        })
+        renderer.root
+          .findAllByProps({ eventId: fallbackRoot.getId() })
+          .filter((node) => node.props.msgType === undefined)
       ).toHaveLength(1);
     });
 

@@ -3,7 +3,8 @@ import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
-import { FileContent } from './content/FileContent';
+import { FileContent, ReadTextFile } from './content/FileContent';
+import { FileDownloadButton } from './FileHeader';
 
 vi.mock('./content', () => ({
   BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
@@ -31,6 +32,13 @@ vi.mock('./attachment', () => {
     AttachmentHeader: Wrapper,
   };
 });
+
+vi.mock('./FileRow.css', () => ({
+  FileRow: 'FileRow',
+  FileTile: 'FileTile',
+  FileInfo: 'FileInfo',
+  FileName: 'FileName',
+}));
 
 vi.mock('../glass/GlassPrimitives', () => ({ Modal: () => null }));
 vi.mock('../../styles/Modal.css', () => ({ ModalWide: 'modal-wide' }));
@@ -62,7 +70,7 @@ describe('file renderers', () => {
       })
     );
     expect(file).toContain('Unnamed File');
-    expect(file).toContain('octet-stream');
+    expect(file).toContain('"File"');
 
     const video = renderText(
       React.createElement(MVideo, {
@@ -80,6 +88,48 @@ describe('file renderers', () => {
       })
     );
     expect(audio).toContain('Audio');
+  });
+});
+
+describe('MFile', () => {
+  it('shows a text file as one row with its type, size, and Open and Download buttons', () => {
+    const renderer = create(
+      React.createElement(MFile, {
+        content: {
+          msgtype: MsgType.File,
+          body: 'release-notes.txt',
+          url: 'mxc://example.org/notes',
+          info: { mimetype: 'text/plain', size: 2400 },
+        } as never,
+        renderFileContent: ({ body, mimeType, url, encInfo }) =>
+          React.createElement(
+            FileContent,
+            {
+              body,
+              mimeType,
+              renderAsTextFile: () =>
+                React.createElement(ReadTextFile, {
+                  body,
+                  mimeType,
+                  url,
+                  encInfo,
+                  iconOnly: true,
+                  renderViewer: () => null,
+                }),
+              renderAsPdfFile: () => null,
+            },
+            React.createElement(FileDownloadButton, { filename: body, url, mimeType, encInfo })
+          ),
+      })
+    );
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).toContain('release-notes.txt');
+    expect(text).toContain('Text file · 2.4 KB');
+    expect(text).toContain('"TXT"');
+    expect(
+      renderer.root.findAllByType('button').map((button) => button.props['aria-label'])
+    ).toEqual(['Open release-notes.txt', 'Download release-notes.txt']);
+    renderer.unmount();
   });
 });
 

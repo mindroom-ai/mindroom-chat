@@ -146,6 +146,7 @@ export function TimelineMessageBody({
       const renderMessage = (loadFullContent = true) => (
         <RenderMessageContent
           {...common}
+          eventId={eventId}
           msgType={msgType ?? ''}
           showMessageExtras
           hydrateLongText={loadFullContent}

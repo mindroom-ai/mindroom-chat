@@ -146,6 +146,12 @@ describe('timeline message feature', () => {
     expect(messages[2].props.edit).toBeUndefined();
   });
 
+  it('gives message content its event ID so tool calls can find their approval cards', async () => {
+    const event = makeEvent('$reply', { type: MessageEvent.RoomMessage }) as unknown as MatrixEvent;
+    const { renderer } = await mountFeature([rowFor(event)]);
+    expect(renderedContent(renderer).map((node) => node.props.eventId)).toContain('$reply');
+  });
+
   it('captures each predecessor before adjacent reply elements render', async () => {
     const events = ['$first', '$second', '$fallback'].map(
       (id) => new MatrixEvent({ event_id: id, type: MessageEvent.RoomMessage, content: {} })
