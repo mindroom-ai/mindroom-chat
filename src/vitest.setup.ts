@@ -22,6 +22,7 @@ vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
     neutral: 'activity-icon',
     success: 'activity-icon-success',
     critical: 'activity-icon-critical',
+    warning: 'activity-icon-warning',
   },
   Title: 'activity-title',
   Detail: 'activity-detail',

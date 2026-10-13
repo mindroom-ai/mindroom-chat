@@ -2580,7 +2580,12 @@
         "toolNumber": "도구 #{{index}}: {{command}}",
         "toolCallCount_one": "도구 호출 {{count}}회",
         "toolCallCount_other": "도구 호출 {{count}}회",
-        "usedToolCount_other": "도구 {{count}}개 사용됨"
+        "usedToolCount_other": "도구 {{count}}개 사용됨",
+        "toolCallsRunning_other": "도구 호출 {{count}}개 실행 중",
+        "toolCallsWaiting_other": "도구 호출 {{count}}개 승인 대기 중",
+        "toolCallsRan_other": "도구 호출 {{count}}개 실행됨",
+        "toolCallsDenied_other": "도구 호출 {{count}}개 거부됨",
+        "toolCallsExpired_other": "도구 호출 {{count}}개 만료됨"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "전체 응답을 불러오는 중..."

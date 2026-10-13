@@ -2580,7 +2580,12 @@
         "toolNumber": "Alat #{{index}}: {{command}}",
         "toolCallCount_one": "{{count}} panggilan alat",
         "toolCallCount_other": "{{count}} panggilan alat",
-        "usedToolCount_other": "Menggunakan {{count}} alat"
+        "usedToolCount_other": "Menggunakan {{count}} alat",
+        "toolCallsRunning_other": "Menjalankan {{count}} panggilan alat",
+        "toolCallsWaiting_other": "{{count}} panggilan alat menunggu persetujuan",
+        "toolCallsRan_other": "{{count}} panggilan alat selesai dijalankan",
+        "toolCallsDenied_other": "{{count}} panggilan alat ditolak",
+        "toolCallsExpired_other": "{{count}} panggilan alat kedaluwarsa"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Memuat respons lengkap..."

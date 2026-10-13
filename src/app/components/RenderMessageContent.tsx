@@ -4,6 +4,7 @@ import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { config } from 'folds';
 import { getEventAttachmentOwner } from '../mindroom/messages/eventAttachments';
+import { ToolCallMessageContext } from '../mindroom/messages/toolCallStatus';
 import {
   FileContent,
   FileDownloadButton,
@@ -210,7 +211,13 @@ export function RenderMessageContent({
     showMessageExtras,
     hydrateLongText,
   });
-  if (mindroomContent !== undefined) return mindroomContent;
+  if (mindroomContent !== undefined) {
+    return (
+      <ToolCallMessageContext.Provider value={eventId}>
+        {mindroomContent}
+      </ToolCallMessageContext.Provider>
+    );
+  }
 
   if (msgType === MsgType.Image) {
     return (

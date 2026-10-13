@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useContext, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
@@ -27,7 +27,15 @@ import {
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
 import * as activityCss from './ThreadActivity.css';
-import { ActivityIcon, ActivityResult, ThreadActivity } from './ThreadActivity';
+import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from './ThreadActivity';
+import {
+  resolveToolCallStates,
+  summarizeToolCalls,
+  ToolCallMessageContext,
+  ToolCallState,
+} from './toolCallStatus';
+import { useThreadApprovals } from './ThreadApprovalProvider';
+import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from './toolApproval';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
 import { toToolArgumentFields } from './approvalArgumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
@@ -240,11 +248,33 @@ const buildToolRefRenderData = (
   };
 };
 
-function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBlockRenderData }) {
-  const pending = parsedTool.status === 'pending';
+const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone }> = {
+  running: { src: Icons.Terminal, tone: 'neutral' },
+  waiting: { src: Icons.Pause, tone: 'warning' },
+  done: { src: Icons.Check, tone: 'success' },
+  denied: { src: Icons.Cross, tone: 'critical' },
+  expired: { src: Icons.Clock, tone: 'neutral' },
+};
+
+const TOOL_STATE_TITLE = {
+  running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
+  waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
+  done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
+  denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
+  expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
+} as const satisfies Record<ToolCallState, string>;
+
+function MindroomToolRefGroupItem({
+  parsedTool,
+  state,
+}: {
+  parsedTool: MindroomToolBlockRenderData;
+  state: ToolCallState;
+}) {
+  const { src, tone } = TOOL_STATE_ICON[state];
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
-      <ActivityIcon src={Icons.Check} tone={pending ? 'neutral' : 'success'} pending={pending} />
+      <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
       <div className={activityCss.RowBody}>
         <span className={activityCss.RowName}>{parsedTool.toolName}</span>
         {parsedTool.argsPreview && (
@@ -258,37 +288,67 @@ function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBloc
   );
 }
 
+// Calls that needed approval take their state from the cards MindRoom posted for this reply.
+const useToolCallApprovals = () => {
+  const eventId = useContext(ToolCallMessageContext);
+  const context = useThreadApprovals();
+  if (!eventId || !context) return [];
+  return context.records
+    .filter(({ approval }) => approval.responseEventId === eventId)
+    .map(({ approval }) => ({
+      toolName: approval.toolName,
+      status: getEffectiveToolApprovalStatus(
+        approval.status,
+        parseToolApprovalExpiryTimestamp(approval.expiresAt),
+        context.now
+      ),
+    }));
+};
+
 function MindroomToolRefGroupBlock({
   parsedTools,
 }: {
   parsedTools: MindroomToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
-  const toolNames = [...new Set(parsedTools.map((tool) => tool.toolName))].join(', ');
+  const approvals = useToolCallApprovals();
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;
+  const states = resolveToolCallStates(
+    loadedTools.map((tool) => ({ toolName: tool.toolName, pending: tool.status === 'pending' })),
+    approvals
+  );
+  const summary = summarizeToolCalls(parsedTools, states);
+  // Without the trace details the calls' states are unknown, so only count them.
+  const icon = metadataStatus
+    ? { src: Icons.Terminal, tone: 'neutral' as const }
+    : TOOL_STATE_ICON[summary.state];
 
   return (
     <ThreadActivity
       icon={
         <ActivityIcon
-          src={Icons.Terminal}
-          pending={parsedTools.some((tool) => tool.status === 'pending')}
+          src={icon.src}
+          tone={icon.tone}
+          pending={!metadataStatus && summary.state === 'running'}
         />
       }
-      title={t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
-        count: parsedTools.length,
-      })}
-      detail={toolNames}
+      title={
+        metadataStatus
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
+          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+      }
+      detail={summary.names}
     >
-      {loadedTools.map((parsedTool) => (
+      {loadedTools.map((parsedTool, index) => (
         <MindroomToolRefGroupItem
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
           parsedTool={parsedTool}
+          state={states[index]}
         />
       ))}
       {metadataStatus && (

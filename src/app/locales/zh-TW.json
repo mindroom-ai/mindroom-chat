@@ -2580,7 +2580,12 @@
         "toolNumber": "工具#{{index}}：{{command}}",
         "toolCallCount_one": "{{count}} 工具呼叫",
         "toolCallCount_other": "{{count}} 工具呼叫",
-        "usedToolCount_other": "使用了 {{count}} 個工具"
+        "usedToolCount_other": "使用了 {{count}} 個工具",
+        "toolCallsRunning_other": "正在執行 {{count}} 次工具呼叫",
+        "toolCallsWaiting_other": "{{count}} 次工具呼叫等待核准",
+        "toolCallsRan_other": "已執行 {{count}} 次工具呼叫",
+        "toolCallsDenied_other": "已拒絕 {{count}} 次工具呼叫",
+        "toolCallsExpired_other": "{{count}} 次工具呼叫已過期"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "正在載入完整回覆..."

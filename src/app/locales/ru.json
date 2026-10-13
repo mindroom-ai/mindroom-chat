@@ -2651,7 +2651,27 @@
         "usedToolCount_one": "Использован {{count}} инструмент",
         "usedToolCount_few": "Использовано {{count}} инструмента",
         "usedToolCount_many": "Использовано {{count}} инструментов",
-        "usedToolCount_other": "Использовано {{count}} инструмента"
+        "usedToolCount_other": "Использовано {{count}} инструмента",
+        "toolCallsRunning_one": "Выполняется {{count}} вызов инструмента",
+        "toolCallsRunning_few": "Выполняются {{count}} вызова инструментов",
+        "toolCallsRunning_many": "Выполняются {{count}} вызовов инструментов",
+        "toolCallsRunning_other": "Выполняются {{count}} вызова инструментов",
+        "toolCallsWaiting_one": "{{count}} вызов инструмента ждёт одобрения",
+        "toolCallsWaiting_few": "{{count}} вызова инструментов ждут одобрения",
+        "toolCallsWaiting_many": "{{count}} вызовов инструментов ждут одобрения",
+        "toolCallsWaiting_other": "{{count}} вызова инструментов ждут одобрения",
+        "toolCallsRan_one": "Выполнен {{count}} вызов инструмента",
+        "toolCallsRan_few": "Выполнено {{count}} вызова инструментов",
+        "toolCallsRan_many": "Выполнено {{count}} вызовов инструментов",
+        "toolCallsRan_other": "Выполнено {{count}} вызова инструментов",
+        "toolCallsDenied_one": "Запрещён {{count}} вызов инструмента",
+        "toolCallsDenied_few": "Запрещено {{count}} вызова инструментов",
+        "toolCallsDenied_many": "Запрещено {{count}} вызовов инструментов",
+        "toolCallsDenied_other": "Запрещено {{count}} вызова инструментов",
+        "toolCallsExpired_one": "Истёк {{count}} вызов инструмента",
+        "toolCallsExpired_few": "Истекло {{count}} вызова инструментов",
+        "toolCallsExpired_many": "Истекло {{count}} вызовов инструментов",
+        "toolCallsExpired_other": "Истекло {{count}} вызова инструментов"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Загрузка полного ответа…"

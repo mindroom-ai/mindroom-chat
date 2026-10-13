@@ -2581,7 +2581,17 @@
         "toolCallCount_one": "{{count}} araç çağrısı",
         "toolCallCount_other": "{{count}} araç çağrısı",
         "usedToolCount_one": "{{count}} araç kullanıldı",
-        "usedToolCount_other": "{{count}} araç kullanıldı"
+        "usedToolCount_other": "{{count}} araç kullanıldı",
+        "toolCallsRunning_one": "{{count}} araç çağrısı çalışıyor",
+        "toolCallsRunning_other": "{{count}} araç çağrısı çalışıyor",
+        "toolCallsWaiting_one": "{{count}} araç çağrısı onay bekliyor",
+        "toolCallsWaiting_other": "{{count}} araç çağrısı onay bekliyor",
+        "toolCallsRan_one": "{{count}} araç çağrısı çalıştırıldı",
+        "toolCallsRan_other": "{{count}} araç çağrısı çalıştırıldı",
+        "toolCallsDenied_one": "{{count}} araç çağrısı reddedildi",
+        "toolCallsDenied_other": "{{count}} araç çağrısı reddedildi",
+        "toolCallsExpired_one": "{{count}} araç çağrısının süresi doldu",
+        "toolCallsExpired_other": "{{count}} araç çağrısının süresi doldu"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Tam yanıt yükleniyor..."

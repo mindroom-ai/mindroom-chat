@@ -1304,7 +1304,17 @@
         "toolCallCount_other": "{{count}} টুল কল",
         "toolNumber": "টুল #{{index}}: {{command}}",
         "usedToolCount_one": "{{count}}টি টুল ব্যবহার করা হয়েছে",
-        "usedToolCount_other": "{{count}}টি টুল ব্যবহার করা হয়েছে"
+        "usedToolCount_other": "{{count}}টি টুল ব্যবহার করা হয়েছে",
+        "toolCallsRunning_one": "{{count}}টি টুল কল চলছে",
+        "toolCallsRunning_other": "{{count}}টি টুল কল চলছে",
+        "toolCallsWaiting_one": "{{count}}টি টুল কল অনুমোদনের অপেক্ষায়",
+        "toolCallsWaiting_other": "{{count}}টি টুল কল অনুমোদনের অপেক্ষায়",
+        "toolCallsRan_one": "{{count}}টি টুল কল চালানো হয়েছে",
+        "toolCallsRan_other": "{{count}}টি টুল কল চালানো হয়েছে",
+        "toolCallsDenied_one": "{{count}}টি টুল কল প্রত্যাখ্যাত",
+        "toolCallsDenied_other": "{{count}}টি টুল কল প্রত্যাখ্যাত",
+        "toolCallsExpired_one": "{{count}}টি টুল কলের মেয়াদ শেষ",
+        "toolCallsExpired_other": "{{count}}টি টুল কলের মেয়াদ শেষ"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "সম্পূর্ণ প্রতিক্রিয়া লোড হচ্ছে..."

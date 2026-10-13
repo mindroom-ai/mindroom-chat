@@ -2616,7 +2616,22 @@
         "toolCallCount_many": "{{count}} appels d’outil",
         "usedToolCount_one": "{{count}} outil utilisé",
         "usedToolCount_many": "{{count}} outils utilisés",
-        "usedToolCount_other": "{{count}} outils utilisés"
+        "usedToolCount_other": "{{count}} outils utilisés",
+        "toolCallsRunning_one": "{{count}} appel d'outil en cours",
+        "toolCallsRunning_many": "{{count}} appels d'outils en cours",
+        "toolCallsRunning_other": "{{count}} appels d'outils en cours",
+        "toolCallsWaiting_one": "{{count}} appel d'outil en attente d'approbation",
+        "toolCallsWaiting_many": "{{count}} appels d'outils en attente d'approbation",
+        "toolCallsWaiting_other": "{{count}} appels d'outils en attente d'approbation",
+        "toolCallsRan_one": "{{count}} appel d'outil exécuté",
+        "toolCallsRan_many": "{{count}} appels d'outils exécutés",
+        "toolCallsRan_other": "{{count}} appels d'outils exécutés",
+        "toolCallsDenied_one": "{{count}} appel d'outil refusé",
+        "toolCallsDenied_many": "{{count}} appels d'outils refusés",
+        "toolCallsDenied_other": "{{count}} appels d'outils refusés",
+        "toolCallsExpired_one": "{{count}} appel d'outil expiré",
+        "toolCallsExpired_many": "{{count}} appels d'outils expirés",
+        "toolCallsExpired_other": "{{count}} appels d'outils expirés"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Chargement de la réponse complète..."

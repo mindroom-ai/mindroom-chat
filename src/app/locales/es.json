@@ -2616,7 +2616,22 @@
         "toolCallCount_many": "{{count}} llamadas de herramienta",
         "usedToolCount_one": "Se usó {{count}} herramienta",
         "usedToolCount_many": "Se usaron {{count}} herramientas",
-        "usedToolCount_other": "Se usaron {{count}} herramientas"
+        "usedToolCount_other": "Se usaron {{count}} herramientas",
+        "toolCallsRunning_one": "Ejecutando {{count}} llamada a herramienta",
+        "toolCallsRunning_many": "Ejecutando {{count}} llamadas a herramientas",
+        "toolCallsRunning_other": "Ejecutando {{count}} llamadas a herramientas",
+        "toolCallsWaiting_one": "{{count}} llamada a herramienta espera aprobación",
+        "toolCallsWaiting_many": "{{count}} llamadas a herramientas esperan aprobación",
+        "toolCallsWaiting_other": "{{count}} llamadas a herramientas esperan aprobación",
+        "toolCallsRan_one": "Se ejecutó {{count}} llamada a herramienta",
+        "toolCallsRan_many": "Se ejecutaron {{count}} llamadas a herramientas",
+        "toolCallsRan_other": "Se ejecutaron {{count}} llamadas a herramientas",
+        "toolCallsDenied_one": "Se denegó {{count}} llamada a herramienta",
+        "toolCallsDenied_many": "Se denegaron {{count}} llamadas a herramientas",
+        "toolCallsDenied_other": "Se denegaron {{count}} llamadas a herramientas",
+        "toolCallsExpired_one": "{{count}} llamada a herramienta caducó",
+        "toolCallsExpired_many": "{{count}} llamadas a herramientas caducaron",
+        "toolCallsExpired_other": "{{count}} llamadas a herramientas caducaron"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Cargando la respuesta completa..."

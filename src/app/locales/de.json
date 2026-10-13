@@ -2581,7 +2581,17 @@
         "toolCallCount_one": "{{count}} Werkzeugaufruf",
         "toolCallCount_other": "{{count}} Werkzeugaufrufe",
         "usedToolCount_one": "{{count}} Tool verwendet",
-        "usedToolCount_other": "{{count}} Tools verwendet"
+        "usedToolCount_other": "{{count}} Tools verwendet",
+        "toolCallsRunning_one": "{{count}} Tool-Aufruf läuft",
+        "toolCallsRunning_other": "{{count}} Tool-Aufrufe laufen",
+        "toolCallsWaiting_one": "{{count}} Tool-Aufruf wartet auf Genehmigung",
+        "toolCallsWaiting_other": "{{count}} Tool-Aufrufe warten auf Genehmigung",
+        "toolCallsRan_one": "{{count}} Tool-Aufruf ausgeführt",
+        "toolCallsRan_other": "{{count}} Tool-Aufrufe ausgeführt",
+        "toolCallsDenied_one": "{{count}} Tool-Aufruf abgelehnt",
+        "toolCallsDenied_other": "{{count}} Tool-Aufrufe abgelehnt",
+        "toolCallsExpired_one": "{{count}} Tool-Aufruf abgelaufen",
+        "toolCallsExpired_other": "{{count}} Tool-Aufrufe abgelaufen"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Vollständige Antwort wird geladen..."

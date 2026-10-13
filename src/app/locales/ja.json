@@ -2580,7 +2580,12 @@
         "toolNumber": "ツール #{{index}}: {{command}}",
         "toolCallCount_one": "{{count}} ツール呼び出し",
         "toolCallCount_other": "{{count}} 個のツール呼び出し",
-        "usedToolCount_other": "{{count}} 個のツールを使用"
+        "usedToolCount_other": "{{count}} 個のツールを使用",
+        "toolCallsRunning_other": "{{count}} 件のツール呼び出しを実行中",
+        "toolCallsWaiting_other": "{{count}} 件のツール呼び出しが承認待ち",
+        "toolCallsRan_other": "{{count}} 件のツール呼び出しを実行済み",
+        "toolCallsDenied_other": "{{count}} 件のツール呼び出しを拒否",
+        "toolCallsExpired_other": "{{count}} 件のツール呼び出しが期限切れ"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "完全な応答を読み込んでいます..."

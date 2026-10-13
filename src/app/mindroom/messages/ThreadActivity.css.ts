@@ -61,6 +61,10 @@ export const Icon = styleVariants({
     IconTile,
     { backgroundColor: color.Critical.Container, color: color.Critical.OnContainer },
   ],
+  warning: [
+    IconTile,
+    { backgroundColor: color.Warning.Container, color: color.Warning.OnContainer },
+  ],
 });
 
 export const Title = style({
