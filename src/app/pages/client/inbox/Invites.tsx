@@ -12,7 +12,6 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  Scroll,
   Spinner,
   Text,
   color,
@@ -30,6 +29,7 @@ import {
   PageHero,
   PageHeroEmpty,
   PageHeroSection,
+  PageScroll,
 } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allInvitesAtom } from '../../../state/room-list/inviteList';
@@ -765,78 +765,79 @@ export function Invites() {
 
   return (
     <Page>
-      <PageHeader balance>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" basis="No">
-            {screenSize === ScreenSize.Mobile && (
-              <BackRouteHandler>
-                {(onBack) => (
-                  <IconButton onClick={onBack}>
-                    <Icon data-directional src={Icons.ArrowLeft} />
-                  </IconButton>
-                )}
-              </BackRouteHandler>
-            )}
-          </Box>
-          <Box alignItems="Center" gap="200">
-            {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Mail} />}
-            <Text size="H3" truncate>
-              {t('sharedUi.invites.invites')}
-            </Text>
-          </Box>
-          <Box grow="Yes" basis="No" />
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <PageContentCenter>
-              <Box ref={containerRef} direction="Column" gap="600">
-                <Box direction="Column" gap="100">
-                  <span data-spacing-node />
-                  <Text size="L400">{t('sharedUi.invites.filter')}</Text>
-                  <InviteFilters
-                    filter={filter}
-                    onFilter={setFilter}
-                    knownInvites={knownInvites}
-                    unknownInvites={unknownInvites}
-                    spamInvites={spamInvites}
-                  />
-                </Box>
-                {filter === InviteFilter.Known && (
-                  <KnownInvites
-                    invites={knownInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
-                )}
-
-                {filter === InviteFilter.Unknown && (
-                  <UnknownInvites
-                    invites={unknownInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
-                )}
-
-                {filter === InviteFilter.Spam && (
-                  <SpamInvites
-                    invites={spamInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
+      <PageScroll
+        header={
+          <PageHeader flat balance>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" basis="No">
+                {screenSize === ScreenSize.Mobile && (
+                  <BackRouteHandler>
+                    {(onBack) => (
+                      <IconButton onClick={onBack}>
+                        <Icon data-directional src={Icons.ArrowLeft} />
+                      </IconButton>
+                    )}
+                  </BackRouteHandler>
                 )}
               </Box>
-            </PageContentCenter>
-          </PageContent>
-        </Scroll>
-      </Box>
+              <Box alignItems="Center" gap="200">
+                {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Mail} />}
+                <Text size="H3" truncate>
+                  {t('sharedUi.invites.invites')}
+                </Text>
+              </Box>
+              <Box grow="Yes" basis="No" />
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <PageContentCenter>
+            <Box ref={containerRef} direction="Column" gap="600">
+              <Box direction="Column" gap="100">
+                <span data-spacing-node />
+                <Text size="L400">{t('sharedUi.invites.filter')}</Text>
+                <InviteFilters
+                  filter={filter}
+                  onFilter={setFilter}
+                  knownInvites={knownInvites}
+                  unknownInvites={unknownInvites}
+                  spamInvites={spamInvites}
+                />
+              </Box>
+              {filter === InviteFilter.Known && (
+                <KnownInvites
+                  invites={knownInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+
+              {filter === InviteFilter.Unknown && (
+                <UnknownInvites
+                  invites={unknownInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+
+              {filter === InviteFilter.Spam && (
+                <SpamInvites
+                  invites={spamInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }
