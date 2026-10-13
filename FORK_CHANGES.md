@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Flatten the Invites page header (2026-10-13)
+
+- Why: the owner reported the Invites page header drew a rim and a bottom border, like the Files bar fixed in #451.
+  `Invites` put a standalone `PageHeader` above a separate `Scroll`, so the header defaulted to raised glass (rim, highlight) plus `PageHeader`'s default bottom outline, and nothing could scroll beneath it.
+- Change: the header moves into `PageScroll`'s `header` slot as `<PageHeader flat balance>`, the pattern Explore and Lobby adopted in #336 and `docs/ui-design.md` asks of scrolling pages.
+  The header is now flat glass with no border or rim; content passes beneath it, and the inset scrollbar starts below it.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), and Prettier pass. A temporary fixture rendering the real `Invites` page (not committed) showed in Chromium, light and dark themes: before, a 1px bottom border and the raised rim; after, `data-glass-flat`, no border or shadow, and the empty-state card blurred beneath the header when scrolled.
+- Independent review (subagent): approved. It noted that `PageScrollBody`'s end padding moves the compact-card switch about 12px wider, as on Explore and Lobby, and that keyboard focus now clears the header through `scrollPaddingBlockStart`.
+- Next: `Notifications.tsx` (the other Inbox page) uses the same standalone header over a separate `Scroll`, with a virtualized list and scroll anchor, so it needs its own change.
+
 ### Ask for screenshots in every PR with a visible change (2026-10-13)
 
 - `AGENTS.md` now asks agents to put screenshots of user-visible changes (before and after for visual bugs) in the PR description, uploaded with `gh pr create --attach` or `gh pr edit --attach`, and never to attach screenshots the owner shared privately.
