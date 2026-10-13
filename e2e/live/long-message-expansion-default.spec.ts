@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getRequiredEnv, hasRequiredEnv } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -103,6 +103,14 @@ const readScrollState = (page: Page) =>
       },
     };
   });
+
+// `locator.click()` first scrolls its target into view, and for a control in the thread's sticky
+// header that moves the timeline; a real pointer click at the control does not.
+const pointerClick = async (control: Locator) => {
+  const box = await control.boundingBox();
+  if (!box) throw new Error('Control is not rendered.');
+  await control.page().mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+};
 
 const readVisibleAnchor = (page: Page): Promise<AnchorSnapshot | undefined> =>
   page.evaluate(() => {
@@ -242,7 +250,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
 
     const expandAll = page.getByRole('button', { name: '[+all]', exact: true });
     const collapseAll = page.getByRole('button', { name: '[-all]', exact: true });
-    await expandAll.click();
+    await pointerClick(expandAll);
     await expect(collapseAll).toBeVisible();
     await expect.poll(() => showMore.count()).toBe(0);
     await expect.poll(() => showLess.count()).toBeGreaterThan(1);
@@ -366,7 +374,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
     if (!anchorBeforeCollapse) throw new Error('No tall-message anchor before collapsing all.');
     expect(anchorBeforeCollapse.fullyVisible).toBe(false);
 
-    await collapseAll.click();
+    await pointerClick(collapseAll);
     await expect(expandAll).toBeVisible();
     await expect.poll(() => showMore.count()).toBeGreaterThan(1);
     const anchorTopAfterCollapse = await readAnchorTop(page, anchorBeforeCollapse.messageId);

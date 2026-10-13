@@ -9,11 +9,7 @@ import React, {
 } from 'react';
 import { color, config } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
-import {
-  CollapsibleMessageStateProvider,
-  collapseAllMessages,
-  expandAllMessages,
-} from '../CollapsibleMessage';
+import { CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
 import { consumeLiveExpandOnceId, getCollapsibleMessageMode } from '../threadCollapsibleMessages';
 
@@ -68,13 +64,8 @@ export const useTimelineMessageExpansion = (
       onClick={(e) => {
         e.preventDefault();
         manualExpansionState.current.clear();
-        if (expandAll) {
-          collapseAllMessages();
-          setExpandAllOverride(false);
-        } else {
-          expandAllMessages();
-          setExpandAllOverride(true);
-        }
+        // Rows follow the new baseline one commit later, so the anchor is captured before they resize.
+        setExpandAllOverride(!expandAll);
       }}
       style={{
         position: 'absolute',

@@ -575,8 +575,6 @@ vi.mock('../CollapsibleMessage', async () => {
         { expandAllInit, manualExpansionState },
         children
       ),
-    expandAllMessages: vi.fn(),
-    collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({
       children,
       collapseMode = 'default',
@@ -1256,7 +1254,6 @@ describe('RoomTimeline collapsible wiring', () => {
 
   it('clears remembered per-message choices before applying an expand-all baseline', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const { expandAllMessages } = await import('../CollapsibleMessage');
     const historicalEvent = makeEvent('$historical', {
       content: {
         body: 'Historical message',
@@ -1294,7 +1291,6 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(manualExpansionState.size).toBe(0);
-    expect(expandAllMessages).toHaveBeenCalledTimes(1);
     const refreshedProvider = renderer.root.findByType('collapsible-message-state-provider');
     expect(refreshedProvider.props.expandAllInit).toBe(true);
     expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
