@@ -37,6 +37,9 @@ Reuse the shared primitives described there and update the guide when an intenti
 - Format prose with one sentence per line; do not hard-wrap lines at a fixed character width.
 - Open pull requests as ready for review, never as drafts.
   After opening a PR, wait for all AI reviewers to finish, validate every finding, and address all confirmed items before considering the work complete.
+- Always put screenshots of user-visible changes (before and after when fixing a visual bug) in the PR description.
+  Upload them with `gh pr create --attach ./shot.png` or `gh pr edit --attach ./shot.png`; a `![alt](./shot.png)` reference in the body is rewritten to the uploaded image.
+  Never attach screenshots the owner shared privately; take your own from a fixture or test account.
 
 ## Testing notes
 
