@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Flatten the Notifications page and room-group headers (2026-10-13)
+
+- Why: the owner reported the Notifications page drew a bordered header and a bordered box around each room group's name ("Luna", "Personal"), the look already removed from Invites in #452.
+- Change:
+  - The page header moves into `PageScroll`'s `header` slot as `<PageHeader flat balance>`, with `scrollRef` passed through for the virtualizer. Content now scrolls beneath a flat header.
+  - The scroll-to-top button uses `PageScrollToTop` and `respectScrollPadding`, as in Lobby, so it sits below the header and appears once the filters pass under it.
+  - Room-group headers use `<Header appearance="plain">`, so they render as plain rows on the page instead of raised glass boxes.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, and the inbox tests pass. A temporary fixture rendering the real `Notifications` page with stubbed `/notifications` results (not committed) showed in Chromium, light and dark themes: before, a 1px page-header border and glass room-group boxes; after, no border or shadow on either, rows blurred beneath the header when scrolled, and the scroll-to-top button below it.
+- Self-review only, for speed.
+
 ### Drop the band and border from the sign-in and Connect cards' headers (2026-10-13)
 
 - Why: the owner reported that the MindRoom Chat header on the Connect Local MindRoom card drew a bordered band, as the Files bar (#451) and Invites header (#452) did.
