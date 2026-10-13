@@ -81,17 +81,58 @@ const renderedLength = (value: ArgumentValue): number =>
 const isEmptyValue = (value: ArgumentValue): boolean =>
   value.kind === 'nested' ? value.fields.length === 0 : EMPTY_TEXT.has(value.text.trim());
 
+// Who or what a call acts on reads first; these keys lead in the order listed.
+const KEY_ORDER = [
+  'to',
+  'cc',
+  'bcc',
+  'recipient',
+  'recipients',
+  'room',
+  'channel',
+  'chat',
+  'user',
+  'subject',
+  'title',
+  'name',
+  'url',
+  'method',
+  'path',
+  'file',
+  'command',
+  'args',
+  'query',
+];
+const LONG_VALUE_CHARS = 80;
+
+const isLongValue = (value: ArgumentValue): boolean =>
+  renderedLength(value) > LONG_VALUE_CHARS ||
+  (value.kind !== 'nested' && value.text.includes('\n'));
+
 /**
- * Fields worth a glance before expanding: Matrix stores event JSON with sorted keys, so event
- * order puts `body` before `to`. Prefer filled-in fields, shortest first.
+ * One order for the preview and the full list: Matrix stores event JSON with sorted keys, so
+ * event order puts `body` before `to`. Known target keys lead, long values go last, and
+ * everything else keeps event order.
  */
-export const pickPreviewFields = (fields: ArgumentField[], limit: number): ArgumentField[] => {
-  const filled = fields.filter((field) => !isEmptyValue(field.value));
-  return (filled.length > 0 ? filled : fields)
-    .map((field, index) => ({ field, index, length: renderedLength(field.value) }))
-    .sort((a, b) => a.length - b.length || a.index - b.index)
-    .slice(0, limit)
+export const orderArgumentFields = (fields: ArgumentField[]): ArgumentField[] =>
+  fields
+    .map((field, index) => {
+      const known = KEY_ORDER.indexOf(field.key.toLowerCase());
+      return {
+        field,
+        index,
+        long: isLongValue(field.value) ? 1 : 0,
+        rank: known === -1 ? KEY_ORDER.length : known,
+      };
+    })
+    .sort((a, b) => a.long - b.long || a.rank - b.rank || a.index - b.index)
     .map(({ field }) => field);
+
+/** The first filled-in fields in display order, for a glance before expanding. */
+export const pickPreviewFields = (fields: ArgumentField[], limit: number): ArgumentField[] => {
+  const ordered = orderArgumentFields(fields);
+  const filled = ordered.filter((field) => !isEmptyValue(field.value));
+  return (filled.length > 0 ? filled : ordered).slice(0, limit);
 };
 
 const valueText = (value: ArgumentValue): string =>

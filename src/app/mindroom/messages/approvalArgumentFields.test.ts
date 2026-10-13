@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   mergeArgumentFields,
+  orderArgumentFields,
   pickPreviewFields,
   summarizeArguments,
   toArgumentFields,
@@ -140,7 +141,8 @@ describe('toToolArgumentFields', () => {
 });
 
 describe('pickPreviewFields', () => {
-  it('previews the shortest non-empty fields first, since Matrix sorts keys alphabetically', () => {
+  it('previews the first filled-in fields in the same order the full list uses', () => {
+    // Matrix canonical JSON sorts keys, so events arrive with body before to.
     const parsed = toArgumentFields({
       body: 'Hi Grace,\n\nHere is what changed between the releases.',
       cc: [],
@@ -148,10 +150,36 @@ describe('pickPreviewFields', () => {
       to: 'grace@example.org',
     });
     if (!('fields' in parsed)) throw new Error('expected fields');
-    expect(pickPreviewFields(parsed.fields, 3).map((field) => field.key)).toEqual([
-      'subject',
+    expect(orderArgumentFields(parsed.fields).map((field) => field.key)).toEqual([
       'to',
+      'cc',
+      'subject',
       'body',
+    ]);
+    expect(pickPreviewFields(parsed.fields, 3).map((field) => field.key)).toEqual([
+      'to',
+      'subject',
+      'body',
+    ]);
+  });
+
+  it('puts long values last and keeps other keys in event order', () => {
+    const parsed = toArgumentFields({
+      payload: JSON.stringify({
+        type: 'release',
+        title: 'v2026.10.12 is live',
+        notes: 'x'.repeat(80),
+      }),
+      retries: 2,
+      url: 'https://status.example.org/api/v1/announcements',
+      zone: 'eu',
+    });
+    if (!('fields' in parsed)) throw new Error('expected fields');
+    expect(orderArgumentFields(parsed.fields).map((field) => field.key)).toEqual([
+      'url',
+      'retries',
+      'zone',
+      'payload',
     ]);
   });
 });
@@ -162,7 +190,7 @@ describe('summarizeArguments', () => {
       'path docs/changelog.md'
     );
     expect(summarizeArguments({ body: 'Hi\n\nGrace', to: 'grace@example.org' })).toBe(
-      'body Hi Grace'
+      'to grace@example.org'
     );
   });
 

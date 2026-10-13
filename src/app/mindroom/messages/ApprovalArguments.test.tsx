@@ -154,7 +154,7 @@ it('translates a retained failure without downloading again on language changes'
   expect(mocks.download).toHaveBeenCalledTimes(1);
 });
 
-it('previews the shortest filled-in arguments on one line each and reveals all on request', async () => {
+it('previews the key filled-in arguments on one line each and reveals all in the same order', async () => {
   // Matrix canonical JSON sorts keys, so events arrive with body before to.
   const body = 'Hi Grace,\n\nHere is what changed between the releases.';
   const email = parseToolApprovalContent('io.mindroom.tool_approval', {
@@ -170,12 +170,13 @@ it('previews the shortest filled-in arguments on one line each and reveals all o
     renderer = create(<ApprovalArguments approval={email} />);
   });
   const keys = () => renderer.root.findAllByType('dt').map((node) => node.children.join(''));
-  expect(keys()).toEqual(['subject', 'to', 'body']);
+  expect(keys()).toEqual(['to', 'subject', 'body']);
   expect(rendered()).toContain('Hi Grace, Here is what changed between the releases.');
   expect(rendered()).toContain('Show all arguments');
   expect(rendered()).toContain('"4"');
   await toggle(true);
-  expect(keys()).toEqual(['body', 'cc', 'subject', 'to']);
+  // The full list keeps the preview's order, so the recipient stays above the long body.
+  expect(keys()).toEqual(['to', 'cc', 'subject', 'body']);
   expect(rendered()).toContain(JSON.stringify(body).slice(1, -1));
   expect(rendered()).toContain('Hide arguments');
   expect(mocks.download).not.toHaveBeenCalled();

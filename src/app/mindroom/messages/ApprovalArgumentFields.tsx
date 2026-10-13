@@ -3,6 +3,7 @@ import classNames from 'classnames';
 import {
   ArgumentField,
   ArgumentFields,
+  orderArgumentFields,
   pickPreviewFields,
   toArgumentFields,
 } from './approvalArgumentFields';
@@ -55,7 +56,10 @@ export function ApprovalArgumentFields({
       </pre>
     ) : null;
   }
-  const fields = limit === undefined ? parsed.fields : pickPreviewFields(parsed.fields, limit);
+  const fields =
+    limit === undefined
+      ? orderArgumentFields(parsed.fields)
+      : pickPreviewFields(parsed.fields, limit);
   return fields.length > 0 ? <FieldRows fields={fields} clamp={limit !== undefined} /> : null;
 }
 
