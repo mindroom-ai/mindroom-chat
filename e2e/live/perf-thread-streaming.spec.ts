@@ -5,7 +5,13 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
-import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  joinRoom,
+  loginToMatrix,
+  registerAgentAccount,
+  sendRoomMessage,
+} from '../helpers/matrix';
 import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 /**
@@ -67,10 +73,14 @@ test.describe('PERF: large thread with streaming edits', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    // Replies and edits come from an agent: the viewer's own live edits do not expand their row.
+    const agent = await registerAgentAccount(homeserver, 'perf');
 
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `Perf thread ${Date.now()}`,
+      invite: [agent.userId],
     });
+    await joinRoom(homeserver, agent.accessToken, roomId);
 
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -80,7 +90,7 @@ test.describe('PERF: large thread with streaming edits', () => {
     let lastReplyId = '';
     for (let i = 1; i <= REPLY_COUNT; i += 1) {
       // eslint-disable-next-line no-await-in-loop
-      lastReplyId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      lastReplyId = await sendRoomMessage(homeserver, agent.accessToken, roomId, {
         msgtype: 'm.text',
         body: `Streamed reply ${i}`,
         format: 'org.matrix.custom.html',
@@ -166,7 +176,7 @@ test.describe('PERF: large thread with streaming edits', () => {
     const burstStart = Date.now();
     for (let step = 1; step <= EDIT_COUNT; step += 1) {
       // eslint-disable-next-line no-await-in-loop
-      await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      await sendRoomMessage(homeserver, agent.accessToken, roomId, {
         msgtype: 'm.text',
         body: `* streaming chunk ${step}`,
         'm.new_content': {

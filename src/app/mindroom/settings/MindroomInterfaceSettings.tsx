@@ -16,7 +16,7 @@ type MindroomInterfaceSettingsProps = {
 
 type MindroomBooleanSetting = keyof Pick<
   MindroomAccountSettings,
-  'simpleMode' | 'expandLongMessagesByDefault' | 'showCanvasesInSidebar'
+  'simpleMode' | 'showCanvasesInSidebar'
 >;
 
 type MindroomAccountSwitchProps = {
@@ -86,11 +86,6 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
           setting="simpleMode"
           title={t('settings.general.interface.simpleMode')}
           description={t('settings.general.interface.simpleModeDescription')}
-        />
-        <MindroomAccountSwitch
-          setting="expandLongMessagesByDefault"
-          title={t('settings.general.interface.expandLongMessagesByDefault')}
-          description={t('settings.general.interface.expandLongMessagesByDefaultDescription')}
         />
         {canvasesEnabled && (
           <MindroomAccountSwitch

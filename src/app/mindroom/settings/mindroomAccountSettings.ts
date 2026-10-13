@@ -16,15 +16,12 @@ export type MindroomAccountSettings = {
    * non-technical users. Off means the full interface.
    */
   simpleMode: boolean;
-  /** Show long messages in full instead of folding them behind Show full message. */
-  expandLongMessagesByDefault: boolean;
   /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
   showCanvasesInSidebar: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: MindroomAccountSettings = {
   simpleMode: true,
-  expandLongMessagesByDefault: true,
   showCanvasesInSidebar: true,
 };
 
@@ -43,10 +40,6 @@ export const sanitizeMindroomAccountSettings = (content: unknown): MindroomAccou
       typeof content.simpleMode === 'boolean'
         ? content.simpleMode
         : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode,
-    expandLongMessagesByDefault:
-      typeof content.expandLongMessagesByDefault === 'boolean'
-        ? content.expandLongMessagesByDefault
-        : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault,
     showCanvasesInSidebar:
       typeof content.showCanvasesInSidebar === 'boolean'
         ? content.showCanvasesInSidebar

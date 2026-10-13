@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   settings: {
     simpleMode: false,
-    expandLongMessagesByDefault: false,
     showCanvasesInSidebar: true,
   },
   clientConfig: {} as { mindroom?: { canvas?: { enabled?: boolean } } },
@@ -73,7 +72,6 @@ vi.mock('react-i18next', async () => {
 
 afterEach(() => {
   state.settings.simpleMode = false;
-  state.settings.expandLongMessagesByDefault = false;
   state.settings.showCanvasesInSidebar = true;
   state.clientConfig = {};
   state.setAccountSettings.mockReset();
@@ -81,41 +79,6 @@ afterEach(() => {
 });
 
 describe('MindroomInterfaceSettings', () => {
-  it('renders the folded-message default as an account-level interface option', async () => {
-    const { MindroomInterfaceSettings } = await import('./MindroomInterfaceSettings');
-    let renderer!: ReactTestRenderer;
-
-    act(() => {
-      renderer = create(React.createElement(MindroomInterfaceSettings));
-    });
-
-    const tile = renderer.root.findByProps({
-      'data-title': 'Expand long messages by default',
-    });
-    expect(tile.props['data-description']).toContain('Show full message');
-    expect(tile.findByType('button').props['aria-pressed']).toBe(false);
-  });
-
-  it('writes the expanded-message preference when toggled', async () => {
-    const { MindroomInterfaceSettings } = await import('./MindroomInterfaceSettings');
-    let renderer!: ReactTestRenderer;
-
-    act(() => {
-      renderer = create(React.createElement(MindroomInterfaceSettings));
-    });
-    const tile = renderer.root.findByProps({
-      'data-title': 'Expand long messages by default',
-    });
-
-    await act(async () => {
-      tile.findByType('button').props.onClick();
-    });
-
-    expect(state.setAccountSettings).toHaveBeenCalledWith({
-      expandLongMessagesByDefault: true,
-    });
-  });
-
   it('offers the sidebar Canvases button only where the deployment has canvases', async () => {
     const { MindroomInterfaceSettings } = await import('./MindroomInterfaceSettings');
     const title = { 'data-title': 'Show Canvases in the sidebar' };

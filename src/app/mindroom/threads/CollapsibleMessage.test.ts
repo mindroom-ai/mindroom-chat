@@ -11,8 +11,6 @@ vi.mock('./CollapsibleMessage.css', () => ({
 }));
 
 import {
-  collapseAllMessages,
-  expandAllMessages,
   ExpandAllInitContext,
   CollapsibleMessage,
   ManualExpansionStateContext,
@@ -122,6 +120,25 @@ const renderCollapsibleMessage = (
 
   return renderer;
 };
+
+const rerenderWithBaseline = (
+  renderer: ReactTestRenderer,
+  props: Omit<React.ComponentProps<typeof CollapsibleMessage>, 'children'>,
+  expandAllInit: boolean
+) =>
+  act(() => {
+    renderer.update(
+      React.createElement(
+        ExpandAllInitContext.Provider,
+        { value: expandAllInit },
+        React.createElement(
+          CollapsibleMessage as never,
+          props as never,
+          React.createElement('span', undefined, 'message')
+        )
+      )
+    );
+  });
 
 const createMeasuredContentElement = () => {
   let scrollHeightReads = 0;
@@ -354,7 +371,12 @@ describe('CollapsibleMessage', () => {
   });
 
   it('stays fully expanded in always-expanded mode and ignores collapse controls', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'always-expanded' });
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'always-expanded' },
+      undefined,
+      undefined,
+      true
+    );
     const content = getContentContainer(renderer);
 
     expect(content.props.style.maxHeight).toBeUndefined();
@@ -365,9 +387,7 @@ describe('CollapsibleMessage', () => {
     expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(resizeObserverConstructed).not.toHaveBeenCalled();
 
-    act(() => {
-      collapseAllMessages();
-    });
+    rerenderWithBaseline(renderer, { collapseMode: 'always-expanded' }, false);
 
     expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
     expect(findCloseButtons(renderer)).toHaveLength(0);
@@ -377,36 +397,33 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('starts expanded once in initially-expanded mode, consumes the callback once, and responds to global collapse', () => {
+  it('starts expanded once in initially-expanded mode, consumes the callback once, and folds with a later collapse-all baseline', () => {
     const onInitialExpandConsumed = vi.fn();
-    const renderer = renderCollapsibleMessage({
-      collapseMode: 'initially-expanded',
-      onInitialExpandConsumed,
-    });
+    const renderer = renderCollapsibleMessage(
+      {
+        collapseMode: 'initially-expanded',
+        onInitialExpandConsumed,
+      },
+      undefined,
+      undefined,
+      true
+    );
 
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
     expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
     expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
     expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
-    act(() => {
-      renderer.update(
-        React.createElement(
-          CollapsibleMessage as never,
-          {
-            collapseMode: 'initially-expanded',
-            onInitialExpandConsumed,
-          } as never,
-          React.createElement('span', undefined, 'message')
-        )
-      );
-    });
+    rerenderWithBaseline(
+      renderer,
+      { collapseMode: 'initially-expanded', onInitialExpandConsumed },
+      true
+    );
 
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
 
-    act(() => {
-      collapseAllMessages();
-    });
+    // Once consumed, the timeline renders the row in default mode.
+    rerenderWithBaseline(renderer, { collapseMode: 'default', onInitialExpandConsumed }, false);
 
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBe('11em');
@@ -517,26 +534,6 @@ describe('CollapsibleMessage', () => {
     expect(content.props['aria-expanded']).toBe(false);
     expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(findCloseButtons(renderer)).toHaveLength(0);
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('expandAllMessages expands collapsed content', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
-
-    act(() => {
-      expandAllMessages();
-    });
-
-    const content = getContentContainer(renderer);
-    expect(content.props.style.maxHeight).toBeUndefined();
-    expect(content.props['aria-expanded']).toBe(true);
-    expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
       renderer.unmount();

@@ -760,8 +760,6 @@ vi.mock('../CollapsibleMessage', async () => {
   return {
     ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     CollapsibleMessageStateProvider: passthrough,
-    expandAllMessages: vi.fn(),
-    collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({
       children,
       collapseMode = 'default',
