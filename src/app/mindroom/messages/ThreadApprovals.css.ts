@@ -221,7 +221,6 @@ export const StatusChipDone = style({
   color: color.Success.OnContainer,
 });
 export const Durations = style({ display: 'flex', flexDirection: 'column', gap: 6 });
-export const DurationInfo = style({ opacity: config.opacity.P400 });
 export const DurationRow = style({
   display: 'flex',
   flexWrap: 'wrap',

@@ -92,7 +92,6 @@ vi.mock('./ThreadApprovals.css', () => ({
   SectionTool: 'SectionTool',
   BarTitle: 'BarTitle',
   DialogHeading: 'DialogHeading',
-  DurationInfo: 'DurationInfo',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
   const { default: FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
@@ -385,6 +384,8 @@ it('presents one pending call with its status, people, and decisions', async () 
       (button) => button.getAttribute('aria-label') === 'Allow for 5 minutes'
     );
     expect(fiveMinutes?.textContent).toBe('5 min');
+    // What a timed approval allows stays on screen, not behind a tooltip.
+    expect(container.textContent).toContain('Arguments may differ between calls.');
     await act(async () => fiveMinutes?.click());
     expect(submit).toHaveBeenLastCalledWith(records[0], { status: 'approved', duration: 300 });
     await act(async () =>

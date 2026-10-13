@@ -41,7 +41,6 @@ vi.mock('./ThreadApprovals.css', () => ({
   SectionTool: 'SectionTool',
   BarTitle: 'BarTitle',
   DialogHeading: 'DialogHeading',
-  DurationInfo: 'DurationInfo',
   BarDetail: 'BarDetail',
 }));
 let threadApprovals: ThreadApprovals | undefined;

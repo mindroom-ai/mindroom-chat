@@ -37,7 +37,6 @@ vi.mock('./ThreadApprovals.css', () => ({
   SectionTool: 'SectionTool',
   BarTitle: 'BarTitle',
   DialogHeading: 'DialogHeading',
-  DurationInfo: 'DurationInfo',
   BarDetail: 'BarDetail',
 }));
 vi.mock('folds', () => ({

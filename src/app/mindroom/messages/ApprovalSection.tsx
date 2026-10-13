@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import classNames from 'classnames';
-import { Avatar, Icon, IconButton, Icons, IconSrc, Text, Tooltip, TooltipProvider } from 'folds';
+import { Avatar, Icon, Icons, IconSrc, Text } from 'folds';
 import { ToolApprovalData, ToolApprovalDuration } from './toolApproval';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
@@ -184,31 +184,12 @@ export function ApprovalDurations({
             </button>
           ))}
         </div>
-        {explanation && (
-          <TooltipProvider
-            tooltip={
-              <Tooltip style={{ maxWidth: '18rem' }}>
-                <Text size="T200">{explanation}</Text>
-              </Tooltip>
-            }
-            position="Top"
-            align="Center"
-          >
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                size="300"
-                radii="300"
-                variant="Surface"
-                aria-label={explanation}
-                className={css.DurationInfo}
-              >
-                <Icon size="50" src={Icons.Info} />
-              </IconButton>
-            )}
-          </TooltipProvider>
-        )}
       </div>
+      {explanation && (
+        <Text size="T200" className={css.SectionMeta}>
+          {explanation}
+        </Text>
+      )}
     </div>
   );
 }
