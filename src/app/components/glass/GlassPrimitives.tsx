@@ -202,9 +202,10 @@ export const Header = as<'header', HeaderProps>(
   ({ className, variant = 'Surface', appearance, flat, ...props }, ref) => {
     const enclosingSurface = useSurfaceContext();
     const scrollHeader = useScrollHeaderContext();
-    const isFlat = flat ?? scrollHeader;
     // Semantic foregrounds need their matching fill to retain text contrast.
     const neutral = ['Background', 'Surface', 'SurfaceVariant'].includes(variant);
+    // A neutral header outside any surface is page chrome: flat, without a raised rim or border.
+    const isFlat = flat ?? (scrollHeader || (!enclosingSurface && !appearance && neutral));
     const surface = useSurface(
       ref,
       isFlat ? 'plain' : appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass'),

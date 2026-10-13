@@ -62,7 +62,8 @@ describe('shared surface appearance', () => {
     'defaults to glass and cleans effects when appearance changes without replacing the element',
     (Component) => {
       const ref = createRef<HTMLElement>();
-      act(() => root.render(<Component as="section" ref={ref} />));
+      const initial = Component === Header ? { appearance: 'glass' as const } : {};
+      act(() => root.render(<Component as="section" ref={ref} {...initial} />));
       const element = ref.current!;
       expect(container.children).toHaveLength(1);
       expect(element.tagName).toBe('SECTION');
@@ -100,7 +101,8 @@ describe('shared surface appearance', () => {
     expect(pointAt(find('inherited'))).toBe('');
     expect(pointAt(find('explicit'))).toBe('75%');
     expect(pointAt(find('plain'))).toBe('');
-    expect(pointAt(find('plain-child'))).toBe('75%');
+    expect(pointAt(find('plain-child'))).toBe('');
+    expect(find('plain-child').getAttribute('data-glass-flat')).toBe('true');
     expect(pointAt(find('portal-menu'))).toBe('75%');
     expect(container.children).toHaveLength(2);
   });
@@ -128,6 +130,24 @@ describe('shared surface appearance', () => {
     }
   );
 
+  it('flattens standalone neutral headers but keeps explicit glass and semantic headers raised', () => {
+    const ref = createRef<HTMLElement>();
+    act(() => root.render(<Header ref={ref} />));
+    const element = ref.current!;
+    expect(element.getAttribute('data-glass-flat')).toBe('true');
+    expect(pointAt(element)).toBe('');
+    act(() => root.render(<Header ref={ref} appearance="glass" />));
+    expect(ref.current).toBe(element);
+    expect(element.hasAttribute('data-glass-flat')).toBe(false);
+    expect(pointAt(element)).toBe('75%');
+    act(() => root.render(<Header ref={ref} variant="Critical" />));
+    expect(element.hasAttribute('data-glass-flat')).toBe(false);
+    expect(pointAt(element)).toBe('75%');
+    act(() => root.render(<Header ref={ref} flat={false} />));
+    expect(element.hasAttribute('data-glass-flat')).toBe(false);
+    expect(pointAt(element)).toBe('75%');
+  });
+
   it('keeps scrolling titles free of pointer lighting while preserving explicit raised headers', () => {
     const ref = createRef<HTMLElement>();
     const renderHeader = (scrolling: boolean, flat?: boolean) => (
@@ -135,7 +155,7 @@ describe('shared surface appearance', () => {
         <Header ref={ref} flat={flat} />
       </ScrollHeaderProvider>
     );
-    act(() => root.render(renderHeader(false)));
+    act(() => root.render(renderHeader(false, false)));
     const element = ref.current!;
     expect(pointAt(element)).toBe('75%');
     act(() => root.render(renderHeader(true)));
