@@ -1,6 +1,7 @@
-import { MatrixError } from 'matrix-js-sdk';
+import { MatrixClient, MatrixError } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  addRoomIdToMDirect,
   getMatrixUploadErrorMessage,
   getMatrixUploadOriginalName,
   getMatrixUploadErrorStage,
@@ -180,5 +181,28 @@ describe('matrix upload errors', () => {
       errcode: 'M_UNKNOWN',
       message: expect.stringContaining('The operation was aborted.'),
     });
+  });
+});
+
+describe('m.direct updates', () => {
+  it('keeps both rooms when two DM updates overlap', async () => {
+    let direct: Record<string, string[]> = {};
+    const mx = {
+      getAccountData: () => ({ getContent: () => direct }),
+      // Like the SDK, resolve only once the write is echoed back into the store.
+      setAccountData: async (_type: string, content: Record<string, string[]>) => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        direct = content;
+      },
+    } as unknown as MatrixClient;
+
+    await Promise.all([
+      addRoomIdToMDirect(mx, '!one:example.org', '@friend:example.org'),
+      addRoomIdToMDirect(mx, '!two:example.org', '@friend:example.org'),
+    ]);
+
+    expect(direct).toEqual({ '@friend:example.org': ['!one:example.org', '!two:example.org'] });
   });
 });

@@ -7,14 +7,17 @@
 - Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.
 - Change: the Primary section of Inbox > Invites gets an "Accept All" chip in its header, in the same place and style as the Public section's existing "Decline All".
   The per-card join (join, then add a direct invite to `m.direct` under the guessed DM partner) moves to `inbox/acceptInvite.ts`; Accept All runs it for each invite through `rateLimitedActions`, so 429s back off and one failed join leaves that invite listed without stopping the rest.
-  While the batch runs, the Primary cards' Accept and Decline are disabled, so a card's join, leave or `m.direct` write cannot race the batch's; the batch also skips any room that is no longer an invite when its turn comes (resolved on another device).
+  While the batch runs, the Primary cards' Accept and Decline are disabled (on that mount; switching filter tabs remounts the list while the batch keeps running), and the batch skips any room that is no longer an invite when its turn comes (resolved by a card or on another device).
+  `addRoomIdToMDirect` and `removeRoomIdFromMDirect` (`utils/matrix.ts`) now run one at a time: each reads `m.direct` and writes it back whole, so two overlapping DM accepts (a card and the batch, or a second batch started after a tab switch) could each drop the other's room. matrix-js-sdk 41.7's `setAccountData` resolves after the sync echo, so each queued update reads the previous write. A write waiting on a stalled sync holds later ones until sync resumes.
   Accept All does not navigate; joined invites leave the list as they sync. Public and Spam get no Accept All: those invites come from strangers or flagged senders.
   New `sharedUi.invites.acceptAll` string in all 17 locales.
 - Tests: `acceptInvite.test.ts` covers pending invites joined, a room no longer invited skipped, a failed join not stopping the batch, and `m.direct` written only for the DM that joined, with `is_direct` read before the join.
+  `matrix.test.ts` covers two overlapping `addRoomIdToMDirect` calls keeping both rooms (fails without the queue).
   `e2e/invites-accept-all.spec.ts` against a local Tuwunel: four Primary invites (two DMs), Accept All, then all four joined and `m.direct` holds both DMs (matrix-js-sdk 41.7's `setAccountData` resolves after the sync echo, so the second write reads the first).
 - Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, the inbox and i18n unit tests (124), and the e2e spec in Chromium.
 - Independent review (subagent): changes required for a mid-batch decline being re-joined (fixed by the skip above), with nits on the unit test not pinning the join order, a single DM in the e2e, and the order comment; all fixed.
   CodeRabbit (PR #461): card Accept and Decline stayed enabled during the batch, so a card's DM accept could race the batch's `m.direct` write; they are now disabled while it runs.
+  PR #461 dual review, round 1 at `5051866b`: Opus approved; Astra required changes because the card lock lives in the mounted list, so a tab switch mid-batch or a card Accept followed by Accept All could overlap two DM `m.direct` updates and lose one. Fixed at the `m.direct` helpers (the queue above) rather than with batch state that survives remounts; overlapping joins are harmless, as joining an already-joined room is a no-op. Opus's note that the Runbook overstated the card lock is fixed.
   Accepted: a 429 on the `m.direct` write after a successful join retries the whole accept, which then sees a joined room and leaves the DM untagged, as a failed write on the single-card path already does.
 
 ### Make the background jobs bar match the typing bar (2026-10-14)

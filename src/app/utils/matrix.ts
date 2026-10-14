@@ -410,56 +410,68 @@ export const guessDmRoomUserId = (room: Room, myUserId: string): string => {
   return member1?.userId ?? myUserId;
 };
 
-export const addRoomIdToMDirect = async (
+// m.direct updates read the stored content and write it back whole. Run them one at a time, so
+// overlapping updates (several DM invites accepted at once) each start from the previous write;
+// setAccountData resolves only after the write is echoed back into the store.
+let mDirectUpdates: Promise<void> = Promise.resolve();
+const queueMDirectUpdate = (update: () => Promise<void>): Promise<void> => {
+  const run = mDirectUpdates.then(update);
+  mDirectUpdates = run.catch(() => undefined);
+  return run;
+};
+
+export const addRoomIdToMDirect = (
   mx: MatrixClient,
   roomId: string,
   userId: string
-): Promise<void> => {
-  const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
-  let userIdToRoomIds: Record<string, string[]> = {};
+): Promise<void> =>
+  queueMDirectUpdate(async () => {
+    const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
+    let userIdToRoomIds: Record<string, string[]> = {};
 
-  if (typeof mDirectsEvent !== 'undefined')
-    userIdToRoomIds = structuredClone(mDirectsEvent.getContent());
+    if (typeof mDirectsEvent !== 'undefined')
+      userIdToRoomIds = structuredClone(mDirectsEvent.getContent());
 
-  // remove it from the lists of any others users
-  // (it can only be a DM room for one person)
-  Object.keys(userIdToRoomIds).forEach((targetUserId) => {
-    const roomIds = userIdToRoomIds[targetUserId];
+    // remove it from the lists of any others users
+    // (it can only be a DM room for one person)
+    Object.keys(userIdToRoomIds).forEach((targetUserId) => {
+      const roomIds = userIdToRoomIds[targetUserId];
 
-    if (targetUserId !== userId) {
+      if (targetUserId !== userId) {
+        const indexOfRoomId = roomIds.indexOf(roomId);
+        if (indexOfRoomId > -1) {
+          roomIds.splice(indexOfRoomId, 1);
+        }
+      }
+    });
+
+    const roomIds = userIdToRoomIds[userId] || [];
+    if (roomIds.indexOf(roomId) === -1) {
+      roomIds.push(roomId);
+    }
+    userIdToRoomIds[userId] = roomIds;
+
+    await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
+  });
+
+export const removeRoomIdFromMDirect = (mx: MatrixClient, roomId: string): Promise<void> =>
+  queueMDirectUpdate(async () => {
+    const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
+    let userIdToRoomIds: Record<string, string[]> = {};
+
+    if (typeof mDirectsEvent !== 'undefined')
+      userIdToRoomIds = structuredClone(mDirectsEvent.getContent());
+
+    Object.keys(userIdToRoomIds).forEach((targetUserId) => {
+      const roomIds = userIdToRoomIds[targetUserId];
       const indexOfRoomId = roomIds.indexOf(roomId);
       if (indexOfRoomId > -1) {
         roomIds.splice(indexOfRoomId, 1);
       }
-    }
+    });
+
+    await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
   });
-
-  const roomIds = userIdToRoomIds[userId] || [];
-  if (roomIds.indexOf(roomId) === -1) {
-    roomIds.push(roomId);
-  }
-  userIdToRoomIds[userId] = roomIds;
-
-  await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
-};
-
-export const removeRoomIdFromMDirect = async (mx: MatrixClient, roomId: string): Promise<void> => {
-  const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
-  let userIdToRoomIds: Record<string, string[]> = {};
-
-  if (typeof mDirectsEvent !== 'undefined')
-    userIdToRoomIds = structuredClone(mDirectsEvent.getContent());
-
-  Object.keys(userIdToRoomIds).forEach((targetUserId) => {
-    const roomIds = userIdToRoomIds[targetUserId];
-    const indexOfRoomId = roomIds.indexOf(roomId);
-    if (indexOfRoomId > -1) {
-      roomIds.splice(indexOfRoomId, 1);
-    }
-  });
-
-  await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
-};
 
 export const downloadMedia = async (src: string, init?: RequestInit): Promise<Blob> => {
   const res = await fetch(src, { ...init, method: 'GET' });
