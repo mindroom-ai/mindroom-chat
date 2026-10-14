@@ -3125,8 +3125,9 @@
       "subagent": "{{tool}} (sous-agent)",
       "stopAll": "Tout arrêter",
       "stopping": "Arrêt…",
-      "cancel": "Annuler {{tool}}",
-      "cancelFailed": "Impossible d’annuler {{tool}}. Réessayez.",
+      "stop": "Arrêter",
+      "stopJob": "Arrêter {{tool}}",
+      "stopFailed": "Impossible d’arrêter {{tool}}. Réessayez.",
       "stopAllFailed": "Impossible d’arrêter les tâches en arrière-plan. Réessayez.",
       "inRoom": "Tâches en arrière-plan en cours"
     }

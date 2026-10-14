@@ -3059,8 +3059,9 @@
       "subagent": "{{tool}} (alt ajan)",
       "stopAll": "Tümünü durdur",
       "stopping": "Durduruluyor…",
-      "cancel": "{{tool}} iptal et",
-      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin.",
+      "stop": "Durdur",
+      "stopJob": "{{tool}} durdur",
+      "stopFailed": "{{tool}} durdurulamadı. Tekrar deneyin.",
       "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"
     }

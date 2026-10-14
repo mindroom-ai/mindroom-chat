@@ -120,7 +120,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
   // ✕ sends the job's cancel in its thread, and the job shows Stopping… until it leaves the state.
-  await bar.getByRole('button', { name: 'Cancel run_tests' }).click();
+  await bar.getByRole('button', { name: 'Stop run_tests' }).click();
   await expect(bar).toContainText('Stopping…');
   await expect
     .poll(async () => {
@@ -143,9 +143,9 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
       },
     ]);
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]]);
-  await expect(bar.getByRole('button', { name: 'Cancel run_tests' })).toHaveCount(0);
+  await expect(bar.getByRole('button', { name: 'Stop run_tests' })).toHaveCount(0);
   // A job cancelled from another client shows Stopping… here too, without its ✕.
-  const researchCancel = bar.getByRole('button', { name: 'Cancel research (subagent)' });
+  const researchCancel = bar.getByRole('button', { name: 'Stop research (subagent)' });
   await expect(researchCancel).toBeVisible();
   await publish(researcher, [
     job('job_3', fixture.rootId, 'research', { kind: 'subagent', status: 'cancel_requested' }),
@@ -186,7 +186,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   );
   const crowded = page.getByRole('region', { name: '15 background jobs' });
   await expect(crowded).toBeVisible();
-  const longCancel = crowded.getByRole('button', { name: `Cancel ${longTool}` });
+  const longCancel = crowded.getByRole('button', { name: `Stop ${longTool}` });
   await longCancel.scrollIntoViewIfNeeded();
   const cancelBox = await longCancel.boundingBox();
   expect(cancelBox && cancelBox.x + cancelBox.width).toBeLessThanOrEqual(390);
@@ -195,14 +195,14 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect(crowded.getByRole('button', { name: 'Stop all' })).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('phone-many-jobs.png') });
 
-  // A single job with a long name keeps its title and its ✕ on screen too.
+  // A single job with a long name keeps its title and its Stop on screen too.
   await publish(coder, []);
   await publish(researcher, [job('job_5', fixture.rootId, longTool)]);
   const single = page.getByRole('region', { name: `Running: ${longTool}` });
   await expect(single).toBeVisible();
   const singleBox = await single.boundingBox();
   expect(singleBox && singleBox.x + singleBox.width).toBeLessThanOrEqual(390);
-  await expect(single.getByRole('button', { name: `Cancel ${longTool}` })).toBeInViewport();
+  await expect(single.getByRole('button', { name: `Stop ${longTool}` })).toBeInViewport();
 
   // When the last job ends, the bar goes away.
   await publish(coder, []);

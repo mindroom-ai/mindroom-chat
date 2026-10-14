@@ -3059,8 +3059,9 @@
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Stop all",
       "stopping": "Stopping…",
-      "cancel": "Cancel {{tool}}",
-      "cancelFailed": "Could not cancel {{tool}}. Try again.",
+      "stop": "Stop",
+      "stopJob": "Stop {{tool}}",
+      "stopFailed": "Could not stop {{tool}}. Try again.",
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"
     }

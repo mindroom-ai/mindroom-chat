@@ -3058,9 +3058,10 @@
       "jobCount": "{{count}} achtergrondtaken",
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Alles stoppen",
-      "stopping": "Stoppen…",
-      "cancel": "{{tool}} annuleren",
-      "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw.",
+      "stopping": "Wordt gestopt…",
+      "stop": "Stoppen",
+      "stopJob": "{{tool}} stoppen",
+      "stopFailed": "Kon {{tool}} niet stoppen. Probeer het opnieuw.",
       "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"
     }

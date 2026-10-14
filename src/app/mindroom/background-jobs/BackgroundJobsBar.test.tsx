@@ -18,8 +18,9 @@ vi.mock('./backgroundJobsBar.css', () => ({
   Status: 'Status',
   Items: 'Items',
   Item: 'Item',
+  ItemStatus: 'ItemStatus',
   Label: 'Label',
-  Chip: 'Chip',
+  Alert: 'Alert',
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -46,8 +47,10 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
   act(() => {
     root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
-const cancelA = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}';
-const cancelB = 'mindroomUi.backgroundJobs.cancel{"tool":"tool_b"}';
+const cancelA = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}';
+const cancelB = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_b"}';
+const stoppingA = 'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}';
+const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
   act(async () => {
     button(label)?.click();
@@ -78,18 +81,23 @@ it('renders nothing without jobs', () => {
   expect(container.innerHTML).toBe('');
 });
 
+it('names one job in the title, with Stop and no chip of its own', () => {
+  state.jobs = [job('a')];
+  render();
+  expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
+  expect(container.querySelector('.Items')).toBeNull();
+  expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
+});
+
 it('shows Stopping until the job leaves the state', async () => {
   state.jobs = [job('a')];
   render();
   await click(cancelA);
   state.jobs = [job('a')];
   render();
-  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
   expect(button(cancelA)).toBeUndefined();
-  // The bar's title and region name say so too, not that the job is running.
-  expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe(
-    'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}'
-  );
+  // The bar's title and region name say so, not that the job is running.
+  expect(title()).toBe(stoppingA);
   state.jobs = [];
   render();
   expect(container.innerHTML).toBe('');
@@ -139,7 +147,7 @@ it('keeps a cancel stopping across a switch to another thread and back', async (
   await click(cancelA);
   render('$other');
   render('$thread');
-  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(title()).toBe(stoppingA);
   expect(button(cancelA)).toBeUndefined();
 });
 
@@ -208,7 +216,7 @@ it('keeps a sent cancel stopping after the bar is unmounted and shown again', as
   act(() => root.unmount());
   root = createRoot(container);
   render();
-  expect(container.textContent).toContain('mindroomUi.backgroundJobs.stopping');
+  expect(title()).toBe(stoppingA);
   expect(button(cancelA)).toBeUndefined();
 });
 
@@ -221,6 +229,24 @@ it('moves keyboard focus to the next cancel button, and to the bar after Stop al
   expect(document.activeElement).toBe(button(cancelB));
   await click('mindroomUi.backgroundJobs.stopAll');
   expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
+});
+
+it('keeps keyboard focus in the bar when two jobs become one, and one becomes two', async () => {
+  state.send = vi.fn(() => new Promise<never>(() => {}));
+  state.jobs = [job('a'), job('b')];
+  render();
+  button(cancelA)?.focus();
+  await click(cancelA);
+  expect(document.activeElement).toBe(button(cancelB));
+  state.jobs = [job('b')];
+  render();
+  const region = container.querySelector('[role="region"]');
+  expect(document.activeElement).toBe(region);
+  // One job's focused Stop does not turn into Stop all under the pointer or keyboard.
+  button(cancelB)?.focus();
+  state.jobs = [job('b'), job('c')];
+  render();
+  expect(document.activeElement).toBe(region);
 });
 
 it('shows a failed cancel again in the view it was sent from', async () => {
@@ -259,11 +285,11 @@ it('restores the button and shows an error when the send fails', async () => {
   state.send = vi.fn().mockRejectedValue(new Error('offline'));
   render();
   await act(async () => {
-    button('mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}')?.click();
+    button('mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}')?.click();
   });
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
-  expect(button('mindroomUi.backgroundJobs.cancel{"tool":"tool_a"}')).toBeDefined();
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('cancelFailed');
+  expect(button('mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}')).toBeDefined();
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('stopFailed');
 });
 
 it('says the jobs could not be stopped when Stop all fails', async () => {
@@ -284,6 +310,6 @@ it('stop all sends one event for the view and marks every job stopping', async (
   });
   expect(state.send).toHaveBeenCalledTimes(1);
   expect(
-    container.querySelectorAll('button[aria-label^="mindroomUi.backgroundJobs.cancel"]')
+    container.querySelectorAll('button[aria-label^="mindroomUi.backgroundJobs.stopJob"]')
   ).toHaveLength(0);
 });

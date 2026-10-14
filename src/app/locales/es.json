@@ -3125,8 +3125,9 @@
       "subagent": "{{tool}} (subagente)",
       "stopAll": "Detener todo",
       "stopping": "Deteniendo…",
-      "cancel": "Cancelar {{tool}}",
-      "cancelFailed": "No se pudo cancelar {{tool}}. Inténtalo de nuevo.",
+      "stop": "Detener",
+      "stopJob": "Detener {{tool}}",
+      "stopFailed": "No se pudo detener {{tool}}. Inténtalo de nuevo.",
       "stopAllFailed": "No se pudieron detener las tareas en segundo plano. Inténtalo de nuevo.",
       "inRoom": "Tareas en segundo plano en curso"
     }

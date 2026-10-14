@@ -3059,8 +3059,9 @@
       "subagent": "{{tool}} (Subagent)",
       "stopAll": "Alle stoppen",
       "stopping": "Wird gestoppt…",
-      "cancel": "{{tool}} abbrechen",
-      "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut.",
+      "stop": "Stoppen",
+      "stopJob": "{{tool}} stoppen",
+      "stopFailed": "{{tool}} konnte nicht gestoppt werden. Versuche es erneut.",
       "stopAllFailed": "Die Hintergrundaufgaben konnten nicht gestoppt werden. Versuche es erneut.",
       "inRoom": "Hintergrundaufgaben laufen"
     }
