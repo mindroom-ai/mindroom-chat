@@ -6,7 +6,7 @@ import {
   orderArgumentFields,
   pickPreviewFields,
   toArgumentFields,
-} from './approvalArgumentFields';
+} from './argumentFields';
 import * as css from './ApprovalArgumentFields.css';
 
 // A clamped preview shows each value on its own lines, so blank lines would hide the text.

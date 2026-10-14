@@ -16,7 +16,20 @@
 - Independent review: Opus 5.5 and GPT-6 Astra; round 1 found the no-Web-Locks race above. The startup logout listener attaches before `startClient`.
 - Validation: all 6,736 tests pass under Node 24 on Linux, including 76 focused refresh/startup/cleanup tests also passing locally.
   Linux typecheck and lint pass (0 errors, 18 existing warnings); the production build passes under Node 24 on a temporary case-sensitive macOS volume.
-  The ordinary macOS checkout encounters the existing `ApprovalArgumentFields.tsx` / `approvalArgumentFields.ts` filename casing collision, so full validation uses fresh case-sensitive copies.
+  The macOS case-sensitive volume avoided the `ApprovalArgumentFields` casing collision that #457 since fixed.
+
+### Fix the iOS build's case-insensitive import of `ApprovalArgumentFields` (2026-10-14)
+
+- Why: every Xcode Cloud archive since #450 failed in `ci_pre_xcodebuild.sh` with `"ApprovalArgumentFields" is not exported by "src/app/mindroom/messages/approvalArgumentFields.ts"`, so no iOS beta has shipped since #449.
+  `messages/` held both `ApprovalArgumentFields.tsx` and `approvalArgumentFields.ts`; on macOS's case-insensitive disk the extensionless import `./ApprovalArgumentFields` resolves to the `.ts` file, while Linux CI resolves it correctly.
+  The runbook records the same collision four times before (`ArchivedRooms`, `KeyBackupNudge`, `timelineMinimap`, `messageExtras`).
+- Change:
+  - Rename `approvalArgumentFields.ts` and its test to `argumentFields.ts` and `argumentFields.test.ts`, and update the three importers.
+  - New CI guard `scripts/case-insensitive-imports.test.mjs`, run in `build-pull-request.yml`: it fails when two modules under `src` have import paths that differ only by letter case, where an index module such as `dir/index.ts` is imported both as `dir/index` and as `dir`.
+    `Foo.tsx` beside `foo.css.ts` stays allowed, since their import paths differ.
+- Tests: the guard fails on the old `dev` tree with exactly this pair and passes after the rename; its own cases cover a file pair, a file beside a same-name folder in different case, `index` against `Index` in one folder, and the allowed pairs.
+- Validation: `MINDROOM_BUILD_TARGET=ios npm run build`, `npm run appstore:preflight`, `npm run typecheck`, eslint and Prettier on the changed files, and the `messages` vitest suite (781 tests) pass.
+  The Xcode Cloud archive itself is confirmed only after merge.
 
 ### Make standalone headers flat by default (2026-10-13)
 
