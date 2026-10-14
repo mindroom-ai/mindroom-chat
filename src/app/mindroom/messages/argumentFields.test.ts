@@ -6,7 +6,7 @@ import {
   summarizeArguments,
   toArgumentFields,
   toToolArgumentFields,
-} from './approvalArgumentFields';
+} from './argumentFields';
 
 describe('toArgumentFields', () => {
   it('keeps object keys in event order as labeled fields', () => {

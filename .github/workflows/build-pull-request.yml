@@ -48,6 +48,8 @@ jobs:
         run: node --test scripts/appstore-fixture.test.mjs
       - name: Test streaming stress seeder
         run: node --test scripts/seed-streaming-stress-room.test.mjs
+      - name: Check imports resolve the same on case-insensitive disks
+        run: node --test scripts/case-insensitive-imports.test.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

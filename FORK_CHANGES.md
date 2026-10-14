@@ -13,6 +13,36 @@
 - Independent review (subagent) of the hover version: changes required for hover opening from anywhere on the bar, putting Stops over the typing bar's ✕ and the approval bar's Review, and for Tab reaching Stop all before the listed jobs; both fixed, with its nits on an untested hover delay and close paths, a keyboard user dropped when the mouse left, a fractional footer height, Escape handled with the composer's, motion tokens, text showing through the open list, the title's touch target, an unasserted phone tap, and a button inside the live region. Declined: a click on a hover-opened title closing it (it pins, as `MindroomThreadSummaryMarker` does). Not covered: WebKit (the main Playwright config runs Chromium only).
 - Independent review (subagent) of the second pass: changes required for "Stopping…" ending past the Stop column and focus rings clipped by the scrolling list; fixed, with its nits on long names vanishing beside the status, zoom, list semantics, the Stop column's weight, the muted text (now `P300`, as the approval bar's detail), focus when one job is replaced by another, a blur to the page pulling focus back later (already in the first pass), forced colors, touch spacing, and tests. Declined: the list's Stops moving left of Stop all by a classic scrollbar's width past six jobs; repeated `Chip` props in the two buttons.
 
+### Recover sessions rejected by Tuwunel's refresh endpoint (2026-10-13)
+
+- Why: Brave showed the homeserver connectivity dialog while Matrix requests returned `401 M_UNKNOWN_TOKEN` and `/refresh` returned `403 M_FORBIDDEN` with "Refresh token is unrecognized."
+  `createSessionTokenRefresh` treated only `M_UNKNOWN_TOKEN` as a definitive rejection, so the SDK retried the unusable session instead of emitting `Session.logged_out`.
+- Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
+  Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
+  The Connect page shares the refresh function: `requestAsStoredSession` maps `TokenRefreshLogoutError` to `HomeserverSignedOutError`, so an `M_FORBIDDEN` refresh there now shows "This account needs to sign in again before it can approve." with a "Sign in to approve" button instead of the raw `MatrixError: [403] …` refresh error with Approve disabled.
+- Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
+  Accepted limit: a rejection that lands before the winner stores its rotation still logs out, as `M_UNKNOWN_TOKEN` already did.
+  Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse rejects a reused token with `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it (its other `M_FORBIDDEN` refresh errors are true expiries).
+- Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
+  The two `M_FORBIDDEN` regressions and the race regression fail before their fixes.
+- Independent review: Opus 5.5 and GPT-6 Astra; round 1 found the no-Web-Locks race above. The startup logout listener attaches before `startClient`.
+- Validation: all 6,736 tests pass under Node 24 on Linux, including 76 focused refresh/startup/cleanup tests also passing locally.
+  Linux typecheck and lint pass (0 errors, 18 existing warnings); the production build passes under Node 24 on a temporary case-sensitive macOS volume.
+  The macOS case-sensitive volume avoided the `ApprovalArgumentFields` casing collision that #457 since fixed.
+
+### Fix the iOS build's case-insensitive import of `ApprovalArgumentFields` (2026-10-14)
+
+- Why: every Xcode Cloud archive since #450 failed in `ci_pre_xcodebuild.sh` with `"ApprovalArgumentFields" is not exported by "src/app/mindroom/messages/approvalArgumentFields.ts"`, so no iOS beta has shipped since #449.
+  `messages/` held both `ApprovalArgumentFields.tsx` and `approvalArgumentFields.ts`; on macOS's case-insensitive disk the extensionless import `./ApprovalArgumentFields` resolves to the `.ts` file, while Linux CI resolves it correctly.
+  The runbook records the same collision four times before (`ArchivedRooms`, `KeyBackupNudge`, `timelineMinimap`, `messageExtras`).
+- Change:
+  - Rename `approvalArgumentFields.ts` and its test to `argumentFields.ts` and `argumentFields.test.ts`, and update the three importers.
+  - New CI guard `scripts/case-insensitive-imports.test.mjs`, run in `build-pull-request.yml`: it fails when two modules under `src` have import paths that differ only by letter case, where an index module such as `dir/index.ts` is imported both as `dir/index` and as `dir`.
+    `Foo.tsx` beside `foo.css.ts` stays allowed, since their import paths differ.
+- Tests: the guard fails on the old `dev` tree with exactly this pair and passes after the rename; its own cases cover a file pair, a file beside a same-name folder in different case, `index` against `Index` in one folder, and the allowed pairs.
+- Validation: `MINDROOM_BUILD_TARGET=ios npm run build`, `npm run appstore:preflight`, `npm run typecheck`, eslint and Prettier on the changed files, and the `messages` vitest suite (781 tests) pass.
+  The Xcode Cloud archive itself is confirmed only after merge.
+
 ### Make standalone headers flat by default (2026-10-13)
 
 - Why: after #451–#454 fixed headers one at a time, the owner hit the same bordered, raised header on the join-before-navigate page and asked to fix every header at once.
