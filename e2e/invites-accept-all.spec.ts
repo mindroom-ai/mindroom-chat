@@ -7,7 +7,7 @@ import { createPrivateRoom, joinRoom, matrixFetch } from './helpers/matrix';
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
-test('Accept All joins every primary invite and records the DM', async ({ page }, testInfo) => {
+test('Accept All joins every primary invite and records the DMs', async ({ page }, testInfo) => {
   test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
@@ -39,18 +39,21 @@ test('Accept All joins every primary invite and records the DM', async ({ page }
       invite: [viewer.user_id],
     }),
   ];
-  const dmRoomId = await createPrivateRoom(homeserver!, router.access_token, {
-    name: 'Router DM',
-    topic: 'Direct chat',
-    preset: 'trusted_private_chat',
-    invite: [viewer.user_id],
-    isDirect: true,
-  });
+  // Two DMs: the second m.direct write must not drop the first.
+  const createDm = (name: string) =>
+    createPrivateRoom(homeserver!, router.access_token, {
+      name,
+      topic: 'Direct chat',
+      preset: 'trusted_private_chat',
+      invite: [viewer.user_id],
+      isDirect: true,
+    });
+  const dmRoomIds = [await createDm('Router DM'), await createDm('Second DM')];
 
   await loginWithPassword(page, { homeserver: homeserver!, username, password });
   await page.goto('/inbox/invites/');
   const accept = page.getByRole('button', { name: 'Accept', exact: true });
-  await expect(accept).toHaveCount(3);
+  await expect(accept).toHaveCount(4);
   await page.screenshot({ path: testInfo.outputPath('before.png') });
 
   await page.getByRole('button', { name: 'Accept All' }).click();
@@ -63,11 +66,12 @@ test('Accept All joins every primary invite and records the DM', async ({ page }
     '/joined_rooms',
     { accessToken: viewer.access_token }
   );
-  expect(joinedRooms).toEqual(expect.arrayContaining([...invited, dmRoomId]));
+  expect(joinedRooms).toEqual(expect.arrayContaining([...invited, ...dmRoomIds]));
   const direct = await matrixFetch<Record<string, string[]>>(
     homeserver!,
     `/user/${encodeURIComponent(viewer.user_id)}/account_data/m.direct`,
     { accessToken: viewer.access_token }
   );
-  expect(direct).toEqual({ [router.user_id]: [dmRoomId] });
+  expect(direct).toEqual({ [router.user_id]: expect.arrayContaining(dmRoomIds) });
+  expect(direct[router.user_id]).toHaveLength(2);
 });

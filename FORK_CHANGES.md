@@ -7,11 +7,14 @@
 - Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.
 - Change: the Primary section of Inbox > Invites gets an "Accept All" chip in its header, in the same place and style as the Public section's existing "Decline All".
   The per-card join (join, then add a direct invite to `m.direct` under the guessed DM partner) moves to `inbox/acceptInvite.ts`; Accept All runs it for each invite through `rateLimitedActions`, so 429s back off and one failed join leaves that invite listed without stopping the rest.
+  The batch skips any room that is no longer an invite when its turn comes, so a card declined or accepted mid-batch, or on another device, is not joined again.
   Accept All does not navigate; joined invites leave the list as they sync. Public and Spam get no Accept All: those invites come from strangers or flagged senders.
   New `sharedUi.invites.acceptAll` string in all 17 locales.
-- Tests: `acceptInvite.test.ts` covers every invite joined, a failed join not stopping the batch, and `m.direct` written only for the DM.
-  `e2e/invites-accept-all.spec.ts` against a local Tuwunel: three Primary invites (one DM), Accept All, then all three joined and `m.direct` holds the DM.
+- Tests: `acceptInvite.test.ts` covers pending invites joined, a room no longer invited skipped, a failed join not stopping the batch, and `m.direct` written only for the DM that joined, with `is_direct` read before the join.
+  `e2e/invites-accept-all.spec.ts` against a local Tuwunel: four Primary invites (two DMs), Accept All, then all four joined and `m.direct` holds both DMs (matrix-js-sdk 41.7's `setAccountData` resolves after the sync echo, so the second write reads the first).
 - Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, the inbox and i18n unit tests (124), and the e2e spec in Chromium.
+- Independent review (subagent): changes required for a mid-batch decline being re-joined (fixed by the skip above), with nits on the unit test not pinning the join order, a single DM in the e2e, and the order comment; all fixed.
+  Accepted: a 429 on the `m.direct` write after a successful join retries the whole accept, which then sees a joined room and leaves the DM untagged, as a failed write on the single-card path already does.
 
 ### Make the background jobs bar match the typing bar (2026-10-14)
 
