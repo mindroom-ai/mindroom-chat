@@ -1792,13 +1792,15 @@
     "backgroundJobs": {
       "running": "চলছে: {{tool}}",
       "awaitingApproval": "অনুমোদনের অপেক্ষায়: {{tool}}",
+      "waiting": "অনুমোদনের অপেক্ষায়",
       "stoppingJob": "থামানো হচ্ছে: {{tool}}",
       "jobCount": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "subagent": "{{tool}} (সাব-এজেন্ট)",
       "stopAll": "সব থামান",
       "stopping": "থামানো হচ্ছে…",
-      "cancel": "{{tool}} বাতিল করুন",
-      "cancelFailed": "{{tool}} বাতিল করা যায়নি। আবার চেষ্টা করুন।",
+      "stop": "থামান",
+      "stopJob": "{{tool}} থামান",
+      "stopFailed": "{{tool}} থামানো যায়নি। আবার চেষ্টা করুন।",
       "stopAllFailed": "ব্যাকগ্রাউন্ড কাজগুলো থামানো যায়নি। আবার চেষ্টা করুন।",
       "inRoom": "ব্যাকগ্রাউন্ড কাজ চলছে"
     }

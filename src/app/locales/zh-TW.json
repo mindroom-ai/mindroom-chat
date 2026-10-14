@@ -3042,13 +3042,15 @@
     "backgroundJobs": {
       "running": "執行中：{{tool}}",
       "awaitingApproval": "等待核准：{{tool}}",
+      "waiting": "等待核准",
       "stoppingJob": "正在停止：{{tool}}",
       "jobCount": "{{count}} 個背景工作",
       "subagent": "{{tool}}（子代理）",
       "stopAll": "全部停止",
       "stopping": "正在停止…",
-      "cancel": "取消 {{tool}}",
-      "cancelFailed": "無法取消 {{tool}}，請再試一次。",
+      "stop": "停止",
+      "stopJob": "停止 {{tool}}",
+      "stopFailed": "無法停止 {{tool}}，請再試一次。",
       "stopAllFailed": "無法停止背景工作，請再試一次。",
       "inRoom": "背景工作執行中"
     }

@@ -1792,13 +1792,15 @@
     "backgroundJobs": {
       "running": "चल रहा है: {{tool}}",
       "awaitingApproval": "स्वीकृति की प्रतीक्षा: {{tool}}",
+      "waiting": "स्वीकृति की प्रतीक्षा",
       "stoppingJob": "रोका जा रहा है: {{tool}}",
       "jobCount": "{{count}} बैकग्राउंड कार्य",
       "subagent": "{{tool}} (सब-एजेंट)",
       "stopAll": "सब रोकें",
       "stopping": "रोका जा रहा है…",
-      "cancel": "{{tool}} रद्द करें",
-      "cancelFailed": "{{tool}} रद्द नहीं हो सका। फिर से कोशिश करें।",
+      "stop": "रोकें",
+      "stopJob": "{{tool}} रोकें",
+      "stopFailed": "{{tool}} रोका नहीं जा सका। फिर से कोशिश करें।",
       "stopAllFailed": "बैकग्राउंड कार्य रोके नहीं जा सके। फिर से कोशिश करें।",
       "inRoom": "बैकग्राउंड कार्य चल रहे हैं"
     }

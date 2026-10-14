@@ -3042,13 +3042,15 @@
     "backgroundJobs": {
       "running": "実行中: {{tool}}",
       "awaitingApproval": "承認待ち: {{tool}}",
+      "waiting": "承認待ち",
       "stoppingJob": "停止中: {{tool}}",
       "jobCount": "バックグラウンドジョブ {{count}} 件",
       "subagent": "{{tool}}（サブエージェント）",
       "stopAll": "すべて停止",
       "stopping": "停止中…",
-      "cancel": "{{tool}} をキャンセル",
-      "cancelFailed": "{{tool}} をキャンセルできませんでした。もう一度お試しください。",
+      "stop": "停止",
+      "stopJob": "{{tool}} を停止",
+      "stopFailed": "{{tool}} を停止できませんでした。もう一度お試しください。",
       "stopAllFailed": "バックグラウンドジョブを停止できませんでした。もう一度お試しください。",
       "inRoom": "バックグラウンドジョブを実行中"
     }

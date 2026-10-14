@@ -39,7 +39,7 @@ describe('presentBackgroundJobs', () => {
       t
     );
     expect(presented?.title).toBe('Waiting for approval: run_tests');
-    expect(presented?.items[0].label).toBe('run_tests');
+    expect(presented?.items[0]).toMatchObject({ name: 'run_tests', waiting: false });
   });
 
   it('marks a job whose cancel was already requested as stopping', () => {
@@ -70,7 +70,7 @@ describe('presentBackgroundJobs', () => {
       t
     );
     expect(presented?.title).toBe('2 background jobs');
-    expect(presented?.items.map((item) => item.label)).toEqual(['run_tests', 'download']);
+    expect(presented?.items.map((item) => item.name)).toEqual(['run_tests', 'download']);
   });
 
   it('marks a job waiting for approval among several', () => {
@@ -79,17 +79,14 @@ describe('presentBackgroundJobs', () => {
       none,
       t
     );
-    expect(presented?.items.map((item) => item.label)).toEqual([
-      'run_tests',
-      'Waiting for approval: shell',
-    ]);
+    expect(presented?.items.map((item) => item.waiting)).toEqual([false, true]);
     expect(presented?.items.map((item) => item.name)).toEqual(['run_tests', 'shell']);
   });
 
   it('shows a job with an unknown status as running and stoppable', () => {
     const presented = presentBackgroundJobs([job('job_1', { status: 'paused' })], none, t);
     expect(presented?.title).toBe('Running: run_tests');
-    expect(presented?.items[0]).toMatchObject({ label: 'run_tests', stopping: false });
+    expect(presented?.items[0]).toMatchObject({ name: 'run_tests', stopping: false });
   });
 
   it('labels a subagent by its tool and an unknown kind by its tool', () => {
@@ -98,7 +95,7 @@ describe('presentBackgroundJobs', () => {
       none,
       t
     );
-    expect(presented?.items.map((item) => item.label)).toEqual([
+    expect(presented?.items.map((item) => item.name)).toEqual([
       'run_subagent (subagent)',
       'run_tests',
     ]);
