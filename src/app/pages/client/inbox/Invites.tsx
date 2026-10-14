@@ -147,6 +147,7 @@ type InviteCardProps = {
   dateFormatString: string;
   onNavigate: NavigateHandler;
   hideAvatar: boolean;
+  disabled?: boolean;
 };
 function InviteCard({
   invite,
@@ -155,6 +156,7 @@ function InviteCard({
   dateFormatString,
   onNavigate,
   hideAvatar,
+  disabled,
 }: InviteCardProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -277,7 +279,7 @@ function InviteCard({
               variant="Secondary"
               radii="300"
               fill="Soft"
-              disabled={joining || leaving}
+              disabled={disabled || joining || leaving}
               before={leaving ? <Spinner variant="Secondary" size="100" /> : undefined}
             >
               <Text size="B300">{t('sharedUi.invites.decline')}</Text>
@@ -289,7 +291,7 @@ function InviteCard({
               fill="Soft"
               radii="300"
               outlined
-              disabled={joining || leaving}
+              disabled={disabled || joining || leaving}
               before={joining ? <Spinner variant="Success" fill="Soft" size="100" /> : undefined}
             >
               <Text size="B300">{t('sharedUi.invites.accept')}</Text>
@@ -470,6 +472,7 @@ function KnownInvites({
               dateFormatString={dateFormatString}
               onNavigate={handleNavigate}
               hideAvatar={false}
+              disabled={accepting}
             />
           ))}
         </Box>
