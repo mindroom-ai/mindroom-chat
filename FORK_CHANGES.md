@@ -8,6 +8,7 @@
   `createSessionTokenRefresh` treated only `M_UNKNOWN_TOKEN` as a definitive rejection, so the SDK retried the unusable session instead of emitting `Session.logged_out`.
 - Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
   Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
+  The Connect page shares the refresh function: `requestAsStoredSession` maps `TokenRefreshLogoutError` to `HomeserverSignedOutError`, so an `M_FORBIDDEN` refresh there now shows "This account needs to sign in again before it can approve." with a "Sign in to approve" button instead of the generic request-failed error.
 - Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
   Accepted limit: a rejection that lands before the winner stores its rotation still logs out, as `M_UNKNOWN_TOKEN` already did.
   Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse rejects a reused token with `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it (its other `M_FORBIDDEN` refresh errors are true expiries).
