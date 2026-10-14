@@ -584,7 +584,11 @@
       "searchResults": "Résultats de recherche",
       "noResultsFound": "Aucun résultat trouvé",
       "personalPack": "Pack personnel",
-      "unknown": "Inconnue"
+      "unknown": "Inconnue",
+      "addCustomEmoji": "Ajouter un emoji personnalisé",
+      "addCustomEmojiDescription": "Il est enregistré dans votre pack personnel, pour l’utiliser dans tous vos salons.",
+      "addCustomEmojiFailed": "Impossible d’ajouter l’emoji. Réessayez.",
+      "add": "Ajouter"
     },
     "noStickerPacks": {
       "noStickerPacks": "Aucun pack d'autocollants !",

@@ -581,7 +581,11 @@
       "searchResults": "Suchergebnisse",
       "noResultsFound": "Keine Ergebnisse gefunden",
       "personalPack": "Persönliches Paket",
-      "unknown": "Unbekannt"
+      "unknown": "Unbekannt",
+      "addCustomEmoji": "Eigenes Emoji hinzufügen",
+      "addCustomEmojiDescription": "Es wird in deinem persönlichen Paket gespeichert, damit du es in jedem Raum nutzen kannst.",
+      "addCustomEmojiFailed": "Das Emoji konnte nicht hinzugefügt werden. Versuche es erneut.",
+      "add": "Hinzufügen"
     },
     "noStickerPacks": {
       "noStickerPacks": "Keine Stickerpakete!",

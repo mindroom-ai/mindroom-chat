@@ -581,7 +581,11 @@
       "searchResults": "Arama sonuçları",
       "noResultsFound": "Sonuç bulunamadı",
       "personalPack": "Kişisel paket",
-      "unknown": "Bilinmiyor"
+      "unknown": "Bilinmiyor",
+      "addCustomEmoji": "Özel emoji ekle",
+      "addCustomEmojiDescription": "Kişisel paketinize kaydedilir, böylece her odada kullanabilirsiniz.",
+      "addCustomEmojiFailed": "Emoji eklenemedi. Tekrar deneyin.",
+      "add": "Ekle"
     },
     "noStickerPacks": {
       "noStickerPacks": "Çıkartma paketi yok!",

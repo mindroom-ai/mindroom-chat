@@ -581,7 +581,11 @@
       "searchResults": "搜索结果",
       "noResultsFound": "没有找到结果",
       "personalPack": "个人包",
-      "unknown": "未知"
+      "unknown": "未知",
+      "addCustomEmoji": "添加自定义表情",
+      "addCustomEmojiDescription": "它会保存到你的个人包，可在每个房间中使用。",
+      "addCustomEmojiFailed": "无法添加表情。请重试。",
+      "add": "添加"
     },
     "noStickerPacks": {
       "noStickerPacks": "没有贴纸包！",

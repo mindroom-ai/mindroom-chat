@@ -2198,7 +2198,11 @@
       "recent": "সাম্প্রতিক",
       "searchResults": "অনুসন্ধান ফলাফল",
       "unknown": "অজানা",
-      "unknownPack": "অজানা প্যাক"
+      "unknownPack": "অজানা প্যাক",
+      "addCustomEmoji": "কাস্টম ইমোজি যোগ করুন",
+      "addCustomEmojiDescription": "এটি আপনার ব্যক্তিগত প্যাকে সংরক্ষিত হয়, তাই প্রতিটি রুমে ব্যবহার করতে পারবেন।",
+      "addCustomEmojiFailed": "ইমোজি যোগ করা যায়নি। আবার চেষ্টা করুন।",
+      "add": "যোগ করুন"
     },
     "emojiGroups": {
       "activity": "কার্যকলাপ",

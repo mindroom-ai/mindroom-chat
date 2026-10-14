@@ -581,7 +581,11 @@
       "searchResults": "Hasil pencarian",
       "noResultsFound": "Tidak ada hasil ditemukan",
       "personalPack": "Paket pribadi",
-      "unknown": "Tidak diketahui"
+      "unknown": "Tidak diketahui",
+      "addCustomEmoji": "Tambahkan emoji kustom",
+      "addCustomEmojiDescription": "Emoji disimpan di paket pribadi Anda, jadi bisa dipakai di setiap ruang.",
+      "addCustomEmojiFailed": "Gagal menambahkan emoji. Coba lagi.",
+      "add": "Tambah"
     },
     "noStickerPacks": {
       "noStickerPacks": "Tidak ada paket stiker!",
