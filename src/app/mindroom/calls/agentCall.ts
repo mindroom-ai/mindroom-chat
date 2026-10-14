@@ -11,6 +11,7 @@ import {
 } from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../background-jobs/backgroundJobsContract';
 import { setRoomArchived } from '../rooms/archivedRooms';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
@@ -94,6 +95,9 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
     : undefined;
 };
 
+// The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
+const AGENT_JOBS_EVENT_LEVEL = { [MINDROOM_BACKGROUND_JOBS_EVENT]: 0 };
+
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
 /** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
@@ -122,6 +126,7 @@ export const createAgentVoiceRoom = async (
     },
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
+  const voiceLevels = createVoiceRoomPowerLevelsOverride();
 
   const result = await mx.createRoom({
     name: `Call with ${displayName ?? getMxIdLocalPart(agentUserId) ?? agentUserId}`,
@@ -131,7 +136,10 @@ export const createAgentVoiceRoom = async (
     creation_content: {
       type: RoomType.Call,
     },
-    power_level_content_override: createVoiceRoomPowerLevelsOverride(),
+    power_level_content_override: {
+      ...voiceLevels,
+      events: { ...voiceLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
+    },
     initial_state: initialState,
   });
   // Calls open the room from the call bar, so it is archived out of navigation, and muted so its
@@ -162,6 +170,22 @@ export const prepareAgentCallRoom = async (
   const membership = room.getMember(agentUserId)?.membership;
   if (membership !== Membership.Join && membership !== Membership.Invite) {
     await mx.invite(room.roomId, agentUserId);
+  }
+  // A call room made before agents could publish their background jobs gains that power level before the
+  // agent hears of the call, so its first jobs are not refused; best effort.
+  const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
+  if (powerLevels && powerLevels.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] === undefined) {
+    await mx
+      .sendStateEvent(
+        room.roomId,
+        StateEvent.RoomPowerLevels as never,
+        {
+          ...powerLevels,
+          events: { ...powerLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
+        } as never,
+        ''
+      )
+      .catch(() => undefined);
   }
   await sendAgentCall(mx, room.roomId, agentUserId, origin);
 };

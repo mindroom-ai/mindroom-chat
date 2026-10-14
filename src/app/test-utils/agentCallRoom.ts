@@ -22,6 +22,8 @@ type FakeRoomOptions = {
   membership?: string;
   /** Only visible after `loadMembersIfNeeded`, like a lazy-loaded member list. */
   agentMembership?: string;
+  /** `m.room.power_levels` content. */
+  powerLevels?: Record<string, unknown>;
 };
 
 /** Just enough of a Room for the agent call helpers. */
@@ -33,6 +35,7 @@ export const fakeRoom = ({
   createdTs = 0,
   membership = 'join',
   agentMembership,
+  powerLevels,
 }: FakeRoomOptions = {}): Room => {
   const state: Record<string, object> = {
     [StateEvent.RoomCreate]: {
@@ -43,6 +46,7 @@ export const fakeRoom = ({
   if (call) {
     state[StateEvent.MindroomAgentCall] = { getSender: () => callSender, getContent: () => call };
   }
+  if (powerLevels) state[StateEvent.RoomPowerLevels] = { getContent: () => powerLevels };
   let membersLoaded = false;
   return {
     roomId,

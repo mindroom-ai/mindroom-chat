@@ -3314,6 +3314,19 @@
       "unpin": "إلغاء تثبيت ⁨{{title}}⁩",
       "shared": "تتم مشاركتها مع الوكيل",
       "saved": "تحتوي على قيمك"
+    },
+    "backgroundJobs": {
+      "running": "قيد التشغيل: ⁨{{tool}}⁩",
+      "awaitingApproval": "بانتظار الموافقة: ⁨{{tool}}⁩",
+      "stoppingJob": "جارٍ الإيقاف: ⁨{{tool}}⁩",
+      "jobCount": "مهام في الخلفية: ⁨{{count}}⁩",
+      "subagent": "⁨{{tool}}⁩ (وكيل فرعي)",
+      "stopAll": "إيقاف الكل",
+      "stopping": "جارٍ الإيقاف…",
+      "cancel": "إلغاء ⁨{{tool}}⁩",
+      "cancelFailed": "تعذّر إلغاء ⁨{{tool}}⁩. حاول مرة أخرى.",
+      "stopAllFailed": "تعذّر إيقاف المهام في الخلفية. حاول مرة أخرى.",
+      "inRoom": "مهام في الخلفية قيد التشغيل"
     }
   },
   "roomSchedules": {

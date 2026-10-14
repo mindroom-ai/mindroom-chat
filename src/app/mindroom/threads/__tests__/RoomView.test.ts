@@ -1995,6 +1995,7 @@ describe('RoomView', () => {
 });
 
 vi.mock('../../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
 vi.mock('../../messages/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: 'thread-approval-provider',
 }));

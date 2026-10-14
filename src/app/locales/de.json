@@ -3050,6 +3050,19 @@
       "unpin": "{{title}} lösen",
       "shared": "Mit Agent geteilt",
       "saved": "Enthält deine Werte"
+    },
+    "backgroundJobs": {
+      "running": "Läuft: {{tool}}",
+      "awaitingApproval": "Wartet auf Freigabe: {{tool}}",
+      "stoppingJob": "Wird gestoppt: {{tool}}",
+      "jobCount": "{{count}} Hintergrundaufgaben",
+      "subagent": "{{tool}} (Subagent)",
+      "stopAll": "Alle stoppen",
+      "stopping": "Wird gestoppt…",
+      "cancel": "{{tool}} abbrechen",
+      "cancelFailed": "{{tool}} konnte nicht abgebrochen werden. Versuche es erneut.",
+      "stopAllFailed": "Die Hintergrundaufgaben konnten nicht gestoppt werden. Versuche es erneut.",
+      "inRoom": "Hintergrundaufgaben laufen"
     }
   },
   "roomSchedules": {
