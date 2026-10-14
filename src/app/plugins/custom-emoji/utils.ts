@@ -101,8 +101,12 @@ export function addEmoticonToPackContent(
   const taken = (name: string) => Object.prototype.hasOwnProperty.call(images, name);
   const freeShortcode = taken(shortcode) ? suffixRename(shortcode, taken) : shortcode;
   const packUsage = new PackMetaReader(content?.pack ?? {}).usage;
-  images[freeShortcode] = packUsage.includes(ImageUsage.Emoticon)
+  const emoticon = packUsage.includes(ImageUsage.Emoticon)
     ? image
     : { ...image, usage: [ImageUsage.Emoticon] };
-  return { content: { ...content, images }, shortcode: freeShortcode };
+  // A computed key defines an own property even for `__proto__`; assigning one would not.
+  return {
+    content: { ...content, images: { ...images, [freeShortcode]: emoticon } },
+    shortcode: freeShortcode,
+  };
 }

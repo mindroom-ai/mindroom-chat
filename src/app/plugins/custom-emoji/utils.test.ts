@@ -26,6 +26,14 @@ describe('addEmoticonToPackContent', () => {
     });
   });
 
+  it('saves a shortcode named like an Object.prototype key', () => {
+    const { content } = addEmoticonToPackContent(undefined, '__proto__', image);
+
+    expect(JSON.stringify(content)).toBe(
+      '{"images":{"__proto__":{"url":"mxc://example.org/new","info":{"w":32,"h":32}}}}'
+    );
+  });
+
   it('marks the image as an emoji in a sticker-only pack', () => {
     const result = addEmoticonToPackContent(
       { pack: { usage: [ImageUsage.Sticker] } },
