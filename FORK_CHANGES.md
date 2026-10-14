@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Recover sessions rejected by Tuwunel's refresh endpoint (2026-10-13)
+
+- Why: Brave showed the homeserver connectivity dialog while Matrix requests returned `401 M_UNKNOWN_TOKEN` and `/refresh` returned `403 M_FORBIDDEN` with "Refresh token is unrecognized."
+  `createSessionTokenRefresh` treated only `M_UNKNOWN_TOKEN` as a definitive rejection, so the SDK retried the unusable session instead of emitting `Session.logged_out`.
+- Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
+  Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
+- Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
+  Accepted limit: a rejection that lands before the winner stores its rotation still logs out, as `M_UNKNOWN_TOKEN` already did.
+  Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse rejects a reused token with `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it (its other `M_FORBIDDEN` refresh errors are true expiries).
+- Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
+  The two `M_FORBIDDEN` regressions and the race regression fail before their fixes.
+- Independent review: Opus 5.5 and GPT-6 Astra; round 1 found the no-Web-Locks race above. The startup logout listener attaches before `startClient`.
+- Validation: all 6,736 tests pass under Node 24 on Linux, including 76 focused refresh/startup/cleanup tests also passing locally.
+  Linux typecheck and lint pass (0 errors, 18 existing warnings); the production build passes under Node 24 on a temporary case-sensitive macOS volume.
+  The macOS case-sensitive volume avoided the `ApprovalArgumentFields` casing collision that #457 since fixed.
+
 ### Fix the iOS build's case-insensitive import of `ApprovalArgumentFields` (2026-10-14)
 
 - Why: every Xcode Cloud archive since #450 failed in `ci_pre_xcodebuild.sh` with `"ApprovalArgumentFields" is not exported by "src/app/mindroom/messages/approvalArgumentFields.ts"`, so no iOS beta has shipped since #449.
