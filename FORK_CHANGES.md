@@ -9,8 +9,8 @@
   The runbook records the same collision four times before (`ArchivedRooms`, `KeyBackupNudge`, `timelineMinimap`, `messageExtras`).
 - Change:
   - Rename `approvalArgumentFields.ts` and its test to `argumentFields.ts` and `argumentFields.test.ts`, and update the three importers.
-  - New CI guard `scripts/case-insensitive-imports.test.mjs`, run in `build-pull-request.yml`: it fails when two modules under `src` have import paths that differ only by letter case, counting `dir/index.ts` as `dir`. `Foo.tsx` beside `foo.css.ts` stays allowed, since their import paths differ.
-- Tests: the guard fails on the old `dev` tree with exactly this pair and passes after the rename; its own cases cover a file pair, a file beside a same-name folder in different case, and the allowed pairs.
+  - New CI guard `scripts/case-insensitive-imports.test.mjs`, run in `build-pull-request.yml`: it fails when two modules under `src` have import paths that differ only by letter case, where an index module such as `dir/index.ts` is imported both as `dir/index` and as `dir`. `Foo.tsx` beside `foo.css.ts` stays allowed, since their import paths differ.
+- Tests: the guard fails on the old `dev` tree with exactly this pair and passes after the rename; its own cases cover a file pair, a file beside a same-name folder in different case, `index` against `Index` in one folder, and the allowed pairs.
 - Validation: `MINDROOM_BUILD_TARGET=ios npm run build`, `npm run appstore:preflight`, `npm run typecheck`, eslint and Prettier on the changed files, and the `messages` vitest suite (781 tests) pass. The Xcode Cloud archive itself is confirmed only after merge.
 
 ### Make standalone headers flat by default (2026-10-13)

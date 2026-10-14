@@ -6,26 +6,38 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const MODULE_EXTENSION_RE = /\.(?:[cm]?[jt]sx?)$/;
 
-// A folder's index module is imported by the folder's path.
-const importPath = (file) => file.replace(MODULE_EXTENSION_RE, '').replace(/\/index$/, '');
+// Every extensionless path that imports a module: its own, and its folder's for an index module.
+const importPaths = (file) => {
+  const path = file.replace(MODULE_EXTENSION_RE, '');
+  const folder = /^(.+)\/index$/i.exec(path)?.[1];
+  return folder === undefined ? [path] : [path, folder];
+};
 
 // macOS builds (Xcode Cloud) resolve extensionless imports on a case-insensitive disk, so
 // `./Foo` can pick `foo.ts` or `foo/index.ts` over `Foo.tsx` there while Linux CI resolves it correctly.
 const ambiguousImports = (files) => {
-  const modulesByImportPath = new Map();
+  const importsByKey = new Map();
   for (const file of files.filter((name) => MODULE_EXTENSION_RE.test(name))) {
-    const key = importPath(file).toLowerCase();
-    modulesByImportPath.set(key, [...(modulesByImportPath.get(key) ?? []), file]);
+    for (const path of importPaths(file)) {
+      const key = path.toLowerCase();
+      importsByKey.set(key, [...(importsByKey.get(key) ?? []), { file, path }]);
+    }
   }
-  return [...modulesByImportPath.values()].filter(
-    (modules) => new Set(modules.map(importPath)).size > 1
-  );
+  return [...importsByKey.values()]
+    .filter((imports) => new Set(imports.map(({ path }) => path)).size > 1)
+    .map((imports) => imports.map(({ file }) => file));
 };
 
 test('flags modules whose import paths differ only by letter case', () => {
   assert.deepEqual(ambiguousImports(['a/Bar.tsx', 'a/bar.ts']), [['a/Bar.tsx', 'a/bar.ts']]);
   assert.deepEqual(ambiguousImports(['a/Dir.tsx', 'a/dir/index.ts']), [
     ['a/Dir.tsx', 'a/dir/index.ts'],
+  ]);
+  assert.deepEqual(ambiguousImports(['a/dir/index.tsx', 'a/dir/Index.ts']), [
+    ['a/dir/index.tsx', 'a/dir/Index.ts'],
+  ]);
+  assert.deepEqual(ambiguousImports(['a/Dir.tsx', 'a/dir/Index.ts']), [
+    ['a/Dir.tsx', 'a/dir/Index.ts'],
   ]);
   assert.deepEqual(
     ambiguousImports(['a/Foo.tsx', 'a/foo.css.ts', 'b/foo.ts', 'b/foo.test.ts', 'b/foo/index.ts']),
