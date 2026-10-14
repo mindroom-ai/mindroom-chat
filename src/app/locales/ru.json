@@ -587,7 +587,11 @@
       "searchResults": "Результаты поиска",
       "noResultsFound": "Ничего не найдено",
       "personalPack": "Личный набор",
-      "unknown": "Неизвестно"
+      "unknown": "Неизвестно",
+      "addCustomEmoji": "Добавить свой эмодзи",
+      "addCustomEmojiDescription": "Он сохранится в вашем личном наборе, и его можно будет использовать в любой комнате.",
+      "addCustomEmojiFailed": "Не удалось добавить эмодзи. Попробуйте ещё раз.",
+      "add": "Добавить"
     },
     "noStickerPacks": {
       "noStickerPacks": "Нет наборов стикеров!",

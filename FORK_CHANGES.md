@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Add a custom emoji from the emoji board (2026-10-14)
+
+- Why: the owner asked for custom emoji reactions.
+  Reacting with a custom emoji already worked (the board lists image packs and sends the `mxc://` URL as the reaction key with its shortcode), but adding one took Settings → Emojis & Stickers → Default Pack → View → Select → Apply, and Simple Mode hides that page.
+- Change: the emoji board's Emoji tab has an "Add custom emoji" `+` button beside the search when its caller takes custom emoji (`onCustomEmojiSelect`: the reaction picker, the composer, the message editor, power-tag icons).
+  It opens a file picker; `AddCustomEmoji` (`components/emoji-board/components/`) then shows the image and a shortcode taken from the file name (whitespace and colons become dashes).
+  Add uploads the image, writes it to the personal pack (`im.ponies.user_emotes`), and selects it, so the reaction picker reacts with it right away and the composer inserts it.
+  The pack is read again just before the write, so concurrent pack edits are kept; a taken shortcode gets a number (`party-parrot1`), and in a sticker-only pack the image is marked as an emoji.
+  A failed upload or save leaves the form open with an error; closing the board mid-upload still saves the emoji but sends no reaction.
+- Shown in Simple Mode too; managing or deleting emoji still needs the Emojis & Stickers settings.
+  Not done: adding to room or space packs, and listing custom emoji among Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji).
+- New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmoji`, `addCustomEmojiDescription`, `addCustomEmojiFailed`, `add`; the form reuses `sharedUi.imageTile.shortcode` and `cancel`.
+- Tests: `addEmoticonToPackContent` (`plugins/custom-emoji/utils.test.ts`) covers a missing pack, a taken shortcode and a sticker-only pack; `AddCustomEmoji.test.tsx` covers the upload, the pack write and selection, and a failed upload.
+- Live check against a local Tuwunel stack: the picker's `+`, the form, and the reaction chip showing the uploaded image; the account data held both `party-parrot` and `party-parrot1` after two runs.
+
 ### Recover sessions rejected by Tuwunel's refresh endpoint (2026-10-13)
 
 - Why: Brave showed the homeserver connectivity dialog while Matrix requests returned `401 M_UNKNOWN_TOKEN` and `/refresh` returned `403 M_FORBIDDEN` with "Refresh token is unrecognized."

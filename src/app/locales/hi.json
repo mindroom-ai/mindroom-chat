@@ -2198,7 +2198,11 @@
       "recent": "हाल ही का",
       "searchResults": "खोज के परिणाम",
       "unknown": "अज्ञात",
-      "unknownPack": "अज्ञात पैक"
+      "unknownPack": "अज्ञात पैक",
+      "addCustomEmoji": "कस्टम इमोजी जोड़ें",
+      "addCustomEmojiDescription": "यह आपके व्यक्तिगत पैक में सहेजा जाता है, ताकि आप इसे हर रूम में इस्तेमाल कर सकें।",
+      "addCustomEmojiFailed": "इमोजी नहीं जोड़ा जा सका। फिर से कोशिश करें।",
+      "add": "जोड़ें"
     },
     "emojiGroups": {
       "activity": "गतिविधि",
