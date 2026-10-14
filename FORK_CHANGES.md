@@ -8,6 +8,7 @@
   `createSessionTokenRefresh` treated only `M_UNKNOWN_TOKEN` as a definitive rejection, so the SDK retried the unusable session instead of emitting `Session.logged_out`.
 - Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
   Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
+- Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
 - Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
   The two `M_FORBIDDEN` regressions fail before the fix.
 - Independent review: approved; the startup logout listener attaches before `startClient`.

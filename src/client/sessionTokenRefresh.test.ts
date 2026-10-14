@@ -11,7 +11,7 @@ import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
-import { getSessionStore, putSession } from '../app/state/sessions';
+import { getSessionStore, putSession, updateSessionCredentials } from '../app/state/sessions';
 import {
   TOKEN_REFRESH_TIMEOUT_MS,
   createSessionTokenRefresh,
@@ -162,6 +162,30 @@ describe('cross-tab refresh-token rotation', () => {
       refreshToken: 'refresh-b',
       expiry: undefined,
     });
+  });
+
+  it('adopts a rotation another tab stored while this tab spent the same token', async () => {
+    const session = storeSession({ accessToken: 'access-a', refreshToken: 'refresh-a' });
+    const refresh = vi.fn(async () => {
+      // Without Web Locks, the other tab wins the race and stores its rotation.
+      updateSessionCredentials(session.sessionId, {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      });
+      throw new MatrixError(
+        { errcode: 'M_FORBIDDEN', error: 'Refresh token is unrecognized.' },
+        403
+      );
+    });
+
+    const tokens = await createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    })('refresh-a');
+
+    expect(refresh).toHaveBeenCalledWith('refresh-a');
+    expect(tokens).toEqual({ accessToken: 'access-b', refreshToken: 'refresh-b' });
   });
 
   it('does not adopt credentials stored for a different device of the same account', async () => {

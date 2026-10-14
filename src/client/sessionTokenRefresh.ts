@@ -73,25 +73,35 @@ export const createSessionTokenRefresh = ({
   // older than ours (its write failed), not a rotation from another tab.
   const spentRefreshTokens = new Set<string>();
 
+  // Refresh tokens rotate on use. When another tab (or the pairing page)
+  // already rotated this device's token, spending ours fails and would log the
+  // account out, so adopt the stored rotation.
+  const findStoredRotation = (refreshToken: string) => {
+    const stored = findStoredDeviceSession(sessionId, deviceId);
+    if (
+      !stored?.refreshToken ||
+      stored.refreshToken === refreshToken ||
+      spentRefreshTokens.has(stored.refreshToken)
+    ) {
+      return undefined;
+    }
+    return { accessToken: stored.accessToken, refreshToken: stored.refreshToken };
+  };
+
   return (refreshToken) =>
     withSessionRefreshLock(sessionId, async () => {
-      // Refresh tokens rotate on use. When another tab (or the pairing page)
-      // already rotated this device's token, spending ours would fail with
-      // M_UNKNOWN_TOKEN and log the account out, so adopt the stored rotation.
-      const stored = findStoredDeviceSession(sessionId, deviceId);
-      if (
-        stored?.refreshToken &&
-        stored.refreshToken !== refreshToken &&
-        !spentRefreshTokens.has(stored.refreshToken)
-      ) {
-        return { accessToken: stored.accessToken, refreshToken: stored.refreshToken };
-      }
+      const storedRotation = findStoredRotation(refreshToken);
+      if (storedRotation) return storedRotation;
 
       spentRefreshTokens.add(refreshToken);
-      const response: IRefreshTokenResponse = await withTimeout(
-        refresh(refreshToken),
-        TOKEN_REFRESH_TIMEOUT_MS
-      ).catch(rethrowForSdkRefreshPolicy);
+      let response: IRefreshTokenResponse;
+      try {
+        response = await withTimeout(refresh(refreshToken), TOKEN_REFRESH_TIMEOUT_MS);
+      } catch (error) {
+        // Without Web Locks, another tab can spend the same token first and
+        // store its rotation while this refresh is in flight.
+        return findStoredRotation(refreshToken) ?? rethrowForSdkRefreshPolicy(error);
+      }
 
       const nextRefreshToken = response.refresh_token ?? refreshToken;
       const expiresInMs =
