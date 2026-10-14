@@ -1,8 +1,18 @@
 import type { Room } from 'matrix-js-sdk';
 import { Chip, Icon, Icons, Text } from 'folds';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import classNames from 'classnames';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import * as css from './backgroundJobsBar.css';
 import { jobsInView } from './backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
@@ -20,7 +30,13 @@ type BackgroundJobsBarProps = {
 // The last failed cancel of a job, with the view it was sent from, where it shows.
 type Failure = { view: string | null; text: string };
 
-/** The view's background jobs above the composer: one job with Stop, or several, each with Stop, and Stop all. */
+// A mouse resting on the title lists the jobs while it stays in the bar; pressing the title keeps them listed.
+type OpenMode = 'hover' | 'pinned';
+
+/**
+ * The view's background jobs above the composer, on one line: one job with Stop, or several with
+ * Stop all, which list each job with its own Stop on hover or when the title is pressed.
+ */
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -37,6 +53,56 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     const active = document.activeElement;
     if (focused.current && (!active || active === document.body)) bar.current?.focus();
   });
+
+  const [open, setOpen] = useState<OpenMode>();
+  const expanded = several && !!open;
+  const anchor = useRef<HTMLDivElement>(null);
+  // While listed, the bar keeps its one-line place in the footer and grows over the timeline,
+  // so the timeline, which pads itself for the footer, does not move under the pointer.
+  const [anchorHeight, setAnchorHeight] = useState<number>();
+  const toggle = useRef<HTMLButtonElement>(null);
+  const listId = useId();
+  const hoverTimer = useRef<number>();
+  const show = (mode: OpenMode) => {
+    window.clearTimeout(hoverTimer.current);
+    // Fractional, so the footer keeps its exact height while the jobs are listed.
+    if (!open) setAnchorHeight(anchor.current?.getBoundingClientRect().height);
+    setOpen(mode);
+  };
+  const hide = useCallback(() => {
+    window.clearTimeout(hoverTimer.current);
+    setOpen(undefined);
+  }, []);
+  useEffect(() => {
+    if (!several) hide();
+  }, [several, hide]);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+  useEffect(() => {
+    if (!expanded) return undefined;
+    // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
+    const onBarKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      toggle.current?.focus();
+      hide();
+    };
+    // Escape elsewhere closes the list and goes on to the room (to the composer, marking it read).
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) hide();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!bar.current?.contains(event.target as Node)) hide();
+    };
+    const element = bar.current;
+    element?.addEventListener('keydown', onBarKeyDown);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      element?.removeEventListener('keydown', onBarKeyDown);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [expanded, hide]);
 
   useEffect(() => {
     keepCancelsOf(room.roomId, new Set(roomJobs.map((job) => job.jobId)));
@@ -118,7 +184,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           variant="SurfaceVariant"
           fill="None"
           radii="Pill"
-          className={css.Action}
+          className={css.Plain}
           aria-label={t('mindroomUi.backgroundJobs.stopJob', { tool: item.name })}
           data-cancel-job
           onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
@@ -130,77 +196,121 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       )
     );
   const [single] = model.items;
+  // Only the title text is live, so a change is announced once, not with the button around it.
+  const status = (
+    <>
+      <Icon src={Icons.Clock} size="50" aria-hidden />
+      <Text as="span" size="T200" truncate role="status" title={model.title}>
+        {model.title}
+      </Text>
+    </>
+  );
   return (
     <div
-      ref={bar}
-      tabIndex={-1}
-      className={css.Bar}
-      role="region"
-      aria-label={model.title}
-      onFocus={() => {
-        focused.current = true;
-      }}
-      onBlur={(event) => {
-        const { currentTarget, relatedTarget, target } = event;
-        if (relatedTarget) {
-          if (!currentTarget.contains(relatedTarget)) focused.current = false;
-          return;
-        }
-        // Without a new target, focus left for the page or another window, unless its control unmounted.
-        queueMicrotask(() => {
-          if (target.isConnected) focused.current = false;
-        });
-      }}
+      ref={anchor}
+      className={css.Anchor}
+      style={expanded ? { height: anchorHeight } : undefined}
     >
-      <div className={css.Row}>
-        <small className={css.Status} role="status">
-          <Icon src={Icons.Clock} size="50" aria-hidden />
-          <Text as="span" size="T200" truncate title={model.title}>
-            {model.title}
-          </Text>
+      <div
+        ref={bar}
+        tabIndex={-1}
+        // Listed jobs hold irreversible actions over the timeline; the thread behind them must not compete.
+        className={classNames(css.Bar, expanded && glassDenseOverBackdrop)}
+        role="region"
+        aria-label={model.title}
+        onPointerLeave={(event: React.PointerEvent) => {
+          if (event.pointerType !== 'mouse') return;
+          window.clearTimeout(hoverTimer.current);
+          if (open === 'hover') hide();
+        }}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onBlur={(event) => {
+          const { currentTarget, relatedTarget, target } = event;
+          if (relatedTarget) {
+            if (!currentTarget.contains(relatedTarget)) {
+              focused.current = false;
+              hide();
+            }
+            return;
+          }
+          // Without a new target, focus left for the page or another window, unless its control unmounted.
+          queueMicrotask(() => {
+            if (target.isConnected) focused.current = false;
+          });
+        }}
+      >
+        <small className={css.Status}>
+          {several ? (
+            <button
+              ref={toggle}
+              type="button"
+              className={css.Toggle}
+              aria-expanded={expanded}
+              aria-controls={expanded ? listId : undefined}
+              onPointerEnter={(event: React.PointerEvent) => {
+                if (event.pointerType !== 'mouse' || open) return;
+                // Only a mouse resting on the title lists the jobs, so a pointer on its way to
+                // the composer or the bars above does not open Stops under itself.
+                hoverTimer.current = window.setTimeout(() => show('hover'), 150);
+              }}
+              onPointerLeave={() => window.clearTimeout(hoverTimer.current)}
+              onClick={() => (open === 'pinned' ? hide() : show('pinned'))}
+            >
+              {status}
+              <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
+            </button>
+          ) : (
+            status
+          )}
         </small>
-        {several
-          ? canCancel &&
-            stoppable.length > 0 && (
-              // Its own button, so a focused Stop never turns into Stop all when a job arrives.
-              <Chip
-                key="all"
-                type="button"
-                variant="SurfaceVariant"
-                fill="None"
-                radii="Pill"
-                className={css.Action}
-                onClick={stopAll}
-              >
-                <Text size="B300">{t('mindroomUi.backgroundJobs.stopAll')}</Text>
-              </Chip>
-            )
-          : !single.stopping && stop(single, false)}
-      </div>
-      {several && (
-        // Lists without bullets keep their role in WebKit only when it is stated.
-        // eslint-disable-next-line jsx-a11y/no-redundant-roles
-        <ul role="list" className={css.Jobs}>
-          {model.items.map((item) => (
-            <li key={item.jobId} className={css.Job}>
-              <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
-                {item.name}
-              </Text>
-              {item.waiting && !item.stopping && (
-                <Text as="span" size="T200" truncate className={css.Muted}>
-                  {t('mindroomUi.backgroundJobs.waiting')}
+        {expanded && (
+          // Shown above the title, so the title and Stop all stay under the pointer, but read and
+          // reached right after the title, before Stop all. Focus in the list keeps it listed.
+          // Lists without bullets keep their role in WebKit only when it is stated.
+          // eslint-disable-next-line jsx-a11y/no-redundant-roles
+          <ul id={listId} role="list" className={css.Jobs} onFocus={() => setOpen('pinned')}>
+            {model.items.map((item) => (
+              <li key={item.jobId} className={css.Job}>
+                <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
+                  {item.name}
                 </Text>
-              )}
-              {stop(item, true)}
-            </li>
-          ))}
-        </ul>
-      )}
-      {shownFailures.length > 0 && (
-        <Text as="small" size="T200" role="alert" className={css.Alert}>
-          {shownFailures.join(' ')}
-        </Text>
-      )}
+                {item.waiting && !item.stopping && (
+                  <Text as="span" size="T200" truncate className={css.Muted}>
+                    {t('mindroomUi.backgroundJobs.waiting')}
+                  </Text>
+                )}
+                {stop(item, true)}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={css.Action}>
+          {several
+            ? canCancel &&
+              stoppable.length > 0 && (
+                // Its own button, so a focused Stop never turns into Stop all when a job arrives.
+                <Chip
+                  key="all"
+                  type="button"
+                  variant="SurfaceVariant"
+                  fill="None"
+                  radii="Pill"
+                  className={css.Plain}
+                  onClick={stopAll}
+                >
+                  <Text size="B300">{t('mindroomUi.backgroundJobs.stopAll')}</Text>
+                </Chip>
+              )
+            : !single.stopping && stop(single, false)}
+        </div>
+        {shownFailures.length > 0 && (
+          <Text as="small" size="T200" role="alert" className={css.Alert}>
+            {shownFailures.join(' ')}
+          </Text>
+        )}
+      </div>
     </div>
   );
 }
