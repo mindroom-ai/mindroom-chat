@@ -3038,6 +3038,19 @@
       "unpin": "取消置顶 {{title}}",
       "shared": "已与智能体共享",
       "saved": "包含您的输入"
+    },
+    "backgroundJobs": {
+      "running": "运行中：{{tool}}",
+      "awaitingApproval": "等待批准：{{tool}}",
+      "stoppingJob": "正在停止：{{tool}}",
+      "jobCount": "{{count}} 个后台任务",
+      "subagent": "{{tool}}（子代理）",
+      "stopAll": "全部停止",
+      "stopping": "正在停止…",
+      "cancel": "取消 {{tool}}",
+      "cancelFailed": "无法取消 {{tool}}，请重试。",
+      "stopAllFailed": "无法停止后台任务，请重试。",
+      "inRoom": "后台任务运行中"
     }
   },
   "roomSchedules": {

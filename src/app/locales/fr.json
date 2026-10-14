@@ -3116,6 +3116,19 @@
       "unpin": "Désépingler {{title}}",
       "shared": "Partagé avec l’agent",
       "saved": "Contient vos valeurs"
+    },
+    "backgroundJobs": {
+      "running": "En cours : {{tool}}",
+      "awaitingApproval": "En attente d’approbation : {{tool}}",
+      "stoppingJob": "Arrêt en cours : {{tool}}",
+      "jobCount": "{{count}} tâches en arrière-plan",
+      "subagent": "{{tool}} (sous-agent)",
+      "stopAll": "Tout arrêter",
+      "stopping": "Arrêt…",
+      "cancel": "Annuler {{tool}}",
+      "cancelFailed": "Impossible d’annuler {{tool}}. Réessayez.",
+      "stopAllFailed": "Impossible d’arrêter les tâches en arrière-plan. Réessayez.",
+      "inRoom": "Tâches en arrière-plan en cours"
     }
   },
   "roomSchedules": {

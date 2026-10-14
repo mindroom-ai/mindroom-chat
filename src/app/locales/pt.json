@@ -3116,6 +3116,19 @@
       "unpin": "Desafixar {{title}}",
       "shared": "Compartilhado com o agente",
       "saved": "Tem seus valores"
+    },
+    "backgroundJobs": {
+      "running": "Em execução: {{tool}}",
+      "awaitingApproval": "Aguardando aprovação: {{tool}}",
+      "stoppingJob": "Parando: {{tool}}",
+      "jobCount": "{{count}} tarefas em segundo plano",
+      "subagent": "{{tool}} (subagente)",
+      "stopAll": "Parar tudo",
+      "stopping": "Parando…",
+      "cancel": "Cancelar {{tool}}",
+      "cancelFailed": "Não foi possível cancelar {{tool}}. Tente novamente.",
+      "stopAllFailed": "Não foi possível parar as tarefas em segundo plano. Tente novamente.",
+      "inRoom": "Tarefas em segundo plano em execução"
     }
   },
   "roomSchedules": {

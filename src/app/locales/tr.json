@@ -3050,6 +3050,19 @@
       "unpin": "{{title}} panelinin sabitlemesini kaldır",
       "shared": "Ajanla paylaşılıyor",
       "saved": "Değerleriniz kayıtlı"
+    },
+    "backgroundJobs": {
+      "running": "Çalışıyor: {{tool}}",
+      "awaitingApproval": "Onay bekliyor: {{tool}}",
+      "stoppingJob": "Durduruluyor: {{tool}}",
+      "jobCount": "{{count}} arka plan işi",
+      "subagent": "{{tool}} (alt ajan)",
+      "stopAll": "Tümünü durdur",
+      "stopping": "Durduruluyor…",
+      "cancel": "{{tool}} iptal et",
+      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin.",
+      "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
+      "inRoom": "Arka plan işleri çalışıyor"
     }
   },
   "roomSchedules": {

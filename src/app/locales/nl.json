@@ -3050,6 +3050,19 @@
       "unpin": "{{title}} losmaken",
       "shared": "Gedeeld met agent",
       "saved": "Bevat je waarden"
+    },
+    "backgroundJobs": {
+      "running": "Bezig: {{tool}}",
+      "awaitingApproval": "Wacht op goedkeuring: {{tool}}",
+      "stoppingJob": "Wordt gestopt: {{tool}}",
+      "jobCount": "{{count}} achtergrondtaken",
+      "subagent": "{{tool}} (subagent)",
+      "stopAll": "Alles stoppen",
+      "stopping": "Stoppen…",
+      "cancel": "{{tool}} annuleren",
+      "cancelFailed": "Kon {{tool}} niet annuleren. Probeer het opnieuw.",
+      "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
+      "inRoom": "Achtergrondtaken actief"
     }
   },
   "roomSchedules": {

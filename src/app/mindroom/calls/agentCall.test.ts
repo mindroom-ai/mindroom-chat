@@ -68,7 +68,7 @@ describe('MindRoom agent calls', () => {
       preset: 'private_chat',
       creation_content: { type: 'org.matrix.msc3417.call' },
       power_level_content_override: {
-        events: { 'org.matrix.msc3401.call.member': 0 },
+        events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 0 },
       },
       initial_state: [
         {
@@ -208,6 +208,66 @@ describe('MindRoom agent calls', () => {
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('lets the agent publish its background jobs in a call room made before it could', async () => {
+    // The room's own levels stay as they are; only the jobs event is added.
+    const powerLevels = {
+      users: { [ALICE]: 100 },
+      events: { 'org.matrix.msc3401.call.member': 50 },
+    };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.RoomPowerLevels,
+      {
+        users: { [ALICE]: 100 },
+        events: { 'org.matrix.msc3401.call.member': 50, 'io.mindroom.background_jobs': 0 },
+      },
+      ''
+    );
+  });
+
+  it('starts the call only once an older call room lets the agent publish its jobs', async () => {
+    let land: () => void = () => undefined;
+    sendStateEvent.mockImplementation((_roomId: string, type: string) =>
+      type === StateEvent.RoomPowerLevels
+        ? new Promise((resolve) => {
+            land = () => resolve({});
+          })
+        : Promise.resolve({})
+    );
+    const powerLevels = { events: { 'org.matrix.msc3401.call.member': 0 } };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    let prepared = false;
+    const preparing = prepareAgentCallRoom(mx, room, HELPER, origin).then(() => {
+      prepared = true;
+    });
+    await vi.waitFor(() =>
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        '!call:mindroom.test',
+        StateEvent.RoomPowerLevels,
+        expect.anything(),
+        ''
+      )
+    );
+    expect(prepared).toBe(false);
+    land();
+    await preparing;
+    expect(prepared).toBe(true);
+  });
+
+  it('leaves the power levels of a call room that already allows it alone', async () => {
+    const powerLevels = { events: { 'io.mindroom.background_jobs': 0 } };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      StateEvent.RoomPowerLevels,
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('keeps a permanent call room on hang-up and drops its origin before the stamp synced back', async () => {
