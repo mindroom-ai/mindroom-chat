@@ -46,12 +46,7 @@ import {
 } from '../../../utils/room';
 import { nameInitials } from '../../../utils/common';
 import { RoomAvatar } from '../../../components/room-avatar';
-import {
-  addRoomIdToMDirect,
-  getMxIdLocalPart,
-  guessDmRoomUserId,
-  rateLimitedActions,
-} from '../../../utils/matrix';
+import { getMxIdLocalPart, rateLimitedActions } from '../../../utils/matrix';
 import { Time } from '../../../components/message';
 import { useElementSizeObserver } from '../../../hooks/useElementSizeObserver';
 import { onEnterOrSpace, stopPropagation } from '../../../utils/keyboard';
@@ -68,6 +63,7 @@ import { useIgnoredUsers } from '../../../hooks/useIgnoredUsers';
 import { useReportRoomSupported } from '../../../hooks/useReportRoomSupported';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { acceptInvite, acceptInvites } from './acceptInvite';
 
 const COMPACT_CARD_WIDTH = 548;
 
@@ -162,7 +158,6 @@ function InviteCard({
 }: InviteCardProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const userId = mx.getSafeUserId();
 
   const [viewTopic, setViewTopic] = useState(false);
   const closeTopic = () => setViewTopic(false);
@@ -170,16 +165,9 @@ function InviteCard({
 
   const [joinState, join] = useAsyncCallback<void, MatrixError, []>(
     useCallback(async () => {
-      const dmUserId = isDirectInvite(invite.room, userId)
-        ? guessDmRoomUserId(invite.room, userId)
-        : undefined;
-
-      await mx.joinRoom(invite.roomId);
-      if (dmUserId) {
-        await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
-      }
+      await acceptInvite(mx, invite.room);
       onNavigate(invite.roomId, invite.isSpace);
-    }, [mx, invite, userId, onNavigate])
+    }, [mx, invite, onNavigate])
   );
   const [leaveState, leave] = useAsyncCallback<Record<string, never>, MatrixError, []>(
     useCallback(() => mx.leave(invite.roomId), [mx, invite])
@@ -438,9 +426,39 @@ function KnownInvites({
   dateFormatString,
 }: KnownInvitesProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+
+  const [acceptAllStatus, acceptAll] = useAsyncCallback(
+    useCallback(
+      () =>
+        acceptInvites(
+          mx,
+          invites.map((invite) => invite.room)
+        ),
+      [mx, invites]
+    )
+  );
+
+  const accepting = acceptAllStatus.status === AsyncStatus.Loading;
+
   return (
     <Box direction="Column" gap="200">
-      <Text size="H4">{t('sharedUi.invites.primary')}</Text>
+      <Box gap="200" justifyContent="SpaceBetween" alignItems="Center">
+        <Text size="H4">{t('sharedUi.invites.primary')}</Text>
+        <Box>
+          {invites.length > 0 && (
+            <Chip
+              variant="SurfaceVariant"
+              onClick={acceptAll}
+              before={accepting && <Spinner size="50" variant="Secondary" fill="Soft" />}
+              disabled={accepting}
+              radii="Pill"
+            >
+              <Text size="T200">{t('sharedUi.invites.acceptAll')}</Text>
+            </Chip>
+          )}
+        </Box>
+      </Box>
       {invites.length > 0 ? (
         <Box direction="Column" gap="100">
           {invites.map((invite) => (

@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Accept all Primary invites at once (2026-10-14)
+
+- Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.
+- Change: the Primary section of Inbox > Invites gets an "Accept All" chip in its header, in the same place and style as the Public section's existing "Decline All".
+  The per-card join (join, then add a direct invite to `m.direct` under the guessed DM partner) moves to `inbox/acceptInvite.ts`; Accept All runs it for each invite through `rateLimitedActions`, so 429s back off and one failed join leaves that invite listed without stopping the rest.
+  Accept All does not navigate; joined invites leave the list as they sync. Public and Spam get no Accept All: those invites come from strangers or flagged senders.
+  New `sharedUi.invites.acceptAll` string in all 17 locales.
+- Tests: `acceptInvite.test.ts` covers every invite joined, a failed join not stopping the batch, and `m.direct` written only for the DM.
+  `e2e/invites-accept-all.spec.ts` against a local Tuwunel: three Primary invites (one DM), Accept All, then all three joined and `m.direct` holds the DM.
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, the inbox and i18n unit tests (124), and the e2e spec in Chromium.
+
 ### Make the background jobs bar match the typing bar (2026-10-14)
 
 - Why: the owner found the jobs bar from #446 out of place under "Mind is typing…": taller, larger text, one job's name shown twice ("Running: deep_research" and a `deep_research ✕` chip), and a ✕ that looked like the typing bar's harmless dismiss but stopped the job. A first pass (chips on a second row, glass ✕ and Stop all) still felt messy to the owner, who pointed at [Impeccable](https://github.com/pbakaus/impeccable): its distill and layout guidance (no nested containers, one control vocabulary, group by alignment instead of boxes) and `docs/ui-design.md` ("let the enclosing surface own the glass; avoid stacking opaque fills, rims, or blur on every child") both ruled out bordered chips holding glass circle buttons inside a glass bar.
