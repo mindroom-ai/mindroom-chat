@@ -10,7 +10,7 @@
   Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
 - Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
   Accepted limit: a rejection that lands before the winner stores its rotation still logs out, as `M_UNKNOWN_TOKEN` already did.
-  Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse returns `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it.
+  Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse rejects a reused token with `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it (its other `M_FORBIDDEN` refresh errors are true expiries).
 - Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
   The two `M_FORBIDDEN` regressions and the race regression fail before their fixes.
 - Independent review: Opus 5.5 and GPT-6 Astra; round 1 found the no-Web-Locks race above. The startup logout listener attaches before `startClient`.
