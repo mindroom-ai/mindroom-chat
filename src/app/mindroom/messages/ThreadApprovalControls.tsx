@@ -22,7 +22,7 @@ import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
 import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from './toolApproval';
-import { mergeArgumentFields, summarizeArguments } from './approvalArgumentFields';
+import { mergeArgumentFields, summarizeArguments } from './argumentFields';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
 import { ActivityIcon, ThreadActivity } from './ThreadActivity';
