@@ -36,7 +36,9 @@ const renderForm = () => {
   });
   const submit = () =>
     act(async () => {
-      renderer!.root.findByType('form').props.onSubmit({ preventDefault: vi.fn() });
+      renderer!.root
+        .findByType('form')
+        .props.onSubmit({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
     });
   return { file, onAdd, submit };
 };

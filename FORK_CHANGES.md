@@ -9,7 +9,7 @@
 - Change: the emoji board's Emoji tab has an "Add custom emoji" `+` button beside the search when its caller takes custom emoji (`onCustomEmojiSelect`: the reaction picker, the composer, the message editor, power-tag icons).
   It opens a file picker; `AddCustomEmoji` (`components/emoji-board/components/`) then shows the image and a shortcode taken from the file name (whitespace and colons become dashes).
   Add uploads the image, writes it to the personal pack (`im.ponies.user_emotes`), and selects it, so the reaction picker reacts with it right away and the composer inserts it.
-  The pack is read again just before the write, so concurrent pack edits are kept; a taken shortcode gets a number (`party-parrot1`), and in a sticker-only pack the image is marked as an emoji.
+  The pack is read again just before the write, so pack edits synced during the upload are kept; a taken shortcode gets a number (`party-parrot1`), and in a sticker-only pack the image is marked as an emoji.
   A failed upload or save leaves the form open with an error; closing the board mid-upload still saves the emoji but sends no reaction.
 - Shown in Simple Mode too; managing or deleting emoji still needs the Emojis & Stickers settings.
   Not done: adding to room or space packs, and listing custom emoji among Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji).

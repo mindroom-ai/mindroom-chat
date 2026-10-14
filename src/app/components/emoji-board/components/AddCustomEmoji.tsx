@@ -52,6 +52,8 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
+    // The board can sit inside another form (power tags), which would also get this submit.
+    evt.stopPropagation();
     if (!shortcode || adding) return;
     addEmoji().then(
       (added) => {
