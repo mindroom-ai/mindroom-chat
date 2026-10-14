@@ -37,7 +37,7 @@ import {
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from './toolApproval';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
-import { toToolArgumentFields } from './approvalArgumentFields';
+import { toToolArgumentFields } from './argumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
