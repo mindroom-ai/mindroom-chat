@@ -9,9 +9,11 @@
 - Change: refresh errors with `M_FORBIDDEN` now follow the same SDK logout policy as `M_UNKNOWN_TOKEN`.
   Existing session-aware cleanup returns the user to sign-in; network failures, rate limits, and server failures remain retryable.
 - Race: without Web Locks, two tabs can spend the same refresh token; the loser now re-checks storage after a failed refresh and adopts the winner's stored rotation instead of logging out.
+  Accepted limit: a rejection that lands before the winner stores its rotation still logs out, as `M_UNKNOWN_TOKEN` already did.
+  Current servers don't send `M_FORBIDDEN` there: Tuwunel (since 2026-06) re-issues within a grace window or returns `M_UNKNOWN_TOKEN` for a replay, and Synapse returns `M_FORBIDDEN` only after the rotated token was used, so after the winner stored it.
 - Tests: both rejection codes are covered directly and through the real Matrix SDK request/refresh/logout flow, with rate-limit and server-failure controls.
-  The two `M_FORBIDDEN` regressions fail before the fix.
-- Independent review: approved; the startup logout listener attaches before `startClient`.
+  The two `M_FORBIDDEN` regressions and the race regression fail before their fixes.
+- Independent review: Opus 5.5 and GPT-6 Astra; round 1 found the no-Web-Locks race above. The startup logout listener attaches before `startClient`.
 - Validation: all 6,736 tests pass under Node 24 on Linux, including 76 focused refresh/startup/cleanup tests also passing locally.
   Linux typecheck and lint pass (0 errors, 18 existing warnings); the production build passes under Node 24 on a temporary case-sensitive macOS volume.
   The ordinary macOS checkout encounters the existing `ApprovalArgumentFields.tsx` / `approvalArgumentFields.ts` filename casing collision, so full validation uses fresh case-sensitive copies.
