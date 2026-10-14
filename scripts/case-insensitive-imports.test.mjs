@@ -13,8 +13,8 @@ const importPaths = (file) => {
   return folder === undefined ? [path] : [path, folder];
 };
 
-// macOS builds (Xcode Cloud) resolve extensionless imports on a case-insensitive disk, so
-// `./Foo` can pick `foo.ts` or `foo/index.ts` over `Foo.tsx` there while Linux CI resolves it correctly.
+// macOS builds (Xcode Cloud) resolve extensionless imports on a case-insensitive disk, so `./Foo` can
+// pick `foo.ts` over `Foo.tsx`, and `./foo` can pick `Foo.tsx` over `foo/index.ts`, while Linux CI resolves both correctly.
 const ambiguousImports = (files) => {
   const importsByKey = new Map();
   for (const file of files.filter((name) => MODULE_EXTENSION_RE.test(name))) {
