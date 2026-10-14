@@ -18,6 +18,7 @@ vi.mock('../../../hooks/useObjectURL', () => ({
 vi.mock('../../../utils/dom', () => ({
   loadImageElement: vi.fn(async () => ({ width: 32, height: 24 })),
 }));
+vi.mock('../../../utils/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('./styles.css', () => ({ AddCustomEmoji: 'form', AddCustomEmojiPreview: 'preview' }));
 
 let renderer: ReactTestRenderer | undefined;

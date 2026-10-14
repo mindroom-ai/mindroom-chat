@@ -9,6 +9,7 @@ import { loadImageElement } from '../../../utils/dom';
 import { getImageInfo } from '../../../utils/matrix';
 import { getAccountData } from '../../../utils/room';
 import { getFileNameWithoutExt } from '../../../utils/mimeTypes';
+import { mobileOrTablet } from '../../../utils/user-agent';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { addEmoticonToPackContent, PackContent } from '../../../plugins/custom-emoji';
 import * as css from './styles.css';
@@ -87,7 +88,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
             radii="300"
             maxLength={100}
             required
-            autoFocus
+            autoFocus={!mobileOrTablet()}
           />
         </Box>
       </Box>
