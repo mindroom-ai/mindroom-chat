@@ -3042,6 +3042,7 @@
     "backgroundJobs": {
       "running": "Berjalan: {{tool}}",
       "awaitingApproval": "Menunggu persetujuan: {{tool}}",
+      "waiting": "Menunggu persetujuan",
       "stoppingJob": "Menghentikan: {{tool}}",
       "jobCount": "{{count}} tugas latar belakang",
       "subagent": "{{tool}} (subagen)",

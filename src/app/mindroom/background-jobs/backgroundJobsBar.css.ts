@@ -2,56 +2,57 @@ import { style } from '@vanilla-extract/css';
 import { config } from 'folds';
 import * as approvals from '../messages/ThreadApprovals.css';
 
-// The typing bar's size: the status and its stop control on one row, several jobs' chips below.
+// The typing bar's size and material; the rows inside take no surface of their own.
 export const Bar = style([
   approvals.Bar,
   {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) auto',
-    columnGap: config.space.S300,
-    rowGap: config.space.S100,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 0,
     padding: `${config.space.S100} ${config.space.S300}`,
   },
 ]);
 
-// As tall as the typing bar's 24px ✕, also when no Stop is shown.
-export const Status = style([approvals.BarStatus, { gap: config.space.S300, minHeight: 24 }]);
-
-// Many jobs scroll inside the bar, so it never grows past the screen; Stop all stays outside the list.
-export const Items = style({
-  gridColumn: '1 / -1',
+// One line, as tall as the typing bar's ✕ and a Stop: a label that gives way, and its action at the end.
+export const Row = style({
   display: 'flex',
-  flexWrap: 'wrap',
   alignItems: 'center',
-  gap: config.space.S100,
+  gap: config.space.S300,
+  minHeight: '1.5rem',
   minWidth: 0,
+});
+
+export const Status = style([approvals.BarStatus, { flexGrow: 1, gap: config.space.S300 }]);
+
+// The room a focus ring needs inside the scrolling list, which clips what overflows it.
+const ring = '3px';
+
+// Several jobs list under the title's text, past its icon; many scroll inside the bar.
+export const Jobs = style({
+  listStyle: 'none',
+  margin: `-${ring}`,
+  padding: ring,
+  paddingInlineStart: `calc(${ring} + ${config.size.X50} + ${config.space.S300})`,
   maxHeight: 'min(30vh, 160px)',
   overflowY: 'auto',
-  paddingBlockEnd: config.space.S100,
 });
 
-export const Item = style([
-  approvals.Chip,
-  {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 2,
-    paddingInlineStart: 10,
-    cursor: 'default',
-    maxWidth: '100%',
-    minWidth: 0,
+// On touch, a row's Stop stands apart from the next one, since a stop cannot be undone.
+export const Job = style([Row, { '@media': { '(pointer: coarse)': { minHeight: '2.5rem' } } }]);
+
+// A long tool name and its status both give way, so its Stop stays in view; the full text is its title.
+export const Label = style({ flexGrow: 1, minWidth: 0 });
+
+export const Muted = style({ minWidth: 0, opacity: config.opacity.P300 });
+
+// "Stopping…" in a Stop's place ends where the Stop's text does, inside the button's padding.
+export const Stopping = style([Muted, { flexShrink: 0, paddingInlineEnd: config.space.S300 }]);
+
+// Without fills, Stop keeps an edge in forced colors, as the glass controls do.
+export const Action = style({
+  '@media': {
+    '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
   },
-]);
-
-// "Stopping…" in place of the ✕, inside the chip's padding.
-export const ItemStatus = style({ paddingInlineEnd: 10, opacity: config.opacity.P400 });
-
-// A long tool name is cut short in its chip, so its ✕ stays in view; the full text is its title.
-export const Label = style({
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  minWidth: 0,
 });
 
-export const Alert = style({ gridColumn: '1 / -1' });
+export const Alert = style({ paddingBlock: config.space.S100 });

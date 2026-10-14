@@ -3054,6 +3054,7 @@
     "backgroundJobs": {
       "running": "Çalışıyor: {{tool}}",
       "awaitingApproval": "Onay bekliyor: {{tool}}",
+      "waiting": "Onay bekliyor",
       "stoppingJob": "Durduruluyor: {{tool}}",
       "jobCount": "{{count}} arka plan işi",
       "subagent": "{{tool}} (alt ajan)",

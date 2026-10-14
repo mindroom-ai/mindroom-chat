@@ -3120,6 +3120,7 @@
     "backgroundJobs": {
       "running": "Em execução: {{tool}}",
       "awaitingApproval": "Aguardando aprovação: {{tool}}",
+      "waiting": "Aguardando aprovação",
       "stoppingJob": "Parando: {{tool}}",
       "jobCount": "{{count}} tarefas em segundo plano",
       "subagent": "{{tool}} (subagente)",

@@ -3042,6 +3042,7 @@
     "backgroundJobs": {
       "running": "실행 중: {{tool}}",
       "awaitingApproval": "승인 대기 중: {{tool}}",
+      "waiting": "승인 대기 중",
       "stoppingJob": "중지하는 중: {{tool}}",
       "jobCount": "백그라운드 작업 {{count}}개",
       "subagent": "{{tool}} (하위 에이전트)",

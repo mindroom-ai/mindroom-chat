@@ -3,9 +3,10 @@ import type { BackgroundJob } from './backgroundJobsContract';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
-  // The job's own name, for its cancel button and errors; `label` may add that it waits for approval.
+  // The job's own name, for its row, its Stop button and errors.
   name: string;
-  label: string;
+  // Among several, its row says it waits for approval; one job's title says so.
+  waiting: boolean;
   // Its cancel was sent from this client, or requested anywhere else.
   stopping: boolean;
 };
@@ -30,19 +31,12 @@ export const presentBackgroundJobs = (
   const [first] = jobs;
   if (!first) return null;
   const several = jobs.length > 1;
-  const items = jobs.map((job) => {
-    const name = jobName(job, t);
-    return {
-      jobId: job.jobId,
-      name,
-      // With one job the title says it waits for approval; with several, its own label does.
-      label:
-        several && awaitingApproval(job)
-          ? t('mindroomUi.backgroundJobs.awaitingApproval', { tool: name })
-          : name,
-      stopping: job.status === 'cancel_requested' || cancelSent(job.jobId),
-    };
-  });
+  const items = jobs.map((job) => ({
+    jobId: job.jobId,
+    name: jobName(job, t),
+    waiting: several && awaitingApproval(job),
+    stopping: job.status === 'cancel_requested' || cancelSent(job.jobId),
+  }));
   if (several)
     return { title: t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length }), items };
   const tool = items[0].name;

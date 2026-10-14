@@ -3318,6 +3318,7 @@
     "backgroundJobs": {
       "running": "قيد التشغيل: ⁨{{tool}}⁩",
       "awaitingApproval": "بانتظار الموافقة: ⁨{{tool}}⁩",
+      "waiting": "بانتظار الموافقة",
       "stoppingJob": "جارٍ الإيقاف: ⁨{{tool}}⁩",
       "jobCount": "مهام في الخلفية: ⁨{{count}}⁩",
       "subagent": "⁨{{tool}}⁩ (وكيل فرعي)",

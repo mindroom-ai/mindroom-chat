@@ -3054,6 +3054,7 @@
     "backgroundJobs": {
       "running": "Running: {{tool}}",
       "awaitingApproval": "Waiting for approval: {{tool}}",
+      "waiting": "Waiting for approval",
       "stoppingJob": "Stopping: {{tool}}",
       "jobCount": "{{count}} background jobs",
       "subagent": "{{tool}} (subagent)",

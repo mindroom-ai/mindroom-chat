@@ -112,14 +112,16 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   const bar = page.getByRole('region', { name: '3 background jobs' });
   await expect(bar).toBeVisible();
   await expect(bar).toContainText('run_tests');
-  await expect(bar).toContainText('Waiting for approval: shell');
+  await expect(bar.getByRole('listitem').filter({ hasText: 'shell' })).toContainText(
+    'Waiting for approval'
+  );
   await expect(bar).toContainText('research (subagent)');
   await expect(bar).not.toContainText('web_search');
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
-  // ✕ sends the job's cancel in its thread, and the job shows Stopping… until it leaves the state.
+  // Stop sends the job's cancel in its thread, and the job shows Stopping… until it leaves the state.
   await bar.getByRole('button', { name: 'Stop run_tests' }).click();
   await expect(bar).toContainText('Stopping…');
   await expect
@@ -144,7 +146,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     ]);
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]]);
   await expect(bar.getByRole('button', { name: 'Stop run_tests' })).toHaveCount(0);
-  // A job cancelled from another client shows Stopping… here too, without its ✕.
+  // A job cancelled from another client shows Stopping… here too, without its Stop.
   const researchCancel = bar.getByRole('button', { name: 'Stop research (subagent)' });
   await expect(researchCancel).toBeVisible();
   await publish(researcher, [
@@ -176,7 +178,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
 
-  // A long tool name is cut short and many jobs scroll inside the bar, so every ✕ stays reachable.
+  // A long tool name is cut short and many jobs scroll inside the bar, so every Stop stays reachable.
   const longTool = 'mcp_github_create_pull_request_review_with_inline_comments';
   await publish(
     researcher,

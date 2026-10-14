@@ -15,11 +15,14 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 vi.mock('./backgroundJobsBar.css', () => ({
   Bar: 'Bar',
+  Row: 'Row',
   Status: 'Status',
-  Items: 'Items',
-  Item: 'Item',
-  ItemStatus: 'ItemStatus',
+  Jobs: 'Jobs',
+  Job: 'Job',
   Label: 'Label',
+  Muted: 'Muted',
+  Stopping: 'Stopping',
+  Action: 'Action',
   Alert: 'Alert',
 }));
 vi.mock('react-i18next', () => ({
@@ -81,11 +84,11 @@ it('renders nothing without jobs', () => {
   expect(container.innerHTML).toBe('');
 });
 
-it('names one job in the title, with Stop and no chip of its own', () => {
+it('names one job in the title, with Stop and no list', () => {
   state.jobs = [job('a')];
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
-  expect(container.querySelector('.Items')).toBeNull();
+  expect(container.querySelector('.Jobs')).toBeNull();
   expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
 });
 
@@ -247,6 +250,45 @@ it('keeps keyboard focus in the bar when two jobs become one, and one becomes tw
   state.jobs = [job('b'), job('c')];
   render();
   expect(document.activeElement).toBe(region);
+});
+
+it('keeps focus in the bar when its one job is replaced by another', async () => {
+  state.send = vi.fn(() => new Promise<never>(() => {}));
+  state.jobs = [job('a')];
+  render();
+  button(cancelA)?.focus();
+  state.jobs = [job('b')];
+  render();
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
+});
+
+it('leaves focus where the person moved it when the jobs change later', async () => {
+  state.jobs = [job('a')];
+  render();
+  await act(async () => {
+    const stop = button(cancelA);
+    stop?.focus();
+    // A browser blurs with no related target when focus goes to the page; jsdom names the
+    // document instead, so the browser's event comes first.
+    stop?.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    stop?.blur();
+  });
+  state.jobs = [job('a'), job('b')];
+  render();
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('says in its row that a job waits for approval, until it is stopping', () => {
+  state.jobs = [job('a'), job('b', { status: 'awaiting_approval' })];
+  render();
+  const rows = [...container.querySelectorAll('li')];
+  expect(rows.map((row) => row.textContent?.includes('backgroundJobs.waiting'))).toEqual([
+    false,
+    true,
+  ]);
+  state.jobs = [job('a'), job('b', { status: 'cancel_requested' })];
+  render();
+  expect(container.textContent).not.toContain('backgroundJobs.waiting');
 });
 
 it('shows a failed cancel again in the view it was sent from', async () => {

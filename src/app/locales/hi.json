@@ -1792,6 +1792,7 @@
     "backgroundJobs": {
       "running": "चल रहा है: {{tool}}",
       "awaitingApproval": "स्वीकृति की प्रतीक्षा: {{tool}}",
+      "waiting": "स्वीकृति की प्रतीक्षा",
       "stoppingJob": "रोका जा रहा है: {{tool}}",
       "jobCount": "{{count}} बैकग्राउंड कार्य",
       "subagent": "{{tool}} (सब-एजेंट)",
