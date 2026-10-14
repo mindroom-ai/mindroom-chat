@@ -49,9 +49,14 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // Focus was in the bar and did not move elsewhere, also when its focused control unmounted.
   const focused = useRef(false);
   // A job that ends, or one job turning into several, takes its focused control away; focus stays in the bar.
+  // A bar that went away with its last job forgets it had focus, so a later job does not take it.
   useLayoutEffect(() => {
+    if (!bar.current) {
+      focused.current = false;
+      return;
+    }
     const active = document.activeElement;
-    if (focused.current && (!active || active === document.body)) bar.current?.focus();
+    if (focused.current && (!active || active === document.body)) bar.current.focus();
   });
 
   const [open, setOpen] = useState<OpenMode>();
@@ -79,13 +84,6 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   useEffect(() => {
     if (!expanded) return undefined;
-    // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
-    const onBarKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      toggle.current?.focus();
-      hide();
-    };
     // Escape elsewhere closes the list and goes on to the room (to the composer, marking it read).
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) hide();
@@ -93,12 +91,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     const onPointerDown = (event: PointerEvent) => {
       if (!bar.current?.contains(event.target as Node)) hide();
     };
-    const element = bar.current;
-    element?.addEventListener('keydown', onBarKeyDown);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      element?.removeEventListener('keydown', onBarKeyDown);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
@@ -210,6 +205,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       ref={anchor}
       className={css.Anchor}
       style={expanded ? { height: anchorHeight } : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !expanded) return;
+        // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
+        event.stopPropagation();
+        toggle.current?.focus();
+        hide();
+      }}
     >
       <div
         ref={bar}

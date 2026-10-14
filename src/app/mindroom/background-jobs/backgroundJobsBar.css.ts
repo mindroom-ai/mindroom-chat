@@ -1,6 +1,5 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
-import { motion } from '../../styles/Motion.css';
 import * as approvals from '../messages/ThreadApprovals.css';
 
 // The bar's place in the footer. Given a fixed height while the jobs are listed, it lets the bar
@@ -63,12 +62,7 @@ export const Toggle = style({
 export const Chevron = style({
   flexShrink: 0,
   opacity: config.opacity.P300,
-  transition: `transform ${motion.duration.Normal} ${motion.easing.Decelerate}`,
   selectors: { '[aria-expanded="true"] > &': { transform: 'rotate(180deg)' } },
-});
-
-const reveal = keyframes({
-  from: { opacity: 0, transform: `translateY(${config.space.S100})` },
 });
 
 // The room a focus ring needs inside the scrolling list, which clips what overflows it.
@@ -83,8 +77,6 @@ export const Jobs = style({
   paddingInlineStart: `calc(${ring} + ${config.size.X50} + ${config.space.S300})`,
   maxHeight: 'min(30vh, 160px)',
   overflowY: 'auto',
-  animation: `${reveal} ${motion.duration.Normal} ${motion.easing.Decelerate}`,
-  '@media': { '(prefers-reduced-motion: reduce)': { animation: 'none' } },
 });
 
 // One job: its name and status give way, and its Stop ends the line, as tall as the typing bar's

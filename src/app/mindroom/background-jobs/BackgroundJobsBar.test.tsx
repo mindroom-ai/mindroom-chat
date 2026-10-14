@@ -396,6 +396,19 @@ it('keeps focus in the bar when its one job is replaced by another', async () =>
   expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
 });
 
+it('does not take focus for a new job after the bar went away with focus in it', () => {
+  state.send = vi.fn(() => new Promise<never>(() => {}));
+  state.jobs = [job('a')];
+  render();
+  act(() => button(cancelA)?.click());
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
+  state.jobs = [];
+  render();
+  state.jobs = [job('b')];
+  render();
+  expect(document.activeElement).toBe(document.body);
+});
+
 it('leaves focus where the person moved it when the jobs change later', async () => {
   state.jobs = [job('a')];
   render();
