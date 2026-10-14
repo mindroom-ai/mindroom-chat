@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 
 import {
+  HttpApiEvent,
   MatrixError,
   TokenRefreshError,
   TokenRefreshLogoutError,
   createClient,
   type IRefreshTokenResponse,
 } from 'matrix-js-sdk';
-import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
