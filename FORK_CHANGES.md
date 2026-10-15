@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Accept all Primary invites at once (2026-10-14)
+
+- Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.
+- Change: the Primary section of Inbox > Invites gets an "Accept All" chip in its header, in the same place and style as the Public section's existing "Decline All".
+  The per-card join (join, then add a direct invite to `m.direct` under the guessed DM partner) moves to `inbox/acceptInvite.ts`; Accept All runs it for each invite through `rateLimitedActions`, so 429s back off and one failed join leaves that invite listed without stopping the rest.
+  While the batch runs, the Primary cards' Accept and Decline are disabled (on that mount; switching filter tabs remounts the list while the batch keeps running), and the batch skips any room that is no longer an invite when its turn comes (resolved by a card or on another device).
+  `addRoomIdToMDirect` and `removeRoomIdFromMDirect` (`utils/matrix.ts`) now run one at a time per client: each reads `m.direct` and writes it back whole, so two overlapping DM accepts (a card and the batch, or a second batch started after a tab switch) could each drop the other's room. matrix-js-sdk 41.7's `setAccountData` resolves after the sync echo, so each queued update reads the previous write. A write waiting on a stalled sync holds that client's later ones until sync resumes; the queue is per client because switching accounts stops the old client without a reload, and its pending write never settles.
+  Accept All does not navigate; joined invites leave the list as they sync. Public and Spam get no Accept All: those invites come from strangers or flagged senders.
+  New `sharedUi.invites.acceptAll` string in all 17 locales.
+- Tests: `acceptInvite.test.ts` covers pending invites joined, a room no longer invited skipped, a failed join not stopping the batch, and `m.direct` written only for the DM that joined, with `is_direct` read before the join.
+  `matrix.test.ts` covers two overlapping `addRoomIdToMDirect` calls keeping both rooms (fails without the queue), and one client's update completing while another client's write never settles (hangs with one shared queue).
+  `e2e/invites-accept-all.spec.ts` against a local Tuwunel: four Primary invites (two DMs), Accept All, then all four joined and `m.direct` holds both DMs (matrix-js-sdk 41.7's `setAccountData` resolves after the sync echo, so the second write reads the first).
+- Validation: `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, the 18 existing warnings), Prettier, the inbox and i18n unit tests (124), and the e2e spec in Chromium.
+- Independent review (subagent): changes required for a mid-batch decline being re-joined (fixed by the skip above), with nits on the unit test not pinning the join order, a single DM in the e2e, and the order comment; all fixed.
+  CodeRabbit (PR #461): card Accept and Decline stayed enabled during the batch, so a card's DM accept could race the batch's `m.direct` write; they are now disabled while it runs.
+  PR #461 dual review, round 1 at `5051866b`: Opus approved; Astra required changes because the card lock lives in the mounted list, so a tab switch mid-batch or a card Accept followed by Accept All could overlap two DM `m.direct` updates and lose one. Fixed at the `m.direct` helpers (the queue above) rather than with batch state that survives remounts; overlapping joins are harmless, as joining an already-joined room is a no-op. Opus's note that the Runbook overstated the card lock is fixed.
+  Round 2 at `12a1125f`: both required changes for the queue being module-global, so after an account switch the stopped client's pending write (no sync echo) held every `m.direct` update on the new account until reload; the queue is now a `WeakMap` keyed by client, with a regression test.
+  Round 3 at `1ebec7dd`: Opus and Astra approved. Accepted from Opus: after a tab switch mid-batch, a card Decline whose leave has not synced when the batch reaches that room is joined again (invite-only rooms reject it); a decline on another device has the same window.
+  Accepted: a 429 on the `m.direct` write after a successful join retries the whole accept, which then sees a joined room and leaves the DM untagged, as a failed write on the single-card path already does.
+
 ### Make the background jobs bar match the typing bar (2026-10-14)
 
 - Why: the owner found the jobs bar from #446 out of place under "Mind is typing…": taller, larger text, one job's name shown twice ("Running: deep_research" and a `deep_research ✕` chip), and a ✕ that looked like the typing bar's harmless dismiss but stopped the job. A first pass (chips on a second row, glass ✕ and Stop all) still felt messy to the owner, who pointed at [Impeccable](https://github.com/pbakaus/impeccable): its distill and layout guidance (no nested containers, one control vocabulary, group by alignment instead of boxes) and `docs/ui-design.md` ("let the enclosing surface own the glass; avoid stacking opaque fills, rims, or blur on every child") both ruled out bordered chips holding glass circle buttons inside a glass bar.
