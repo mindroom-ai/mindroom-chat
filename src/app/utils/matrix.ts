@@ -410,13 +410,17 @@ export const guessDmRoomUserId = (room: Room, myUserId: string): string => {
   return member1?.userId ?? myUserId;
 };
 
-// m.direct updates read the stored content and write it back whole. Run them one at a time, so
-// overlapping updates (several DM invites accepted at once) each start from the previous write;
-// setAccountData resolves only after the write is echoed back into the store.
-let mDirectUpdates: Promise<void> = Promise.resolve();
-const queueMDirectUpdate = (update: () => Promise<void>): Promise<void> => {
-  const run = mDirectUpdates.then(update);
-  mDirectUpdates = run.catch(() => undefined);
+// m.direct updates read the stored content and write it back whole. Run each client's one at a
+// time, so overlapping updates (several DM invites accepted at once) each start from the previous
+// write; setAccountData resolves only after the write is echoed back into the store. The queue is
+// per client: a stopped client's write never sees its echo and must not hold another account's.
+const mDirectUpdates = new WeakMap<MatrixClient, Promise<void>>();
+const queueMDirectUpdate = (mx: MatrixClient, update: () => Promise<void>): Promise<void> => {
+  const run = (mDirectUpdates.get(mx) ?? Promise.resolve()).then(update);
+  mDirectUpdates.set(
+    mx,
+    run.catch(() => undefined)
+  );
   return run;
 };
 
@@ -425,7 +429,7 @@ export const addRoomIdToMDirect = (
   roomId: string,
   userId: string
 ): Promise<void> =>
-  queueMDirectUpdate(async () => {
+  queueMDirectUpdate(mx, async () => {
     const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
     let userIdToRoomIds: Record<string, string[]> = {};
 
@@ -455,7 +459,7 @@ export const addRoomIdToMDirect = (
   });
 
 export const removeRoomIdFromMDirect = (mx: MatrixClient, roomId: string): Promise<void> =>
-  queueMDirectUpdate(async () => {
+  queueMDirectUpdate(mx, async () => {
     const mDirectsEvent = mx.getAccountData(AccountDataEvent.Direct as any);
     let userIdToRoomIds: Record<string, string[]> = {};
 

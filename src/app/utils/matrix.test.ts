@@ -205,4 +205,21 @@ describe('m.direct updates', () => {
 
     expect(direct).toEqual({ '@friend:example.org': ['!one:example.org', '!two:example.org'] });
   });
+
+  it("does not hold one client's update behind another client's stuck write", async () => {
+    const stuck = {
+      getAccountData: () => undefined,
+      // A stopped client never receives the sync echo, so its write never settles.
+      setAccountData: () => new Promise(() => {}),
+    } as unknown as MatrixClient;
+    const setAccountData = vi.fn(async () => {});
+    const other = { getAccountData: () => undefined, setAccountData } as unknown as MatrixClient;
+
+    addRoomIdToMDirect(stuck, '!stuck:example.org', '@friend:example.org');
+    await addRoomIdToMDirect(other, '!other:example.org', '@friend:example.org');
+
+    expect(setAccountData).toHaveBeenCalledWith('m.direct', {
+      '@friend:example.org': ['!other:example.org'],
+    });
+  });
 });
