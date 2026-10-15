@@ -19,6 +19,7 @@
   CodeRabbit (PR #461): card Accept and Decline stayed enabled during the batch, so a card's DM accept could race the batch's `m.direct` write; they are now disabled while it runs.
   PR #461 dual review, round 1 at `5051866b`: Opus approved; Astra required changes because the card lock lives in the mounted list, so a tab switch mid-batch or a card Accept followed by Accept All could overlap two DM `m.direct` updates and lose one. Fixed at the `m.direct` helpers (the queue above) rather than with batch state that survives remounts; overlapping joins are harmless, as joining an already-joined room is a no-op. Opus's note that the Runbook overstated the card lock is fixed.
   Round 2 at `12a1125f`: both required changes for the queue being module-global, so after an account switch the stopped client's pending write (no sync echo) held every `m.direct` update on the new account until reload; the queue is now a `WeakMap` keyed by client, with a regression test.
+  Round 3 at `1ebec7dd`: Opus and Astra approved. Accepted from Opus: after a tab switch mid-batch, a card Decline whose leave has not synced when the batch reaches that room is joined again (invite-only rooms reject it); a decline on another device has the same window.
   Accepted: a 429 on the `m.direct` write after a successful join retries the whole accept, which then sees a joined room and leaves the DM untagged, as a failed write on the single-card path already does.
 
 ### Make the background jobs bar match the typing bar (2026-10-14)
