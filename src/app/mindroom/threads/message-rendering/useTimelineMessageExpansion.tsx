@@ -9,12 +9,7 @@ import React, {
 } from 'react';
 import { color, config } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
-import { useExpandLongMessagesByDefault } from '../../settings/useMindroomAccountSettings';
-import {
-  CollapsibleMessageStateProvider,
-  collapseAllMessages,
-  expandAllMessages,
-} from '../CollapsibleMessage';
+import { CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
 import { consumeLiveExpandOnceId, getCollapsibleMessageMode } from '../threadCollapsibleMessages';
 
@@ -24,10 +19,8 @@ export const useTimelineMessageExpansion = (
   scrollRef: RefObject<HTMLDivElement>
 ) => {
   const { t } = useTranslation();
-  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   // The owning timeline is keyed by room:thread; manual choices reset on remount.
-  const [expandAllOverride, setExpandAllOverride] = useState<boolean>();
-  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
+  const [expandAll, setExpandAll] = useState(false);
   const manualExpansionState = useRef(new Map<string, boolean>());
   const liveExpandOnceIds = useRef(new Set<string>());
   const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
@@ -38,8 +31,13 @@ export const useTimelineMessageExpansion = (
   const markLiveExpansionCandidate = useCallback((eventId: string) => {
     liveExpandOnceIds.current.add(eventId);
   }, []);
-  const getExpansion = (eventId: string, content: IContent) => {
-    const collapseMode = getCollapsibleMessageMode(eventId, content, liveExpandOnceIds.current);
+  const getExpansion = (eventId: string, content: IContent, isAgentMessage: boolean) => {
+    const collapseMode = getCollapsibleMessageMode(
+      eventId,
+      content,
+      liveExpandOnceIds.current,
+      isAgentMessage
+    );
     return {
       collapseMode,
       onInitialExpandConsumed:
@@ -65,13 +63,8 @@ export const useTimelineMessageExpansion = (
       onClick={(e) => {
         e.preventDefault();
         manualExpansionState.current.clear();
-        if (expandAll) {
-          collapseAllMessages();
-          setExpandAllOverride(false);
-        } else {
-          expandAllMessages();
-          setExpandAllOverride(true);
-        }
+        // Rows follow the new baseline one commit later, so the anchor is captured before they resize.
+        setExpandAll(!expandAll);
       }}
       style={{
         position: 'absolute',

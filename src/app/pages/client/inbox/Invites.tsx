@@ -12,7 +12,6 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  Scroll,
   Spinner,
   Text,
   color,
@@ -30,6 +29,7 @@ import {
   PageHero,
   PageHeroEmpty,
   PageHeroSection,
+  PageScroll,
 } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allInvitesAtom } from '../../../state/room-list/inviteList';
@@ -46,12 +46,7 @@ import {
 } from '../../../utils/room';
 import { nameInitials } from '../../../utils/common';
 import { RoomAvatar } from '../../../components/room-avatar';
-import {
-  addRoomIdToMDirect,
-  getMxIdLocalPart,
-  guessDmRoomUserId,
-  rateLimitedActions,
-} from '../../../utils/matrix';
+import { getMxIdLocalPart, rateLimitedActions } from '../../../utils/matrix';
 import { Time } from '../../../components/message';
 import { useElementSizeObserver } from '../../../hooks/useElementSizeObserver';
 import { onEnterOrSpace, stopPropagation } from '../../../utils/keyboard';
@@ -68,6 +63,7 @@ import { useIgnoredUsers } from '../../../hooks/useIgnoredUsers';
 import { useReportRoomSupported } from '../../../hooks/useReportRoomSupported';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { acceptInvite, acceptInvites } from './acceptInvite';
 
 const COMPACT_CARD_WIDTH = 548;
 
@@ -151,6 +147,7 @@ type InviteCardProps = {
   dateFormatString: string;
   onNavigate: NavigateHandler;
   hideAvatar: boolean;
+  disabled?: boolean;
 };
 function InviteCard({
   invite,
@@ -159,10 +156,10 @@ function InviteCard({
   dateFormatString,
   onNavigate,
   hideAvatar,
+  disabled,
 }: InviteCardProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const userId = mx.getSafeUserId();
 
   const [viewTopic, setViewTopic] = useState(false);
   const closeTopic = () => setViewTopic(false);
@@ -170,16 +167,9 @@ function InviteCard({
 
   const [joinState, join] = useAsyncCallback<void, MatrixError, []>(
     useCallback(async () => {
-      const dmUserId = isDirectInvite(invite.room, userId)
-        ? guessDmRoomUserId(invite.room, userId)
-        : undefined;
-
-      await mx.joinRoom(invite.roomId);
-      if (dmUserId) {
-        await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
-      }
+      await acceptInvite(mx, invite.room);
       onNavigate(invite.roomId, invite.isSpace);
-    }, [mx, invite, userId, onNavigate])
+    }, [mx, invite, onNavigate])
   );
   const [leaveState, leave] = useAsyncCallback<Record<string, never>, MatrixError, []>(
     useCallback(() => mx.leave(invite.roomId), [mx, invite])
@@ -289,7 +279,7 @@ function InviteCard({
               variant="Secondary"
               radii="300"
               fill="Soft"
-              disabled={joining || leaving}
+              disabled={disabled || joining || leaving}
               before={leaving ? <Spinner variant="Secondary" size="100" /> : undefined}
             >
               <Text size="B300">{t('sharedUi.invites.decline')}</Text>
@@ -301,7 +291,7 @@ function InviteCard({
               fill="Soft"
               radii="300"
               outlined
-              disabled={joining || leaving}
+              disabled={disabled || joining || leaving}
               before={joining ? <Spinner variant="Success" fill="Soft" size="100" /> : undefined}
             >
               <Text size="B300">{t('sharedUi.invites.accept')}</Text>
@@ -438,9 +428,39 @@ function KnownInvites({
   dateFormatString,
 }: KnownInvitesProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+
+  const [acceptAllStatus, acceptAll] = useAsyncCallback(
+    useCallback(
+      () =>
+        acceptInvites(
+          mx,
+          invites.map((invite) => invite.room)
+        ),
+      [mx, invites]
+    )
+  );
+
+  const accepting = acceptAllStatus.status === AsyncStatus.Loading;
+
   return (
     <Box direction="Column" gap="200">
-      <Text size="H4">{t('sharedUi.invites.primary')}</Text>
+      <Box gap="200" justifyContent="SpaceBetween" alignItems="Center">
+        <Text size="H4">{t('sharedUi.invites.primary')}</Text>
+        <Box>
+          {invites.length > 0 && (
+            <Chip
+              variant="SurfaceVariant"
+              onClick={acceptAll}
+              before={accepting && <Spinner size="50" variant="Secondary" fill="Soft" />}
+              disabled={accepting}
+              radii="Pill"
+            >
+              <Text size="T200">{t('sharedUi.invites.acceptAll')}</Text>
+            </Chip>
+          )}
+        </Box>
+      </Box>
       {invites.length > 0 ? (
         <Box direction="Column" gap="100">
           {invites.map((invite) => (
@@ -452,6 +472,7 @@ function KnownInvites({
               dateFormatString={dateFormatString}
               onNavigate={handleNavigate}
               hideAvatar={false}
+              disabled={accepting}
             />
           ))}
         </Box>
@@ -765,78 +786,79 @@ export function Invites() {
 
   return (
     <Page>
-      <PageHeader balance>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" basis="No">
-            {screenSize === ScreenSize.Mobile && (
-              <BackRouteHandler>
-                {(onBack) => (
-                  <IconButton onClick={onBack}>
-                    <Icon data-directional src={Icons.ArrowLeft} />
-                  </IconButton>
-                )}
-              </BackRouteHandler>
-            )}
-          </Box>
-          <Box alignItems="Center" gap="200">
-            {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Mail} />}
-            <Text size="H3" truncate>
-              {t('sharedUi.invites.invites')}
-            </Text>
-          </Box>
-          <Box grow="Yes" basis="No" />
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <PageContentCenter>
-              <Box ref={containerRef} direction="Column" gap="600">
-                <Box direction="Column" gap="100">
-                  <span data-spacing-node />
-                  <Text size="L400">{t('sharedUi.invites.filter')}</Text>
-                  <InviteFilters
-                    filter={filter}
-                    onFilter={setFilter}
-                    knownInvites={knownInvites}
-                    unknownInvites={unknownInvites}
-                    spamInvites={spamInvites}
-                  />
-                </Box>
-                {filter === InviteFilter.Known && (
-                  <KnownInvites
-                    invites={knownInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
-                )}
-
-                {filter === InviteFilter.Unknown && (
-                  <UnknownInvites
-                    invites={unknownInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
-                )}
-
-                {filter === InviteFilter.Spam && (
-                  <SpamInvites
-                    invites={spamInvites}
-                    compact={compact}
-                    hour24Clock={hour24Clock}
-                    dateFormatString={dateFormatString}
-                    handleNavigate={handleNavigate}
-                  />
+      <PageScroll
+        header={
+          <PageHeader flat balance>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" basis="No">
+                {screenSize === ScreenSize.Mobile && (
+                  <BackRouteHandler>
+                    {(onBack) => (
+                      <IconButton onClick={onBack}>
+                        <Icon data-directional src={Icons.ArrowLeft} />
+                      </IconButton>
+                    )}
+                  </BackRouteHandler>
                 )}
               </Box>
-            </PageContentCenter>
-          </PageContent>
-        </Scroll>
-      </Box>
+              <Box alignItems="Center" gap="200">
+                {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Mail} />}
+                <Text size="H3" truncate>
+                  {t('sharedUi.invites.invites')}
+                </Text>
+              </Box>
+              <Box grow="Yes" basis="No" />
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <PageContentCenter>
+            <Box ref={containerRef} direction="Column" gap="600">
+              <Box direction="Column" gap="100">
+                <span data-spacing-node />
+                <Text size="L400">{t('sharedUi.invites.filter')}</Text>
+                <InviteFilters
+                  filter={filter}
+                  onFilter={setFilter}
+                  knownInvites={knownInvites}
+                  unknownInvites={unknownInvites}
+                  spamInvites={spamInvites}
+                />
+              </Box>
+              {filter === InviteFilter.Known && (
+                <KnownInvites
+                  invites={knownInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+
+              {filter === InviteFilter.Unknown && (
+                <UnknownInvites
+                  invites={unknownInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+
+              {filter === InviteFilter.Spam && (
+                <SpamInvites
+                  invites={spamInvites}
+                  compact={compact}
+                  hour24Clock={hour24Clock}
+                  dateFormatString={dateFormatString}
+                  handleNavigate={handleNavigate}
+                />
+              )}
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

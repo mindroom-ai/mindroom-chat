@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';
@@ -8,6 +8,7 @@ import i18n from '../../src/app/i18n';
 import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { CompactThreadCard } from '../../src/app/mindroom/threads/CompactThreadCard';
+import { CompactCardSwipe } from '../../src/app/mindroom/threads/CompactCardSwipe';
 import {
   formatCompactThreadMessageCount,
   getCompactThreadMessageCountLabel,
@@ -17,7 +18,9 @@ import type { CompactThreadCardViewModel } from '../../src/app/mindroom/threads/
 
 // Screenshot fixture for the compact room view: a realistic agent room with
 // unread, streaming, scheduled, tagged and resolved threads, rendered by the
-// production card inside the same shell and action buttons as CompactRoomView.
+// production card inside the same shell, swipe and action buttons as
+// CompactRoomView. A swipe toggles a card's resolution; opening a card records
+// its thread in `body[data-opened-thread]`.
 // Query parameters: `lang` (default en) and `theme` (light or dark).
 
 const params = new URLSearchParams(window.location.search);
@@ -146,45 +149,62 @@ const toViewModel = (sample: Sample, index: number): CompactThreadCardViewModel 
   };
 };
 
+const openThread = (threadRootId: string) => {
+  document.body.dataset.openedThread = threadRootId;
+};
+
 function Fixture() {
+  const [items, setItems] = useState(samples);
+  const setResolved = (index: number, isResolved: boolean) =>
+    setItems((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, isResolved } : item))
+    );
+
   return (
     <Box className={css.View} data-compact-room-view="true" style={{ flex: 'none' }}>
       <Box direction="Column" gap="100" shrink="No">
-        {samples.map(toViewModel).map((viewModel) => (
+        {items.map(toViewModel).map((viewModel, index) => (
           <div key={viewModel.id.threadRootId} className={css.CardShell}>
-            <CompactThreadCard viewModel={viewModel} onClick={() => undefined} />
-            <div className={css.CardAction}>
-              <IconButton
-                className={css.CardQuickAction}
-                size="300"
-                variant="Secondary"
-                fill="None"
-                radii="300"
-                aria-label="Resolve"
-              >
-                <Icon size="100" src={Icons.Check} />
-              </IconButton>
-              <IconButton
-                className={css.CardQuickAction}
-                size="300"
-                variant="Secondary"
-                fill="None"
-                radii="300"
-                aria-label="Pin"
-              >
-                <Icon size="100" src={Icons.Pin} />
-              </IconButton>
-              <IconButton
-                className={css.CardMenuButton}
-                size="300"
-                variant="Secondary"
-                fill="None"
-                radii="300"
-                aria-label="More options"
-              >
-                <Icon size="100" src={Icons.HorizontalDots} />
-              </IconButton>
-            </div>
+            <CompactCardSwipe
+              enabled
+              resolved={viewModel.isResolved}
+              label={i18n.t(viewModel.isResolved ? 'threadActions.reopen' : 'thread.resolve')}
+              onSwipe={(wasResolved) => setResolved(index, !wasResolved)}
+            >
+              <CompactThreadCard viewModel={viewModel} onClick={openThread} />
+              <div className={css.CardAction}>
+                <IconButton
+                  className={css.CardQuickAction}
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label="Resolve"
+                >
+                  <Icon size="100" src={Icons.Check} />
+                </IconButton>
+                <IconButton
+                  className={css.CardQuickAction}
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label="Pin"
+                >
+                  <Icon size="100" src={Icons.Pin} />
+                </IconButton>
+                <IconButton
+                  className={css.CardMenuButton}
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label="More options"
+                >
+                  <Icon size="100" src={Icons.HorizontalDots} />
+                </IconButton>
+              </div>
+            </CompactCardSwipe>
           </div>
         ))}
       </Box>

@@ -62,7 +62,6 @@ export const AuthLogo = style([
 
 export const AuthHeader = style({
   padding: `0 ${config.space.S400}`,
-  borderBottomWidth: config.borderWidth.B300,
 });
 
 export const AuthCardContent = style({

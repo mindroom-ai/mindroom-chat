@@ -83,3 +83,85 @@ test('compact cards give the title and preview the full width on a phone', async
   expect(byline.textOverflow).toBe('ellipsis');
   expect(byline.labelRight).toBeLessThanOrEqual(byline.contentRight);
 });
+
+test.describe('compact card swipe', () => {
+  test.use({ isMobile: true, hasTouch: true, viewport: { width: 390, height: 500 } });
+
+  test('a touch swipe toward the start resolves a card and leaves taps and scrolling alone', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/e2e/fixtures/compact-thread-cards.html');
+    await page.locator('body[data-fixture-ready="true"]').waitFor();
+    const touch = await page.context().newCDPSession(page);
+    const card = page.locator('[data-thread-root-id="$thread-2"]');
+    const bounds = await card.boundingBox();
+    if (!bounds) throw new Error('Card has no bounds');
+    const y = bounds.y + bounds.height / 2;
+    const drag = async (points: { x: number; y: number }[], { release = true } = {}) => {
+      const [first, ...rest] = points;
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ ...first, id: 1 }],
+      });
+      for (const point of rest) {
+        await touch.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ ...point, id: 1 }],
+        });
+      }
+      if (release)
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    const across = (fromX: number, toX: number, atY = y) =>
+      Array.from({ length: 9 }, (_, step) => ({ x: fromX + ((toX - fromX) * step) / 8, y: atY }));
+    const notResolved = async () => {
+      await expect(card).not.toHaveAttribute('data-attention-state', 'resolved');
+      await expect(page.locator('[data-compact-card-swipe="action"]')).toHaveCount(0);
+    };
+
+    // A short swipe springs back.
+    await drag(across(bounds.x + bounds.width - 30, bounds.x + bounds.width - 90));
+    await notResolved();
+
+    // A touch that starts at the screen edge belongs to the edge swipe.
+    await drag(across(385, 150));
+    await notResolved();
+
+    // Past the threshold the strip arms; letting go resolves the card.
+    await drag(across(bounds.x + bounds.width - 30, bounds.x + 60), { release: false });
+    await expect(page.locator('[data-compact-card-swipe="action"]')).toHaveAttribute(
+      'data-armed',
+      'true'
+    );
+    await page.screenshot({ path: testInfo.outputPath('compact-card-swipe-armed.png') });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(card).toHaveAttribute('data-attention-state', 'resolved');
+    await expect(page.locator('[data-compact-card-swipe="action"]')).toHaveCount(0);
+    await expect(page.locator('body')).not.toHaveAttribute('data-opened-thread');
+
+    // The same swipe on a resolved card reopens it.
+    await drag(across(bounds.x + bounds.width - 30, bounds.x + 60));
+    await expect(card).not.toHaveAttribute('data-attention-state', 'resolved');
+
+    // A vertical drag still scrolls the list and resolves nothing.
+    const view = page.locator('[data-compact-room-view="true"]');
+    await view.evaluate((element) => {
+      element.style.height = '300px';
+    });
+    const box = await view.boundingBox();
+    if (!box) throw new Error('View has no bounds');
+    await drag(
+      Array.from({ length: 13 }, (_, step) => ({
+        x: box.x + box.width / 2,
+        y: box.y + box.height * 0.75 - step * 15,
+      }))
+    );
+    await expect.poll(() => view.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await notResolved();
+
+    // A tap still opens the thread.
+    await card.tap();
+    await expect(page.locator('body')).toHaveAttribute('data-opened-thread', '$thread-2');
+    await touch.detach();
+  });
+});

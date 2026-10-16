@@ -66,8 +66,6 @@
         "sectionTitle": "Arayüz",
         "simpleMode": "Basit mod",
         "simpleModeDescription": "Komut paleti ve konu filtreleri gibi gelişmiş özellikleri gizler. Cihazlarınız arasında eşitlenir.",
-        "expandLongMessagesByDefault": "Uzun mesajları varsayılan olarak genişlet",
-        "expandLongMessagesByDefaultDescription": "Uzun mesajları Tam mesajı göster düğmesinin arkasına katlamak yerine bütünüyle gösterir. Cihazlarınız arasında eşitlenir.",
         "showCanvasesInSidebar": "Etkileşimli panelleri kenar çubuğunda göster",
         "showCanvasesInSidebarDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Cihazlarınız arasında eşitlenir.",
         "saveFailed": "Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin."
@@ -686,7 +684,11 @@
       "openLocation": "Konumu aç",
       "voiceMessage": "sesli mesaj",
       "audio": "ses",
-      "unnamedFile": "Adsız dosya"
+      "unnamedFile": "Adsız dosya",
+      "file": "Dosya",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF belgesi",
+      "textFile": "Metin dosyası"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Bu mesaj silindi",
@@ -704,7 +706,8 @@
       "openFile": "Dosyayı aç",
       "loadFailed": "Dosya yüklenemedi!",
       "retryDownload": "İndirmeyi tekrar dene ({{size}})",
-      "downloadSize": "İndir ({{size}})"
+      "downloadSize": "İndir ({{size}})",
+      "openValue1": "{{value1}} dosyasını aç"
     },
     "imageContent": {
       "view": "Görüntüle",
@@ -1127,6 +1130,7 @@
       "spam": "Spam",
       "noInvites": "Davet yok",
       "declineAll": "Tümünü geri çevir",
+      "acceptAll": "Tümünü kabul et",
       "reportAll": "Tümünü bildir",
       "blockAll": "Tümünü engelle",
       "noSpamInvites": "Spam davet yok",
@@ -2454,7 +2458,9 @@
         "onlyATruncatedPreviewIsAvailable": "Yalnızca kısaltılmış bir önizleme mevcut.",
         "retry": "Tekrar dene",
         "sensitiveValuesMayBeRedacted": "Hassas değerler gizlenmiş olabilir.",
-        "loadFailed": "Tam bağımsız değişkenler yüklenemedi."
+        "loadFailed": "Tam bağımsız değişkenler yüklenemedi.",
+        "hideArguments": "Argümanları gizle",
+        "showAllArguments": "Tüm argümanları göster"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Bu istek burada onaylanamaz.",
@@ -2580,7 +2586,19 @@
         },
         "toolNumber": "Araç #{{index}}: {{command}}",
         "toolCallCount_one": "{{count}} araç çağrısı",
-        "toolCallCount_other": "{{count}} araç çağrısı"
+        "toolCallCount_other": "{{count}} araç çağrısı",
+        "usedToolCount_one": "{{count}} araç kullanıldı",
+        "usedToolCount_other": "{{count}} araç kullanıldı",
+        "toolCallsRunning_one": "{{count}} araç çağrısı çalışıyor",
+        "toolCallsRunning_other": "{{count}} araç çağrısı çalışıyor",
+        "toolCallsWaiting_one": "{{count}} araç çağrısı onay bekliyor",
+        "toolCallsWaiting_other": "{{count}} araç çağrısı onay bekliyor",
+        "toolCallsRan_one": "{{count}} araç çağrısı çalıştırıldı",
+        "toolCallsRan_other": "{{count}} araç çağrısı çalıştırıldı",
+        "toolCallsDenied_one": "{{count}} araç çağrısı reddedildi",
+        "toolCallsDenied_other": "{{count}} araç çağrısı reddedildi",
+        "toolCallsExpired_one": "{{count}} araç çağrısının süresi doldu",
+        "toolCallsExpired_other": "{{count}} araç çağrısının süresi doldu"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Tam yanıt yükleniyor..."
@@ -2673,6 +2691,11 @@
         "historyIncomplete": " · Geçmiş eksik",
         "retryHistory": "Geçmişi yeniden dene",
         "reviewToolCalls": "Araç çağrılarını incele",
+        "reviewAgentWants_one": "{{agent}} {{count}} şey yapmak istiyor",
+        "reviewAgentWants_other": "{{agent}} {{count}} şey yapmak istiyor",
+        "reviewAgentsWant_one": "{{agents}} ajan {{count}} şey yapmak istiyor",
+        "reviewAgentsWant_other": "{{agents}} ajan {{count}} şey yapmak istiyor",
+        "reviewRequestedBy": "İsteyen: {{requester}}",
         "someRequestsAreNoLongerAvailable": "Bazı istekler artık kullanılamıyor.",
         "permission": "izin",
         "permissions": "izin",
@@ -2700,7 +2723,36 @@
         "toolApprovalCount_one": "{{count}} araç onayı",
         "toolApprovalCount_other": "{{count}} araç onayı",
         "approvedCount_one": "{{count}} onaylandı",
-        "approvedCount_other": "{{count}} onaylandı"
+        "approvedCount_other": "{{count}} onaylandı",
+        "agentWaitingForYou": "{{agent}} sizi bekliyor",
+        "agentsWaitingForYou_one": "{{count}} ajan sizi bekliyor",
+        "agentsWaitingForYou_other": "{{count}} ajan sizi bekliyor",
+        "autoApproveFor": "Şu süre için otomatik onayla",
+        "callCount_one": "{{count}} çağrı",
+        "callCount_other": "{{count}} çağrı",
+        "chipSending": "Gönderiliyor…",
+        "chipSubmitted": "Gönderildi",
+        "chipResolved": "Sonuçlandı",
+        "confirmDenyAll": "{{count}} çağrının tümünü reddetmeyi onayla",
+        "expires": "{{time}} sona eriyor",
+        "hideCalls": "Çağrıları gizle",
+        "historyApproved": "{{operation}} onaylandı",
+        "historyDenied": "{{operation}} reddedildi",
+        "historyExpired": "{{operation}} süresi doldu",
+        "historyUserApproved": "{{user}}, {{operation}} işlemini onayladı",
+        "historyUserDenied": "{{user}}, {{operation}} işlemini reddetti",
+        "historyUserExpired": "{{operation}} süresi doldu",
+        "historyYouApproved": "{{operation}} işlemini onayladınız",
+        "historyYouDenied": "{{operation}} işlemini reddettiniz",
+        "historyYouExpired": "{{operation}} süresi doldu",
+        "minutesShort_one": "{{count}} dk",
+        "minutesShort_other": "{{count}} dk",
+        "sectionMeta": "{{agent}} · isteyen: {{requester}}",
+        "showCalls_one": "{{count}} çağrıyı göster",
+        "showCalls_other": "{{count}} çağrıyı göster",
+        "waitingForApproval": "Onay bekleniyor",
+        "waitingForYou": "Sizi bekliyor",
+        "you": "siz"
       },
       "pendingSendIndicator": {
         "messageSending": "Mesaj gönderiliyor",
@@ -3007,6 +3059,21 @@
       "unpin": "{{title}} panelinin sabitlemesini kaldır",
       "shared": "Ajanla paylaşılıyor",
       "saved": "Değerleriniz kayıtlı"
+    },
+    "backgroundJobs": {
+      "running": "Çalışıyor: {{tool}}",
+      "awaitingApproval": "Onay bekliyor: {{tool}}",
+      "waiting": "Onay bekliyor",
+      "stoppingJob": "Durduruluyor: {{tool}}",
+      "jobCount": "{{count}} arka plan işi",
+      "subagent": "{{tool}} (alt ajan)",
+      "stopAll": "Tümünü durdur",
+      "stopping": "Durduruluyor…",
+      "stop": "Durdur",
+      "stopJob": "{{tool}} durdur",
+      "stopFailed": "{{tool}} durdurulamadı. Tekrar deneyin.",
+      "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
+      "inRoom": "Arka plan işleri çalışıyor"
     }
   },
   "roomSchedules": {

@@ -390,9 +390,14 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
-    });
+    // Reset the account settings to their defaults.
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     const seeded = await seedThread(homeserver, session.accessToken, { longBodies: true });
 
     await loginWithPassword(page, { homeserver, username, password });
@@ -428,9 +433,14 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
-    });
+    // Reset the account settings to their defaults.
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,
       replyCount: 80,
@@ -468,9 +478,14 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      expandLongMessagesByDefault: false,
-    });
+    // Reset the account settings to their defaults.
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,
       longBodyLines: 100,

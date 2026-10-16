@@ -1,6 +1,7 @@
-import { MatrixError } from 'matrix-js-sdk';
+import { MatrixClient, MatrixError } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  addRoomIdToMDirect,
   getMatrixUploadErrorMessage,
   getMatrixUploadOriginalName,
   getMatrixUploadErrorStage,
@@ -179,6 +180,46 @@ describe('matrix upload errors', () => {
     expect(onError.mock.calls[0][0]).toMatchObject({
       errcode: 'M_UNKNOWN',
       message: expect.stringContaining('The operation was aborted.'),
+    });
+  });
+});
+
+describe('m.direct updates', () => {
+  it('keeps both rooms when two DM updates overlap', async () => {
+    let direct: Record<string, string[]> = {};
+    const mx = {
+      getAccountData: () => ({ getContent: () => direct }),
+      // Like the SDK, resolve only once the write is echoed back into the store.
+      setAccountData: async (_type: string, content: Record<string, string[]>) => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        direct = content;
+      },
+    } as unknown as MatrixClient;
+
+    await Promise.all([
+      addRoomIdToMDirect(mx, '!one:example.org', '@friend:example.org'),
+      addRoomIdToMDirect(mx, '!two:example.org', '@friend:example.org'),
+    ]);
+
+    expect(direct).toEqual({ '@friend:example.org': ['!one:example.org', '!two:example.org'] });
+  });
+
+  it("does not hold one client's update behind another client's stuck write", async () => {
+    const stuck = {
+      getAccountData: () => undefined,
+      // A stopped client never receives the sync echo, so its write never settles.
+      setAccountData: () => new Promise(() => {}),
+    } as unknown as MatrixClient;
+    const setAccountData = vi.fn(async () => {});
+    const other = { getAccountData: () => undefined, setAccountData } as unknown as MatrixClient;
+
+    addRoomIdToMDirect(stuck, '!stuck:example.org', '@friend:example.org');
+    await addRoomIdToMDirect(other, '!other:example.org', '@friend:example.org');
+
+    expect(setAccountData).toHaveBeenCalledWith('m.direct', {
+      '@friend:example.org': ['!other:example.org'],
     });
   });
 });

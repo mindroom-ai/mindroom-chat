@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 
 import {
+  HttpApiEvent,
   MatrixError,
   TokenRefreshError,
   TokenRefreshLogoutError,
+  createClient,
   type IRefreshTokenResponse,
 } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
-import { getSessionStore, putSession } from '../app/state/sessions';
+import { getSessionStore, putSession, updateSessionCredentials } from '../app/state/sessions';
 import {
   TOKEN_REFRESH_TIMEOUT_MS,
   createSessionTokenRefresh,
@@ -88,11 +90,11 @@ describe('createSessionTokenRefresh', () => {
     await expect(refresh('refresh-a')).rejects.toBe(networkError);
   });
 
-  it('classifies an invalid refresh token as a definitive SDK logout', async () => {
-    const invalidToken = new MatrixError(
-      { errcode: 'M_UNKNOWN_TOKEN', error: 'Invalid refresh token' },
-      401
-    );
+  it.each([
+    { errcode: 'M_UNKNOWN_TOKEN', status: 401 },
+    { errcode: 'M_FORBIDDEN', status: 403 },
+  ])('classifies $errcode from refresh as a definitive SDK logout', async ({ errcode, status }) => {
+    const invalidToken = new MatrixError({ errcode, error: 'Invalid refresh token' }, status);
     const refresh = createRefresh(vi.fn().mockRejectedValue(invalidToken));
 
     const result = refresh('refresh-a');
@@ -100,6 +102,42 @@ describe('createSessionTokenRefresh', () => {
     await expect(result).rejects.toBeInstanceOf(TokenRefreshLogoutError);
     await expect(result).rejects.not.toBeInstanceOf(TokenRefreshError);
   });
+
+  it.each([
+    { errcode: 'M_UNKNOWN_TOKEN', status: 401, logout: true },
+    { errcode: 'M_FORBIDDEN', status: 403, logout: true },
+    { errcode: 'M_LIMIT_EXCEEDED', status: 429, logout: false },
+    { errcode: 'M_UNKNOWN', status: 503, logout: false },
+  ])(
+    'SDK emits logout only for a rejected session: $errcode',
+    async ({ errcode, status, logout }) => {
+      const invalidAccessToken = { errcode: 'M_UNKNOWN_TOKEN', error: 'Unknown access token.' };
+      const refresh = vi
+        .fn()
+        .mockRejectedValue(new MatrixError({ errcode, error: 'Refresh failed.' }, status));
+      const mx = createClient({
+        baseUrl: 'https://example.com',
+        accessToken: 'access-a',
+        refreshToken: 'refresh-a',
+        tokenRefreshFunction: createRefresh(refresh),
+        fetchFn: vi.fn(
+          async () =>
+            new Response(JSON.stringify(invalidAccessToken), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json' },
+            })
+        ),
+      });
+      const onLogout = vi.fn();
+      mx.on(HttpApiEvent.SessionLoggedOut, onLogout);
+
+      const result = mx.getPushRules();
+
+      await expect(result).rejects.toBeInstanceOf(logout ? MatrixError : TokenRefreshError);
+      expect(refresh).toHaveBeenCalledWith('refresh-a');
+      expect(onLogout).toHaveBeenCalledTimes(logout ? 1 : 0);
+    }
+  );
 });
 
 describe('cross-tab refresh-token rotation', () => {
@@ -124,6 +162,30 @@ describe('cross-tab refresh-token rotation', () => {
       refreshToken: 'refresh-b',
       expiry: undefined,
     });
+  });
+
+  it('adopts a rotation another tab stored while this tab spent the same token', async () => {
+    const session = storeSession({ accessToken: 'access-a', refreshToken: 'refresh-a' });
+    const refresh = vi.fn(async () => {
+      // Without Web Locks, the other tab wins the race and stores its rotation.
+      updateSessionCredentials(session.sessionId, {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      });
+      throw new MatrixError(
+        { errcode: 'M_FORBIDDEN', error: 'Refresh token is unrecognized.' },
+        403
+      );
+    });
+
+    const tokens = await createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    })('refresh-a');
+
+    expect(refresh).toHaveBeenCalledWith('refresh-a');
+    expect(tokens).toEqual({ accessToken: 'access-b', refreshToken: 'refresh-b' });
   });
 
   it('does not adopt credentials stored for a different device of the same account', async () => {

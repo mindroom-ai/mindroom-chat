@@ -14,6 +14,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactThreadCard } from './CompactThreadCard';
+import { CompactCardSwipe } from './CompactCardSwipe';
 import * as css from './CompactRoomView.css';
 import { useToggleThreadResolution } from './useRoomThreadTags';
 import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
@@ -51,12 +52,14 @@ type CompactThreadCardRowProps = {
   showResolveAction: boolean;
   showPinAction: boolean;
   actionsDisabled: boolean;
+  swipeEnabled: boolean;
   menuOpen: boolean;
   resolveLabel: string;
+  reopenLabel: string;
   pinLabel: string;
   moreLabel: string;
   onThreadClick: (threadRootId: string) => void;
-  onResolve: (threadRootId: string) => void;
+  onSetResolved: (threadRootId: string, resolved: boolean) => void;
   onPin: (threadRootId: string, pinned: boolean) => void;
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
@@ -69,12 +72,14 @@ const CompactThreadCardRow = React.memo(
     showResolveAction,
     showPinAction,
     actionsDisabled,
+    swipeEnabled,
     menuOpen,
     resolveLabel,
+    reopenLabel,
     pinLabel,
     moreLabel,
     onThreadClick,
-    onResolve,
+    onSetResolved,
     onPin,
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
@@ -112,78 +117,85 @@ const CompactThreadCardRow = React.memo(
           });
         }}
       >
-        <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
-        <div className={css.CardAction}>
-          {showResolveAction && (
-            <IconTooltip label={resolveLabel} position="Top">
-              {(triggerRef) => (
-                <IconButton
-                  ref={triggerRef}
-                  className={css.CardQuickAction}
-                  type="button"
-                  size="300"
-                  variant="Secondary"
-                  fill="None"
-                  radii="300"
-                  aria-label={resolveLabel}
-                  disabled={actionsDisabled}
-                  onClick={() => onResolve(rootId)}
-                  data-compact-thread-resolve="true"
-                >
-                  <Icon size="100" src={Icons.Check} />
-                </IconButton>
-              )}
-            </IconTooltip>
-          )}
-          {showPinAction && (
-            <IconTooltip label={pinLabel} position="Top">
-              {(triggerRef) => (
-                <IconButton
-                  ref={triggerRef}
-                  className={css.CardQuickAction}
-                  type="button"
-                  size="300"
-                  variant="Secondary"
-                  fill="None"
-                  radii="300"
-                  aria-label={pinLabel}
-                  disabled={actionsDisabled}
-                  onClick={() => onPin(rootId, pinned)}
-                  data-compact-thread-pin="true"
-                >
-                  <Icon size="100" src={Icons.Pin} filled={pinned} />
-                </IconButton>
-              )}
-            </IconTooltip>
-          )}
-          <IconTooltip label={moreLabel} position="Top">
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                className={css.CardMenuButton}
-                type="button"
-                size="300"
-                variant="Secondary"
-                fill="None"
-                radii="300"
-                aria-label={moreLabel}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                  onOpenMenu({
-                    roomId,
-                    rootId,
-                    viewModel,
-                    anchor: event.currentTarget.getBoundingClientRect(),
-                    trigger: event.currentTarget,
-                  })
-                }
-              >
-                <Icon size="100" src={Icons.HorizontalDots} />
-              </IconButton>
+        <CompactCardSwipe
+          enabled={swipeEnabled}
+          resolved={viewModel.isResolved}
+          label={viewModel.isResolved ? reopenLabel : resolveLabel}
+          onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
+        >
+          <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
+          <div className={css.CardAction}>
+            {showResolveAction && (
+              <IconTooltip label={resolveLabel} position="Top">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    className={css.CardQuickAction}
+                    type="button"
+                    size="300"
+                    variant="Secondary"
+                    fill="None"
+                    radii="300"
+                    aria-label={resolveLabel}
+                    disabled={actionsDisabled}
+                    onClick={() => onSetResolved(rootId, true)}
+                    data-compact-thread-resolve="true"
+                  >
+                    <Icon size="100" src={Icons.Check} />
+                  </IconButton>
+                )}
+              </IconTooltip>
             )}
-          </IconTooltip>
-        </div>
+            {showPinAction && (
+              <IconTooltip label={pinLabel} position="Top">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    className={css.CardQuickAction}
+                    type="button"
+                    size="300"
+                    variant="Secondary"
+                    fill="None"
+                    radii="300"
+                    aria-label={pinLabel}
+                    disabled={actionsDisabled}
+                    onClick={() => onPin(rootId, pinned)}
+                    data-compact-thread-pin="true"
+                  >
+                    <Icon size="100" src={Icons.Pin} filled={pinned} />
+                  </IconButton>
+                )}
+              </IconTooltip>
+            )}
+            <IconTooltip label={moreLabel} position="Top">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  className={css.CardMenuButton}
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label={moreLabel}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                    onOpenMenu({
+                      roomId,
+                      rootId,
+                      viewModel,
+                      anchor: event.currentTarget.getBoundingClientRect(),
+                      trigger: event.currentTarget,
+                    })
+                  }
+                >
+                  <Icon size="100" src={Icons.HorizontalDots} />
+                </IconButton>
+              )}
+            </IconTooltip>
+          </div>
+        </CompactCardSwipe>
       </div>
     );
   }
@@ -259,8 +271,8 @@ export function CompactRoomView({
     const viewModel = viewModelByRootRef.current.get(clickedThreadRootId);
     onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
   }, []);
-  const handleResolve = useCallback((threadRootId: string) => {
-    void setResolvedRef.current(threadRootId, true);
+  const handleSetResolved = useCallback((threadRootId: string, resolved: boolean) => {
+    void setResolvedRef.current(threadRootId, resolved);
   }, []);
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
@@ -284,6 +296,7 @@ export function CompactRoomView({
   });
 
   const resolveLabel = t('thread.resolve');
+  const reopenLabel = t('threadActions.reopen');
   const pinLabel = t('threadNav.pin');
   const unpinLabel = t('threadNav.unpin');
   const moreLabel = t('threadActions.more');
@@ -291,6 +304,12 @@ export function CompactRoomView({
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
     const showResolveAction = canToggle && !viewModel.isResolved && !pinned;
+    // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
+    const swipeEnabled =
+      canToggle &&
+      !pinned &&
+      isConfirmedMatrixEventId(rootId) &&
+      !updatingThreadRootIds.has(rootId);
     const showPinAction = pinning.canPin && isConfirmedMatrixEventId(rootId);
     return (
       <CompactThreadCardRow
@@ -304,12 +323,14 @@ export function CompactRoomView({
           (showResolveAction || showPinAction) &&
           (pinning.updating || updatingThreadRootIds.has(rootId))
         }
+        swipeEnabled={swipeEnabled}
         menuOpen={menu?.rootId === rootId && !!menuModel}
         resolveLabel={resolveLabel}
+        reopenLabel={reopenLabel}
         pinLabel={pinned ? unpinLabel : pinLabel}
         moreLabel={moreLabel}
         onThreadClick={handleCardClick}
-        onResolve={handleResolve}
+        onSetResolved={handleSetResolved}
         onPin={handlePin}
         onOpenMenu={openMenu}
       />

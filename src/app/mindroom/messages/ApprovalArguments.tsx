@@ -1,10 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useState } from 'react';
+import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { ToolApprovalData } from './toolApproval';
 import { downloadMindroomSidecarBlob } from './sidecarDownload';
-import * as css from './MindroomToolApprovalCard.css';
+import { ApprovalArgumentFields, countArgumentFields } from './ApprovalArgumentFields';
+import * as css from './ApprovalArgumentFields.css';
+
+const PREVIEW_FIELDS = 3;
 
 export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) {
   const { t } = useTranslation();
@@ -37,9 +41,33 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
       active = false;
     };
   }, [mx, auth, open, complete, sourceKey, retry]);
+  const shown = complete ?? approval.arguments;
+  const total = countArgumentFields(shown);
   return (
-    <details className={css.Details} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t('mindroomUi.messages.approvalArguments.arguments')}</summary>
+    <div className={css.Arguments}>
+      {!open && <ApprovalArgumentFields value={approval.arguments} limit={PREVIEW_FIELDS} />}
+      <Button
+        type="button"
+        size="300"
+        variant="Secondary"
+        fill="Soft"
+        radii="300"
+        className={css.Toggle}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        before={<Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} />}
+      >
+        <Text size="B300">
+          {open
+            ? t('mindroomUi.messages.approvalArguments.hideArguments')
+            : t('mindroomUi.messages.approvalArguments.showAllArguments')}
+        </Text>
+        {!open && total > 0 && !approval.argumentsTruncated && (
+          <Text size="B300" className={css.Count}>
+            {total}
+          </Text>
+        )}
+      </Button>
       {open && (
         <>
           {approval.argumentsTruncated && !complete && (
@@ -56,12 +84,10 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
               )}
             </p>
           )}
-          <pre className={css.JsonBlock}>
-            {JSON.stringify(complete ?? approval.arguments, null, 2)}
-          </pre>
+          <ApprovalArgumentFields value={shown} />
           <small>{t('mindroomUi.messages.approvalArguments.sensitiveValuesMayBeRedacted')}</small>
         </>
       )}
-    </details>
+    </div>
   );
 }

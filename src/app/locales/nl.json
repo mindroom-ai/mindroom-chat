@@ -66,8 +66,6 @@
         "sectionTitle": "Interface",
         "simpleMode": "Eenvoudige modus",
         "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
-        "expandLongMessagesByDefault": "Lange berichten standaard uitklappen",
-        "expandLongMessagesByDefaultDescription": "Toont lange berichten volledig in plaats van ze achter ‘Meer tonen’ in te klappen. Gesynchroniseerd tussen je apparaten.",
         "showCanvasesInSidebar": "Interactieve panelen in de zijbalk tonen",
         "showCanvasesInSidebarDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."
@@ -686,7 +684,11 @@
       "openLocation": "Locatie openen",
       "voiceMessage": "spraakbericht",
       "audio": "audio",
-      "unnamedFile": "Naamloos bestand"
+      "unnamedFile": "Naamloos bestand",
+      "file": "Bestand",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "PDF-document",
+      "textFile": "Tekstbestand"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Dit bericht is verwijderd",
@@ -704,7 +706,8 @@
       "openFile": "Bestand openen",
       "loadFailed": "Bestand kon niet worden geladen!",
       "retryDownload": "Download opnieuw proberen ({{size}})",
-      "downloadSize": "Downloaden ({{size}})"
+      "downloadSize": "Downloaden ({{size}})",
+      "openValue1": "{{value1}} openen"
     },
     "imageContent": {
       "view": "Bekijken",
@@ -1131,6 +1134,7 @@
       "spam": "Spam",
       "noInvites": "Geen uitnodigingen",
       "declineAll": "Alles weigeren",
+      "acceptAll": "Alles accepteren",
       "reportAll": "Alles rapporteren",
       "blockAll": "Alles blokkeren",
       "noSpamInvites": "Geen spamuitnodigingen",
@@ -2454,7 +2458,9 @@
         "loadFailed": "De volledige argumenten konden niet worden geladen.",
         "onlyATruncatedPreviewIsAvailable": "Alleen een ingekort voorbeeld is beschikbaar.",
         "retry": "Opnieuw proberen",
-        "sensitiveValuesMayBeRedacted": "Gevoelige waarden kunnen zijn geredigeerd."
+        "sensitiveValuesMayBeRedacted": "Gevoelige waarden kunnen zijn geredigeerd.",
+        "hideArguments": "Argumenten verbergen",
+        "showAllArguments": "Alle argumenten tonen"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Dit verzoek kan hier niet worden goedgekeurd.",
@@ -2580,7 +2586,19 @@
         },
         "toolNumber": "Gereedschap {{index}}: {{command}}",
         "toolCallCount_one": "{{count}} gereedschapsaanroep",
-        "toolCallCount_other": "{{count}} gereedschapsaanroepen"
+        "toolCallCount_other": "{{count}} gereedschapsaanroepen",
+        "usedToolCount_one": "{{count}} tool gebruikt",
+        "usedToolCount_other": "{{count}} tools gebruikt",
+        "toolCallsRunning_one": "{{count}} toolaanroep wordt uitgevoerd",
+        "toolCallsRunning_other": "{{count}} toolaanroepen worden uitgevoerd",
+        "toolCallsWaiting_one": "{{count}} toolaanroep wacht op goedkeuring",
+        "toolCallsWaiting_other": "{{count}} toolaanroepen wachten op goedkeuring",
+        "toolCallsRan_one": "{{count}} toolaanroep uitgevoerd",
+        "toolCallsRan_other": "{{count}} toolaanroepen uitgevoerd",
+        "toolCallsDenied_one": "{{count}} toolaanroep geweigerd",
+        "toolCallsDenied_other": "{{count}} toolaanroepen geweigerd",
+        "toolCallsExpired_one": "{{count}} toolaanroep verlopen",
+        "toolCallsExpired_other": "{{count}} toolaanroepen verlopen"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Volledig antwoord laden..."
@@ -2673,6 +2691,11 @@
         "historyIncomplete": " · Geschiedenis onvolledig",
         "retryHistory": "Geschiedenis opnieuw proberen",
         "reviewToolCalls": "Gereedschapsaanroepen controleren",
+        "reviewAgentWants_one": "{{agent}} wil {{count}} ding doen",
+        "reviewAgentWants_other": "{{agent}} wil {{count}} dingen doen",
+        "reviewAgentsWant_one": "{{agents}} agents willen {{count}} ding doen",
+        "reviewAgentsWant_other": "{{agents}} agents willen {{count}} dingen doen",
+        "reviewRequestedBy": "Aangevraagd door {{requester}}",
         "someRequestsAreNoLongerAvailable": "Sommige verzoeken zijn niet meer beschikbaar.",
         "permission": "toestemming",
         "permissions": "toestemmingen",
@@ -2700,7 +2723,36 @@
         "toolApprovalCount_one": "{{count}} gereedschapsgoedkeuring",
         "toolApprovalCount_other": "{{count}} gereedschapsgoedkeuringen",
         "approvedCount_one": "{{count}} goedgekeurd",
-        "approvedCount_other": "{{count}} goedgekeurd"
+        "approvedCount_other": "{{count}} goedgekeurd",
+        "agentWaitingForYou": "{{agent}} wacht op je",
+        "agentsWaitingForYou_one": "{{count}} agent wacht op je",
+        "agentsWaitingForYou_other": "{{count}} agents wachten op je",
+        "autoApproveFor": "Automatisch goedkeuren voor",
+        "callCount_one": "{{count}} aanroep",
+        "callCount_other": "{{count}} aanroepen",
+        "chipSending": "Verzenden…",
+        "chipSubmitted": "Verzonden",
+        "chipResolved": "Afgehandeld",
+        "confirmDenyAll": "Alle {{count}} weigeren bevestigen",
+        "expires": "verloopt {{time}}",
+        "hideCalls": "Aanroepen verbergen",
+        "historyApproved": "{{operation}} goedgekeurd",
+        "historyDenied": "{{operation}} geweigerd",
+        "historyExpired": "{{operation}} verlopen",
+        "historyUserApproved": "{{user}} heeft {{operation}} goedgekeurd",
+        "historyUserDenied": "{{user}} heeft {{operation}} geweigerd",
+        "historyUserExpired": "{{operation}} verlopen",
+        "historyYouApproved": "Je hebt {{operation}} goedgekeurd",
+        "historyYouDenied": "Je hebt {{operation}} geweigerd",
+        "historyYouExpired": "{{operation}} verlopen",
+        "minutesShort_one": "{{count}} min",
+        "minutesShort_other": "{{count}} min",
+        "sectionMeta": "{{agent}} · aangevraagd door {{requester}}",
+        "showCalls_one": "{{count}} aanroep tonen",
+        "showCalls_other": "{{count}} aanroepen tonen",
+        "waitingForApproval": "Wacht op goedkeuring",
+        "waitingForYou": "Wacht op jou",
+        "you": "jou"
       },
       "pendingSendIndicator": {
         "messageSending": "Bericht wordt verzonden",
@@ -3007,6 +3059,21 @@
       "unpin": "{{title}} losmaken",
       "shared": "Gedeeld met agent",
       "saved": "Bevat je waarden"
+    },
+    "backgroundJobs": {
+      "running": "Bezig: {{tool}}",
+      "awaitingApproval": "Wacht op goedkeuring: {{tool}}",
+      "waiting": "Wacht op goedkeuring",
+      "stoppingJob": "Wordt gestopt: {{tool}}",
+      "jobCount": "{{count}} achtergrondtaken",
+      "subagent": "{{tool}} (subagent)",
+      "stopAll": "Alles stoppen",
+      "stopping": "Wordt gestopt…",
+      "stop": "Stoppen",
+      "stopJob": "{{tool}} stoppen",
+      "stopFailed": "Kon {{tool}} niet stoppen. Probeer het opnieuw.",
+      "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
+      "inRoom": "Achtergrondtaken actief"
     }
   },
   "roomSchedules": {

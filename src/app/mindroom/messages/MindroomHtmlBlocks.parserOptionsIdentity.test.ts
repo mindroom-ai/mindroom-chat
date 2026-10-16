@@ -1,18 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 
+vi.mock('./ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
+}));
+
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
   BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
+  BlockLabel: 'BlockLabel',
   BlockInlineResult: 'BlockInlineResult',
   BlockResult: 'BlockResult',
   PasteMarkerBadge: 'PasteMarkerBadge',
   PasteMarkerBadgeMeta: 'PasteMarkerBadgeMeta',
   ToolGroupItem: 'ToolGroupItem',
   ToolGroupList: 'ToolGroupList',
+  ToolRowHeader: 'ToolRowHeader',
+  ToolRowIndex: 'ToolRowIndex',
+  ToolRowName: 'ToolRowName',
 }));
 
 // eslint-disable-next-line import/first

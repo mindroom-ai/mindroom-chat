@@ -66,8 +66,6 @@
         "sectionTitle": "Interfaz",
         "simpleMode": "Modo sencillo",
         "simpleModeDescription": "Oculta funciones avanzadas como la paleta de comandos y los filtros de hilos. Se sincroniza entre tus dispositivos.",
-        "expandLongMessagesByDefault": "Expandir los mensajes largos de forma predeterminada",
-        "expandLongMessagesByDefaultDescription": "Muestra completos los mensajes largos en lugar de plegarlos tras Mostrar mensaje completo. Se sincroniza entre tus dispositivos.",
         "showCanvasesInSidebar": "Mostrar paneles interactivos en la barra lateral",
         "showCanvasesInSidebarDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Se sincroniza entre tus dispositivos.",
         "saveFailed": "No se pudo guardar el cambio. Comprueba tu conexión e inténtalo de nuevo."
@@ -689,7 +687,11 @@
       "openLocation": "Abrir ubicación",
       "voiceMessage": "mensaje de voz",
       "audio": "audio",
-      "unnamedFile": "Archivo sin nombre"
+      "unnamedFile": "Archivo sin nombre",
+      "file": "Archivo",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "Documento PDF",
+      "textFile": "Archivo de texto"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Este mensaje se ha eliminado",
@@ -707,7 +709,8 @@
       "openFile": "Abrir archivo",
       "loadFailed": "¡No se pudo cargar el archivo!",
       "retryDownload": "Reintentar descarga ({{size}})",
-      "downloadSize": "Descargar ({{size}})"
+      "downloadSize": "Descargar ({{size}})",
+      "openValue1": "Abrir {{value1}}"
     },
     "imageContent": {
       "view": "Ver",
@@ -1136,6 +1139,7 @@
       "spam": "Spam",
       "noInvites": "No hay invitaciones",
       "declineAll": "Rechazar todas",
+      "acceptAll": "Aceptar todas",
       "reportAll": "Denunciar todas",
       "blockAll": "Bloquear todas",
       "noSpamInvites": "No hay invitaciones de spam",
@@ -2483,7 +2487,9 @@
         "loadFailed": "No se pudieron cargar todos los argumentos.",
         "onlyATruncatedPreviewIsAvailable": "Solo hay disponible una vista previa truncada.",
         "retry": "Reintentar",
-        "sensitiveValuesMayBeRedacted": "Los valores confidenciales pueden estar censurados."
+        "sensitiveValuesMayBeRedacted": "Los valores confidenciales pueden estar censurados.",
+        "hideArguments": "Ocultar argumentos",
+        "showAllArguments": "Mostrar todos los argumentos"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Esta solicitud no se puede aprobar aquí.",
@@ -2614,7 +2620,25 @@
         "toolCallCount_one": "{{count}} llamada de herramienta",
         "toolCallCount_other": "{{count}} llamadas de herramienta",
         "characterCount_many": "{{formattedCount}} caracteres",
-        "toolCallCount_many": "{{count}} llamadas de herramienta"
+        "toolCallCount_many": "{{count}} llamadas de herramienta",
+        "usedToolCount_one": "Se usó {{count}} herramienta",
+        "usedToolCount_many": "Se usaron {{count}} herramientas",
+        "usedToolCount_other": "Se usaron {{count}} herramientas",
+        "toolCallsRunning_one": "Ejecutando {{count}} llamada a herramienta",
+        "toolCallsRunning_many": "Ejecutando {{count}} llamadas a herramientas",
+        "toolCallsRunning_other": "Ejecutando {{count}} llamadas a herramientas",
+        "toolCallsWaiting_one": "{{count}} llamada a herramienta espera aprobación",
+        "toolCallsWaiting_many": "{{count}} llamadas a herramientas esperan aprobación",
+        "toolCallsWaiting_other": "{{count}} llamadas a herramientas esperan aprobación",
+        "toolCallsRan_one": "Se ejecutó {{count}} llamada a herramienta",
+        "toolCallsRan_many": "Se ejecutaron {{count}} llamadas a herramientas",
+        "toolCallsRan_other": "Se ejecutaron {{count}} llamadas a herramientas",
+        "toolCallsDenied_one": "Se denegó {{count}} llamada a herramienta",
+        "toolCallsDenied_many": "Se denegaron {{count}} llamadas a herramientas",
+        "toolCallsDenied_other": "Se denegaron {{count}} llamadas a herramientas",
+        "toolCallsExpired_one": "{{count}} llamada a herramienta caducó",
+        "toolCallsExpired_many": "{{count}} llamadas a herramientas caducaron",
+        "toolCallsExpired_other": "{{count}} llamadas a herramientas caducaron"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "Cargando la respuesta completa..."
@@ -2709,6 +2733,13 @@
         "historyIncomplete": " · Historial incompleto",
         "retryHistory": "Reintentar historial",
         "reviewToolCalls": "Revisar llamadas de herramientas",
+        "reviewAgentWants_one": "{{agent}} quiere hacer {{count}} cosa",
+        "reviewAgentWants_many": "{{agent}} quiere hacer {{count}} cosas",
+        "reviewAgentWants_other": "{{agent}} quiere hacer {{count}} cosas",
+        "reviewAgentsWant_one": "{{agents}} agentes quieren hacer {{count}} cosa",
+        "reviewAgentsWant_many": "{{agents}} agentes quieren hacer {{count}} cosas",
+        "reviewAgentsWant_other": "{{agents}} agentes quieren hacer {{count}} cosas",
+        "reviewRequestedBy": "Solicitado por {{requester}}",
         "someRequestsAreNoLongerAvailable": "Algunas solicitudes ya no están disponibles.",
         "permission": "permiso",
         "permissions": "permisos",
@@ -2743,7 +2774,40 @@
         "pausedForApproval_many": "{{count}} llamadas pausadas para su aprobación",
         "activePermissionCount_many": "{{count}} permisos activos",
         "toolApprovalCount_many": "{{count}} aprobaciones de herramientas",
-        "approvedCount_many": "{{count}} aprobadas"
+        "approvedCount_many": "{{count}} aprobadas",
+        "agentWaitingForYou": "{{agent}} te está esperando",
+        "agentsWaitingForYou_one": "{{count}} agente te está esperando",
+        "agentsWaitingForYou_many": "{{count}} agentes te están esperando",
+        "agentsWaitingForYou_other": "{{count}} agentes te están esperando",
+        "autoApproveFor": "Aprobar automáticamente durante",
+        "callCount_one": "{{count}} llamada",
+        "callCount_many": "{{count}} llamadas",
+        "callCount_other": "{{count}} llamadas",
+        "chipSending": "Enviando…",
+        "chipSubmitted": "Enviada",
+        "chipResolved": "Resuelta",
+        "confirmDenyAll": "Confirmar denegar las {{count}}",
+        "expires": "caduca {{time}}",
+        "hideCalls": "Ocultar llamadas",
+        "historyApproved": "Se aprobó {{operation}}",
+        "historyDenied": "Se denegó {{operation}}",
+        "historyExpired": "{{operation}} caducó",
+        "historyUserApproved": "{{user}} aprobó {{operation}}",
+        "historyUserDenied": "{{user}} denegó {{operation}}",
+        "historyUserExpired": "{{operation}} caducó",
+        "historyYouApproved": "Aprobaste {{operation}}",
+        "historyYouDenied": "Denegaste {{operation}}",
+        "historyYouExpired": "{{operation}} caducó",
+        "minutesShort_one": "{{count}} min",
+        "minutesShort_many": "{{count}} min",
+        "minutesShort_other": "{{count}} min",
+        "sectionMeta": "{{agent}} · solicitado por {{requester}}",
+        "showCalls_one": "Mostrar {{count}} llamada",
+        "showCalls_many": "Mostrar {{count}} llamadas",
+        "showCalls_other": "Mostrar {{count}} llamadas",
+        "waitingForApproval": "Esperando aprobación",
+        "waitingForYou": "Esperándote",
+        "you": "ti"
       },
       "pendingSendIndicator": {
         "messageSending": "Enviando mensaje",
@@ -3061,6 +3125,21 @@
       "unpin": "Desfijar {{title}}",
       "shared": "Compartido con el agente",
       "saved": "Tiene tus valores"
+    },
+    "backgroundJobs": {
+      "running": "En ejecución: {{tool}}",
+      "awaitingApproval": "Esperando aprobación: {{tool}}",
+      "waiting": "Esperando aprobación",
+      "stoppingJob": "Deteniendo: {{tool}}",
+      "jobCount": "{{count}} tareas en segundo plano",
+      "subagent": "{{tool}} (subagente)",
+      "stopAll": "Detener todo",
+      "stopping": "Deteniendo…",
+      "stop": "Detener",
+      "stopJob": "Detener {{tool}}",
+      "stopFailed": "No se pudo detener {{tool}}. Inténtalo de nuevo.",
+      "stopAllFailed": "No se pudieron detener las tareas en segundo plano. Inténtalo de nuevo.",
+      "inRoom": "Tareas en segundo plano en curso"
     }
   },
   "roomSchedules": {

@@ -12,8 +12,29 @@ vi.mock('./app/styles/Glass.css', () => ({
   glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
   glassOutline: 'glass-outline',
+  glassDenseOverBackdrop: 'glass-dense-over-backdrop',
   glassSurface: () => 'glass-surface',
 }));
+vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
+  Activity: 'activity',
+  Line: 'activity-line',
+  Icon: {
+    neutral: 'activity-icon',
+    success: 'activity-icon-success',
+    critical: 'activity-icon-critical',
+    warning: 'activity-icon-warning',
+  },
+  Title: 'activity-title',
+  Detail: 'activity-detail',
+  Chevron: 'activity-chevron',
+  Panel: 'activity-panel',
+  Row: 'activity-row',
+  RowBody: 'activity-row-body',
+  RowName: 'activity-row-name',
+  RowText: 'activity-row-text',
+  Result: 'activity-result',
+}));
+vi.mock('./app/components/user-avatar/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
 vi.mock('./app/components/glass/Surface.css', () => ({
   inheritSurface: 'surface-inherit',
 }));

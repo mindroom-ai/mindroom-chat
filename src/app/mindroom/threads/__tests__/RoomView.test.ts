@@ -268,6 +268,13 @@ vi.mock('../CompactRoomView.css', () => ({
   View: 'View',
 }));
 
+vi.mock('../CompactCardSwipe.css', () => ({
+  SwipeAction: 'SwipeAction',
+  SwipeTrack: 'SwipeTrack',
+  SwipeTrackEnabled: 'SwipeTrackEnabled',
+  SwipeTrackSettling: 'SwipeTrackSettling',
+}));
+
 vi.mock('../MindroomRoomTimeline', async () => {
   const ReactModule = await import('react');
   const { CompactRoomView } = await import('../CompactRoomView');
@@ -1988,6 +1995,7 @@ describe('RoomView', () => {
 });
 
 vi.mock('../../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
 vi.mock('../../messages/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: 'thread-approval-provider',
 }));

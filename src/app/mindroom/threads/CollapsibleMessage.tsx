@@ -13,15 +13,11 @@ import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '11em';
 
-// Global expand/collapse event bus that toggles already-mounted rows.
-type ExpandAllListener = (expand: boolean) => void;
-const listeners = new Set<ExpandAllListener>();
-
-// Virtualized timelines mount rows lazily, so an active expand/collapse-all must
-// also apply to rows mounted after the broadcast. The owning timeline provides
-// the current override through this context (scoped to that timeline instance,
-// read render-purely as the initial expanded state of newly-mounted rows).
-// `undefined` means "no override — use the per-message default".
+// The owning timeline's expand/collapse-all baseline, scoped to that timeline
+// instance. Newly mounted rows read it render-purely as their initial expanded
+// state (virtualized timelines mount rows lazily), and mounted rows follow its
+// changes in an effect, one commit after the timeline captures its reader
+// anchor. `undefined` means "no override — use the per-message default".
 export const ExpandAllInitContext = React.createContext<boolean | undefined>(undefined);
 
 // Manual expansion is user preference, unlike the module-level overflow
@@ -70,24 +66,6 @@ export function CollapsibleMessageStateProvider({
       </ExpansionLayoutChangeContext.Provider>
     </ManualExpansionStateContext.Provider>
   );
-}
-
-export function expandAllMessages() {
-  listeners.forEach((fn) => fn(true));
-}
-
-export function collapseAllMessages() {
-  listeners.forEach((fn) => fn(false));
-}
-
-function useExpandAllListener(onToggle: (expand: boolean) => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return undefined;
-    listeners.add(onToggle);
-    return () => {
-      listeners.delete(onToggle);
-    };
-  }, [enabled, onToggle]);
 }
 
 const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
@@ -368,15 +346,6 @@ export function CollapsibleMessage({
     observer.observe(el);
     return () => observer.disconnect();
   }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
-
-  // Subscribe to global expand/collapse events
-  const handleGlobalToggle = useCallback((expand: boolean) => {
-    setExpanded(expand);
-    if (!expand) {
-      setOverflowing(false); // will be re-detected by useLayoutEffect
-    }
-  }, []);
-  useExpandAllListener(handleGlobalToggle, !isExempt);
 
   const setManualExpanded = useCallback(
     (nextExpanded: boolean) => {

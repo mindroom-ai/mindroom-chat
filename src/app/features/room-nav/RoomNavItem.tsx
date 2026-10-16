@@ -61,6 +61,7 @@ import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
 import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
+import { useRoomBackgroundJobs } from '../../mindroom/background-jobs/useRoomBackgroundJobs';
 
 type RoomNavItemMenuProps = {
   room: Room;
@@ -266,6 +267,7 @@ export function RoomNavItem({
   const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
+  const hasBackgroundJobs = useRoomBackgroundJobs(room).length > 0;
   const typingMember = useRoomTypingMember(room.roomId).filter(
     (receipt) => receipt.userId !== mx.getUserId()
   );
@@ -398,6 +400,20 @@ export function RoomNavItem({
                 src={getRoomNotificationModeIcon(notificationMode)}
                 aria-label={notificationMode}
               />
+            )}
+            {hasBackgroundJobs && (
+              // The clock also marks schedules, so it stays while the row is hovered, where its tooltip names it.
+              <IconTooltip label={t('mindroomUi.backgroundJobs.inRoom')} position="Top">
+                {(triggerRef) => (
+                  <span ref={triggerRef} style={{ display: 'inline-flex' }}>
+                    <Icon
+                      size="50"
+                      src={Icons.Clock}
+                      aria-label={t('mindroomUi.backgroundJobs.inRoom')}
+                    />
+                  </span>
+                )}
+              </IconTooltip>
             )}
             {callMembers.length > 0 && (
               <Badge variant="Critical" fill="Solid" size="400">

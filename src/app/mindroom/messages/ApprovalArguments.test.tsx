@@ -11,7 +11,17 @@ const mocks = vi.hoisted(() => ({ download: vi.fn(), mx: {} }));
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.mx }));
 vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => true }));
 vi.mock('./sidecarDownload', () => ({ downloadMindroomSidecarBlob: mocks.download }));
-vi.mock('./MindroomToolApprovalCard.css', () => ({ Details: 'Details', JsonBlock: 'JsonBlock' }));
+vi.mock('./ApprovalArgumentFields.css', () => ({
+  Arguments: 'Arguments',
+  Fields: 'Fields',
+  Key: 'Key',
+  Value: 'Value',
+  Clamped: 'Clamped',
+  Scalar: 'Scalar',
+  Code: 'Code',
+  Toggle: 'Toggle',
+  Count: 'Count',
+}));
 const approval = parseToolApprovalContent('io.mindroom.tool_approval', {
   approval_id: 'one',
   tool_name: 'invite',
@@ -29,10 +39,13 @@ afterEach(() => {
   mocks.download.mockReset();
 });
 const toggle = async (open: boolean) => {
+  const button = renderer.root.find((node) => node.props['aria-expanded'] !== undefined);
+  if (button.props['aria-expanded'] === open) return;
   await act(async () => {
-    renderer.root.findByType('details').props.onToggle({ currentTarget: { open } });
+    button.props.onClick();
   });
 };
+const rendered = () => JSON.stringify(renderer.toJSON());
 
 describe('exact approval arguments', () => {
   it('loads on expansion, retries a failure, and retains the complete result after collapse', async () => {
@@ -46,13 +59,15 @@ describe('exact approval arguments', () => {
     await toggle(true);
     expect(JSON.stringify(renderer.toJSON())).toContain('Could not load complete arguments.');
     await act(async () => {
-      renderer.root.findByType('button').props.onClick();
+      renderer.root
+        .findAll((node) => node.type === 'button' && node.children.includes('Retry'))[0]
+        .props.onClick();
     });
-    expect(renderer.root.findByType('pre').children.join('')).toContain('Jamie');
+    expect(rendered()).toContain('Jamie');
     await toggle(false);
     await toggle(true);
     expect(mocks.download).toHaveBeenCalledTimes(2);
-    expect(renderer.root.findByType('pre').children.join('')).toContain('Jamie');
+    expect(rendered()).toContain('Jamie');
   });
   it('does not expose another call’s loaded arguments while its attachment is pending', async () => {
     mocks.download
@@ -69,7 +84,7 @@ describe('exact approval arguments', () => {
         />
       );
     });
-    expect(renderer.root.findByType('pre').children.join('')).not.toContain('Jamie');
+    expect(rendered()).not.toContain('Jamie');
     expect(JSON.stringify(renderer.toJSON())).toContain('Loading complete arguments');
   });
 });
@@ -97,7 +112,7 @@ it('keeps one in-flight download when the same attachment is reparsed during cha
   await act(async () => {
     finish(new Blob([JSON.stringify({ user: 'Jamie' })]));
   });
-  expect(renderer.root.findByType('pre').children.join('')).toContain('Jamie');
+  expect(rendered()).toContain('Jamie');
 });
 
 it('translates a retained failure without downloading again on language changes', async () => {
@@ -137,4 +152,32 @@ it('translates a retained failure without downloading again on language changes'
     'Vollständige Argumente konnten nicht geladen werden.'
   );
   expect(mocks.download).toHaveBeenCalledTimes(1);
+});
+
+it('previews the key filled-in arguments on one line each and reveals all in the same order', async () => {
+  // Matrix canonical JSON sorts keys, so events arrive with body before to.
+  const body = 'Hi Grace,\n\nHere is what changed between the releases.';
+  const email = parseToolApprovalContent('io.mindroom.tool_approval', {
+    approval_id: 'email',
+    tool_name: 'send_email',
+    agent_name: 'research',
+    status: 'pending',
+    arguments: { body, cc: [], subject: 'Notes', to: 'grace@example.org' },
+    requested_at: '2026-09-12T12:00:00Z',
+    expires_at: '2026-09-12T12:30:00Z',
+  })!;
+  act(() => {
+    renderer = create(<ApprovalArguments approval={email} />);
+  });
+  const keys = () => renderer.root.findAllByType('dt').map((node) => node.children.join(''));
+  expect(keys()).toEqual(['to', 'subject', 'body']);
+  expect(rendered()).toContain('Hi Grace, Here is what changed between the releases.');
+  expect(rendered()).toContain('Show all arguments');
+  expect(rendered()).toContain('"4"');
+  await toggle(true);
+  // The full list keeps the preview's order, so the recipient stays above the long body.
+  expect(keys()).toEqual(['to', 'cc', 'subject', 'body']);
+  expect(rendered()).toContain(JSON.stringify(body).slice(1, -1));
+  expect(rendered()).toContain('Hide arguments');
+  expect(mocks.download).not.toHaveBeenCalled();
 });

@@ -63,7 +63,7 @@ export function UploadBoardHeader({
   const handleCancel = () => onCancel(uploads);
 
   return (
-    <Header size="400">
+    <Header size="400" appearance="plain">
       <Box
         as="button"
         style={{ cursor: 'pointer' }}

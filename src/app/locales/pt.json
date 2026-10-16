@@ -66,8 +66,6 @@
         "sectionTitle": "Interface",
         "simpleMode": "Modo simples",
         "simpleModeDescription": "Oculta funcionalidades avançadas, como a paleta de comandos e os filtros de tópicos. É sincronizado entre os seus dispositivos.",
-        "expandLongMessagesByDefault": "Expandir mensagens longas por predefinição",
-        "expandLongMessagesByDefaultDescription": "Mostra as mensagens longas por inteiro em vez de as recolher atrás de Mostrar mensagem completa. É sincronizado entre os seus dispositivos.",
         "showCanvasesInSidebar": "Mostrar painéis interativos na barra lateral",
         "showCanvasesInSidebarDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. É sincronizado entre os seus dispositivos.",
         "saveFailed": "Não foi possível guardar a alteração. Verifique a sua ligação e tente novamente."
@@ -689,7 +687,11 @@
       "openLocation": "Abrir localização",
       "voiceMessage": "mensagem de voz",
       "audio": "áudio",
-      "unnamedFile": "Ficheiro sem nome"
+      "unnamedFile": "Ficheiro sem nome",
+      "file": "Arquivo",
+      "fileMeta": "{{type}} · {{size}}",
+      "pdfDocument": "Documento PDF",
+      "textFile": "Arquivo de texto"
     },
     "fallbackContent": {
       "thisMessageHasBeenDeleted": "Esta mensagem foi eliminada",
@@ -707,7 +709,8 @@
       "openFile": "Abrir ficheiro",
       "loadFailed": "Não foi possível carregar o ficheiro!",
       "retryDownload": "Tentar transferir novamente ({{size}})",
-      "downloadSize": "Transferir ({{size}})"
+      "downloadSize": "Transferir ({{size}})",
+      "openValue1": "Abrir {{value1}}"
     },
     "imageContent": {
       "view": "Ver",
@@ -1136,6 +1139,7 @@
       "spam": "Spam",
       "noInvites": "Sem convites",
       "declineAll": "Recusar todos",
+      "acceptAll": "Aceitar todos",
       "reportAll": "Denunciar todos",
       "blockAll": "Bloquear todos",
       "noSpamInvites": "Sem convites de spam",
@@ -2483,7 +2487,9 @@
         "loadFailed": "Não foi possível carregar todos os argumentos.",
         "onlyATruncatedPreviewIsAvailable": "Só está disponível uma pré-visualização truncada.",
         "retry": "Tentar novamente",
-        "sensitiveValuesMayBeRedacted": "Os valores confidenciais podem estar ocultados."
+        "sensitiveValuesMayBeRedacted": "Os valores confidenciais podem estar ocultados.",
+        "hideArguments": "Ocultar argumentos",
+        "showAllArguments": "Mostrar todos os argumentos"
       },
       "approvalDecisionControls": {
         "thisRequestCannotBeApprovedHere": "Este pedido não pode ser aprovado aqui.",
@@ -2614,7 +2620,25 @@
         "toolCallCount_one": "{{count}} chamada de ferramenta",
         "toolCallCount_other": "{{count}} chamadas de ferramenta",
         "characterCount_many": "{{formattedCount}} carateres",
-        "toolCallCount_many": "{{count}} chamadas de ferramenta"
+        "toolCallCount_many": "{{count}} chamadas de ferramenta",
+        "usedToolCount_one": "{{count}} ferramenta usada",
+        "usedToolCount_many": "{{count}} ferramentas usadas",
+        "usedToolCount_other": "{{count}} ferramentas usadas",
+        "toolCallsRunning_one": "Executando {{count}} chamada de ferramenta",
+        "toolCallsRunning_many": "Executando {{count}} chamadas de ferramentas",
+        "toolCallsRunning_other": "Executando {{count}} chamadas de ferramentas",
+        "toolCallsWaiting_one": "{{count}} chamada de ferramenta aguardando aprovação",
+        "toolCallsWaiting_many": "{{count}} chamadas de ferramentas aguardando aprovação",
+        "toolCallsWaiting_other": "{{count}} chamadas de ferramentas aguardando aprovação",
+        "toolCallsRan_one": "{{count}} chamada de ferramenta executada",
+        "toolCallsRan_many": "{{count}} chamadas de ferramentas executadas",
+        "toolCallsRan_other": "{{count}} chamadas de ferramentas executadas",
+        "toolCallsDenied_one": "{{count}} chamada de ferramenta negada",
+        "toolCallsDenied_many": "{{count}} chamadas de ferramentas negadas",
+        "toolCallsDenied_other": "{{count}} chamadas de ferramentas negadas",
+        "toolCallsExpired_one": "{{count}} chamada de ferramenta expirou",
+        "toolCallsExpired_many": "{{count}} chamadas de ferramentas expiraram",
+        "toolCallsExpired_other": "{{count}} chamadas de ferramentas expiraram"
       },
       "mindroomLongTextText": {
         "loadingFullResponse": "A carregar a resposta completa..."
@@ -2709,6 +2733,13 @@
         "historyIncomplete": " · Histórico incompleto",
         "retryHistory": "Tentar histórico novamente",
         "reviewToolCalls": "Rever chamadas de ferramentas",
+        "reviewAgentWants_one": "{{agent}} quer fazer {{count}} coisa",
+        "reviewAgentWants_many": "{{agent}} quer fazer {{count}} coisas",
+        "reviewAgentWants_other": "{{agent}} quer fazer {{count}} coisas",
+        "reviewAgentsWant_one": "{{agents}} agentes querem fazer {{count}} coisa",
+        "reviewAgentsWant_many": "{{agents}} agentes querem fazer {{count}} coisas",
+        "reviewAgentsWant_other": "{{agents}} agentes querem fazer {{count}} coisas",
+        "reviewRequestedBy": "Solicitado por {{requester}}",
         "someRequestsAreNoLongerAvailable": "Alguns pedidos já não estão disponíveis.",
         "permission": "permissão",
         "permissions": "permissões",
@@ -2743,7 +2774,40 @@
         "pausedForApproval_many": "{{count}} chamadas em pausa para aprovação",
         "activePermissionCount_many": "{{count}} permissões ativas",
         "toolApprovalCount_many": "{{count}} aprovações de ferramentas",
-        "approvedCount_many": "{{count}} aprovadas"
+        "approvedCount_many": "{{count}} aprovadas",
+        "agentWaitingForYou": "{{agent}} está esperando por você",
+        "agentsWaitingForYou_one": "{{count}} agente está esperando por você",
+        "agentsWaitingForYou_many": "{{count}} agentes estão esperando por você",
+        "agentsWaitingForYou_other": "{{count}} agentes estão esperando por você",
+        "autoApproveFor": "Aprovar automaticamente por",
+        "callCount_one": "{{count}} chamada",
+        "callCount_many": "{{count}} chamadas",
+        "callCount_other": "{{count}} chamadas",
+        "chipSending": "Enviando…",
+        "chipSubmitted": "Enviada",
+        "chipResolved": "Resolvida",
+        "confirmDenyAll": "Confirmar negar todas as {{count}}",
+        "expires": "expira {{time}}",
+        "hideCalls": "Ocultar chamadas",
+        "historyApproved": "{{operation}} aprovado",
+        "historyDenied": "{{operation}} negado",
+        "historyExpired": "{{operation}} expirou",
+        "historyUserApproved": "{{user}} aprovou {{operation}}",
+        "historyUserDenied": "{{user}} negou {{operation}}",
+        "historyUserExpired": "{{operation}} expirou",
+        "historyYouApproved": "Você aprovou {{operation}}",
+        "historyYouDenied": "Você negou {{operation}}",
+        "historyYouExpired": "{{operation}} expirou",
+        "minutesShort_one": "{{count}} min",
+        "minutesShort_many": "{{count}} min",
+        "minutesShort_other": "{{count}} min",
+        "sectionMeta": "{{agent}} · solicitado por {{requester}}",
+        "showCalls_one": "Mostrar {{count}} chamada",
+        "showCalls_many": "Mostrar {{count}} chamadas",
+        "showCalls_other": "Mostrar {{count}} chamadas",
+        "waitingForApproval": "Aguardando aprovação",
+        "waitingForYou": "Aguardando você",
+        "you": "você"
       },
       "pendingSendIndicator": {
         "messageSending": "A enviar mensagem",
@@ -3061,6 +3125,21 @@
       "unpin": "Desafixar {{title}}",
       "shared": "Compartilhado com o agente",
       "saved": "Tem seus valores"
+    },
+    "backgroundJobs": {
+      "running": "Em execução: {{tool}}",
+      "awaitingApproval": "Aguardando aprovação: {{tool}}",
+      "waiting": "Aguardando aprovação",
+      "stoppingJob": "Parando: {{tool}}",
+      "jobCount": "{{count}} tarefas em segundo plano",
+      "subagent": "{{tool}} (subagente)",
+      "stopAll": "Parar tudo",
+      "stopping": "Parando…",
+      "stop": "Parar",
+      "stopJob": "Parar {{tool}}",
+      "stopFailed": "Não foi possível parar {{tool}}. Tente novamente.",
+      "stopAllFailed": "Não foi possível parar as tarefas em segundo plano. Tente novamente.",
+      "inRoom": "Tarefas em segundo plano em execução"
     }
   },
   "roomSchedules": {

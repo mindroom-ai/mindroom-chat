@@ -9,6 +9,8 @@ const testState = vi.hoisted(() => ({
   avatarMxc: undefined as string | undefined,
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
+  backgroundJobs: [] as { jobId: string }[],
+  setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
       ? `https://media.example.org/${mxc.slice('mxc://example.org/'.length)}`
@@ -30,6 +32,7 @@ vi.mock('folds', async () => {
       reactModule.createElement('button', props, children),
     Icons: {
       ArrowGoLeft: 'ArrowGoLeft',
+      Clock: 'Clock',
       Link: 'Link',
       Message: 'Message',
       Setting: 'Setting',
@@ -53,7 +56,10 @@ vi.mock('folds', async () => {
 
 vi.mock('react-aria', () => ({
   useFocusWithin: () => ({ focusWithinProps: {} }),
-  useHover: () => ({ hoverProps: {} }),
+  useHover: ({ onHoverChange }: { onHoverChange: (hovering: boolean) => void }) => {
+    testState.setHover = onHoverChange;
+    return { hoverProps: {} };
+  },
 }));
 
 vi.mock('focus-trap-react', () => ({
@@ -190,6 +196,15 @@ vi.mock('../../state/hooks/callPreferences', () => ({
 
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => undefined,
+}));
+
+vi.mock('../../mindroom/tooltip/IconTooltip', () => ({
+  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
+    children(() => undefined),
+}));
+
+vi.mock('../../mindroom/background-jobs/useRoomBackgroundJobs', () => ({
+  useRoomBackgroundJobs: () => testState.backgroundJobs,
 }));
 
 vi.mock('../../utils/matrix', () => ({
@@ -352,5 +367,32 @@ describe('RoomNavItem avatar', () => {
       'https://media.example.org/room-avatar'
     );
     expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
+  });
+});
+
+describe('RoomNavItem background jobs', () => {
+  afterEach(() => {
+    testState.backgroundJobs = [];
+  });
+
+  const jobsIndicators = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll((node) => node.type === 'i' && node.props.src === 'Clock');
+
+  it('marks a room while an agent has background jobs in it', () => {
+    expect(jobsIndicators(renderRoomNavItem())).toHaveLength(0);
+
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    const indicators = jobsIndicators(renderRoomNavItem());
+
+    expect(indicators).toHaveLength(1);
+    expect(indicators[0].props['aria-label']).toBe('Background jobs running');
+  });
+
+  it('keeps the mark while the row is hovered, so its tooltip can name it', () => {
+    testState.backgroundJobs = [{ jobId: 'job-1' }];
+    const renderer = renderRoomNavItem();
+    act(() => testState.setHover?.(true));
+
+    expect(jobsIndicators(renderer)).toHaveLength(1);
   });
 });

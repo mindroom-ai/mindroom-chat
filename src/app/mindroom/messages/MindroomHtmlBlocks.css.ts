@@ -22,10 +22,6 @@ const BaseCode = style({
   borderRadius: config.radii.R300,
 });
 
-const CodeFont = style({
-  fontFamily: 'var(--font-mono)',
-});
-
 export const Block = style([DefaultReset, BlockSpacing, disclosure.Surface]);
 
 export const BlockHeader = disclosure.Header;
@@ -38,38 +34,6 @@ export const BlockHeaderMeta = style({
 });
 
 export const BlockBody = disclosure.Body;
-
-export const BlockInlineResult = style({
-  color: color.SurfaceVariant.OnContainer,
-  marginInlineStart: config.space.S200,
-});
-
-export const BlockResult = style([
-  BaseCode,
-  CodeFont,
-  {
-    marginTop: config.space.S200,
-    whiteSpace: 'pre-wrap',
-    padding: `${config.space.S100} ${config.space.S200}`,
-  },
-]);
-
-export const ToolGroupList = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: config.space.S200,
-});
-
-export const ToolGroupItem = style([
-  BaseCode,
-  {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: config.space.S100,
-    padding: `${config.space.S100} ${config.space.S200}`,
-  },
-]);
 
 export const PasteMarkerBadge = style([
   DefaultReset,
