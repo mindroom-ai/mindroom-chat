@@ -241,6 +241,7 @@
   Not run live: the handshake against a real backend with `POST /api/connections/session` has not run yet.
   The PR's screenshots render the card on a standalone page with a demo client, and the portal with live lab assets and demo API data.
 - PR #442 three-model review, round 1 at `e3e71c76`: Sol and Astra approved; Opus required changes for the token audience and the target origin being derived in two places (the helper now passes its backend origin to the token getter, and the Computers panel uses its service origin as is), and for stale validation notes here and in the PR body.
+- PR #442 three-model review, round 2 at `76ea54be`: Sol and Astra approved; Opus required dropping the token request's own catch, since the call site already swallows a failed request.
 
 ### Evict whole unused rooms when media cannot bring the cache under budget (2026-10-09)
 

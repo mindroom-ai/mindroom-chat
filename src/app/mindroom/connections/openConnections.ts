@@ -44,12 +44,7 @@ export function openConnectionsPortal({
 
   let stopped = false;
   const reply = async (): Promise<void> => {
-    let openidToken: IOpenIDToken;
-    try {
-      openidToken = await getOpenIdToken(backendOrigin);
-    } catch {
-      return;
-    }
+    const openidToken = await getOpenIdToken(backendOrigin);
     // A token requested before the session ended must not reach a window another account may now own.
     if (stopped) return;
     // The backend origin as target origin makes the browser drop the token if the window navigated elsewhere.
@@ -59,6 +54,7 @@ export function openConnectionsPortal({
   const onMessage = (event: MessageEvent): void => {
     if (event.source !== target || event.origin !== backendOrigin) return;
     if (!isReadyMessage(event.data)) return;
+    // A failed token request sends nothing; the portal shows its own sign-in message.
     reply().catch(() => undefined);
   };
 
