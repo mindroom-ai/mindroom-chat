@@ -168,16 +168,15 @@ describe('connections settings', () => {
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
     expect(mocks.authedRequest).not.toHaveBeenCalled();
-    await expect(options.getOpenIdToken()).resolves.toBe(token);
+    await expect(options.getOpenIdToken('https://backend.example')).resolves.toBe(token);
     expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('binds the token to the backend origin', async () => {
+  it('binds the token to the audience the portal helper asks for', async () => {
     mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
-    act(() => store.set(computerServicePreferenceAtom, 'https://custom.example'));
-    render('https://backend.example');
+    render();
     click();
-    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken();
+    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('https://custom.example');
     expect(mocks.authedRequest).toHaveBeenCalledWith(
       'POST',
       '/user/%40alice%3Aexample.org/openid/request_token',
@@ -191,7 +190,9 @@ describe('connections settings', () => {
     render();
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
-    await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
+    await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
+      'Matrix client stopped'
+    );
     expect(mocks.authedRequest).not.toHaveBeenCalled();
   });
 
@@ -203,7 +204,9 @@ describe('connections settings', () => {
     render();
     click();
     const options = mocks.openConnectionsPortal.mock.calls[0][0];
-    await expect(options.getOpenIdToken()).rejects.toThrow('Matrix client stopped');
+    await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
+      'Matrix client stopped'
+    );
     expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
   });
 

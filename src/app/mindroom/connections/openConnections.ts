@@ -8,7 +8,8 @@ const DEFAULT_POLL_MS = 1000;
 
 export type OpenConnectionsPortalOptions = {
   backendUrl: string;
-  getOpenIdToken: () => Promise<IOpenIDToken>;
+  /** Requests a token bound to `audience`, the backend origin the portal window is answered at. */
+  getOpenIdToken: (audience: string) => Promise<IOpenIDToken>;
   win?: Window;
   pollMs?: number;
 };
@@ -45,7 +46,7 @@ export function openConnectionsPortal({
   const reply = async (): Promise<void> => {
     let openidToken: IOpenIDToken;
     try {
-      openidToken = await getOpenIdToken();
+      openidToken = await getOpenIdToken(backendOrigin);
     } catch {
       return;
     }

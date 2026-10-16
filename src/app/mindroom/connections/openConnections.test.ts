@@ -92,6 +92,8 @@ describe('openConnectionsPortal', () => {
     await flush();
 
     expect(getOpenIdToken).toHaveBeenCalledTimes(1);
+    // The token is bound to the same origin the browser delivers it to.
+    expect(getOpenIdToken).toHaveBeenCalledWith(BACKEND);
     expect(target.postMessage).toHaveBeenCalledTimes(1);
     expect(target.postMessage).toHaveBeenCalledWith(
       { type: 'mindroom:connections-openid', openid_token: makeToken(1) },

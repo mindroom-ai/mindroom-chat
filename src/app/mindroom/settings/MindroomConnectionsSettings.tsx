@@ -21,10 +21,9 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
   // The window must open inside the click itself, so nothing here awaits before the call.
   const open = () => {
     if (!backendUrl) return;
-    const audience = new URL(backendUrl).origin;
     const result = openConnectionsPortal({
       backendUrl,
-      getOpenIdToken: async () => {
+      getOpenIdToken: async (audience) => {
         // An account switch stops this client but not the portal session, so a stopped client never answers.
         if (!mx.clientRunning) throw new Error('Matrix client stopped');
         const token = await requestAudienceOpenIdToken(mx, audience);

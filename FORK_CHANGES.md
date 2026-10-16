@@ -196,7 +196,7 @@
   - The helper opens `<backend>/connections/` in the named window `mindroom-connections` without `noopener`, because the portal needs `window.opener` to ask for the token.
   - The portal posts `{ type: "mindroom:connections-ready" }` to its opener.
     Chat answers only when `event.source` is the window it opened and `event.origin` is the backend origin, and only for that message type.
-  - Chat then requests a fresh Matrix OpenID token bound to the backend origin (`requestAudienceOpenIdToken(mx, new URL(backendUrl).origin)`, once per ready message, never cached) and posts `{ type: "mindroom:connections-openid", openid_token }` with the backend origin as the target origin, so the browser drops the message if the window navigated elsewhere.
+  - Chat then requests a fresh Matrix OpenID token bound to the backend origin (the helper passes the origin it answers at to the card's token getter, which calls `requestAudienceOpenIdToken(mx, audience)`; once per ready message, never cached) and posts `{ type: "mindroom:connections-openid", openid_token }` with the backend origin as the target origin, so the browser drops the message if the window navigated elsewhere.
     A portal reload after its session expired asks again and gets a new token.
     A rejected token request sends nothing.
   - Chat stops listening when the window closes (polled once per second), and a second click replaces the first session instead of adding a second listener.
@@ -234,11 +234,13 @@
   It also covers no token being handed out after the Matrix client stopped (the SDK is not called), and a token that resolves after the client stopped being dropped.
   Mutation checks failed the matching tests: an `await` before the open, no native check, no `disabled`, and ignoring a blocked result.
   `matrix/openidAudience.test.ts` covers the exact path, method and body of the audience request and a failed request reaching the caller.
-  The card test checks that the token request carries the backend origin as its audience, and `ComputerPanel.test.tsx` checks that the panel passes its computer service origin.
+  The helper test checks that the token getter receives the same backend origin the reply is posted to, the card test that the request carries the audience it is given, and `ComputerPanel.test.tsx` that the panel passes its computer service origin.
   `i18n.test.ts` confirms every catalog has the keys.
 - Validation: typecheck and ESLint (0 errors, 18 existing warnings, none in the new files) pass, and Prettier is clean on the changed files.
-  `npm test`: everything passes except `xcodeCloudPostClone.test.ts` (3) and one `useRoomInputSendSessionController.test.ts` case, which fail the same way on the base commit `06a214d0` in a clean checkout.
-  Not run live here: the card against a backend with `POST /api/connections/session`.
+  `npm test`: everything passes except `xcodeCloudPostClone.test.ts` (3) and one `useRoomInputSendSessionController.test.ts` case, which fail the same way on `dev`; rerun after merging `dev` on 2026-10-16.
+  Not run live: the handshake against a real backend with `POST /api/connections/session` has not run yet.
+  The PR's screenshots render the card on a standalone page with a demo client, and the portal with live lab assets and demo API data.
+- PR #442 three-model review, round 1 at `e3e71c76`: Sol and Astra approved; Opus required changes for the token audience and the target origin being derived in two places (the helper now passes its backend origin to the token getter, and the Computers panel uses its service origin as is), and for stale validation notes here and in the PR body.
 
 ### Evict whole unused rooms when media cannot bring the cache under budget (2026-10-09)
 

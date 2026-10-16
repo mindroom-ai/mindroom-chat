@@ -253,7 +253,7 @@ export function ComputerPanel({
       const startedAt = Date.now();
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const openIdToken = await requestAudienceOpenIdToken(mx, new URL(apiUrl).origin);
+          const openIdToken = await requestAudienceOpenIdToken(mx, apiUrl);
           if (lifecycleRef.current !== lifecycle) return undefined;
           return await createComputerSession({
             apiUrl,
