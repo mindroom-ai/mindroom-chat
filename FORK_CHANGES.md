@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### App Store update 4.12.421 (2026-10-18, in progress)
+
+- Target: `4.12.421 (415)`, the latest processed, valid, unexpired TestFlight build, with export compliance resolved.
+  Xcode Cloud run `a4cbedf3-b3b0-41db-a37b-61b41f05a883` succeeded from exact `dev` commit `f66cadcefd87ab4c46f7c27346e546ae05d70f46`.
+  The live App Store version is `4.12.401 (395)`, built from `06a214d04069254c46f2219a14f6edf0627d42e3`.
+- Preparation: regenerate all ten Rivera household screenshots and supply release notes through the environment.
+  The capture spec now checks the expanded tool row's actual argument and result instead of the obsolete `Tool #1: call_service` label removed by #450.
+  This changes screenshot verification only; the binary remains the existing Xcode Cloud build.
+- Validation: Node 24.13.1 passes all 6,825 tests across 710 files, typecheck, the iOS production/PWA build, and lint (0 errors, 18 existing warnings).
+  Node 26 produced a canvas input failure; a PATH selecting the host's Nix Bash also broke the mocked Homebrew tests.
+  Release checks use the repository's Node 24 and system Bash.
+- Independent review: the screenshot assertion fix and release notes were reviewed by a separate agent with no blocking findings.
+  Connections is hidden on native builds and is excluded from iOS release notes.
+  `mindroom.chat` does not advertise `io.mindroom.openid_audience`; keep audience enforcement disabled until compatible backends and this iOS update are live, as #442 requires.
+- Next: finish screenshot verification and browser validation, upload metadata and screenshots, preserve the saved reviewer account, and submit the exact build with manual release after approval.
+
 ### Accept all Primary invites at once (2026-10-14)
 
 - Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.

@@ -289,9 +289,12 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await expect(toolCallsButton).toBeVisible({ timeout: 30_000 });
       await expandCollapsedMessages(page);
       await toolCallsButton.click();
-      await expect(page.getByText('Tool #1: call_service')).toBeVisible({
+      await expect(page.getByText('light.turn_off · all lights', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
+      await expect(
+        page.getByRole('button', { name: 'All lights are off.', exact: true })
+      ).toBeVisible();
       await expect(page.getByText('All set. Have a lovely evening!')).toBeVisible();
       await captureScene(page, device, sceneById('campground-monitor'), capturedDigests);
 
