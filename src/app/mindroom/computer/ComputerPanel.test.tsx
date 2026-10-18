@@ -124,7 +124,7 @@ const TestScreen = (screenProps: ComputerScreenProps) => {
 
 const makeMatrixClient = (userId = '@alice:example.org') =>
   ({
-    getOpenIdToken: vi.fn().mockResolvedValue(openIdToken),
+    http: { authedRequest: vi.fn().mockResolvedValue(openIdToken) },
     getSafeUserId: () => userId,
     getRoom: () => ({
       getMember: (memberId: string) =>
@@ -224,6 +224,18 @@ describe('ComputerPanel', () => {
     expect(input).toBe('https://computer.example.org/api/computers/sessions');
     expect(JSON.parse(init!.body as string).agent_user_id).toBe('@mindroom_second:example.org');
     expect(container.querySelector('select')!.value).toBe('@mindroom_second:example.org');
+  });
+
+  it('requests an OpenID token bound to the computer service origin', async () => {
+    const mx = makeMatrixClient();
+    renderPanel({ mx, apiUrl: 'https://computer.example.org' });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(mx.http.authedRequest).toHaveBeenCalledWith(
+      'POST',
+      '/user/%40alice%3Aexample.org/openid/request_token',
+      undefined,
+      { 'io.mindroom.audience': 'https://computer.example.org' }
+    );
   });
 
   it('preserves the same viewer and human control when another reveal is requested', async () => {
@@ -754,7 +766,7 @@ describe('ComputerPanel', () => {
   it('retries starting when the homeserver cannot be reached for the OpenID token', async () => {
     vi.useFakeTimers();
     const mx = makeMatrixClient();
-    vi.mocked(mx.getOpenIdToken).mockRejectedValueOnce(new ConnectionError('fetch failed'));
+    vi.mocked(mx.http.authedRequest).mockRejectedValueOnce(new ConnectionError('fetch failed'));
     const request = createGateway();
     renderPanel({ mx, request });
     await advance();

@@ -73,6 +73,14 @@
         "saveFailed": "Could not save the computer service on this device.",
         "saved": "Computer service saved."
       },
+      "connections": {
+        "sectionTitle": "Connections",
+        "title": "Connected accounts",
+        "description": "Connect the accounts your agents use, such as Google or GitHub, on your MindRoom server.",
+        "open": "Open Connections",
+        "noBackend": "Set your MindRoom server under Computers to use Connections.",
+        "blocked": "Your browser blocked the Connections window. Allow pop-ups for this site and try again."
+      },
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",
