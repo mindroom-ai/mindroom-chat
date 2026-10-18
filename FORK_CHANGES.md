@@ -21,7 +21,7 @@
 - Browser validation: the full runner ran with `--jobs 8` (169 spec/project jobs, 450 cases), followed by focused reruns of failed specs after updating release fixtures.
   It exposed stale expectations for #450's plain tool/history rows and approval labels/material, and a Computers mock returning a now-retryable 503.
   The mock now uses a nonretryable 400; its routing test passes, and updated hover/material checks pass in Chromium and WebKit.
-  The separate release-target Ruby suite passes all four tests and 22 assertions, and screenshot-fixture tests pass all 24 cases.
+  The separate release-target Ruby suite passes all eight tests and 33 assertions, and screenshot-fixture tests pass all 24 cases.
   Current tool/history labels and surfaces, approval controls, and folded own messages are reflected in browser assertions without changing production code.
   WebKit keyboard checks use macOS Option-Tab; sidebar geometry waits for the temporary sync status to settle, and prepend anchors select actual replies.
   Prepend rides position with real wheel input against the measured loaded edge instead of a stale absolute offset.
@@ -32,15 +32,20 @@
   Follow-up: a desktop mouse hover toolbar can overlap a folded message's disclosure; the cache fixture activates that accessible button by keyboard, and dedicated own-message pointer coverage passes.
 - Reviewer access: saved App Store credentials successfully sign in to the review homeserver; the verification device was logged out immediately.
   Preserve Apple's existing reviewer instructions and append this update's review guidance instead of overwriting them with the older repository template.
-- App Store preparation: version `4.12.421` exists as `0e819846-619a-42b6-be72-208759e994b9`, with build `415` selected and manual release configured.
+- App Store preparation: version `4.12.421` exists as `0e819846-619a-42b6-be72-208759e994b9`, with build `415` selected and automatic release after approval configured.
   Metadata and public-URL precheck pass; remote release notes and reviewer instructions match the prepared packet, and the demo-account-required flag is restored.
   All ten uploaded screenshots are processed and their source checksums match the independently reviewed local files.
 - Submission: the guarded `fastlane ios release` lane passed all preflights, typecheck, all 6,825 unit tests, the iOS build, metadata precheck, and review-access checks, then submitted at 17:04 UTC.
-  App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` is `WAITING_FOR_REVIEW`; Apple API verification at 17:05 UTC confirms version `4.12.421`, build `415`, and `MANUAL` release.
+  App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` is `WAITING_FOR_REVIEW`; Apple API verification at 17:05 UTC confirms version `4.12.421`, build `415`, and initially `MANUAL` release.
+  The owner clarified that iOS releases must always publish automatically after approval; Apple API verification at 17:14 UTC confirms this submission now uses `AFTER_APPROVAL`.
   Final verification confirms complete reviewer fields with demo access required, matching release/review notes, and all ten processed screenshots matching the reviewed source checksums.
-  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight) is ready for Apple's review; publication requires manual release after approval.
+  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight) is ready for Apple's review and will publish automatically after approval.
   Local submission evidence and immutable upload assets are retained in `/tmp/mindroom-ios-release-20261018`; private reviewer instructions and credentials are excluded from Git.
-- Next: await App Review, address any Apple feedback, and manually release after approval.
+- Release policy: always use automatic release after approval for iOS.
+  Fastlane defaults, all release uploads, and post-submission verification enforce `AFTER_APPROVAL`; standalone metadata and screenshot uploads still do not submit for review.
+  Independent review approved the policy change, and the Ruby suite covers accepted automatic release, rejected manual/scheduled release, all upload calls, and standalone defaults.
+  After the policy change, typecheck, all 6,825 unit tests, the iOS build, and lint pass again (0 errors, 18 existing warnings); both Fastlane configuration files pass Ruby syntax checks.
+- Next: await App Review and address any Apple feedback; publication is automatic after approval.
 
 ### Accept all Primary invites at once (2026-10-14)
 
