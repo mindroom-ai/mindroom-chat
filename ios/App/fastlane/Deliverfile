@@ -1,8 +1,8 @@
 app_identifier "chat.mindroom.app"
 
-# Uploading metadata/screenshots must never accidentally submit or release.
+# Standalone uploads never submit; approved versions always release automatically.
 submit_for_review false
-automatic_release false
+automatic_release true
 
 # The app has no in-app purchases; skipping avoids requiring extra API-key scope.
 precheck_include_in_app_purchases false

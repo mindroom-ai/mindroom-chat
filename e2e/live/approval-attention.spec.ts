@@ -80,12 +80,12 @@ test('approval attention settles, stops on review, and respects actionability an
   await sendApproval('first');
   const bar = page.getByRole('region', { name: 'Thread approvals' });
   const review = bar.getByRole('button', { name: /^Review/ });
-  const reviewDialog = page.getByRole('dialog', { name: 'Review tool calls' });
+  const reviewDialog = page.getByRole('dialog', { name: /^assistant wants to do \d+ things?$/ });
   await expect(review).toBeVisible();
   const animations = () => review.evaluate((el) => el.getAnimations({ subtree: true }).length);
   await expect.poll(animations).toBe(1);
+  await expect(bar.getByRole('status')).toHaveText('assistant is waiting for you · save_note');
   const bounds = await review.boundingBox();
-  await expect(bar).toContainText('1 call paused for approval');
   const timing = await review.evaluate((el) =>
     el.getAnimations({ subtree: true })[0].effect!.getTiming()
   );

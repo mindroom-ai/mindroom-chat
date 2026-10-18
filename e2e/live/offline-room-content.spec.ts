@@ -271,6 +271,13 @@ const openRoomSettings = async (page: Page, roomName: string): Promise<void> => 
   await general.click();
 };
 
+// The next message's hover toolbar can cover this button (#463), so these flows use the keyboard.
+const expandFullBody = (page: Page, fixture: OfflineFixture): Promise<void> =>
+  page
+    .locator(`[data-message-id="${fixture.bodyId}"]`)
+    .getByRole('button', { name: 'Show full message', exact: true })
+    .press('Enter');
+
 const warmHistoricalContent = async (
   page: Page,
   homeserver: string,
@@ -310,6 +317,7 @@ const warmHistoricalContent = async (
   const root = page.locator(`[data-thread-root-id="${fixture.rootId}"]`);
   await expect(root).toBeVisible({ timeout: 10_000 });
   await root.click();
+  await expandFullBody(page, fixture);
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible();
@@ -389,6 +397,7 @@ const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Pro
   await expect(page.locator(`[data-message-id="${fixture.rootId}"]`)).toBeVisible({
     timeout: 10_000,
   });
+  await expandFullBody(page, fixture);
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible({ timeout: 10_000 });
@@ -557,6 +566,7 @@ test.describe('persisted historical room content', () => {
 
         await installOfflineFreshnessGates(context, fullBody, fixture.imageUri, [...imageBytes]);
         await page.goto(threadUrl);
+        await expandFullBody(page, fixture);
         await expect
           .poll(() => page.evaluate(() => window.__offlineFreshness.heldBodies))
           .toBeGreaterThan(0);
@@ -625,9 +635,9 @@ test.describe('persisted historical room content', () => {
           .toBeGreaterThan(0);
         await page.evaluate(
           () =>
-            new Promise<void>((resolve) =>
-              requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-            )
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            })
         );
         await expectCurrent(page);
         await expect.poll(snapshot).toEqual(expectedCache);
@@ -638,6 +648,8 @@ test.describe('persisted historical room content', () => {
         await page.close();
         const reopened = await context.newPage();
         await reopened.goto(threadUrl);
+        // A new page starts with the edited long text folded again.
+        if (change === 'edit') await expandFullBody(reopened, fixture!);
         await expectCurrent(reopened);
         await expect
           .poll(() =>

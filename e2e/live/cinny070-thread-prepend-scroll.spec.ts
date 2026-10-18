@@ -308,9 +308,10 @@ const readAnchorSamples = async (page: import('@playwright/test').Page): Promise
   });
 
 const captureVisibleThreadAnchor = async (
-  page: import('@playwright/test').Page
+  page: import('@playwright/test').Page,
+  expectedEventIds: string[]
 ): Promise<VisibleAnchor | null> =>
-  page.evaluate(() => {
+  page.evaluate((expectedIds) => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
     if (!firstMessage) return null;
 
@@ -332,6 +333,7 @@ const captureVisibleThreadAnchor = async (
       scrollContainer.querySelectorAll<HTMLElement>('[data-message-id]')
     );
     const anchor = messageItems.find((item) => {
+      if (!expectedIds.includes(item.getAttribute('data-message-id') ?? '')) return false;
       const rect = item.getBoundingClientRect();
       return rect.top >= scrollRect.top && rect.bottom <= scrollRect.bottom;
     });
@@ -346,7 +348,7 @@ const captureVisibleThreadAnchor = async (
       viewportBottom: scrollRect.bottom,
       viewportTop: scrollRect.top,
     };
-  });
+  }, expectedEventIds);
 
 const clickLoadOlderAtomically = async (
   page: import('@playwright/test').Page
@@ -489,7 +491,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
       expect(readingViewport.threadCount).toBeLessThan(REPLY_COUNT + 1);
       const initialViewport = readingViewport;
 
-      const anchor = await captureVisibleThreadAnchor(page);
+      const anchor = await captureVisibleThreadAnchor(page, replyIds);
       expect(anchor).not.toBeNull();
       if (!anchor) throw new Error('No fully intersecting thread anchor was available');
       expect(anchor.bottom).toBeLessThanOrEqual(anchor.viewportBottom);

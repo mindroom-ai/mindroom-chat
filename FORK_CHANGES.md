@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### App Store update 4.12.421 (2026-10-18, submitted)
+
+- Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
+  Build 415 came from Xcode Cloud run `a4cbedf3-b3b0-41db-a37b-61b41f05a883` at `dev` commit `f66cadcefd87ab4c46f7c27346e546ae05d70f46`; the live version was `4.12.401 (395)`.
+  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight).
+- Release policy: iOS versions always publish automatically after approval (owner decision).
+  The lane submitted this version with `MANUAL` release; it was then switched to `AFTER_APPROVAL`, which Apple's API confirmed at 17:14 UTC.
+  Fastlane now enforces it: the Deliverfile default and every `release` upload set `automatic_release`, and `verify_release_submission` rejects any other release type.
+  Standalone metadata and screenshot uploads still never submit for review; the Ruby suite covers these cases.
+- Reviewer access: preserve Apple's existing reviewer instructions and append each update's guidance instead of overwriting them with the repository template.
+  The saved demo credentials signed in to the review homeserver, and the demo-account-required flag was restored after the metadata upload.
+- Release notes omit Connections, which native builds hide.
+  `mindroom.chat` does not advertise `io.mindroom.openid_audience`; keep audience enforcement disabled until compatible backends and this iOS update are live, as #442 requires.
+- Screenshots: all ten Rivera household captures were regenerated, reviewed, and uploaded; their processed checksums match the reviewed files.
+  The capture spec checks the expanded tool row's argument and result, replacing the `Tool #1: call_service` label removed by #450.
+  It warms each thread before requiring that card's agent avatar; a page-wide check could pass from the iPad Members sidebar.
+- Browser specs went stale after #450 and approval label changes; they now assert current tool/history rows, approval labels and surfaces, and folded messages, with no production change.
+  WebKit keyboard checks press Option-Tab on macOS, and the Computers mock returns a nonretryable 400 instead of a now-retried 503.
+  Prepend rides wheel into the auto-paginate trigger zone instead of teleporting to a fixed offset.
+  The latency ride starts its slow route at a known frame and stays at least 720px inside the loaded window; a start that would slow its flick below 30px per step fails.
+  The offline cache spec opens folded bodies by keyboard because the next message's hover toolbar can cover the button (#463).
+- Validation: 6,825 unit tests, typecheck, lint (0 errors, 18 existing warnings), the iOS build, and the Ruby release suite (8 tests) pass.
+  The full browser run passed 437 cases with 12 platform skips; the Computers worker test is blocked without the external `E2E_COMPUTER_FIXTURE`.
+- Next: await App Review and address any Apple feedback; publication is automatic after approval.
+  Fix #463 so the offline cache spec can click the folded-message button.
+
 ### Accept all Primary invites at once (2026-10-14)
 
 - Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.

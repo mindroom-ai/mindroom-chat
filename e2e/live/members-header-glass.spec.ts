@@ -4,6 +4,7 @@ import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../
 import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
+import { pressTab } from '../helpers/keyboard';
 import { createPrivateRoom, joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 
 for (const themeId of ['dark-theme', 'silver-theme']) {
@@ -198,7 +199,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await expectFloatingNavHeader(header);
       // Flat hover must preserve visible keyboard focus.
       await invited.focus();
-      await page.keyboard.press('Tab');
+      await pressTab(page);
       const invitePeople = header.getByRole('button', { name: 'Invite people', exact: true });
       await expect(invitePeople).toBeFocused();
       expect(

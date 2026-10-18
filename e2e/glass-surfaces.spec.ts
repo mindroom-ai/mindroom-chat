@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { pressTab } from './helpers/keyboard';
 import {
   contrastRatio,
   expectVerticalGlassRim,
@@ -82,8 +83,8 @@ for (const theme of ['light', 'dark']) {
       await expect(surface).toHaveCSS('outline-width', '1px');
     }
     await jump.focus();
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Shift+Tab');
+    await pressTab(page);
+    await pressTab(page, true);
     await expect(jump).toBeFocused();
     expect(
       await jump.evaluate((element) => {
@@ -99,15 +100,7 @@ for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 390, height: 1400 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
     await page.evaluate(() => document.fonts.ready);
-    for (const id of [
-      'summary',
-      'tool',
-      'history',
-      'approval',
-      'approval-group',
-      'approval-bar',
-      'composer',
-    ]) {
+    for (const id of ['summary', 'approval', 'approval-group', 'approval-bar', 'composer']) {
       const host = page.getByTestId(id);
       const surface = id === 'approval-bar' ? host : host.locator(':scope > *').first();
       await expect(surface).toBeInViewport({ ratio: 1 });
@@ -119,6 +112,16 @@ for (const theme of ['light', 'dark']) {
         )
         .not.toContain('inset');
     }
+    for (const id of ['tool', 'history']) {
+      const row = page.getByTestId(id).locator('[data-message-disclosure] > button').first();
+      await expect(row).toBeInViewport({ ratio: 1 });
+      await expect(row).toHaveCSS('background-image', 'none');
+      await expect(row).toHaveCSS('backdrop-filter', 'none');
+      await expect(row).toHaveCSS('box-shadow', 'none');
+      expect(await row.evaluate((element) => getComputedStyle(element, '::before').content)).toBe(
+        'none'
+      );
+    }
   });
 
   test(`message glass preserves disclosure controls and composer focus in ${theme}`, async ({
@@ -126,12 +129,17 @@ for (const theme of ['light', 'dark']) {
   }) => {
     await page.setViewportSize({ width: 390, height: 1400 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
-    const tool = page.getByTestId('tool').getByRole('button');
+    const tool = page.getByTestId('tool').getByRole('button', { name: /^Ran 2 tool calls/ });
     await tool.click();
     await expect(tool).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByTestId('tool').getByText(/Tool #2: read_file/)).toBeVisible();
-    const history = page.getByTestId('history').locator('details').first();
-    await history.locator(':scope > summary').click();
+    await expect(
+      page
+        .getByTestId('tool')
+        .locator('[data-tool-index="2"]')
+        .getByText('read_file', { exact: true })
+    ).toBeVisible();
+    const history = page.getByTestId('history').locator('[data-message-disclosure]').first();
+    await history.locator(':scope > button').click();
     const nested = history.locator('details[aria-label="Resolved tool approval request"]');
     await expect(nested).toHaveCount(1);
     await expect(nested).toHaveCSS('backdrop-filter', 'none');
@@ -153,12 +161,16 @@ for (const theme of ['light', 'dark']) {
     await editor.blur();
     await expect(composer).not.toHaveCSS('box-shadow', /inset/);
     await page.emulateMedia({ contrast: 'more' });
-    for (const surface of [page.getByTestId('summary').locator(':scope > *'), history, composer]) {
+    for (const surface of [page.getByTestId('summary').locator(':scope > *'), composer]) {
       await expect(surface).toHaveCSS('backdrop-filter', 'none');
       expect(
         await surface.evaluate((element) => getComputedStyle(element, '::before').display)
       ).toBe('none');
     }
+    await expect(history).toHaveCSS('backdrop-filter', 'none');
+    expect(await history.evaluate((element) => getComputedStyle(element, '::before').content)).toBe(
+      'none'
+    );
   });
 }
 
@@ -610,7 +622,7 @@ test('real controls keep focus, editing, playback, and narrow layout', async ({ 
 
   const workspace = page.getByRole('button', { name: 'Open workspace' });
   await page.getByRole('button', { name: 'Open settings sheet', exact: true }).focus();
-  await page.keyboard.press('Tab');
+  await pressTab(page);
   await expect(workspace).toBeFocused();
   expect(await workspace.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe(
     'none'
