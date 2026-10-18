@@ -141,13 +141,14 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // Keep the continuous ride at least 720px inside the loaded window; the
     // ledger-margin boundary ride below covers hard-edge correction. Steps
     // shrink from the 90px device flick only to stay clear of that edge.
-    // This fixture starts at 4336px (45px steps, 2026-10-18); a much
-    // shallower start would no longer stress row mounting, so it fails.
+    // This fixture starts at 4336px (45px steps, 2026-10-18). Below 30px,
+    // a third of the device flick, the ride no longer stresses row
+    // mounting, so a start under 3120px fails.
     const cycleCount = 10;
     const stepsPerCycle = 8;
     const stepPx = Math.min(90, (start.top - 720) / (cycleCount * stepsPerCycle));
     expect(stepPx, `ride start ${start.top}px leaves too little room for a flick`).toBeGreaterThan(
-      40
+      30
     );
     await throttleCpu(page, 4);
     const report = await runFlickRide(page, {

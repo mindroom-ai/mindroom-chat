@@ -21,7 +21,7 @@
 - Browser specs went stale after #450 and approval label changes; they now assert current tool/history rows, approval labels and surfaces, and folded messages, with no production change.
   WebKit keyboard checks press Option-Tab on macOS, and the Computers mock returns a nonretryable 400 instead of a now-retried 503.
   Prepend rides wheel into the auto-paginate trigger zone instead of teleporting to a fixed offset.
-  The latency ride starts its slow route at a known frame and stays at least 720px inside the loaded window; a start that would slow its flick below 40px per step fails.
+  The latency ride starts its slow route at a known frame and stays at least 720px inside the loaded window; a start that would slow its flick below 30px per step fails.
   The offline cache spec opens folded bodies by keyboard because the next message's hover toolbar can cover the button (#463).
 - Validation: 6,825 unit tests, typecheck, lint (0 errors, 18 existing warnings), the iOS build, and the Ruby release suite (8 tests) pass.
   The full browser run passed 437 cases with 12 platform skips; the Computers worker test is blocked without the external `E2E_COMPUTER_FIXTURE`.

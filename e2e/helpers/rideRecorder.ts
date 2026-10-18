@@ -228,7 +228,9 @@ export const positionThreadForPrepend = async (page: Page) => {
       await page.waitForTimeout(200);
       const settled = await readPosition();
       if (JSON.stringify(settled) === JSON.stringify(position)) return settled;
+      // Still settling inside the zone: check again before wheeling further.
       position = settled;
+      continue;
     }
     await page.mouse.wheel(0, -720);
     await page.waitForTimeout(300);
