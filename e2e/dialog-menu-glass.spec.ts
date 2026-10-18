@@ -166,7 +166,9 @@ for (const theme of ['silver', 'dark']) {
     }
 
     await page.setViewportSize({ width: 390, height: 480 });
-    await page.getByRole('button', { name: 'Open filters' }).click();
+    const openFilters = page.getByRole('button', { name: 'Open filters' });
+    await openFilters.focus();
+    await openFilters.press('Enter');
     const title = page.locator('header').filter({ hasText: 'Filters' });
     const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
     await scroll.evaluate((element) => {

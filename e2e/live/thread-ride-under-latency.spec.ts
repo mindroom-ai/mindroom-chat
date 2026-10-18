@@ -8,6 +8,7 @@ import {
   analyzeBlankBands,
   analyzeRide,
   installScrollWriteProbe,
+  positionThreadForPrepend,
   recordOpenSettle,
   runFlickRide,
   startRideSampling,
@@ -130,27 +131,34 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
 
     // Production-shaped stream phase: pagination pages take 1.5s, the
     // phone CPU is ~4x slower than this desktop. The abort stays armed
-    // until the ride's rig has read threadCountStart and the teleport is
-    // settling: under the one-drain-channel architecture (PR #87)
+    // through native wheel positioning and until the ride's rig has read
+    // threadCountStart: under the one-drain-channel architecture (PR #87)
     // continuations retry back-to-back the moment the abort lifts, and
     // the old pre-ride swap let the window fill to 361/361 before
     // sampling started (battery run 2026-07-07) — the spec degenerated
     // into a full-window ride and the precondition caught it.
+    const start = await positionThreadForPrepend(page);
+    // Keep the continuous ride inside the loaded window; hard-edge
+    // correction has separate boundary coverage below.
+    const stepPx = Math.min(90, (start.top - Math.max(start.height, 720)) / 80);
+    expect(stepPx).toBeGreaterThan(0);
     await throttleCpu(page, 4);
     const ridePromise = runFlickRide(page, {
-      teleportTo: 1_800,
-      teleportSettleMs: 800,
       // 90ms finger-back-down pauses: below the 150ms quiescence window,
       // so the ONLY way the fetched page can commit inside this stream is
       // the 2.5s cap — exactly the continuous-reader case. The tail keeps
       // sampling through the final quiescence so late commits are
       // measured too.
-      cycles: Array.from({ length: 10 }, () => ({ steps: 8, stepPx: 90, pauseMs: 90 })),
+      cycles: Array.from({ length: 10 }, () => ({ steps: 8, stepPx, pauseMs: 90 })),
       tailSampleMs: 3_000,
+      waitForStart: true,
     });
-    await page.waitForTimeout(1_200);
-    await unrouteAbort();
+    await page.waitForFunction(() => (window as any).__flickRideReady === true);
     await throttleRelationsContinuations(page, 1_500);
+    await unrouteAbort();
+    await page.evaluate(() => {
+      (window as any).__flickRideStart = true;
+    });
     const report = await ridePromise;
 
     const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
@@ -191,6 +199,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       `window full before sampling (threadCountStart=${report.threadCountStart}) — in-ride pagination not exercised`
     );
     expect(report.threadCountEnd).toBeGreaterThan(report.threadCountStart);
+    expect(Math.min(...report.frames.map((frame) => frame.scrollTop))).toBeGreaterThan(0);
     // Full coverage budget; jump budget carries ONE documented exception:
     // at the prepend seam the old first reply legitimately loses its
     // day-divider/header when it gains a predecessor (~140px, one frame,

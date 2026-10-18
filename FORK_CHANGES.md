@@ -18,13 +18,24 @@
 - Independent review: the screenshot assertion fix and release notes were reviewed by a separate agent with no blocking findings.
   Connections is hidden on native builds and is excluded from iOS release notes.
   `mindroom.chat` does not advertise `io.mindroom.openid_audience`; keep audience enforcement disabled until compatible backends and this iOS update are live, as #442 requires.
-- Browser validation: the full runner is in progress with `--jobs 8` (169 spec/project jobs, 450 cases).
+- Browser validation: the full runner ran with `--jobs 8` (169 spec/project jobs, 450 cases), followed by focused reruns of failed specs after updating release fixtures.
   It exposed stale expectations for #450's plain tool/history rows and approval labels/material, and a Computers mock returning a now-retryable 503.
   The mock now uses a nonretryable 400; its routing test passes, and updated hover/material checks pass in Chromium and WebKit.
   The separate release-target Ruby suite passes all four tests and 22 assertions, and screenshot-fixture tests pass all 24 cases.
+  Current tool/history labels and surfaces, approval controls, and folded own messages are reflected in browser assertions without changing production code.
+  WebKit keyboard checks use macOS Option-Tab; sidebar geometry waits for the temporary sync status to settle, and prepend anchors select actual replies.
+  Prepend rides position with real wheel input against the measured loaded edge instead of a stale absolute offset.
+  The latency ride starts only after the sampler and slow route are ready and bounds travel to preserve a viewport above zero; original rendering budgets and in-ride pagination assertions remain.
+  Independent review approved these changes; all four iOS momentum cases and all five latency cases pass.
+  Combined full-run and focused-rerun results: 168 jobs passed, 437 cases passed, 12 platform skips, zero failing cases, and one external-fixture job blocked.
+  The Computers worker test needs the unavailable external `E2E_COMPUTER_FIXTURE` and remains explicitly blocked.
+  Follow-up: a desktop mouse hover toolbar can overlap a folded message's disclosure; the cache fixture activates that accessible button by keyboard, and dedicated own-message pointer coverage passes.
 - Reviewer access: saved App Store credentials successfully sign in to the review homeserver; the verification device was logged out immediately.
   Preserve Apple's existing reviewer instructions and append this update's review guidance instead of overwriting them with the older repository template.
-- Next: finish screenshot verification and browser validation, upload metadata and screenshots, preserve the saved reviewer account, and submit the exact build with manual release after approval.
+- App Store preparation: version `4.12.421` exists as `0e819846-619a-42b6-be72-208759e994b9`, with build `415` selected and manual release configured.
+  Metadata and public-URL precheck pass; remote release notes and reviewer instructions match the prepared packet, and the demo-account-required flag is restored.
+  All ten uploaded screenshots are processed and their source checksums match the independently reviewed local files.
+- Next: run the guarded release lane to revalidate the prepared packet and submit the exact build with manual release after approval.
 
 ### Accept all Primary invites at once (2026-10-14)
 

@@ -310,6 +310,10 @@ const warmHistoricalContent = async (
   const root = page.locator(`[data-thread-root-id="${fixture.rootId}"]`);
   await expect(root).toBeVisible({ timeout: 10_000 });
   await root.click();
+  await page
+    .locator(`[data-message-id="${fixture.bodyId}"]`)
+    .getByRole('button', { name: 'Show full message', exact: true })
+    .press('Enter');
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible();
@@ -389,6 +393,10 @@ const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Pro
   await expect(page.locator(`[data-message-id="${fixture.rootId}"]`)).toBeVisible({
     timeout: 10_000,
   });
+  await page
+    .locator(`[data-message-id="${fixture.bodyId}"]`)
+    .getByRole('button', { name: 'Show full message', exact: true })
+    .press('Enter');
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible({ timeout: 10_000 });
@@ -557,6 +565,10 @@ test.describe('persisted historical room content', () => {
 
         await installOfflineFreshnessGates(context, fullBody, fixture.imageUri, [...imageBytes]);
         await page.goto(threadUrl);
+        await page
+          .locator(`[data-message-id="${fixture.bodyId}"]`)
+          .getByRole('button', { name: 'Show full message', exact: true })
+          .press('Enter');
         await expect
           .poll(() => page.evaluate(() => window.__offlineFreshness.heldBodies))
           .toBeGreaterThan(0);
@@ -590,6 +602,10 @@ test.describe('persisted historical room content', () => {
           if (change !== 'delete') {
             const body = currentPage.locator(`[data-message-id="${fixture!.bodyId}"]`);
             await expect(body).toBeVisible();
+            if (change === 'edit') {
+              const expand = body.getByRole('button', { name: 'Show full message', exact: true });
+              if (await expand.isVisible()) await expand.press('Enter');
+            }
             await expect(body).toContainText(nextBody);
             if (change === 'inline') {
               await expect(image).toHaveCount(0);
@@ -625,9 +641,9 @@ test.describe('persisted historical room content', () => {
           .toBeGreaterThan(0);
         await page.evaluate(
           () =>
-            new Promise<void>((resolve) =>
-              requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-            )
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            })
         );
         await expectCurrent(page);
         await expect.poll(snapshot).toEqual(expectedCache);

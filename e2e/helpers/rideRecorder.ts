@@ -181,6 +181,53 @@ export const abortRelationsContinuations = async (page: Page): Promise<() => Pro
   return () => page.unroute(matcher);
 };
 
+/** Reach a measured loaded edge with real scroll input before recording a prepend ride. */
+export const positionThreadForPrepend = async (page: Page) => {
+  const bounds = await page
+    .locator('[data-message-item]')
+    .first()
+    .evaluate((row) => {
+      let scroller = row.parentElement;
+      while (scroller) {
+        const { overflowY } = getComputedStyle(scroller);
+        if (
+          ['auto', 'scroll'].includes(overflowY) &&
+          scroller.scrollHeight > scroller.clientHeight
+        ) {
+          scroller.dataset.e2eScroller = '1';
+          const rect = scroller.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        }
+        scroller = scroller.parentElement;
+      }
+      throw new Error('No thread scroller found');
+    });
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  const readPosition = () =>
+    page.locator('[data-e2e-scroller="1"]').evaluate((scroller) => {
+      const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-index]'));
+      return {
+        top: scroller.scrollTop,
+        height: scroller.clientHeight,
+        firstIndex: Math.min(...rows.map((row) => Number(row.dataset.index))),
+        fold: Number.parseFloat(rows[0]?.parentElement?.style.marginTop ?? '') || 0,
+      };
+    });
+  let position = await readPosition();
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (position.firstIndex <= 15 && position.top > position.height && position.fold === 0) {
+      await page.waitForTimeout(200);
+      const settled = await readPosition();
+      if (JSON.stringify(settled) === JSON.stringify(position)) return settled;
+      position = settled;
+    }
+    await page.mouse.wheel(0, -720);
+    await page.waitForTimeout(300);
+    position = await readPosition();
+  }
+  throw new Error(`Could not establish a settled prepend start: ${JSON.stringify(position)}`);
+};
+
 /**
  * CDP CPU throttle: desktop chromium mounts a row batch in one frame
  * where a phone takes several — the difference between "no gap" and a
@@ -212,12 +259,15 @@ export const runFlickRide = (
     cycles: FlickCycle[];
     reachTop?: { maxCycles: number };
     tailSampleMs?: number;
+    waitForStart?: boolean;
   }
 ): Promise<RideReport> =>
   page.evaluate(async (rideOpts) => {
     const w = window as Window & {
       __appScrollWrites?: { kind: string; value: number; t: number }[];
       __driverDepth?: number;
+      __flickRideReady?: boolean;
+      __flickRideStart?: boolean;
       __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number | undefined> };
     };
     const row = document.querySelector('[data-message-item]');
@@ -408,6 +458,16 @@ export const runFlickRide = (
       minTop: startTop,
     };
     sample(0);
+    if (rideOpts.waitForStart) {
+      w.__flickRideStart = false;
+      w.__flickRideReady = true;
+      while (!w.__flickRideStart) {
+        // eslint-disable-next-line no-await-in-loop
+        await raf();
+      }
+      delete w.__flickRideReady;
+      delete w.__flickRideStart;
+    }
 
     for (const cycle of cycles) {
       scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));

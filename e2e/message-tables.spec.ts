@@ -33,9 +33,19 @@ for (const separator of ['', '&whitespace']) {
       el.scrollLeft = el.scrollWidth;
     });
     await expect(table.locator('td').last()).toBeInViewport();
-    await page.getByRole('button', { name: '2 tool calls' }).click();
-    await expect(page.getByText(/^Tool #1: first_tool\b/)).toHaveCount(1);
-    await expect(page.getByText(/^Tool #2: second_tool\b/)).toHaveCount(1);
+    const tools = page.getByRole('button', { name: /^Ran 2 tool calls/ });
+    const group = tools.locator('..');
+    await tools.click();
+    await expect(tools).toHaveAttribute('aria-expanded', 'true');
+    await expect(group.locator('[data-tool-index]')).toHaveCount(2);
+    for (const [index, name] of [
+      [1, 'first_tool'],
+      [2, 'second_tool'],
+    ] as const) {
+      const row = group.locator(`[data-tool-index="${index}"]`);
+      await expect(row).toHaveCount(1);
+      await expect(row.getByText(name, { exact: true })).toBeVisible();
+    }
   });
 }
 
