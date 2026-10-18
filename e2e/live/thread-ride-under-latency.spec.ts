@@ -138,33 +138,42 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // sampling started (battery run 2026-07-07) — the spec degenerated
     // into a full-window ride and the precondition caught it.
     const start = await positionThreadForPrepend(page);
-    // Keep the continuous ride inside the loaded window; hard-edge
-    // correction has separate boundary coverage below.
-    const stepPx = Math.min(90, (start.top - Math.max(start.height, 720)) / 80);
-    expect(stepPx).toBeGreaterThan(0);
+    // Keep the continuous ride at least 720px inside the loaded window; the
+    // ledger-margin boundary ride below covers hard-edge correction. Steps
+    // shrink from the 90px device flick only to stay clear of that edge.
+    // This fixture starts at 4336px (45px steps, 2026-10-18); a much
+    // shallower start would no longer stress row mounting, so it fails.
+    const cycleCount = 10;
+    const stepsPerCycle = 8;
+    const stepPx = Math.min(90, (start.top - 720) / (cycleCount * stepsPerCycle));
+    expect(stepPx, `ride start ${start.top}px leaves too little room for a flick`).toBeGreaterThan(
+      40
+    );
     await throttleCpu(page, 4);
-    const ridePromise = runFlickRide(page, {
+    const report = await runFlickRide(page, {
       // 90ms finger-back-down pauses: below the 150ms quiescence window,
       // so the ONLY way the fetched page can commit inside this stream is
       // the 2.5s cap — exactly the continuous-reader case. The tail keeps
       // sampling through the final quiescence so late commits are
       // measured too.
-      cycles: Array.from({ length: 10 }, () => ({ steps: 8, stepPx, pauseMs: 90 })),
+      cycles: Array.from({ length: cycleCount }, () => ({
+        steps: stepsPerCycle,
+        stepPx,
+        pauseMs: 90,
+      })),
       tailSampleMs: 3_000,
-      waitForStart: true,
+      beforeStart: async () => {
+        await throttleRelationsContinuations(page, 1_500);
+        await unrouteAbort();
+      },
     });
-    await page.waitForFunction(() => (window as any).__flickRideReady === true);
-    await throttleRelationsContinuations(page, 1_500);
-    await unrouteAbort();
-    await page.evaluate(() => {
-      (window as any).__flickRideStart = true;
-    });
-    const report = await ridePromise;
 
     const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
     // eslint-disable-next-line no-console
     console.log(
       `LATENCY-RIDE ${JSON.stringify({
+        startTop: start.top,
+        stepPx,
         threadCountStart: report.threadCountStart,
         threadCountEnd: report.threadCountEnd,
         probes: report.probes,

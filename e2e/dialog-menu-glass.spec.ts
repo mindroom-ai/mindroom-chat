@@ -167,6 +167,7 @@ for (const theme of ['silver', 'dark']) {
 
     await page.setViewportSize({ width: 390, height: 480 });
     const openFilters = page.getByRole('button', { name: 'Open filters' });
+    // macOS WebKit does not focus a clicked button, so Escape could not return focus to it.
     await openFilters.focus();
     await openFilters.press('Enter');
     const title = page.locator('header').filter({ hasText: 'Filters' });

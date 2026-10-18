@@ -4,48 +4,29 @@
 
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
-- Target: `4.12.421 (415)`, the latest processed, valid, unexpired TestFlight build, with export compliance resolved.
-  Xcode Cloud run `a4cbedf3-b3b0-41db-a37b-61b41f05a883` succeeded from exact `dev` commit `f66cadcefd87ab4c46f7c27346e546ae05d70f46`.
-  The live App Store version is `4.12.401 (395)`, built from `06a214d04069254c46f2219a14f6edf0627d42e3`.
-- Preparation: regenerate all ten Rivera household screenshots and supply release notes through the environment.
-  The capture spec now checks the expanded tool row's actual argument and result instead of the obsolete `Tool #1: call_service` label removed by #450.
-  Overview capture first warms each fixture thread and then requires its agent's avatar inside that card; page-wide avatar checks could previously pass from the iPad Members sidebar while older cards lacked their agent.
-  Both device captures, all three screenshot tests, and both App Store preflights pass; all ten images received independent visual approval.
-  This changes screenshot verification only; the binary remains the existing Xcode Cloud build.
-- Validation: Node 24.13.1 passes all 6,825 tests across 710 files, typecheck, the iOS production/PWA build, and lint (0 errors, 18 existing warnings).
-  Node 26 produced a canvas input failure; a PATH selecting the host's Nix Bash also broke the mocked Homebrew tests.
-  Release checks use the repository's Node 24 and system Bash.
-- Independent review: the screenshot assertion fix and release notes were reviewed by a separate agent with no blocking findings.
-  Connections is hidden on native builds and is excluded from iOS release notes.
+- Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
+  Build 415 came from Xcode Cloud run `a4cbedf3-b3b0-41db-a37b-61b41f05a883` at `dev` commit `f66cadcefd87ab4c46f7c27346e546ae05d70f46`; the live version was `4.12.401 (395)`.
+  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight).
+- Release policy: iOS versions always publish automatically after approval (owner decision).
+  The lane submitted this version with `MANUAL` release; it was then switched to `AFTER_APPROVAL`, which Apple's API confirmed at 17:14 UTC.
+  Fastlane now enforces it: the Deliverfile default and every `release` upload set `automatic_release`, and `verify_release_submission` rejects any other release type.
+  Standalone metadata and screenshot uploads still never submit for review; the Ruby suite covers these cases.
+- Reviewer access: preserve Apple's existing reviewer instructions and append each update's guidance instead of overwriting them with the repository template.
+  The saved demo credentials signed in to the review homeserver, and the demo-account-required flag was restored after the metadata upload.
+- Release notes omit Connections, which native builds hide.
   `mindroom.chat` does not advertise `io.mindroom.openid_audience`; keep audience enforcement disabled until compatible backends and this iOS update are live, as #442 requires.
-- Browser validation: the full runner ran with `--jobs 8` (169 spec/project jobs, 450 cases), followed by focused reruns of failed specs after updating release fixtures.
-  It exposed stale expectations for #450's plain tool/history rows and approval labels/material, and a Computers mock returning a now-retryable 503.
-  The mock now uses a nonretryable 400; its routing test passes, and updated hover/material checks pass in Chromium and WebKit.
-  The separate release-target Ruby suite passes all eight tests and 33 assertions, and screenshot-fixture tests pass all 24 cases.
-  Current tool/history labels and surfaces, approval controls, and folded own messages are reflected in browser assertions without changing production code.
-  WebKit keyboard checks use macOS Option-Tab; sidebar geometry waits for the temporary sync status to settle, and prepend anchors select actual replies.
-  Prepend rides position with real wheel input against the measured loaded edge instead of a stale absolute offset.
-  The latency ride starts only after the sampler and slow route are ready and bounds travel to preserve a viewport above zero; original rendering budgets and in-ride pagination assertions remain.
-  Independent review approved these changes; all four iOS momentum cases and all five latency cases pass.
-  Combined full-run and focused-rerun results: 168 jobs passed, 437 cases passed, 12 platform skips, zero failing cases, and one external-fixture job blocked.
-  The Computers worker test needs the unavailable external `E2E_COMPUTER_FIXTURE` and remains explicitly blocked.
-  Follow-up: a desktop mouse hover toolbar can overlap a folded message's disclosure; the cache fixture activates that accessible button by keyboard, and dedicated own-message pointer coverage passes.
-- Reviewer access: saved App Store credentials successfully sign in to the review homeserver; the verification device was logged out immediately.
-  Preserve Apple's existing reviewer instructions and append this update's review guidance instead of overwriting them with the older repository template.
-- App Store preparation: version `4.12.421` exists as `0e819846-619a-42b6-be72-208759e994b9`, with build `415` selected and automatic release after approval configured.
-  Metadata and public-URL precheck pass; remote release notes and reviewer instructions match the prepared packet, and the demo-account-required flag is restored.
-  All ten uploaded screenshots are processed and their source checksums match the independently reviewed local files.
-- Submission: the guarded `fastlane ios release` lane passed all preflights, typecheck, all 6,825 unit tests, the iOS build, metadata precheck, and review-access checks, then submitted at 17:04 UTC.
-  App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` is `WAITING_FOR_REVIEW`; Apple API verification at 17:05 UTC confirms version `4.12.421`, build `415`, and initially `MANUAL` release.
-  The owner clarified that iOS releases must always publish automatically after approval; Apple API verification at 17:14 UTC confirms this submission now uses `AFTER_APPROVAL`.
-  Final verification confirms complete reviewer fields with demo access required, matching release/review notes, and all ten processed screenshots matching the reviewed source checksums.
-  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight) is ready for Apple's review and will publish automatically after approval.
-  Local submission evidence and immutable upload assets are retained in `/tmp/mindroom-ios-release-20261018`; private reviewer instructions and credentials are excluded from Git.
-- Release policy: always use automatic release after approval for iOS.
-  Fastlane defaults, all release uploads, and post-submission verification enforce `AFTER_APPROVAL`; standalone metadata and screenshot uploads still do not submit for review.
-  Independent review approved the policy change, and the Ruby suite covers accepted automatic release, rejected manual/scheduled release, all upload calls, and standalone defaults.
-  After the policy change, typecheck, all 6,825 unit tests, the iOS build, and lint pass again (0 errors, 18 existing warnings); both Fastlane configuration files pass Ruby syntax checks.
+- Screenshots: all ten Rivera household captures were regenerated, reviewed, and uploaded; their processed checksums match the reviewed files.
+  The capture spec checks the expanded tool row's argument and result, replacing the `Tool #1: call_service` label removed by #450.
+  It warms each thread before requiring that card's agent avatar; a page-wide check could pass from the iPad Members sidebar.
+- Browser specs went stale after #450 and approval label changes; they now assert current tool/history rows, approval labels and surfaces, and folded messages, with no production change.
+  WebKit keyboard checks press Option-Tab on macOS, and the Computers mock returns a nonretryable 400 instead of a now-retried 503.
+  Prepend rides wheel into the auto-paginate trigger zone instead of teleporting to a fixed offset.
+  The latency ride starts its slow route at a known frame and stays at least 720px inside the loaded window; a start that would slow its flick below 40px per step fails.
+  The offline cache spec opens folded bodies by keyboard because the next message's hover toolbar can cover the button (#463).
+- Validation: 6,825 unit tests, typecheck, lint (0 errors, 18 existing warnings), the iOS build, and the Ruby release suite (8 tests) pass.
+  The full browser run passed 437 cases with 12 platform skips; the Computers worker test is blocked without the external `E2E_COMPUTER_FIXTURE`.
 - Next: await App Review and address any Apple feedback; publication is automatic after approval.
+  Fix #463 so the offline cache spec can click the folded-message button.
 
 ### Accept all Primary invites at once (2026-10-14)
 

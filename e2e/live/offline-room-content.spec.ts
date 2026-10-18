@@ -271,6 +271,13 @@ const openRoomSettings = async (page: Page, roomName: string): Promise<void> => 
   await general.click();
 };
 
+// The next message's hover toolbar can cover this button (#463), so these flows use the keyboard.
+const expandFullBody = (page: Page, fixture: OfflineFixture): Promise<void> =>
+  page
+    .locator(`[data-message-id="${fixture.bodyId}"]`)
+    .getByRole('button', { name: 'Show full message', exact: true })
+    .press('Enter');
+
 const warmHistoricalContent = async (
   page: Page,
   homeserver: string,
@@ -310,10 +317,7 @@ const warmHistoricalContent = async (
   const root = page.locator(`[data-thread-root-id="${fixture.rootId}"]`);
   await expect(root).toBeVisible({ timeout: 10_000 });
   await root.click();
-  await page
-    .locator(`[data-message-id="${fixture.bodyId}"]`)
-    .getByRole('button', { name: 'Show full message', exact: true })
-    .press('Enter');
+  await expandFullBody(page, fixture);
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible();
@@ -393,10 +397,7 @@ const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Pro
   await expect(page.locator(`[data-message-id="${fixture.rootId}"]`)).toBeVisible({
     timeout: 10_000,
   });
-  await page
-    .locator(`[data-message-id="${fixture.bodyId}"]`)
-    .getByRole('button', { name: 'Show full message', exact: true })
-    .press('Enter');
+  await expandFullBody(page, fixture);
   await expect(
     page.locator(`[data-message-id="${fixture.bodyId}"]`).getByText(fullBody, { exact: true })
   ).toBeVisible({ timeout: 10_000 });
@@ -565,10 +566,7 @@ test.describe('persisted historical room content', () => {
 
         await installOfflineFreshnessGates(context, fullBody, fixture.imageUri, [...imageBytes]);
         await page.goto(threadUrl);
-        await page
-          .locator(`[data-message-id="${fixture.bodyId}"]`)
-          .getByRole('button', { name: 'Show full message', exact: true })
-          .press('Enter');
+        await expandFullBody(page, fixture);
         await expect
           .poll(() => page.evaluate(() => window.__offlineFreshness.heldBodies))
           .toBeGreaterThan(0);
@@ -602,10 +600,6 @@ test.describe('persisted historical room content', () => {
           if (change !== 'delete') {
             const body = currentPage.locator(`[data-message-id="${fixture!.bodyId}"]`);
             await expect(body).toBeVisible();
-            if (change === 'edit') {
-              const expand = body.getByRole('button', { name: 'Show full message', exact: true });
-              if (await expand.isVisible()) await expand.press('Enter');
-            }
             await expect(body).toContainText(nextBody);
             if (change === 'inline') {
               await expect(image).toHaveCount(0);
@@ -654,6 +648,8 @@ test.describe('persisted historical room content', () => {
         await page.close();
         const reopened = await context.newPage();
         await reopened.goto(threadUrl);
+        // A new page starts with the edited long text folded again.
+        if (change === 'edit') await expandFullBody(reopened, fixture!);
         await expectCurrent(reopened);
         await expect
           .poll(() =>

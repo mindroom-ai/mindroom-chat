@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from '../../src/app/mindroom/threads/preloadSettings';
 
 /**
  * Shared scroll-ride harness for the virtualized thread timeline.
@@ -181,7 +182,10 @@ export const abortRelationsContinuations = async (page: Page): Promise<() => Pro
   return () => page.unroute(matcher);
 };
 
-/** Reach a measured loaded edge with real scroll input before recording a prepend ride. */
+/**
+ * Wheel up into the loaded edge's auto-paginate trigger zone before a prepend
+ * ride, and return the scroll position once the timeline stops moving.
+ */
 export const positionThreadForPrepend = async (page: Page) => {
   const bounds = await page
     .locator('[data-message-item]')
@@ -210,12 +214,17 @@ export const positionThreadForPrepend = async (page: Page) => {
         top: scroller.scrollTop,
         height: scroller.clientHeight,
         firstIndex: Math.min(...rows.map((row) => Number(row.dataset.index))),
+        // A nonzero offset-ledger margin means dropped size corrections have not settled yet.
         fold: Number.parseFloat(rows[0]?.parentElement?.style.marginTop ?? '') || 0,
       };
     });
   let position = await readPosition();
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (position.firstIndex <= 15 && position.top > position.height && position.fold === 0) {
+    if (
+      position.firstIndex <= THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS &&
+      position.top > position.height &&
+      position.fold === 0
+    ) {
       await page.waitForTimeout(200);
       const settled = await readPosition();
       if (JSON.stringify(settled) === JSON.stringify(position)) return settled;
@@ -244,32 +253,30 @@ export type FlickCycle = {
   pauseMs: number;
 };
 
-/**
- * Drives flick/pause cycles on the thread scroller and records the full
- * per-frame trace, INCLUDING through the pauses. `teleportTo` positions
- * the ride start (driver-tagged, settled outside the sampled window).
- * A wheel gesture is dispatched at each cycle start (user intent for the
- * auto-paginate trigger and the settle-cancel paths).
- */
-export const runFlickRide = (
+type FlickRideOptions = {
+  teleportTo?: number;
+  teleportSettleMs?: number;
+  cycles: FlickCycle[];
+  reachTop?: { maxCycles: number };
+  tailSampleMs?: number;
+};
+
+type FlickRideHandshake = {
+  __flickRideReady?: boolean;
+  __flickRideStart?: boolean;
+};
+
+const recordFlickRide = (
   page: Page,
-  opts: {
-    teleportTo?: number;
-    teleportSettleMs?: number;
-    cycles: FlickCycle[];
-    reachTop?: { maxCycles: number };
-    tailSampleMs?: number;
-    waitForStart?: boolean;
-  }
+  opts: FlickRideOptions & { waitForStart: boolean }
 ): Promise<RideReport> =>
   page.evaluate(async (rideOpts) => {
-    const w = window as Window & {
-      __appScrollWrites?: { kind: string; value: number; t: number }[];
-      __driverDepth?: number;
-      __flickRideReady?: boolean;
-      __flickRideStart?: boolean;
-      __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number | undefined> };
-    };
+    const w = window as Window &
+      FlickRideHandshake & {
+        __appScrollWrites?: { kind: string; value: number; t: number }[];
+        __driverDepth?: number;
+        __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number | undefined> };
+      };
     const row = document.querySelector('[data-message-item]');
     let candidate: HTMLElement | null = row?.parentElement ?? null;
     while (candidate) {
@@ -517,6 +524,40 @@ export const runFlickRide = (
       probes,
     };
   }, opts);
+
+/**
+ * Drives flick/pause cycles on the thread scroller and records the full
+ * per-frame trace, INCLUDING through the pauses. `teleportTo` positions
+ * the ride start (driver-tagged, settled outside the sampled window).
+ * `beforeStart` runs after the first frame is sampled and before the first
+ * flick, so network gates change at a known point in the trace.
+ * A wheel gesture is dispatched at each cycle start (user intent for the
+ * auto-paginate trigger and the settle-cancel paths).
+ */
+export const runFlickRide = async (
+  page: Page,
+  { beforeStart, ...opts }: FlickRideOptions & { beforeStart?: () => Promise<void> }
+): Promise<RideReport> => {
+  const ride = recordFlickRide(page, { ...opts, waitForStart: !!beforeStart });
+  if (!beforeStart) return ride;
+  // A ride that fails before its first sample never becomes ready.
+  const ready = await Promise.race([
+    ride.then(() => false),
+    page
+      .waitForFunction(() => (window as Window & FlickRideHandshake).__flickRideReady === true)
+      .then(
+        () => true,
+        () => false
+      ),
+  ]);
+  if (ready) {
+    await beforeStart();
+    await page.evaluate(() => {
+      (window as Window & FlickRideHandshake).__flickRideStart = true;
+    });
+  }
+  return ride;
+};
 
 /**
  * Continuous in-page sampling for COMPOSITOR-driven rides (CDP touch
