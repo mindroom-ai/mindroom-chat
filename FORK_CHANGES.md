@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### App Store update 4.12.421 (2026-10-18, in progress)
+### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Target: `4.12.421 (415)`, the latest processed, valid, unexpired TestFlight build, with export compliance resolved.
   Xcode Cloud run `a4cbedf3-b3b0-41db-a37b-61b41f05a883` succeeded from exact `dev` commit `f66cadcefd87ab4c46f7c27346e546ae05d70f46`.
@@ -35,7 +35,12 @@
 - App Store preparation: version `4.12.421` exists as `0e819846-619a-42b6-be72-208759e994b9`, with build `415` selected and manual release configured.
   Metadata and public-URL precheck pass; remote release notes and reviewer instructions match the prepared packet, and the demo-account-required flag is restored.
   All ten uploaded screenshots are processed and their source checksums match the independently reviewed local files.
-- Next: run the guarded release lane to revalidate the prepared packet and submit the exact build with manual release after approval.
+- Submission: the guarded `fastlane ios release` lane passed all preflights, typecheck, all 6,825 unit tests, the iOS build, metadata precheck, and review-access checks, then submitted at 17:04 UTC.
+  App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` is `WAITING_FOR_REVIEW`; Apple API verification at 17:05 UTC confirms version `4.12.421`, build `415`, and `MANUAL` release.
+  Final verification confirms complete reviewer fields with demo access required, matching release/review notes, and all ten processed screenshots matching the reviewed source checksums.
+  [App Store Connect](https://appstoreconnect.apple.com/apps/6760272172/distribution/ios/version/inflight) is ready for Apple's review; publication requires manual release after approval.
+  Local submission evidence and immutable upload assets are retained in `/tmp/mindroom-ios-release-20261018`; private reviewer instructions and credentials are excluded from Git.
+- Next: await App Review, address any Apple feedback, and manually release after approval.
 
 ### Accept all Primary invites at once (2026-10-14)
 
