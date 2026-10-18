@@ -9,6 +9,8 @@
   The live App Store version is `4.12.401 (395)`, built from `06a214d04069254c46f2219a14f6edf0627d42e3`.
 - Preparation: regenerate all ten Rivera household screenshots and supply release notes through the environment.
   The capture spec now checks the expanded tool row's actual argument and result instead of the obsolete `Tool #1: call_service` label removed by #450.
+  Overview capture first warms each fixture thread and then requires its agent's avatar inside that card; page-wide avatar checks could previously pass from the iPad Members sidebar while older cards lacked their agent.
+  Both device captures, all three screenshot tests, and both App Store preflights pass; all ten images received independent visual approval.
   This changes screenshot verification only; the binary remains the existing Xcode Cloud build.
 - Validation: Node 24.13.1 passes all 6,825 tests across 710 files, typecheck, the iOS production/PWA build, and lint (0 errors, 18 existing warnings).
   Node 26 produced a canvas input failure; a PATH selecting the host's Nix Bash also broke the mocked Homebrew tests.
@@ -16,6 +18,12 @@
 - Independent review: the screenshot assertion fix and release notes were reviewed by a separate agent with no blocking findings.
   Connections is hidden on native builds and is excluded from iOS release notes.
   `mindroom.chat` does not advertise `io.mindroom.openid_audience`; keep audience enforcement disabled until compatible backends and this iOS update are live, as #442 requires.
+- Browser validation: the full runner is in progress with `--jobs 8` (169 spec/project jobs, 450 cases).
+  It exposed stale expectations for #450's plain tool/history rows and approval labels/material, and a Computers mock returning a now-retryable 503.
+  The mock now uses a nonretryable 400; its routing test passes, and updated hover/material checks pass in Chromium and WebKit.
+  The separate release-target Ruby suite passes all four tests and 22 assertions, and screenshot-fixture tests pass all 24 cases.
+- Reviewer access: saved App Store credentials successfully sign in to the review homeserver; the verification device was logged out immediately.
+  Preserve Apple's existing reviewer instructions and append this update's review guidance instead of overwriting them with the older repository template.
 - Next: finish screenshot verification and browser validation, upload metadata and screenshots, preserve the saved reviewer account, and submit the exact build with manual release after approval.
 
 ### Accept all Primary invites at once (2026-10-14)

@@ -265,6 +265,29 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await openFixtureRoom(page, fixtureRoomId);
       await applySceneTheme(page, sceneById('personal-workspace'));
       await expectFixtureRoomOverview(page);
+      // Warm every thread so older cards include their replying agent, too.
+      for (const title of [
+        WEEK_THREAD_TITLE,
+        DINNER_THREAD_TITLE,
+        HOME_AUTOMATION_THREAD_TITLE,
+        TRIP_THREAD_TITLE,
+        REMINDER_THREAD_TITLE,
+      ]) {
+        await getThreadEntry(page, title).click();
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
+        await returnToFixtureRoomOverview(page);
+      }
+      for (const [title, agent] of [
+        [WEEK_THREAD_TITLE, 'Atlas'],
+        [DINNER_THREAD_TITLE, 'Pantry'],
+        [HOME_AUTOMATION_THREAD_TITLE, 'Hearth'],
+        [TRIP_THREAD_TITLE, 'Atlas'],
+        [REMINDER_THREAD_TITLE, 'Hearth'],
+      ]) {
+        await expect(
+          getThreadEntry(page, title).getByRole('img', { name: agent, exact: true })
+        ).toBeVisible();
+      }
       await expect(getThreadEntry(page, WEEK_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/Atlas:.*Your week, together/)).toBeVisible();
       await captureScene(page, device, sceneById('personal-workspace'), capturedDigests);
