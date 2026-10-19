@@ -1,8 +1,10 @@
 import React, { ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { PopOut, config, type RectCords } from 'folds';
 import { PageScroll } from '../page';
 import { Menu, Header } from '../glass/GlassPrimitives';
+import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 
 import { useAlive } from '../../hooks/useAlive';
 import { preventScrollWithArrowKey, stopPropagation } from '../../utils/keyboard';
@@ -130,7 +132,9 @@ export function InviteAutocompleteMenu({
                 id={menuId}
                 role="listbox"
                 aria-label={menuLabel}
-                className={css.InviteAutocompleteMenu}
+                // The rows sit over the dialog's own controls; a light tint lets its Invite
+                // button show through as if a row were highlighted.
+                className={classNames(css.InviteAutocompleteMenu, glassDenseOverBackdrop)}
                 style={{ maxHeight }}
               >
                 <PageScroll
