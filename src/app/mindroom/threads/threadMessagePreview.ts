@@ -164,18 +164,23 @@ const toSuperscript = (exponent: string): string =>
 // f \approx \frac{\pi K w^2}{P_h} becomes f ≈ (π K w²)/P_h.
 const latexToPreviewText = (latex: string): string => {
   let text = latex;
-  // Nested fractions take one pass per level.
-  for (let pass = 0; pass < 3; pass += 1) {
-    const next = text.replace(
-      LATEX_FRACTION,
-      (_, top: string, bottom: string) => `${groupLatexArg(top)}/${groupLatexArg(bottom)}`
-    );
+  // One pass per nesting level of fractions and roots.
+  for (let pass = 0; pass < 10; pass += 1) {
+    const next = text
+      .replace(
+        LATEX_FRACTION,
+        (match: string, top: string, bottom: string, offset: number, source: string) => {
+          const fraction = `${groupLatexArg(top)}/${groupLatexArg(bottom)}`;
+          // A power of the whole fraction must not read as a power of its denominator.
+          return source[offset + match.length] === '^' ? `(${fraction})` : fraction;
+        }
+      )
+      .replace(LATEX_ROOT, (_, radicand: string) => `√${groupLatexArg(radicand)}`);
     if (next === text) break;
     text = next;
   }
   return (
     text
-      .replace(LATEX_ROOT, (_, radicand: string) => `√${groupLatexArg(radicand)}`)
       .replace(/\\(?:[,;:! \\]|q?quad\b)|~/g, ' ')
       .replace(/\\(?:left|right)\b/g, '')
       // A command taking an argument, such as \text{W} or \mathbf{x}, keeps only the argument.
@@ -186,6 +191,7 @@ const latexToPreviewText = (latex: string): string => {
       .replace(/\^\{([^{}]*)\}|\^(\S)/g, (_, braced?: string, single?: string) =>
         toSuperscript((braced ?? single ?? '').trim())
       )
+      .replace(/_\{([^{}]*)\}/g, (_, subscript: string) => `_${groupLatexArg(subscript)}`)
       .replace(/[{}]/g, '')
       .replace(/\s+/g, ' ')
       .trim()
