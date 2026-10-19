@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Edit messages too large for one event (2026-10-19)
+
+- Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.
+  An edit too large for one event failed like a long send: an edit carries its text twice (fallback and `m.new_content`), so it hit the 64 KiB limit at half the size, and Save just stopped spinning.
+  Editing the latest content naively would also start from the event's 2,000-character preview, so saving would cut the message.
+- Fix:
+  - `canEditEvent` also offers editing your own `m.file` messages that carry a valid long-text sidecar (`getMindroomLongTextSource`).
+  - `useMindroomEditableContent` loads the content the editor starts from: the latest edit or the message, with a long text downloaded whole through `hydrateCachedMindroomLongText` (usually already cached by the timeline). Save stays disabled until it has loaded; if it cannot load, the editor says "Failed to load message" and Save stays disabled, so a preview is never saved over the message.
+  - `buildMindroomEditContent` sends an edit that fits one event as before; a larger one uploads the new content as a long-text sidecar and sends its preview as `m.new_content`, wrapped as MindRoom's backend wraps its own large edits (`_wrap_large_edit`): the fallback keeps the message's type, and the fallback of a long-text file keeps the file fields so it stays a valid file.
+  - The new content takes its type from the loaded content, so shortening a long-text message turns it back into a text message.
+- Backend: no change; MindRoom resolves a sidecar in an edit's `m.new_content` (`extract_edit_body`).
+- Tests:
+  - `longEdit.test.ts`: a small edit is unchanged; a large edit uploads exactly the new content, its replacement is a long-text preview without a relation, and its fallback stays text, or a valid file for a long-text file; the editor content is the message as it is, the whole downloaded text, or nothing when only the preview comes back.
+  - `room.test.ts`: your own long-text file is editable; an ordinary file and someone else's long text are not (fails without the change).
+  - `e2e/live/long-composer-message.spec.ts` sends a 22 KB Markdown message, opens it with Up arrow, checks that the editor holds its last line, appends to it and saves, checks that the edit is a long-text sidecar, then edits it down to a short text; on the previous build Up arrow does not open the editor.
+  The spec now shares one signed-in page across its cases, because the homeserver rate-limits a third login.
+- Not covered: an edit still fails without saying why when the upload or the send fails; the editor stays open, so nothing is lost.
+
 ### Send messages too large for one event as long-text sidecars (2026-10-19)
 
 - Problem: a long Markdown message went back into the composer on every Send, with no error.
