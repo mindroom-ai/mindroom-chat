@@ -345,6 +345,12 @@ describe('CanvasPanel', () => {
     // How to change an answer is said only once the page tries to change it.
     expect(container.textContent).not.toContain('discard this one first');
     await arm();
+    // The same answer again (a double click) changes nothing the user needs to hear about.
+    await post(submit('Basic', { plan: 'basic' }));
+    expect(container.textContent).not.toContain('discard this one first');
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
     await post(submit('Everything', { plan: 'everything' }));
     expect(container.textContent).toContain('Send to Planner: Basic');
     expect(container.textContent).toContain('To change your answer, discard this one first.');

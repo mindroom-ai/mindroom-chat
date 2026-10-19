@@ -94,6 +94,10 @@ type Staged = {
   resubmitted?: true;
 };
 
+// Submissions arrive as canonical JSON (`readCanvasSubmission`), so equal answers stringify equally.
+const sameAnswer = (a: CanvasSubmission, b: CanvasSubmission): boolean =>
+  a.label === b.label && JSON.stringify(a.data) === JSON.stringify(b.data);
+
 /** The last answer this panel sent: its SDK local echo, which also drives the timeline. */
 type SentAnswer = { echo: MatrixEvent; label: string };
 
@@ -313,7 +317,9 @@ export function CanvasPanel({
       // it, so a canvas cannot swap the payload under the user's click.
       setStaged((current) => {
         if (!current) return { submission, armed: false };
-        return current.resubmitted ? current : { ...current, resubmitted: true };
+        return current.resubmitted || sameAnswer(current.submission, submission)
+          ? current
+          : { ...current, resubmitted: true };
       });
     };
     window.addEventListener('blur', handleBlur);
