@@ -2846,6 +2846,10 @@
       "streamingIndicator": {
         "aiIsResponding": "الذكاء الاصطناعي يرد"
       },
+      "stopButton": {
+        "label": "إيقاف",
+        "tooltip": "إيقاف هذا الرد"
+      },
       "threadApprovalControls": {
         "close": "إغلاق",
         "call": "استدعاء",

@@ -2678,6 +2678,10 @@
       "streamingIndicator": {
         "aiIsResponding": "KI antwortet"
       },
+      "stopButton": {
+        "label": "Stoppen",
+        "tooltip": "Diese Antwort stoppen"
+      },
       "threadApprovalControls": {
         "close": "Schließen",
         "call": "Aufruf",

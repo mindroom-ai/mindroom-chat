@@ -1,5 +1,10 @@
 import { MsgType } from 'matrix-js-sdk';
 import { sanitizeText } from '../../utils/sanitize';
+import {
+  contentBytes,
+  LONG_TEXT_CONTINUATION_NOTE,
+  MAX_EVENT_CONTENT_BYTES,
+} from '../messages/longText';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import {
   CANVAS_ERROR_MESSAGE,
@@ -139,16 +144,6 @@ const canonicalBody = (
   json: string
 ) => `${agentUserId} ${responseSummary(canvasEventId, revisionEventId, label)}\n${json}`;
 
-/**
- * Plaintext budget for an answer sent as one event. Encryption grows an event by about a third, and
- * the data appears up to three times (body, formatted body, metadata), so a larger answer is sent
- * as a long-text sidecar instead, to stay under Matrix's 64 KiB event limit.
- */
-export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
-
-export const contentBytes = (content: object): number =>
-  new TextEncoder().encode(JSON.stringify(content)).length;
-
 /** The label the wire format uses for an answer without one; Chat shows a translated word instead. */
 export const CANVAS_DEFAULT_LABEL = 'Submitted';
 
@@ -259,7 +254,7 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
     },
   };
   // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
-  return contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES
+  return contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
     ? content
     : { ...content, formatted_body: mention };
 };
@@ -269,11 +264,9 @@ export type CanvasResponseContent = ReturnType<typeof buildCanvasResponseContent
 /** MindRoom downloads a long message's file up to this size (`_MXC_TEXT_MAX_BYTES`). */
 export const MINDROOM_SIDECAR_MAX_BYTES = 2 * 1024 * 1024;
 
-const LONG_ANSWER_NOTE = '\n\n[Message continues in attached file]';
-
 /** Whether an answer fits one event; a larger one is sent as a long-text sidecar. */
 export const canvasResponseFitsInEvent = (content: CanvasResponseContent): boolean =>
-  contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES;
+  contentBytes(content) <= MAX_EVENT_CONTENT_BYTES;
 
 /**
  * The event for an answer sent as a long-text sidecar: the summary line, the mention and reply
@@ -284,7 +277,7 @@ export const buildCanvasResponsePreview = (content: CanvasResponseContent) => {
   return {
     // Canonical JSON has no raw line break, so the last one ends the summary line. The note is the
     // one MindRoom's own long replies carry, for whoever sees only the preview.
-    body: `${content.body.slice(0, content.body.lastIndexOf('\n'))}${LONG_ANSWER_NOTE}`,
+    body: `${content.body.slice(0, content.body.lastIndexOf('\n'))}${LONG_TEXT_CONTINUATION_NOTE}`,
     'm.mentions': content['m.mentions'],
     'm.relates_to': content['m.relates_to'],
     [CANVAS_RESPONSE_KEY]: marker,

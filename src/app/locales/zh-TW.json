@@ -2672,6 +2672,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI正在響應"
       },
+      "stopButton": {
+        "label": "停止",
+        "tooltip": "停止此回覆"
+      },
       "threadApprovalControls": {
         "close": "關閉",
         "call": "呼叫",

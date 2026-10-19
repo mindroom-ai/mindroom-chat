@@ -2678,6 +2678,10 @@
       "streamingIndicator": {
         "aiIsResponding": "Yapay zekâ yanıtlıyor"
       },
+      "stopButton": {
+        "label": "Durdur",
+        "tooltip": "Bu yanıtı durdur"
+      },
       "threadApprovalControls": {
         "close": "Kapat",
         "call": "çağrı",

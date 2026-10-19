@@ -52,10 +52,12 @@ import { UseStateProvider } from '../../../components/UseStateProvider';
 import { EmojiBoard } from '../../../components/emoji-board';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { getEditedEvent, getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
+import { getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
 import { IconTooltip } from '../../../mindroom/tooltip/IconTooltip';
+import { buildMindroomEditContent } from '../../../mindroom/messages/longEdit';
+import { useMindroomEditableContent } from '../../../mindroom/messages/useMindroomEditableContent';
 
 type MessageEditorProps = {
   roomId: string;
@@ -78,17 +80,16 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<AutocompletePrefix>>();
 
+    // A message sent as a long-text file is edited from its whole content, once loaded.
+    const editable = useMindroomEditableContent(room, mEvent);
+    const editableContent = editable.content;
+
     const getPrevBodyAndFormattedBody = useCallback((): [
       string | undefined,
       string | undefined,
       IMentions | undefined
     ] => {
-      const evtId = mEvent.getId()!;
-      const evtTimeline = room.getTimelineForEvent(evtId);
-      const editedEvent =
-        evtTimeline && getEditedEvent(evtId, mEvent, evtTimeline.getTimelineSet());
-
-      const content: IContent = editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent();
+      const content: IContent = editableContent ?? {};
       const { body, formatted_body: customHtml }: Record<string, unknown> = content;
 
       const mMentions: IMentions | undefined = content['m.mentions'];
@@ -98,7 +99,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         typeof customHtml === 'string' ? customHtml : undefined,
         mMentions,
       ];
-    }, [room, mEvent]);
+    }, [editableContent]);
 
     const [saveState, save] = useAsyncCallback(
       useCallback(async () => {
@@ -128,7 +129,10 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         }
 
         const newContent: IContent = {
-          msgtype: mEvent.getContent().msgtype,
+          msgtype:
+            typeof editableContent?.msgtype === 'string'
+              ? editableContent.msgtype
+              : mEvent.getContent().msgtype,
           body: plainText,
         };
 
@@ -146,25 +150,30 @@ export const MessageEditor = as<'div', MessageEditorProps>(
           newContent.formatted_body = customHtml;
         }
 
-        const content: IContent = {
-          ...newContent,
-          body: `* ${plainText}`,
-          'm.new_content': newContent,
-          'm.relates_to': {
-            event_id: mEvent.getId(),
-            rel_type: RelationType.Replace,
-          },
-        };
+        // An edit too large for one event sends its new content as a long-text file.
+        const content = await buildMindroomEditContent(mx, room, newContent, {
+          event_id: mEvent.getId(),
+          rel_type: RelationType.Replace,
+        });
 
         return mx.sendMessage(roomId, content as any);
-      }, [mx, editor, roomId, mEvent, isMarkdown, getPrevBodyAndFormattedBody])
+      }, [
+        mx,
+        editor,
+        room,
+        roomId,
+        mEvent,
+        isMarkdown,
+        editableContent,
+        getPrevBodyAndFormattedBody,
+      ])
     );
 
     const handleSave = useCallback(() => {
-      if (saveState.status !== AsyncStatus.Loading) {
+      if (editableContent && saveState.status !== AsyncStatus.Loading) {
         save();
       }
-    }, [saveState, save]);
+    }, [editableContent, saveState, save]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -210,6 +219,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     };
 
     useEffect(() => {
+      if (!editableContent) return;
       const [body, customHtml] = getPrevBodyAndFormattedBody();
 
       const initialValue =
@@ -224,7 +234,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
 
       editor.insertFragment(initialValue);
       if (!mobileOrTablet()) ReactEditor.focus(editor);
-    }, [editor, getPrevBodyAndFormattedBody, isMarkdown]);
+    }, [editor, editableContent, getPrevBodyAndFormattedBody, isMarkdown]);
 
     useEffect(() => {
       if (saveState.status === AsyncStatus.Success) {
@@ -260,7 +270,13 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         )}
         <CustomEditor
           editor={editor}
-          placeholder={t('featureUi.room.message.messageEditor.editMessage')}
+          placeholder={
+            editable.failed
+              ? t('sharedUi.fallbackContent.failedToLoadMessage')
+              : t('featureUi.room.message.messageEditor.editMessage')
+          }
+          // Typing before the content loads would be replaced by it.
+          readOnly={!editableContent}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           bottom={
@@ -276,7 +292,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
                     onClick={handleSave}
                     variant="Primary"
                     radii="Pill"
-                    disabled={saveState.status === AsyncStatus.Loading}
+                    disabled={!editableContent || saveState.status === AsyncStatus.Loading}
                     outlined
                     before={
                       saveState.status === AsyncStatus.Loading ? (

@@ -7,6 +7,7 @@ import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
+import { parseMindroomLongTextJsonSidecar } from '../messages/longText';
 import {
   StartRoomInputSendSessionOptions,
   useRoomInputSendSessionController,
@@ -113,6 +114,7 @@ const TestHarness = ({
     getEventForTxnId: ReturnType<typeof vi.fn>;
     makeTxnId: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
+    uploadContent: ReturnType<typeof vi.fn>;
   };
   editor: { children: unknown[] };
   sendTypingStatus: ReturnType<typeof vi.fn>;
@@ -170,6 +172,7 @@ const TestHarness = ({
       getEventForTxnId: mx.getEventForTxnId,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
+      hasEncryptionStateEvent: () => false,
     } as never,
     roomId: '!room:example.org',
     threadId,
@@ -226,6 +229,7 @@ const renderHarness = (
       sentEvents += 1;
       return { event_id: eventId };
     }),
+    uploadContent: vi.fn(async (_file: Blob) => ({ content_uri: 'mxc://mindroom/sidecar' })),
   };
   const editor = {
     children: [{ type: 'paragraph', children: [{ text: 'caption draft' }] }],
@@ -871,6 +875,78 @@ describe('useRoomInputSendSessionController caption send failures', () => {
       (call) => (call[1] as { msgtype?: string }).msgtype === 'm.text'
     );
     expect(textSends).toHaveLength(1);
+  });
+});
+
+describe('useRoomInputSendSessionController long messages', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // About 50 KB: over the one-event budget, but short enough that the composer kept it inline.
+  const longBody = 'word '.repeat(10_000).trim();
+
+  it('sends a message too large for one event as a long-text sidecar', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const mentions = { user_ids: ['@mindroom_writer:example.org'] };
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: longBody, 'm.mentions': mentions },
+      });
+    });
+
+    // The whole message, relation included, is uploaded as the file MindRoom reads back.
+    expect(mx.uploadContent).toHaveBeenCalledTimes(1);
+    const uploaded = parseMindroomLongTextJsonSidecar(
+      await (mx.uploadContent.mock.calls[0][0] as Blob).text()
+    );
+    expect(uploaded).toMatchObject({
+      msgtype: 'm.text',
+      body: longBody,
+      'm.mentions': mentions,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    });
+
+    // The event is a preview that points at the file and keeps the routing.
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    const sent = mx.sendMessage.mock.calls[0][1] as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      msgtype: 'm.file',
+      url: 'mxc://mindroom/sidecar',
+      'm.mentions': mentions,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    expect(sent.body).toMatch(/^word word /);
+    expect(sent.body).toMatch(/\[Message continues in attached file\]$/);
+    expect(new TextEncoder().encode(JSON.stringify(sent)).length).toBeLessThan(10_000);
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+  });
+
+  it('sends a message that fits one event as it is', async () => {
+    const { api, mx } = renderHarness();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'short' } });
+    });
+
+    expect(mx.uploadContent).not.toHaveBeenCalled();
+    expect(mx.sendMessage.mock.calls[0][1]).toEqual({ msgtype: 'm.text', body: 'short' });
+  });
+
+  it('returns a long message to the composer when its file upload fails', async () => {
+    const { api, mx, editor } = renderHarness();
+    mx.uploadContent.mockRejectedValueOnce(new Error('offline'));
+    const composed = structuredClone(editor.children);
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: longBody } });
+    });
+
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, composed);
+    expect(api.hasActiveSendSession()).toBe(false);
   });
 });
 

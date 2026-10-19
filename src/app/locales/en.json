@@ -2678,6 +2678,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI is responding"
       },
+      "stopButton": {
+        "label": "Stop",
+        "tooltip": "Stop this reply"
+      },
       "threadApprovalControls": {
         "callCount_one": "{{count}} call",
         "callCount_other": "{{count}} calls",
