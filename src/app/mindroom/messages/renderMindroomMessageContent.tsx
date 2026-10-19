@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
+import { Box, Icon, Icons } from 'folds';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { getEventAttachmentOwner } from './eventAttachments';
@@ -28,7 +29,7 @@ import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolAp
 import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
-import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
+import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../ui-actions/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
 import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
@@ -413,10 +414,21 @@ export const renderMindroomMessageContent = ({
       typeof uiAction === 'object' &&
       (uiAction as Record<string, unknown>).action === 'show_canvas';
     if (mEvent && uiAction && (!edited || editableUiAction)) {
+      // The body of a canvas request tells other Matrix clients to open MindRoom Chat; Chat names the canvas.
+      const canvasTitle = fromMindroomAgent ? readCanvasNoticeTitle(content) : undefined;
       return (
         <MNotice
           content={content}
-          renderBody={renderBody(content)}
+          renderBody={
+            canvasTitle
+              ? () => (
+                  <Box as="span" alignItems="Center" gap="200" data-canvas-notice-title>
+                    <Icon size="100" src={Icons.Category} />
+                    <span>{canvasTitle}</span>
+                  </Box>
+                )
+              : renderBody(content)
+          }
           renderAfterBody={<ChatUiActionButton event={mEvent} />}
         />
       );

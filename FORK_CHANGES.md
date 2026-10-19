@@ -14,6 +14,79 @@
 - Validation: notification unit tests, the full `npm test` (the 3 `xcodeCloudPostClone` tests fail on this host only), typecheck, ESLint and Prettier on the changed files.
   A temporary Playwright spec against a local Tuwunel had an agent post a root and a streamed reply while the viewer watched the overview, then open the thread: on `dev` the sidebar kept "1" with the sync's main count at 1; with the change a main receipt followed the thread receipt and the badge cleared (2 of 2 runs).
 
+### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
+
+- Problem: with the Invite dialog's suggestions open, the third row looked highlighted while the cursor and the keyboard choice were on the first (demo recording bring-the-team-in, 5-20 s).
+  The lavender band was the dialog's own Invite button showing through the list, which uses the 60 % menu tint; the option Enter or Tab picks (`aria-selected`, moved with the arrow keys) had no fill at all, because the Folds menu row only fills on hover, keyboard focus and `aria-pressed`, and DOM focus stays in the input.
+- Fix: `InviteAutocompleteOption` fills `aria-selected` rows with the Surface hover color, and the list uses the existing `glassDenseOverBackdrop` tint (94 %, 90 % in dark themes) because it covers the dialog's controls.
+  While the input holds a valid MXID no option is marked (no fill, no `aria-activedescendant`), because Enter then invites the typed MXID, not a suggestion.
+  The list still extends past the dialog (CINNY-217); that is intended, so long lists are not clipped.
+- Tests: `dialog-menu-glass.spec.ts` checks that the invite list is tinted at least 90 % and that only the selected option is filled, in both themes and in Chromium and WebKit; each check fails without its half of the change.
+  `InviteUserAutocomplete.test.tsx` checks that `aria-selected` follows the arrow keys and that a typed MXID marks no suggestion while Enter still submits it (the latter fails without the gate).
+
+### Drop "Load Older Messages" from a thread whose cached copy reaches the root (2026-10-18)
+
+- Why: the demo recordings showed "Load Older Messages" above brand-new two-message threads opened from the room overview (morning-brief, remind-me, whole-team-one-thread).
+- Cause: when the thread's IndexedDB snapshot is complete and finishes loading before the SDK bootstrap, `useThreadSession` takes its complete-cache branch, which cleared the SDK's backward cursor only for a relations-proven snapshot.
+  That cursor came from `Thread.initialize()`'s first recursive `/relations` page, and Tuwunel returns `next_batch` with every non-empty page, so it was always set and kept the chip.
+  When the bootstrap finished first, `refreshLatestThreadSlice` fetched the next, empty page and cleared it, so the chip depended on which read won.
+- Change (`useThreadSession.ts`): the complete-cache branch reconciles the cursor with the cached page through `reconcileCachedThreadBackwardToken`, as the partial-cache path does, with the page's start known.
+  The cursor stays when the SDK holds replies older than the cached page; the open-time reconcile still repairs a snapshot whose reply count was wrong.
+- Tests: `threadSession.test.tsx` covers a count-proven complete page clearing the cursor (fails without the change) and a page that starts after the SDK's replies keeping it.
+- Validation: thread unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel opened a streamed two-message thread from the overview with `/relations` delayed by 3 s so the cache won: the chip showed in 3 of 3 runs on `dev` and in 0 of 3 with the change.
+
+### Fit the invited count in the Members header at the default width (2026-10-18)
+
+- Problem: in a room with a pending invite, the Members drawer header read "4 Me… · 1 / Invited" at the drawer's default 266 px width (demo recording bring-the-team-in): the member count was truncated and the invited chip wrapped onto two lines.
+  The header holds the count, the "·", the chip and two 40 px buttons; at 266 px the counts get 146 px but need about 181. The pending-invites change (2026-10-01) was not checked in a running client, and the live glass spec widens the drawer to 380 px.
+- Fix: the invited chip moves under the member count, without the "·"; the chip keeps its button and click, loses its inline inset so its label lines up with the count, and truncates instead of wrapping. The header height is unchanged (54 px holds both lines).
+  Both labels are capped at the column's width, since a column sizes them to their text and they would otherwise run under the buttons instead of truncating (at the 200 px minimum width the count now ends in an ellipsis; on `dev` it was squeezed to 0 px).
+- Tests: `e2e/live/members-header-glass.spec.ts` resets the drawer to its default width and checks that neither "29 Members" nor "1 Invited" is truncated or reaches the buttons, then narrows it to 200 px and checks that the count stays clear of the buttons.
+  It fails on `dev` ("29 Members is not truncated") and, without the width cap, at the narrow check; it passes in Chromium and WebKit, both themes.
+
+### Give `[+all]` its own glass (2026-10-18)
+
+- Why: in the demo recordings, the `[+all]` expand-all toggle at the top right of a thread was printed over the timestamp of whichever message had scrolled under it.
+  The toggle sits in the clear band below the sticky thread banner (below the room header and overview in room view), where rows keep scrolling; #261 kept it there so it stays reachable.
+  It was bare text without a surface, the only floating timeline control without one (Jump to Latest, Show more/less and the pagination chips use the control glass).
+- Change: `useTimelineMessageExpansion.tsx` gives the toggle the shared floating control material (`glassSurface` control / `SurfaceVariant` plus `glassFloating`), a small padding and the `R300` radius; its label and right edge are unchanged.
+  It moves up 4 px so the chip ends where the bare label did, inside the clear band, and does not reach the first message at the top of a thread, even with tight message spacing.
+  A row under it is now blurred and tinted behind the label instead of interleaving with it.
+  The label's 70% opacity is gone, because it would also have thinned the glass.
+- Residual: the chip keeps the toggle's old place, which is not aligned with the timestamp column (it ends 8 px short of it in a thread and covers all but its first 4 px in the room view), so a timestamp lined up with the chip can still show a sliver beside it, as content shows beside any floating chrome.
+- Tests: `thread-banner-overlay.spec.ts` checks, while reading history, that rows pass under `[+all]` and that it has a 3 px backdrop blur and a non-transparent background; on `dev` it fails at both viewports with `backdrop-filter: none`.
+
+### Approval review says "Submitted" once per call (2026-10-18)
+
+- Why: after approving a call, the approval review showed "Submitted. Waiting for room update." twice, under the call and again at the foot of its group (seen in the demo recordings).
+  The call's own `ApprovalDecisionControls` and the group's footer in `ApprovalReviewGroup` have both rendered it since the timed approval controls landed (`36cfdbcd`).
+- Change (`ThreadApprovalControls.tsx`): the group's footer status shows only while the calls are folded behind "Show N calls", where no call can say it.
+  A listed call already does: both use `isApprovalPending` with the same action state.
+- Tests: `ThreadApprovalControls.test.tsx` counts the status for one submitted call, two listed submitted calls, and three folded calls with one submitted; the first two fail without the change.
+- Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
+  A temporary Playwright spec against a local Tuwunel opened the review for one pending `rollback_deploy` call, approved it, and found the status once in light and dark (twice on `dev`).
+
+### List only users that contain the invite search, not near misses (2026-10-18)
+
+- Problem: searching "tom" in the Invite dialog listed "8 matching users": Tom Becker, then Omar Haddad, Julia Santos and the agents Counsel, Euler, Forge, Ledger and Quill.
+  None of the others contains "tom"; the homeserver's directory search returns only `@tom` for that term (checked against Tuwunel), so they came from Chat's own ranking.
+- Root cause: `rankUsers` ranks the cached user directory with Fuse at threshold 0.4, which lets a three-letter query differ by one character ("om" in Omar, "tos" in Santos, "rom" in every `mindroom_` localpart).
+  The CINNY-216 tiers already put these fuzzy-only matches last, but the list still filled its eight slots with them.
+- Fix: once at least one user contains the query (tier below the fuzzy-only tier), fuzzy-only matches are left out; when nobody contains it, they are still listed, so a typo such as "alcie" still finds Alice.
+- Tests: `userDirectorySearch.test.ts` checks that "tom" lists only Tom, that "alice" no longer lists "Elise Example", that a post-prefix hit drops a fuzzy display-name match, and that a typo still finds its user; the first three fail before the change.
+
+### Reply quotes name mentioned members (2026-10-18)
+
+- Report (demo review C2): a quoted reply read "↩ Forge @mindroom_quill:matrix.localhost Signups failed…" while the quoted message itself showed an `@Quill` pill.
+- Root cause: MindRoom agents write mentions as full Matrix IDs in the plain body (`_entity_mention_resolution_from_user_id` in the backend's `matrix/mentions.py`); only the formatted body carries the pill.
+  Reply quotes and the composer's reply bar preview the plain body through `getLocalizedThreadMessagePreviewText`, and only compact thread cards replaced Matrix IDs with display names afterwards.
+- Change: `replaceMatrixUserIdsWithDisplayNames` moves from `compactThreadCardViewModel.ts` to `threadMessagePreview.ts` with an optional prefix, and the new `getReplyPreviewText` gives `Reply` and `RoomInputReplyPreview` the preview with room members shown as `@<display name>`, as the pill reads.
+  Both compute it on every render rather than memoizing it, so names of lazily loaded members appear on the next render; the body analysis stays cached.
+  Matrix IDs of non-members stay raw, as on thread cards, which keep their bare names.
+- Unchanged by design: the `🔧 3 tools ·` badge and a table's cells set apart by middle dots in the same quote come from the shared preview formatter (#307 and "Compact view previews" below).
+- Tests: `Reply.test.tsx` renders a quoted agent hand-off with two member mentions (one followed by a comma) and a non-member mention; it fails on `dev`.
+- Next: none.
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
@@ -39,6 +112,30 @@
   The full browser run passed 437 cases with 12 platform skips; the Computers worker test is blocked without the external `E2E_COMPUTER_FIXTURE`.
 - Next: await App Review and address any Apple feedback; publication is automatic after approval.
   Fix #463 so the offline cache spec can click the folded-message button.
+
+### Name a canvas by its title instead of the other-client fallback (2026-10-18)
+
+- Why: the demo recordings showed every canvas in the timeline as "Interactive panel: Q4 launch review: pick a time. Open it in MindRoom Chat to respond." above **Open canvas**, and the answer's reply quote repeated it.
+  That body is MindRoom's fallback for other Matrix clients; Chat rendered it for its own canvases too, telling the user to open the app they were in.
+- Change: `readCanvasNoticeTitle` (`chatUiProtocol.ts`) reads the title of a `show_canvas` notice (version 1, a valid canvas).
+  The timeline shows a canvas notice from a MindRoom agent as the panel icon and its title, with the existing button below (`data-canvas-notice-title`).
+  Any sender can write the UI-action key, so a notice from anyone else keeps its body, as approval cards do.
+  Previews (reply quotes, thread cards and lists, the minimap) name a canvas by its title, an update by its new one.
+  So does the composer's reply bar: the reply draft carries the title as plain `previewText` (`roomInputDrafts.ts`, `roomTimelineReplyDraft.ts`), which `RoomInputReplyPreview` shows without a Markdown preview, naming members as the sent quote does, so titles such as `1. Pick a time` or `---` stay as written.
+  Other viewers in the room see the title without the button; other Matrix clients still see the fallback.
+  No new strings.
+- Tests: `chatUiProtocol.test.ts` (title for any requester, an update's title, no title for other actions, version 2, a blank title, or a non-notice), `renderMindroomMessageContent.test.ts` (an agent's canvas shows its title, not the fallback; another sender's keeps the body), `threadMessagePreview.test.ts` (a canvas and an update are previewed by title).
+  `roomTimelineReplyDraft.test.ts` checks the draft keeps the body and carries the title (the file is now Prettier-formatted).
+  `RoomInputReplyPreview.test.tsx` checks the rendered reply bar shows `1. Pick a time` and `---` as written, names a member in a title as the quote does, and still previews a body without its Markdown.
+  The renderer, preview, and reply-bar tests fail without the change.
+  `e2e/agent-canvas.spec.ts` checks the timeline names the canvas and shows no fallback, and finds the reloaded canvases by title.
+- Independent review (subagent): changes required for the composer's reply bar, which built its preview from the draft's body alone and still showed the fallback; fixed in the draft.
+  Accepted: previews cannot see the sender, so a canvas-shaped notice from a non-agent shows its body in the timeline but its title in previews (the sender wrote both); message search still matches and shows the body.
+  PR #467 review round 1 at `98fcc8d5`: Opus approved; Sol and Astra required changes because the reply bar ran the title, put in the draft's body, through the Markdown preview (`1. Pick a time` read "Pick a time", `---` showed nothing); fixed with `previewText` above.
+  Round 2 at `e4491c8e`: Sol and Astra approved; Opus found that the reply bar then skipped naming members (#464), so a title with `@alice:server` read differently from the quote; the bar now names members in `previewText` too.
+  Qodo (PR #467), declined: gating previews by sender (the sender writes both strings; previews have no sender), and reading the title through `replacingEvent()` as the button does (the timeline's `getEditedEvent` already rejects other senders' edits, and `replacingEvent()` misses an edit that lands on another copy of the event).
+- Validation: `npm run typecheck`, eslint and Prettier on changed files, the affected unit suites, and `e2e/agent-canvas.spec.ts` and `agent-canvas-list.spec.ts` in Chromium against a disposable Tuwunel.
+  A probe (not committed) captured the timeline, the reply quote, and the reply bar before and after.
 
 ### Accept all Primary invites at once (2026-10-14)
 
