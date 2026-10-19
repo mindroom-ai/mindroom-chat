@@ -43,11 +43,15 @@ export const getThreadReadState = (
   // known only through the bundled summary. Resolve those receipt IDs here too.
   const readUpToId = thread.getEventReadUpTo(userId);
   const readEventIds = new Set([readUpToId]);
+  const receiptTs = new Map<string, number>();
   for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
     // A retained local echo can mask a newer server receipt outside the timeline.
     for (const ignoreSynthesized of [false, true]) {
       const receipt = thread.getReadReceiptForUserId(userId, ignoreSynthesized, receiptType);
-      if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
+      if (receipt && receipt.data.thread_id === thread.id) {
+        readEventIds.add(receipt.eventId);
+        receiptTs.set(receipt.eventId, receipt.data.ts);
+      }
     }
   }
   let readUpToTs = thread.getLastUnthreadedReceiptFor(userId)?.ts;
@@ -56,9 +60,12 @@ export const getThreadReadState = (
     if (!eventId) continue;
     const event = findThreadReceiptEvent(thread, eventId);
     // Preserve the SDK's consistency check for raw receipt targets.
-    if (!event || (eventId !== readUpToId && event.threadRootId !== thread.id)) continue;
+    if (event && eventId !== readUpToId && event.threadRootId !== thread.id) continue;
+    // A receipt for this thread on an event it does not hold, such as a reply's terminal edit
+    // after a reload, still reads up to when it was sent.
+    const eventTs = event ? event.getTs() : receiptTs.get(eventId);
+    if (eventTs === undefined) continue;
     validReadEventIds.add(eventId);
-    const eventTs = event.getTs();
     if (readUpToTs === undefined || eventTs > readUpToTs) {
       readUpToTs = eventTs;
     }

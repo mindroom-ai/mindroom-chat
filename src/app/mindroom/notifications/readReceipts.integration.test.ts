@@ -147,6 +147,20 @@ describe('thread receipt unread state with SDK models', () => {
     );
   });
 
+  it('reads a thread whose receipt is on a terminal edit it no longer holds', async () => {
+    const { room, thread } = await setupRoom();
+    // After a reload an unopened thread holds only its summary reply, not that reply's edits.
+    room.addReceipt(
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: ROOM_ID,
+        content: { $edit: { [ReceiptType.Read]: { [USER_ID]: { thread_id: '$root', ts: 3500 } } } },
+      })
+    );
+
+    expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+  });
+
   it('preserves unread thread replies when only the main timeline is read', async () => {
     const { mx, room, thread } = await setupRoom();
 

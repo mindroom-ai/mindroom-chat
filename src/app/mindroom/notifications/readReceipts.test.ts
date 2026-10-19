@@ -106,12 +106,12 @@ describe('markThreadAsRead', () => {
     }
   );
 
-  const makeStreamedReply = (streamStatus?: string) => {
-    const reply = makeThreadReplyEvent('$reply', 2);
+  const makeStreamedReply = (streamStatus?: string, id = '$reply', ts = 2, editTs = 3) => {
+    const reply = makeThreadReplyEvent(id, ts);
     const edit = new MatrixEvent({
-      ...makeMessageEvent('$edit', 3).event,
+      ...makeMessageEvent(id === '$reply' ? '$edit' : `${id}-edit`, editTs).event,
       content: {
-        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: id },
         'm.new_content': {
           msgtype: 'm.text',
           body: 'Updated reply',
@@ -177,6 +177,19 @@ describe('markThreadAsRead', () => {
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
     expect(mx.sendReceipt).toHaveBeenCalledWith(edit, ReceiptType.Read, { thread_id: THREAD_ID });
+  });
+
+  it('breaks a timestamp tie between terminal edits by timeline order', async () => {
+    const first = makeStreamedReply('completed', '$a', 2, 2);
+    const second = makeStreamedReply('completed', '$b', 2, 2);
+    const events = [first.reply, second.reply, first.edit, second.edit];
+    const mx = makeClient(makeThreadRoom(events, '$b'));
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(second.edit, ReceiptType.Read, {
+      thread_id: THREAD_ID,
+    });
   });
 
   it('targets the reply when its terminal edit is not in the thread timeline', async () => {
