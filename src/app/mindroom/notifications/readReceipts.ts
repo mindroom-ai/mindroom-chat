@@ -61,7 +61,14 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
     summaryReply && (!loadedReply || summaryReply.getTs() >= loadedReply.getTs())
       ? summaryReply
       : loadedReply;
-  return reply && (getTerminalStreamEdit(reply) ?? reply);
+  if (!reply) return undefined;
+  // Any reply, not only the latest, can finish streaming last. Only edits in the thread's
+  // timeline count: read state resolves receipts against those events.
+  const loadedIds = new Set(thread.events.map((event) => event.getId()));
+  return thread.events.reduce((target, event) => {
+    const edit = isEligible(event) ? getTerminalStreamEdit(event) : undefined;
+    return edit && loadedIds.has(edit.getId()) && edit.getTs() > target.getTs() ? edit : target;
+  }, reply);
 };
 
 const getLatestThreadReplyTarget = async (

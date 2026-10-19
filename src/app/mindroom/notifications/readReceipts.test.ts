@@ -167,6 +167,25 @@ describe('markThreadAsRead', () => {
     expect(mx.sendReceipt).not.toHaveBeenCalled();
   });
 
+  it('acknowledges an earlier reply that finishes streaming after a later reply', async () => {
+    const { reply, edit } = makeStreamedReply('completed');
+    const laterReply = makeThreadReplyEvent('$later', 2.5);
+    const mx = makeClient(makeThreadRoom([reply, laterReply, edit], '$later'));
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(edit, ReceiptType.Read, { thread_id: THREAD_ID });
+  });
+
+  it('targets the reply when its terminal edit is not in the thread timeline', async () => {
+    const { reply } = makeStreamedReply('completed');
+    const mx = makeClient(makeThreadRoom([reply]));
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(reply, ReceiptType.Read, { thread_id: THREAD_ID });
+  });
+
   it('does not fetch relations or send a receipt for a local thread id', async () => {
     const room = makeRoom([]);
     const mx = makeClient(room);
