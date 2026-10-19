@@ -132,16 +132,16 @@ describe('getThreadMessagePreviewText', () => {
       '$$f \\approx \\frac{\\pi K w^2}{P_h \\, (dn/dT)}$$\n\n' +
       'With $P_h = 0.3 \\times 40\\,\\text{W}$ and $dn/dT = 7.3\\times10^{-6}\\,\\text{K}^{-1}$:';
     expect(getThreadMessagePreviewText(textContent(body))).toBe(
-      'Using the standard estimate for a uniformly pumped rod: f ≈ (π K w²)/(P_h (dn/dT)) ' +
-        'With P_h = 0.3 × 40 W and dn/dT = 7.3×10⁻⁶ K⁻¹:'
+      'Using the standard estimate for a uniformly pumped rod: f ≈ (π K w^2)/(P_h (dn/dT)) ' +
+        'With P_h = 0.3 × 40 W and dn/dT = 7.3×10^-6 K^-1:'
     );
   });
 
   it.each([
-    ['$\\sqrt{x^{n}} \\le \\frac{\\frac{a}{b}}{c}$', '√(xⁿ) ≤ (a/b)/c'],
-    ['$e^{i\\theta} \\mathbf{v}$', 'e^(iθ) v'],
+    ['$\\sqrt{x^{n}} \\le \\frac{\\frac{a}{b}}{c}$', '√(x^n) ≤ (a/b)/c'],
+    ['$\\theta \\mathbf{v}$', 'θ v'],
     ['$\\left(a\\right) \\\\ \\unknown$', '(a) unknown'],
-    ['$\\frac{a}{b}^2 + x_{i+1} + \\sqrt{\\sqrt{y}}$', '(a/b)² + x_(i+1) + √(√y)'],
+    ['$\\sqrt{\\sqrt{y}}$', '√(√y)'],
     ['$5\\% \\in \\{a, b\\} \\toString$', '5% ∈ a, b toString'],
   ])('reads %s as text', (body, preview) => {
     expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);

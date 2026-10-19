@@ -6,10 +6,11 @@
 
 - Why: the demo recordings (explore-the-fit, fit-the-ringdown) showed a thread card's preview as raw LaTeX: "Euler: Using the standard thermal-lens estimate for a uniformly pumped rod: $$f \approx \frac{\pi K…".
 - Cause: `threadMessagePreview.ts` strips markdown syntax from the body for one-line previews, but left `$…$` and `$$…$$` math as source, while the message itself renders it with KaTeX.
-- Change: before stripping markdown, the preview finds math with the renderer's own tokenizer (`tokenizeTextWithLatex`, so prices, code spans and fences stay as written) and rewrites each formula as typed text: `\frac{a}{b}` as `a/b` (parenthesized when needed, nested fractions too, grouped when raised to a power), `\sqrt{x}` as `√x`, a grouped subscript such as `x_{i+1}` as `x_(i+1)`, Greek letters and common operators as their symbols, digit and sign exponents as superscripts, spacing commands as spaces, and commands with an argument (`\text{W}`, `\mathbf{v}`) as the argument.
-  The demo preview now reads "f ≈ (π K w²)/(P_h (dn/dT)) With P_h = 0.3 × 40 W …".
-- Tests: `threadMessagePreview.test.ts` covers the demo body, nested fractions and roots, a fraction's power, a grouped subscript, other exponents, unknown commands, and prices and code spans with `$` left alone; the math cases fail without the change.
-- Validation: thread, message and room-input unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel captured the compact card for the demo reply at 1920 px, showing `$$f \approx \frac{\pi K…` on `dev` and `f ≈ (π K w²)/(P_h (dn/dT…` with the change.
+- Change: before stripping markdown, the preview finds math with the renderer's own tokenizer (`tokenizeTextWithLatex`, so prices, code spans and fences stay as written) and rewrites each formula as typed text: `\frac{a}{b}` as `a/b` (parenthesized when needed, nested fractions too), `\sqrt{x}` as `√x`, Greek letters and common operators as their symbols, spacing commands as spaces, and commands with an argument (`\text{W}`, `\mathbf{v}`) as the argument.
+  Exponents and subscripts stay as typed (`w^2`, `P_h`).
+  The demo preview now reads "f ≈ (π K w^2)/(P_h (dn/dT)) With P_h = 0.3 × 40 W …".
+- Tests: `threadMessagePreview.test.ts` covers the demo body, nested fractions and roots, commands with an argument, `\left`/`\right`, unknown commands, escaped characters, and prices and code spans with `$` left alone; the math cases fail without the change.
+- Validation: thread, message and room-input unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel captured the compact card for the demo reply at 1920 px, showing `$$f \approx \frac{\pi K…` on `dev` and `f ≈ (π K w²)/(P_h (dn/dT…` with the change (before exponents were left as typed).
 
 ### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
 

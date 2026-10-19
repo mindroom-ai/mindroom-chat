@@ -134,20 +134,13 @@ export const stripPreviewMarkdown = (value: string): string =>
 
 // LaTeX commands a one-line preview shows as their Unicode symbol.
 const LATEX_PREVIEW_SYMBOLS = new Map(
-  (
-    'alpha α beta β gamma γ delta δ epsilon ε varepsilon ε zeta ζ eta η theta θ iota ι kappa κ ' +
-    'lambda λ mu μ nu ν xi ξ pi π rho ρ sigma σ tau τ phi φ varphi φ chi χ psi ψ omega ω ' +
-    'Gamma Γ Delta Δ Theta Θ Lambda Λ Pi Π Sigma Σ Phi Φ Psi Ψ Omega Ω approx ≈ sim ∼ ' +
-    'times × cdot · pm ± le ≤ leq ≤ ge ≥ geq ≥ ne ≠ neq ≠ propto ∝ infty ∞ to → ' +
-    'rightarrow → Rightarrow ⇒ sum ∑ prod ∏ int ∫ partial ∂ nabla ∇ in ∈ degree ° ldots …'
-  )
+  `alpha α beta β gamma γ delta δ epsilon ε varepsilon ε zeta ζ eta η theta θ iota ι kappa κ
+    lambda λ mu μ nu ν xi ξ pi π rho ρ sigma σ tau τ phi φ varphi φ chi χ psi ψ omega ω
+    Gamma Γ Delta Δ Theta Θ Lambda Λ Pi Π Sigma Σ Phi Φ Psi Ψ Omega Ω approx ≈ sim ∼
+    times × cdot · pm ± le ≤ leq ≤ ge ≥ geq ≥ ne ≠ neq ≠ propto ∝ infty ∞ to →
+    rightarrow → Rightarrow ⇒ sum ∑ prod ∏ int ∫ partial ∂ nabla ∇ in ∈ degree ° ldots …`
     .match(/\S+ \S+/g)!
     .map((pair) => pair.split(' ') as [string, string])
-);
-const SUPERSCRIPTS = new Map(
-  [...'0⁰1¹2²3³4⁴5⁵6⁶7⁷8⁸9⁹+⁺-⁻nⁿ'].flatMap((char, index, chars) =>
-    index % 2 === 0 ? [[char, chars[index + 1]] as const] : []
-  )
 );
 // A braced argument with at most one nested group, enough for \frac{a^{2}}{b}.
 const LATEX_ARG = String.raw`\{((?:[^{}]|\{[^{}]*\})*)\}`;
@@ -157,56 +150,34 @@ const LATEX_ROOT = new RegExp(String.raw`\\sqrt\s*${LATEX_ARG}`, 'g');
 const groupLatexArg = (arg: string): string =>
   /^[\w.\\]+$/.test(arg.trim()) ? arg.trim() : `(${arg.trim()})`;
 
-const toSuperscript = (exponent: string): string =>
-  [...exponent].every((char) => SUPERSCRIPTS.has(char))
-    ? [...exponent].map((char) => SUPERSCRIPTS.get(char)).join('')
-    : `^${exponent.length > 1 ? `(${exponent})` : exponent}`;
-
-// A one-line preview cannot typeset, so read a formula the way it would be typed as text:
-// f \approx \frac{\pi K w^2}{P_h} becomes f ≈ (π K w²)/P_h.
-const latexToPreviewText = (latex: string): string => {
-  let text = latex;
-  // One pass per nesting level of fractions and roots.
-  for (let pass = 0; pass < 10; pass += 1) {
-    const next = text
+// Reads a formula as typed text for a one-line preview: \frac{\pi K}{P_h} becomes (π K)/P_h,
+// \text{W} becomes W and \% becomes %. Fractions and roots resolve one nesting level per pass.
+const latexToPreviewText = (text: string): string => {
+  for (let pass = 0, previous = ''; pass < 10 && text !== previous; pass += 1) {
+    previous = text;
+    text = text
       .replace(
         LATEX_FRACTION,
-        (match: string, top: string, bottom: string, offset: number, source: string) => {
-          const fraction = `${groupLatexArg(top)}/${groupLatexArg(bottom)}`;
-          // A power of the whole fraction must not read as a power of its denominator.
-          return source[offset + match.length] === '^' ? `(${fraction})` : fraction;
-        }
+        (_, top: string, bottom: string) => `${groupLatexArg(top)}/${groupLatexArg(bottom)}`
       )
       .replace(LATEX_ROOT, (_, radicand: string) => `√${groupLatexArg(radicand)}`);
-    if (next === text) break;
-    text = next;
   }
-  return (
-    text
-      .replace(/\\(?:[,;:! \\]|q?quad\b)|~/g, ' ')
-      .replace(/\\(?:left|right)\b/g, '')
-      // A command taking an argument, such as \text{W} or \mathbf{x}, keeps only the argument.
-      .replace(
-        /\\([A-Za-z]+)(\{)?/g,
-        (_, name: string, brace?: string) => brace ?? LATEX_PREVIEW_SYMBOLS.get(name) ?? name
-      )
-      .replace(/\^\{([^{}]*)\}|\^(\S)/g, (_, braced?: string, single?: string) =>
-        toSuperscript((braced ?? single ?? '').trim())
-      )
-      .replace(/_\{([^{}]*)\}/g, (_, subscript: string) => `_${groupLatexArg(subscript)}`)
-      // Escaped characters such as \% keep only the character.
-      .replace(/[{}]|\\/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  );
+  return text
+    .replace(/\\(?:[,;:! \\]|q?quad\b)|~/g, ' ')
+    .replace(/\\(?:left|right)\b/g, '')
+    .replace(
+      /\\([A-Za-z]+)(\{)?/g,
+      (_, name: string, brace?: string) => brace ?? LATEX_PREVIEW_SYMBOLS.get(name) ?? name
+    )
+    .replace(/[{}]|\\/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 const replacePreviewMath = (text: string): string =>
   text.includes('$')
     ? tokenizeTextWithLatex(text)
-        .map((segment) =>
-          segment.type === 'math' ? latexToPreviewText(segment.content) : segment.content
-        )
+        .map((part) => (part.type === 'math' ? latexToPreviewText(part.content) : part.content))
         .join('')
     : text;
 
