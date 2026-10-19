@@ -126,6 +126,31 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent('hello there'))).toBe('hello there');
   });
 
+  it('reads display and inline math as text', () => {
+    const body =
+      'Using the standard estimate for a uniformly pumped rod:\n\n' +
+      '$$f \\approx \\frac{\\pi K w^2}{P_h \\, (dn/dT)}$$\n\n' +
+      'With $P_h = 0.3 \\times 40\\,\\text{W}$ and $dn/dT = 7.3\\times10^{-6}\\,\\text{K}^{-1}$:';
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(
+      'Using the standard estimate for a uniformly pumped rod: f ≈ (π K w²)/(P_h (dn/dT)) ' +
+        'With P_h = 0.3 × 40 W and dn/dT = 7.3×10⁻⁶ K⁻¹:'
+    );
+  });
+
+  it.each([
+    ['$\\sqrt{x^{n}} \\le \\frac{\\frac{a}{b}}{c}$', '√(xⁿ) ≤ (a/b)/c'],
+    ['$e^{i\\theta} \\mathbf{v}$', 'e^(iθ) v'],
+    ['$\\left(a\\right) \\\\ \\unknown$', '(a) unknown'],
+  ])('reads %s as text', (body, preview) => {
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
+  });
+
+  it('leaves prices and code spans with dollar signs alone', () => {
+    expect(
+      getThreadMessagePreviewText(textContent('Hotels $250 a night, meals $75; run `echo $HOME`'))
+    ).toBe('Hotels $250 a night, meals $75; run echo $HOME');
+  });
+
   it('strips markdown from the body preview', () => {
     expect(
       getThreadMessagePreviewText(textContent('**Nightly run for 2026-07-02** ✅ — 3 meetings'))
