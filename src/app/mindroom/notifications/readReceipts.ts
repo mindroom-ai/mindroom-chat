@@ -62,12 +62,14 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
       ? summaryReply
       : loadedReply;
   if (!reply) return undefined;
-  // Any reply, not only the latest, can finish streaming last. Only edits in the thread's
-  // timeline count: read state resolves receipts against those events.
-  const loadedIds = new Set(thread.events.map((event) => event.getId()));
+  // Any reply, not only the latest, can finish streaming last. Only an edit held in the thread's
+  // timeline counts: read state resolves receipts against those events, and the SDK derives the
+  // receipt's thread from the instance (a bundled copy has none, so it would go to `main`).
+  const loaded = new Map(thread.events.map((event) => [event.getId(), event]));
   return thread.events.reduce((target, event) => {
-    const edit = isEligible(event) ? getTerminalStreamEdit(event) : undefined;
-    return edit && loadedIds.has(edit.getId()) && edit.getTs() > target.getTs() ? edit : target;
+    const editId = isEligible(event) ? getTerminalStreamEdit(event)?.getId() : undefined;
+    const edit = editId ? loaded.get(editId) : undefined;
+    return edit?.threadRootId === thread.id && edit.getTs() > target.getTs() ? edit : target;
   }, reply);
 };
 

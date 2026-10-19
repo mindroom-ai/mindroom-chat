@@ -119,6 +119,8 @@ describe('markThreadAsRead', () => {
         },
       },
     });
+    // The SDK attaches an edit to its thread when it enters the thread's timeline.
+    edit.setThreadId(THREAD_ID);
     reply.makeReplaced(edit);
     return { reply, edit };
   };

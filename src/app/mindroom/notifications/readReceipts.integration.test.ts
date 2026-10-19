@@ -115,6 +115,38 @@ describe('thread receipt unread state with SDK models', () => {
     expect(requests).not.toHaveBeenCalled();
   });
 
+  it('acknowledges a summary reply in its thread when only a bundled edit finished it', async () => {
+    const { mx, thread, requests } = await setupRoom();
+    // A bundled edit is a copy outside the thread's timeline, so the SDK knows no thread for it.
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: ROOM_ID,
+      sender: '@bob:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 3500,
+      content: {
+        msgtype: 'm.text',
+        body: '* done',
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'done',
+          'io.mindroom.stream_status': 'completed',
+        },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
+      },
+    });
+    thread.replyToEvent!.makeReplaced(edit);
+
+    await markThreadAsRead(mx, ROOM_ID, '$root', false);
+
+    expect(requests).toHaveBeenCalledWith(
+      'POST',
+      `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${ReceiptType.Read}/%24reply`,
+      undefined,
+      { thread_id: '$root' }
+    );
+  });
+
   it('preserves unread thread replies when only the main timeline is read', async () => {
     const { mx, room, thread } = await setupRoom();
 
