@@ -49,13 +49,31 @@ describe('rankUsers', () => {
     ]);
   });
 
-  it('ranks exact matches above prefixes, contains matches, and fuzzy-only matches', () => {
+  it('ranks exact matches above prefixes and contains matches, leaving out fuzzy-only matches', () => {
+    // "Elise Example" only resembles "alice"; it is not listed while other users contain the query.
     expect(rankUsers(users, 'alice').map((user) => user.userId)).toEqual([
       '@alice:example.org',
       '@alicea:example.org',
       '@malice:example.org',
-      '@elise:example.org',
     ]);
+  });
+
+  it('lists only users that contain a short query, not ones a typo away from it', () => {
+    const results = rankUsers(
+      [
+        { userId: '@tom:example.org', displayName: 'Tom Becker' },
+        { userId: '@omar:example.org', displayName: 'Omar Haddad' },
+        { userId: '@julia:example.org', displayName: 'Julia Santos' },
+        { userId: '@mindroom_quill:example.org', displayName: 'Quill' },
+      ],
+      'tom'
+    ).map((user) => user.userId);
+
+    expect(results).toEqual(['@tom:example.org']);
+  });
+
+  it('falls back to fuzzy matches when no user contains the query', () => {
+    expect(rankUsers(users, 'alcie').map((user) => user.userId)).toContain('@alice:example.org');
   });
 
   it('ranks exact localpart and MXID matches above weak display-name matches', () => {
@@ -216,13 +234,10 @@ describe('rankUsers with shared-prefix agent localparts', () => {
     expect(results).toEqual([agentUserId('mind'), '@mind:mindroom.example.org']);
   });
 
-  it('keeps weak fuzzy display-name matches below post-prefix localpart hits', () => {
+  it('leaves out weak fuzzy display-name matches when a post-prefix localpart contains the query', () => {
     const results = rankUsers([...bareAgents, ...humans], 'sarro').map((user) => user.userId);
 
-    expect(results[0]).toBe(agentUserId('sarro'));
-    expect(results.indexOf('@sara:mindroom.example.org')).toBeGreaterThan(
-      results.indexOf(agentUserId('sarro'))
-    );
+    expect(results).toEqual([agentUserId('sarro')]);
   });
 });
 
@@ -253,7 +268,7 @@ describe('rankUsers with spaced queries', () => {
     // against its compacted form — so both rank tier 0; the compact user's
     // shorter-pattern Fuse score then breaks the tie ahead of the userId
     // comparison. Without dual-form ranking the compact user falls to the
-    // fuzzy-only tier and sorts last instead.
+    // fuzzy-only tier and is left out instead.
     expect(results).toEqual(['@compact:example.org', '@spaced:example.org']);
   });
 });

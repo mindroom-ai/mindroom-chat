@@ -47,3 +47,39 @@ it('shows compact readable tool summaries in replies and updates after an edit',
   expect(JSON.stringify(renderer.toJSON())).not.toContain('1 tool');
   act(() => renderer.unmount());
 });
+
+it('shows mentioned room members by display name, as their pills read', () => {
+  const event = new MatrixEvent({
+    event_id: '$handoff',
+    type: 'm.room.message',
+    sender: '@mindroom_forge:server',
+    content: {
+      msgtype: 'm.text',
+      // MindRoom agents write mentions as full Matrix IDs in the plain body.
+      body: '@mindroom_quill:server Signups failed after a bad deploy. Ask @priya:server, not @gone:elsewhere.',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<a href="https://matrix.to/#/@mindroom_quill:server">@Quill</a> Signups failed after a bad deploy.',
+    },
+  });
+  const names: Record<string, string> = {
+    '@mindroom_forge:server': 'Forge',
+    '@mindroom_quill:server': 'Quill',
+    '@priya:server': 'Priya Raman',
+  };
+  const room = {
+    findEventById: () => event,
+    getMember: (userId: string) =>
+      names[userId] ? { userId, rawDisplayName: names[userId] } : null,
+  } as unknown as Room;
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(<Reply room={room} replyEventId="$handoff" />);
+  });
+  const text = JSON.stringify(renderer.toJSON());
+  expect(text).toContain(
+    '@Quill Signups failed after a bad deploy. Ask @Priya Raman, not @gone:elsewhere.'
+  );
+  expect(text).not.toContain('@mindroom_quill:server');
+  act(() => renderer.unmount());
+});

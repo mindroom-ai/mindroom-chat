@@ -212,7 +212,12 @@ export const rankUsers = (
     });
   });
 
-  return Array.from(bestResultByUserId.values())
+  // Fuzzy-only hits stand in for a typo when no user contains the query. Once one does, they are
+  // noise: a three-letter query is one edit away from most names and from every shared prefix.
+  const results = Array.from(bestResultByUserId.values());
+  const literalResults = results.filter((result) => result.tier < NO_MATCH_TIER);
+
+  return (literalResults.length > 0 ? literalResults : results)
     .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);
