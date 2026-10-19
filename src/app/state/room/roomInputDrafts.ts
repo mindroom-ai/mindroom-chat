@@ -173,7 +173,7 @@ export type IReplyDraft = {
   body: string;
   formattedBody?: string | undefined;
   relation?: IEventRelation | undefined;
-  /** Plain text the reply bar shows as is instead of a preview of the body, such as a canvas's title. */
+  /** Plain text, such as a canvas's title, that the reply bar shows without a Markdown preview, naming members as the quote does. */
   previewText?: string;
 };
 const createReplyDraftAtom = () => atom<IReplyDraft | undefined>(undefined);

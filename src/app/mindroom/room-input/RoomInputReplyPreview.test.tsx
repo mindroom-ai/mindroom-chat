@@ -38,7 +38,10 @@ vi.mock('../../hooks/usePowerLevelTags', () => ({ usePowerLevelTags: () => ({}) 
 vi.mock('../../hooks/useTheme', () => ({ useTheme: () => ({ kind: 'light' }) }));
 vi.mock('../../state/hooks/settings', () => ({ useSetting: () => [false] }));
 
-const room = { getMember: () => null } as unknown as Room;
+const room = {
+  getMember: (userId: string) =>
+    userId === '@alice:server' ? { userId, rawDisplayName: 'Alice' } : null,
+} as unknown as Room;
 
 const renderPreview = (draft: Partial<IReplyDraft>) => {
   let renderer!: ReturnType<typeof create>;
@@ -62,6 +65,10 @@ it('shows a canvas title as written, not as Markdown', () => {
   expect(renderPreview({ body, previewText: '1. Pick a time' })).toContain('"1. Pick a time"');
   // A title that would preview as a Markdown rule still shows.
   expect(renderPreview({ body, previewText: '---' })).toContain('"---"');
+  // Members are named as in the sent quote.
+  expect(renderPreview({ body, previewText: 'Pick a time with @alice:server' })).toContain(
+    '"Pick a time with @Alice"'
+  );
 });
 
 it('previews a message body without its Markdown', () => {
