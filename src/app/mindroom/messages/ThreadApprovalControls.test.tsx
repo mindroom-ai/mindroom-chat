@@ -529,3 +529,26 @@ it.each([
     }
   }
 );
+
+it('says a submitted decision waits for the room once after the folded calls are shown', async () => {
+  const records = [approvalRecord(0), approvalRecord(1), approvalRecord(2)];
+  reviewContext(records);
+  current = {
+    ...current,
+    actions: new Map([[records[0].eventId, { kind: 'decision', status: 'submitted' }]]),
+  };
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  try {
+    const toggle = buttonsIn(container).find((button) =>
+      button.textContent?.startsWith('Show 3 calls')
+    );
+    expect(toggle).toBeDefined();
+    await act(async () => toggle?.click());
+    const waiting = [...container.querySelectorAll('[role="status"]')].filter(
+      (node) => node.textContent === 'Submitted. Waiting for room update.'
+    );
+    expect(waiting).toHaveLength(1);
+  } finally {
+    cleanup();
+  }
+});
