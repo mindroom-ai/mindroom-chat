@@ -231,6 +231,11 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   const canvasId = await showCanvas(STEP_ONE);
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Interactive panel from')).toBeVisible();
+  // The timeline names the canvas instead of telling the user to open the app they are in.
+  await expect(
+    page.locator('[data-canvas-notice-title]', { hasText: originalTitle })
+  ).toBeVisible();
+  await expect(page.getByText('Open it in MindRoom Chat', { exact: false })).toHaveCount(0);
   await expect(panel.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
   await expect(wrapper.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
 
@@ -528,7 +533,8 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   // Saves reach storage within half a second.
   await page.waitForTimeout(1_000);
   await page.reload();
-  await expect(page.getByText('Interactive panel: Notes.', { exact: false })).toBeVisible();
+  // Chat names a canvas by its title; the body is the fallback for other clients.
+  await expect(page.locator('[data-canvas-notice-title]', { hasText: 'Notes' })).toBeVisible();
   await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
   await expect(panel.getByText('Notes', { exact: true })).toBeVisible();
   await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
@@ -557,7 +563,8 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(frame.locator('#shown')).toHaveText('7');
   await page.waitForTimeout(1_000);
   await page.reload();
-  await expect(page.getByText('Interactive panel: Rates.', { exact: false })).toBeVisible();
+  // Chat names a canvas by its title; the body is the fallback for other clients.
+  await expect(page.locator('[data-canvas-notice-title]', { hasText: 'Rates' })).toBeVisible();
   await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
   await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
   await expect(frame.locator('#rate')).toHaveValue('7');

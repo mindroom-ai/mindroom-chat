@@ -2,6 +2,7 @@ import { MsgType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { trimReplyFromBody } from '../../utils/room';
 import { isVoiceMessageContent } from '../../utils/voiceMessage';
+import { readCanvasNoticeTitle } from '../ui-actions/chatUiProtocol';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 
 export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
@@ -236,6 +237,10 @@ const resolveThreadPreview = (
   if (previewContent.msgtype === MsgType.Audio && isVoiceMessageContent(previewContent)) {
     return { text: VOICE_MESSAGE_PREVIEW_TEXT, localization: { kind: 'voice' } };
   }
+
+  // A canvas request's body is the fallback for other Matrix clients; Chat names the canvas.
+  const canvasTitle = readCanvasNoticeTitle(previewContent);
+  if (canvasTitle) return { text: canvasTitle, localization: undefined };
 
   const bodyPreview =
     typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
