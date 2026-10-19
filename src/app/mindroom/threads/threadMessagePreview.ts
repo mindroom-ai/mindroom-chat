@@ -144,40 +144,44 @@ const LATEX_PREVIEW_SYMBOLS = new Map(
 );
 // A braced argument with at most one nested group, enough for \frac{a^{2}}{b}.
 const LATEX_ARG = String.raw`\{((?:[^{}]|\{[^{}]*\})*)\}`;
-const LATEX_FRACTION = new RegExp(String.raw`\\[dt]?frac\s*${LATEX_ARG}\s*${LATEX_ARG}`, 'g');
+const LATEX_FRACTION = new RegExp(String.raw`\\[dt]?frac\s*${LATEX_ARG}\s*${LATEX_ARG}(\^)?`, 'g');
 const LATEX_ROOT = new RegExp(String.raw`\\sqrt\s*${LATEX_ARG}`, 'g');
 
 const groupLatexArg = (arg: string): string =>
   /^[\w.\\]+$/.test(arg.trim()) ? arg.trim() : `(${arg.trim()})`;
 
 // Reads a formula as typed text for a one-line preview: \frac{\pi K}{P_h} becomes (π K)/P_h,
-// \text{W} becomes W and \% becomes %. Fractions and roots resolve one nesting level per pass.
+// x^{n+1} becomes x^(n+1), \text{W} becomes W; fractions and roots resolve a level per pass.
 const latexToPreviewText = (text: string): string => {
   for (let pass = 0, previous = ''; pass < 10 && text !== previous; pass += 1) {
     previous = text;
     text = text
-      .replace(
-        LATEX_FRACTION,
-        (_, top: string, bottom: string) => `${groupLatexArg(top)}/${groupLatexArg(bottom)}`
-      )
+      .replace(LATEX_FRACTION, (_, top: string, bottom: string, power?: string) => {
+        const fraction = `${groupLatexArg(top)}/${groupLatexArg(bottom)}`;
+        return power ? `(${fraction})^` : fraction;
+      })
       .replace(LATEX_ROOT, (_, radicand: string) => `√${groupLatexArg(radicand)}`);
   }
   return text
     .replace(/\\(?:[,;:! \\]|q?quad\b)|~/g, ' ')
-    .replace(/\\(?:left|right)\b/g, '')
-    .replace(
-      /\\([A-Za-z]+)(\{)?/g,
-      (_, name: string, brace?: string) => brace ?? LATEX_PREVIEW_SYMBOLS.get(name) ?? name
-    )
-    .replace(/[{}]|\\/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\\(?:left|right|text[a-z]*|math[a-z]+|operatorname)\b/g, '')
+    .replace(/(\\[A-Za-z]+)\{/g, '$1 {')
+    .replace(/\\([A-Za-z]+)/g, (_, name: string) => LATEX_PREVIEW_SYMBOLS.get(name) ?? name)
+    .replace(/([_^])\{([^{}]{2,})\}/g, '$1($2)')
+    .replace(/\\([{}])|[{}]|\\/g, '$1');
 };
 
-const replacePreviewMath = (text: string): string =>
+// The math tokenizer knows ``` fences but not ~~~ ones, so code lines hide their dollar signs.
+const hideCodeDollars = (line: string, context: string): string =>
+  context === 'prose' ? line : line.replace(/\$/g, '\uE001');
+
+// Formulas wait behind numbered placeholders while markdown is stripped, so |x| or - x stay math.
+const replacePreviewMath = (text: string, formulas: string[]): string =>
   text.includes('$')
-    ? tokenizeTextWithLatex(text)
-        .map((part) => (part.type === 'math' ? latexToPreviewText(part.content) : part.content))
+    ? tokenizeTextWithLatex(mapPreviewLines(text, hideCodeDollars))
+        .map((part) =>
+          part.type === 'math' ? `\uE000${formulas.push(part.content) - 1}\uE000` : part.content
+        )
         .join('')
     : text;
 
@@ -201,7 +205,12 @@ const computeBodyPreview = (body: string): ThreadPreview => {
       ? // Drop a split-off lone high surrogate at the cut point.
         withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
       : withoutToolMarkers;
-  const prose = stripPreviewMarkdown(replacePreviewMath(boundedSource)).replace(/\s+/g, ' ').trim();
+  const formulas: string[] = [];
+  const prose = stripPreviewMarkdown(replacePreviewMath(boundedSource, formulas))
+    .replace(/\uE000(\d+)\uE000/g, (_, n: string) => latexToPreviewText(formulas[Number(n)] ?? ''))
+    .replace(/\uE001/g, '$')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');

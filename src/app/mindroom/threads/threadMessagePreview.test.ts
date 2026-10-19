@@ -133,7 +133,7 @@ describe('getThreadMessagePreviewText', () => {
       'With $P_h = 0.3 \\times 40\\,\\text{W}$ and $dn/dT = 7.3\\times10^{-6}\\,\\text{K}^{-1}$:';
     expect(getThreadMessagePreviewText(textContent(body))).toBe(
       'Using the standard estimate for a uniformly pumped rod: f ≈ (π K w^2)/(P_h (dn/dT)) ' +
-        'With P_h = 0.3 × 40 W and dn/dT = 7.3×10^-6 K^-1:'
+        'With P_h = 0.3 × 40 W and dn/dT = 7.3×10^(-6) K^(-1):'
     );
   });
 
@@ -142,7 +142,10 @@ describe('getThreadMessagePreviewText', () => {
     ['$\\theta \\mathbf{v}$', 'θ v'],
     ['$\\left(a\\right) \\\\ \\unknown$', '(a) unknown'],
     ['$\\sqrt{\\sqrt{y}}$', '√(√y)'],
-    ['$5\\% \\in \\{a, b\\} \\toString$', '5% ∈ a, b toString'],
+    ['$5\\% \\in \\{a, b\\} \\toString$', '5% ∈ {a, b} toString'],
+    ['$\\left|x\\right|$\n\n$- x$', '|x| - x'],
+    ['$\\sin{x} + \\alpha{} + \\pi{} r^2$', 'sin x + α + π r^2'],
+    ['$x^{n+1} + \\frac{a}{b}^{2}$', 'x^(n+1) + (a/b)^2'],
   ])('reads %s as text', (body, preview) => {
     expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
   });
@@ -151,6 +154,9 @@ describe('getThreadMessagePreviewText', () => {
     expect(
       getThreadMessagePreviewText(textContent('Hotels $250 a night, meals $75; run `echo $HOME`'))
     ).toBe('Hotels $250 a night, meals $75; run echo $HOME');
+    // eslint-disable-next-line no-template-curly-in-string
+    const shell = 'echo ${HOME}/${USER}';
+    expect(getThreadMessagePreviewText(textContent(`~~~bash\n${shell}\n~~~`))).toBe(shell);
   });
 
   it('strips markdown from the body preview', () => {
