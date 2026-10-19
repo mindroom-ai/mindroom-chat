@@ -132,9 +132,9 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
-// Each formula previews as "…"; bodies with ~~~ fences, which the tokenizer misses, stay as is.
+// Each formula previews as "…". A body with any code fence (``` or ~~~) previews raw, as before.
 const replacePreviewMath = (text: string): string =>
-  text.includes('$') && !/^ {0,3}~{3,}/m.test(text)
+  text.includes('$') && !/```|~~~/.test(text)
     ? tokenizeTextWithLatex(text)
         .map((part) => (part.type === 'math' ? '…' : part.content))
         .join('')

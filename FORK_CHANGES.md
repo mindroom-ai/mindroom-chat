@@ -7,8 +7,9 @@
 - Problem: the demo recordings (explore-the-fit, fit-the-ringdown) showed a thread card's preview as raw LaTeX: "Euler: Using the standard thermal-lens estimate for a uniformly pumped rod: $$f \approx \frac{\pi K…".
 - Cause: `threadMessagePreview.ts` strips markdown from the body for one-line previews, but left `$…$` and `$$…$$` math as source, while the message itself renders it with KaTeX.
 - Change: before stripping markdown, the preview finds math with the renderer's own tokenizer (`tokenizeTextWithLatex`) and replaces each formula with "…", so the demo card reads "Using the standard thermal-lens estimate for a uniformly pumped rod: … With …".
-  Prices such as `$250`, code spans and backtick fences stay as written; a body with a `~~~` fence, which the tokenizer does not know, keeps its dollar signs as written.
-- Tests: `threadMessagePreview.test.ts` covers inline and display math next to a `|`, and prices, a code span and a `~~~` fence with `$` left alone.
+  Prices such as `$250` and code spans keep their dollar signs. A body with any code fence (```` ``` ```` or `~~~` anywhere) previews raw, as before, since the tokenizer's fence handling does not match the markdown parser's.
+- Accepted limits (both as before): math in the prose of a body that also has a fence stays raw, and a formula cut by the 2000-character preview source limit stays raw.
+- Tests: `threadMessagePreview.test.ts` covers inline and display math next to a `|`; prices and a code span; and a `~~~` fence, a fence containing a literal ```` ``` ````, and a quoted `~~~` fence, all left raw.
 - Validation: the test file, typecheck, ESLint and Prettier on the changed files.
 
 ### Edit messages too large for one event (2026-10-19)

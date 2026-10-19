@@ -141,6 +141,13 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent(`~~~bash\n${shell}\n~~~`))).toBe(shell);
   });
 
+  it.each([
+    ['````md\n```\nsee $x$ and $y$\n```\n````', '``` see $x$ and $y$ ```'],
+    ['> ~~~\n> see $x$ and $y$\n> ~~~', 'see $x$ and $y$'],
+  ])('leaves math in any fenced body raw: %s', (body, preview) => {
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
+  });
+
   it('strips markdown from the body preview', () => {
     expect(
       getThreadMessagePreviewText(textContent('**Nightly run for 2026-07-02** ✅ — 3 meetings'))
