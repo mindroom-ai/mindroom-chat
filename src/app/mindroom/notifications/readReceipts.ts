@@ -159,7 +159,9 @@ async function markThreadRootAsRead(
   const root = room.findEventById(threadId) ?? room.getThread(threadId)?.rootEvent;
   if (!userId || !root || root.getSender() === userId || root.isSending()) return;
   if (root.getContent().msgtype === MsgType.Notice) return;
+  if (!mx.getPushActionsForEvent(root)?.notify) return;
   const readUpToId = room.getEventReadUpTo(userId);
+  if (!readUpToId && room.getLastUnthreadedReceiptFor(userId)) return;
   const readUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : undefined;
   if (readUpToId === threadId || (readUpToTs !== undefined && root.getTs() < readUpToTs)) return;
 

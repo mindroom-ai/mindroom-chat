@@ -217,11 +217,13 @@ describe('markThreadAsRead on a root from someone else', () => {
     mainCount = 1,
     otherThreadCount = 0,
     otherThreadRead = true,
+    rootNotifies = true,
   }: {
     root?: MatrixEvent;
     mainCount?: number;
     otherThreadCount?: number;
     otherThreadRead?: boolean;
+    rootNotifies?: boolean;
   } = {}) => {
     const thread = makeReadThread(THREAD_ID, 5, `${THREAD_ID}-reply`);
     const other = makeReadThread('$other-root', 4, otherThreadRead ? '$other-root-reply' : null);
@@ -233,8 +235,13 @@ describe('markThreadAsRead on a root from someone else', () => {
       getRoomUnreadNotificationCount: vi.fn(() => mainCount),
       getUnreadNotificationCount: vi.fn(() => mainCount + otherThreadCount),
       getThreadUnreadNotificationCount: vi.fn(() => 0),
+      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
     };
-    return { mx: makeClient(room), root };
+    const mx = {
+      ...makeClient(room),
+      getPushActionsForEvent: vi.fn(() => ({ notify: rootNotifies })),
+    };
+    return { mx, root };
   };
 
   const mainReceipt = { thread_id: MAIN_ROOM_TIMELINE };
@@ -251,6 +258,10 @@ describe('markThreadAsRead on a root from someone else', () => {
     ['another main message also notifies', { mainCount: 2 }],
     ['another thread has notifications', { otherThreadCount: 1 }],
     ['another thread is unread', { otherThreadRead: false }],
+    [
+      'the root does not notify and the main notification is a newer mention',
+      { rootNotifies: false },
+    ],
     [
       "the root is the reader's own",
       { root: new MatrixEvent({ ...makeMessageEvent(THREAD_ID, 3).event, sender: USER_ID }) },
