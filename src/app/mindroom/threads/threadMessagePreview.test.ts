@@ -223,6 +223,30 @@ describe('getThreadMessagePreviewText', () => {
     ).toBe('new body');
   });
 
+  it('names a canvas by its title, not the fallback for other clients', () => {
+    const canvasNotice = (title: string) => ({
+      msgtype: 'm.notice',
+      body: `Interactive panel: ${title}. Open it in MindRoom Chat to respond.`,
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_canvas',
+        canvas: { title, html: '<p></p>' },
+      },
+    });
+    expect(getThreadMessagePreviewText(canvasNotice('Pick a time'))).toBe('Pick a time');
+    // A title is plain text, not Markdown.
+    expect(getThreadMessagePreviewText(canvasNotice('1. Pick a time'))).toBe('1. Pick a time');
+    expect(getThreadMessagePreviewText(canvasNotice('---'))).toBe('---');
+    // An update in place is previewed by its new title.
+    expect(
+      getThreadMessagePreviewText({
+        ...canvasNotice('Pick a time'),
+        body: '* Interactive panel: Plan the days. Open it in MindRoom Chat to respond.',
+        'm.new_content': canvasNotice('Plan the days'),
+      })
+    ).toBe('Plan the days');
+  });
+
   it('trims reply fallback before stripping', () => {
     expect(
       getThreadMessagePreviewText(textContent('> <@user:hs> quoted **text**\n\n**actual** reply'))
