@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Send messages too large for one event as long-text sidecars (2026-10-19)
+
+- Problem: a long Markdown message went back into the composer on every Send, with no error.
+  Tuwunel refuses an event larger than 65,535 bytes (`M_TOO_LARGE`), and since the send recovery of 2026-10-02 a failed send returns its text to the composer and drops the unsent echo.
+  The paste guard turns a paste into a pasted-text attachment once its estimate passes 56 KiB, but it estimates the formatted body as the escaped plain text, while the sent `formatted_body` is rendered Markdown, which for lists, tables and inline code is 1.5 to 3 times the text.
+  With the composer's own serializer, Markdown of about 16 KB (a table) to 24 KB (mixed headings and lists) made events over the limit, while every such paste stayed inline; text typed after a paste is never checked.
+- Fix: the send session measures the content it is about to send, relation included.
+  Content over `MAX_EVENT_CONTENT_BYTES` (the 40,000-byte budget canvas answers use, which leaves room for encryption) is uploaded whole through `uploadMindroomLongTextSidecar`, and the event is an `m.file` preview with the first 2,000 characters (cut between characters), `[Message continues in attached file]`, and the message's mentions and relation.
+  Chat shows such a message in full like any other, and MindRoom reads it as a text turn (`prepare_file_sidecar_text_event`), as it does for canvas answers.
+  A failed upload throws before anything is sent, so the text returns to the composer as for any failed send.
+  The paste guard is unchanged: one huge paste still becomes a pasted-text attachment.
+- Reuse: the budget, `contentBytes` and the continuation note move from `canvasMessages.ts` to `messages/longText.ts`, beside the sidecar format, so canvas answers, canvas state and the composer share them; `buildMindroomLongTextPreview` builds the composer's preview.
+- Tests:
+  - `useRoomInputSendSessionController.test.ts`: a 50 KB message is uploaded whole and sent as a preview with its thread relation and mentions, and a failed upload sends nothing and returns the text to the composer (both fail without the change); a short message is sent as it is.
+  - `longText.test.ts`: the preview keeps the start of the text, the mentions and the relation, and does not split a surrogate pair (fails without the cut).
+  - `e2e/live/long-composer-message.spec.ts` pastes 22 KB of Markdown into a room and into a thread on a local Tuwunel, sends it, and checks that the full text renders and that the server holds a long-text preview; on `dev` the message never reaches the timeline and the text is back in the composer.
+- Not covered:
+  - A message sent as a sidecar is an `m.file` event, which Chat does not offer to edit, and an edit too large for one event still fails; both are left for a follow-up.
+  - A long `/me` or `/notice` message is sent as an `m.file` preview and shows as ordinary text.
+  - A send that fails for another reason still returns its text without saying why.
+
 ### The stop button reads "Stop" (2026-10-18)
 
 - Why: MindRoom's stop button is a 🛑 reaction the agent adds to its reply while it streams (backend `stop.py`, `docs/chat-commands.md` "Stop Button"); reacting 🛑 stops the reply.
