@@ -2,16 +2,14 @@
 
 ## Runbook
 
-### Read math as text in one-line thread previews (2026-10-18)
+### Show math as "…" in one-line thread previews (2026-10-19)
 
-- Why: the demo recordings (explore-the-fit, fit-the-ringdown) showed a thread card's preview as raw LaTeX: "Euler: Using the standard thermal-lens estimate for a uniformly pumped rod: $$f \approx \frac{\pi K…".
-- Cause: `threadMessagePreview.ts` strips markdown syntax from the body for one-line previews, but left `$…$` and `$$…$$` math as source, while the message itself renders it with KaTeX.
-- Change: before stripping markdown, the preview finds math with the renderer's own tokenizer (`tokenizeTextWithLatex`, so prices, code spans and fences stay as written; code lines hide their `$` first because the tokenizer knows backtick fences but not `~~~` ones) and rewrites each formula as typed text: `\frac{a}{b}` as `a/b` (parenthesized when needed, nested fractions too, and as `(a/b)^2` when raised to a power), `\sqrt{x}` as `√x`, Greek letters and common operators as their symbols, spacing commands as spaces, formatting wrappers (`\text{W}`, `\mathbf{v}`, `\operatorname{f}`) as their argument, and other commands as their symbol or name (`\sin{x}` as `sin x`).
-  Single-character exponents and subscripts stay as typed (`w^2`, `P_h`); longer groups keep parentheses (`x^(n+1)`).
-  Converted formulas wait behind placeholders while markdown is stripped, so `|x|` is not read as a table row and `- x` keeps its minus.
-  The demo preview now reads "f ≈ (π K w^2)/(P_h (dn/dT)) With P_h = 0.3 × 40 W …".
-- Tests: `threadMessagePreview.test.ts` covers the demo body, nested fractions and roots, a fraction's power and a grouped exponent, formatting wrappers and braced commands, `\left`/`\right` and `|x|`, a formula starting with `- `, unknown commands, escaped characters and braces, and prices, code spans and a `~~~` fence with `$` left alone; the math cases fail without the change.
-- Validation: thread, message and room-input unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel captured the compact card for the demo reply at 1920 px, showing `$$f \approx \frac{\pi K…` on `dev` and `f ≈ (π K w²)/(P_h (dn/dT…` with the change (before exponents were left as typed).
+- Problem: the demo recordings (explore-the-fit, fit-the-ringdown) showed a thread card's preview as raw LaTeX: "Euler: Using the standard thermal-lens estimate for a uniformly pumped rod: $$f \approx \frac{\pi K…".
+- Cause: `threadMessagePreview.ts` strips markdown from the body for one-line previews, but left `$…$` and `$$…$$` math as source, while the message itself renders it with KaTeX.
+- Change: before stripping markdown, the preview finds math with the renderer's own tokenizer (`tokenizeTextWithLatex`) and replaces each formula with "…", so the demo card reads "Using the standard thermal-lens estimate for a uniformly pumped rod: … With …".
+  Prices such as `$250`, code spans and backtick fences stay as written; a body with a `~~~` fence, which the tokenizer does not know, keeps its dollar signs as written.
+- Tests: `threadMessagePreview.test.ts` covers inline and display math next to a `|`, and prices, a code span and a `~~~` fence with `$` left alone.
+- Validation: the test file, typecheck, ESLint and Prettier on the changed files.
 
 ### Edit messages too large for one event (2026-10-19)
 
