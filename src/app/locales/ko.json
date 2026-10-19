@@ -2674,7 +2674,7 @@
       },
       "stopButton": {
         "label": "중지",
-        "tooltip": "이 답장 중지"
+        "tooltip": "이 응답 중지"
       },
       "threadApprovalControls": {
         "close": "닫기",
