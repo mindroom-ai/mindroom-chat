@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { Room } from 'matrix-js-sdk';
@@ -36,10 +36,8 @@ export function RoomInputReplyPreview({
   onCancel,
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
-  const preview = useMemo(
-    () => getReplyPreviewText(room, { body: replyDraft?.body }, t),
-    [room, replyDraft?.body, t]
-  );
+  // Not memoized: room members load lazily, and the body analysis is cached.
+  const preview = getReplyPreviewText(room, { body: replyDraft?.body }, t);
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();

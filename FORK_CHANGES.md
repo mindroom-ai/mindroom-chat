@@ -8,6 +8,7 @@
 - Root cause: MindRoom agents write mentions as full Matrix IDs in the plain body (`_entity_mention_resolution_from_user_id` in the backend's `matrix/mentions.py`); only the formatted body carries the pill.
   Reply quotes and the composer's reply bar preview the plain body through `getLocalizedThreadMessagePreviewText`, and only compact thread cards replaced Matrix IDs with display names afterwards.
 - Change: `replaceMatrixUserIdsWithDisplayNames` moves from `compactThreadCardViewModel.ts` to `threadMessagePreview.ts` with an optional prefix, and the new `getReplyPreviewText` gives `Reply` and `RoomInputReplyPreview` the preview with room members shown as `@<display name>`, as the pill reads.
+  Both compute it on every render rather than memoizing it, so names of lazily loaded members appear on the next render; the body analysis stays cached.
   Matrix IDs of non-members stay raw, as on thread cards, which keep their bare names.
 - Unchanged by design: the `🔧 3 tools ·` badge and a table's cells set apart by middle dots in the same quote come from the shared preview formatter (#307 and "Compact view previews" below).
 - Tests: `Reply.test.tsx` renders a quoted agent hand-off with two member mentions (one followed by a comma) and a non-member mention; it fails on `dev`.

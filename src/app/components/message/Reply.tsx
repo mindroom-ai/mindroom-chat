@@ -92,10 +92,8 @@ export const Reply = as<'div', ReplyProps>(
     const { t } = useTranslation();
     const replyContent = replyEvent?.getContent();
     const { body } = replyContent ?? {};
-    const preview = useMemo(
-      () => getReplyPreviewText(room, replyContent, t),
-      [room, replyContent, t]
-    );
+    // Not memoized: room members load lazily, and the body analysis is cached.
+    const preview = getReplyPreviewText(room, replyContent, t);
     const sender = replyEvent?.getSender();
     const powerTag = sender ? getMemberPowerTag?.(sender) : undefined;
     const tagColor = powerTag?.color ? accessibleTagColors?.get(powerTag.color) : undefined;
