@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Thread previews show math as an ellipsis (2026-10-19)
+
+- Problem: a one-line thread preview showed an agent's formulas as raw LaTeX, e.g. `$$f \approx \frac{…}$$`, while the message rendered them.
+  The closed #475 guessed math from the Markdown `body`, but agent messages render `formatted_body`, where code, indented and quoted code and link text keep `$…$` literal, and each guess missed another construct.
+- Fix: when a message has a `formatted_body` and its body has a `$`, `threadMessagePreview.ts` sanitizes it with `sanitizeCustomHtml` and finds math as the renderer does: `tokenizeTextWithLatex` on text outside `code`, `pre` and direct `a` text, plus `data-mx-maths` elements.
+  It finds those formulas, literal ones too, in order in the body and replaces the rendered ones with "…" before the usual Markdown strip; from the first formula the body lacks, the rest stays as written.
+  The preview cache keys such messages on body and `formatted_body`.
+  Other messages preview as before.
+- Tests: `threadMessagePreview.test.ts` uses MindRoom `markdown_to_html` output: demo math becomes "…"; `$x$` in a code span, fences, indented and quoted indented code, inline and reference link text stays literal beside a rendered `$x$`; prices stay; a reply fallback is skipped; a body without `formatted_body` previews as before.
+- Not covered: from a formula the body writes differently from the HTML, such as an escaped `\$x\$` the renderer shows as math, the preview stays raw, as before.
+
 ### Edit messages too large for one event (2026-10-19)
 
 - Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.

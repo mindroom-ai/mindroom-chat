@@ -1,7 +1,11 @@
 import { MsgType } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { TFunction } from 'i18next';
+import { Element, Text as DOMText, htmlToDOM, type DOMNode } from 'html-react-parser';
+import { tokenizeTextWithLatex } from '../../plugins/math';
+import { sanitizeForRegex } from '../../utils/regex';
 import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
+import { sanitizeCustomHtml } from '../../utils/sanitize';
 import { isVoiceMessageContent } from '../../utils/voiceMessage';
 import { readCanvasNoticeTitle } from '../ui-actions/chatUiProtocol';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -143,8 +147,40 @@ type ThreadPreview = {
 
 const NO_PREVIEW: ThreadPreview = { text: undefined, localization: undefined };
 
-const computeBodyPreview = (body: string): ThreadPreview => {
-  const withoutReply = trimReplyFromBody(body);
+// The message renders math in formatted_body text outside code, pre and direct
+// link text, and in data-mx-maths elements (react-custom-html-parser). Find each
+// formula there in the body in order, literal ones too, and preview math as "…".
+const replaceFormattedMath = (body: string, formattedBody: string): string => {
+  let text = '';
+  let from = 0;
+  const visit = (latex: string, isMath: boolean): void => {
+    const source = new RegExp(`\\$\\$?\\s*${sanitizeForRegex(latex)}\\s*\\$\\$?`, 'g');
+    source.lastIndex = from;
+    const match = source.exec(body);
+    // From a formula the body lacks, the rest stays as written and is not searched again.
+    text += body.slice(from, match?.index) + (match && isMath ? '…' : match?.[0] ?? '');
+    from = match ? source.lastIndex : Infinity;
+  };
+  const walk = (nodes: DOMNode[], inCode = false, parent = ''): void =>
+    nodes.forEach((node) => {
+      if (node instanceof DOMText) {
+        const isMath = !inCode && parent !== 'pre' && parent !== 'a';
+        tokenizeTextWithLatex(node.data).forEach(
+          (p) => p.type === 'math' && visit(p.content, isMath)
+        );
+      } else if (node instanceof Element && 'data-mx-maths' in node.attribs) {
+        visit(node.attribs['data-mx-maths'], true);
+      } else if (node instanceof Element) {
+        walk(node.children as DOMNode[], inCode || node.name === 'code', node.name);
+      }
+    });
+  walk(htmlToDOM(sanitizeCustomHtml(formattedBody)));
+  return text + body.slice(from);
+};
+
+const computeBodyPreview = (body: string, formattedBody?: string): ThreadPreview => {
+  const trimmed = trimReplyFromBody(body);
+  const withoutReply = formattedBody ? replaceFormattedMath(trimmed, formattedBody) : trimmed;
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
     withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
@@ -183,18 +219,21 @@ const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
-const analyzeBodyPreview = (body: string): ThreadPreview => {
-  const cached = bodyPreviewCache.get(body);
+const analyzeBodyPreview = (body: string, html: unknown): ThreadPreview => {
+  // Only math previews differently from the body; then formatted_body keys the analysis too.
+  const formattedBody = typeof html === 'string' && html && body.includes('$') ? html : undefined;
+  const key = formattedBody ? `${body}\0${formattedBody}` : body;
+  const cached = bodyPreviewCache.get(key);
   if (cached) {
     // Map iteration follows insertion order, so re-inserting marks it recent.
-    bodyPreviewCache.delete(body);
-    bodyPreviewCache.set(body, cached);
+    bodyPreviewCache.delete(key);
+    bodyPreviewCache.set(key, cached);
     return cached;
   }
 
-  const analysis = computeBodyPreview(body);
-  bodyPreviewCache.set(body, analysis);
-  bodyPreviewCacheChars += body.length;
+  const analysis = computeBodyPreview(body, formattedBody);
+  bodyPreviewCache.set(key, analysis);
+  bodyPreviewCacheChars += key.length;
   for (const oldest of bodyPreviewCache.keys()) {
     if (
       bodyPreviewCache.size <= BODY_PREVIEW_CACHE_MAX_ENTRIES &&
@@ -244,7 +283,9 @@ const resolveThreadPreview = (
   if (canvasTitle) return { text: canvasTitle, localization: undefined };
 
   const bodyPreview =
-    typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
+    typeof previewContent.body === 'string'
+      ? analyzeBodyPreview(previewContent.body, previewContent.formatted_body)
+      : undefined;
   if (bodyPreview?.text) return bodyPreview;
 
   return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;

@@ -126,6 +126,109 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent('hello there'))).toBe('hello there');
   });
 
+  // Each formatted_body is MindRoom's markdown_to_html output for its body.
+  const htmlContent = (body: string, formattedBody: string): Record<string, unknown> => ({
+    ...textContent(body),
+    format: 'org.matrix.custom.html',
+    formatted_body: formattedBody,
+  });
+  const thermalLens = htmlContent(
+    'Using the standard thermal-lens estimate for a uniformly pumped rod:\n\n$$f \\approx \\frac{\\pi K w^2}{P_h \\, (dn/dT)}$$\n\nWith $P_h = 0.3 \\times 40\\,\\text{W} = 12\\,\\text{W}$, $K = 14\\,\\text{W/m·K}$, $dn/dT = 7.3\\times10^{-6}\\,\\text{K}^{-1}$ and a 1.5 mm pump radius:\n\n$$f \\approx 1.1\\,\\text{m}$$\n\nThat ignores end effects and stress birefringence, which typically shorten it by 10–20%.',
+    '<p>Using the standard thermal-lens estimate for a uniformly pumped rod:</p>\n<div>$$\nf \\approx \\frac{\\pi K w^2}{P_h \\, (dn/dT)}\n$$</div>\n<p>With $P_h = 0.3 \\times 40\\,\\text{W} = 12\\,\\text{W}$, $K = 14\\,\\text{W/m·K}$, $dn/dT = 7.3\\times10^{-6}\\,\\text{K}^{-1}$ and a 1.5 mm pump radius:</p>\n<div>$$\nf \\approx 1.1\\,\\text{m}\n$$</div>\n<p>That ignores end effects and stress birefringence, which typically shorten it by 10–20%.</p>\n'
+  );
+  const strayLight = htmlContent(
+    'Not at 0.1%. With a stray-light fraction $s$, the detector sees $T + s$ out of $1 + s$, so',
+    '<p>Not at 0.1%. With a stray-light fraction $s$, the detector sees $T + s$ out of $1 + s$, so</p>\n'
+  );
+
+  it('previews each rendered formula as an ellipsis', () => {
+    expect(getThreadMessagePreviewText(thermalLens)).toBe(
+      'Using the standard thermal-lens estimate for a uniformly pumped rod: … With …, …, … and a 1.5 mm pump radius: … That ignores end effects and stress birefringence, which typically shorten it by 10–20%.'
+    );
+    expect(getThreadMessagePreviewText(strayLight)).toBe(
+      'Not at 0.1%. With a stray-light fraction …, the detector sees … out of …, so'
+    );
+    // Chat sends math as data-mx-maths elements.
+    expect(
+      getThreadMessagePreviewText(
+        htmlContent('Area $\\pi r^2$', 'Area <span data-mx-maths="\\pi r^2">\\pi r^2</span>')
+      )
+    ).toBe('Area …');
+  });
+
+  it.each([
+    [
+      'a code span',
+      'Type `$x$` to get $x$.',
+      '<p>Type <code>$x$</code> to get $x$.</p>\n',
+      'Type $x$ to get ….',
+    ],
+    [
+      'a ``` fence',
+      '```\n$x$\n```\nthen $x$',
+      '<pre><code>$x$\n</code></pre>\n<p>then $x$</p>\n',
+      '$x$ then …',
+    ],
+    [
+      'a ~~~ fence',
+      '~~~\n$x$\n~~~\nthen $x$',
+      '<pre><code>$x$\n</code></pre>\n<p>then $x$</p>\n',
+      '$x$ then …',
+    ],
+    [
+      'an indented code block',
+      'Example:\n\n    echo $x$\n\nDone $x$',
+      '<p>Example:</p>\n<pre><code>echo $x$\n</code></pre>\n<p>Done $x$</p>\n',
+      'Example: echo $x$ Done …',
+    ],
+    [
+      'an indented code block in a quote',
+      '> Quote:\n>\n>     echo $x$\n\nDone $x$',
+      '<blockquote>\n<p>Quote:</p>\n<pre><code>echo $x$\n</code></pre>\n</blockquote>\n<p>Done $x$</p>\n',
+      'Quote: echo $x$ Done …',
+    ],
+    [
+      'inline link text',
+      'See [$x$](https://example.com) and $x$',
+      '<p>See <a href="https://example.com">$x$</a> and $x$</p>\n',
+      'See $x$ and …',
+    ],
+    [
+      'reference link text',
+      'See [$x$][ref] and $x$\n\n[ref]: https://example.com',
+      '<p>See <a href="https://example.com">$x$</a> and $x$</p>\n',
+      'See [$x$][ref] and … [ref]: https://example.com',
+    ],
+  ])('keeps $x$ in %s literal, as the message does', (_name, body, formattedBody, preview) => {
+    expect(getThreadMessagePreviewText(htmlContent(body, formattedBody))).toBe(preview);
+  });
+
+  it('skips math in the reply fallback, which the message hides', () => {
+    const content = htmlContent(
+      '> <@alice:example.org> Is $y$ right?\n\nYes, $x$ is.',
+      '<mx-reply><blockquote><a href="https://matrix.to/#/!room:example.org/$event">In reply to</a> <a href="https://matrix.to/#/@alice:example.org">@alice:example.org</a><br>Is $y$ right?</blockquote></mx-reply>Yes, $x$ is.'
+    );
+    expect(getThreadMessagePreviewText(content)).toBe('Yes, … is.');
+  });
+
+  it('keeps prices literal', () => {
+    expect(
+      getThreadMessagePreviewText(
+        htmlContent(
+          'Rooms cost $5-$10 a night, meals $75',
+          '<p>Rooms cost $5-$10 a night, meals $75</p>\n'
+        )
+      )
+    ).toBe('Rooms cost $5-$10 a night, meals $75');
+  });
+
+  it('previews a body without formatted_body as before, even after the same body with it', () => {
+    getThreadMessagePreviewText(strayLight);
+    expect(getThreadMessagePreviewText(textContent(strayLight.body as string))).toBe(
+      'Not at 0.1%. With a stray-light fraction $s$, the detector sees $T + s$ out of $1 + s$, so'
+    );
+  });
+
   it('strips markdown from the body preview', () => {
     expect(
       getThreadMessagePreviewText(textContent('**Nightly run for 2026-07-02** ✅ — 3 meetings'))
