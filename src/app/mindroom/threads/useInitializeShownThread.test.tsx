@@ -125,10 +125,9 @@ describe('useInitializeShownThread', () => {
     const f = fixture();
     // A summary-only thread already reflects its newest reply in counts and unread state.
     expect(f.thread.length).toBe(2);
-    expect(getThreadUnread(f.room, f.thread, me)).toBe(true);
+    expect(getThreadUnread(f.thread, me)).toBe(true);
     expect(
-      buildThreadRecord({ room: f.room, threadRootId: rootId, currentUserId: me, readUpToTs: 0 })
-        .status.isUnread
+      buildThreadRecord({ room: f.room, threadRootId: rootId, currentUserId: me }).status.isUnread
     ).toBe(true);
 
     f.render();
@@ -155,7 +154,7 @@ describe('useInitializeShownThread', () => {
     await f.settle();
     expect(f.thread.length).toBe(3);
     expect(f.thread.replyToEvent?.getId()).toBe('$live');
-    expect(getThreadUnread(f.room, f.thread, me)).toBe(true);
+    expect(getThreadUnread(f.thread, me)).toBe(true);
     expect(f.requests).toHaveLength(loaded);
     f.unmount();
   });

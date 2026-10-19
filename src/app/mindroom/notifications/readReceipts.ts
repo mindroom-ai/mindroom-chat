@@ -37,8 +37,12 @@ const isThreadReplyReceiptTarget = (event: MatrixEvent, threadId: string): boole
   eventBelongsToThread(event, threadId) &&
   event.getRelation()?.rel_type === RelationType.Thread;
 
-const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
-  const isEligible = (event: MatrixEvent) => isThreadReplyReceiptTarget(event, thread.id);
+const getThreadReplyTarget = (
+  thread: Thread,
+  isShown: (event: MatrixEvent) => boolean = () => true
+): MatrixEvent | undefined => {
+  const isEligible = (event: MatrixEvent) =>
+    isThreadReplyReceiptTarget(event, thread.id) && isShown(event);
   const loadedReply = getLatestReceiptTarget(thread.events, null, isEligible);
   // Before history is loaded, the SDK keeps the bundled latest reply outside events.
   const replyToEvent = thread.replyToEvent;
@@ -53,12 +57,13 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
 const getLatestThreadReplyTarget = async (
   mx: MatrixClient,
   room: Room,
-  threadId: string
+  threadId: string,
+  isShown?: (event: MatrixEvent) => boolean
 ): Promise<MatrixEvent | undefined> => {
   const userId = mx.getUserId();
   const thread = room.getThread(threadId);
   if (thread) {
-    const latestReply = getThreadReplyTarget(thread);
+    const latestReply = getThreadReplyTarget(thread, isShown);
     if (!latestReply) return undefined;
     const readState = getThreadReadState(thread, userId ?? undefined);
     if (readState?.readEventIds.has(latestReply.getId()!)) return undefined;
@@ -100,7 +105,8 @@ const getLatestThreadReplyTarget = async (
 export async function markMainTimelineAsRead(
   mx: MatrixClient,
   roomId: string,
-  privateReceipt: boolean
+  privateReceipt: boolean,
+  isShown: (event: MatrixEvent) => boolean = () => true
 ) {
   const room = mx.getRoom(roomId);
   const userId = mx.getUserId();
@@ -112,7 +118,7 @@ export async function markMainTimelineAsRead(
   const latestEvent = getLatestReceiptTarget(
     timeline,
     room.getEventReadUpTo(userId),
-    (event) => !isThreadOnlyRoomActivity(room, event)
+    (event) => !isThreadOnlyRoomActivity(room, event) && isShown(event)
   );
   if (!latestEvent) return;
 
@@ -125,14 +131,15 @@ export async function markThreadAsRead(
   mx: MatrixClient,
   roomId: string,
   threadId: string,
-  privateReceipt: boolean
+  privateReceipt: boolean,
+  isShown?: (event: MatrixEvent) => boolean
 ) {
   if (isLocalEchoEventId(threadId)) return;
 
   const room = mx.getRoom(roomId);
   if (!room) return;
 
-  const latestReply = await getLatestThreadReplyTarget(mx, room, threadId);
+  const latestReply = await getLatestThreadReplyTarget(mx, room, threadId, isShown);
   if (!latestReply) return;
 
   await mx.sendReceipt(latestReply, getReceiptType(privateReceipt), {

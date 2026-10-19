@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Read thread replies only with thread and unthreaded receipts (2026-10-19)
+
+- Problem: in the morning-brief demo, Maya's Desk kept an unread "1" while Maya read RouterAgent's scheduled brief thread from the compact view.
+  The thread root is a main-timeline event, and only a `main` or unthreaded receipt clears it on the server; the compact view sent no main receipts, because it renders neither the classic at-bottom anchor nor a scroll element.
+  Sending one exposed a read-model bug: Chat counted a `main` receipt as reading older thread replies (`getEffectiveThreadReadUpToTs` took the later of the thread and room receipts), which MSC3771 and the server do not, so a main receipt cleared other threads' unread cards while the server kept counting them.
+- Fix:
+  - Thread unread state (`getThreadUnread`) honours only thread and unthreaded receipts; the room-receipt fallback and the `readUpToTs` plumbing that fed it are removed.
+  - The classic view keeps its main receipt at the live bottom and, for each unread thread whose replies it shows inline (root in the loaded window, reply in `thread.events`), sends a thread receipt on the newest shown reply, never a summary-only one (`markThreadAsRead`'s `isShown`).
+  - The compact view sends a main receipt on the newest event among its displayed cards (`overviewThreadRootIds`, after filters) when it is shown with focus, when the main timeline grows, and when focus returns.
+    It skips the classic historical-marker connectivity check, since it has no bottom and no mark-read control.
+- Tests:
+  - `readReceipts.integration.test.ts`: a main receipt on a newer event leaves a thread's replies unread, an unthreaded receipt reads them (fails without the change).
+  - `timelineReadReceiptController.test.tsx`: classic receipts only the shown unread thread, not one whose newest reply is summary-only or whose root is outside the window; compact receipts the newest shown card, not a filtered-out card or a notice.
+- Not covered:
+  - Reaching a thread without the compact view ever showing (deep link, notification) leaves its root counting until the room is seen.
+  - Classic sends thread receipts on reaching the bottom or regaining focus, not when a thread reply arrives while you watch.
+
 ### Edit messages too large for one event (2026-10-19)
 
 - Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.
