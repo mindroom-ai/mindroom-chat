@@ -10,6 +10,16 @@ export const MemberDrawerContentBase = style({
   overflow: 'hidden',
 });
 
+export const MembersHeaderCounts = style({
+  minWidth: 0,
+});
+
+// The chip has no fill, so drop its inset and line its label up with the member count.
+export const MembersHeaderInvited = style({
+  maxWidth: '100%',
+  selectors: { '&&': { paddingInline: 0 } },
+});
+
 export const MembersHeaderControl = style({
   selectors: {
     // Keep the header backdrop visible through Folds' hover/pressed fills.

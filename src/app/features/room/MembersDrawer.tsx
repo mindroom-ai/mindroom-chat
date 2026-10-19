@@ -93,7 +93,8 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
     <PageNavHeader>
       {invitePrompt && <InviteUserPrompt room={room} requestClose={() => setInvitePrompt(false)} />}
       <Box grow="Yes" alignItems="Center" gap="200">
-        <Box grow="Yes" alignItems="Center" gap="200">
+        {/* The default 266 px drawer cannot fit both counts and two buttons on one line. */}
+        <Box className={css.MembersHeaderCounts} grow="Yes" direction="Column" alignItems="Start">
           <Text
             title={t('featureUi.room.membersDrawer.memberCount', {
               count: room.getJoinedMemberCount(),
@@ -107,22 +108,17 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
             })}
           </Text>
           {invitedCount > 0 && (
-            <>
-              <Text size="H5" priority="300" aria-hidden="true">
-                ·
+            <Chip
+              className={classNames(css.MembersHeaderControl, css.MembersHeaderInvited)}
+              variant="Background"
+              size="400"
+              radii="300"
+              onClick={onShowInvited}
+            >
+              <Text size="T200" truncate>
+                {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
               </Text>
-              <Chip
-                className={css.MembersHeaderControl}
-                variant="Background"
-                size="400"
-                radii="300"
-                onClick={onShowInvited}
-              >
-                <Text size="T200">
-                  {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
-                </Text>
-              </Chip>
-            </>
+            </Chip>
           )}
         </Box>
         <Box shrink="No" alignItems="Center" gap="100">

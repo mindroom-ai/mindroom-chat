@@ -206,6 +206,19 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await invitePeople.evaluate((element) => parseFloat(getComputedStyle(element).outlineWidth))
       ).toBeGreaterThan(0);
       await invitePeople.evaluate((element) => (element as HTMLElement).blur());
+      // At the default drawer width, both counts show in full beside the header buttons.
+      await drawer
+        .getByRole('separator', { name: 'Resize member panel', exact: true })
+        .press('Enter');
+      await expect.poll(async () => Math.round((await drawer.boundingBox())!.width)).toBe(266);
+      for (const label of ['29 Members', '1 Invited']) {
+        expect(
+          await header
+            .getByText(label, { exact: true })
+            .evaluate((element) => element.scrollWidth <= element.clientWidth),
+          `${label} is not truncated`
+        ).toBe(true);
+      }
       await header.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(header).toHaveCount(0);
     } finally {
