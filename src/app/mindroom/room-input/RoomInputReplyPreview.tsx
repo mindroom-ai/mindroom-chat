@@ -17,7 +17,10 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import colorMXID from '../../../util/colorMXID';
-import { getReplyPreviewText } from '../threads/threadMessagePreview';
+import {
+  getReplyPreviewText,
+  replaceMatrixUserIdsWithDisplayNames,
+} from '../threads/threadMessagePreview';
 import { MindroomRoomInputReplyContext } from './RoomInputMindroomExtensions';
 
 type RoomInputReplyPreviewProps = {
@@ -37,7 +40,10 @@ export function RoomInputReplyPreview({
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
   // Not memoized: room members load lazily, and the body analysis is cached.
-  const preview = getReplyPreviewText(room, { body: replyDraft?.body }, t);
+  // A canvas title skips the Markdown preview but names members as the sent quote does.
+  const preview = replyDraft?.previewText
+    ? replaceMatrixUserIdsWithDisplayNames(room, replyDraft.previewText, '@')
+    : getReplyPreviewText(room, { body: replyDraft?.body }, t);
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();
