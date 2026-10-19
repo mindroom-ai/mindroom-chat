@@ -1,6 +1,7 @@
 import { MsgType } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { TFunction } from 'i18next';
-import { trimReplyFromBody } from '../../utils/room';
+import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
 import { isVoiceMessageContent } from '../../utils/voiceMessage';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 
@@ -290,4 +291,40 @@ export const getLocalizedThreadMessagePreviewText = (
 ): string | undefined => {
   const { text, localization } = resolveThreadPreview(content);
   return localizeThreadPreview(text, localization, t);
+};
+
+const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
+const MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP = /[.,!?;:)\]}'"`*_~>]+$/;
+
+// MindRoom agents mention users by full Matrix ID in the plain body (the
+// formatted body carries the pill), so previews built from the body name room
+// members instead. `prefix` adds the `@` that a mention pill shows.
+export const replaceMatrixUserIdsWithDisplayNames = (
+  room: Room,
+  text: string,
+  prefix = ''
+): string =>
+  text.replace(MATRIX_USER_ID_CANDIDATE_REGEXP, (candidate) => {
+    const exactDisplayName = getMemberDisplayName(room, candidate);
+    if (exactDisplayName) return `${prefix}${exactDisplayName}`;
+
+    const trailingPunctuation =
+      candidate.match(MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP)?.[0] ?? '';
+    for (let length = 1; length <= trailingPunctuation.length; length += 1) {
+      const userId = candidate.slice(0, -length);
+      const displayName = getMemberDisplayName(room, userId);
+      if (displayName) return `${prefix}${displayName}${candidate.slice(-length)}`;
+    }
+
+    return candidate;
+  });
+
+/** The one-line preview of a quoted reply, with mentions read as their pills. */
+export const getReplyPreviewText = (
+  room: Room,
+  content: Record<string, unknown> | null | undefined,
+  t?: TFunction
+): string | undefined => {
+  const text = getLocalizedThreadMessagePreviewText(content, t);
+  return text && replaceMatrixUserIdsWithDisplayNames(room, text, '@');
 };
