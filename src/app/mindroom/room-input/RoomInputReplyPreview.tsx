@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { Room } from 'matrix-js-sdk';
@@ -17,7 +17,7 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import colorMXID from '../../../util/colorMXID';
-import { getLocalizedThreadMessagePreviewText } from '../threads/threadMessagePreview';
+import { getReplyPreviewText } from '../threads/threadMessagePreview';
 import { MindroomRoomInputReplyContext } from './RoomInputMindroomExtensions';
 
 type RoomInputReplyPreviewProps = {
@@ -36,10 +36,8 @@ export function RoomInputReplyPreview({
   onCancel,
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
-  const preview = useMemo(
-    () => getLocalizedThreadMessagePreviewText({ body: replyDraft?.body }, t),
-    [replyDraft?.body, t]
-  );
+  // Not memoized: room members load lazily, and the body analysis is cached.
+  const preview = getReplyPreviewText(room, { body: replyDraft?.body }, t);
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();
