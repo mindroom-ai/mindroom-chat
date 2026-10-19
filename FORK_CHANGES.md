@@ -14,6 +14,64 @@
 - Tests: `readReceipts.test.ts` covers the receipt (fails without the change) and none while another main message or thread notifies, another thread is unread, or the root is the reader's own.
 - Validation: notification unit tests, the full `npm test` (the 3 `xcodeCloudPostClone` tests fail on this host only), typecheck, ESLint and Prettier on the changed files.
   A temporary Playwright spec against a local Tuwunel had an agent post a root and a streamed reply while the viewer watched the overview, then open the thread: on `dev` the sidebar kept "1" with the sync's main count at 1; with the change a main receipt followed the thread receipt and the badge cleared (2 of 2 runs).
+### Edit messages too large for one event (2026-10-19)
+
+- Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.
+  An edit too large for one event failed like a long send: an edit carries its text twice (fallback and `m.new_content`), so it hit the 64 KiB limit at half the size, and Save just stopped spinning.
+  Editing the latest content naively would also start from the event's 2,000-character preview, so saving would cut the message.
+- Fix:
+  - `canEditEvent` also offers editing your own `m.file` messages that carry a valid long-text sidecar (`getMindroomLongTextSource`).
+  - `useMindroomEditableContent` loads the content the editor starts from: the latest edit or the message, with a long text downloaded whole through `hydrateCachedMindroomLongText` (usually already cached by the timeline). The editor is read-only and Save disabled until it has loaded, so nothing typed meanwhile is replaced; if it cannot load, the editor says "Failed to load message" and Save stays disabled, so a preview is never saved over the message.
+  - `buildMindroomEditContent` sends an edit that fits one event as before.
+    A larger one uploads the whole edit as a long-text sidecar, as MindRoom's backend does: MindRoom reads the file in place of the event and takes the message from its `m.new_content`, and Chat's reader does the same.
+    The event then carries the sidecar's preview as `m.new_content`, with a `* ` fallback of the new content's type.
+  - The new content takes its type from the loaded content, so shortening a long-text message turns it back into a text message.
+  - `copyMindroomResolvedEditMetadata` no longer copies `io.mindroom.long_text` from older edits: the marker is true only beside its own file, and the copy into the latest edit, which can be the local echo of an edit about to be sent, put a stale marker on a short edit that followed a long one.
+- Backend: no change; MindRoom finds the sidecar in an edit's `m.new_content` (`sidecar_content_to_resolve`) and reads the edited message from the file (`extract_edit_body`).
+- Tests:
+  - `longEdit.test.ts`: a small edit is unchanged; a large edit uploads the whole edit, which Chat reads back as the new content, its replacement is a long-text preview without a relation, and its fallback stays text; the editor content is the message as it is, the whole downloaded text, or nothing when only the preview comes back.
+  - `room.test.ts`: your own long-text file is editable; an ordinary file and someone else's long text are not (fails without the change).
+  - `editMetadata.test.ts`: a long-text marker is not copied into a later edit (fails without the change).
+  - `e2e/live/long-composer-message.spec.ts` sends a 22 KB Markdown message, opens it with Up arrow, checks that the editor holds its last line, appends to it and saves, checks that the edit is a long-text sidecar whose file holds the whole edit, then edits it down to a short text and checks that the edit is plain text again; on the previous build Up arrow does not open the editor.
+  The spec now shares one signed-in page across its cases, because the homeserver rate-limits a third login.
+- Not covered:
+  - An edit still fails without saying why when the upload or the send fails; the editor stays open, so nothing is lost.
+  - No test types into the editor during a slow download; the timeline has usually cached the text already, and the editor is read-only until then.
+
+### Send messages too large for one event as long-text sidecars (2026-10-19)
+
+- Problem: a long Markdown message went back into the composer on every Send, with no error.
+  Tuwunel refuses an event larger than 65,535 bytes (`M_TOO_LARGE`), and since the send recovery of 2026-10-02 a failed send returns its text to the composer and drops the unsent echo.
+  The paste guard turns a paste into a pasted-text attachment once its estimate passes 56 KiB, but it estimates the formatted body as the escaped plain text, while the sent `formatted_body` is rendered Markdown, which for lists, tables and inline code is 1.5 to 3 times the text.
+  With the composer's own serializer, Markdown of about 16 KB (a table) to 24 KB (mixed headings and lists) made events over the limit, while every such paste stayed inline; text typed after a paste is never checked.
+- Fix: the send session measures the content it is about to send, relation included.
+  Content over `MAX_EVENT_CONTENT_BYTES` (the 40,000-byte budget canvas answers use, which leaves room for encryption) is uploaded whole through `uploadMindroomLongTextSidecar`, and the event is an `m.file` preview with the first 2,000 characters (cut between characters), `[Message continues in attached file]`, and the message's mentions and relation.
+  Chat shows such a message in full like any other, and MindRoom reads it as a text turn (`prepare_file_sidecar_text_event`), as it does for canvas answers.
+  A failed upload throws before anything is sent, so the text returns to the composer as for any failed send.
+  The paste guard is unchanged: one huge paste still becomes a pasted-text attachment.
+- Reuse: the budget, `contentBytes` and the continuation note move from `canvasMessages.ts` to `messages/longText.ts`, beside the sidecar format, so canvas answers, canvas state and the composer share them; `buildMindroomLongTextPreview` builds the composer's preview.
+- Tests:
+  - `useRoomInputSendSessionController.test.ts`: a 50 KB message is uploaded whole and sent as a preview with its thread relation and mentions, and a failed upload sends nothing and returns the text to the composer (both fail without the change); a short message is sent as it is.
+  - `longText.test.ts`: the preview keeps the start of the text, the mentions and the relation, and does not split a surrogate pair (fails without the cut).
+  - `e2e/live/long-composer-message.spec.ts` pastes 22 KB of Markdown into a room and into a thread on a local Tuwunel, sends it, and checks that the full text renders and that the server holds a long-text preview; on `dev` the message never reaches the timeline and the text is back in the composer.
+- Not covered:
+  - A message sent as a sidecar is an `m.file` event, which Chat does not offer to edit, and an edit too large for one event still fails; both are left for a follow-up.
+  - A long `/me` or `/notice` message is sent as an `m.file` preview and shows as ordinary text.
+  - A send that fails for another reason still returns its text without saying why.
+
+### The stop button reads "Stop" (2026-10-18)
+
+- Why: MindRoom's stop button is a 🛑 reaction the agent adds to its reply while it streams (backend `stop.py`, `docs/chat-commands.md` "Stop Button"); reacting 🛑 stops the reply.
+  Chat drew it as an ordinary reaction, "🛑 1", whose tooltip said the agent "reacted with :octagonal_sign:", so in the demo recordings it read as a stray reaction or an error under every streaming reply.
+- Change: `isAgentStopButton` (`stopReaction.ts`) picks out a 🛑 reaction sent by the reply's own sender while the reply's stream metadata says it is streaming.
+  `Reactions` labels that chip "Stop" instead of its count and gives it the tooltip "Stop this reply"; `Reaction` takes an optional `label` shown in place of the count.
+  Clicking still toggles the viewer's 🛑, which is what stops the reply, and stale stop chips stay hidden as before.
+  `Reactions` also drops a stop chip on the render after the reply's final edit, which updates the target in place where the memoized stale filter doesn't see it.
+  A person's 🛑, and one on a message without stream metadata, stay plain reactions.
+  Strings are in all 17 catalogs.
+- Tests: `Reactions.test.ts` checks the agent's chip is labelled Stop and a person's is counted, and that both toggle the viewer's 🛑; `stopReaction.test.ts` covers `isAgentStopButton` for another key, a person's reaction, a message without stream metadata, and a missing target.
+- Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
+  A temporary Playwright spec against a local Tuwunel showed an agent's streaming thread reply with "🛑 Stop" and the tooltip "Stop this reply" in light and dark ("🛑 1" on `dev`); clicking it sent the viewer's 🛑 reaction, and a 👍 on a finished reply kept its count.
 
 ### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
 
@@ -113,6 +171,14 @@
   The full browser run passed 437 cases with 12 platform skips; the Computers worker test is blocked without the external `E2E_COMPUTER_FIXTURE`.
 - Next: await App Review and address any Apple feedback; publication is automatic after approval.
   Fix #463 so the offline cache spec can click the folded-message button.
+
+### Explain changing a canvas answer only when the page tries to (2026-10-18)
+
+- Why: the demo recordings showed "To change your answer, discard this one first." under every staged canvas answer, so the confirm bar read like instructions for a case the user had not hit.
+- Change (`CanvasPanel.tsx`): a staged answer stays frozen until Send or Discard, as before; the hint shows once the page submits a different answer (label or data) while one waits, which is when the bar would otherwise ignore the user's new choice; the same answer again, as from a double click, shows nothing. The **Data** disclosure stays: it is how the user sees exactly what will be sent, which the page's label need not match.
+- Tests: `CanvasPanel.test.tsx` "keeps the pending snapshot…" checks no hint for a first or fresh answer or the same answer again, and the hint after a different one (fails without the change).
+- Review: an independent subagent review found no defects. Qodo (PR #468): the same answer submitted twice showed the hint; fixed by comparing label and data.
+- Validation: `npm run typecheck`, eslint and Prettier on changed files, `CanvasPanel.test.tsx`, and a Chromium probe (not committed) against a disposable Tuwunel capturing the bar before and after a second submission.
 
 ### Name a canvas by its title instead of the other-client fallback (2026-10-18)
 

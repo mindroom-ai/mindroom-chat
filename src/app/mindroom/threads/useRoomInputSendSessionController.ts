@@ -11,6 +11,12 @@ import { Upload } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { TUploadContent } from '../../utils/matrix';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
+import {
+  buildMindroomLongTextPreview,
+  contentBytes,
+  MAX_EVENT_CONTENT_BYTES,
+} from '../messages/longText';
+import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import {
@@ -174,8 +180,19 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : session.textContent;
+      // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
+      // A failed upload throws before anything is sent, so the text returns to the composer.
+      const eventContent =
+        contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
+          ? content
+          : await uploadMindroomLongTextSidecar(
+              mx,
+              session.room,
+              content,
+              buildMindroomLongTextPreview(content)
+            );
       const txnId = mx.makeTxnId();
-      const sendPromise = mx.sendMessage(session.roomId, content as any, txnId);
+      const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
       const localEventId = session.room.getEventForTxnId(txnId)?.getId();
       let roomMessageSentNotified = false;
 

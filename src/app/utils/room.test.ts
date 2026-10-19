@@ -1,6 +1,7 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  canEditEvent,
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
@@ -108,6 +109,36 @@ const attachSerializedReplacement = ({
     },
   };
 };
+
+describe('canEditEvent', () => {
+  const me = '@alice:example.org';
+  const mx = { getUserId: () => me } as any;
+  const longTextFile = {
+    msgtype: 'm.file',
+    body: 'The start of a long message',
+    url: 'mxc://example.org/sidecar',
+    'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+  };
+  const event = (content: Record<string, unknown>, sender = me) =>
+    new MatrixEvent({
+      content,
+      event_id: '$event',
+      room_id: '!room:example.org',
+      sender,
+      type: 'm.room.message',
+    });
+
+  it('edits your own message sent as a long-text file like text', () => {
+    expect(canEditEvent(mx, event(longTextFile))).toBe(true);
+  });
+
+  it("does not edit an ordinary file or someone else's long text", () => {
+    expect(
+      canEditEvent(mx, event({ msgtype: 'm.file', body: 'a.txt', url: 'mxc://example.org/a' }))
+    ).toBe(false);
+    expect(canEditEvent(mx, event(longTextFile, '@mindroom_writer:example.org'))).toBe(false);
+  });
+});
 
 describe('room edit helpers', () => {
   it('prefers the newest edit when the SDK replacement is newer than relation edits', () => {

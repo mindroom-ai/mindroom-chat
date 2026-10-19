@@ -78,6 +78,7 @@ type CustomEditorProps = {
   style?: CSSProperties;
   editor: Editor;
   placeholder?: string;
+  readOnly?: boolean;
   onKeyDown?: KeyboardEventHandler;
   onKeyUp?: KeyboardEventHandler;
   onChange?: EditorChangeHandler;
@@ -95,6 +96,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
       style,
       editor,
       placeholder,
+      readOnly,
       onKeyDown,
       onKeyUp,
       onChange,
@@ -154,6 +156,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
                 data-editable-name={editableName}
                 className={css.EditorTextarea}
                 placeholder={placeholder}
+                readOnly={readOnly}
                 renderPlaceholder={renderPlaceholder}
                 renderElement={renderElement}
                 renderLeaf={renderLeaf}

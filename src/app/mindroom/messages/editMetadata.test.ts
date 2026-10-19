@@ -41,4 +41,22 @@ describe('copyMindroomResolvedEditMetadata', () => {
       'com.mindroom.skip_mentions': true,
     });
   });
+
+  it('does not carry a long-text marker into a later edit', () => {
+    // The marker means "this event's file holds the message"; it is true only beside that file.
+    const shortEdit: Record<string, unknown> = { msgtype: 'm.text', body: 'Short now' };
+
+    copyMindroomResolvedEditMetadata(shortEdit, [
+      {
+        'm.new_content': {
+          msgtype: 'm.file',
+          body: 'The start of a long edit',
+          url: 'mxc://example.org/sidecar',
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      },
+    ]);
+
+    expect(shortEdit).toEqual({ msgtype: 'm.text', body: 'Short now' });
+  });
 });

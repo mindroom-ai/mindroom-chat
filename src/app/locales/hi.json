@@ -1403,6 +1403,10 @@
       "streamingIndicator": {
         "aiIsResponding": "एआई जवाब दे रहा है"
       },
+      "stopButton": {
+        "label": "रोकें",
+        "tooltip": "यह जवाब रोकें"
+      },
       "threadApprovalControls": {
         "activePermissionCount_one": "{{count}} सक्रिय अनुमति",
         "activePermissionCount_other": "{{count}} सक्रिय अनुमतियाँ",

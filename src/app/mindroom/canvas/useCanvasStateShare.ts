@@ -3,7 +3,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import type { CanvasSaved } from './canvasDocument';
-import { contentBytes, MAX_CANVAS_RESPONSE_CONTENT_BYTES } from './canvasMessages';
+import { contentBytes, MAX_EVENT_CONTENT_BYTES } from '../messages/longText';
 
 /** A copy of a canvas's saved state for its agent, a reference to the canvas, read by `read_canvas_state`. */
 export const CANVAS_STATE_EVENT_TYPE = 'io.mindroom.canvas_state';
@@ -48,7 +48,7 @@ export function useCanvasStateShare(
       };
       // State too large for one event goes as a long-text sidecar, as large canvas answers do.
       const event =
-        contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES
+        contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
           ? content
           : await uploadMindroomLongTextSidecar(mx, room, content, {
               msgtype: 'm.notice',

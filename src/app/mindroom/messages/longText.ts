@@ -291,6 +291,36 @@ export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): str
   getMindroomLongTextSource(content)?.mxcUri;
 
 /**
+ * Plaintext budget for content sent as one event. Encryption grows an event by about a third, so
+ * larger content is sent as a long-text sidecar instead, to stay under Matrix's 64 KiB event limit.
+ */
+export const MAX_EVENT_CONTENT_BYTES = 40_000;
+
+export const contentBytes = (content: object): number =>
+  new TextEncoder().encode(JSON.stringify(content)).length;
+
+/** Ends the preview of a message sent as a long-text sidecar, as MindRoom's own long replies do. */
+export const LONG_TEXT_CONTINUATION_NOTE = '\n\n[Message continues in attached file]';
+
+// Enough to read in a notification or a client that does not download the file.
+const MESSAGE_PREVIEW_LENGTH = 2000;
+
+/**
+ * The event for a typed message sent as a long-text sidecar: the start of its text, and the
+ * mentions and relation that route it. The file holds the whole message.
+ */
+export const buildMindroomLongTextPreview = (content: Record<string, unknown>) => {
+  const body = typeof content.body === 'string' ? content.body : '';
+  // Cut between characters, never inside a surrogate pair.
+  const start = body.slice(0, MESSAGE_PREVIEW_LENGTH).replace(/[\uD800-\uDBFF]$/, '');
+  return {
+    body: `${start}${LONG_TEXT_CONTINUATION_NOTE}`,
+    ...(content['m.mentions'] === undefined ? {} : { 'm.mentions': content['m.mentions'] }),
+    ...(content['m.relates_to'] === undefined ? {} : { 'm.relates_to': content['m.relates_to'] }),
+  };
+};
+
+/**
  * Marks a preview as a v2 long-text sidecar, as MindRoom's backend writes them: the event is a
  * short `m.file` preview, and the file it points at holds the message's whole content as JSON.
  */

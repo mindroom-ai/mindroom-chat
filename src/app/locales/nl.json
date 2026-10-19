@@ -2678,6 +2678,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI antwoordt"
       },
+      "stopButton": {
+        "label": "Stoppen",
+        "tooltip": "Dit antwoord stoppen"
+      },
       "threadApprovalControls": {
         "close": "Sluiten",
         "call": "aanroep",

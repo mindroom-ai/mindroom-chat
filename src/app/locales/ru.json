@@ -2762,6 +2762,10 @@
       "streamingIndicator": {
         "aiIsResponding": "ИИ отвечает"
       },
+      "stopButton": {
+        "label": "Остановить",
+        "tooltip": "Остановить этот ответ"
+      },
       "threadApprovalControls": {
         "close": "Закрыть",
         "call": "вызов",

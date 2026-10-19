@@ -1403,6 +1403,10 @@
       "streamingIndicator": {
         "aiIsResponding": "এআই সাড়া দিচ্ছে"
       },
+      "stopButton": {
+        "label": "থামান",
+        "tooltip": "এই উত্তরটি থামান"
+      },
       "threadApprovalControls": {
         "activePermissionCount_one": "{{count}} সক্রিয় অনুমতি",
         "activePermissionCount_other": "{{count}} সক্রিয় অনুমতি",
