@@ -7,9 +7,10 @@
 - Why: in the morning-brief demo recording, Maya's Desk kept an unread "1" in the sidebar while Maya read the scheduled brief's thread.
 - Cause: a thread root belongs to the main timeline, so a root someone else posted (here RouterAgent's scheduled post) counts there, and only a main or unthreaded receipt clears it; Tuwunel ignores a thread receipt on the root.
   The thread view sends only thread receipts, and the compact overview sends no main receipts, so the count stayed until the room was marked read.
-- Change: after `markThreadAsRead` acknowledges the thread, it also sends a main-timeline receipt for the root when the root is the room's only main message from someone else newer than the read position, and no other thread is unread.
-  The second condition matters because thread unread state falls back to the room receipt's timestamp (`getRoomReadUpToTs`), so a room receipt would also read older replies of other threads; when either condition fails, the badge keeps counting the root as before.
-- Tests: `readReceipts.test.ts` covers the receipt (fails without the change) and no receipt while another thread or main message is unread or the root is the reader's own; `readReceipts.integration.test.ts` now asserts that no thread receipt is resent, since its unread root is acknowledged on the main timeline.
+- Change: after `markThreadAsRead` acknowledges the thread, it also sends a main-timeline receipt for the root when the root is from someone else, not a notice, and not older than the read position; the server's counts show exactly one main notification and none in other threads; and no listed thread is unread.
+  A room receipt reads every main message before it, so the server's main count, not the loaded timeline, has to show the root is the only one.
+  It also reads other threads' replies older than it, because thread unread state falls back to the room receipt's timestamp (`getRoomReadUpToTs`); hence the thread checks. When any check fails, the root keeps counting as before.
+- Tests: `readReceipts.test.ts` covers the receipt (fails without the change) and none while another main message or thread notifies, another thread is unread, or the root is the reader's own.
 - Validation: notification unit tests, the full `npm test` (the 3 `xcodeCloudPostClone` tests fail on this host only), typecheck, ESLint and Prettier on the changed files.
   A temporary Playwright spec against a local Tuwunel had an agent post a root and a streamed reply while the viewer watched the overview, then open the thread: on `dev` the sidebar kept "1" with the sync's main count at 1; with the change a main receipt followed the thread receipt and the badge cleared (2 of 2 runs).
 

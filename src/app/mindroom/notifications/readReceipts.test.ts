@@ -213,50 +213,58 @@ describe('markThreadAsRead on a root from someone else', () => {
   };
 
   const setup = ({
-    mainEvents,
+    root = makeMessageEvent(THREAD_ID, 3),
+    mainCount = 1,
+    otherThreadCount = 0,
     otherThreadRead = true,
   }: {
-    mainEvents: MatrixEvent[];
+    root?: MatrixEvent;
+    mainCount?: number;
+    otherThreadCount?: number;
     otherThreadRead?: boolean;
-  }) => {
+  } = {}) => {
     const thread = makeReadThread(THREAD_ID, 5, `${THREAD_ID}-reply`);
     const other = makeReadThread('$other-root', 4, otherThreadRead ? '$other-root-reply' : null);
     const room = {
-      ...makeRoom(mainEvents),
+      ...makeRoom([root]),
+      findEventById: vi.fn((id: string) => (id === THREAD_ID ? root : undefined)),
       getThread: vi.fn(() => thread),
       getThreads: vi.fn(() => [thread, other]),
+      getRoomUnreadNotificationCount: vi.fn(() => mainCount),
+      getUnreadNotificationCount: vi.fn(() => mainCount + otherThreadCount),
+      getThreadUnreadNotificationCount: vi.fn(() => 0),
     };
-    return { mx: makeClient(room) };
+    return { mx: makeClient(room), root };
   };
 
+  const mainReceipt = { thread_id: MAIN_ROOM_TIMELINE };
+
   it('acknowledges the root on the main timeline once its thread is read', async () => {
-    const root = makeMessageEvent(THREAD_ID, 3);
-    const { mx } = setup({ mainEvents: [root] });
+    const { mx, root } = setup();
 
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
-    expect(mx.sendReceipt).toHaveBeenCalledWith(root, ReceiptType.Read, {
-      thread_id: MAIN_ROOM_TIMELINE,
-    });
+    expect(mx.sendReceipt).toHaveBeenCalledWith(root, ReceiptType.Read, mainReceipt);
   });
 
   it.each([
+    ['another main message also notifies', { mainCount: 2 }],
+    ['another thread has notifications', { otherThreadCount: 1 }],
     ['another thread is unread', { otherThreadRead: false }],
-    ['another main message is unread', { extraMain: true }],
-    ["the root is the reader's own", { ownRoot: true }],
+    [
+      "the root is the reader's own",
+      { root: new MatrixEvent({ ...makeMessageEvent(THREAD_ID, 3).event, sender: USER_ID }) },
+    ],
   ])('leaves the main timeline alone when %s', async (_, options) => {
-    const root = new MatrixEvent({
-      ...makeMessageEvent(THREAD_ID, 3).event,
-      sender: 'ownRoot' in options ? USER_ID : '@bob:example.org',
-    });
-    const mainEvents = 'extraMain' in options ? [makeMessageEvent('$later', 6), root] : [root];
-    const { mx } = setup({ mainEvents, otherThreadRead: !('otherThreadRead' in options) });
+    const { mx } = setup(options);
 
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
-    expect(mx.sendReceipt).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), {
-      thread_id: MAIN_ROOM_TIMELINE,
-    });
+    expect(mx.sendReceipt).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      mainReceipt
+    );
   });
 });
 

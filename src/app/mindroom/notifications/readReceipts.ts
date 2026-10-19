@@ -2,6 +2,8 @@ import {
   Direction,
   MatrixClient,
   MatrixEvent,
+  MsgType,
+  NotificationCountType,
   RelationType,
   Room,
   ReceiptType,
@@ -12,7 +14,6 @@ import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { eventBelongsToThread } from '../threads/threadUtils';
 import { getThreadReadState, getThreadUnread } from '../threads/roomThreadList';
-import { isNotificationEvent } from '../../utils/room';
 
 const getReceiptType = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
@@ -144,9 +145,9 @@ export async function markThreadAsRead(
 
 /**
  * A thread's root is in the main timeline, which a threaded receipt does not reach, so a root posted
- * by someone else keeps counting after its thread is read. Acknowledge it there only when it is the
- * room's one unread main message and no other thread is unread, because a room receipt also reads
- * thread replies older than it.
+ * by someone else keeps counting after its thread is read. Acknowledge it there only when the
+ * server counts it as the room's one main notification and no other thread has unread replies: a
+ * room receipt reads every main message before it, and thread replies older than it too.
  */
 async function markThreadRootAsRead(
   mx: MatrixClient,
@@ -155,21 +156,19 @@ async function markThreadRootAsRead(
   privateReceipt: boolean
 ) {
   const userId = mx.getUserId();
-  if (!userId) return;
+  const root = room.findEventById(threadId) ?? room.getThread(threadId)?.rootEvent;
+  if (!userId || !root || root.getSender() === userId || root.isSending()) return;
+  if (root.getContent().msgtype === MsgType.Notice) return;
   const readUpToId = room.getEventReadUpTo(userId);
   const readUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : undefined;
-  const unread = room
-    .getLiveTimeline()
-    .getEvents()
-    .filter(
-      (event) =>
-        event.getSender() !== userId &&
-        (readUpToTs === undefined || event.getTs() > readUpToTs) &&
-        isNotificationEvent(event) &&
-        !isThreadOnlyRoomActivity(room, event)
-    );
-  const [root] = unread;
-  if (unread.length !== 1 || root.getId() !== threadId || root.isSending()) return;
+  if (readUpToId === threadId || (readUpToTs !== undefined && root.getTs() < readUpToTs)) return;
+
+  const mainCount = room.getRoomUnreadNotificationCount(NotificationCountType.Total);
+  const otherThreadsCount =
+    room.getUnreadNotificationCount(NotificationCountType.Total) -
+    mainCount -
+    room.getThreadUnreadNotificationCount(threadId, NotificationCountType.Total);
+  if (mainCount !== 1 || otherThreadsCount > 0) return;
   if (room.getThreads().some((t) => t.id !== threadId && getThreadUnread(room, t, userId))) return;
 
   await mx.sendReceipt(root, getReceiptType(privateReceipt), { thread_id: MAIN_ROOM_TIMELINE });
