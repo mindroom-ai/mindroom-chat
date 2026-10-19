@@ -11,7 +11,8 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { eventBelongsToThread } from '../threads/threadUtils';
-import { getThreadReadState } from '../threads/roomThreadList';
+import { getThreadReadState, getThreadUnread } from '../threads/roomThreadList';
+import { isNotificationEvent } from '../../utils/room';
 
 const getReceiptType = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
@@ -133,11 +134,45 @@ export async function markThreadAsRead(
   if (!room) return;
 
   const latestReply = await getLatestThreadReplyTarget(mx, room, threadId);
-  if (!latestReply) return;
+  if (latestReply) {
+    await mx.sendReceipt(latestReply, getReceiptType(privateReceipt), {
+      thread_id: threadId,
+    });
+  }
+  await markThreadRootAsRead(mx, room, threadId, privateReceipt);
+}
 
-  await mx.sendReceipt(latestReply, getReceiptType(privateReceipt), {
-    thread_id: threadId,
-  });
+/**
+ * A thread's root is in the main timeline, which a threaded receipt does not reach, so a root posted
+ * by someone else keeps counting after its thread is read. Acknowledge it there only when it is the
+ * room's one unread main message and no other thread is unread, because a room receipt also reads
+ * thread replies older than it.
+ */
+async function markThreadRootAsRead(
+  mx: MatrixClient,
+  room: Room,
+  threadId: string,
+  privateReceipt: boolean
+) {
+  const userId = mx.getUserId();
+  if (!userId) return;
+  const readUpToId = room.getEventReadUpTo(userId);
+  const readUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : undefined;
+  const unread = room
+    .getLiveTimeline()
+    .getEvents()
+    .filter(
+      (event) =>
+        event.getSender() !== userId &&
+        (readUpToTs === undefined || event.getTs() > readUpToTs) &&
+        isNotificationEvent(event) &&
+        !isThreadOnlyRoomActivity(room, event)
+    );
+  const [root] = unread;
+  if (unread.length !== 1 || root.getId() !== threadId || root.isSending()) return;
+  if (room.getThreads().some((t) => t.id !== threadId && getThreadUnread(room, t, userId))) return;
+
+  await mx.sendReceipt(root, getReceiptType(privateReceipt), { thread_id: MAIN_ROOM_TIMELINE });
 }
 
 export async function markRoomAndThreadsAsRead(

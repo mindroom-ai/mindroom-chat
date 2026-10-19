@@ -167,7 +167,13 @@ describe('thread receipt unread state with SDK models', () => {
       expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
       requests.mockClear();
       await markThreadAsRead(mx, ROOM_ID, '$root', receiptType === ReceiptType.ReadPrivate);
-      expect(requests).not.toHaveBeenCalled();
+      // The unread root itself is acknowledged on the main timeline, not the thread again.
+      expect(requests).not.toHaveBeenCalledWith(
+        'POST',
+        expect.anything(),
+        undefined,
+        expect.objectContaining({ thread_id: '$root' })
+      );
     }
   );
 
