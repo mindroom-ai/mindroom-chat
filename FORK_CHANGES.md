@@ -9,16 +9,22 @@
   Editing the latest content naively would also start from the event's 2,000-character preview, so saving would cut the message.
 - Fix:
   - `canEditEvent` also offers editing your own `m.file` messages that carry a valid long-text sidecar (`getMindroomLongTextSource`).
-  - `useMindroomEditableContent` loads the content the editor starts from: the latest edit or the message, with a long text downloaded whole through `hydrateCachedMindroomLongText` (usually already cached by the timeline). Save stays disabled until it has loaded; if it cannot load, the editor says "Failed to load message" and Save stays disabled, so a preview is never saved over the message.
-  - `buildMindroomEditContent` sends an edit that fits one event as before; a larger one uploads the new content as a long-text sidecar and sends its preview as `m.new_content`, wrapped as MindRoom's backend wraps its own large edits (`_wrap_large_edit`): the fallback keeps the message's type, and the fallback of a long-text file keeps the file fields so it stays a valid file.
+  - `useMindroomEditableContent` loads the content the editor starts from: the latest edit or the message, with a long text downloaded whole through `hydrateCachedMindroomLongText` (usually already cached by the timeline). The editor is read-only and Save disabled until it has loaded, so nothing typed meanwhile is replaced; if it cannot load, the editor says "Failed to load message" and Save stays disabled, so a preview is never saved over the message.
+  - `buildMindroomEditContent` sends an edit that fits one event as before.
+    A larger one uploads the whole edit as a long-text sidecar, as MindRoom's backend does: MindRoom reads the file in place of the event and takes the message from its `m.new_content`, and Chat's reader does the same.
+    The event then carries the sidecar's preview as `m.new_content`, with a `* ` fallback of the new content's type.
   - The new content takes its type from the loaded content, so shortening a long-text message turns it back into a text message.
-- Backend: no change; MindRoom resolves a sidecar in an edit's `m.new_content` (`extract_edit_body`).
+  - `copyMindroomResolvedEditMetadata` no longer copies `io.mindroom.long_text` from older edits: the marker is true only beside its own file, and the copy into the latest edit, which can be the local echo of an edit about to be sent, put a stale marker on a short edit that followed a long one.
+- Backend: no change; MindRoom finds the sidecar in an edit's `m.new_content` (`sidecar_content_to_resolve`) and reads the edited message from the file (`extract_edit_body`).
 - Tests:
-  - `longEdit.test.ts`: a small edit is unchanged; a large edit uploads exactly the new content, its replacement is a long-text preview without a relation, and its fallback stays text, or a valid file for a long-text file; the editor content is the message as it is, the whole downloaded text, or nothing when only the preview comes back.
+  - `longEdit.test.ts`: a small edit is unchanged; a large edit uploads the whole edit, which Chat reads back as the new content, its replacement is a long-text preview without a relation, and its fallback stays text; the editor content is the message as it is, the whole downloaded text, or nothing when only the preview comes back.
   - `room.test.ts`: your own long-text file is editable; an ordinary file and someone else's long text are not (fails without the change).
-  - `e2e/live/long-composer-message.spec.ts` sends a 22 KB Markdown message, opens it with Up arrow, checks that the editor holds its last line, appends to it and saves, checks that the edit is a long-text sidecar, then edits it down to a short text; on the previous build Up arrow does not open the editor.
+  - `editMetadata.test.ts`: a long-text marker is not copied into a later edit (fails without the change).
+  - `e2e/live/long-composer-message.spec.ts` sends a 22 KB Markdown message, opens it with Up arrow, checks that the editor holds its last line, appends to it and saves, checks that the edit is a long-text sidecar whose file holds the whole edit, then edits it down to a short text and checks that the edit is plain text again; on the previous build Up arrow does not open the editor.
   The spec now shares one signed-in page across its cases, because the homeserver rate-limits a third login.
-- Not covered: an edit still fails without saying why when the upload or the send fails; the editor stays open, so nothing is lost.
+- Not covered:
+  - An edit still fails without saying why when the upload or the send fails; the editor stays open, so nothing is lost.
+  - No test types into the editor during a slow download; the timeline has usually cached the text already, and the editor is read-only until then.
 
 ### Send messages too large for one event as long-text sidecars (2026-10-19)
 

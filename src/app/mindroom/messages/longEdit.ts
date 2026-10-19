@@ -1,4 +1,3 @@
-import { MsgType } from 'matrix-js-sdk';
 import type { IContent, IEventRelation, MatrixClient, Room } from 'matrix-js-sdk';
 import {
   buildMindroomLongTextPreview,
@@ -9,18 +8,15 @@ import {
 } from './longText';
 import { uploadMindroomLongTextSidecar } from './longTextSidecarUpload';
 
-// What makes an `m.file` fallback valid on its own.
-const FILE_FALLBACK_KEYS = ['url', 'file', 'filename', 'info'];
-
 /**
- * The edit event for new content. One that does not fit one event uploads the new content as a
- * long-text sidecar and replaces the message with its preview, as MindRoom's backend wraps its own
- * large edits: the fallback keeps the message's type, and a long-text file stays a valid file.
+ * The edit event for new content. One that does not fit one event is uploaded whole as a long-text
+ * sidecar, as MindRoom's backend uploads its own large edits: MindRoom reads the file in place of
+ * the event and takes the message from its `m.new_content`, and Chat does the same. The event then
+ * replaces the message with the sidecar's preview.
  */
 export const buildMindroomEditContent = async (
   mx: MatrixClient,
   room: Room,
-  originalMsgType: string | undefined,
   newContent: IContent,
   relation: IEventRelation
 ): Promise<IContent> => {
@@ -35,22 +31,13 @@ export const buildMindroomEditContent = async (
   const replacement = await uploadMindroomLongTextSidecar(
     mx,
     room,
-    newContent,
+    edit,
     buildMindroomLongTextPreview(newContent)
   );
-  const keepFile = originalMsgType === MsgType.File;
   return {
-    msgtype: keepFile ? MsgType.File : originalMsgType,
+    msgtype: newContent.msgtype,
     body: `* ${replacement.body}`,
     ...(newContent['m.mentions'] === undefined ? {} : { 'm.mentions': newContent['m.mentions'] }),
-    ...(keepFile
-      ? Object.fromEntries(
-          FILE_FALLBACK_KEYS.filter((key) => key in replacement).map((key) => [
-            key,
-            replacement[key],
-          ])
-        )
-      : {}),
     'm.new_content': replacement,
     'm.relates_to': relation,
   };

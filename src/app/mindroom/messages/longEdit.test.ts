@@ -1,10 +1,6 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  contentBytes,
-  getMindroomLongTextSource,
-  parseMindroomLongTextJsonSidecar,
-} from './longText';
+import { contentBytes, getMindroomLongTextSource, hydrateMindroomLongTextSource } from './longText';
 import { buildMindroomEditContent, loadMindroomEditableContent } from './longEdit';
 
 const relation = { rel_type: 'm.replace', event_id: '$original' };
@@ -36,7 +32,7 @@ describe('buildMindroomEditContent', () => {
     const { mx, client, room } = setup();
     const newContent = { msgtype: 'm.text', body: 'fixed', 'm.mentions': {} };
 
-    const edit = await buildMindroomEditContent(client, room, 'm.text', newContent, relation);
+    const edit = await buildMindroomEditContent(client, room, newContent, relation);
 
     expect(edit).toEqual({
       ...newContent,
@@ -47,15 +43,26 @@ describe('buildMindroomEditContent', () => {
     expect(mx.uploadContent).not.toHaveBeenCalled();
   });
 
-  it('sends the new content of a large edit as a long-text sidecar', async () => {
+  it('sends a large edit as a long-text sidecar', async () => {
     const { mx, client, room } = setup();
 
-    const edit = await buildMindroomEditContent(client, room, 'm.text', longContent, relation);
+    const edit = await buildMindroomEditContent(client, room, longContent, relation);
 
-    // The file holds exactly the new content, which MindRoom and Chat read as the edited message.
+    // The file holds the whole edit, as MindRoom uploads its own: MindRoom reads the file in place
+    // of the event and takes the edited message from its `m.new_content`.
     const uploaded = await (mx.uploadContent.mock.calls[0][0] as Blob).text();
-    expect(parseMindroomLongTextJsonSidecar(uploaded)).toEqual(longContent);
+    expect(JSON.parse(uploaded)).toEqual({
+      ...longContent,
+      body: `* ${longContent.body}`,
+      'm.new_content': longContent,
+      'm.relates_to': relation,
+    });
     const replacement = edit['m.new_content'] as Record<string, unknown>;
+    // Chat reads the edited message out of that file too.
+    const source = getMindroomLongTextSource(replacement)!;
+    expect(await hydrateMindroomLongTextSource(source, async () => uploaded, {})).toEqual(
+      longContent
+    );
     expect(replacement).toMatchObject({
       msgtype: 'm.file',
       url: 'mxc://example.org/sidecar',
@@ -63,7 +70,6 @@ describe('buildMindroomEditContent', () => {
       'io.mindroom.long_text': { version: 2 },
     });
     expect(replacement['m.relates_to']).toBeUndefined();
-    // The fallback of a text message stays text, as MindRoom wraps its own large edits.
     expect(edit).toMatchObject({
       msgtype: 'm.text',
       'm.mentions': mentions,
@@ -72,18 +78,6 @@ describe('buildMindroomEditContent', () => {
     expect(edit.body).toBe(`* ${replacement.body}`);
     expect(edit.url).toBeUndefined();
     expect(contentBytes(edit)).toBeLessThan(10_000);
-  });
-
-  it('keeps the fallback of a long-text file a valid file', async () => {
-    const { client, room } = setup();
-
-    const edit = await buildMindroomEditContent(client, room, 'm.file', longContent, relation);
-
-    expect(edit).toMatchObject({
-      msgtype: 'm.file',
-      url: 'mxc://example.org/sidecar',
-      filename: 'message-content.json',
-    });
   });
 });
 

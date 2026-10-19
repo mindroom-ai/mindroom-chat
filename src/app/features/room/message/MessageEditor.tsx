@@ -151,16 +151,10 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         }
 
         // An edit too large for one event sends its new content as a long-text file.
-        const content = await buildMindroomEditContent(
-          mx,
-          room,
-          mEvent.getContent().msgtype,
-          newContent,
-          {
-            event_id: mEvent.getId(),
-            rel_type: RelationType.Replace,
-          }
-        );
+        const content = await buildMindroomEditContent(mx, room, newContent, {
+          event_id: mEvent.getId(),
+          rel_type: RelationType.Replace,
+        });
 
         return mx.sendMessage(roomId, content as any);
       }, [
@@ -281,6 +275,8 @@ export const MessageEditor = as<'div', MessageEditorProps>(
               ? t('sharedUi.fallbackContent.failedToLoadMessage')
               : t('featureUi.room.message.messageEditor.editMessage')
           }
+          // Typing before the content loads would be replaced by it.
+          readOnly={!editableContent}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           bottom={

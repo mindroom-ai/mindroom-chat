@@ -132,10 +132,19 @@ test('room: a long message you sent is edited from its whole text', async () => 
   const edit = (await latestOwnEvents(fixture.roomId)).find(
     (event) => (event.content['m.relates_to'] as { rel_type?: string })?.rel_type === 'm.replace'
   );
-  expect(edit?.content['m.new_content']).toMatchObject({
+  const replacement = edit?.content['m.new_content'] as Record<string, unknown>;
+  expect(replacement).toMatchObject({
     msgtype: 'm.file',
     'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
   });
+  // The file holds the whole edit, the shape MindRoom reads: the edited text is its `m.new_content`.
+  const [server, mediaId] = (replacement.url as string).slice('mxc://'.length).split('/');
+  const file = await matrixFetch<Record<string, Record<string, unknown>>>(
+    getHomeserver(),
+    `/media/download/${server}/${mediaId}`,
+    { accessToken: session.accessToken, apiVersion: 'v1' }
+  );
+  expect(file['m.new_content'].body).toMatch(/Edited at the end$/);
 
   // The next edit starts from the edited whole text, and a short one is sent as plain text.
   await composer.press('ArrowUp');
@@ -147,4 +156,12 @@ test('room: a long message you sent is edited from its whole text', async () => 
   const shortRow = timeline.locator('[data-message-id^="$"]').filter({ hasText: 'Short now' });
   await expect(shortRow).toBeVisible();
   await expect(shortRow).not.toContainText('Point 1');
+  const shortEdit = (await latestOwnEvents(fixture.roomId)).find(
+    (event) => (event.content['m.new_content'] as { body?: string })?.body === 'Short now'
+  );
+  expect(shortEdit?.content['m.new_content']).toEqual({
+    msgtype: 'm.text',
+    body: 'Short now',
+    'm.mentions': {},
+  });
 });

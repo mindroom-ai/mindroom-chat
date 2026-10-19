@@ -4,7 +4,6 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { getEditedEvent } from '../../utils/room';
 import { hydrateCachedMindroomLongText } from './attachmentRepository';
-import { getEventAttachmentOwner } from './eventAttachments';
 import { loadMindroomEditableContent } from './longEdit';
 
 export type MindroomEditableContent = {
@@ -29,12 +28,9 @@ export const useMindroomEditableContent = (
     const latest: Record<string, unknown> =
       editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent();
     let cancelled = false;
+    // No cache owner: the editor only reads the text, usually already cached by the timeline.
     loadMindroomEditableContent(latest, (source) =>
-      hydrateCachedMindroomLongText(
-        mx,
-        { ...source, owner: getEventAttachmentOwner(mEvent) },
-        useAuthentication
-      )
+      hydrateCachedMindroomLongText(mx, source, useAuthentication)
     )
       .catch(() => undefined)
       .then((content) => {
