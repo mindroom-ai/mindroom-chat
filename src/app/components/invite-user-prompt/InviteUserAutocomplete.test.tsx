@@ -695,6 +695,28 @@ describe('InviteUserAutocomplete', () => {
     expect(getOptions(renderer)).toHaveLength(0);
   });
 
+  it('marks no suggestion while a typed MXID is what Enter submits', () => {
+    const onSelect = vi.fn();
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([
+        { userId: '@suggestion:example.org', displayName: '@alice:example.org' },
+      ]),
+      initialValue: '@alice:example.org',
+      onSelect,
+    });
+
+    expect(getOptions(renderer)).toHaveLength(1);
+    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
+
+    keyDown(renderer, 'ArrowDown');
+    const { preventDefault } = keyDown(renderer, 'Enter');
+
+    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('does not reopen when async suggestions arrive after the input blurs', async () => {
     const mx = makeMx();
     vi.mocked(mx.searchUserDirectory).mockResolvedValue({
