@@ -132,9 +132,9 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
-// Each formula previews as "…". A body with any code fence (``` or ~~~) previews raw, as before.
+// Math in a pure-prose body previews as "…"; code, links or indented blocks keep it raw, as before.
 const replacePreviewMath = (text: string): string =>
-  text.includes('$') && !/```|~~~/.test(text)
+  text.includes('$') && !/`|~~~|\]\(|^(?: {4}|\t)/m.test(text)
     ? tokenizeTextWithLatex(text)
         .map((part) => (part.type === 'math' ? '…' : part.content))
         .join('')

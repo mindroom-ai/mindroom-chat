@@ -132,19 +132,18 @@ describe('getThreadMessagePreviewText', () => {
     expect(getThreadMessagePreviewText(textContent(body))).toBe('Fit … | done: … With … W.');
   });
 
-  it('leaves prices and code with dollar signs alone', () => {
-    // eslint-disable-next-line no-template-curly-in-string
-    const shell = 'echo ${HOME}/${USER}';
-    expect(
-      getThreadMessagePreviewText(textContent('Hotels $250 a night, meals $75; run `echo $HOME`'))
-    ).toBe('Hotels $250 a night, meals $75; run echo $HOME');
-    expect(getThreadMessagePreviewText(textContent(`~~~bash\n${shell}\n~~~`))).toBe(shell);
-  });
-
   it.each([
+    ['Hotels $250 a night, meals $75', 'Hotels $250 a night, meals $75'],
+    ['use ``$x$`` here', 'use `$x$` here'],
+    ['use `$x$` here', 'use $x$ here'],
+    // eslint-disable-next-line no-template-curly-in-string
+    ['Run:\n\n    echo ${HOME}/${USER}', 'Run: echo ${HOME}/${USER}'],
+    ['See [$x$](https://example.com) now', 'See $x$ now'],
+    // eslint-disable-next-line no-template-curly-in-string
+    ['~~~bash\necho ${HOME}/${USER}\n~~~', 'echo ${HOME}/${USER}'],
     ['````md\n```\nsee $x$ and $y$\n```\n````', '``` see $x$ and $y$ ```'],
     ['> ~~~\n> see $x$ and $y$\n> ~~~', 'see $x$ and $y$'],
-  ])('leaves math in any fenced body raw: %s', (body, preview) => {
+  ])('leaves dollar signs outside pure prose raw: %s', (body, preview) => {
     expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
   });
 
