@@ -28,6 +28,13 @@
 - Next: await App Review and address any Apple feedback; publication is automatic after approval.
   Fix #463 so the offline cache spec can click the folded-message button.
 
+### Explain changing a canvas answer only when the page tries to (2026-10-18)
+
+- Why: the demo recordings showed "To change your answer, discard this one first." under every staged canvas answer, so the confirm bar read like instructions for a case the user had not hit.
+- Change (`CanvasPanel.tsx`): a staged answer stays frozen until Send or Discard, as before; the hint shows once the page submits again while an answer waits, which is when the bar would otherwise ignore the user's new choice. The **Data** disclosure stays: it is how the user sees exactly what will be sent, which the page's label need not match.
+- Tests: `CanvasPanel.test.tsx` "keeps the pending snapshot…" checks no hint for a first or fresh answer and the hint after a second submission (fails without the change).
+- Validation: `npm run typecheck`, eslint and Prettier on changed files, `CanvasPanel.test.tsx`, and a Chromium probe (not committed) against a disposable Tuwunel capturing the bar before and after a second submission.
+
 ### Accept all Primary invites at once (2026-10-14)
 
 - Why: the owner had 15 invites from their MindRoom router (one per agent room) and had to accept each by hand.

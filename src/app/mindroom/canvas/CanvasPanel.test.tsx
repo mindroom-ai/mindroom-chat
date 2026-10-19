@@ -342,14 +342,19 @@ describe('CanvasPanel', () => {
     });
     render();
     await post(submit('Basic', { plan: 'basic' }));
+    // How to change an answer is said only once the page tries to change it.
+    expect(container.textContent).not.toContain('discard this one first');
     await arm();
     await post(submit('Everything', { plan: 'everything' }));
     expect(container.textContent).toContain('Send to Planner: Basic');
+    expect(container.textContent).toContain('To change your answer, discard this one first.');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
     await act(async () => button('[data-canvas-discard]').click());
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
     await post(submit('Pro plan'));
+    expect(container.textContent).not.toContain('discard this one first');
     expect(button('[data-canvas-send]').disabled).toBe(true);
     await clickSend();
     expect(sendMessage).not.toHaveBeenCalled();
