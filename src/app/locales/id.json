@@ -2672,6 +2672,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI sedang merespons"
       },
+      "stopButton": {
+        "label": "Hentikan",
+        "tooltip": "Hentikan respons ini"
+      },
       "threadApprovalControls": {
         "close": "Tutup",
         "call": "panggilan",

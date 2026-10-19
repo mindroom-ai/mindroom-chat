@@ -2672,6 +2672,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI가 응답 중입니다"
       },
+      "stopButton": {
+        "label": "중지",
+        "tooltip": "이 응답 중지"
+      },
       "threadApprovalControls": {
         "close": "닫기",
         "call": "호출",

@@ -2720,6 +2720,10 @@
       "streamingIndicator": {
         "aiIsResponding": "L’IA répond"
       },
+      "stopButton": {
+        "label": "Arrêter",
+        "tooltip": "Arrêter cette réponse"
+      },
       "threadApprovalControls": {
         "close": "Fermer",
         "call": "appel",

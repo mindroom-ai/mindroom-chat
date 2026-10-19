@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### The stop button reads "Stop" (2026-10-18)
+
+- Why: MindRoom's stop button is a 🛑 reaction the agent adds to its reply while it streams (backend `stop.py`, `docs/chat-commands.md` "Stop Button"); reacting 🛑 stops the reply.
+  Chat drew it as an ordinary reaction, "🛑 1", whose tooltip said the agent "reacted with :octagonal_sign:", so in the demo recordings it read as a stray reaction or an error under every streaming reply.
+- Change: `isAgentStopButton` (`stopReaction.ts`) picks out a 🛑 reaction sent by the reply's own sender while the reply's stream metadata says it is streaming.
+  `Reactions` labels that chip "Stop" instead of its count and gives it the tooltip "Stop this reply"; `Reaction` takes an optional `label` shown in place of the count.
+  Clicking still toggles the viewer's 🛑, which is what stops the reply, and stale stop chips stay hidden as before.
+  `Reactions` also drops a stop chip on the render after the reply's final edit, which updates the target in place where the memoized stale filter doesn't see it.
+  A person's 🛑, and one on a message without stream metadata, stay plain reactions.
+  Strings are in all 17 catalogs.
+- Tests: `Reactions.test.ts` checks the agent's chip is labelled Stop and a person's is counted, and that both toggle the viewer's 🛑; `stopReaction.test.ts` covers `isAgentStopButton` for another key, a person's reaction, a message without stream metadata, and a missing target.
+- Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
+  A temporary Playwright spec against a local Tuwunel showed an agent's streaming thread reply with "🛑 Stop" and the tooltip "Stop this reply" in light and dark ("🛑 1" on `dev`); clicking it sent the viewer's 🛑 reaction, and a 👍 on a finished reply kept its count.
+
 ### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
 
 - Problem: with the Invite dialog's suggestions open, the third row looked highlighted while the cursor and the keyboard choice were on the first (demo recording bring-the-team-in, 5-20 s).
