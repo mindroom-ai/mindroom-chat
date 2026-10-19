@@ -9,6 +9,7 @@
 - Change: `isAgentStopButton` (`stopReaction.ts`) picks out a 🛑 reaction sent by the reply's own sender while the reply's stream metadata says it is streaming.
   `Reactions` labels that chip "Stop" instead of its count and gives it the tooltip "Stop this reply"; `Reaction` takes an optional `label` shown in place of the count.
   Clicking still toggles the viewer's 🛑, which is what stops the reply, and stale stop chips stay hidden as before.
+  `Reactions` also drops a stop chip on the render after the reply's final edit, which updates the target in place where the memoized stale filter doesn't see it.
   A person's 🛑, and one on a message without stream metadata, stay plain reactions.
   Strings are in all 17 catalogs.
 - Tests: `Reactions.test.ts` checks the agent's chip is labelled Stop and a person's is counted, and that both toggle the viewer's 🛑; `stopReaction.test.ts` covers `isAgentStopButton` for another key, a person's reaction, a message without stream metadata, and a missing target.
