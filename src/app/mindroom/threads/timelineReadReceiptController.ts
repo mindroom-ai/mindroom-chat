@@ -5,8 +5,8 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import { Direction } from 'matrix-js-sdk';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { Direction, MatrixEventEvent } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
@@ -14,14 +14,12 @@ import {
 import { useDebounce } from '../../hooks/useDebounce';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import {
+  getTerminalStreamEdit,
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
-import {
-  getEventTimeline,
-  getFirstLinkedTimeline,
-} from './timelinePagination';
+import { getEventTimeline, getFirstLinkedTimeline } from './timelinePagination';
 import type { ThreadInitialRenderMode } from './threadRenderUtils';
 
 type RoomUnreadInfoLike = {
@@ -107,9 +105,12 @@ export const useTimelineReadReceiptController = ({
   ]);
 
   const debounceSetAtBottom = useDebounce(
-    useCallback((entry: IntersectionObserverEntry) => {
-      if (!entry.isIntersecting) setAtBottom(false);
-    }, [setAtBottom]),
+    useCallback(
+      (entry: IntersectionObserverEntry) => {
+        if (!entry.isIntersecting) setAtBottom(false);
+      },
+      [setAtBottom]
+    ),
     { wait: 1000 }
   );
 
@@ -184,6 +185,21 @@ export const useTimelineReadReceiptController = ({
       ]
     )
   );
+
+  // A reply finishing its stream changes only its content, so watch its terminal edit directly.
+  useEffect(() => {
+    if (!threadId) return undefined;
+    const handleReplaced = (event: MatrixEvent) => {
+      if (event.threadRootId !== threadId || !getTerminalStreamEdit(event)) return;
+      if (atBottomRef.current && atLiveEndRef.current && document.hasFocus()) {
+        tryAutoMarkThreadAsRead();
+      }
+    };
+    mx.on(MatrixEventEvent.Replaced, handleReplaced);
+    return () => {
+      mx.removeListener(MatrixEventEvent.Replaced, handleReplaced);
+    };
+  }, [atBottomRef, atLiveEndRef, mx, threadId, tryAutoMarkThreadAsRead]);
 
   useEffect(() => {
     if (

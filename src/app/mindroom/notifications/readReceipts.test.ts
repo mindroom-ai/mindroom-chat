@@ -106,32 +106,65 @@ describe('markThreadAsRead', () => {
     }
   );
 
-  it('targets the original reply when a streamed edit follows it', async () => {
+  const makeStreamedReply = (streamStatus?: string) => {
     const reply = makeThreadReplyEvent('$reply', 2);
     const edit = new MatrixEvent({
       ...makeMessageEvent('$edit', 3).event,
       content: {
         'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
-        'm.new_content': { msgtype: 'm.text', body: 'Updated reply' },
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'Updated reply',
+          ...(streamStatus ? { 'io.mindroom.stream_status': streamStatus } : {}),
+        },
       },
     });
     reply.makeReplaced(edit);
-    const room = {
-      ...makeRoom([]),
-      getThread: vi.fn(() => ({
-        id: THREAD_ID,
-        events: [reply, edit],
-        replyToEvent: reply,
-        getEventReadUpTo: vi.fn(() => null),
-        getReadReceiptForUserId: vi.fn(() => null),
-        getLastUnthreadedReceiptFor: vi.fn(() => undefined),
-      })),
-    };
-    const mx = makeClient(room);
+    return { reply, edit };
+  };
+
+  const makeThreadRoom = (events: MatrixEvent[], readUpTo: string | null = null) => ({
+    ...makeRoom([]),
+    getThread: vi.fn(() => ({
+      id: THREAD_ID,
+      events,
+      replyToEvent: events[0],
+      getEventReadUpTo: vi.fn(() => readUpTo),
+      getReadReceiptForUserId: vi.fn(() => null),
+      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
+    })),
+  });
+
+  it.each([undefined, 'streaming'])(
+    'targets the original reply when a streamed edit follows it (status: %s)',
+    async (streamStatus) => {
+      const { reply, edit } = makeStreamedReply(streamStatus);
+      const mx = makeClient(makeThreadRoom([reply, edit]));
+
+      await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+      expect(mx.sendReceipt).toHaveBeenCalledWith(reply, ReceiptType.Read, {
+        thread_id: THREAD_ID,
+      });
+    }
+  );
+
+  it('acknowledges the terminal edit of a reply that was already read', async () => {
+    const { reply, edit } = makeStreamedReply('completed');
+    const mx = makeClient(makeThreadRoom([reply, edit], '$reply'));
 
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
-    expect(mx.sendReceipt).toHaveBeenCalledWith(reply, ReceiptType.Read, { thread_id: THREAD_ID });
+    expect(mx.sendReceipt).toHaveBeenCalledWith(edit, ReceiptType.Read, { thread_id: THREAD_ID });
+  });
+
+  it('does not acknowledge a terminal edit twice', async () => {
+    const { reply, edit } = makeStreamedReply('completed');
+    const mx = makeClient(makeThreadRoom([reply, edit], '$edit'));
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
   });
 
   it('does not fetch relations or send a receipt for a local thread id', async () => {

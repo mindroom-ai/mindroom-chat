@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Acknowledge a reply when its stream ends in the open thread (2026-10-18)
+
+- Why: in the demo recordings, the room that was open kept an unread "1" in the sidebar while the person read its thread (dinners-for-the-week, pick-a-time, pass-the-baton, explore-the-fit).
+- Cause: MindRoom sends a reply as a notice and streams it as edits; mindroom-tuwunel evaluates the edit that ends the stream (`io.mindroom.stream_status: completed`) as the final message, so that edit notifies in the thread.
+  The thread had already sent its receipt for the reply when it arrived, and edits were never receipt targets, so nothing acknowledged the new notification.
+  In dinners-for-the-week and pick-a-time the badge appears the frame the reply's stream completes, with the thread open.
+- Change: `readReceipts.ts` targets a reply's terminal stream edit (`getTerminalStreamEdit`) once it has one, so the thread receipt moves past the notification; a reply still streaming keeps its own event as the target.
+  `timelineReadReceiptController.ts` re-runs the thread's auto read when the SDK reports a reply replaced by a terminal edit (`MatrixEventEvent.Replaced`), since that changes no row count.
+- Not covered: a root posted by someone else (a scheduled brief from RouterAgent) still counts in the main timeline after its thread is read, because the thread view sends only threaded receipts.
+- Tests: `readReceipts.test.ts` covers a terminal edit as the target after its reply was read (fails without the change), no repeat receipt, and a streaming edit leaving the reply as target; `timelineReadReceiptController.test.tsx` covers the trigger for a completed edit (fails without it) and none for a streaming one.
+- Validation: thread and notification unit tests, typecheck, ESLint and Prettier on the changed files.
+  A temporary Playwright spec against a local Tuwunel `v1.9.4-mindroom.1` posted a root as the viewer, opened its thread, and streamed an agent reply ending in a completed edit: on `dev` the sidebar showed "1" and the sync reported a thread count of 1; with the change a second thread receipt was sent and both read 0 (2 of 2 runs).
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.

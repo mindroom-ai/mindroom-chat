@@ -8,6 +8,7 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
+import { hasTerminalMindroomStreamMetadata } from '../messages/aiRun';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { eventBelongsToThread } from '../threads/threadUtils';
@@ -37,6 +38,17 @@ const isThreadReplyReceiptTarget = (event: MatrixEvent, threadId: string): boole
   eventBelongsToThread(event, threadId) &&
   event.getRelation()?.rel_type === RelationType.Thread;
 
+/**
+ * MindRoom streams a reply as edits of a notice, and mindroom-tuwunel notifies only when the
+ * terminal edit lands, often after the reply itself was read. That edit is the receipt target.
+ */
+export const getTerminalStreamEdit = (reply: MatrixEvent): MatrixEvent | undefined => {
+  const edit = reply.replacingEvent();
+  return edit?.getId() && !edit.isSending() && hasTerminalMindroomStreamMetadata(edit.getContent())
+    ? edit
+    : undefined;
+};
+
 const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
   const isEligible = (event: MatrixEvent) => isThreadReplyReceiptTarget(event, thread.id);
   const loadedReply = getLatestReceiptTarget(thread.events, null, isEligible);
@@ -45,9 +57,11 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
   const summaryReply = replyToEvent
     ? getLatestReceiptTarget([replyToEvent], null, isEligible)
     : undefined;
-  return summaryReply && (!loadedReply || summaryReply.getTs() >= loadedReply.getTs())
-    ? summaryReply
-    : loadedReply;
+  const reply =
+    summaryReply && (!loadedReply || summaryReply.getTs() >= loadedReply.getTs())
+      ? summaryReply
+      : loadedReply;
+  return reply && (getTerminalStreamEdit(reply) ?? reply);
 };
 
 const getLatestThreadReplyTarget = async (
