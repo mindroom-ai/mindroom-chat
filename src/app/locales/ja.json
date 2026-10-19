@@ -2672,6 +2672,10 @@
       "streamingIndicator": {
         "aiIsResponding": "AI が応答中です"
       },
+      "stopButton": {
+        "label": "停止",
+        "tooltip": "この返信を停止"
+      },
       "threadApprovalControls": {
         "close": "閉じる",
         "call": "呼び出し",

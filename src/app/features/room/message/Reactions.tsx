@@ -1,4 +1,5 @@
 import React, { MouseEventHandler, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Overlay,
@@ -17,7 +18,10 @@ import FocusTrap from 'focus-trap-react';
 import { Modal } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
-import { getRenderableAnnotationsByKey } from '../../../mindroom/messages/stopReaction';
+import {
+  getRenderableAnnotationsByKey,
+  isAgentStopButton,
+} from '../../../mindroom/messages/stopReaction';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -54,6 +58,7 @@ export const Reactions = as<'div', ReactionsProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const [viewer, setViewer] = useState<boolean | string>(false);
@@ -85,6 +90,7 @@ export const Reactions = as<'div', ReactionsProps>(
           if (rEvents.length === 0 || typeof key !== 'string') return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();
+          const stopButton = isAgentStopButton(key, rEvents, targetEvent);
 
           return (
             <TooltipProvider
@@ -93,7 +99,11 @@ export const Reactions = as<'div', ReactionsProps>(
               tooltip={
                 <Tooltip style={{ maxWidth: toRem(200) }}>
                   <Text className={css.ReactionsTooltipText} size="T300">
-                    <ReactionTooltipMsg room={room} reaction={key} events={rEvents} />
+                    {stopButton ? (
+                      t('mindroomUi.messages.stopButton.tooltip')
+                    ) : (
+                      <ReactionTooltipMsg room={room} reaction={key} events={rEvents} />
+                    )}
                   </Text>
                 </Tooltip>
               }
@@ -107,6 +117,7 @@ export const Reactions = as<'div', ReactionsProps>(
                   mx={mx}
                   reaction={key}
                   count={events.size}
+                  label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
                   onClick={
                     targetAllowsReactionToggle
                       ? () => onReactionToggle(mEventId, key, undefined, relations)

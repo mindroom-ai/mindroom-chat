@@ -4,6 +4,7 @@ import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import {
   STOP_REACTION_KEYS,
   getRenderableAnnotationsByKey,
+  isAgentStopButton,
   isStaleStopReactionKey,
 } from './stopReaction';
 
@@ -90,5 +91,25 @@ describe('getRenderableAnnotationsByKey', () => {
       makeTargetEvent({ 'io.mindroom.stream_status': 'streaming' })
     );
     expect(entries.map(([key]) => key)).toEqual(['👍', '🛑']);
+  });
+});
+
+describe('isAgentStopButton', () => {
+  const reaction = (sender: string) => ({ getSender: () => sender } as MatrixEvent);
+  const reply = (content: Record<string, unknown>) =>
+    ({ getSender: () => '@agent:mindroom.chat', getContent: () => content } as MatrixEvent);
+  const streaming = reply({ 'io.mindroom.stream_status': 'streaming' });
+
+  it("is the agent's stop reaction on its streaming reply", () => {
+    expect(isAgentStopButton('🛑', [reaction('@agent:mindroom.chat')], streaming)).toBe(true);
+  });
+
+  it.each([
+    ['a person reacted', '🛑', '@bas:mindroom.chat', streaming],
+    ['another key', '👍', '@agent:mindroom.chat', streaming],
+    ['a message without stream metadata', '🛑', '@agent:mindroom.chat', reply({})],
+    ['a missing target', '🛑', '@agent:mindroom.chat', undefined],
+  ])('is a plain reaction for %s', (_, key, sender, target) => {
+    expect(isAgentStopButton(key, [reaction(sender)], target)).toBe(false);
   });
 });

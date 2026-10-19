@@ -48,21 +48,23 @@ vi.mock('../../../components/message', () => ({
   Reaction: ({
     reaction,
     count,
+    label,
     onClick,
     ...props
   }: {
     reaction: string;
     count: number;
+    label?: string;
     onClick?: () => void;
   }) => {
-    reactionRenderSpy({ reaction, count, props });
+    reactionRenderSpy({ reaction, count, label, props });
     return React.createElement(
       'button',
       {
         type: 'button',
         onClick,
       },
-      `${reaction} ${count}`
+      `${reaction} ${label ?? count}`
     );
   },
 }));
@@ -254,13 +256,16 @@ describe('Reactions', () => {
     );
   });
 
-  it('keeps the stop chip while the target message is still streaming', () => {
+  it.each([
+    ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop'],
+    ["counts a person's stop reaction", '@bas:mindroom.chat', undefined],
+  ])('%s while the target message is still streaming', (_, sender, label) => {
     const relations = new MockRelations([
       [
         '🛑',
         new Set([
           {
-            getSender: () => '@agent:mindroom.chat',
+            getSender: () => sender,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
@@ -268,22 +273,28 @@ describe('Reactions', () => {
       ],
     ]);
     const targetEvent = {
+      getSender: () => '@agent:mindroom.chat',
       getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
     } as MatrixEvent;
+    const onReactionToggle = vi.fn();
 
-    render(
+    const renderer = render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
         targetEvent,
         canSendReaction: true,
         relations: relations as never,
-        onReactionToggle: vi.fn(),
+        onReactionToggle,
       })
     );
 
     expect(reactionRenderSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ reaction: '🛑', count: 1 })
+      expect.objectContaining({ reaction: '🛑', count: 1, label })
     );
+    act(() => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations);
   });
 });

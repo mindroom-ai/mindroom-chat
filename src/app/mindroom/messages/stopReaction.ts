@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
-import { hasTerminalMindroomStreamMetadata } from './aiRun';
+import { hasTerminalMindroomStreamMetadata, isMindroomAiRunStreaming } from './aiRun';
 import { type AnnotationEntry, getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
 
 /**
@@ -33,3 +33,18 @@ export const getRenderableAnnotationsByKey = (
   targetEvent: MatrixEvent | undefined
 ): AnnotationEntry[] =>
   getActiveAnnotationsByKey(relations).filter(([key]) => !isStaleStopReactionKey(key, targetEvent));
+
+/**
+ * The stop button itself: the agent's stop-key reaction on its reply while
+ * that reply streams. Clicking it adds the viewer's stop reaction, which
+ * stops the reply.
+ */
+export const isAgentStopButton = (
+  key: string,
+  events: readonly MatrixEvent[],
+  targetEvent: MatrixEvent | undefined
+): boolean =>
+  STOP_REACTION_KEYS.has(key) &&
+  !!targetEvent &&
+  isMindroomAiRunStreaming((targetEvent.getContent() as Record<string, unknown>) ?? {}) &&
+  events.some((event) => event.getSender() === targetEvent.getSender());
