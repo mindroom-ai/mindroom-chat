@@ -1,6 +1,7 @@
 import { type IContent, type Room } from 'matrix-js-sdk';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { getEditedEvent } from '../../utils/room';
+import { readCanvasNoticeTitle } from '../ui-actions/chatUiProtocol';
 
 export type MindroomRoomTimelineReplyDraft = {
   draft: IReplyDraft;
@@ -18,7 +19,9 @@ export const buildMindroomRoomTimelineReplyDraft = (
   const threadRootId = replyEvent.threadRootId ?? eventId;
   const editedReply = getEditedEvent(eventId, replyEvent, room.getUnfilteredTimelineSet());
   const content: IContent = editedReply?.getContent()['m.new_content'] ?? replyEvent.getContent();
-  const { body, formatted_body: formattedBody } = content;
+  const { formatted_body: formattedBody } = content;
+  // The composer previews a canvas by its title, not the fallback body for other clients.
+  const body: unknown = readCanvasNoticeTitle(content) ?? content.body;
   const { 'm.relates_to': relation } = startThread
     ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRootId } }
     : replyEvent.getWireContent();
