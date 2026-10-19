@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Give `[+all]` its own glass (2026-10-18)
+
+- Why: in the demo recordings, the `[+all]` expand-all toggle at the top right of a thread was printed over the timestamp of whichever message had scrolled under it.
+  The toggle sits in the clear band below the sticky thread banner (below the room header and overview in room view), where rows keep scrolling; #261 kept it there so it stays reachable.
+  It was bare text without a surface, the only floating timeline control without one (Jump to Latest, Show more/less and the pagination chips use the control glass).
+- Change: `useTimelineMessageExpansion.tsx` gives the toggle the shared floating control material (`glassSurface` control / `SurfaceVariant` plus `glassFloating`), a small padding and the `R300` radius; its label and right edge are unchanged.
+  It moves up 4 px so the chip ends where the bare label did, inside the clear band, and does not reach the first message at the top of a thread, even with tight message spacing.
+  A row under it is now blurred and tinted behind the label instead of interleaving with it.
+  The label's 70% opacity is gone, because it would also have thinned the glass.
+- Residual: the chip keeps the toggle's old place, which is not aligned with the timestamp column (it ends 8 px short of it in a thread and covers all but its first 4 px in the room view), so a timestamp lined up with the chip can still show a sliver beside it, as content shows beside any floating chrome.
+- Tests: `thread-banner-overlay.spec.ts` checks, while reading history, that rows pass under `[+all]` and that it has a 3 px backdrop blur and a non-transparent background; on `dev` it fails at both viewports with `backdrop-filter: none`.
+
 ### Approval review says "Submitted" once per call (2026-10-18)
 
 - Why: after approving a call, the approval review showed "Submitted. Waiting for room update." twice, under the call and again at the foot of its group (seen in the demo recordings).
