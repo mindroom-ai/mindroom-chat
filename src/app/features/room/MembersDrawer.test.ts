@@ -119,6 +119,8 @@ vi.mock('./MembersDrawer.css', () => ({
   DrawerVirtualItem: 'DrawerVirtualItem',
   MemberDrawerContentBase: 'MemberDrawerContentBase',
   MembersHeaderControl: 'MembersHeaderControl',
+  MembersHeaderCount: 'MembersHeaderCount',
+  MembersHeaderInvited: 'MembersHeaderInvited',
   MembersDrawer: 'MembersDrawer',
   MembersGroupLabel: 'MembersGroupLabel',
 }));

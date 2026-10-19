@@ -13,6 +13,58 @@
 - Tests: `threadSession.test.tsx` covers a count-proven complete page clearing the cursor (fails without the change) and a page that starts after the SDK's replies keeping it.
 - Validation: thread unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel opened a streamed two-message thread from the overview with `/relations` delayed by 3 s so the cache won: the chip showed in 3 of 3 runs on `dev` and in 0 of 3 with the change.
 
+### Fit the invited count in the Members header at the default width (2026-10-18)
+
+- Problem: in a room with a pending invite, the Members drawer header read "4 Me… · 1 / Invited" at the drawer's default 266 px width (demo recording bring-the-team-in): the member count was truncated and the invited chip wrapped onto two lines.
+  The header holds the count, the "·", the chip and two 40 px buttons; at 266 px the counts get 146 px but need about 181. The pending-invites change (2026-10-01) was not checked in a running client, and the live glass spec widens the drawer to 380 px.
+- Fix: the invited chip moves under the member count, without the "·"; the chip keeps its button and click, loses its inline inset so its label lines up with the count, and truncates instead of wrapping. The header height is unchanged (54 px holds both lines).
+  Both labels are capped at the column's width, since a column sizes them to their text and they would otherwise run under the buttons instead of truncating (at the 200 px minimum width the count now ends in an ellipsis; on `dev` it was squeezed to 0 px).
+- Tests: `e2e/live/members-header-glass.spec.ts` resets the drawer to its default width and checks that neither "29 Members" nor "1 Invited" is truncated or reaches the buttons, then narrows it to 200 px and checks that the count stays clear of the buttons.
+  It fails on `dev` ("29 Members is not truncated") and, without the width cap, at the narrow check; it passes in Chromium and WebKit, both themes.
+
+### Give `[+all]` its own glass (2026-10-18)
+
+- Why: in the demo recordings, the `[+all]` expand-all toggle at the top right of a thread was printed over the timestamp of whichever message had scrolled under it.
+  The toggle sits in the clear band below the sticky thread banner (below the room header and overview in room view), where rows keep scrolling; #261 kept it there so it stays reachable.
+  It was bare text without a surface, the only floating timeline control without one (Jump to Latest, Show more/less and the pagination chips use the control glass).
+- Change: `useTimelineMessageExpansion.tsx` gives the toggle the shared floating control material (`glassSurface` control / `SurfaceVariant` plus `glassFloating`), a small padding and the `R300` radius; its label and right edge are unchanged.
+  It moves up 4 px so the chip ends where the bare label did, inside the clear band, and does not reach the first message at the top of a thread, even with tight message spacing.
+  A row under it is now blurred and tinted behind the label instead of interleaving with it.
+  The label's 70% opacity is gone, because it would also have thinned the glass.
+- Residual: the chip keeps the toggle's old place, which is not aligned with the timestamp column (it ends 8 px short of it in a thread and covers all but its first 4 px in the room view), so a timestamp lined up with the chip can still show a sliver beside it, as content shows beside any floating chrome.
+- Tests: `thread-banner-overlay.spec.ts` checks, while reading history, that rows pass under `[+all]` and that it has a 3 px backdrop blur and a non-transparent background; on `dev` it fails at both viewports with `backdrop-filter: none`.
+
+### Approval review says "Submitted" once per call (2026-10-18)
+
+- Why: after approving a call, the approval review showed "Submitted. Waiting for room update." twice, under the call and again at the foot of its group (seen in the demo recordings).
+  The call's own `ApprovalDecisionControls` and the group's footer in `ApprovalReviewGroup` have both rendered it since the timed approval controls landed (`36cfdbcd`).
+- Change (`ThreadApprovalControls.tsx`): the group's footer status shows only while the calls are folded behind "Show N calls", where no call can say it.
+  A listed call already does: both use `isApprovalPending` with the same action state.
+- Tests: `ThreadApprovalControls.test.tsx` counts the status for one submitted call, two listed submitted calls, and three folded calls with one submitted; the first two fail without the change.
+- Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
+  A temporary Playwright spec against a local Tuwunel opened the review for one pending `rollback_deploy` call, approved it, and found the status once in light and dark (twice on `dev`).
+
+### List only users that contain the invite search, not near misses (2026-10-18)
+
+- Problem: searching "tom" in the Invite dialog listed "8 matching users": Tom Becker, then Omar Haddad, Julia Santos and the agents Counsel, Euler, Forge, Ledger and Quill.
+  None of the others contains "tom"; the homeserver's directory search returns only `@tom` for that term (checked against Tuwunel), so they came from Chat's own ranking.
+- Root cause: `rankUsers` ranks the cached user directory with Fuse at threshold 0.4, which lets a three-letter query differ by one character ("om" in Omar, "tos" in Santos, "rom" in every `mindroom_` localpart).
+  The CINNY-216 tiers already put these fuzzy-only matches last, but the list still filled its eight slots with them.
+- Fix: once at least one user contains the query (tier below the fuzzy-only tier), fuzzy-only matches are left out; when nobody contains it, they are still listed, so a typo such as "alcie" still finds Alice.
+- Tests: `userDirectorySearch.test.ts` checks that "tom" lists only Tom, that "alice" no longer lists "Elise Example", that a post-prefix hit drops a fuzzy display-name match, and that a typo still finds its user; the first three fail before the change.
+
+### Reply quotes name mentioned members (2026-10-18)
+
+- Report (demo review C2): a quoted reply read "↩ Forge @mindroom_quill:matrix.localhost Signups failed…" while the quoted message itself showed an `@Quill` pill.
+- Root cause: MindRoom agents write mentions as full Matrix IDs in the plain body (`_entity_mention_resolution_from_user_id` in the backend's `matrix/mentions.py`); only the formatted body carries the pill.
+  Reply quotes and the composer's reply bar preview the plain body through `getLocalizedThreadMessagePreviewText`, and only compact thread cards replaced Matrix IDs with display names afterwards.
+- Change: `replaceMatrixUserIdsWithDisplayNames` moves from `compactThreadCardViewModel.ts` to `threadMessagePreview.ts` with an optional prefix, and the new `getReplyPreviewText` gives `Reply` and `RoomInputReplyPreview` the preview with room members shown as `@<display name>`, as the pill reads.
+  Both compute it on every render rather than memoizing it, so names of lazily loaded members appear on the next render; the body analysis stays cached.
+  Matrix IDs of non-members stay raw, as on thread cards, which keep their bare names.
+- Unchanged by design: the `🔧 3 tools ·` badge and a table's cells set apart by middle dots in the same quote come from the shared preview formatter (#307 and "Compact view previews" below).
+- Tests: `Reply.test.tsx` renders a quoted agent hand-off with two member mentions (one followed by a comma) and a non-member mention; it fails on `dev`.
+- Next: none.
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.

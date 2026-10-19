@@ -157,6 +157,20 @@ for (const viewport of [
         initialBanner!
       );
       expect(rowsBehindBanner, 'rendered messages continue behind the glass').toBeGreaterThan(0);
+      // Rows also pass under [+all], so it needs its own glass to keep their text out of its label.
+      const expansionButton = page.getByRole('button', { name: /^\[[+-]all\]$/ });
+      const expansionBox = (await expansionButton.boundingBox())!;
+      const rowsBehindExpansion = await page.locator('[data-message-item]').evaluateAll(
+        (rows, box) =>
+          rows.filter((row) => {
+            const rect = row.getBoundingClientRect();
+            return rect.top < box.y + box.height && rect.bottom > box.y;
+          }).length,
+        expansionBox
+      );
+      expect(rowsBehindExpansion, 'messages scroll beneath [+all]').toBeGreaterThan(0);
+      await expect(expansionButton).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
+      await expect(expansionButton).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
       const footer = page.locator('[data-room-footer]');
       const emptyFooterHeight = (await footer.boundingBox())!.height;
       const clearComposer = async () => {
@@ -217,7 +231,6 @@ for (const viewport of [
       );
       await clearComposer();
 
-      const expansionButton = page.getByRole('button', { name: /^\[[+-]all\]$/ });
       await scroll.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('scrollbar-bottom.png') });
       const expansionLabel = await expansionButton.textContent();
