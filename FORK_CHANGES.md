@@ -12,6 +12,27 @@
 - Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
   A temporary Playwright spec against a local Tuwunel opened the review for one pending `rollback_deploy` call, approved it, and found the status once in light and dark (twice on `dev`).
 
+### List only users that contain the invite search, not near misses (2026-10-18)
+
+- Problem: searching "tom" in the Invite dialog listed "8 matching users": Tom Becker, then Omar Haddad, Julia Santos and the agents Counsel, Euler, Forge, Ledger and Quill.
+  None of the others contains "tom"; the homeserver's directory search returns only `@tom` for that term (checked against Tuwunel), so they came from Chat's own ranking.
+- Root cause: `rankUsers` ranks the cached user directory with Fuse at threshold 0.4, which lets a three-letter query differ by one character ("om" in Omar, "tos" in Santos, "rom" in every `mindroom_` localpart).
+  The CINNY-216 tiers already put these fuzzy-only matches last, but the list still filled its eight slots with them.
+- Fix: once at least one user contains the query (tier below the fuzzy-only tier), fuzzy-only matches are left out; when nobody contains it, they are still listed, so a typo such as "alcie" still finds Alice.
+- Tests: `userDirectorySearch.test.ts` checks that "tom" lists only Tom, that "alice" no longer lists "Elise Example", that a post-prefix hit drops a fuzzy display-name match, and that a typo still finds its user; the first three fail before the change.
+
+### Reply quotes name mentioned members (2026-10-18)
+
+- Report (demo review C2): a quoted reply read "↩ Forge @mindroom_quill:matrix.localhost Signups failed…" while the quoted message itself showed an `@Quill` pill.
+- Root cause: MindRoom agents write mentions as full Matrix IDs in the plain body (`_entity_mention_resolution_from_user_id` in the backend's `matrix/mentions.py`); only the formatted body carries the pill.
+  Reply quotes and the composer's reply bar preview the plain body through `getLocalizedThreadMessagePreviewText`, and only compact thread cards replaced Matrix IDs with display names afterwards.
+- Change: `replaceMatrixUserIdsWithDisplayNames` moves from `compactThreadCardViewModel.ts` to `threadMessagePreview.ts` with an optional prefix, and the new `getReplyPreviewText` gives `Reply` and `RoomInputReplyPreview` the preview with room members shown as `@<display name>`, as the pill reads.
+  Both compute it on every render rather than memoizing it, so names of lazily loaded members appear on the next render; the body analysis stays cached.
+  Matrix IDs of non-members stay raw, as on thread cards, which keep their bare names.
+- Unchanged by design: the `🔧 3 tools ·` badge and a table's cells set apart by middle dots in the same quote come from the shared preview formatter (#307 and "Compact view previews" below).
+- Tests: `Reply.test.tsx` renders a quoted agent hand-off with two member mentions (one followed by a comma) and a non-member mention; it fails on `dev`.
+- Next: none.
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
