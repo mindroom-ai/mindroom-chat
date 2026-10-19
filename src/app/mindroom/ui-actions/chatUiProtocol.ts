@@ -116,6 +116,20 @@ const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
   return document ? { title, document } : undefined;
 };
 
+/**
+ * The title of the canvas a notice shows. The notice's body is the fallback for other Matrix
+ * clients ("Open it in MindRoom Chat"), so Chat names the canvas by its title instead.
+ */
+export const readCanvasNoticeTitle = (content: Record<string, unknown>): string | undefined => {
+  const data = content[CHAT_UI_ACTION_KEY];
+  return content.msgtype === 'm.notice' &&
+    record(data) &&
+    data.version === 1 &&
+    data.action === 'show_canvas'
+    ? readCanvas(data.canvas)?.title
+    : undefined;
+};
+
 const AUTHORITY_FIELDS = [
   'version',
   'action',

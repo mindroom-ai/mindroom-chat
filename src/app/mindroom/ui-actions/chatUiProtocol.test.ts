@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readChatUiAction } from './chatUiProtocol';
+import { readCanvasNoticeTitle, readChatUiAction } from './chatUiProtocol';
 import { agentId, makeUiEvent, makeUiRoom, viewerId } from './testUtils';
 
 describe('readChatUiAction', () => {
@@ -268,6 +268,34 @@ describe('readChatUiAction', () => {
     it('never treats the edit event itself as a request', () => {
       const { room } = makeUiRoom();
       expect(readChatUiAction(canvasEdit({ canvas }), viewerId, room)).toBeUndefined();
+    });
+
+    it('names a canvas notice by its title, for any viewer', () => {
+      const shown = makeUiEvent({
+        action: 'show_canvas',
+        canvas,
+        requester_id: '@bob:example.org',
+      });
+      expect(readCanvasNoticeTitle(shown.getContent())).toBe('Choose a plan');
+      // An update's title, as the edited event shows it.
+      const updated = makeUiEvent({ action: 'show_canvas', canvas });
+      updated.makeReplaced(canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' } }));
+      expect(readCanvasNoticeTitle(updated.getContent())).toBe('Step 2');
+      [
+        makeUiEvent(),
+        makeUiEvent({ action: 'show_canvas', canvas, version: 2 }),
+        makeUiEvent({ action: 'show_canvas', canvas: { title: ' ', html: '<p></p>' } }),
+        makeUiEvent(
+          {},
+          {
+            content: {
+              msgtype: 'm.text',
+              body: 'Hi',
+              'io.mindroom.ui_action': { version: 1, action: 'show_canvas', canvas },
+            },
+          }
+        ),
+      ].forEach((event) => expect(readCanvasNoticeTitle(event.getContent())).toBeUndefined());
     });
   });
 });

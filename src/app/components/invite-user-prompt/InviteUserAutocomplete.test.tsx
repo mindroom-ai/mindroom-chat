@@ -551,6 +551,11 @@ describe('InviteUserAutocomplete', () => {
     expect(getInput(renderer).props['aria-activedescendant']).toBe(
       'invite-autocomplete-option-_40alpine_3Aexample.org'
     );
+    // The selected-row fill keys off aria-selected, so it must follow the active row.
+    expect(getOptions(renderer).map((option) => option.props['aria-selected'])).toEqual([
+      false,
+      true,
+    ]);
 
     const { preventDefault } = keyDown(renderer, 'Enter');
 
@@ -688,6 +693,28 @@ describe('InviteUserAutocomplete', () => {
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(getOptions(renderer)).toHaveLength(0);
+  });
+
+  it('marks no suggestion while a typed MXID is what Enter submits', () => {
+    const onSelect = vi.fn();
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([
+        { userId: '@suggestion:example.org', displayName: '@alice:example.org' },
+      ]),
+      initialValue: '@alice:example.org',
+      onSelect,
+    });
+
+    expect(getOptions(renderer)).toHaveLength(1);
+    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
+
+    keyDown(renderer, 'ArrowDown');
+    const { preventDefault } = keyDown(renderer, 'Enter');
+
+    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('does not reopen when async suggestions arrive after the input blurs', async () => {

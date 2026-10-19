@@ -499,3 +499,56 @@ it('folds the calls of a group behind a toggle while bulk approval is offered', 
     cleanup();
   }
 });
+
+it.each([
+  { calls: 1, submitted: 1, statuses: 1, shown: 'the call' },
+  { calls: 2, submitted: 2, statuses: 2, shown: 'each call' },
+  { calls: 3, submitted: 1, statuses: 1, shown: 'the folded calls' },
+])(
+  'says a submitted decision waits for the room once, under $shown',
+  async ({ calls, submitted, statuses }) => {
+    const records = Array.from({ length: calls }, (_, index) => approvalRecord(index));
+    reviewContext(records);
+    current = {
+      ...current,
+      actions: new Map(
+        records
+          .slice(0, submitted)
+          .map((record) => [record.eventId, { kind: 'decision', status: 'submitted' }] as const)
+      ),
+    };
+    const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+    try {
+      const waiting = [...container.querySelectorAll('[role="status"]')].filter(
+        (node) => node.textContent === 'Submitted. Waiting for room update.'
+      );
+      // A listed call reports its own submission; folded calls report it once, for the group.
+      expect(waiting).toHaveLength(statuses);
+    } finally {
+      cleanup();
+    }
+  }
+);
+
+it('says a submitted decision waits for the room once after the folded calls are shown', async () => {
+  const records = [approvalRecord(0), approvalRecord(1), approvalRecord(2)];
+  reviewContext(records);
+  current = {
+    ...current,
+    actions: new Map([[records[0].eventId, { kind: 'decision', status: 'submitted' }]]),
+  };
+  const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
+  try {
+    const toggle = buttonsIn(container).find((button) =>
+      button.textContent?.startsWith('Show 3 calls')
+    );
+    expect(toggle).toBeDefined();
+    await act(async () => toggle?.click());
+    const waiting = [...container.querySelectorAll('[role="status"]')].filter(
+      (node) => node.textContent === 'Submitted. Waiting for room update.'
+    );
+    expect(waiting).toHaveLength(1);
+  } finally {
+    cleanup();
+  }
+});
