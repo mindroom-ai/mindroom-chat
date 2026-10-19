@@ -106,19 +106,26 @@ export async function markMainTimelineAsRead(
   mx: MatrixClient,
   roomId: string,
   privateReceipt: boolean,
-  isShown: (event: MatrixEvent) => boolean = () => true
+  /** The main-timeline events a view shows, wherever they are loaded; all when omitted. */
+  shownEvents?: MatrixEvent[]
 ) {
   const room = mx.getRoom(roomId);
   const userId = mx.getUserId();
   if (!room || !userId) return;
 
+  const readUpToId = room.getEventReadUpTo(userId);
   const timeline = room.getLiveTimeline().getEvents();
-  if (timeline.length === 0) return;
-
+  // Time orders shown events, which may lie outside the live timeline, after the read position;
+  // an unloaded read position precedes all of the live timeline.
+  const readUpToTs = readUpToId
+    ? (room.findEventById(readUpToId) ?? timeline[0])?.getTs() ?? Infinity
+    : -1;
   const latestEvent = getLatestReceiptTarget(
-    timeline,
-    room.getEventReadUpTo(userId),
-    (event) => !isThreadOnlyRoomActivity(room, event) && isShown(event)
+    shownEvents
+      ? [...shownEvents].sort((eventA, eventB) => eventA.getTs() - eventB.getTs())
+      : timeline,
+    readUpToId,
+    (event) => (shownEvents ? event.getTs() >= readUpToTs : !isThreadOnlyRoomActivity(room, event))
   );
   if (!latestEvent) return;
 

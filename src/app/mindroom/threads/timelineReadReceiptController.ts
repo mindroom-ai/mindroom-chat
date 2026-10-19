@@ -39,16 +39,16 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef,
   atBottomRef,
   atLiveEndRef,
-  compactCardRootIds,
+  compactCards,
   getScrollElement,
   handleOpenEvent,
   hideActivity,
   mainEventsLength,
   mx,
+  onScreenEventsRef,
   readUptoEventIdRef,
   room,
   setAtBottom,
-  shownEventsRef,
   threadEventsLength,
   threadId,
   threadInitialRenderMode,
@@ -60,18 +60,18 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
-  /** Set while the compact view is shown: the roots of the cards it displays. */
-  compactCardRootIds?: string[];
+  /** Set while the compact view is shown: the root events of the cards it may acknowledge. */
+  compactCards?: MatrixEvent[];
   getScrollElement: () => HTMLElement | null | undefined;
   handleOpenEvent: OpenEventHandler;
   hideActivity: boolean;
   mainEventsLength: number;
   mx: MatrixClient;
+  /** The classic rows on screen, including the thread replies shown inline. */
+  onScreenEventsRef: MutableRefObject<() => MatrixEvent[]>;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
-  /** The events the room view displays, including the thread replies classic shows inline. */
-  shownEventsRef: MutableRefObject<MatrixEvent[]>;
   threadEventsLength: number;
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
@@ -82,9 +82,9 @@ export const useTimelineReadReceiptController = ({
   const markShownAsRead = useCallback(() => {
     markMainTimelineAsRead(mx, room.roomId, hideActivity);
     // A main receipt reads no thread replies, so each unread thread shown inline gets its own.
-    const replies = shownEventsRef.current.filter((event) =>
-      isThreadReplyEvent(event.getId() ?? '', event.threadRootId)
-    );
+    const replies = onScreenEventsRef
+      .current()
+      .filter((event) => isThreadReplyEvent(event.getId() ?? '', event.threadRootId));
     const shownIds = new Set(replies.map((event) => event.getId()));
     const isShown = (event: MatrixEvent) => shownIds.has(event.getId());
     new Set(replies.map((event) => event.threadRootId!)).forEach((rootId) => {
@@ -93,7 +93,7 @@ export const useTimelineReadReceiptController = ({
         markThreadAsRead(mx, room.roomId, rootId, hideActivity, isShown);
       }
     });
-  }, [hideActivity, mx, room, shownEventsRef]);
+  }, [hideActivity, mx, onScreenEventsRef, room]);
 
   const tryAutoMarkAsRead = useCallback(() => {
     const readUptoEventId = readUptoEventIdRef.current;
@@ -110,15 +110,15 @@ export const useTimelineReadReceiptController = ({
 
   // The compact view has no bottom or mark-read control: seeing it reads its newest card.
   const markCompactCardsAsRead = useCallback(() => {
-    const shown = new Set(compactCardRootIds);
+    if (!compactCards?.length) return;
     requestAnimationFrame(() =>
-      markMainTimelineAsRead(mx, room.roomId, hideActivity, (event) => shown.has(event.getId()!))
+      markMainTimelineAsRead(mx, room.roomId, hideActivity, compactCards)
     );
-  }, [compactCardRootIds, hideActivity, mx, room.roomId]);
+  }, [compactCards, hideActivity, mx, room.roomId]);
 
   useEffect(() => {
-    if (compactCardRootIds && document.hasFocus()) markCompactCardsAsRead();
-  }, [compactCardRootIds, mainEventsLength, markCompactCardsAsRead]);
+    if (compactCards && document.hasFocus()) markCompactCardsAsRead();
+  }, [compactCards, mainEventsLength, markCompactCardsAsRead]);
 
   const tryAutoMarkThreadAsRead = useCallback(() => {
     if (
@@ -192,7 +192,7 @@ export const useTimelineReadReceiptController = ({
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
-        if (inFocus && compactCardRootIds) {
+        if (inFocus && compactCards) {
           markCompactCardsAsRead();
           return;
         }
@@ -218,7 +218,7 @@ export const useTimelineReadReceiptController = ({
       [
         atBottomRef,
         atLiveEndRef,
-        compactCardRootIds,
+        compactCards,
         handleOpenEvent,
         markCompactCardsAsRead,
         threadId,

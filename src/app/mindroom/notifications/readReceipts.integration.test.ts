@@ -125,9 +125,10 @@ describe('thread receipt unread state with SDK models', () => {
 
   it('reads thread replies with an unthreaded receipt, not a main one on a newer event', async () => {
     const { mx, room, thread } = await setupRoom();
-    room.getUnfilteredTimelineSet().addLiveEvent(message('$card', 4000), { addToState: false });
+    const card = message('$card', 4000);
+    room.getUnfilteredTimelineSet().addLiveEvent(card, { addToState: false });
 
-    await markMainTimelineAsRead(mx, ROOM_ID, false, (event) => event.getId() === '$card');
+    await markMainTimelineAsRead(mx, ROOM_ID, false, [card]);
     expect(room.getEventReadUpTo(USER_ID)).toBe('$card');
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
 

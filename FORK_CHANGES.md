@@ -9,12 +9,19 @@
   Sending one exposed a read-model bug: Chat counted a `main` receipt as reading older thread replies (`getEffectiveThreadReadUpToTs` took the later of the thread and room receipts), which MSC3771 and the server do not, so a main receipt cleared other threads' unread cards while the server kept counting them.
 - Fix:
   - Thread unread state (`getThreadUnread`) honours only thread and unthreaded receipts; the room-receipt fallback and the `readUpToTs` plumbing that fed it are removed.
-  - The classic view keeps its main receipt at the live bottom and, for each unread thread whose replies it shows inline (root in the loaded window, reply in `thread.events`), sends a thread receipt on the newest shown reply, never a summary-only one (`markThreadAsRead`'s `isShown`).
-  - The compact view sends a main receipt on the newest event among its displayed cards (`overviewThreadRootIds`, after filters) when it is shown with focus, when the main timeline grows, and when focus returns.
+  - The classic view keeps its main receipt at the live bottom and, for each unread thread with an inline reply on screen (the virtualizer's visible range, without overscan), sends a thread receipt on the newest such reply, never a summary-only one (`markThreadAsRead`'s `isShown`).
+    A reply placed under a root scrolled out of view is not acknowledged.
+  - The compact view sends a main receipt on the newest root among its displayed cards when it is shown with focus, when the main timeline grows, and when focus returns.
+    The roots can come from the thread list or pins, outside the live timeline, so `markMainTimelineAsRead` orders them by time and sends only when the root is newer than the read position (an unloaded read position precedes the live timeline).
+    It sends nothing while a status, tag or search filter is active: a main receipt reads every main event before it, including unread roots the filter hides.
     It skips the classic historical-marker connectivity check, since it has no bottom and no mark-read control.
+  - The cross-room thread index refreshes a room's threads on your unthreaded receipts only, not on main-timeline ones.
 - Tests:
   - `readReceipts.integration.test.ts`: a main receipt on a newer event leaves a thread's replies unread, an unthreaded receipt reads them (fails without the change).
-  - `timelineReadReceiptController.test.tsx`: classic receipts only the shown unread thread, not one whose newest reply is summary-only or whose root is outside the window; compact receipts the newest shown card, not a filtered-out card or a notice.
+  - `RoomTimeline.readReceipts.test.ts`: classic receipts the thread whose inline reply is on screen, not one whose reply sits under a root scrolled out of view; compact sends no main receipt while a search hides a card.
+  - `timelineReadReceiptController.test.tsx`: classic never receipts a summary-only reply.
+  - `readReceipts.test.ts`: the compact receipt goes to the newest shown root outside the live timeline, only when it is newer than the read position.
+- Trade-off: the compact main receipt also covers older hidden notices and unloaded gap events, which affects only the main-timeline count.
 - Not covered:
   - Reaching a thread without the compact view ever showing (deep link, notification) leaves its root counting until the room is seen.
   - Classic sends thread receipts on reaching the bottom or regaining focus, not when a thread reply arrives while you watch.

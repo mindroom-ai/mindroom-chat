@@ -88,6 +88,7 @@ import { useThreadSortFreezeController } from './threadSortFreezeController';
 import { useMindroomThreadIndex } from './useMindroomThreadIndex';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
+  hasActiveThreadFilters,
   type ThreadFilterState,
   type ThreadSortFreezeState,
   type FilterPreset,
@@ -1599,21 +1600,33 @@ export function RoomTimeline({
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
 
+  // The classic rows on screen: the virtualizer's visible range, without its overscan.
+  const onScreenEventsRef = useRef(() => [] as MatrixEvent[]);
+  onScreenEventsRef.current = () => {
+    const { range } = roomTimelineVirtualizer;
+    const rows = range ? timelineItems.slice(range.startIndex, range.endIndex + 1) : [];
+    return rows.flatMap((item) => threadFilteredEventEntries[item]?.event ?? []);
+  };
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
     atBottomAnchorRef,
     atBottomRef,
     atLiveEndRef,
-    compactCardRootIds: showCompactRoomView ? overviewThreadRootIds : undefined,
+    // A main receipt also reads the unread roots before it, so none is sent while a filter hides some.
+    compactCards: showCompactRoomView
+      ? hasActiveThreadFilters(effectiveThreadFilterState)
+        ? []
+        : threadFilteredEvents
+      : undefined,
     getScrollElement,
     handleOpenEvent,
     hideActivity,
     mainEventsLength: eventsLength,
     mx,
+    onScreenEventsRef,
     readUptoEventIdRef,
     room,
     setAtBottom,
-    shownEventsRef: threadFilteredEventsRef,
     threadEventsLength: threadEvents.length,
     threadId,
     threadInitialRenderMode,

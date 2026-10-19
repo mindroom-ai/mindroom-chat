@@ -79,6 +79,32 @@ describe('markMainTimelineAsRead', () => {
   });
 });
 
+describe('markMainTimelineAsRead with shown events', () => {
+  it('reads the newest shown card wherever it is loaded, only after the read position', async () => {
+    const olderCard = makeMessageEvent('$older-card', 5);
+    const card = makeMessageEvent('$card', 20);
+    const notice = makeMessageEvent('$notice', 30);
+    const room = makeRoom([notice]);
+    const read = makeMessageEvent('$read', 10);
+    room.getEventReadUpTo.mockReturnValue('$read' as never);
+    room.findEventById.mockImplementation((id: string) => (id === '$read' ? read : undefined));
+    const mx = makeClient(room);
+
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
+    expect(mx.sendReceipt).toHaveBeenCalledWith(card, ReceiptType.Read, {
+      thread_id: MAIN_ROOM_TIMELINE,
+    });
+
+    mx.sendReceipt.mockClear();
+    room.findEventById.mockReturnValue(makeMessageEvent('$read', 25) as never);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
+    // An unloaded read position precedes the live timeline, which here starts after the cards.
+    room.findEventById.mockReturnValue(undefined as never);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+  });
+});
+
 describe('markThreadAsRead', () => {
   it.each([false, true])(
     'acknowledges a distinct latest reply with an equal timestamp (older reply read: %s)',
