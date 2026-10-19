@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
+
+- Problem: with the Invite dialog's suggestions open, the third row looked highlighted while the cursor and the keyboard choice were on the first (demo recording bring-the-team-in, 5-20 s).
+  The lavender band was the dialog's own Invite button showing through the list, which uses the 60 % menu tint; the option Enter or Tab picks (`aria-selected`, moved with the arrow keys) had no fill at all, because the Folds menu row only fills on hover, keyboard focus and `aria-pressed`, and DOM focus stays in the input.
+- Fix: `InviteAutocompleteOption` fills `aria-selected` rows with the Surface hover color, and the list uses the existing `glassDenseOverBackdrop` tint (94 %, 90 % in dark themes) because it covers the dialog's controls.
+  While the input holds a valid MXID no option is marked (no fill, no `aria-activedescendant`), because Enter then invites the typed MXID, not a suggestion.
+  The list still extends past the dialog (CINNY-217); that is intended, so long lists are not clipped.
+- Tests: `dialog-menu-glass.spec.ts` checks that the invite list is tinted at least 90 % and that only the selected option is filled, in both themes and in Chromium and WebKit; each check fails without its half of the change.
+  `InviteUserAutocomplete.test.tsx` checks that `aria-selected` follows the arrow keys and that a typed MXID marks no suggestion while Enter still submits it (the latter fails without the gate).
+
 ### Drop "Load Older Messages" from a thread whose cached copy reaches the root (2026-10-18)
 
 - Why: the demo recordings showed "Load Older Messages" above brand-new two-message threads opened from the room overview (morning-brief, remind-me, whole-team-one-thread).
