@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { Direction } from 'matrix-js-sdk';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
@@ -18,10 +18,7 @@ import {
   markRoomAndThreadsAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
-import {
-  getEventTimeline,
-  getFirstLinkedTimeline,
-} from './timelinePagination';
+import { getEventTimeline, getFirstLinkedTimeline } from './timelinePagination';
 import type { ThreadInitialRenderMode } from './threadRenderUtils';
 
 type RoomUnreadInfoLike = {
@@ -40,9 +37,11 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef,
   atBottomRef,
   atLiveEndRef,
+  compactViewShowsEvent,
   getScrollElement,
   handleOpenEvent,
   hideActivity,
+  mainEventsLength,
   mx,
   readUptoEventIdRef,
   room,
@@ -58,9 +57,12 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
+  /** Set while the compact view is shown: whether it shows an event as a card. */
+  compactViewShowsEvent?: (event: MatrixEvent) => boolean;
   getScrollElement: () => HTMLElement | null | undefined;
   handleOpenEvent: OpenEventHandler;
   hideActivity: boolean;
+  mainEventsLength: number;
   mx: MatrixClient;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
@@ -74,16 +76,18 @@ export const useTimelineReadReceiptController = ({
 }) => {
   const tryAutoMarkAsRead = useCallback(() => {
     const readUptoEventId = readUptoEventIdRef.current;
+    const markRead = () =>
+      markMainTimelineAsRead(mx, room.roomId, hideActivity, compactViewShowsEvent);
     if (!readUptoEventId) {
-      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
+      requestAnimationFrame(markRead);
       return;
     }
     const evtTimeline = getEventTimeline(room, readUptoEventId);
     const latestTimeline = evtTimeline && getFirstLinkedTimeline(evtTimeline, Direction.Forward);
     if (latestTimeline === room.getLiveTimeline()) {
-      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
+      requestAnimationFrame(markRead);
     }
-  }, [hideActivity, mx, readUptoEventIdRef, room]);
+  }, [compactViewShowsEvent, hideActivity, mx, readUptoEventIdRef, room]);
 
   const tryAutoMarkThreadAsRead = useCallback(() => {
     if (
@@ -107,9 +111,12 @@ export const useTimelineReadReceiptController = ({
   ]);
 
   const debounceSetAtBottom = useDebounce(
-    useCallback((entry: IntersectionObserverEntry) => {
-      if (!entry.isIntersecting) setAtBottom(false);
-    }, [setAtBottom]),
+    useCallback(
+      (entry: IntersectionObserverEntry) => {
+        if (!entry.isIntersecting) setAtBottom(false);
+      },
+      [setAtBottom]
+    ),
     { wait: 1000 }
   );
 
@@ -154,6 +161,10 @@ export const useTimelineReadReceiptController = ({
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
+        if (inFocus && compactViewShowsEvent) {
+          tryAutoMarkAsRead();
+          return;
+        }
         if (inFocus && atBottomRef.current) {
           if (threadId) {
             if (atLiveEndRef.current) {
@@ -176,6 +187,7 @@ export const useTimelineReadReceiptController = ({
       [
         atBottomRef,
         atLiveEndRef,
+        compactViewShowsEvent,
         handleOpenEvent,
         threadId,
         tryAutoMarkAsRead,
@@ -184,6 +196,11 @@ export const useTimelineReadReceiptController = ({
       ]
     )
   );
+
+  // The compact view has no bottom to reach, so it acknowledges the cards as events arrive.
+  useEffect(() => {
+    if (compactViewShowsEvent && document.hasFocus()) tryAutoMarkAsRead();
+  }, [compactViewShowsEvent, mainEventsLength, tryAutoMarkAsRead]);
 
   useEffect(() => {
     if (

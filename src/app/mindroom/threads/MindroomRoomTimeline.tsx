@@ -70,6 +70,7 @@ import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
   isRenderableEvent,
+  isVisibleThreadRootEvent,
   mergeClassicRoomThreadReplyEntries,
 } from './roomTimelineEvents';
 import {
@@ -1601,14 +1602,24 @@ export function RoomTimeline({
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
 
+  const compactViewShowsEvent = useMemo(
+    () =>
+      showCompactRoomView
+        ? (event: MatrixEvent) =>
+            isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)
+        : undefined,
+    [room, showCompactRoomView, threadReplyCountMap, threadResolutionMap]
+  );
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
     atBottomAnchorRef,
     atBottomRef,
     atLiveEndRef,
+    compactViewShowsEvent,
     getScrollElement,
     handleOpenEvent,
     hideActivity,
+    mainEventsLength: eventsLength,
     mx,
     readUptoEventIdRef,
     room,

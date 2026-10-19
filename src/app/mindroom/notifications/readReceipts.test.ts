@@ -2,6 +2,7 @@ import { Direction, EventStatus, MatrixEvent, RelationType, ReceiptType } from '
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { describe, expect, it, vi } from 'vitest';
 import { markMainTimelineAsRead, markRoomAndThreadsAsRead, markThreadAsRead } from './readReceipts';
+import { isVisibleThreadRootEvent } from '../threads/roomTimelineEvents';
 
 const ROOM_ID = '!room:example.org';
 const USER_ID = '@alice:example.org';
@@ -76,6 +77,24 @@ describe('markMainTimelineAsRead', () => {
       thread_id: MAIN_ROOM_TIMELINE,
     });
     expect(mx.sendReadReceipt).not.toHaveBeenCalled();
+  });
+
+  it("skips newer events the compact view doesn't show", async () => {
+    const card = makeMessageEvent('$card', 1);
+    const notice = new MatrixEvent({
+      ...makeMessageEvent('$notice', 2).event,
+      content: { body: 'notice', msgtype: 'm.notice' },
+    });
+    const room = makeRoom([card, notice]);
+    const mx = makeClient(room);
+
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, (event) =>
+      isVisibleThreadRootEvent(event, room as never, new Map())
+    );
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(card, ReceiptType.Read, {
+      thread_id: MAIN_ROOM_TIMELINE,
+    });
   });
 });
 
@@ -189,93 +208,6 @@ describe('markThreadAsRead', () => {
     expect(mx.sendReceipt.mock.calls[0]?.[2]).toEqual({
       thread_id: THREAD_ID,
     });
-  });
-});
-
-describe('markThreadAsRead on a root from someone else', () => {
-  const makeReadThread = (id: string, replyTs: number, readUpTo: string | null) => {
-    const reply = new MatrixEvent({
-      ...makeThreadReplyEvent(`${id}-reply`, replyTs).event,
-      content: {
-        body: 'reply',
-        msgtype: 'm.text',
-        'm.relates_to': { rel_type: RelationType.Thread, event_id: id },
-      },
-    });
-    return {
-      id,
-      events: [reply],
-      replyToEvent: reply,
-      getEventReadUpTo: vi.fn(() => readUpTo),
-      getReadReceiptForUserId: vi.fn(() => null),
-      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
-    };
-  };
-
-  const setup = ({
-    root = makeMessageEvent(THREAD_ID, 3),
-    mainCount = 1,
-    otherThreadCount = 0,
-    otherThreadRead = true,
-    rootNotifies = true,
-  }: {
-    root?: MatrixEvent;
-    mainCount?: number;
-    otherThreadCount?: number;
-    otherThreadRead?: boolean;
-    rootNotifies?: boolean;
-  } = {}) => {
-    const thread = makeReadThread(THREAD_ID, 5, `${THREAD_ID}-reply`);
-    const other = makeReadThread('$other-root', 4, otherThreadRead ? '$other-root-reply' : null);
-    const room = {
-      ...makeRoom([root]),
-      findEventById: vi.fn((id: string) => (id === THREAD_ID ? root : undefined)),
-      getThread: vi.fn(() => thread),
-      getThreads: vi.fn(() => [thread, other]),
-      getRoomUnreadNotificationCount: vi.fn(() => mainCount),
-      getUnreadNotificationCount: vi.fn(() => mainCount + otherThreadCount),
-      getThreadUnreadNotificationCount: vi.fn(() => 0),
-      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
-    };
-    const mx = {
-      ...makeClient(room),
-      getPushActionsForEvent: vi.fn(() => ({ notify: rootNotifies })),
-    };
-    return { mx, root };
-  };
-
-  const mainReceipt = { thread_id: MAIN_ROOM_TIMELINE };
-
-  it('acknowledges the root on the main timeline once its thread is read', async () => {
-    const { mx, root } = setup();
-
-    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
-
-    expect(mx.sendReceipt).toHaveBeenCalledWith(root, ReceiptType.Read, mainReceipt);
-  });
-
-  it.each([
-    ['another main message also notifies', { mainCount: 2 }],
-    ['another thread has notifications', { otherThreadCount: 1 }],
-    ['another thread is unread', { otherThreadRead: false }],
-    [
-      'the root does not notify and the main notification is a newer mention',
-      { rootNotifies: false },
-    ],
-    [
-      "the root is the reader's own",
-      { root: new MatrixEvent({ ...makeMessageEvent(THREAD_ID, 3).event, sender: USER_ID }) },
-    ],
-  ])('leaves the main timeline alone when %s', async (_, options) => {
-    const { mx } = setup(options);
-
-    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
-
-    expect(mx.sendReceipt).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      mainReceipt
-    );
   });
 });
 
