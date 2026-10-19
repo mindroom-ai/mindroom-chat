@@ -7,7 +7,9 @@
 - Problem: in a room with a pending invite, the Members drawer header read "4 Me… · 1 / Invited" at the drawer's default 266 px width (demo recording bring-the-team-in): the member count was truncated and the invited chip wrapped onto two lines.
   The header holds the count, the "·", the chip and two 40 px buttons; at 266 px the counts get 146 px but need about 181. The pending-invites change (2026-10-01) was not checked in a running client, and the live glass spec widens the drawer to 380 px.
 - Fix: the invited chip moves under the member count, without the "·"; the chip keeps its button and click, loses its inline inset so its label lines up with the count, and truncates instead of wrapping. The header height is unchanged (54 px holds both lines).
-- Tests: `e2e/live/members-header-glass.spec.ts` resets the drawer to its default width and checks that neither "29 Members" nor "1 Invited" is truncated; it fails on `dev` ("29 Members is not truncated") and passes in Chromium and WebKit, both themes.
+  Both labels are capped at the column's width, since a column sizes them to their text and they would otherwise run under the buttons instead of truncating (at the 200 px minimum width the count now ends in an ellipsis; on `dev` it was squeezed to 0 px).
+- Tests: `e2e/live/members-header-glass.spec.ts` resets the drawer to its default width and checks that neither "29 Members" nor "1 Invited" is truncated or reaches the buttons, then narrows it to 200 px and checks that the count stays clear of the buttons.
+  It fails on `dev` ("29 Members is not truncated") and, without the width cap, at the narrow check; it passes in Chromium and WebKit, both themes.
 
 ### App Store update 4.12.421 (2026-10-18, submitted)
 

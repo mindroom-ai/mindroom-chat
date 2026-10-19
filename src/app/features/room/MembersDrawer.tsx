@@ -94,8 +94,9 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
       {invitePrompt && <InviteUserPrompt room={room} requestClose={() => setInvitePrompt(false)} />}
       <Box grow="Yes" alignItems="Center" gap="200">
         {/* The default 266 px drawer cannot fit both counts and two buttons on one line. */}
-        <Box className={css.MembersHeaderCounts} grow="Yes" direction="Column" alignItems="Start">
+        <Box grow="Yes" direction="Column" alignItems="Start">
           <Text
+            className={css.MembersHeaderCount}
             title={t('featureUi.room.membersDrawer.memberCount', {
               count: room.getJoinedMemberCount(),
             })}
