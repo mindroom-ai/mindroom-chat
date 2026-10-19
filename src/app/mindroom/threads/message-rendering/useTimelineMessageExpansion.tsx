@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
 import { glassFloating, glassSurface } from '../../../styles/Glass.css';
 import { CollapsibleMessageStateProvider } from '../CollapsibleMessage';
@@ -75,7 +75,8 @@ export const useTimelineMessageExpansion = (
       }}
       style={{
         position: 'absolute',
-        top: config.space.S200,
+        // Ends where the bare label did, inside the clear band above the first row.
+        top: config.space.S100,
         right: config.space.S400,
         zIndex: 2,
         color: color.Primary.Main,
@@ -84,7 +85,7 @@ export const useTimelineMessageExpansion = (
         fontFamily: 'var(--font-mono)',
         border: 'none',
         borderRadius: config.radii.R300,
-        padding: `${config.space.S100} ${config.space.S200}`,
+        padding: `${toRem(2)} ${config.space.S200}`,
       }}
     >
       {expandAll
