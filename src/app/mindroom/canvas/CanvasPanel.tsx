@@ -90,7 +90,13 @@ const ShrinkIcon: IconSrc = () => (
 type Staged = {
   submission: CanvasSubmission;
   armed: boolean;
+  /** The page submitted again while this answer waited; only then does the user need to hear how to change it. */
+  resubmitted?: true;
 };
+
+// Submissions arrive as canonical JSON (`readCanvasSubmission`), so equal answers stringify equally.
+const sameAnswer = (a: CanvasSubmission, b: CanvasSubmission): boolean =>
+  a.label === b.label && JSON.stringify(a.data) === JSON.stringify(b.data);
 
 /** The last answer this panel sent: its SDK local echo, which also drives the timeline. */
 type SentAnswer = { echo: MatrixEvent; label: string };
@@ -309,7 +315,12 @@ export function CanvasPanel({
       touched.current = true;
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
-      setStaged((current) => current ?? { submission, armed: false });
+      setStaged((current) => {
+        if (!current) return { submission, armed: false };
+        return current.resubmitted || sameAnswer(current.submission, submission)
+          ? current
+          : { ...current, resubmitted: true };
+      });
     };
     window.addEventListener('blur', handleBlur);
     window.addEventListener('message', handleMessage);
@@ -685,9 +696,11 @@ export function CanvasPanel({
               {t('mindroomUi.canvas.sendTo', { agent: agentName })}{' '}
               <b>{staged.submission.label ?? t('mindroomUi.canvas.unlabeled')}</b>
             </Text>
-            <Text size="T200" priority="300">
-              {t('mindroomUi.canvas.changeAnswer')}
-            </Text>
+            {staged.resubmitted && (
+              <Text size="T200" priority="300">
+                {t('mindroomUi.canvas.changeAnswer')}
+              </Text>
+            )}
             <details>
               <summary>
                 <Text as="span" size="T200">

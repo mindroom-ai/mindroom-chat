@@ -114,6 +114,14 @@
 - Next: await App Review and address any Apple feedback; publication is automatic after approval.
   Fix #463 so the offline cache spec can click the folded-message button.
 
+### Explain changing a canvas answer only when the page tries to (2026-10-18)
+
+- Why: the demo recordings showed "To change your answer, discard this one first." under every staged canvas answer, so the confirm bar read like instructions for a case the user had not hit.
+- Change (`CanvasPanel.tsx`): a staged answer stays frozen until Send or Discard, as before; the hint shows once the page submits a different answer (label or data) while one waits, which is when the bar would otherwise ignore the user's new choice; the same answer again, as from a double click, shows nothing. The **Data** disclosure stays: it is how the user sees exactly what will be sent, which the page's label need not match.
+- Tests: `CanvasPanel.test.tsx` "keeps the pending snapshot…" checks no hint for a first or fresh answer or the same answer again, and the hint after a different one (fails without the change).
+- Review: an independent subagent review found no defects. Qodo (PR #468): the same answer submitted twice showed the hint; fixed by comparing label and data.
+- Validation: `npm run typecheck`, eslint and Prettier on changed files, `CanvasPanel.test.tsx`, and a Chromium probe (not committed) against a disposable Tuwunel capturing the bar before and after a second submission.
+
 ### Name a canvas by its title instead of the other-client fallback (2026-10-18)
 
 - Why: the demo recordings showed every canvas in the timeline as "Interactive panel: Q4 launch review: pick a time. Open it in MindRoom Chat to respond." above **Open canvas**, and the answer's reply quote repeated it.
