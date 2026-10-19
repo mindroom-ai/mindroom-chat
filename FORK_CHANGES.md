@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Show which invite suggestion Enter picks, without the dialog showing through (2026-10-18)
+
+- Problem: with the Invite dialog's suggestions open, the third row looked highlighted while the cursor and the keyboard choice were on the first (demo recording bring-the-team-in, 5-20 s).
+  The lavender band was the dialog's own Invite button showing through the list, which uses the 60 % menu tint; the option Enter or Tab picks (`aria-selected`, moved with the arrow keys) had no fill at all, because the Folds menu row only fills on hover, keyboard focus and `aria-pressed`, and DOM focus stays in the input.
+- Fix: `InviteAutocompleteOption` fills `aria-selected` rows with the Surface hover color, and the list uses the existing `glassDenseOverBackdrop` tint (94 %, 90 % in dark themes) because it covers the dialog's controls.
+  The list still extends past the dialog (CINNY-217); that is intended, so long lists are not clipped.
+- Tests: `dialog-menu-glass.spec.ts` checks that the invite list is tinted at least 90 % and that only the selected option is filled, in both themes and in Chromium and WebKit; each check fails without its half of the change.
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
