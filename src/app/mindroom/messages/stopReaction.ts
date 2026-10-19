@@ -35,7 +35,7 @@ export const getRenderableAnnotationsByKey = (
   getActiveAnnotationsByKey(relations).filter(([key]) => !isStaleStopReactionKey(key, targetEvent));
 
 /**
- * The stop button itself: the agent's stop-key reaction on its reply while
+ * The stop button itself: the agent's 🛑 reaction on its reply while
  * that reply streams. Clicking it adds the viewer's stop reaction, which
  * stops the reply.
  */
@@ -44,7 +44,7 @@ export const isAgentStopButton = (
   events: readonly MatrixEvent[],
   targetEvent: MatrixEvent | undefined
 ): boolean =>
-  STOP_REACTION_KEYS.has(key) &&
+  key === '🛑' &&
   !!targetEvent &&
   isMindroomAiRunStreaming((targetEvent.getContent() as Record<string, unknown>) ?? {}) &&
   events.some((event) => event.getSender() === targetEvent.getSender());

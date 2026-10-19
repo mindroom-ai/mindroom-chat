@@ -106,7 +106,7 @@ describe('isAgentStopButton', () => {
 
   it.each([
     ['a person reacted', '🛑', '@bas:mindroom.chat', streaming],
-    ['another key', '👍', '@agent:mindroom.chat', streaming],
+    ['another key', '⏹️', '@agent:mindroom.chat', streaming],
     ['a message without stream metadata', '🛑', '@agent:mindroom.chat', reply({})],
     ['a missing target', '🛑', '@agent:mindroom.chat', undefined],
   ])('is a plain reaction for %s', (_, key, sender, target) => {

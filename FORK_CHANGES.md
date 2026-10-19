@@ -6,7 +6,7 @@
 
 - Why: MindRoom's stop button is a 🛑 reaction the agent adds to its reply while it streams (backend `stop.py`, `docs/chat-commands.md` "Stop Button"); reacting 🛑 stops the reply.
   Chat drew it as an ordinary reaction, "🛑 1", whose tooltip said the agent "reacted with :octagonal_sign:", so in the demo recordings it read as a stray reaction or an error under every streaming reply.
-- Change: `isAgentStopButton` (`stopReaction.ts`) picks out a stop-key reaction sent by the reply's own sender while the reply's stream metadata says it is streaming.
+- Change: `isAgentStopButton` (`stopReaction.ts`) picks out a 🛑 reaction sent by the reply's own sender while the reply's stream metadata says it is streaming.
   `Reactions` labels that chip "Stop" instead of its count and gives it the tooltip "Stop this reply"; `Reaction` takes an optional `label` shown in place of the count.
   Clicking still toggles the viewer's 🛑, which is what stops the reply, and stale stop chips stay hidden as before.
   A person's 🛑, and one on a message without stream metadata, stay plain reactions.
