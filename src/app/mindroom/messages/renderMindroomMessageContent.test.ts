@@ -527,6 +527,34 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('names a canvas by its title instead of the fallback for other clients', async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Interactive panel: Pick a time. Open it in MindRoom Chat to respond.',
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_canvas',
+        canvas: { title: 'Pick a time', html: '<p>Tuesday</p>' },
+      },
+    };
+    const render = (fromMindroomAgent: boolean) =>
+      renderNode({
+        mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+        fromMindroomAgent,
+        msgType: 'm.notice',
+        content,
+      });
+
+    const agentNotice = JSON.stringify((await render(true)).toJSON());
+    expect(agentNotice).toContain('Pick a time');
+    expect(agentNotice).not.toContain('Open it in MindRoom Chat');
+    // Any sender can write the UI-action key; only MindRoom's accounts show a canvas.
+    expect(JSON.stringify((await render(false)).toJSON())).toContain(
+      'Open it in MindRoom Chat to respond.'
+    );
+  });
+
   it('renders extras for MindRoom long-text text paths', async () => {
     longTextTextMock.mockReset();
 

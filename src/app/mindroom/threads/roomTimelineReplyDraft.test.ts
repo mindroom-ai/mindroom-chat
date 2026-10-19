@@ -23,13 +23,13 @@ const event = ({
     getSender: () => sender,
     getWireContent: () => wireContent,
     threadRootId,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const roomWithEvent = (replyEvent: MatrixEvent | undefined) =>
   ({
     findEventById: vi.fn(() => replyEvent),
     getUnfilteredTimelineSet: vi.fn(() => ({})),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('buildMindroomRoomTimelineReplyDraft', () => {
   beforeEach(() => {
@@ -44,16 +44,18 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
       wireContent: { 'm.relates_to': relation },
     });
 
-    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual({
-      draft: {
-        userId: '@sender:server',
-        eventId: '$reply',
-        body: 'hello',
-        formattedBody: '<b>hello</b>',
-        relation,
-      },
-      threadRootId: '$reply',
-    });
+    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual(
+      {
+        draft: {
+          userId: '@sender:server',
+          eventId: '$reply',
+          body: 'hello',
+          formattedBody: '<b>hello</b>',
+          relation,
+        },
+        threadRootId: '$reply',
+      }
+    );
   });
 
   it('uses edited message content when an edit exists', () => {
@@ -74,6 +76,27 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
     ).toMatchObject({
       body: 'edited',
       formattedBody: '<strong>edited</strong>',
+    });
+  });
+
+  it('previews a canvas by its title, not the fallback for other clients', () => {
+    const replyEvent = event({
+      content: {
+        msgtype: 'm.notice',
+        body: 'Interactive panel: Pick a time. Open it in MindRoom Chat to respond.',
+        'io.mindroom.ui_action': {
+          version: 1,
+          action: 'show_canvas',
+          canvas: { title: 'Pick a time', html: '<p></p>' },
+        },
+      },
+    });
+
+    expect(
+      buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$canvas', false)?.draft
+    ).toMatchObject({
+      body: 'Interactive panel: Pick a time. Open it in MindRoom Chat to respond.',
+      previewText: 'Pick a time',
     });
   });
 

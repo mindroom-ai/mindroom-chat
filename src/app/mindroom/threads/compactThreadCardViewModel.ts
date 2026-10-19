@@ -9,7 +9,10 @@ import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
-import { localizeThreadPreview } from './threadMessagePreview';
+import {
+  localizeThreadPreview,
+  replaceMatrixUserIdsWithDisplayNames,
+} from './threadMessagePreview';
 import type {
   CompactThreadAttentionState,
   CompactThreadCardViewModel,
@@ -21,30 +24,12 @@ import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 const TITLE_TEXT_LIMIT = 160;
 const PREVIEW_TEXT_LIMIT = 96;
-const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
-const MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP = /[.,!?;:)\]}'"`*_~>]+$/;
 
 // Share the active locale's formatter across new cards and changed message counts.
 let countFormatter: { locale: string | undefined; value: Intl.NumberFormat } | undefined;
 
 const truncateText = (value: string, limit: number): string =>
   value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
-
-export const replaceMatrixUserIdsWithDisplayNames = (room: Room, text: string): string =>
-  text.replace(MATRIX_USER_ID_CANDIDATE_REGEXP, (candidate) => {
-    const exactDisplayName = getMemberDisplayName(room, candidate);
-    if (exactDisplayName) return exactDisplayName;
-
-    const trailingPunctuation =
-      candidate.match(MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP)?.[0] ?? '';
-    for (let length = 1; length <= trailingPunctuation.length; length += 1) {
-      const userId = candidate.slice(0, -length);
-      const displayName = getMemberDisplayName(room, userId);
-      if (displayName) return `${displayName}${candidate.slice(-length)}`;
-    }
-
-    return candidate;
-  });
 
 export const formatCompactThreadMessageCount = (messageCount: number, locale?: string): string => {
   if (!countFormatter || countFormatter.locale !== locale) {

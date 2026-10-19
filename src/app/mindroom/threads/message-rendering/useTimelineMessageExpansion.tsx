@@ -7,8 +7,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { color, config } from 'folds';
+import classNames from 'classnames';
+import { color, config, toRem } from 'folds';
 import type { IContent } from 'matrix-js-sdk';
+import { glassFloating, glassSurface } from '../../../styles/Glass.css';
 import { CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
 import { consumeLiveExpandOnceId, getCollapsibleMessageMode } from '../threadCollapsibleMessages';
@@ -60,6 +62,11 @@ export const useTimelineMessageExpansion = (
   const expansionControl = (
     <button
       type="button"
+      // Rows scroll under this control, so it carries its own glass to stay readable.
+      className={classNames(
+        glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
+        glassFloating
+      )}
       onClick={(e) => {
         e.preventDefault();
         manualExpansionState.current.clear();
@@ -68,17 +75,17 @@ export const useTimelineMessageExpansion = (
       }}
       style={{
         position: 'absolute',
-        top: config.space.S200,
+        // Ends where the bare label did, inside the clear band above the first row.
+        top: config.space.S100,
         right: config.space.S400,
         zIndex: 2,
         color: color.Primary.Main,
         cursor: 'pointer',
         fontSize: '0.75rem',
         fontFamily: 'var(--font-mono)',
-        opacity: 0.7,
-        background: 'none',
         border: 'none',
-        padding: 0,
+        borderRadius: config.radii.R300,
+        padding: `${toRem(2)} ${config.space.S200}`,
       }}
     >
       {expandAll

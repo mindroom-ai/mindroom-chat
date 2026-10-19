@@ -93,8 +93,10 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
     const { index: focusIndex, next, previous, reset } = useListFocusIndex(suggestions.length, 0);
     const clampedFocusIndex =
       suggestions.length > 0 ? Math.min(Math.max(focusIndex, 0), suggestions.length - 1) : 0;
-    const activeUser = suggestions[clampedFocusIndex];
     const trimmedInputValue = inputValue.trim();
+    // Enter submits a typed MXID as it is, so no suggestion is the keyboard target then.
+    const typedUserId = isUserId(trimmedInputValue);
+    const activeUser = typedUserId ? undefined : suggestions[clampedFocusIndex];
     // Preserve explicit dismissal for the current value so Escape/click-outside cannot reopen it.
     const menuOpen =
       !disabled &&
@@ -164,7 +166,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
         return;
       }
 
-      if ((event.key === 'Enter' || event.key === 'Tab') && isUserId(trimmedInputValue)) {
+      if ((event.key === 'Enter' || event.key === 'Tab') && typedUserId) {
         if (event.key === 'Tab') {
           requestClose();
         }
@@ -223,7 +225,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                   ? mxcUrlToHttp(mx, user.avatarMxcUrl, useAuthentication, 32, 32, 'crop') ??
                     undefined
                   : undefined;
-                const active = index === clampedFocusIndex;
+                const active = !typedUserId && index === clampedFocusIndex;
 
                 return (
                   <MenuItem

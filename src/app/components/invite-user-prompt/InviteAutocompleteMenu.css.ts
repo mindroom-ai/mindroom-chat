@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, config, toRem } from 'folds';
+import { DefaultReset, color, config, toRem } from 'folds';
 
 export const InviteAutocompleteMenuRoot = style([DefaultReset]);
 
@@ -47,6 +47,10 @@ export const InviteAutocompleteOption = style([
     minHeight: toRem(56),
     paddingTop: config.space.S200,
     paddingBottom: config.space.S200,
+    selectors: {
+      // Rows are transparent at rest; the option Enter or Tab picks needs its own fill.
+      '&[aria-selected="true"]': { backgroundColor: color.Surface.ContainerHover },
+    },
   },
 ]);
 

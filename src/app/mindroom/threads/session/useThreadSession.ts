@@ -346,9 +346,25 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             const firstTimeline = thread
               ? getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0]
               : undefined;
+            const threadEvents = thread ? getThreadTimelineEvents(thread) : [];
             if (cacheResult?.shouldContinue === false) {
               if (cachedPage?.relationSnapshotComplete) {
                 firstTimeline?.setPaginationToken(null, Direction.Backward);
+              } else if (cachedPage) {
+                // A complete page starts at the root. Where it reaches back past the SDK's loaded
+                // replies, the SDK cursor only says older relation events may exist, and Tuwunel
+                // returns one with every non-empty relations page.
+                reconcileCachedThreadBackwardToken({
+                  cachedPage: { ...cachedPage, beforeToken: null },
+                  firstThreadTimeline: firstTimeline,
+                  threadEvents,
+                  threadId,
+                });
+              }
+              if (
+                cachedPage?.relationSnapshotComplete ||
+                firstTimeline?.getPaginationToken(Direction.Backward) === null
+              ) {
                 publish((current) => ({
                   ...current,
                   history: { ...current.history, hasMoreCachedBack: false },
@@ -360,7 +376,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             reconcileCachedThreadBackwardToken({
               cachedPage,
               firstThreadTimeline: firstTimeline,
-              threadEvents: thread ? getThreadTimelineEvents(thread) : [],
+              threadEvents,
               threadId,
             });
             if (shouldScrollToLatestOnOpen) {

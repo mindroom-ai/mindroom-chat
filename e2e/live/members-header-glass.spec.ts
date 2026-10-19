@@ -206,6 +206,32 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await invitePeople.evaluate((element) => parseFloat(getComputedStyle(element).outlineWidth))
       ).toBeGreaterThan(0);
       await invitePeople.evaluate((element) => (element as HTMLElement).blur());
+      // At the default drawer width, both counts show in full beside the header buttons.
+      await drawer
+        .getByRole('separator', { name: 'Resize member panel', exact: true })
+        .press('Enter');
+      await expect.poll(async () => Math.round((await drawer.boundingBox())!.width)).toBe(266);
+      const buttonsLeft = (await invitePeople.boundingBox())!.x;
+      for (const label of ['29 Members', '1 Invited']) {
+        const text = header.getByText(label, { exact: true });
+        expect(
+          await text.evaluate((element) => element.scrollWidth <= element.clientWidth),
+          `${label} is not truncated`
+        ).toBe(true);
+        const box = (await text.boundingBox())!;
+        expect(box.x + box.width, `${label} stays clear of the buttons`).toBeLessThanOrEqual(
+          buttonsLeft
+        );
+      }
+      // At the narrowest width the count truncates instead of running under the buttons.
+      await drawer
+        .getByRole('separator', { name: 'Resize member panel', exact: true })
+        .press('Home');
+      await expect.poll(async () => Math.round((await drawer.boundingBox())!.width)).toBe(200);
+      const narrowCount = (await header.getByText('29 Members', { exact: true }).boundingBox())!;
+      expect(narrowCount.x + narrowCount.width).toBeLessThanOrEqual(
+        (await invitePeople.boundingBox())!.x
+      );
       await header.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(header).toHaveCount(0);
     } finally {

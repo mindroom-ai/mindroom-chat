@@ -235,22 +235,66 @@ describe('thread session opening', () => {
     }
   });
 
-  it('joins complete cache coverage with a stale server backward cursor', async () => {
+  it.each([true, false])(
+    'joins complete cache coverage with a stale server backward cursor (relations proven: %s)',
+    async (relationSnapshotComplete) => {
+      const fixture = openFixture();
+      const bootstrap = deferred<typeof fixture.timeline>();
+      fixture.bootstrap.mockReturnValue(bootstrap.promise);
+      fixture.timeline.setPaginationToken('stale-older', Direction.Backward);
+      const cache = fixture.cache();
+      vi.mocked(loadThreadCachedSnapshot)
+        .mockReset()
+        .mockResolvedValue({
+          ...cache,
+          // A count-proven page records its known start as hasMoreBefore: false, without a cursor.
+          cachedPage: relationSnapshotComplete
+            ? cache.cachedPage
+            : { ...cache.cachedPage, relationSnapshotComplete, beforeToken: undefined },
+        });
+      const view = renderOpen(fixture.runtime, {
+        roomId: fixture.runtime.room.roomId,
+        threadId: '$a',
+      });
+      try {
+        await act(async () => undefined);
+        expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
+        await act(async () => bootstrap.resolve(fixture.timeline));
+        expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBeNull();
+        expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
+      } finally {
+        view.unmount();
+      }
+    }
+  );
+
+  it('keeps the server cursor when the complete cache starts after the loaded replies', async () => {
     const fixture = openFixture();
     const bootstrap = deferred<typeof fixture.timeline>();
     fixture.bootstrap.mockReturnValue(bootstrap.promise);
-    fixture.timeline.setPaginationToken('stale-older', Direction.Backward);
-    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(fixture.cache());
+    fixture.timeline.setPaginationToken('server-older', Direction.Backward);
+    const cache = fixture.cache();
+    const laterReply = { ...fixture.reply.event, event_id: '$later', origin_server_ts: 3 };
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockResolvedValue({
+        ...cache,
+        cachedPage: {
+          ...cache.cachedPage,
+          events: [laterReply],
+          relationSnapshotComplete: false,
+          beforeToken: undefined,
+        },
+      });
     const view = renderOpen(fixture.runtime, {
       roomId: fixture.runtime.room.roomId,
       threadId: '$a',
     });
     try {
       await act(async () => undefined);
-      expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
       await act(async () => bootstrap.resolve(fixture.timeline));
-      expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBeNull();
-      expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
+      expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBe('server-older');
+      expect(view.session.snapshot.history.hasMoreCachedBack).toBe(true);
     } finally {
       view.unmount();
     }
