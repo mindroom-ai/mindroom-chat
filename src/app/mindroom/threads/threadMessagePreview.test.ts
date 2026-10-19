@@ -234,6 +234,9 @@ describe('getThreadMessagePreviewText', () => {
       },
     });
     expect(getThreadMessagePreviewText(canvasNotice('Pick a time'))).toBe('Pick a time');
+    // A title is plain text, not Markdown.
+    expect(getThreadMessagePreviewText(canvasNotice('1. Pick a time'))).toBe('1. Pick a time');
+    expect(getThreadMessagePreviewText(canvasNotice('---'))).toBe('---');
     // An update in place is previewed by its new title.
     expect(
       getThreadMessagePreviewText({

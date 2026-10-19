@@ -93,8 +93,11 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
     });
 
     expect(
-      buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$canvas', false)?.draft.body
-    ).toBe('Pick a time');
+      buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$canvas', false)?.draft
+    ).toMatchObject({
+      body: 'Interactive panel: Pick a time. Open it in MindRoom Chat to respond.',
+      previewText: 'Pick a time',
+    });
   });
 
   it('builds the thread relation when starting a thread from a normal message', () => {

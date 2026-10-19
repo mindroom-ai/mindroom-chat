@@ -37,7 +37,8 @@ export function RoomInputReplyPreview({
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
   // Not memoized: room members load lazily, and the body analysis is cached.
-  const preview = getReplyPreviewText(room, { body: replyDraft?.body }, t);
+  const preview =
+    replyDraft?.previewText ?? getReplyPreviewText(room, { body: replyDraft?.body }, t);
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();
