@@ -17,7 +17,7 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import colorMXID from '../../../util/colorMXID';
-import { getLocalizedThreadMessagePreviewText } from '../threads/threadMessagePreview';
+import { getReplyPreviewText } from '../threads/threadMessagePreview';
 import { MindroomRoomInputReplyContext } from './RoomInputMindroomExtensions';
 
 type RoomInputReplyPreviewProps = {
@@ -37,8 +37,8 @@ export function RoomInputReplyPreview({
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
   const preview = useMemo(
-    () => getLocalizedThreadMessagePreviewText({ body: replyDraft?.body }, t),
-    [replyDraft?.body, t]
+    () => getReplyPreviewText(room, { body: replyDraft?.body }, t),
+    [room, replyDraft?.body, t]
   );
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
