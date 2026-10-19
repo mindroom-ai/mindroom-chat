@@ -131,7 +131,7 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
 // LaTeX commands a one-line preview shows as their Unicode symbol.
-const LATEX_PREVIEW_SYMBOLS: Record<string, string> = Object.fromEntries(
+const LATEX_PREVIEW_SYMBOLS = new Map(
   (
     'alpha α beta β gamma γ delta δ epsilon ε varepsilon ε zeta ζ eta η theta θ iota ι kappa κ ' +
     'lambda λ mu μ nu ν xi ξ pi π rho ρ sigma σ tau τ phi φ varphi φ chi χ psi ψ omega ω ' +
@@ -140,7 +140,7 @@ const LATEX_PREVIEW_SYMBOLS: Record<string, string> = Object.fromEntries(
     'rightarrow → Rightarrow ⇒ sum ∑ prod ∏ int ∫ partial ∂ nabla ∇ in ∈ degree ° ldots …'
   )
     .match(/\S+ \S+/g)!
-    .map((pair) => pair.split(' '))
+    .map((pair) => pair.split(' ') as [string, string])
 );
 const SUPERSCRIPTS = new Map(
   [...'0⁰1¹2²3³4⁴5⁵6⁶7⁷8⁸9⁹+⁺-⁻nⁿ'].flatMap((char, index, chars) =>
@@ -186,13 +186,14 @@ const latexToPreviewText = (latex: string): string => {
       // A command taking an argument, such as \text{W} or \mathbf{x}, keeps only the argument.
       .replace(
         /\\([A-Za-z]+)(\{)?/g,
-        (_, name: string, brace?: string) => brace ?? LATEX_PREVIEW_SYMBOLS[name] ?? name
+        (_, name: string, brace?: string) => brace ?? LATEX_PREVIEW_SYMBOLS.get(name) ?? name
       )
       .replace(/\^\{([^{}]*)\}|\^(\S)/g, (_, braced?: string, single?: string) =>
         toSuperscript((braced ?? single ?? '').trim())
       )
       .replace(/_\{([^{}]*)\}/g, (_, subscript: string) => `_${groupLatexArg(subscript)}`)
-      .replace(/[{}]/g, '')
+      // Escaped characters such as \% keep only the character.
+      .replace(/[{}]|\\/g, '')
       .replace(/\s+/g, ' ')
       .trim()
   );

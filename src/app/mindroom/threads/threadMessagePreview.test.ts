@@ -142,6 +142,7 @@ describe('getThreadMessagePreviewText', () => {
     ['$e^{i\\theta} \\mathbf{v}$', 'e^(iθ) v'],
     ['$\\left(a\\right) \\\\ \\unknown$', '(a) unknown'],
     ['$\\frac{a}{b}^2 + x_{i+1} + \\sqrt{\\sqrt{y}}$', '(a/b)² + x_(i+1) + √(√y)'],
+    ['$5\\% \\in \\{a, b\\} \\toString$', '5% ∈ a, b toString'],
   ])('reads %s as text', (body, preview) => {
     expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
   });
