@@ -21,6 +21,7 @@ import { factoryEventSentBy } from '../../../utils/matrix';
 import {
   getRenderableAnnotationsByKey,
   isAgentStopButton,
+  isStaleStopReactionKey,
 } from '../../../mindroom/messages/stopReaction';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
@@ -88,6 +89,8 @@ export const Reactions = as<'div', ReactionsProps>(
         {reactions.map(([key, events]) => {
           const rEvents = Array.from(events);
           if (rEvents.length === 0 || typeof key !== 'string') return null;
+          // The final edit updates the target in place, which the memoized filter above doesn't see.
+          if (isStaleStopReactionKey(key, targetEvent)) return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();
           const stopButton = isAgentStopButton(key, rEvents, targetEvent);

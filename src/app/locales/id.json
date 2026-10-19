@@ -2674,7 +2674,7 @@
       },
       "stopButton": {
         "label": "Hentikan",
-        "tooltip": "Hentikan balasan ini"
+        "tooltip": "Hentikan respons ini"
       },
       "threadApprovalControls": {
         "close": "Tutup",

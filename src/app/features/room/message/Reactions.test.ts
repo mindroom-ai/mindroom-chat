@@ -297,4 +297,40 @@ describe('Reactions', () => {
     });
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations);
   });
+
+  it('drops the stop chip once the target finishes streaming in place', () => {
+    const relations = new MockRelations([
+      [
+        '🛑',
+        new Set([
+          {
+            getSender: () => '@agent:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+    let content: Record<string, unknown> = { 'io.mindroom.stream_status': 'streaming' };
+    const targetEvent = {
+      getSender: () => '@agent:mindroom.chat',
+      getContent: () => content,
+    } as MatrixEvent;
+    const props = {
+      room: {} as never,
+      mEventId: '$event',
+      targetEvent,
+      canSendReaction: true,
+      relations: relations as never,
+      onReactionToggle: vi.fn(),
+    };
+    const renderer = render(React.createElement(Reactions, props));
+    expect(renderer.root.findAllByType('button')).toHaveLength(1);
+
+    content = { 'io.mindroom.stream_status': 'completed' };
+    act(() => {
+      renderer.update(React.createElement(Reactions, props));
+    });
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  });
 });
