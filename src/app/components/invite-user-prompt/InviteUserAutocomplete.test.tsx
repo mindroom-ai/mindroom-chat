@@ -551,6 +551,11 @@ describe('InviteUserAutocomplete', () => {
     expect(getInput(renderer).props['aria-activedescendant']).toBe(
       'invite-autocomplete-option-_40alpine_3Aexample.org'
     );
+    // The selected-row fill keys off aria-selected, so it must follow the active row.
+    expect(getOptions(renderer).map((option) => option.props['aria-selected'])).toEqual([
+      false,
+      true,
+    ]);
 
     const { preventDefault } = keyDown(renderer, 'Enter');
 
