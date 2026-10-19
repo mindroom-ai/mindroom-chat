@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_EVENT_CONTENT_BYTES } from '../messages/longText';
 import {
   buildCanvasErrorContent,
   buildCanvasResponseContent,
   buildCanvasResponsePreview,
   canvasResponseFitsInEvent,
   CANVAS_RESPONSE_KEY,
-  MAX_CANVAS_RESPONSE_CONTENT_BYTES,
   readCanvasError,
   readCanvasResponse,
   readCanvasState,
@@ -137,7 +137,7 @@ describe('buildCanvasResponseContent', () => {
     expect(submission).toBeDefined();
     const content = buildCanvasResponseContent(canvas, submission!);
     const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
-    expect(bytes).toBeLessThanOrEqual(MAX_CANVAS_RESPONSE_CONTENT_BYTES);
+    expect(bytes).toBeLessThanOrEqual(MAX_EVENT_CONTENT_BYTES);
     expect(content.formatted_body).not.toContain('<pre>');
     expect(content.body).toContain('&\\"&');
     expect(readCanvasResponse(content as never)?.label).toBe('Dense');
@@ -149,7 +149,7 @@ describe('buildCanvasResponseContent', () => {
       { data: { text: '&"'.repeat(2700) }, label: 'Dense' }
     );
     const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
-    expect(bytes).toBeLessThanOrEqual(MAX_CANVAS_RESPONSE_CONTENT_BYTES);
+    expect(bytes).toBeLessThanOrEqual(MAX_EVENT_CONTENT_BYTES);
     expect(readCanvasResponse(content as never)?.label).toBe('Dense');
   });
 
