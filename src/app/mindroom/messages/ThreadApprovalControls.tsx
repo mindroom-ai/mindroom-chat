@@ -192,6 +192,7 @@ export function ApprovalReviewGroup({
   // Bulk actions stand in for the calls; once they no longer apply, list every call.
   const bulk = available.length > 1;
   const single = records.length === 1;
+  const callsListed = single || !bulk || showCalls;
   const calls = records.map((record, index) => (
     <ApprovalReviewCall
       key={record.eventId}
@@ -337,15 +338,17 @@ export function ApprovalReviewGroup({
             'mindroomUi.messages.threadApprovalControls.allowThisOperationForThisThreadRequesterAndAgentArguments'
           )}
         />
-        {records.some(
-          (record) =>
-            context.actions.get(record.eventId)?.status === 'submitted' &&
-            context.pendingEventIds.has(record.eventId)
-        ) && (
-          <small role="status">
-            {t('mindroomUi.messages.threadApprovalControls.submittedWaitingForRoomUpdate')}
-          </small>
-        )}
+        {/* A listed call says this itself. */}
+        {!callsListed &&
+          records.some(
+            (record) =>
+              context.actions.get(record.eventId)?.status === 'submitted' &&
+              context.pendingEventIds.has(record.eventId)
+          ) && (
+            <small role="status">
+              {t('mindroomUi.messages.threadApprovalControls.submittedWaitingForRoomUpdate')}
+            </small>
+          )}
       </div>
     </ApprovalGroup>
   );

@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Approval review says "Submitted" once per call (2026-10-18)
+
+- Why: after approving a call, the approval review showed "Submitted. Waiting for room update." twice, under the call and again at the foot of its group (seen in the demo recordings).
+  The call's own `ApprovalDecisionControls` and the group's footer in `ApprovalReviewGroup` have both rendered it since the timed approval controls landed (`36cfdbcd`).
+- Change (`ThreadApprovalControls.tsx`): the group's footer status shows only while the calls are folded behind "Show N calls", where no call can say it.
+  A listed call already does: both use `isApprovalPending` with the same action state.
+- Tests: `ThreadApprovalControls.test.tsx` counts the status for one submitted call, two listed submitted calls, and three folded calls with one submitted; the first two fail without the change.
+- Validation: typecheck, ESLint and Prettier on the changed files, and the unit suite (the 3 known host-only `xcodeCloudPostClone` failures; load timeouts in RoomTimeline/RoomView files passed on a sequential rerun).
+  A temporary Playwright spec against a local Tuwunel opened the review for one pending `rollback_deploy` call, approved it, and found the status once in light and dark (twice on `dev`).
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
