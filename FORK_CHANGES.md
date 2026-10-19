@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Drop "Load Older Messages" from a thread whose cached copy reaches the root (2026-10-18)
+
+- Why: the demo recordings showed "Load Older Messages" above brand-new two-message threads opened from the room overview (morning-brief, remind-me, whole-team-one-thread).
+- Cause: when the thread's IndexedDB snapshot is complete and finishes loading before the SDK bootstrap, `useThreadSession` takes its complete-cache branch, which cleared the SDK's backward cursor only for a relations-proven snapshot.
+  That cursor came from `Thread.initialize()`'s first recursive `/relations` page, and Tuwunel returns `next_batch` with every non-empty page, so it was always set and kept the chip.
+  When the bootstrap finished first, `refreshLatestThreadSlice` fetched the next, empty page and cleared it, so the chip depended on which read won.
+- Change (`useThreadSession.ts`): the complete-cache branch reconciles the cursor with the cached page through `reconcileCachedThreadBackwardToken`, as the partial-cache path does, with the page's start known.
+  The cursor stays when the SDK holds replies older than the cached page; the open-time reconcile still repairs a snapshot whose reply count was wrong.
+- Tests: `threadSession.test.tsx` covers a count-proven complete page clearing the cursor (fails without the change) and a page that starts after the SDK's replies keeping it.
+- Validation: thread unit tests, typecheck, ESLint and Prettier on the changed files; a temporary Playwright spec against a local Tuwunel opened a streamed two-message thread from the overview with `/relations` delayed by 3 s so the cache won: the chip showed in 3 of 3 runs on `dev` and in 0 of 3 with the change.
+
 ### App Store update 4.12.421 (2026-10-18, submitted)
 
 - Status: App Review submission `df446230-d0f4-4e3d-8ad8-0d896c2c16ff` for `4.12.421 (415)` reached `WAITING_FOR_REVIEW` at 17:04 UTC.
