@@ -241,7 +241,7 @@ export function ConnectPage() {
                   disabled={pairState.status === 'approving'}
                   onClick={() => setChosenSessionId(session.sessionId)}
                   style={{ justifyContent: 'flex-start' }}
-                  outlined
+                  outlined={selected}
                 >
                   <Text size="B400" truncate>
                     {session.lastKnownDisplayName

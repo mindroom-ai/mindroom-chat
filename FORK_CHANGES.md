@@ -11,7 +11,7 @@
   That is 215 buttons in 102 files in all, plus 49 spinners inside converted buttons that move to `fill="Soft"`.
   Variants are unchanged, so unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
   Where only the solid fill had told actions apart, the variant now does: Retry is `Primary` and Clear cache `Secondary` beside the `Critical` Remove account (`ClientRoot.tsx`) and Continue (`SpecVersions.tsx`), and an incoming call's Reject is `Critical` (Ignore `Secondary` in rooms) beside the green Answer.
-  Unselected toggles (room timeline view, Connect's account choice) are `fill="None"`, since a soft `Secondary` fill is darker than the selected soft `Primary` in light themes.
+  Unselected toggles (room timeline view, Connect's account choice) are `fill="None"` without an outline, since a soft `Secondary` fill is darker than the selected soft `Primary` in light themes and a `fill="None"` outline draws in the variant's main color.
   "Sign in with Apple" (`SSOLogin.tsx`) stays solid, because Apple prescribes its appearance.
   `ChatUiActionButton` also switches to `Primary` with button text `B300` and an icon per action (Monitor, Setting, Category, User); `ComputerPanel` shares its props in `actionButtonProps`, and the MindRoom settings buttons move from body text to `B300`.
   `docs/ui-design.md` records the rule.
@@ -25,6 +25,7 @@
 - PR #484 review at `865fcaec`: Sol and Astra approved; Opus found Retry looking like Remove account, Reject like Answer, toggles reading backwards in light themes, and size-500 sign-in buttons getting a different radius from the SSO buttons beside them, all fixed above.
   Also done: a redundant `variant="Primary"` dropped and the `ComputerPanel` mock no longer passes `data-outlined`.
   Kept: `ChatUiActionButton`'s icons (shown to and approved by the owner) and `actionButtonProps`, which six buttons share.
+- PR #484 review at `b76ce53f`: Sol and Astra approved; Opus found the config-load dialog's Sign in again / Retry still looking like Continue offline (`ConfigConfig.tsx`, now `Primary`), and that unselected toggles' outline drew a near-white ring in dark themes (now no outline).
 
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 

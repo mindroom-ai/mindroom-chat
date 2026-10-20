@@ -48,7 +48,7 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
               )}
             </Box>
             <Button
-              variant="Critical"
+              variant="Primary"
               onClick={() => (authenticationRequired ? authenticate() : retry())}
               fill="Soft"
               outlined

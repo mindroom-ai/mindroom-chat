@@ -75,7 +75,7 @@ Custom component families should compose `glassSurface` and shared modifiers ins
 - Draw text buttons soft and outlined: `fill="Soft"`, `outlined`, and `radii="300"`; `size="500"` buttons keep the default radius so they match the sign-in and create buttons beside them.
   The variant carries the meaning (`Primary`, `Success`, `Critical`), including selected and unsaved states; a solid fill reads as a bright pill in dark themes.
   Give the main safe action its own variant (usually `Primary`) when a destructive action sits beside it, so the two never look alike.
-  An unselected toggle is `fill="None"` beside the selected `Primary` one: in light themes a soft `Secondary` fill is darker than a soft `Primary` one and would read as the selection.
+  An unselected toggle is `fill="None"` without an outline beside the selected soft, outlined `Primary` one: a soft `Secondary` fill is darker than a soft `Primary` one in light themes, and a `fill="None"` outline draws in the variant's main color, louder than the selection.
   A `Spinner` inside a soft button uses `fill="Soft"`, and buttons with `fill="None"` keep it.
   The only solid button is "Sign in with Apple", whose appearance Apple prescribes.
 
