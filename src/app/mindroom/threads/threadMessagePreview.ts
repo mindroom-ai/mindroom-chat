@@ -123,12 +123,17 @@ export const stripPreviewMarkdown = (value: string): string =>
     // case of the label scans.
     .replace(/!\[([^\]]*)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
     .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
+    // Hide asterisks and tildes in code spans from the emphasis rules, so a
+    // glob or operator in code (`**/*.ts`) is never paired as emphasis.
+    .replace(/`[^`\n]+`/g, (span) => span.replace(/\*/g, '\uE000').replace(/~/g, '\uE001'))
     // Like the italic rule below, require non-word flanking so ** operators in
     // code (x**2 + y**2) are never paired as bold.
     .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])??)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/\uE000/g, '*')
+    .replace(/\uE001/g, '~')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
 export type ThreadPreviewLocalization =

@@ -28,6 +28,20 @@ describe('stripPreviewMarkdown', () => {
     expect(stripPreviewMarkdown('- **x**: rise, in **kelvin**')).toBe('x: rise, in kelvin');
   });
 
+  it('keeps asterisks inside code spans out of emphasis', () => {
+    expect(stripPreviewMarkdown('**`**/*.ts`** matches TypeScript files.')).toBe(
+      '**/*.ts matches TypeScript files.'
+    );
+    expect(stripPreviewMarkdown('**`**`** is the exponentiation operator.')).toBe(
+      '** is the exponentiation operator.'
+    );
+    expect(stripPreviewMarkdown('Use `**` for powers and **bold** for emphasis')).toBe(
+      'Use ** for powers and bold for emphasis'
+    );
+    expect(stripPreviewMarkdown('**`x`**')).toBe('x');
+    expect(stripPreviewMarkdown('type `~~x~~` for ~~struck~~')).toBe('type ~~x~~ for struck');
+  });
+
   it('strips link and image syntax down to their labels', () => {
     expect(
       stripPreviewMarkdown('see [the docs](https://example.com) and ![diagram](mxc://x)')

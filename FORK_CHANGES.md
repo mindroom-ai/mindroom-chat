@@ -2,13 +2,15 @@
 
 ## Runbook
 
-### End one-character bold at its own marker in previews (2026-10-19)
+### End one-character bold at its own marker, and keep code spans out of emphasis, in previews (2026-10-19)
 
 - Problem: a thread preview of `**a** and **b**` read `a** and **b`, and `- **x**: rise, in **kelvin**` read `x**: rise, in **kelvin`.
   The bold strip rule in `stripPreviewMarkdown` made the rest of the bold text an optional group, and a greedy optional group is tried before it is skipped, so one-character bold ran on to the next closing `**` on the line.
+  Asterisks and tildes inside code spans were paired as emphasis too: ``**`**/*.ts`** matches`` read `/*.ts** matches`, and ``Use `**` for powers and **bold**`` read ```Use `` for powers and **bold```.
 - Fix: the optional group is lazy (`??`), so it is skipped first and one-character bold ends at its own marker. Longer bold was already right, because the group's inner match is lazy.
   The italic rule has the same shape but cannot cross a `*`, so it never ran on; strikethrough and code have no optional group. Neither changes.
-- Tests: `threadMessagePreview.test.ts` checks both previews above (fails without the change).
+  Before the emphasis rules run, `*` and `~` inside each code span become private-use characters (U+E000, U+E001); they turn back after the code rule drops the backticks, so code shows as before and its markers are never paired.
+- Tests: `threadMessagePreview.test.ts` checks both bold previews above, and code spans holding `**/*.ts`, `**` and `~~x~~` inside and beside emphasis (each fails without its change).
 
 ### Read thread replies only with thread and unthreaded receipts (2026-10-19)
 
