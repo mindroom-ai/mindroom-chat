@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### End one-character bold at its own marker in previews (2026-10-19)
+
+- Problem: a thread preview of `**a** and **b**` read `a** and **b`, and `- **x**: rise, in **kelvin**` read `x**: rise, in **kelvin`.
+  The bold strip rule in `stripPreviewMarkdown` made the rest of the bold text an optional group, and a greedy optional group is tried before it is skipped, so one-character bold ran on to the next closing `**` on the line.
+- Fix: the optional group is lazy (`??`), so it is skipped first and one-character bold ends at its own marker. Longer bold was already right, because the group's inner match is lazy.
+  The italic rule has the same shape but cannot cross a `*`, so it never ran on; strikethrough and code have no optional group. Neither changes.
+- Tests: `threadMessagePreview.test.ts` checks both previews above (fails without the change).
+
 ### Edit messages too large for one event (2026-10-19)
 
 - Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.

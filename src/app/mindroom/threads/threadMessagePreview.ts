@@ -125,7 +125,7 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
     // Like the italic rule below, require non-word flanking so ** operators in
     // code (x**2 + y**2) are never paired as bold.
-    .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])?)\*\*(?![\w*])/g, '$1$2')
+    .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])??)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')

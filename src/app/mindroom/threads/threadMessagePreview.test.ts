@@ -23,6 +23,11 @@ describe('stripPreviewMarkdown', () => {
     );
   });
 
+  it('ends one-character bold at its own closing marker', () => {
+    expect(stripPreviewMarkdown('**a** and **b**')).toBe('a and b');
+    expect(stripPreviewMarkdown('- **x**: rise, in **kelvin**')).toBe('x: rise, in kelvin');
+  });
+
   it('strips link and image syntax down to their labels', () => {
     expect(
       stripPreviewMarkdown('see [the docs](https://example.com) and ![diagram](mxc://x)')
