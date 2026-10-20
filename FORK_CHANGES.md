@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Give agent request buttons a soft, iconed style (2026-10-20)
+
+- Why: the "View computer", "Open Settings", "Open canvas" and "Open Members" buttons under an agent's UI request were solid `Secondary` folds buttons with body-size text, a bright white pill under the message in dark themes.
+- Change: `ChatUiActionButton` draws them as soft, outlined `Primary` buttons (`radii="300"`, button text `B300`), like the file download buttons, with an icon per action: Monitor, Setting, Category and User.
+  Behavior, labels and the unavailable note are unchanged.
+- Tests: the `ChatUiActionProvider.test.tsx` folds mock gains `Icon` and `Icons`.
+- Validation: typecheck, ESLint, build, and the ui-actions unit tests pass; `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel, and a temporary screenshot step showed the button in light and dark, at rest and hovered.
+
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
