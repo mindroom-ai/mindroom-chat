@@ -106,28 +106,24 @@ export async function markMainTimelineAsRead(
   mx: MatrixClient,
   roomId: string,
   privateReceipt: boolean,
-  /** The main-timeline events a view shows, wherever they are loaded; all when omitted. */
-  shownEvents?: MatrixEvent[]
+  isShown: (event: MatrixEvent) => boolean = () => true,
+  /** The view's last target, not sent again while the server keeps an older read position. */
+  lastTarget?: { current?: string }
 ) {
   const room = mx.getRoom(roomId);
   const userId = mx.getUserId();
   if (!room || !userId) return;
 
-  const readUpToId = room.getEventReadUpTo(userId);
   const timeline = room.getLiveTimeline().getEvents();
-  // Time orders shown events, which may lie outside the live timeline, after the read position;
-  // an unloaded read position precedes all of the live timeline.
-  const readUpToTs = readUpToId
-    ? (room.findEventById(readUpToId) ?? timeline[0])?.getTs() ?? Infinity
-    : -1;
+  if (timeline.length === 0) return;
+
   const latestEvent = getLatestReceiptTarget(
-    shownEvents
-      ? [...shownEvents].sort((eventA, eventB) => eventA.getTs() - eventB.getTs())
-      : timeline,
-    readUpToId,
-    (event) => (shownEvents ? event.getTs() >= readUpToTs : !isThreadOnlyRoomActivity(room, event))
+    timeline,
+    room.getEventReadUpTo(userId),
+    (event) => !isThreadOnlyRoomActivity(room, event) && isShown(event)
   );
-  if (!latestEvent) return;
+  if (!latestEvent || latestEvent.getId() === lastTarget?.current) return;
+  if (lastTarget) lastTarget.current = latestEvent.getId();
 
   await mx.sendReceipt(latestEvent, getReceiptType(privateReceipt), {
     thread_id: MAIN_ROOM_TIMELINE,

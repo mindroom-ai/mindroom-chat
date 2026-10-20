@@ -49,6 +49,58 @@ const makeThread = (
   getLastUnthreadedReceiptFor: () => undefined,
 });
 
+const render = ({
+  liveEvents = [],
+  threads = [],
+  onScreen,
+  compactCardId,
+}: {
+  liveEvents?: MatrixEvent[];
+  threads?: ReturnType<typeof makeThread>[];
+  onScreen: MatrixEvent[];
+  compactCardId?: string | null;
+}) => {
+  const room = {
+    roomId: '!room:example.org',
+    findEventById: () => undefined,
+    getEventReadUpTo: () => null,
+    getLiveTimeline: () => ({ getEvents: () => liveEvents }),
+    getThread: (id: string) => threads.find((thread) => thread.id === id) ?? null,
+  };
+  const mx = {
+    getRoom: () => room,
+    getSafeUserId: () => ME,
+    getUserId: () => ME,
+    sendReceipt: vi.fn(),
+  };
+  const Harness = () => {
+    useTimelineReadReceiptController({
+      atBottom: true,
+      atBottomAnchorRef: { current: null },
+      atBottomRef: { current: true },
+      atLiveEndRef: { current: true },
+      compactCardId,
+      getScrollElement: () => null,
+      handleOpenEvent: vi.fn(),
+      hideActivity: false,
+      mx: mx as never,
+      onScreenEventsRef: { current: () => onScreen },
+      readUptoEventIdRef: { current: undefined },
+      room: room as never,
+      setAtBottom: vi.fn(),
+      threadEventsLength: 0,
+      threadInitialRenderMode: 'live',
+      threadTailLoaded: false,
+      timelineAtLiveEnd: true,
+    });
+    return null;
+  };
+  act(() => {
+    create(<Harness />);
+  });
+  return () => mx.sendReceipt.mock.calls.map(([event, , body]) => [event.getId(), body.thread_id]);
+};
+
 describe('useTimelineReadReceiptController', () => {
   beforeEach(() => {
     vi.stubGlobal('document', { hasFocus: () => true });
@@ -63,55 +115,29 @@ describe('useTimelineReadReceiptController', () => {
     const shownReply = message('$a-reply', 20, '$a');
     const readReply = message('$b-read', 10, '$b');
     // The bundled newest reply of `$b` is not loaded, so the classic view does not show it.
-    const threads = [
-      makeThread('$a', [shownReply]),
-      makeThread('$b', [readReply], '$b-read', message('$b-new', 30, '$b')),
-    ];
-    const room = {
-      roomId: '!room:example.org',
-      findEventById: () => undefined,
-      getEventReadUpTo: () => null,
-      getLiveTimeline: () => ({ getEvents: () => [] }),
-      getThread: (id: string) => threads.find((thread) => thread.id === id) ?? null,
-    };
-    const mx = {
-      getRoom: () => room,
-      getSafeUserId: () => ME,
-      getUserId: () => ME,
-      sendReceipt: vi.fn(),
-    };
-    const onScreen = [message('$a', 1), shownReply, message('$b', 2), readReply];
-    const Harness = () => {
-      useTimelineReadReceiptController({
-        atBottom: true,
-        atBottomAnchorRef: { current: null },
-        atBottomRef: { current: true },
-        atLiveEndRef: { current: true },
-        getScrollElement: () => null,
-        handleOpenEvent: vi.fn(),
-        hideActivity: false,
-        mainEventsLength: 0,
-        mx: mx as never,
-        onScreenEventsRef: { current: () => onScreen },
-        readUptoEventIdRef: { current: undefined },
-        room: room as never,
-        setAtBottom: vi.fn(),
-        threadEventsLength: 0,
-        threadInitialRenderMode: 'live',
-        threadTailLoaded: false,
-        timelineAtLiveEnd: true,
-      });
-      return null;
-    };
-    act(() => {
-      create(<Harness />);
+    const receipts = render({
+      threads: [
+        makeThread('$a', [shownReply]),
+        makeThread('$b', [readReply], '$b-read', message('$b-new', 30, '$b')),
+      ],
+      onScreen: [message('$a', 1), shownReply, message('$b', 2), readReply],
     });
 
     act(() => focus.onChange(true));
     await act(async () => undefined);
 
-    expect(
-      mx.sendReceipt.mock.calls.map(([event, , body]) => [event.getId(), body.thread_id])
-    ).toEqual([['$a-reply', '$a']]);
+    expect(receipts()).toEqual([['$a-reply', '$a']]);
+  });
+
+  it('leaves a compact card below the fold unread', async () => {
+    const onScreen = message('$on-screen', 1);
+    const receipts = render({
+      liveEvents: [onScreen, message('$below-fold', 2)],
+      onScreen: [onScreen],
+      compactCardId: '$below-fold',
+    });
+    await act(async () => undefined);
+
+    expect(receipts()).toEqual([['$on-screen', 'main']]);
   });
 });

@@ -125,15 +125,40 @@ describe('thread receipt unread state with SDK models', () => {
 
   it('reads thread replies with an unthreaded receipt, not a main one on a newer event', async () => {
     const { mx, room, thread } = await setupRoom();
-    const card = message('$card', 4000);
-    room.getUnfilteredTimelineSet().addLiveEvent(card, { addToState: false });
+    room.getUnfilteredTimelineSet().addLiveEvent(message('$card', 4000), { addToState: false });
 
-    await markMainTimelineAsRead(mx, ROOM_ID, false, [card]);
+    await markMainTimelineAsRead(mx, ROOM_ID, false);
     expect(room.getEventReadUpTo(USER_ID)).toBe('$card');
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
 
     await markRoomAndThreadsAsRead(mx, ROOM_ID, false);
     expect(getThreadUnread(thread, USER_ID)).toBe(false);
+  });
+
+  it('sends one receipt for a shown card while the read position is not loaded', async () => {
+    const { mx, room, requests } = await setupRoom();
+    const card = message('$card', 4000);
+    room.getUnfilteredTimelineSet().addLiveEvent(card, { addToState: false });
+    room.addReceipt(
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: ROOM_ID,
+        content: { $gone: { [ReceiptType.Read]: { [USER_ID]: { thread_id: 'main', ts: 100 } } } },
+      })
+    );
+    expect(room.getEventReadUpTo(USER_ID)).toBeNull();
+    // A thread-list root outside the live timeline is older than all of it.
+    const shown = new Set(['$old-root', '$card']);
+    const isShown = (event: MatrixEvent) => shown.has(event.getId()!);
+    const lastTarget = {};
+
+    await markMainTimelineAsRead(mx, ROOM_ID, false, isShown, lastTarget);
+    await markMainTimelineAsRead(mx, ROOM_ID, false, isShown, lastTarget);
+
+    const receipts = requests.mock.calls.filter(([, path]) => String(path).includes('/receipt/'));
+    expect(receipts.map(([, path]) => path)).toEqual([
+      `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${ReceiptType.Read}/%24card`,
+    ]);
   });
 
   it('keeps a later reply unread after whole-room marking and history hydration', async () => {

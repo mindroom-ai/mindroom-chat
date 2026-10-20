@@ -11,19 +11,21 @@
   - Thread unread state (`getThreadUnread`) honours only thread and unthreaded receipts; the room-receipt fallback and the `readUpToTs` plumbing that fed it are removed.
   - The classic view keeps its main receipt at the live bottom and, for each unread thread with an inline reply on screen (the virtualizer's visible range, without overscan), sends a thread receipt on the newest such reply, never a summary-only one (`markThreadAsRead`'s `isShown`).
     A reply placed under a root scrolled out of view is not acknowledged.
-  - The compact view sends a main receipt on the newest root among its displayed cards when it is shown with focus, when the main timeline grows, and when focus returns.
-    The roots can come from the thread list or pins, outside the live timeline, so `markMainTimelineAsRead` orders them by time and sends only when the root is newer than the read position (an unloaded read position precedes the live timeline).
+  - The compact view sends a main receipt on the newest card that is on screen (`captureScrollAnchors` on its rows) and in the live timeline, found by the same live-timeline scan as classic, so timeline order breaks ties and the receipt only moves forward.
+    It tries when it is shown with focus, when its newest card changes, and when focus returns, and it does not resend the target it sent last.
     It sends nothing while a status, tag or search filter is active: a main receipt reads every main event before it, including unread roots the filter hides.
     It skips the classic historical-marker connectivity check, since it has no bottom and no mark-read control.
   - The cross-room thread index refreshes a room's threads on your unthreaded receipts only, not on main-timeline ones.
 - Tests:
-  - `readReceipts.integration.test.ts`: a main receipt on a newer event leaves a thread's replies unread, an unthreaded receipt reads them (fails without the change).
-  - `RoomTimeline.readReceipts.test.ts`: classic receipts the thread whose inline reply is on screen, not one whose reply sits under a root scrolled out of view; compact sends no main receipt while a search hides a card.
-  - `timelineReadReceiptController.test.tsx`: classic never receipts a summary-only reply.
-  - `readReceipts.test.ts`: the compact receipt goes to the newest shown root outside the live timeline, only when it is newer than the read position.
-- Trade-off: the compact main receipt also covers older hidden notices and unloaded gap events, which affects only the main-timeline count.
+  - `readReceipts.integration.test.ts`: a main receipt on a newer event leaves a thread's replies unread, an unthreaded receipt reads them (fails without the change); with the read position on an unloaded event, two tries send one receipt, on the live card, not on an older thread-list root.
+  - `RoomTimeline.readReceipts.test.ts`: classic receipts the thread whose inline reply is on screen, not one whose reply sits under a root scrolled out of view; compact tries once, not again after the receipt refreshes the overview, and not at all while a search hides a card.
+  - `timelineReadReceiptController.test.tsx`: classic never receipts a summary-only reply; a compact card below the fold gets no receipt.
+  - `readReceipts.test.ts`: equal-timestamp cards resolve by timeline order, and the same target is sent once.
+- Trade-off: the compact main receipt also covers older hidden notices, older cards off screen and unloaded gap events, which affects only the main-timeline count.
 - Not covered:
   - Reaching a thread without the compact view ever showing (deep link, notification) leaves its root counting until the room is seen.
+  - After a limited sync, a root card older than the live window stays counted until a newer card in the live window is acknowledged or the room is marked read.
+  - Scrolling the compact view to a card does not acknowledge it until focus returns or its newest card changes.
   - Classic sends thread receipts on reaching the bottom or regaining focus, not when a thread reply arrives while you watch.
 
 ### Edit messages too large for one event (2026-10-19)

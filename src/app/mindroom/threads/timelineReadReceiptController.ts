@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -39,11 +40,10 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef,
   atBottomRef,
   atLiveEndRef,
-  compactCards,
+  compactCardId,
   getScrollElement,
   handleOpenEvent,
   hideActivity,
-  mainEventsLength,
   mx,
   onScreenEventsRef,
   readUptoEventIdRef,
@@ -60,14 +60,13 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
-  /** Set while the compact view is shown: the root events of the cards it may acknowledge. */
-  compactCards?: MatrixEvent[];
+  /** Set while the compact view is shown: its newest card, which keys a try; null for none. */
+  compactCardId?: string | null;
   getScrollElement: () => HTMLElement | null | undefined;
   handleOpenEvent: OpenEventHandler;
   hideActivity: boolean;
-  mainEventsLength: number;
   mx: MatrixClient;
-  /** The classic rows on screen, including the thread replies shown inline. */
+  /** The rows on screen, including the thread replies classic shows inline. */
   onScreenEventsRef: MutableRefObject<() => MatrixEvent[]>;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
@@ -109,16 +108,19 @@ export const useTimelineReadReceiptController = ({
   }, [markShownAsRead, readUptoEventIdRef, room]);
 
   // The compact view has no bottom or mark-read control: seeing it reads its newest card.
+  const lastCompactTargetRef = useRef<string>();
   const markCompactCardsAsRead = useCallback(() => {
-    if (!compactCards?.length) return;
-    requestAnimationFrame(() =>
-      markMainTimelineAsRead(mx, room.roomId, hideActivity, compactCards)
-    );
-  }, [compactCards, hideActivity, mx, room.roomId]);
+    if (!compactCardId) return;
+    requestAnimationFrame(() => {
+      const onScreen = new Set(onScreenEventsRef.current().map((event) => event.getId()));
+      const isOnScreen = (event: MatrixEvent) => onScreen.has(event.getId());
+      markMainTimelineAsRead(mx, room.roomId, hideActivity, isOnScreen, lastCompactTargetRef);
+    });
+  }, [compactCardId, hideActivity, mx, onScreenEventsRef, room.roomId]);
 
   useEffect(() => {
-    if (compactCards && document.hasFocus()) markCompactCardsAsRead();
-  }, [compactCards, mainEventsLength, markCompactCardsAsRead]);
+    if (document.hasFocus()) markCompactCardsAsRead();
+  }, [compactCardId, markCompactCardsAsRead]);
 
   const tryAutoMarkThreadAsRead = useCallback(() => {
     if (
@@ -192,7 +194,7 @@ export const useTimelineReadReceiptController = ({
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
-        if (inFocus && compactCards) {
+        if (inFocus && compactCardId !== undefined) {
           markCompactCardsAsRead();
           return;
         }
@@ -218,7 +220,7 @@ export const useTimelineReadReceiptController = ({
       [
         atBottomRef,
         atLiveEndRef,
-        compactCards,
+        compactCardId,
         handleOpenEvent,
         markCompactCardsAsRead,
         threadId,

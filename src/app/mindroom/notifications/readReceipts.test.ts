@@ -79,29 +79,24 @@ describe('markMainTimelineAsRead', () => {
   });
 });
 
-describe('markMainTimelineAsRead with shown events', () => {
-  it('reads the newest shown card wherever it is loaded, only after the read position', async () => {
-    const olderCard = makeMessageEvent('$older-card', 5);
-    const card = makeMessageEvent('$card', 20);
-    const notice = makeMessageEvent('$notice', 30);
-    const room = makeRoom([notice]);
-    const read = makeMessageEvent('$read', 10);
-    room.getEventReadUpTo.mockReturnValue('$read' as never);
-    room.findEventById.mockImplementation((id: string) => (id === '$read' ? read : undefined));
+describe('markMainTimelineAsRead for shown cards', () => {
+  it('takes the newest shown card in live-timeline order on a tie, and sends it once', async () => {
+    const older = makeMessageEvent('$a', 5);
+    const newer = makeMessageEvent('$b', 5);
+    // The server's read position stays on an event this client has not loaded.
+    const room = makeRoom([older, newer]);
     const mx = makeClient(room);
+    const shown = new Set(['$b', '$a']);
+    const isShown = (event: MatrixEvent) => shown.has(event.getId()!);
+    const lastTarget = {};
 
-    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
-    expect(mx.sendReceipt).toHaveBeenCalledWith(card, ReceiptType.Read, {
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, isShown, lastTarget);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false, isShown, lastTarget);
+
+    expect(mx.sendReceipt).toHaveBeenCalledOnce();
+    expect(mx.sendReceipt).toHaveBeenCalledWith(newer, ReceiptType.Read, {
       thread_id: MAIN_ROOM_TIMELINE,
     });
-
-    mx.sendReceipt.mockClear();
-    room.findEventById.mockReturnValue(makeMessageEvent('$read', 25) as never);
-    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
-    // An unloaded read position precedes the live timeline, which here starts after the cards.
-    room.findEventById.mockReturnValue(undefined as never);
-    await markMainTimelineAsRead(mx as never, ROOM_ID, false, [card, olderCard]);
-    expect(mx.sendReceipt).not.toHaveBeenCalled();
   });
 });
 

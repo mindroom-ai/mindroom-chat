@@ -1,4 +1,5 @@
 import React from 'react';
+import { RoomEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -74,7 +75,7 @@ describe('RoomTimeline read receipts', () => {
     expect(threadIds).toEqual(['$new-root']);
   });
 
-  it('sends no compact main receipt while a search hides some cards', async () => {
+  it('tries a compact receipt once per newest card, none under a search', async () => {
     const shown = makeThread('$shown-root', 2, []);
     const hidden = makeThread('$hidden-root', 1, []);
     const room = makeRoom({
@@ -90,7 +91,12 @@ describe('RoomTimeline read receipts', () => {
     expect(markMainTimelineAsRead).not.toHaveBeenCalled();
 
     await render(room, { initialViewMode: 'compact' });
-    const cards = vi.mocked(markMainTimelineAsRead).mock.lastCall?.[3] ?? [];
-    expect(cards.map((event) => event.getId()).sort()).toEqual(['$hidden-root', '$shown-root']);
+    expect(markMainTimelineAsRead).toHaveBeenCalledOnce();
+    // The receipt refreshes the overview; the newest card is unchanged, so nothing is resent.
+    await act(async () => {
+      room.__listeners.get(RoomEvent.Receipt)?.({}, room);
+      await flushAsyncWork();
+    });
+    expect(markMainTimelineAsRead).toHaveBeenCalledOnce();
   });
 });

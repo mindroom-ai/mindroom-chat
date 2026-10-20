@@ -65,7 +65,7 @@ import {
   useTimelineDebugTraceIds,
 } from './timelineDebugController';
 import { CompactRoomView } from './CompactRoomView';
-import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
+import { captureScrollAnchors, type ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
@@ -1600,9 +1600,23 @@ export function RoomTimeline({
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
 
-  // The classic rows on screen: the virtualizer's visible range, without its overscan.
+  // None while a filter hides cards: a main receipt also reads the unread roots before it.
+  const compactCardId = useMemo(() => {
+    if (!showCompactRoomView) return undefined;
+    if (hasActiveThreadFilters(effectiveThreadFilterState)) return null;
+    const byTs = [...threadFilteredEvents].sort(
+      (eventA, eventB) => eventB.getTs() - eventA.getTs()
+    );
+    return byTs[0]?.getId() ?? null;
+  }, [effectiveThreadFilterState, showCompactRoomView, threadFilteredEvents]);
+  // The rows on screen: the compact cards in view, or classic's virtualizer range without overscan.
   const onScreenEventsRef = useRef(() => [] as MatrixEvent[]);
   onScreenEventsRef.current = () => {
+    if (showCompactRoomView) {
+      const view = overlayRootRef.current?.querySelector<HTMLElement>('[data-compact-room-view]');
+      const inView = new Set(view && captureScrollAnchors(view).anchors.map(({ key }) => key));
+      return threadFilteredEvents.filter((event) => inView.has(event.getId()!));
+    }
     const { range } = roomTimelineVirtualizer;
     const rows = range ? timelineItems.slice(range.startIndex, range.endIndex + 1) : [];
     return rows.flatMap((item) => threadFilteredEventEntries[item]?.event ?? []);
@@ -1612,16 +1626,10 @@ export function RoomTimeline({
     atBottomAnchorRef,
     atBottomRef,
     atLiveEndRef,
-    // A main receipt also reads the unread roots before it, so none is sent while a filter hides some.
-    compactCards: showCompactRoomView
-      ? hasActiveThreadFilters(effectiveThreadFilterState)
-        ? []
-        : threadFilteredEvents
-      : undefined,
+    compactCardId,
     getScrollElement,
     handleOpenEvent,
     hideActivity,
-    mainEventsLength: eventsLength,
     mx,
     onScreenEventsRef,
     readUptoEventIdRef,
