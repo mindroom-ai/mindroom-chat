@@ -89,7 +89,10 @@ export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] =>
     if (!canonicalEventKey) return;
 
     const currentWinner = winners.get(canonicalEventKey);
-    if (!currentWinner || getSearchResultTimestamp(result) >= getSearchResultTimestamp(currentWinner)) {
+    if (
+      !currentWinner ||
+      getSearchResultTimestamp(result) >= getSearchResultTimestamp(currentWinner)
+    ) {
       winners.set(canonicalEventKey, result);
     }
   });

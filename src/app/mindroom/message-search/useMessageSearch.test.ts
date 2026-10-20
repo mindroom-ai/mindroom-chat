@@ -22,24 +22,22 @@ const makeSearchResult = ({
   ({
     rank: ts,
     result: {
-      content:
-        content ??
-        {
-          ...(editTargetId
-            ? {
-                'm.new_content': {
-                  body: `${eventId} body`,
-                  msgtype: 'm.text',
-                },
-                'm.relates_to': {
-                  event_id: editTargetId,
-                  rel_type: 'm.replace',
-                },
-              }
-            : {}),
-          body: `${eventId} body`,
-          msgtype: 'm.text',
-        },
+      content: content ?? {
+        ...(editTargetId
+          ? {
+              'm.new_content': {
+                body: `${eventId} body`,
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: editTargetId,
+                rel_type: 'm.replace',
+              },
+            }
+          : {}),
+        body: `${eventId} body`,
+        msgtype: 'm.text',
+      },
       event_id: eventId,
       origin_server_ts: ts,
       room_id: roomId,
@@ -47,7 +45,7 @@ const makeSearchResult = ({
       type: 'm.room.message',
     } as IEventWithRoomId,
     context: {} as IResultContext,
-  }) as ISearchResult;
+  } as ISearchResult);
 
 const getEventIds = (results: ISearchResult[]): string[] =>
   results.map((result) => result.result.event_id);
