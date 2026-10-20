@@ -1,6 +1,6 @@
-import { MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
-import { getRoomThreadsUnread, sortThreadsByActivity } from './roomThreadList';
+import { MatrixEvent, type Thread } from 'matrix-js-sdk';
+import { describe, expect, it } from 'vitest';
+import { sortThreadsByActivity } from './roomThreadList';
 
 const reply = (id: string, ts: number) =>
   new MatrixEvent({
@@ -36,32 +36,6 @@ describe('large room thread ordering', () => {
     );
     expect(threads[0].id).toBe('$root-0');
     expect(historyReads).toBe(40);
-  });
-
-  it('resolves the room receipt once per unread pass and observes its next revision', () => {
-    const threads = [100, 200, 300].map((ts, index) => ({
-      id: `$root-${index}`,
-      events: [reply(`$reply-${index}`, ts)],
-    })) as unknown as Thread[];
-    let readTs = 150;
-    const room = {
-      getEventReadUpTo: vi.fn(() => '$read'),
-      findEventById: vi.fn(() => reply('$read', readTs)),
-    } as unknown as Room;
-    expect([...getRoomThreadsUnread(room, threads, '@me:example.org').values()]).toEqual([
-      false,
-      true,
-      true,
-    ]);
-    expect(room.getEventReadUpTo).toHaveBeenCalledOnce();
-    expect(room.findEventById).toHaveBeenCalledOnce();
-    readTs = 250;
-    expect([...getRoomThreadsUnread(room, threads, '@me:example.org').values()]).toEqual([
-      false,
-      false,
-      true,
-    ]);
-    expect(room.findEventById).toHaveBeenCalledTimes(2);
   });
 
   it('preserves unread-first ordering, stable ties, and a visible bundled reply after a hidden tail', () => {

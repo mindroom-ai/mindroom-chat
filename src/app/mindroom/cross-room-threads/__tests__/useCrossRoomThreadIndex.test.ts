@@ -1154,7 +1154,7 @@ describe('useCrossRoomThreadIndex', () => {
     expect(queriedThreadIds).toEqual(new Set(['$root-3']));
   });
 
-  it('refreshes all room threads for own unthreaded and main-timeline receipts', async () => {
+  it('refreshes all room threads for own unthreaded receipts, none for main-timeline ones', async () => {
     const { room } = makeRoomWithThreadReplies('!room:example.org', 3);
     const mx = makeClient(room);
     matrixClientMock.mockReturnValue(mx);
@@ -1202,7 +1202,7 @@ describe('useCrossRoomThreadIndex', () => {
       await Promise.resolve();
     });
     await flushScheduledWork();
-    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(allRootIds);
+    expect(room.getThread).not.toHaveBeenCalled();
   });
 
   it('rebuilds only the thread whose summary state changed', async () => {

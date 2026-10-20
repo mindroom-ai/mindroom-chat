@@ -91,7 +91,6 @@ const getFilteredRoomOverviewEvents = (
   threadParticipantMap: Map<string, string[]>,
   summaryMap: Map<string, MindroomThreadSummaryInfo>,
   currentUserId: string,
-  readUpToTs: number | undefined,
   searchQuery: string,
   threadSortFreezeState: ThreadSortFreezeState | null,
   threadSortControlSignature: string,
@@ -156,7 +155,6 @@ const getFilteredRoomOverviewEvents = (
     fallbackParticipantMap: threadParticipantMap,
     threadResolutionMap,
     currentUserId,
-    readUpToTs: readUpToTs ?? null,
     scheduledStatusMap,
     absoluteIndexMap: activeThreadRootData.indexMap,
   });
@@ -191,7 +189,6 @@ export const getRoomEventFocusTarget = ({
   threadParticipantMap,
   summaryMap,
   currentUserId,
-  readUpToTs,
   searchQuery,
   threadSortFreezeState,
   threadSortControlSignature,
@@ -211,7 +208,6 @@ export const getRoomEventFocusTarget = ({
   threadParticipantMap: Map<string, string[]>;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   currentUserId: string;
-  readUpToTs: number | undefined;
   searchQuery?: string;
   threadSortFreezeState?: ThreadSortFreezeState | null;
   threadSortControlSignature?: string;
@@ -248,7 +244,6 @@ export const getRoomEventFocusTarget = ({
         threadParticipantMap,
         summaryMap,
         currentUserId,
-        readUpToTs,
         effectiveSearchQuery,
         threadSortFreezeState ?? null,
         threadSortControlSignature ??
