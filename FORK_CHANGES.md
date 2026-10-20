@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### One stale stop-chip filter in Reactions (2026-10-19)
+
+- Problem: `Reactions` filtered stale stop chips twice: in the `useRelations` selector, which depended on `targetEvent` and so never re-ran when the final stream edit updated that event in place, and again per render to cover that miss (#466).
+- Fix: the selector returns `getActiveAnnotationsByKey` unfiltered and the per-render `isStaleStopReactionKey` check is the only filter; it reads the target's current content on every render.
+  No visible change.
+- Tests: `Reactions.test.ts` "hides a stale stop chip once the target message proves a terminal stream" and "drops the stop chip once the target finishes streaming in place" pass, and both fail without the per-render check.
+
 ### Edit messages too large for one event (2026-10-19)
 
 - Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.
