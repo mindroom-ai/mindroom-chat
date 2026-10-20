@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useCallback, useState } from 'react';
+import React, { MouseEventHandler, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -18,11 +18,8 @@ import FocusTrap from 'focus-trap-react';
 import { Modal } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
-import {
-  getRenderableAnnotationsByKey,
-  isAgentStopButton,
-  isStaleStopReactionKey,
-} from '../../../mindroom/messages/stopReaction';
+import { isAgentStopButton, isStaleStopReactionKey } from '../../../mindroom/messages/stopReaction';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -65,10 +62,7 @@ export const Reactions = as<'div', ReactionsProps>(
     const [viewer, setViewer] = useState<boolean | string>(false);
     const myUserId = mx.getUserId();
     const targetAllowsReactionToggle = canSendReaction && isConfirmedMatrixEventId(mEventId);
-    const reactions = useRelations(
-      relations,
-      useCallback((rel) => getRenderableAnnotationsByKey(rel, targetEvent), [targetEvent])
-    );
+    const reactions = useRelations(relations, getActiveAnnotationsByKey);
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {
       evt.stopPropagation();
@@ -89,7 +83,7 @@ export const Reactions = as<'div', ReactionsProps>(
         {reactions.map(([key, events]) => {
           const rEvents = Array.from(events);
           if (rEvents.length === 0 || typeof key !== 'string') return null;
-          // The final edit updates the target in place, which the memoized filter above doesn't see.
+          // Per render, not in the selector: the final stream edit updates targetEvent in place.
           if (isStaleStopReactionKey(key, targetEvent)) return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();

@@ -12,6 +12,13 @@
   Before the emphasis rules run, `*` and `~` inside each code span become private-use characters (U+E000, U+E001); they turn back after the code rule drops the backticks, so code shows as before and its markers are never paired.
 - Tests: `threadMessagePreview.test.ts` checks both bold previews above, and code spans holding `**/*.ts`, `**` and `~~x~~` inside and beside emphasis (each fails without its change).
 
+### One stale stop-chip filter in Reactions (2026-10-19)
+
+- Problem: `Reactions` filtered stale stop chips twice: in the `useRelations` selector, which depended on `targetEvent` and so never re-ran when the final stream edit updated that event in place, and again per render to cover that miss (#466).
+- Fix: the selector returns `getActiveAnnotationsByKey` unfiltered and the per-render `isStaleStopReactionKey` check is the only filter; it reads the target's current content on every render.
+  No visible change.
+- Tests: `Reactions.test.ts` "hides a stale stop chip once the target message proves a terminal stream" and "drops the stop chip once the target finishes streaming in place" pass, and both fail without the per-render check.
+
 ### Read thread replies only with thread and unthreaded receipts (2026-10-19)
 
 - Problem: Chat counted a `main` receipt as reading older thread replies (`getEffectiveThreadReadUpToTs` took the later of the thread receipt and the room receipt).
