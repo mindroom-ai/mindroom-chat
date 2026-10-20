@@ -31,7 +31,9 @@ const makeRoom = (rootEvent?: MatrixEvent): Room =>
   ({
     roomId: '!room:server',
     getThread: vi.fn(() => undefined),
-    findEventById: vi.fn((eventId: string) => (eventId === rootEvent?.getId() ? rootEvent : undefined)),
+    findEventById: vi.fn((eventId: string) =>
+      eventId === rootEvent?.getId() ? rootEvent : undefined
+    ),
     getUnfilteredTimelineSet: vi.fn(() => ({
       relations: {
         getChildEventsForEvent: () => undefined,
@@ -103,7 +105,6 @@ describe('buildMindroomThreadIndexRecordMaps', () => {
         ],
       ]),
       currentUserId: '@me:server',
-      readUpToTs: undefined,
       scheduledStatusMap: new Map([
         [
           '$root',
@@ -175,7 +176,6 @@ describe('buildMindroomThreadIndexRecordMaps', () => {
       fallbackParticipantMap: new Map(),
       threadResolutionMap: new Map(),
       currentUserId: undefined,
-      readUpToTs: undefined,
       scheduledStatusMap: new Map(),
     });
 

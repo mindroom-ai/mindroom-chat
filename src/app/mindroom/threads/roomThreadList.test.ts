@@ -576,25 +576,17 @@ describe('thread visibility helpers', () => {
       '@other:example.org',
       'com.mindroom.thread.tag'
     );
-    const room = {
-      getEventReadUpTo: vi.fn(() => '$read'),
-      findEventById: vi.fn(() => ({ getTs: () => 250 })),
-    };
     const thread = {
       events: [visibleReply, hiddenThreadTag],
       replyToEvent: hiddenThreadTag,
       rootEvent: { getTs: () => 100 },
     } as never;
 
-    expect(getThreadUnread(room as never, thread, '@self:example.org')).toBe(false);
+    expect(getThreadUnread(thread, '@self:example.org')).toBe(false);
   });
 
-  it('uses the thread-scoped read receipt before falling back to the room read marker', () => {
+  it('uses the thread-scoped read receipt', () => {
     const visibleReply = makeThreadReplyEvent('$reply-visible', 300, '@other:example.org');
-    const room = {
-      getEventReadUpTo: vi.fn(() => '$room-read'),
-      findEventById: vi.fn(() => ({ getTs: () => 100 })),
-    };
     const thread = {
       events: [visibleReply],
       getEventReadUpTo: vi.fn(() => '$reply-visible'),
@@ -604,7 +596,7 @@ describe('thread visibility helpers', () => {
       rootEvent: { getTs: () => 50 },
     } as never;
 
-    expect(getThreadUnread(room as never, thread, '@self:example.org')).toBe(false);
+    expect(getThreadUnread(thread, '@self:example.org')).toBe(false);
   });
 });
 

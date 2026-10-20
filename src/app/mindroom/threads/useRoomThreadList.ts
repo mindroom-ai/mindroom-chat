@@ -225,8 +225,8 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   }, [room, version]);
   const userId = mx.getUserId() ?? '';
   const threadUnreads = useMemo(
-    () => (enabled ? getRoomThreadsUnread(room, rawThreads, userId) : new Map<string, boolean>()),
-    [enabled, room, rawThreads, userId]
+    () => (enabled ? getRoomThreadsUnread(rawThreads, userId) : new Map<string, boolean>()),
+    [enabled, rawThreads, userId]
   );
   const threads = useMemo(
     // Non-compact surfaces still use known roots for deep links, but not this ordering.

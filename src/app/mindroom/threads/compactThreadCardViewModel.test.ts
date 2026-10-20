@@ -181,7 +181,6 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
 
     const model = buildModel(room, {
       threadRootEvent: rootEvent,
-      readUpToTs: null,
       summaryInfo: {
         summaryText:
           'Ask @alice:server to review. Notify @ipv6:[::1]. Keep @unknown:elsewhere, @alice:server:8448, and @alice:server.example raw.',
@@ -243,7 +242,6 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
         summaryText: 'Live AI summary',
         messageCount: 9,
       },
-      readUpToTs: null,
       scheduledStatus: {
         scheduledTaskCount: 2,
       },

@@ -1,15 +1,5 @@
-import React from 'react';
-import { RoomEvent } from 'matrix-js-sdk';
-import { act } from 'react-test-renderer';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import {
-  create,
-  createControlledRoomTimelineHarness,
-  flushAsyncWork,
-  makeEvent,
-  makeRoom,
-  matrixClientMock,
-} from './test-utils/RoomTimeline.test.shared';
+import { makeEvent, makeRoom, matrixClientMock } from './test-utils/RoomTimeline.test.shared';
 
 let fetchAllThreadRelations: typeof import('./threadBootstrap').fetchAllThreadRelations;
 let shouldRefreshOverviewForTimelineEvent: typeof import('./threadBootstrap').shouldRefreshOverviewForTimelineEvent;
@@ -261,38 +251,5 @@ describe('fetchAllThreadRelations', () => {
     expect(shouldRefreshOverviewForTimelineEvent(room as never, roomAnnotation as never)).toBe(
       false
     );
-  });
-
-  it('recomputes overview read-up-to metadata on receipts', async () => {
-    const { RoomTimeline } = await import('../../features/room/RoomTimeline');
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
-    const room = makeRoom({
-      liveEvents: [threadRoot],
-    });
-    const getEventReadUpTo = vi.fn(() => undefined);
-    room.getEventReadUpTo = getEventReadUpTo;
-
-    let renderer: ReturnType<typeof create> | undefined;
-    await act(async () => {
-      renderer = create(React.createElement(ControlledRoomTimeline, { room }));
-      await flushAsyncWork(1);
-    });
-
-    const receiptHandler = room.__listeners.get(RoomEvent.Receipt);
-    expect(receiptHandler).toBeTypeOf('function');
-
-    const readUpToCallsBeforeReceipt = getEventReadUpTo.mock.calls.length;
-    await act(async () => {
-      receiptHandler?.({}, room);
-      await flushAsyncWork(1);
-    });
-
-    expect(getEventReadUpTo.mock.calls.length).toBeGreaterThan(readUpToCallsBeforeReceipt);
-
-    await act(async () => {
-      renderer?.unmount();
-      await flushAsyncWork(1);
-    });
   });
 });

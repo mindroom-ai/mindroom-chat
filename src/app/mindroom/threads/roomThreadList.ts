@@ -8,10 +8,8 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
-export const getLatestVisibleReply = (
-  thread: Thread,
-  events: MatrixEvent[] = thread.events ?? []
-): MatrixEvent | undefined => {
+export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
+  const events = thread.events ?? [];
   let loaded: MatrixEvent | undefined;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -66,70 +64,26 @@ export const getThreadReadState = (
   return { readEventIds: validReadEventIds, readUpToTs };
 };
 
-export const getEffectiveThreadReadUpToTs = (
-  thread: Thread | null | undefined,
-  userId: string | undefined,
-  roomReadUpToTs: number | null | undefined
-): number | null | undefined => {
-  const threadReadUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
-  if (threadReadUpToTs === undefined) return roomReadUpToTs;
-  if (typeof roomReadUpToTs !== 'number') return threadReadUpToTs;
-  return Math.max(threadReadUpToTs, roomReadUpToTs);
-};
-
 export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
-const getRoomReadUpToTs = (room: Room, userId: string): number | null => {
-  const readUpToId = room.getEventReadUpTo(userId);
-  return (readUpToId ? room.findEventById(readUpToId)?.getTs() : null) ?? null;
-};
-
-const getThreadUnreadWithRoomReceipt = (
-  thread: Thread,
-  userId: string,
-  readRoomReceipt: () => number | null
-): boolean => {
-  const latestReply = getLatestVisibleReply(thread);
-  if (!latestReply) return false;
-
-  if (latestReply.getSender() === userId) return false;
-
-  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, readRoomReceipt()) ?? null;
-  if (readUpToTs === null) return true;
-
-  return latestReply.getTs() > readUpToTs;
-};
-
 /**
- * A thread is unread when its latest reply is from another user
- * and is newer than both the thread-scoped and room-level read receipts.
+ * A thread is unread when its latest reply is from another user and newer than
+ * the user's thread or unthreaded receipt; a main-timeline receipt reads no replies.
  */
-export const getThreadUnread = (room: Room, thread: Thread, userId: string): boolean =>
-  getThreadUnreadWithRoomReceipt(thread, userId, () => getRoomReadUpToTs(room, userId));
+export const getThreadUnread = (thread: Thread, userId: string): boolean => {
+  const latestReply = getLatestVisibleReply(thread);
+  if (!latestReply || latestReply.getSender() === userId) return false;
+  const readUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
+  return readUpToTs === undefined || latestReply.getTs() > readUpToTs;
+};
 
 /**
  * Return a Map of threadRootId → boolean for all given threads,
  * indicating which have unread messages.
  */
-export const getRoomThreadsUnread = (
-  room: Room,
-  threads: Thread[],
-  userId: string
-): Map<string, boolean> => {
-  const unreadMap = new Map<string, boolean>();
-  // Read lazily so empty and self-authored threads still need no receipt lookup.
-  let roomReadUpToTs: number | null | undefined;
-  const readRoomReceipt = () => {
-    if (roomReadUpToTs === undefined) roomReadUpToTs = getRoomReadUpToTs(room, userId);
-    return roomReadUpToTs;
-  };
-  for (const thread of threads) {
-    const rootId = thread.id;
-    unreadMap.set(rootId, getThreadUnreadWithRoomReceipt(thread, userId, readRoomReceipt));
-  }
-  return unreadMap;
-};
+export const getRoomThreadsUnread = (threads: Thread[], userId: string): Map<string, boolean> =>
+  new Map(threads.map((thread) => [thread.id, getThreadUnread(thread, userId)]));
 
 export const sortThreadsByActivity = (
   threads: Thread[],

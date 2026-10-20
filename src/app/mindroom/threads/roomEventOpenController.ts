@@ -59,7 +59,6 @@ export const useRoomEventOpenController = ({
   navigateRoomThread,
   overviewThreadRootIds,
   threadTargets,
-  readUpToTs,
   readUptoEventIdRef,
   recalibrateFilterOptsRef,
   room,
@@ -105,7 +104,6 @@ export const useRoomEventOpenController = ({
   ) => void;
   overviewThreadRootIds: string[];
   threadTargets: ThreadTargetCommands;
-  readUpToTs: number | undefined;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   recalibrateFilterOptsRef: MutableRefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
@@ -230,7 +228,6 @@ export const useRoomEventOpenController = ({
               threadParticipantMap,
               summaryMap: threadSummaryInfoMap,
               currentUserId: mx.getSafeUserId(),
-              readUpToTs,
               searchQuery,
               threadSortFreezeState,
               threadSortControlSignature,
@@ -272,7 +269,6 @@ export const useRoomEventOpenController = ({
         ignoredUsersSet,
         mx,
         overviewThreadRootIds,
-        readUpToTs,
         readUptoEventIdRef,
         recalibrateFilterOptsRef,
         redirectRoomEventDeepLink,
