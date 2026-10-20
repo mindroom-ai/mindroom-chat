@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Match the typed name in the mention picker before its search answers (2026-10-19)
+
+- Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
+  `UserMentionAutocomplete` listed, and Tab took the first of, the whole member list whenever `useAsyncSearch` had no result: until the search, which runs in an effect after paint, answered the typed text, and again each time `useRoomMembers` handed over a new array (after `loadMembersIfNeeded` and on every membership or power-level event), because the hook cleared its result whenever its list changed.
+  The demo director worked around it by waiting for the named member and clicking that option (demo#10).
+- Fix:
+  - `useAsyncSearch` keeps its result when the list changes and runs the last query again on the new list, so no caller falls back to its unfiltered list while a query is active.
+    `Members` and `MembersDrawer` drop the search during render that recovered from the cleared result.
+  - Until the result answers the typed text, `UserMentionAutocomplete` matches the members at once with `searchNow`, the hook's own matching and ordering.
+- Tests:
+  - `UserMentionAutocomplete.test.tsx`: Tab before the search answers takes the member matching `Min` (fails without the change: it takes the first member).
+  - `useAsyncSearch.test.tsx`: a new list keeps the query and searches it again (fails without the change: the result is gone).
+- Not covered: the immediate match scans every member once per keystroke, which is cheap for MindRoom rooms but not measured for rooms with thousands of members.
+
 ### Edit messages too large for one event (2026-10-19)
 
 - Problem: after long messages became long-text sidecars, a message you sent that way could not be edited, because `canEditEvent` offered editing only for text, emote and notice messages; Up arrow skipped it and edited an older message.

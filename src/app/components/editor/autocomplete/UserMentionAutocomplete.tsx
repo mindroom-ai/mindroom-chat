@@ -12,8 +12,10 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import {
   SearchItemStrGetter,
   UseAsyncSearchOptions,
+  searchNow,
   useAsyncSearch,
 } from '../../../hooks/useAsyncSearch';
+import { normalize } from '../../../utils/AsyncSearch';
 import { onTabPress } from '../../../utils/keyboard';
 import { createMentionElement, moveCursor, replaceWithElement } from '../utils';
 import { useKeyDown } from '../../../hooks/useKeyDown';
@@ -100,9 +102,12 @@ export function UserMentionAutocomplete({
   const members = useRoomMembers(mx, roomId);
 
   const [result, search, resetSearch] = useAsyncSearch(members, getRoomMemberStr, SEARCH_OPTIONS);
-  const autoCompleteMembers = (result ? result.items.slice(0, 20) : members.slice(0, 20)).filter(
-    withAllowedMembership
-  );
+  // The search runs after paint; until it answers the typed text, match here so Tab never takes an unmatched member.
+  let matchingMembers = result?.items ?? members;
+  if (query.text && result?.query !== normalize(query.text, SEARCH_OPTIONS.normalizeOptions)) {
+    matchingMembers = searchNow(members, query.text, getRoomMemberStr, SEARCH_OPTIONS);
+  }
+  const autoCompleteMembers = matchingMembers.slice(0, 20).filter(withAllowedMembership);
 
   useEffect(() => {
     if (query.text) search(query.text);

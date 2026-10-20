@@ -119,7 +119,6 @@ export function Members({ requestClose }: MembersProps) {
     getRoomMemberStr,
     SEARCH_OPTIONS
   );
-  if (!result && searchInputRef.current?.value) search(searchInputRef.current.value);
 
   const flattenTagMembers = useFlattenPowerTagMembers(result?.items ?? sortedMembers, getPowerTag);
 
