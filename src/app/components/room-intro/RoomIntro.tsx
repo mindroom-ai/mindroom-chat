@@ -84,7 +84,14 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
           )}
         </Box>
         <Box gap="200" wrap="Wrap">
-          <Button onClick={() => setInvitePrompt(true)} variant="Secondary" size="300" radii="300">
+          <Button
+            onClick={() => setInvitePrompt(true)}
+            variant="Secondary"
+            size="300"
+            radii="300"
+            fill="Soft"
+            outlined
+          >
             <Text size="B300">{t('sharedUi.roomIntro.inviteMember')}</Text>
           </Button>
 
@@ -99,6 +106,7 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
                 size="300"
                 fill="Soft"
                 radii="300"
+                outlined
               >
                 <Text size="B300">{t('sharedUi.roomIntro.openOldRoom')}</Text>
               </Button>
@@ -115,6 +123,7 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
                     <Spinner size="50" variant="Secondary" fill="Soft" />
                   ) : undefined
                 }
+                outlined
               >
                 <Text size="B300">{t('sharedUi.roomIntro.joinOldRoom')}</Text>
               </Button>

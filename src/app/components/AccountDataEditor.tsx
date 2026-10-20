@@ -142,7 +142,9 @@ function AccountDataEdit({
             radii="300"
             type="submit"
             disabled={submitting}
-            before={submitting && <Spinner variant="Primary" fill="Solid" size="300" />}
+            before={submitting && <Spinner variant="Primary" fill="Soft" size="300" />}
+            outlined
+            fill="Soft"
           >
             <Text size="B400">{t('sharedUi.accountDataEditor.save')}</Text>
           </Button>
@@ -154,6 +156,7 @@ function AccountDataEdit({
             type="button"
             onClick={onCancel}
             disabled={submitting}
+            outlined
           >
             <Text size="B400">{t('sharedUi.accountDataEditor.cancel')}</Text>
           </Button>
@@ -221,7 +224,7 @@ function AccountDataView({ type, defaultContent, onEdit }: AccountDataViewProps)
             required
           />
         </Box>
-        <Button variant="Secondary" size="400" radii="300" onClick={onEdit}>
+        <Button variant="Secondary" size="400" radii="300" onClick={onEdit} fill="Soft" outlined>
           <Text size="B400">{t('sharedUi.accountDataEditor.edit')}</Text>
         </Button>
       </Box>

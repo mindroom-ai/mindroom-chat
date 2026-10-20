@@ -2,17 +2,24 @@
 
 ## Runbook
 
-### Soft buttons for agent requests and the computer panel (2026-10-20)
+### Soft, outlined buttons everywhere (2026-10-20)
 
-- Why: the "View computer", "Open Settings", "Open canvas" and "Open Members" buttons under an agent's UI request were solid `Secondary` folds buttons with body-size text, a bright white pill under the message in dark themes.
-  The computer panel's actions ("Take control", "Resume agent", "Stop" and the rest) were solid `Primary` and `Critical` buttons with body-size text, a bright lavender and salmon pair.
-- Change: both draw soft, outlined buttons (`fill="Soft"`, `outlined`, `radii="300"`, like the file retry button) with button text `B300`.
-  `ChatUiActionButton` switches to `Primary` and adds an icon per action: Monitor, Setting, Category and User.
-  `ComputerPanel` keeps each button's variant and shares the props in `actionButtonProps`.
+- Why: solid folds buttons read as bright pills in dark themes: a white "View computer" under an agent's UI request, a lavender and salmon pair in the computer panel, and the same in settings (Save computer service, Use app default, Open Connections), dialogs, auth and room settings.
+  A `Button` without `fill` is solid, so most of them never asked for it.
+- Change: every text `Button` that was solid (no `fill`, `fill="Solid"`, or a conditional `Solid`) is now `fill="Soft"` and `outlined`, with `radii="300"` where it had no radius: 147 buttons, the computer panel's 6 included.
+  Soft buttons get the same treatment, so a converted button matches its neighbours: 62 gain an outline and 36 without a radius get `radii="300"`.
+  That is 215 buttons in 102 files in all, plus 49 spinners inside converted buttons that move to `fill="Soft"`.
+  Variants are unchanged, so selected, unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
+  "Sign in with Apple" (`SSOLogin.tsx`) stays solid, because Apple prescribes its appearance.
+  `ChatUiActionButton` also switches to `Primary` with button text `B300` and an icon per action (Monitor, Setting, Category, User); `ComputerPanel` shares its props in `actionButtonProps`, and the MindRoom settings buttons move from body text to `B300`.
+  `docs/ui-design.md` records the rule.
   Behavior and labels are unchanged.
-- Tests: the `ChatUiActionProvider.test.tsx` folds mock gains `Icon` and `Icons`; the `ComputerPanel.test.tsx` mock keeps `outlined` off the DOM.
-- Validation: typecheck, ESLint, build, and the ui-actions and computer unit tests pass; `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel.
-  A temporary Playwright spec (local Tuwunel, a mocked computer API and a minimal RFB server so the panel connects) captured the request button and the panel's watch and control actions in light and dark, before and after.
+- Tests: the `ChatUiActionProvider.test.tsx` folds mock gains `Icon` and `Icons`; the `ComputerPanel.test.tsx` and `CanvasPanel.test.tsx` mocks keep `outlined` off the DOM.
+- Validation: typecheck, ESLint and Prettier on the changed files, and build pass; the unit suite passes except the 4 known failures on `dev` (`xcodeCloudPostClone.test.ts` 3, `useRoomInputSendSessionController.test.ts` 1).
+  `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel.
+  Temporary Playwright specs (local Tuwunel; for the panel, a mocked computer API and a minimal RFB server so it connects) captured the request button, the panel's watch and control actions, login, create room, the Computers, Connections and Device Verification settings cards, in light and dark, before and after.
+- Not covered: the 35 solid `Badge`s (counts and labels, 4 of them conditional), which are not buttons, and `IconButton`s.
+  A solid button that stood out from neighbours of the same variant now looks like them: Answer beside Ignore in the incoming-call prompt, Create room among Home's actions, Next beside Previous in Explore.
 
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 

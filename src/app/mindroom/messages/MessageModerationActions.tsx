@@ -170,10 +170,13 @@ export const MessageDeleteItem = as<
                   variant="Critical"
                   before={
                     deleteState.status === AsyncStatus.Loading ? (
-                      <Spinner fill="Solid" variant="Critical" size="200" />
+                      <Spinner fill="Soft" variant="Critical" size="200" />
                     ) : undefined
                   }
                   aria-disabled={deleteState.status === AsyncStatus.Loading}
+                  outlined
+                  radii="300"
+                  fill="Soft"
                 >
                   <Text size="B400">
                     {deleteState.status === AsyncStatus.Loading
@@ -313,13 +316,16 @@ export const MessageReportItem = as<
                   variant="Critical"
                   before={
                     reportState.status === AsyncStatus.Loading ? (
-                      <Spinner fill="Solid" variant="Critical" size="200" />
+                      <Spinner fill="Soft" variant="Critical" size="200" />
                     ) : undefined
                   }
                   aria-disabled={
                     reportState.status === AsyncStatus.Loading ||
                     reportState.status === AsyncStatus.Success
                   }
+                  outlined
+                  radii="300"
+                  fill="Soft"
                 >
                   <Text size="B400">
                     {reportState.status === AsyncStatus.Loading

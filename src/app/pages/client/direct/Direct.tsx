@@ -139,7 +139,14 @@ function DirectEmpty() {
           </Text>
         }
         options={
-          <Button variant="Secondary" size="300" onClick={() => navigate(getDirectCreatePath())}>
+          <Button
+            variant="Secondary"
+            size="300"
+            onClick={() => navigate(getDirectCreatePath())}
+            fill="Soft"
+            outlined
+            radii="300"
+          >
             <Text size="B300" truncate>
               {t('nav.directMessage')}
             </Text>

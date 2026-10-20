@@ -193,7 +193,9 @@ function LocalAddressInput({ addLocalAlias }: { addLocalAlias: (alias: string) =
             radii="300"
             type="submit"
             disabled={adding}
-            before={adding && <Spinner size="100" variant="Success" fill="Solid" />}
+            before={adding && <Spinner size="100" variant="Success" fill="Soft" />}
+            outlined
+            fill="Soft"
           >
             <Text size="B400">{t('featureUi.commonSettings.general.roomAddress.save')}</Text>
           </Button>

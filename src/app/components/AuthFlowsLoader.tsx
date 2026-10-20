@@ -74,7 +74,14 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
             {t('sharedUi.authFlowsLoader.failedToLoadAuthenticationFlowInformation')}
           </Text>
         )}
-        <Button variant="Secondary" size="400" onClick={handleRetry}>
+        <Button
+          variant="Secondary"
+          size="400"
+          onClick={handleRetry}
+          fill="Soft"
+          outlined
+          radii="300"
+        >
           {t('sharedUi.authFlowsLoader.retry')}
         </Button>
       </Box>

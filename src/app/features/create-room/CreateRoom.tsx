@@ -345,7 +345,9 @@ export function CreateRoomForm({
           variant="Primary"
           radii="400"
           disabled={disabled}
-          before={loading && <Spinner variant="Primary" fill="Solid" size="200" />}
+          before={loading && <Spinner variant="Primary" fill="Soft" size="200" />}
+          outlined
+          fill="Soft"
         >
           <Text size="B500">{t('featureUi.createRoom.create')}</Text>
         </Button>

@@ -142,11 +142,18 @@ function ClearContentPrompt({ roomId, onCancel }: ClearContentPromptProps) {
                 )}
               </Box>
               <Box gap="200" justifyContent="End">
-                <Button onClick={onCancel} disabled={clearing}>
+                <Button onClick={onCancel} disabled={clearing} fill="Soft" outlined radii="300">
                   <Text size="B400">{t('featureUi.roomSettings.general.offline.cancel')}</Text>
                 </Button>
-                <Button variant="Critical" onClick={() => void clear()} disabled={clearing}>
-                  {clearing && <Spinner fill="Solid" variant="Critical" size="200" />}
+                <Button
+                  variant="Critical"
+                  onClick={() => void clear()}
+                  disabled={clearing}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
+                  {clearing && <Spinner fill="Soft" variant="Critical" size="200" />}
                   <Text size="B400">
                     {t('featureUi.roomSettings.general.offline.clearConfirm')}
                   </Text>
@@ -276,7 +283,14 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
       </Box>
       <Box gap="100" wrap="Wrap">
         {snapshot.downloading ? (
-          <Button size="300" radii="300" variant="Secondary" onClick={() => offline.cancel(roomId)}>
+          <Button
+            size="300"
+            radii="300"
+            variant="Secondary"
+            onClick={() => offline.cancel(roomId)}
+            fill="Soft"
+            outlined
+          >
             <Text size="B300">{t('featureUi.roomSettings.general.offline.cancelDownload')}</Text>
           </Button>
         ) : (
@@ -286,6 +300,8 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
             variant="Primary"
             onClick={() => offline.download(roomId, { includeAllMedia })}
             disabled={!canDownload}
+            fill="Soft"
+            outlined
           >
             <Text size="B300">
               {t('featureUi.roomSettings.general.offline.downloadEntireRoom')}
@@ -299,6 +315,7 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
           fill="Soft"
           onClick={() => setConfirmClear(true)}
           disabled={!snapshot.loaded}
+          outlined
         >
           <Text size="B300">
             {t('featureUi.roomSettings.general.offline.clearDownloadedContent')}

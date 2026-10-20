@@ -182,6 +182,8 @@ export function ConnectPage() {
           size="400"
           radii="300"
           onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
+          fill="Soft"
+          outlined
         >
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.openInNewTab')}</Text>
         </Button>
@@ -204,7 +206,14 @@ export function ConnectPage() {
         <Text size="T300" priority="300">
           {t('mindroomUi.local-mindroom.connect.noAccountAppGuidance', { code: pairCode })}
         </Text>
-        <Button variant="Primary" size="400" radii="300" onClick={() => handleSignIn()}>
+        <Button
+          variant="Primary"
+          size="400"
+          radii="300"
+          onClick={() => handleSignIn()}
+          fill="Soft"
+          outlined
+        >
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.signIn')}</Text>
         </Button>
       </>
@@ -225,13 +234,14 @@ export function ConnectPage() {
                 <Button
                   key={session.sessionId}
                   variant={selected ? 'Primary' : 'Secondary'}
-                  fill={selected ? 'Solid' : 'Soft'}
+                  fill="Soft"
                   size="400"
                   radii="300"
                   aria-pressed={selected}
                   disabled={pairState.status === 'approving'}
                   onClick={() => setChosenSessionId(session.sessionId)}
                   style={{ justifyContent: 'flex-start' }}
+                  outlined
                 >
                   <Text size="B400" truncate>
                     {session.lastKnownDisplayName
@@ -310,6 +320,8 @@ export function ConnectPage() {
                 size="400"
                 radii="300"
                 onClick={() => handleSignIn(getMxIdServer(account.session.userId))}
+                fill="Soft"
+                outlined
               >
                 <Text size="B400">{t('mindroomUi.local-mindroom.connect.signIn')}</Text>
               </Button>
@@ -322,9 +334,11 @@ export function ConnectPage() {
                 onClick={handleApprove}
                 before={
                   pairState.status === 'approving' && (
-                    <Spinner variant="Primary" fill="Solid" size="200" />
+                    <Spinner variant="Primary" fill="Soft" size="200" />
                   )
                 }
+                outlined
+                fill="Soft"
               >
                 <Text size="B400">
                   {t('mindroomUi.local-mindroom.connect.approveAs', {
@@ -350,6 +364,7 @@ export function ConnectPage() {
           size="400"
           radii="300"
           onClick={() => navigate(getRootPath())}
+          outlined
         >
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.backToChat')}</Text>
         </Button>

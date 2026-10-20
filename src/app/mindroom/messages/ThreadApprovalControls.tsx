@@ -237,6 +237,7 @@ export function ApprovalReviewGroup({
               aria-controls={callsId}
               onClick={() => setShowCalls((value) => !value)}
               before={<Icon size="50" src={showCalls ? Icons.ChevronTop : Icons.ChevronBottom} />}
+              outlined
             >
               <Text size="B300">
                 {showCalls
@@ -255,12 +256,14 @@ export function ApprovalReviewGroup({
               <Button
                 size="300"
                 variant="Primary"
-                fill="Solid"
+                fill="Soft"
                 onClick={() => {
                   approvable.forEach((record) => {
                     void context.submit(record, { status: 'approved' });
                   });
                 }}
+                outlined
+                radii="300"
               >
                 <Text size="B300">
                   {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
@@ -269,7 +272,14 @@ export function ApprovalReviewGroup({
                 </Text>
               </Button>
             )}
-            <Button size="300" variant="Critical" fill="Soft" onClick={() => setDenyingAll(true)}>
+            <Button
+              size="300"
+              variant="Critical"
+              fill="Soft"
+              onClick={() => setDenyingAll(true)}
+              outlined
+              radii="300"
+            >
               <Text size="B300">
                 {t('mindroomUi.messages.threadApprovalControls.denyAll', {
                   count: available.length,
@@ -300,7 +310,7 @@ export function ApprovalReviewGroup({
               onChange={(event) => setReason(event.currentTarget.value)}
             />
             <div className={css.Actions}>
-              <Button type="submit" size="300" variant="Critical" fill="Solid">
+              <Button type="submit" size="300" variant="Critical" fill="Soft" outlined radii="300">
                 <Text size="B300">
                   {t('mindroomUi.messages.threadApprovalControls.confirmDenyAll', {
                     count: available.length,
@@ -317,6 +327,7 @@ export function ApprovalReviewGroup({
                   setDenyingAll(false);
                   setReason('');
                 }}
+                radii="300"
               >
                 <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
               </Button>
@@ -494,12 +505,14 @@ export function ThreadApprovalQueue() {
               ref={trigger}
               size="300"
               variant={needsAttention ? 'Warning' : 'Primary'}
-              fill={needsAttention ? 'Soft' : 'Solid'}
+              fill="Soft"
               className={classNames(css.ReviewButton, needsAttention && css.ReviewButtonPending)}
               onClick={() => {
                 setPulse(0);
                 setSelection(groups.map((group) => group.map((record) => record.eventId)));
               }}
+              outlined
+              radii="300"
             >
               <Text size="B300">
                 {t('mindroomUi.messages.threadApprovalControls.reviewCount', {

@@ -162,6 +162,7 @@ export function RoomProfileEdit({
                 radii="300"
                 disabled={!canEditAvatar || submitting}
                 onClick={() => pickFile('image/*')}
+                outlined
               >
                 <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.upload')}</Text>
               </Button>
@@ -246,7 +247,9 @@ export function RoomProfileEdit({
           size="300"
           radii="300"
           disabled={uploadingAvatar || submitting}
-          before={submitting && <Spinner size="100" variant="Success" fill="Solid" />}
+          before={submitting && <Spinner size="100" variant="Success" fill="Soft" />}
+          outlined
+          fill="Soft"
         >
           <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.save')}</Text>
         </Button>
@@ -257,6 +260,7 @@ export function RoomProfileEdit({
           fill="Soft"
           size="300"
           radii="300"
+          outlined
         >
           <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.cancel')}</Text>
         </Button>

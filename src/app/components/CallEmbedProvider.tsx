@@ -198,6 +198,8 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                       />
                     }
                     disabled={!canAnswer}
+                    fill="Soft"
+                    outlined
                   >
                     <Text as="span" size="B400">
                       {t('sharedUi.callEmbedProvider.answer')}
@@ -211,6 +213,7 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                     radii="400"
                     onClick={() => (dm ? onReject(room, info.refEventId) : onIgnore())}
                     before={<Icon size="200" src={Icons.Cross} filled />}
+                    outlined
                   >
                     <Text as="span" size="B400">
                       {dm

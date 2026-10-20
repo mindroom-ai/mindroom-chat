@@ -45,9 +45,10 @@ function RoomTimelineMode() {
             size="300"
             radii="300"
             variant={viewMode === mode ? 'Primary' : 'Secondary'}
-            fill={viewMode === mode ? 'Solid' : 'Soft'}
+            fill="Soft"
             onClick={() => setViewMode(mode)}
             aria-pressed={viewMode === mode}
+            outlined
           >
             <Text size="B300">{t(ROOM_VIEW_MODE_LABELS[mode])}</Text>
           </Button>

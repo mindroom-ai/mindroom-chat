@@ -54,7 +54,7 @@ function VerificationUnexpected({ message, onClose }: VerificationUnexpectedProp
   return (
     <Box direction="Column" gap="400">
       <Text>{message}</Text>
-      <Button variant="Secondary" fill="Soft" onClick={onClose}>
+      <Button variant="Secondary" fill="Soft" onClick={onClose} outlined radii="300">
         <Text size="B400">{t('sharedUi.deviceVerification.close')}</Text>
       </Button>
     </Box>
@@ -84,10 +84,12 @@ function VerificationAccept({ onAccept }: VerificationAcceptProps) {
       <Text>{t('sharedUi.deviceVerification.clickAcceptToStartTheVerificationProcess')}</Text>
       <Button
         variant="Primary"
-        fill="Solid"
+        fill="Soft"
         onClick={accept}
-        before={accepting && <Spinner size="100" variant="Primary" fill="Solid" />}
+        before={accepting && <Spinner size="100" variant="Primary" fill="Soft" />}
         disabled={accepting}
+        outlined
+        radii="300"
       >
         <Text size="B400">{t('sharedUi.deviceVerification.accept')}</Text>
       </Button>
@@ -168,6 +170,8 @@ function CompareEmoji({ sasData }: { sasData: ShowSasCallbacks }) {
           onClick={confirm}
           disabled={confirming}
           before={confirming && <Spinner size="100" variant="Primary" />}
+          outlined
+          radii="300"
         >
           <Text size="B400">{t('sharedUi.deviceVerification.theyMatch')}</Text>
         </Button>
@@ -176,6 +180,8 @@ function CompareEmoji({ sasData }: { sasData: ShowSasCallbacks }) {
           fill="Soft"
           onClick={() => sasData.mismatch()}
           disabled={confirming}
+          outlined
+          radii="300"
         >
           <Text size="B400">{t('sharedUi.deviceVerification.doNotMatch')}</Text>
         </Button>
@@ -222,7 +228,7 @@ function VerificationDone({ onExit }: VerificationDoneProps) {
       <div>
         <Text>{t('sharedUi.deviceVerification.yourDeviceIsVerified')}</Text>
       </div>
-      <Button variant="Primary" fill="Solid" onClick={onExit}>
+      <Button variant="Primary" fill="Soft" onClick={onExit} outlined radii="300">
         <Text size="B400">{t('sharedUi.deviceVerification.okay')}</Text>
       </Button>
     </Box>
@@ -237,7 +243,7 @@ function VerificationCanceled({ onClose }: VerificationCanceledProps) {
   return (
     <Box direction="Column" gap="400">
       <Text>{t('sharedUi.deviceVerification.verificationHasBeenCanceled')}</Text>
-      <Button variant="Secondary" fill="Soft" onClick={onClose}>
+      <Button variant="Secondary" fill="Soft" onClick={onClose} outlined radii="300">
         <Text size="B400">{t('sharedUi.deviceVerification.close')}</Text>
       </Button>
     </Box>

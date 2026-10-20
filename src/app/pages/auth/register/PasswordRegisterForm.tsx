@@ -430,7 +430,7 @@ export function PasswordRegisterForm({
           />
         )}
         <span data-spacing-node />
-        <Button variant="Primary" size="500" type="submit">
+        <Button variant="Primary" size="500" type="submit" fill="Soft" outlined radii="300">
           <Text as="span" size="B500">
             {t('sharedUi.passwordRegisterForm.register')}
           </Text>

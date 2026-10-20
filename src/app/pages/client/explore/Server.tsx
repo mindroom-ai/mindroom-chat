@@ -327,7 +327,7 @@ function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
                     aria-label={t('sharedUi.server.perPageItemLimit')}
                   />
                 </Box>
-                <Button type="submit" size="300" variant="Primary" radii="400">
+                <Button type="submit" size="300" variant="Primary" radii="400" fill="Soft" outlined>
                   <Text size="B300">{t('sharedUi.server.changeLimit')}</Text>
                 </Button>
               </Box>
@@ -641,6 +641,8 @@ export function PublicRooms() {
                             size="300"
                             fill="Soft"
                             disabled={!data.prev_batch}
+                            outlined
+                            radii="300"
                           >
                             <Text size="B300" truncate>
                               {t('sharedUi.server.previousPage')}
@@ -650,8 +652,10 @@ export function PublicRooms() {
                           <Button
                             onClick={paginateFront}
                             size="300"
-                            fill="Solid"
+                            fill="Soft"
                             disabled={!data.next_batch}
+                            outlined
+                            radii="300"
                           >
                             <Text size="B300" truncate>
                               {t('sharedUi.server.nextPage')}

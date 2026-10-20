@@ -579,6 +579,9 @@ export function CanvasPanel({
             size="300"
             variant="Secondary"
             onClick={() => setDisplayed({ ...canvas, colorScheme, theme })}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
           </Button>
@@ -593,6 +596,9 @@ export function CanvasPanel({
             variant="Secondary"
             disabled={versionLocked}
             onClick={() => selectVersion(versions.total)}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.showLatest')}</Text>
           </Button>
@@ -630,6 +636,9 @@ export function CanvasPanel({
                     disabled={reportOpen}
                     onClick={handleReport}
                     data-canvas-report
+                    fill="Soft"
+                    outlined
+                    radii="300"
                   >
                     <Text size="B300" truncate>
                       {t('mindroomUi.canvas.tellAgent', { agent: agentName })}
@@ -654,7 +663,14 @@ export function CanvasPanel({
               : t('mindroomUi.canvas.loadFailed')}
           </Text>
           {displayed.status === 'failed' && onRetry && (
-            <Button size="300" variant="Secondary" onClick={onRetry}>
+            <Button
+              size="300"
+              variant="Secondary"
+              onClick={onRetry}
+              fill="Soft"
+              outlined
+              radii="300"
+            >
               <Text size="B300">{t('mindroomUi.canvas.retry')}</Text>
             </Button>
           )}
@@ -670,6 +686,9 @@ export function CanvasPanel({
             variant="Secondary"
             data-canvas-reload
             onClick={() => setReloads((count) => count + 1)}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.reload')}</Text>
           </Button>
@@ -716,6 +735,9 @@ export function CanvasPanel({
                 disabled={!staged.armed || busy}
                 onClick={handleSend}
                 data-canvas-send
+                fill="Soft"
+                outlined
+                radii="300"
               >
                 <Text size="B300">{t('mindroomUi.canvas.send')}</Text>
               </Button>

@@ -311,7 +311,7 @@ export function ThreadActionsMenu({
                     )}
                   </Box>
                   {failure}
-                  <Button onClick={close} disabled={busy}>
+                  <Button onClick={close} disabled={busy} fill="Soft" outlined radii="300">
                     <Text>{t('threadActions.done')}</Text>
                   </Button>
                 </>
@@ -384,6 +384,8 @@ export function ThreadActionsMenu({
                         fill="Soft"
                         onClick={close}
                         disabled={busy}
+                        outlined
+                        radii="300"
                       >
                         <Text>{t(requested ? 'threadActions.done' : 'threadActions.cancel')}</Text>
                       </Button>
@@ -397,6 +399,9 @@ export function ThreadActionsMenu({
                               ? !normalizedDraft || draftLength > SUMMARY_MAX_LENGTH
                               : !selectedAgent)
                           }
+                          fill="Soft"
+                          outlined
+                          radii="300"
                         >
                           <Text>
                             {t(

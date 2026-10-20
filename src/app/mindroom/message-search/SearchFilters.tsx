@@ -303,7 +303,14 @@ function SelectRoomButton({ roomList, selectedRooms, onChange }: SelectRoomButto
               </Scroll>
               <Line variant="Surface" size="300" />
               <Box shrink="No" direction="Column" gap="100" style={{ padding: config.space.S200 }}>
-                <Button size="300" variant="Secondary" radii="300" onClick={handleSave}>
+                <Button
+                  size="300"
+                  variant="Secondary"
+                  radii="300"
+                  onClick={handleSave}
+                  fill="Soft"
+                  outlined
+                >
                   {localSelected && localSelected.length > 0 ? (
                     <Text size="B300">
                       {t('mindroomUi.message-search.searchFilters.saveCount', {
@@ -321,6 +328,7 @@ function SelectRoomButton({ roomList, selectedRooms, onChange }: SelectRoomButto
                   fill="Soft"
                   onClick={handleDeselectAll}
                   disabled={!localSelected || localSelected.length === 0}
+                  outlined
                 >
                   <Text size="B300">
                     {t('mindroomUi.message-search.searchFilters.deselectAll')}

@@ -252,8 +252,10 @@ export function OtherDevices({ devices, refreshDeviceList, showVerification }: O
                 variant="Critical"
                 radii="300"
                 disabled={deleting}
-                before={deleting && <Spinner variant="Critical" fill="Solid" size="100" />}
+                before={deleting && <Spinner variant="Critical" fill="Soft" size="100" />}
                 onClick={() => deleteDevices()}
+                outlined
+                fill="Soft"
               >
                 <Text size="B300">{t('featureUi.settings.devices.otherDevices.logout')}</Text>
               </Button>

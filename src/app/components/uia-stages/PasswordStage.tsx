@@ -82,7 +82,7 @@ export function PasswordStage({
             )}
           </Box>
         </Box>
-        <Button variant="Primary" type="submit">
+        <Button variant="Primary" type="submit" fill="Soft" outlined radii="300">
           <Text as="span" size="B400">
             {t('sharedUi.passwordStage.continue')}
           </Text>

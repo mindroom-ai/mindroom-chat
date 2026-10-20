@@ -140,7 +140,9 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
                   radii="300"
                   type="submit"
                   disabled={submitting}
-                  before={submitting && <Spinner variant="Primary" fill="Solid" size="300" />}
+                  before={submitting && <Spinner variant="Primary" fill="Soft" size="300" />}
+                  outlined
+                  fill="Soft"
                 >
                   <Text size="B300">
                     {t('featureUi.commonSettings.developerTools.stateEventEditor.save')}
@@ -153,6 +155,7 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
                   radii="300"
                   onClick={requestClose}
                   disabled={submitting}
+                  outlined
                 >
                   <Text size="B300">
                     {t('featureUi.commonSettings.developerTools.stateEventEditor.cancel')}

@@ -210,7 +210,14 @@ function FilterControls({ filters, setFilters, resetFilters }: FilterControlsPro
           setFilters((current) => ({ ...current, tag: { ...current.tag, exclude } }))
         }
       />
-      <Button size="300" variant="Secondary" fill="Soft" onClick={resetFilters}>
+      <Button
+        size="300"
+        variant="Secondary"
+        fill="Soft"
+        onClick={resetFilters}
+        outlined
+        radii="300"
+      >
         <Text size="B300">{t('thread.filters.clear')}</Text>
       </Button>
     </>
@@ -254,7 +261,14 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
       <div className={css.DesktopControls}>
         <FilterControls filters={filters} setFilters={setFilters} resetFilters={resetFilters} />
       </div>
-      <Button className={css.MobileControls} size="300" onClick={() => setMobileOpen(true)}>
+      <Button
+        className={css.MobileControls}
+        size="300"
+        onClick={() => setMobileOpen(true)}
+        fill="Soft"
+        outlined
+        radii="300"
+      >
         <Icon src={Icons.Filter} size="100" />
         <Text size="B300">{t('thread.filters.open')}</Text>
       </Button>

@@ -124,7 +124,14 @@ function ErrorDialog({
                     {message}
                   </Text>
                 </Box>
-                <Button size="400" variant="Secondary" fill="Soft" onClick={closeError}>
+                <Button
+                  size="400"
+                  variant="Secondary"
+                  fill="Soft"
+                  onClick={closeError}
+                  outlined
+                  radii="300"
+                >
                   <Text size="B400">{t('sharedUi.roomCard.cancel')}</Text>
                 </Button>
               </Box>
@@ -228,13 +235,29 @@ export const RoomCard = as<'div', RoomCardProps>(
     const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
     const accessFallback =
       resolvedAccessStatus === AsyncStatus.Loading ? (
-        <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
+        <Button
+          variant="Secondary"
+          size="300"
+          disabled
+          before={<Spinner size="50" />}
+          fill="Soft"
+          outlined
+          radii="300"
+        >
           <Text size="B300" truncate>
             {t('sharedUi.roomCard.checkingAccess')}
           </Text>
         </Button>
       ) : (
-        <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
+        <Button
+          onClick={accessRetry}
+          variant="Secondary"
+          size="300"
+          disabled={!accessRetry}
+          fill="Soft"
+          outlined
+          radii="300"
+        >
           <Text size="B300" truncate>
             {accessRetry
               ? t('sharedUi.roomCard.retryRoomInfo')
@@ -297,6 +320,8 @@ export const RoomCard = as<'div', RoomCardProps>(
             variant="Secondary"
             fill="Soft"
             size="300"
+            outlined
+            radii="300"
           >
             <Text size="B300" truncate>
               {t('sharedUi.roomCard.view')}
@@ -321,8 +346,10 @@ export const RoomCard = as<'div', RoomCardProps>(
                       onClick={access.activate}
                       className={css.ActionButton}
                       variant="Critical"
-                      fill="Solid"
+                      fill="Soft"
                       size="300"
+                      outlined
+                      radii="300"
                     >
                       <Text size="B300" truncate>
                         {t('sharedUi.roomCard.retry')}
@@ -343,6 +370,7 @@ export const RoomCard = as<'div', RoomCardProps>(
                           fill="Soft"
                           outlined
                           size="300"
+                          radii="300"
                         >
                           <Text size="B300" truncate>
                             {t('sharedUi.roomCard.viewError')}
@@ -368,6 +396,9 @@ export const RoomCard = as<'div', RoomCardProps>(
                       <Icon size="50" src={Icons.Check} />
                     ) : undefined
                   }
+                  fill="Soft"
+                  outlined
+                  radii="300"
                 >
                   <Text size="B300" truncate>
                     {access.kind === 'knock'

@@ -184,16 +184,18 @@ export function CallControls({ callEmbed }: CallControlsProps) {
             <Button
               style={{ minWidth: toRem(88) }}
               variant="Critical"
-              fill="Solid"
+              fill="Soft"
               onClick={endCall}
               before={
                 exiting ? (
-                  <Spinner variant="Critical" fill="Solid" size="200" />
+                  <Spinner variant="Critical" fill="Soft" size="200" />
                 ) : (
                   <Icon src={Icons.PhoneDown} size="200" filled />
                 )
               }
               disabled={exiting}
+              outlined
+              radii="300"
             >
               <Text size="B400">{t('featureUi.call.callControls.end')}</Text>
             </Button>

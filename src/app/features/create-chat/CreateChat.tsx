@@ -162,7 +162,9 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
           variant="Primary"
           radii="400"
           disabled={disabled}
-          before={loading && <Spinner variant="Primary" fill="Solid" size="200" />}
+          before={loading && <Spinner variant="Primary" fill="Soft" size="200" />}
+          outlined
+          fill="Soft"
         >
           <Text size="B500">{t('featureUi.createChat.create')}</Text>
         </Button>

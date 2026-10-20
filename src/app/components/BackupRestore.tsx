@@ -252,6 +252,8 @@ export function BackupRestoreTile({ crypto }: BackupRestoreTileProps) {
                           : handleRestore
                       }
                       before={<Icon size="100" src={Icons.Download} />}
+                      fill="Soft"
+                      outlined
                     >
                       <Text size="B300">{t('sharedUi.backupRestore.restoreBackup')}</Text>
                     </Button>

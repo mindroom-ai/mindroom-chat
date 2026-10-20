@@ -46,7 +46,14 @@ export function RoomTombstone({ roomId, body, replacementRoomId }: RoomTombstone
       <Box shrink="No">
         {replacementRoom?.getMyMembership() === Membership.Join ||
         joinState.status === AsyncStatus.Success ? (
-          <Button onClick={handleOpen} size="300" variant="Success" fill="Solid" radii="300">
+          <Button
+            onClick={handleOpen}
+            size="300"
+            variant="Success"
+            fill="Soft"
+            radii="300"
+            outlined
+          >
             <Text size="B300">{t('featureUi.room.roomTombstone.openNewRoom')}</Text>
           </Button>
         ) : (
@@ -54,14 +61,15 @@ export function RoomTombstone({ roomId, body, replacementRoomId }: RoomTombstone
             onClick={handleJoin}
             size="300"
             variant="Primary"
-            fill="Solid"
+            fill="Soft"
             radii="300"
             before={
               joinState.status === AsyncStatus.Loading && (
-                <Spinner size="100" variant="Primary" fill="Solid" />
+                <Spinner size="100" variant="Primary" fill="Soft" />
               )
             }
             disabled={joinState.status === AsyncStatus.Loading}
+            outlined
           >
             <Text size="B300">{t('featureUi.room.roomTombstone.joinNewRoom')}</Text>
           </Button>

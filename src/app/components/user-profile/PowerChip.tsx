@@ -80,7 +80,14 @@ function SelfDemoteAlert({ power, onCancel, onChange }: SelfDemoteAlertProps) {
                 </Text>
               </Box>
               <Box direction="Column" gap="200">
-                <Button type="submit" variant="Warning" onClick={() => onChange(power)}>
+                <Button
+                  type="submit"
+                  variant="Warning"
+                  onClick={() => onChange(power)}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
                   <Text size="B400">{t('sharedUi.powerChip.demote')}</Text>
                 </Button>
               </Box>
@@ -130,7 +137,14 @@ function SharedPowerAlert({ power, onCancel, onChange }: SharedPowerAlertProps) 
                 </Text>
               </Box>
               <Box direction="Column" gap="200">
-                <Button type="submit" variant="Warning" onClick={() => onChange(power)}>
+                <Button
+                  type="submit"
+                  variant="Warning"
+                  onClick={() => onChange(power)}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
                   <Text size="B400">{t('sharedUi.powerChip.promote')}</Text>
                 </Button>
               </Box>

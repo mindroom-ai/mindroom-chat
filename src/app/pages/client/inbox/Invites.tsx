@@ -281,6 +281,7 @@ function InviteCard({
               fill="Soft"
               disabled={disabled || joining || leaving}
               before={leaving ? <Spinner variant="Secondary" size="100" /> : undefined}
+              outlined
             >
               <Text size="B300">{t('sharedUi.invites.decline')}</Text>
             </Button>
@@ -640,11 +641,12 @@ function SpamInvites({
                   <Button
                     size="300"
                     variant="Critical"
-                    fill="Solid"
+                    fill="Soft"
                     radii="300"
                     onClick={declineAll}
-                    before={declining && <Spinner size="100" variant="Critical" fill="Solid" />}
+                    before={declining && <Spinner size="100" variant="Critical" fill="Soft" />}
                     disabled={loading}
+                    outlined
                   >
                     <Text size="B300" truncate>
                       {t('sharedUi.invites.declineAll')}
@@ -654,11 +656,12 @@ function SpamInvites({
                     <Button
                       size="300"
                       variant="Secondary"
-                      fill="Solid"
+                      fill="Soft"
                       radii="300"
                       onClick={reportAll}
-                      before={reporting && <Spinner size="100" variant="Secondary" fill="Solid" />}
+                      before={reporting && <Spinner size="100" variant="Secondary" fill="Soft" />}
                       disabled={loading}
+                      outlined
                     >
                       <Text size="B300" truncate>
                         {t('sharedUi.invites.reportAll')}
@@ -669,11 +672,12 @@ function SpamInvites({
                     <Button
                       size="300"
                       variant="Secondary"
-                      fill="Solid"
+                      fill="Soft"
                       radii="300"
                       disabled={loading}
                       onClick={blockAll}
-                      before={blocking && <Spinner size="100" variant="Secondary" fill="Solid" />}
+                      before={blocking && <Spinner size="100" variant="Secondary" fill="Soft" />}
+                      outlined
                     >
                       <Text size="B300" truncate>
                         {t('sharedUi.invites.blockAll')}
@@ -693,6 +697,7 @@ function SpamInvites({
                     <Icon size="100" src={showInvites ? Icons.ChevronTop : Icons.ChevronBottom} />
                   }
                   onClick={() => setShowInvites(!showInvites)}
+                  outlined
                 >
                   <Text size="B300">
                     {showInvites ? t('sharedUi.invites.hideAll') : t('sharedUi.invites.viewAll')}

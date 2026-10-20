@@ -61,6 +61,7 @@ export function AgentCallButton({
         onClick={handleCall}
         disabled={loading || !!unavailableReason}
         title={unavailableReason}
+        outlined
       >
         <Text size="B300">{t('mindroomUi.calls.agentCallButton.call')}</Text>
       </Button>

@@ -56,6 +56,7 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         before={<Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} />}
+        outlined
       >
         <Text size="B300">
           {open

@@ -175,7 +175,7 @@ export function ReadTextFile({
       ) : (
         <Button
           variant="Secondary"
-          fill="Solid"
+          fill="Soft"
           radii="300"
           size={buttonSize}
           onClick={() =>
@@ -184,11 +184,12 @@ export function ReadTextFile({
           disabled={textState.status === AsyncStatus.Loading}
           before={
             textState.status === AsyncStatus.Loading ? (
-              <Spinner fill="Solid" size="100" variant="Secondary" />
+              <Spinner fill="Soft" size="100" variant="Secondary" />
             ) : (
               <Icon data-directional size="100" src={Icons.ArrowRight} filled />
             )
           }
+          outlined
         >
           <Text size="B400" truncate>
             {resolvedButtonText}
@@ -293,18 +294,19 @@ export function ReadPdfFile({
       ) : (
         <Button
           variant="Secondary"
-          fill="Solid"
+          fill="Soft"
           radii="300"
           size="400"
           onClick={() => (pdfState.status === AsyncStatus.Success ? setPdfViewer(true) : loadPdf())}
           disabled={pdfState.status === AsyncStatus.Loading}
           before={
             pdfState.status === AsyncStatus.Loading ? (
-              <Spinner fill="Solid" size="100" variant="Secondary" />
+              <Spinner fill="Soft" size="100" variant="Secondary" />
             ) : (
               <Icon data-directional size="100" src={Icons.ArrowRight} filled />
             )
           }
+          outlined
         >
           <Text size="B400" truncate>
             {t('sharedUi.fileContent.openPdf')}
@@ -407,6 +409,7 @@ export function DownloadFile({
           <Icon size="100" src={Icons.Download} filled />
         )
       }
+      outlined
     >
       <Text size="B400" truncate>
         {buttonText ??

@@ -97,6 +97,7 @@ export function RoomVersionSelector({
               aria-pressed={!!menuCords}
               before={<Icon size="50" src={menuCords ? Icons.ChevronTop : Icons.ChevronBottom} />}
               disabled={disabled}
+              outlined
             >
               <Text size="B300">{value}</Text>
             </Button>

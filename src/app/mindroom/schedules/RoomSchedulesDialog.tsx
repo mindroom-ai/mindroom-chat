@@ -186,6 +186,8 @@ function ScheduleCard({
             variant="Secondary"
             fill="Soft"
             onClick={() => onOpenThread(task.threadId!)}
+            outlined
+            radii="300"
           >
             <Icon size="100" src={Icons.Thread} />
             <Text size="T200">{t('roomSchedules.openThread')}</Text>

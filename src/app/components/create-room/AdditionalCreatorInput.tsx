@@ -215,6 +215,8 @@ export function AdditionalCreatorInput({
                         radii="300"
                         onClick={handleEnterClick}
                         disabled={!validUserId}
+                        fill="Soft"
+                        outlined
                       >
                         <Text size="B400">{t('sharedUi.additionalCreatorInput.enter')}</Text>
                       </Button>

@@ -151,7 +151,7 @@ export function IOSPushNotification() {
   } else if (iosPushConfig) {
     if (permission === 'prompt' && !nativePushNotifications) {
       control = (
-        <Button size="300" radii="300" onClick={() => handleToggle(true)}>
+        <Button size="300" radii="300" onClick={() => handleToggle(true)} fill="Soft" outlined>
           <Text size="B300">{t('mindroomUi.native.iOSPushNotification.enable')}</Text>
         </Button>
       );
