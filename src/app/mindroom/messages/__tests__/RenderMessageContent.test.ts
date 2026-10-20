@@ -218,6 +218,34 @@ describe('RenderMessageContent', () => {
     }
   );
 
+  it.each([
+    [false, undefined],
+    [true, expect.any(Function)],
+  ])(
+    'passes a URL preview renderer on only with urlPreview on (urlPreview: %s)',
+    async (urlPreview, preview) => {
+      const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+      renderMindroomMessageContentMock.mockReset();
+      renderMindroomMessageContentMock.mockReturnValue(null);
+      const renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Sender',
+          msgType: 'm.text',
+          ts: 0,
+          urlPreview,
+          getContent: (() => ({ msgtype: 'm.text', body: 'https://example.org' })) as <T>() => T,
+          htmlReactParserOptions: {} as never,
+          linkifyOpts: {} as never,
+        })
+      );
+
+      expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ renderUrlsPreview: preview })
+      );
+      renderer.unmount();
+    }
+  );
+
   it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
     const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
