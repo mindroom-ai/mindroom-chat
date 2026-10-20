@@ -277,6 +277,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
     const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
     const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
+    const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
     const showLinkFavicons = shouldShowLinkFavicons(
       { mediaAutoLoad, urlPreview, encUrlPreview },
       room.hasEncryptionStateEvent()
@@ -339,12 +340,12 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
         getMindroomPinnedMessageRenderers({
           roomId: room.roomId,
           mediaAutoLoad,
-          urlPreview,
+          urlPreview: showUrlPreview,
           htmlReactParserOptions,
           linkifyOpts,
           outlineAttachment: true,
         }),
-      [room.roomId, mediaAutoLoad, urlPreview, htmlReactParserOptions, linkifyOpts]
+      [room.roomId, mediaAutoLoad, showUrlPreview, htmlReactParserOptions, linkifyOpts]
     );
 
     const renderMatrixEvent = useMatrixEventRenderer<[MatrixEvent, string, GetContentCallback]>(
@@ -365,7 +366,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               getContent={getContent}
               edited={!!event.replacingEvent()}
               mediaAutoLoad={mediaAutoLoad}
-              urlPreview={urlPreview}
+              urlPreview={showUrlPreview}
               htmlReactParserOptions={htmlReactParserOptions}
               linkifyOpts={linkifyOpts}
               outlineAttachment
@@ -416,7 +417,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                   resolveEditedEvent: (candidate) =>
                     getEditedEvent(eventId, candidate, evtTimeline.getTimelineSet()),
                   mediaAutoLoad,
-                  urlPreview,
+                  urlPreview: showUrlPreview,
                   htmlReactParserOptions,
                   linkifyOpts,
                 });
@@ -438,7 +439,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       edited={!!editedEvent || !!mEvent.replacingEvent()}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
-                      urlPreview={urlPreview}
+                      urlPreview={showUrlPreview}
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                     />
