@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Match the typed name in the mention picker before its search answers (2026-10-19)
+
+- Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
+  `UserMentionAutocomplete` listed, and Tab took the first of, the whole member list whenever `useAsyncSearch` had no result: until the search, which runs in an effect after paint, answered the typed text, and again each time `useRoomMembers` handed over a new array (after `loadMembersIfNeeded` and on every membership or power-level event), because the hook clears its result whenever its list changes.
+  The demo director worked around it by waiting for the named member and clicking that option (demo#10).
+- Fix: until the hook's result answers the typed text, `UserMentionAutocomplete` matches the members at once with `searchNow`, which finds what the hook would: the first 1,000 matches in list order, ordered by `orderSearchItems`.
+  Because it runs during render, `searchNow` reads at most `SEARCH_NOW_SCAN_LIMIT` (5,000) members, about 2.5 ms, and says whether it read them all.
+  If it found nobody and stopped short, Tab inserts nothing (neither a member nor a pill for the partial name) until the search answers; matches it did find are real matches, like the search's own first partial answer.
+  `useAsyncSearch` itself is unchanged.
+- Tests: `UserMentionAutocomplete.test.tsx` presses Tab before the search answers, after the member list changes, and after the list grows to include the named member; each takes the member matching `Min` (all fail without the change: Tab takes the first member).
+  With the only match past the first 5,000 members, Tab inserts nothing before the search answers and that member after it (fails without the scan limit).
+- Not covered:
+  - `RoomMentionAutocomplete`, `EmoticonAutocomplete` and `CommandAutocomplete` also hand their first item to Tab, and still list everything until their search answers and again after their list changes.
+    `MindroomCommandAutocomplete` does the same until its first answer (its list is constant).
+  - A query with many matches still orders up to 1,000 of them during render (about 15 ms in a benchmark, whatever the room's size).
+
 ### One stale stop-chip filter in Reactions (2026-10-19)
 
 - Problem: `Reactions` filtered stale stop chips twice: in the `useRelations` selector, which depended on `targetEvent` and so never re-ran when the final stream edit updated that event in place, and again per render to cover that miss (#466).
