@@ -74,7 +74,8 @@ export const getCanonicalSearchEventKey = (event: IEventWithRoomId): string | un
   const canonicalEventId = getCanonicalSearchEventId(event);
   if (!canonicalEventId) return undefined;
 
-  return `${event.room_id}|${canonicalEventId}`;
+  // The sender is part of the key so an edit only replaces a message from the same sender, as in the timeline.
+  return `${event.room_id}|${canonicalEventId}|${event.sender}`;
 };
 
 const getSearchResultTimestamp = (result: ISearchResult): number =>
