@@ -16,6 +16,7 @@ import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { ReactQueryDevtoolsToggle } from '../components/ReactQueryDevtoolsToggle';
 import { PersistentParticleBackgroundProvider } from '../components/particle-background';
 import { MindroomThinkingDefinitions } from '../mindroom/messages/MindroomThinkingDefinitions';
+import { portalContainer } from '../utils/portalOverlay';
 
 const queryClient = new QueryClient();
 
@@ -25,8 +26,6 @@ function App() {
   useMobileKeyboardViewportFix();
 
   React.useEffect(() => setImperativeJotaiStore(appJotaiStore), []);
-
-  const portalContainer = document.getElementById('portalContainer') ?? undefined;
 
   return (
     <PersistentParticleBackgroundProvider>

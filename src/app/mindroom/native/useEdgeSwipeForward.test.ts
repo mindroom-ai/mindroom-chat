@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
 import { useEdgeSwipeForward } from './useEdgeSwipeForward';
 
+const portal = vi.hoisted(() => {
+  const container: { children: unknown[] } = { children: [] };
+  // portalOverlay looks the container up once, when it is imported.
+  vi.stubGlobal('document', { getElementById: () => container });
+  return container;
+});
+
 type Listener = (event: Event) => void;
 
 class MockEventTarget {
@@ -62,11 +69,9 @@ function HookHarness({ enabled, onForward }: { enabled?: boolean; onForward: () 
 
 describe('useEdgeSwipeForward', () => {
   const originalWindow = globalThis.window;
-  const originalDocument = globalThis.document;
 
   let renderer: ReactTestRenderer | undefined;
   let mockWindow: MockWindow;
-  let portalChildCount = 0;
 
   const renderHook = (onForward: () => void, enabled?: boolean, imageViewerOpen = false) => {
     const store = createStore();
@@ -113,21 +118,7 @@ describe('useEdgeSwipeForward', () => {
       configurable: true,
       value: mockWindow,
     });
-    portalChildCount = 0;
-    Object.defineProperty(globalThis, 'document', {
-      configurable: true,
-      value: {
-        getElementById: (id: string) =>
-          id === 'portalContainer'
-            ? {
-                childElementCount: portalChildCount,
-                children: Array.from({ length: portalChildCount }, () => ({
-                  getAttribute: () => null,
-                })),
-              }
-            : null,
-      },
-    });
+    portal.children = [];
   });
 
   afterEach(() => {
@@ -142,11 +133,7 @@ describe('useEdgeSwipeForward', () => {
       configurable: true,
       value: originalWindow,
     });
-    Object.defineProperty(globalThis, 'document', {
-      configurable: true,
-      value: originalDocument,
-    });
-
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -210,7 +197,7 @@ describe('useEdgeSwipeForward', () => {
 
   it('does not navigate behind an open portal overlay', () => {
     const onForward = vi.fn();
-    portalChildCount = 1;
+    portal.children = [{ getAttribute: () => null }];
     renderHook(onForward);
 
     const preventDefault = swipeFromRightEdge();
