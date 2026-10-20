@@ -9,7 +9,7 @@
 - Change: every text `Button` that was solid (no `fill`, `fill="Solid"`, or a conditional `Solid`) is now `fill="Soft"` and `outlined`, with `radii="300"` where it had no radius (`size="500"` buttons keep the default, like the sign-in buttons beside them): 147 buttons, the computer panel's 6 included.
   Soft buttons get the same treatment, so a converted button matches its neighbours: 62 gain an outline and 36 without a radius get `radii="300"`.
   That is 215 buttons in 102 files in all, plus 49 spinners inside converted buttons that move to `fill="Soft"`.
-  Variants are unchanged, so unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
+  Other variants are unchanged, so unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
   Where only the solid fill had told actions apart, the variant now does: Retry is `Primary` and Clear cache `Secondary` beside the `Critical` Remove account (`ClientRoot.tsx`) and Continue (`SpecVersions.tsx`), and an incoming call's Reject is `Critical` (Ignore `Secondary` in rooms) beside the green Answer.
   Unselected toggles (room timeline view, Connect's account choice) are `fill="None"` without an outline, since a soft `Secondary` fill is darker than the selected soft `Primary` in light themes and a `fill="None"` outline draws in the variant's main color.
   "Sign in with Apple" (`SSOLogin.tsx`) stays solid, because Apple prescribes its appearance.
@@ -26,6 +26,7 @@
   Also done: a redundant `variant="Primary"` dropped and the `ComputerPanel` mock no longer passes `data-outlined`.
   Kept: `ChatUiActionButton`'s icons (shown to and approved by the owner) and `actionButtonProps`, which six buttons share.
 - PR #484 review at `b76ce53f`: Sol and Astra approved; Opus found the config-load dialog's Sign in again / Retry still looking like Continue offline (`ConfigConfig.tsx`, now `Primary`), and that unselected toggles' outline drew a near-white ring in dark themes (now no outline).
+- PR #484 review at `6df008a1`: Opus, Sol and Astra approved; Opus's nits are done: the pending Review button drops `outlined`, since `ReviewButtonPending` draws its own warning ring, and the radius rule names buttons with their own radius.
 
 ### Keep menus, dialogs and shortcuts on the app's portal container (2026-10-20)
 

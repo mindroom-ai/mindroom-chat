@@ -511,7 +511,8 @@ export function ThreadApprovalQueue() {
                 setPulse(0);
                 setSelection(groups.map((group) => group.map((record) => record.eventId)));
               }}
-              outlined
+              // ReviewButtonPending draws its own warning ring.
+              outlined={!needsAttention}
               radii="300"
             >
               <Text size="B300">
