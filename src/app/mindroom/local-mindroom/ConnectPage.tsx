@@ -234,7 +234,7 @@ export function ConnectPage() {
                 <Button
                   key={session.sessionId}
                   variant={selected ? 'Primary' : 'Secondary'}
-                  fill="Soft"
+                  fill={selected ? 'Soft' : 'None'}
                   size="400"
                   radii="300"
                   aria-pressed={selected}

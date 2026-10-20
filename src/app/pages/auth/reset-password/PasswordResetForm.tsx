@@ -252,7 +252,7 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
         />
       )}
       <span data-spacing-node />
-      <Button type="submit" variant="Primary" size="500" fill="Soft" outlined radii="300">
+      <Button type="submit" variant="Primary" size="500" fill="Soft" outlined>
         <Text as="span" size="B500">
           {t('sharedUi.passwordResetForm.resetPassword')}
         </Text>

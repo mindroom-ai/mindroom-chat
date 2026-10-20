@@ -142,7 +142,6 @@ export function SystemNotification() {
             notifPermission === 'prompt' ? (
               <Button
                 size="300"
-                variant="Primary"
                 fill="Soft"
                 outlined
                 radii="300"

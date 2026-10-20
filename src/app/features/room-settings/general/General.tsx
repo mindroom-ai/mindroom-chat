@@ -45,7 +45,7 @@ function RoomTimelineMode() {
             size="300"
             radii="300"
             variant={viewMode === mode ? 'Primary' : 'Secondary'}
-            fill="Soft"
+            fill={viewMode === mode ? 'Soft' : 'None'}
             onClick={() => setViewMode(mode)}
             aria-pressed={viewMode === mode}
             outlined

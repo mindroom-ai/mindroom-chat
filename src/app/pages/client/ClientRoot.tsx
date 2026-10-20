@@ -459,7 +459,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     })}
                   </Text>
                   <Button
-                    variant="Critical"
+                    variant="Primary"
                     onClick={() =>
                       setClientBootstrapSession(toClientBootstrapSession(activeSession))
                     }
@@ -472,6 +472,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     </Text>
                   </Button>
                   <Button
+                    variant="Secondary"
                     fill="Soft"
                     onClick={() => {
                       // Works without a client (initClient itself failed —

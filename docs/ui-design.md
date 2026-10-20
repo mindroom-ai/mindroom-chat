@@ -72,9 +72,11 @@ Custom component families should compose `glassSurface` and shared modifiers ins
   Menus default to transparent rows, with explicit selected states where needed.
 - Keep the existing surface/context boundaries and separate panel backdrop layer.
   They prevent portal dialogs inheriting the wrong header behavior and nested blur repainting the tint or blurring the panel rim.
-- Draw text buttons soft and outlined: `fill="Soft"`, `outlined`, and `radii="300"` unless a size calls for another radius.
+- Draw text buttons soft and outlined: `fill="Soft"`, `outlined`, and `radii="300"`; `size="500"` buttons keep the default radius so they match the sign-in and create buttons beside them.
   The variant carries the meaning (`Primary`, `Success`, `Critical`), including selected and unsaved states; a solid fill reads as a bright pill in dark themes.
-  A `Spinner` inside a soft button uses `fill="Soft"`, and borderless text buttons keep `fill="None"`.
+  Give the main safe action its own variant (usually `Primary`) when a destructive action sits beside it, so the two never look alike.
+  An unselected toggle is `fill="None"` beside the selected `Primary` one: in light themes a soft `Secondary` fill is darker than a soft `Primary` one and would read as the selection.
+  A `Spinner` inside a soft button uses `fill="Soft"`, and buttons with `fill="None"` keep it.
   The only solid button is "Sign in with Apple", whose appearance Apple prescribes.
 
 Example structure, using the app-owned `Modal` and `Header`:

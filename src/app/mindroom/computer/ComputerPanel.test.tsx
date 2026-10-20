@@ -15,10 +15,10 @@ vi.mock('folds', () => ({
   Button: ({
     before,
     children,
-    outlined,
+    outlined: _outlined,
     ...props
   }: React.ComponentProps<'button'> & { before?: React.ReactNode; outlined?: boolean }) => (
-    <button data-outlined={outlined} {...props}>
+    <button {...props}>
       {before}
       {children}
     </button>

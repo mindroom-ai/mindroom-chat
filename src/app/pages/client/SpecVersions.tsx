@@ -138,13 +138,13 @@ export function SpecVersions({
                     'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection'
                   )}
                 </Text>
-                <Button variant="Critical" onClick={retry} fill="Soft" outlined radii="300">
+                <Button variant="Primary" onClick={retry} fill="Soft" outlined radii="300">
                   <Text as="span" size="B400">
                     {t('sharedUi.specVersions.retry')}
                   </Text>
                 </Button>
                 <Button
-                  variant="Critical"
+                  variant="Secondary"
                   fill="Soft"
                   onClick={handleClearCache}
                   disabled={clearing}

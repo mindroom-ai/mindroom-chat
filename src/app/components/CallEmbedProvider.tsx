@@ -207,7 +207,7 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                   </Button>
                   <Button
                     style={{ flexGrow: 1 }}
-                    variant="Success"
+                    variant={dm ? 'Critical' : 'Secondary'}
                     fill="Soft"
                     size="400"
                     radii="400"

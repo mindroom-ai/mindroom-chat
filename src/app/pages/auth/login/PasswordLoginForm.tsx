@@ -292,7 +292,7 @@ export function PasswordLoginForm({
           </Box>
         </Box>
       </Box>
-      <Button type="submit" variant="Primary" size="500" fill="Soft" outlined radii="300">
+      <Button type="submit" variant="Primary" size="500" fill="Soft" outlined>
         <Text as="span" size="B500">
           {t('sharedUi.passwordLoginForm.login')}
         </Text>

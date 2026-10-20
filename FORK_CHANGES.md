@@ -6,10 +6,12 @@
 
 - Why: solid folds buttons read as bright pills in dark themes: a white "View computer" under an agent's UI request, a lavender and salmon pair in the computer panel, and the same in settings (Save computer service, Use app default, Open Connections), dialogs, auth and room settings.
   A `Button` without `fill` is solid, so most of them never asked for it.
-- Change: every text `Button` that was solid (no `fill`, `fill="Solid"`, or a conditional `Solid`) is now `fill="Soft"` and `outlined`, with `radii="300"` where it had no radius: 147 buttons, the computer panel's 6 included.
+- Change: every text `Button` that was solid (no `fill`, `fill="Solid"`, or a conditional `Solid`) is now `fill="Soft"` and `outlined`, with `radii="300"` where it had no radius (`size="500"` buttons keep the default, like the sign-in buttons beside them): 147 buttons, the computer panel's 6 included.
   Soft buttons get the same treatment, so a converted button matches its neighbours: 62 gain an outline and 36 without a radius get `radii="300"`.
   That is 215 buttons in 102 files in all, plus 49 spinners inside converted buttons that move to `fill="Soft"`.
-  Variants are unchanged, so selected, unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
+  Variants are unchanged, so unsaved and destructive states still differ by color; buttons with `fill="None"` keep it.
+  Where only the solid fill had told actions apart, the variant now does: Retry is `Primary` and Clear cache `Secondary` beside the `Critical` Remove account (`ClientRoot.tsx`) and Continue (`SpecVersions.tsx`), and an incoming call's Reject is `Critical` (Ignore `Secondary` in rooms) beside the green Answer.
+  Unselected toggles (room timeline view, Connect's account choice) are `fill="None"`, since a soft `Secondary` fill is darker than the selected soft `Primary` in light themes.
   "Sign in with Apple" (`SSOLogin.tsx`) stays solid, because Apple prescribes its appearance.
   `ChatUiActionButton` also switches to `Primary` with button text `B300` and an icon per action (Monitor, Setting, Category, User); `ComputerPanel` shares its props in `actionButtonProps`, and the MindRoom settings buttons move from body text to `B300`.
   `docs/ui-design.md` records the rule.
@@ -18,8 +20,11 @@
 - Validation: typecheck, ESLint and Prettier on the changed files, and build pass; the unit suite passes except the 4 known failures on `dev` (`xcodeCloudPostClone.test.ts` 3, `useRoomInputSendSessionController.test.ts` 1).
   `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel.
   Temporary Playwright specs (local Tuwunel; for the panel, a mocked computer API and a minimal RFB server so it connects) captured the request button, the panel's watch and control actions, login, create room, the Computers, Connections and Device Verification settings cards, in light and dark, before and after.
-- Not covered: the 35 solid `Badge`s (counts and labels, 4 of them conditional), which are not buttons, and `IconButton`s.
-  A solid button that stood out from neighbours of the same variant now looks like them: Answer beside Ignore in the incoming-call prompt, Create room among Home's actions, Next beside Previous in Explore.
+- Not covered: the 35 solid `Badge`s (4 of them conditional), including the emoji board's Sticker and Emoji tabs (`as="button"`), and `IconButton`s.
+  A solid button that stood out from neutral neighbours of the same variant now looks like them: Create room among Home's actions, Next beside Previous in Explore.
+- PR #484 review at `865fcaec`: Sol and Astra approved; Opus found Retry looking like Remove account, Reject like Answer, toggles reading backwards in light themes, and size-500 sign-in buttons getting a different radius from the SSO buttons beside them, all fixed above.
+  Also done: a redundant `variant="Primary"` dropped and the `ComputerPanel` mock no longer passes `data-outlined`.
+  Kept: `ChatUiActionButton`'s icons (shown to and approved by the owner) and `actionButtonProps`, which six buttons share.
 
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
