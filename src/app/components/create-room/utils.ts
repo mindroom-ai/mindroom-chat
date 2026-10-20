@@ -9,7 +9,7 @@ import {
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import { RoomType, StateEvent } from '../../../types/matrix/room';
 import { getViaServers } from '../../plugins/via-servers';
-import { getMxIdServer } from '../../utils/matrix';
+import { creatorsSupported, getMxIdServer } from '../../utils/matrix';
 import { CreateRoomAccess } from './types';
 
 export const createRoomCreationContent = (
@@ -92,8 +92,16 @@ export const createRoomCallState = () => ({
   content: {},
 });
 
-export const createVoiceRoomPowerLevelsOverride = () => ({
+// The server replaces its default `events` levels with these, so restate the levels it pins.
+// It pins the tombstone at 150 where creators are privileged; without a known version keep 100,
+// which earlier versions need.
+export const createVoiceRoomPowerLevelsOverride = (version?: string) => ({
   events: {
+    [StateEvent.RoomPowerLevels]: 100,
+    [StateEvent.RoomServerAcl]: 100,
+    [StateEvent.RoomEncryption]: 100,
+    [StateEvent.RoomHistoryVisibility]: 100,
+    [StateEvent.RoomTombstone]: version && creatorsSupported(version) ? 150 : 100,
     [StateEvent.GroupCallMemberPrefix]: 0,
   },
 });
@@ -139,7 +147,7 @@ export const createRoom = async (mx: MatrixClient, data: CreateRoomData): Promis
       data.additionalCreators
     ),
     power_level_content_override:
-      data.type === RoomType.Call ? createVoiceRoomPowerLevelsOverride() : undefined,
+      data.type === RoomType.Call ? createVoiceRoomPowerLevelsOverride(data.version) : undefined,
     initial_state: initialState,
   };
 
