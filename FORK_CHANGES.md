@@ -5448,7 +5448,6 @@
 - Current `dev` integration conflicted only in Runbook ordering; both dated entries are preserved, with the newer service-worker entry first.
 - Full Vitest passes all 455 files and 3,500 tests.
 - Typecheck, full ESLint, production/PWA build with Element Call verification, changed-file Prettier, and `git diff --check` pass.
-
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.
@@ -6094,7 +6093,6 @@ Staged refresh of the whole client: global design tokens first, chat-surface pol
 - PR review identified the equivalent audio pre-commit publication race; a production-renderer regression reproduced one outstanding URL before the fix and confirms unmount, replacement, and normal commit ownership after remediation.
 - Independent remediation re-review confirmed exact-once pending disposal, committed cleanup transfer, media-identity handling, regression coverage, and Runbook accuracy with no remaining findings.
 - No crash hook, cache, index, listener, Matrix SDK, or Capacitor change is included.
-
 ### CINNY-120 instant cached first paint on warm startup (2026-07-16)
 
 - Status: round-one review remediation, focused validation, full local validation, and independent re-review are complete on `cinny-120`; ready for review.
@@ -6202,7 +6200,6 @@ Staged refresh of the whole client: global design tokens first, chat-surface pol
   AgentCLI with Claude Fable 5 independently traced the scroll owner, keyed remount lifecycle, all compact thread exit paths, delayed card loading, incremental clamp retries, manual-scroll cancellation, and cleanup; final re-review found no actionable issues.
   Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings.
   Android, web, Docker, and PR-title checks pass; CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than findings.
-
 ### Simple Mode thread sorting (2026-07-15)
 
 - Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
@@ -8065,7 +8062,6 @@ Worst on folded ("Show more") collapsible messages.
 - Validation: `npm run typecheck` ✅, `npm run build` ✅, eslint on touched files ✅, `npx vitest run src/app/mindroom/threads` — 115 files, 1122 tests ✅.
   Independent review pass on the diff.
 - Next: deploy to chat.mindroom.chat and device-test on iOS (white areas + momentum); then continue the #79/#94 bandage sweep.
-
 ### iOS release prep with fastlane screenshot procedure (2026-07-05)
 
 - Status:
@@ -8226,7 +8222,6 @@ Post-fu2 mobile report: momentum kill persists (correlated with a small visible 
   Only a row's first-ever encounter can still two-pass (initial guess stays `true`).
   Detection sites (layout check, ResizeObserver, IntersectionObserver) route through one caching setter; the `forceOverflowing` prop override and the collapse-all transient reset are deliberately NOT cached.
 - Red-verified regression tests: remount initializes from the cached verdict in both directions, proven by giving the remount zero layout so only the initial state can decide.
-
 ### Task #129 — thread edit-backfill race (mid-thread "Thinking…" placeholder band) (2026-07-05, team lead)
 
 Prod report: a contiguous band of mid-thread messages stuck on the MindRoom "Thinking…" streaming placeholder; messages above and below resolved; does not self-repair across reopen.
@@ -8994,7 +8989,6 @@ Two engine-lifecycle audit findings landed as one commit because both originated
 
 - Validation: `npx tsc --noEmit` clean; focused vitest (`prefetchPolicy` 20/20, `mindroomSettings` 7/7, `MindroomPrefetchSettings` 6/6, `prefetchSettings.architecture` 5/5, `RoomTimeline.architecture` 96/96, `RoomTimeline.cache` 76/76, `RoomTimeline.navigation` 22/22, `RoomTimelineCollapsible` 12/12, `roomPaginationCommandController` 4/4, `state/settings` 4/4); full mindroom + state/settings 232 files / 2036 tests green after Commit 4; full-repo `npx vitest run` and `npm run build` + `npm run lint` land with this docs commit.
   Docker e2e gate on the branch tip is the team-lead's / orchestrator's to run.
-
 ### CINNY-207 review-fix batch - PRs #69/#70/#71 bot comments addressed (2026-07-04)
 
 - Status: review-fix pass over all outstanding top-level bot comments on the CINNY-207 stack.
