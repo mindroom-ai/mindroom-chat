@@ -2,9 +2,7 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { VisibleThreadRootData } from './roomThreadOverviewModel';
 import { buildThreadRecordMap } from './threadRecord';
-import type {
-  ThreadOverviewCachedMetadataSnapshot,
-} from './threadOverviewCacheMetadata';
+import type { ThreadOverviewCachedMetadataSnapshot } from './threadOverviewCacheMetadata';
 import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadRecord } from './types';
 
@@ -36,7 +34,6 @@ export type BuildMindroomThreadIndexRecordMapsOptions = {
   fallbackParticipantMap: ReadonlyMap<string, string[]>;
   threadResolutionMap: ReadonlyMap<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
-  readUpToTs: number | undefined;
   scheduledStatusMap: ReadonlyMap<string, ThreadScheduledStatus>;
 };
 
@@ -61,7 +58,6 @@ export const buildMindroomThreadIndexRecordMaps = ({
   fallbackParticipantMap,
   threadResolutionMap,
   currentUserId,
-  readUpToTs,
   scheduledStatusMap,
 }: BuildMindroomThreadIndexRecordMapsOptions): MindroomThreadIndexRecordMaps => {
   const emptyThreadRecordMap = new Map<string, ThreadRecord>();
@@ -84,7 +80,6 @@ export const buildMindroomThreadIndexRecordMaps = ({
     fallbackParticipantMap,
     threadResolutionMap,
     currentUserId,
-    readUpToTs: readUpToTs ?? null,
     scheduledStatusMap,
     cacheCoverageMap: cachedMetadata.coverageMap,
   };
