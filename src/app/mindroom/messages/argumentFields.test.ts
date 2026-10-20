@@ -215,6 +215,20 @@ describe('mergeArgumentFields', () => {
     });
   });
 
+  it('shows a field that only a later call carries', () => {
+    expect(
+      mergeArgumentFields([
+        { to: 'ana@example.com' },
+        { to: 'ana@example.com', cc: 'ben@example.com' },
+      ])
+    ).toEqual({
+      fields: [
+        { key: 'to', value: { kind: 'text', text: 'ana@example.com' } },
+        { key: 'cc', value: { kind: 'text', text: 'ben@example.com' } },
+      ],
+    });
+  });
+
   it('keeps the first call when the calls are not all labeled objects', () => {
     expect(mergeArgumentFields(['raw', { room: '#a' }])).toEqual({ raw: 'raw' });
     expect(mergeArgumentFields([{ room: '#a' }])).toEqual({
