@@ -79,27 +79,6 @@ describe('markMainTimelineAsRead', () => {
   });
 });
 
-describe('markMainTimelineAsRead for shown cards', () => {
-  it('takes the newest shown card in live-timeline order on a tie, and sends it once', async () => {
-    const older = makeMessageEvent('$a', 5);
-    const newer = makeMessageEvent('$b', 5);
-    // The server's read position stays on an event this client has not loaded.
-    const room = makeRoom([older, newer]);
-    const mx = makeClient(room);
-    const shown = new Set(['$b', '$a']);
-    const isShown = (event: MatrixEvent) => shown.has(event.getId()!);
-    const lastTarget = {};
-
-    await markMainTimelineAsRead(mx as never, ROOM_ID, false, isShown, lastTarget);
-    await markMainTimelineAsRead(mx as never, ROOM_ID, false, isShown, lastTarget);
-
-    expect(mx.sendReceipt).toHaveBeenCalledOnce();
-    expect(mx.sendReceipt).toHaveBeenCalledWith(newer, ReceiptType.Read, {
-      thread_id: MAIN_ROOM_TIMELINE,
-    });
-  });
-});
-
 describe('markThreadAsRead', () => {
   it.each([false, true])(
     'acknowledges a distinct latest reply with an equal timestamp (older reply read: %s)',

@@ -50,21 +50,17 @@ const makeThread = (
 });
 
 const render = ({
-  liveEvents = [],
-  threads = [],
+  threads,
   onScreen,
-  compactCardId,
 }: {
-  liveEvents?: MatrixEvent[];
-  threads?: ReturnType<typeof makeThread>[];
+  threads: ReturnType<typeof makeThread>[];
   onScreen: MatrixEvent[];
-  compactCardId?: string | null;
 }) => {
   const room = {
     roomId: '!room:example.org',
     findEventById: () => undefined,
     getEventReadUpTo: () => null,
-    getLiveTimeline: () => ({ getEvents: () => liveEvents }),
+    getLiveTimeline: () => ({ getEvents: () => [] }),
     getThread: (id: string) => threads.find((thread) => thread.id === id) ?? null,
   };
   const mx = {
@@ -79,7 +75,6 @@ const render = ({
       atBottomAnchorRef: { current: null },
       atBottomRef: { current: true },
       atLiveEndRef: { current: true },
-      compactCardId,
       getScrollElement: () => null,
       handleOpenEvent: vi.fn(),
       hideActivity: false,
@@ -127,17 +122,5 @@ describe('useTimelineReadReceiptController', () => {
     await act(async () => undefined);
 
     expect(receipts()).toEqual([['$a-reply', '$a']]);
-  });
-
-  it('leaves a compact card below the fold unread', async () => {
-    const onScreen = message('$on-screen', 1);
-    const receipts = render({
-      liveEvents: [onScreen, message('$below-fold', 2)],
-      onScreen: [onScreen],
-      compactCardId: '$below-fold',
-    });
-    await act(async () => undefined);
-
-    expect(receipts()).toEqual([['$on-screen', 'main']]);
   });
 });

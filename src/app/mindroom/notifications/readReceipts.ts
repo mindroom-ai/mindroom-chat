@@ -105,10 +105,7 @@ const getLatestThreadReplyTarget = async (
 export async function markMainTimelineAsRead(
   mx: MatrixClient,
   roomId: string,
-  privateReceipt: boolean,
-  isShown: (event: MatrixEvent) => boolean = () => true,
-  /** The view's last target, not sent again while the server keeps an older read position. */
-  lastTarget?: { current?: string }
+  privateReceipt: boolean
 ) {
   const room = mx.getRoom(roomId);
   const userId = mx.getUserId();
@@ -120,10 +117,9 @@ export async function markMainTimelineAsRead(
   const latestEvent = getLatestReceiptTarget(
     timeline,
     room.getEventReadUpTo(userId),
-    (event) => !isThreadOnlyRoomActivity(room, event) && isShown(event)
+    (event) => !isThreadOnlyRoomActivity(room, event)
   );
-  if (!latestEvent || latestEvent.getId() === lastTarget?.current) return;
-  if (lastTarget) lastTarget.current = latestEvent.getId();
+  if (!latestEvent) return;
 
   await mx.sendReceipt(latestEvent, getReceiptType(privateReceipt), {
     thread_id: MAIN_ROOM_TIMELINE,

@@ -21,7 +21,7 @@ export type ScrollAnchorMemory = Map<string, ScrollAnchorSnapshot>;
 const getAnchorKey = (row: Element): string | null => row.getAttribute(SCROLL_ANCHOR_ATTRIBUTE);
 
 // Rows render top to bottom, so the rows in view end at the first one below it.
-export const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
+const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
   const { top, bottom } = view.getBoundingClientRect();
   const anchors: ScrollAnchor[] = [];
   for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {

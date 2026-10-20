@@ -1,11 +1,9 @@
 import React from 'react';
-import { RoomEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
-  DEFAULT_THREAD_FILTER_STATE,
   flushAsyncWork,
   makeEvent,
   makeRoom,
@@ -73,30 +71,5 @@ describe('RoomTimeline read receipts', () => {
 
     const threadIds = vi.mocked(markThreadAsRead).mock.calls.map(([, , threadId]) => threadId);
     expect(threadIds).toEqual(['$new-root']);
-  });
-
-  it('tries a compact receipt once per newest card, none under a search', async () => {
-    const shown = makeThread('$shown-root', 2, []);
-    const hidden = makeThread('$hidden-root', 1, []);
-    const room = makeRoom({
-      liveEvents: [hidden.rootEvent, shown.rootEvent],
-      threads: [hidden, shown] as never,
-    });
-
-    const { markMainTimelineAsRead } = await mocked();
-    await render(room, {
-      initialViewMode: 'compact',
-      initialThreadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, freeText: '$shown-root' },
-    });
-    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
-
-    await render(room, { initialViewMode: 'compact' });
-    expect(markMainTimelineAsRead).toHaveBeenCalledOnce();
-    // The receipt refreshes the overview; the newest card is unchanged, so nothing is resent.
-    await act(async () => {
-      room.__listeners.get(RoomEvent.Receipt)?.({}, room);
-      await flushAsyncWork();
-    });
-    expect(markMainTimelineAsRead).toHaveBeenCalledOnce();
   });
 });

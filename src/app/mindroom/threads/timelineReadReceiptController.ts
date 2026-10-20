@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -40,7 +39,6 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef,
   atBottomRef,
   atLiveEndRef,
-  compactCardId,
   getScrollElement,
   handleOpenEvent,
   hideActivity,
@@ -60,13 +58,11 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
-  /** Set while the compact view is shown: its newest card, which keys a try; null for none. */
-  compactCardId?: string | null;
   getScrollElement: () => HTMLElement | null | undefined;
   handleOpenEvent: OpenEventHandler;
   hideActivity: boolean;
   mx: MatrixClient;
-  /** The rows on screen, including the thread replies classic shows inline. */
+  /** The classic rows on screen, including the thread replies shown inline. */
   onScreenEventsRef: MutableRefObject<() => MatrixEvent[]>;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
@@ -106,21 +102,6 @@ export const useTimelineReadReceiptController = ({
       requestAnimationFrame(markShownAsRead);
     }
   }, [markShownAsRead, readUptoEventIdRef, room]);
-
-  // The compact view has no bottom or mark-read control: seeing it reads its newest card.
-  const lastCompactTargetRef = useRef<string>();
-  const markCompactCardsAsRead = useCallback(() => {
-    if (!compactCardId) return;
-    requestAnimationFrame(() => {
-      const onScreen = new Set(onScreenEventsRef.current().map((event) => event.getId()));
-      const isOnScreen = (event: MatrixEvent) => onScreen.has(event.getId());
-      markMainTimelineAsRead(mx, room.roomId, hideActivity, isOnScreen, lastCompactTargetRef);
-    });
-  }, [compactCardId, hideActivity, mx, onScreenEventsRef, room.roomId]);
-
-  useEffect(() => {
-    if (document.hasFocus()) markCompactCardsAsRead();
-  }, [compactCardId, markCompactCardsAsRead]);
 
   const tryAutoMarkThreadAsRead = useCallback(() => {
     if (
@@ -194,10 +175,6 @@ export const useTimelineReadReceiptController = ({
   useDocumentFocusChange(
     useCallback(
       (inFocus) => {
-        if (inFocus && compactCardId !== undefined) {
-          markCompactCardsAsRead();
-          return;
-        }
         if (inFocus && atBottomRef.current) {
           if (threadId) {
             if (atLiveEndRef.current) {
@@ -220,9 +197,7 @@ export const useTimelineReadReceiptController = ({
       [
         atBottomRef,
         atLiveEndRef,
-        compactCardId,
         handleOpenEvent,
-        markCompactCardsAsRead,
         threadId,
         tryAutoMarkAsRead,
         tryAutoMarkThreadAsRead,
