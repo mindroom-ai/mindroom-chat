@@ -9,6 +9,23 @@
 - Fix: `portalOverlay.ts` looks the container up once, at startup, and exports it; `App.tsx` and `hasBlockingPortalOverlay` use that element.
 - Tests: `portalOverlay.test.ts` adds an `<svg id="portalContainer">` to the page after startup; shortcuts are not blocked and the exported container is still the app's (fails without the change: the SVG counts as an open overlay).
 
+### Merge an edit into a search result only from the message's sender (2026-10-20)
+
+- Problem: message search merged an edit (`m.replace`) into the result of the message it names without checking who sent the edit, and kept the newer of the two.
+  So an edit another member sent, naming someone else's message, showed in place of that message's result and hid it; the timeline ignores such edits.
+- Fix: `getCanonicalSearchEventKey` includes the sender, so `deduplicateResults` and the merge across pages in `MessageSearch` fold an edit only into a message from the same sender.
+  Someone else's edit stays a result of its own, as an edit does when the message it names does not match the search.
+- Tests: `useMessageSearch.test.ts` "merges an edit into the original only when the same sender sent both": another member's edit leaves the original result in place (fails without the change), and the sender's own edit still replaces it.
+
+### Follow the encrypted-room URL preview setting in pinned messages and the inbox (2026-10-20)
+
+- Problem: the Pinned Messages panel (`RoomPinMenu`) and the Notifications inbox showed URL previews whenever `urlPreview` was on, so turning off URL previews in encrypted rooms (`encUrlPreview`) still showed, and fetched, previews for links in encrypted rooms there.
+  The timeline already used `encUrlPreview` for encrypted rooms; both views come from Cinny, which has the same gap.
+- Fix: both views pass `encUrlPreview` for rooms with `room.hasEncryptionStateEvent()` and `urlPreview` otherwise, as `useTimelineMessageFeature` does.
+- Tests: `RoomPinMenu.test.ts` "uses the encrypted-room URL preview setting when encrypted is ..." renders a pinned message with `urlPreview` on and `encUrlPreview` off and checks the `urlPreview` prop the pin menu passes to `RenderMessageContent`: `false` in an encrypted room (fails without the change), `true` in an unencrypted one.
+  `RenderMessageContent.test.ts` "passes a URL preview renderer on only with urlPreview on" checks that `RenderMessageContent` hands its content renderer no URL preview renderer when `urlPreview` is `false`.
+- Not covered: the inbox has no component test.
+
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.

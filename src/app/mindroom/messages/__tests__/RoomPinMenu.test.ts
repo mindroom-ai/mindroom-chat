@@ -19,6 +19,7 @@ const {
   pinnedEventMock,
   renderMessageContentMock,
   roomMock,
+  settingValues,
 } = vi.hoisted(() => ({
   getEditedEventMock: vi.fn(() => undefined),
   navigateRoomMock: vi.fn(),
@@ -54,6 +55,7 @@ const {
     hasEncryptionStateEvent: vi.fn(() => false),
     getTimelineForEvent: vi.fn(() => undefined),
   },
+  settingValues: {} as Record<string, boolean>,
 }));
 
 vi.mock('@tanstack/react-virtual', () => ({
@@ -200,13 +202,15 @@ vi.mock('../../../components/RenderMessageContent', () => ({
     eventType,
     getContent,
     mEvent,
+    urlPreview,
   }: {
     edited?: boolean;
     eventType?: string;
     getContent?: () => Record<string, unknown>;
     mEvent?: unknown;
+    urlPreview?: boolean;
   }) => {
-    renderMessageContentMock({ edited, eventType, getContent, mEvent });
+    renderMessageContentMock({ edited, eventType, getContent, mEvent, urlPreview });
     const content = getContent?.();
     const newContent = content?.['m.new_content'];
     const approvalStatus =
@@ -224,7 +228,7 @@ vi.mock('../../../components/RenderMessageContent', () => ({
 }));
 
 vi.mock('../../../state/hooks/settings', () => ({
-  useSetting: () => [false],
+  useSetting: (_atom: unknown, key: string) => [settingValues[key] ?? false],
 }));
 
 vi.mock('../../../state/settings', () => ({
@@ -368,6 +372,8 @@ describe('RoomPinMenu', () => {
     renderMessageContentMock.mockReset();
     roomMock.getTimelineForEvent.mockReset();
     roomMock.getTimelineForEvent.mockReturnValue(undefined);
+    roomMock.hasEncryptionStateEvent.mockReturnValue(false);
+    Object.keys(settingValues).forEach((key) => delete settingValues[key]);
   });
 
   it('routes pinned approval events through RenderMessageContent with the approval event type', () => {
@@ -473,6 +479,36 @@ describe('RoomPinMenu', () => {
       expect.objectContaining({ mEvent: pinnedEventMock })
     );
   });
+
+  it.each([
+    { encrypted: true, urlPreview: false },
+    { encrypted: false, urlPreview: true },
+  ])(
+    'uses the encrypted-room URL preview setting when encrypted is $encrypted',
+    ({ encrypted, urlPreview }) => {
+      settingValues.urlPreview = true;
+      settingValues.encUrlPreview = false;
+      roomMock.hasEncryptionStateEvent.mockReturnValue(encrypted);
+      pinnedEventMock.getType.mockReturnValue('m.room.message');
+      pinnedEventMock.getContent.mockReturnValue({
+        msgtype: 'm.text',
+        body: 'https://example.org',
+      } as never);
+
+      act(() => {
+        renderer = create(
+          React.createElement(RoomPinMenu, {
+            room: roomMock as never,
+            requestClose: vi.fn(),
+          })
+        );
+      });
+
+      expect(renderMessageContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ urlPreview })
+      );
+    }
+  );
 
   it('passes the decrypted event through encrypted pinned message rendering', () => {
     const decryptedMessageEvent = {
