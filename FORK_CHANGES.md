@@ -12,6 +12,14 @@
   Existing rooms keep their power levels.
 - Tests: `src/app/components/create-room/utils.test.ts` checks the override `createRoom` sends for a version 11 and a version 12 voice room, and the agent call room test in `agentCall.test.ts` checks its full override; all three fail without the fix.
 
+### Show every call's fields in a folded approval group (2026-10-20)
+
+- Problem: a group of several calls of one tool, folded behind "Show N calls" with "Approve all N once", previewed fields merged from the first call's keys only (`mergeArgumentFields`).
+  A field only a later call carried, such as `cc` on a second `send_email`, was missing from the preview.
+- Fix: the merged preview takes the keys of every call, in first-seen order, and the usual target-first ordering still applies.
+  A field some calls lack is merged like a value that differs between calls: the values present are joined.
+- Tests: `argumentFields.test.ts` merges `{ to }` with `{ to, cc }` and expects `cc` (fails without the change).
+
 ### Merge an edit into a search result only from the message's sender (2026-10-20)
 
 - Problem: message search merged an edit (`m.replace`) into the result of the message it names without checking who sent the edit, and kept the newer of the two.
