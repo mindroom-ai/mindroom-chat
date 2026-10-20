@@ -14,6 +14,13 @@
   - `RoomMentionAutocomplete`, `EmoticonAutocomplete` and `CommandAutocomplete` still list everything until their search answers, and again after their list changes; Tab can take the first item then.
   - The immediate match stops at 1,000 matches but scans every member for a query few match, once per render until the search answers.
 
+### One stale stop-chip filter in Reactions (2026-10-19)
+
+- Problem: `Reactions` filtered stale stop chips twice: in the `useRelations` selector, which depended on `targetEvent` and so never re-ran when the final stream edit updated that event in place, and again per render to cover that miss (#466).
+- Fix: the selector returns `getActiveAnnotationsByKey` unfiltered and the per-render `isStaleStopReactionKey` check is the only filter; it reads the target's current content on every render.
+  No visible change.
+- Tests: `Reactions.test.ts` "hides a stale stop chip once the target message proves a terminal stream" and "drops the stop chip once the target finishes streaming in place" pass, and both fail without the per-render check.
+
 ### Read thread replies only with thread and unthreaded receipts (2026-10-19)
 
 - Problem: Chat counted a `main` receipt as reading older thread replies (`getEffectiveThreadReadUpToTs` took the later of the thread receipt and the room receipt).
