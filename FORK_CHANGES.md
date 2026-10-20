@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Keep the server's pinned power levels in new voice rooms (2026-10-20)
+
+- Problem: voice rooms from the create-room dialog and agent call rooms were created with a `power_level_content_override` whose `events` held only the call-membership level.
+  Tuwunel and Synapse replace the whole default `events` map with the override's, so the levels they pin in every new room were lost: `m.room.power_levels`, `m.room.history_visibility`, `m.room.encryption` and `m.room.server_acl` at 100, and `m.room.tombstone` at 100 (150 in room versions with privileged creators).
+  Those events fell back to `state_default` (50), so moderators could change power levels, history visibility, encryption and the server ACL, and upgrade the room.
+- Fix: `createVoiceRoomPowerLevelsOverride` (`src/app/components/create-room/utils.ts`) restates those levels next to `org.matrix.msc3401.call.member` at 0, and takes the room version for the tombstone level.
+  Agent call rooms leave the version to the server, so their tombstone stays at 100, which lets the creator upgrade the room in any version.
+  Existing rooms keep their power levels.
+- Tests: `src/app/components/create-room/utils.test.ts` checks the override `createRoom` sends for a version 11 and a version 12 voice room, and the agent call room test in `agentCall.test.ts` checks its full override; all three fail without the fix.
+
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
