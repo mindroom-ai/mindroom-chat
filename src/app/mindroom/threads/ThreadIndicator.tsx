@@ -69,7 +69,7 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
       if (!thread) return false;
       const userId = mx.getUserId();
       if (!userId) return false;
-      return getThreadUnread(room, thread, userId);
+      return getThreadUnread(thread, userId);
     }, [room, threadRootId, mx]);
     const pendingScheduledCount = useThreadScheduledTasks(room, threadRootId);
     const resolvedScheduledCount = scheduledCount ?? pendingScheduledCount;

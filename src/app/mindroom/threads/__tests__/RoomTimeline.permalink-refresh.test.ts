@@ -50,7 +50,6 @@ describe('RoomTimeline', () => {
             threadParticipantMap: new Map(),
             summaryMap: new Map(),
             currentUserId: '@alice:example.org',
-            readUpToTs: undefined,
           })
         ).toEqual({
           index: 1,
@@ -87,7 +86,6 @@ describe('RoomTimeline', () => {
             threadParticipantMap: new Map(),
             summaryMap: new Map(),
             currentUserId: '@alice:example.org',
-            readUpToTs: undefined,
           })
         ).toEqual({
           index: 0,
@@ -126,7 +124,6 @@ describe('RoomTimeline', () => {
             threadParticipantMap: new Map(),
             summaryMap: new Map(),
             currentUserId: '@alice:example.org',
-            readUpToTs: undefined,
             searchQuery: '',
             threadSortFreezeState: {
               controlSignature: threadSortControlSignature,
@@ -184,7 +181,6 @@ describe('RoomTimeline', () => {
             threadParticipantMap: new Map(),
             summaryMap: new Map(),
             currentUserId: '@alice:example.org',
-            readUpToTs: undefined,
             searchQuery: '',
             threadSortFreezeState: {
               controlSignature: threadSortControlSignature,
@@ -598,7 +594,6 @@ describe('RoomTimeline', () => {
             threadParticipantMap: new Map(),
             summaryMap: new Map(),
             currentUserId: '@alice:example.org',
-            readUpToTs: undefined,
           })
         ).toEqual({
           index: 0,
