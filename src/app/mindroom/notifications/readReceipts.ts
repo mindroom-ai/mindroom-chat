@@ -37,12 +37,8 @@ const isThreadReplyReceiptTarget = (event: MatrixEvent, threadId: string): boole
   eventBelongsToThread(event, threadId) &&
   event.getRelation()?.rel_type === RelationType.Thread;
 
-const getThreadReplyTarget = (
-  thread: Thread,
-  isShown: (event: MatrixEvent) => boolean = () => true
-): MatrixEvent | undefined => {
-  const isEligible = (event: MatrixEvent) =>
-    isThreadReplyReceiptTarget(event, thread.id) && isShown(event);
+const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
+  const isEligible = (event: MatrixEvent) => isThreadReplyReceiptTarget(event, thread.id);
   const loadedReply = getLatestReceiptTarget(thread.events, null, isEligible);
   // Before history is loaded, the SDK keeps the bundled latest reply outside events.
   const replyToEvent = thread.replyToEvent;
@@ -57,13 +53,12 @@ const getThreadReplyTarget = (
 const getLatestThreadReplyTarget = async (
   mx: MatrixClient,
   room: Room,
-  threadId: string,
-  isShown?: (event: MatrixEvent) => boolean
+  threadId: string
 ): Promise<MatrixEvent | undefined> => {
   const userId = mx.getUserId();
   const thread = room.getThread(threadId);
   if (thread) {
-    const latestReply = getThreadReplyTarget(thread, isShown);
+    const latestReply = getThreadReplyTarget(thread);
     if (!latestReply) return undefined;
     const readState = getThreadReadState(thread, userId ?? undefined);
     if (readState?.readEventIds.has(latestReply.getId()!)) return undefined;
@@ -130,15 +125,14 @@ export async function markThreadAsRead(
   mx: MatrixClient,
   roomId: string,
   threadId: string,
-  privateReceipt: boolean,
-  isShown?: (event: MatrixEvent) => boolean
+  privateReceipt: boolean
 ) {
   if (isLocalEchoEventId(threadId)) return;
 
   const room = mx.getRoom(roomId);
   if (!room) return;
 
-  const latestReply = await getLatestThreadReplyTarget(mx, room, threadId, isShown);
+  const latestReply = await getLatestThreadReplyTarget(mx, room, threadId);
   if (!latestReply) return;
 
   await mx.sendReceipt(latestReply, getReceiptType(privateReceipt), {

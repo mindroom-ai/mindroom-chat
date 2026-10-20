@@ -6,19 +6,14 @@
 
 - Problem: Chat counted a `main` receipt as reading older thread replies (`getEffectiveThreadReadUpToTs` took the later of the thread receipt and the room receipt).
   MSC3771 and the server do not: only thread and unthreaded receipts read thread events.
-  So a main receipt cleared threads' unread cards while the server kept counting them, and the classic view, which shows thread replies inline, relied on this to make replies look read while their server counts never cleared.
-- Fix:
-  - Thread unread state (`getThreadUnread`) honours only thread and unthreaded receipts; the room-receipt fallback and the `readUpToTs` plumbing that fed it are removed.
-  - The classic view keeps its main receipt at the live bottom and, for each unread thread with an inline reply on screen (the virtualizer's visible range, without overscan, less rows wholly behind the header or the composer, which float inside the list's scroll padding), sends a thread receipt on the newest such reply, never a summary-only one (`markThreadAsRead`'s `isShown`).
-    A reply placed under a root scrolled out of view is not acknowledged.
-  - The cross-room thread index refreshes a room's threads on your unthreaded receipts only, not on main-timeline ones.
-- Not fixed: the compact view's stuck room count (the morning-brief demo's "1" on Maya's Desk). The compact view still sends no main receipts, as before; that is tracked separately.
+  So a main receipt cleared threads' unread cards and indicators while the server kept counting the replies, and the room badge stayed up with no unread thread to explain it.
+- Fix: thread unread state (`getThreadUnread`) follows MSC3771 and honours only thread and unthreaded receipts, matching the server's counts.
+  The room-receipt fallback and the `readUpToTs` plumbing that fed it are removed, and the cross-room thread index refreshes a room's threads on your unthreaded receipts only, not on main-timeline ones.
+- Visible change: in the classic view, replies read only inline now stay unread until the thread is opened, matching the room badge, which already stayed up.
+- Not covered: classic thread receipts for replies read inline, and the compact view's stuck room count (the morning-brief demo's "1"), are tracked separately.
 - Tests:
   - `readReceipts.integration.test.ts`: a main receipt on a newer event leaves a thread's replies unread, an unthreaded receipt reads them (fails without the change).
-  - `RoomTimeline.readReceipts.test.ts`: classic receipts the thread whose inline reply is on screen, not one whose reply sits under a root scrolled out of view or a short last reply wholly behind the composer.
-  - `timelineReadReceiptController.test.tsx`: classic never receipts a summary-only reply.
   - `useCrossRoomThreadIndex.test.ts`: an unthreaded receipt refreshes the room's threads, a main-timeline one none.
-- Not covered: classic sends thread receipts on reaching the bottom or regaining focus, not when a thread reply arrives while you watch.
 
 ### Edit messages too large for one event (2026-10-19)
 

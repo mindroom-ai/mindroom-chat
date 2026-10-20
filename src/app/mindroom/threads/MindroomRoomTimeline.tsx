@@ -1599,22 +1599,6 @@ export function RoomTimeline({
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
 
-  // Classic rows on screen: the visible range, less rows behind the header or composer padding.
-  const onScreenEventsRef = useRef(() => [] as MatrixEvent[]);
-  onScreenEventsRef.current = () => {
-    const { range } = roomTimelineVirtualizer;
-    const scroll = scrollRef.current;
-    if (!range || !scroll) return [];
-    const { top, bottom } = scroll.getBoundingClientRect();
-    const padding = getComputedStyle(scroll);
-    const viewTop = top + (Number.parseFloat(padding.scrollPaddingTop) || 0);
-    const viewBottom = bottom - (Number.parseFloat(padding.scrollPaddingBottom) || 0);
-    const isVisible = (row?: DOMRect) => !!row && row.bottom > viewTop && row.top < viewBottom;
-    return timelineItems
-      .slice(range.startIndex, range.endIndex + 1)
-      .filter((item) => isVisible(getTimelineItemElement(item)?.getBoundingClientRect()))
-      .flatMap((item) => threadFilteredEventEntries[item]?.event ?? []);
-  };
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
     atBottomAnchorRef,
@@ -1624,7 +1608,6 @@ export function RoomTimeline({
     handleOpenEvent,
     hideActivity,
     mx,
-    onScreenEventsRef,
     readUptoEventIdRef,
     room,
     setAtBottom,

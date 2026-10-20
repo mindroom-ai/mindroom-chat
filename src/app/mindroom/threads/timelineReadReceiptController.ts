@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { Direction } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
@@ -18,10 +18,11 @@ import {
   markRoomAndThreadsAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
-import { getEventTimeline, getFirstLinkedTimeline } from './timelinePagination';
+import {
+  getEventTimeline,
+  getFirstLinkedTimeline,
+} from './timelinePagination';
 import type { ThreadInitialRenderMode } from './threadRenderUtils';
-import { getThreadUnread } from './roomThreadList';
-import { isThreadReplyEvent } from './threadUtils';
 
 type RoomUnreadInfoLike = {
   inLiveTimeline: boolean;
@@ -43,7 +44,6 @@ export const useTimelineReadReceiptController = ({
   handleOpenEvent,
   hideActivity,
   mx,
-  onScreenEventsRef,
   readUptoEventIdRef,
   room,
   setAtBottom,
@@ -62,8 +62,6 @@ export const useTimelineReadReceiptController = ({
   handleOpenEvent: OpenEventHandler;
   hideActivity: boolean;
   mx: MatrixClient;
-  /** The classic rows on screen, including the thread replies shown inline. */
-  onScreenEventsRef: MutableRefObject<() => MatrixEvent[]>;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
@@ -74,34 +72,18 @@ export const useTimelineReadReceiptController = ({
   timelineAtLiveEnd: boolean;
   unreadInfo?: RoomUnreadInfoLike;
 }) => {
-  const markShownAsRead = useCallback(() => {
-    markMainTimelineAsRead(mx, room.roomId, hideActivity);
-    // A main receipt reads no thread replies, so each unread thread shown inline gets its own.
-    const replies = onScreenEventsRef
-      .current()
-      .filter((event) => isThreadReplyEvent(event.getId() ?? '', event.threadRootId));
-    const shownIds = new Set(replies.map((event) => event.getId()));
-    const isShown = (event: MatrixEvent) => shownIds.has(event.getId());
-    new Set(replies.map((event) => event.threadRootId!)).forEach((rootId) => {
-      const thread = room.getThread(rootId);
-      if (thread && getThreadUnread(thread, mx.getSafeUserId())) {
-        markThreadAsRead(mx, room.roomId, rootId, hideActivity, isShown);
-      }
-    });
-  }, [hideActivity, mx, onScreenEventsRef, room]);
-
   const tryAutoMarkAsRead = useCallback(() => {
     const readUptoEventId = readUptoEventIdRef.current;
     if (!readUptoEventId) {
-      requestAnimationFrame(markShownAsRead);
+      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
       return;
     }
     const evtTimeline = getEventTimeline(room, readUptoEventId);
     const latestTimeline = evtTimeline && getFirstLinkedTimeline(evtTimeline, Direction.Forward);
     if (latestTimeline === room.getLiveTimeline()) {
-      requestAnimationFrame(markShownAsRead);
+      requestAnimationFrame(() => markMainTimelineAsRead(mx, room.roomId, hideActivity));
     }
-  }, [markShownAsRead, readUptoEventIdRef, room]);
+  }, [hideActivity, mx, readUptoEventIdRef, room]);
 
   const tryAutoMarkThreadAsRead = useCallback(() => {
     if (
@@ -125,12 +107,9 @@ export const useTimelineReadReceiptController = ({
   ]);
 
   const debounceSetAtBottom = useDebounce(
-    useCallback(
-      (entry: IntersectionObserverEntry) => {
-        if (!entry.isIntersecting) setAtBottom(false);
-      },
-      [setAtBottom]
-    ),
+    useCallback((entry: IntersectionObserverEntry) => {
+      if (!entry.isIntersecting) setAtBottom(false);
+    }, [setAtBottom]),
     { wait: 1000 }
   );
 

@@ -8,10 +8,8 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
-export const getLatestVisibleReply = (
-  thread: Thread,
-  events: MatrixEvent[] = thread.events ?? []
-): MatrixEvent | undefined => {
+export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
+  const events = thread.events ?? [];
   let loaded: MatrixEvent | undefined;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
