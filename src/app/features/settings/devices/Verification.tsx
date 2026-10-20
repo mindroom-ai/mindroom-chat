@@ -258,7 +258,14 @@ export function EnableVerification({ visible }: EnableVerificationProps) {
   return (
     <>
       {visible && (
-        <Button size="300" radii="300" onClick={() => setOpen(true)}>
+        <Button
+          size="300"
+          variant="Primary"
+          fill="Soft"
+          outlined
+          radii="300"
+          onClick={() => setOpen(true)}
+        >
           <Text as="span" size="B300">
             {t('featureUi.settings.devices.verification.enable')}
           </Text>

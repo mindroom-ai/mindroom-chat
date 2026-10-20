@@ -65,11 +65,25 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
               </Text>
             )}
             <Box gap="200" wrap="Wrap">
-              <Button size="300" variant="Primary" onClick={() => save(input)}>
-                <Text size="T300">{t('settings.general.computers.save')}</Text>
+              <Button
+                size="300"
+                variant="Primary"
+                fill="Soft"
+                outlined
+                radii="300"
+                onClick={() => save(input)}
+              >
+                <Text size="B300">{t('settings.general.computers.save')}</Text>
               </Button>
-              <Button size="300" variant="Secondary" onClick={() => save(null)}>
-                <Text size="T300">{t('settings.general.computers.reset')}</Text>
+              <Button
+                size="300"
+                variant="Secondary"
+                fill="Soft"
+                outlined
+                radii="300"
+                onClick={() => save(null)}
+              >
+                <Text size="B300">{t('settings.general.computers.reset')}</Text>
               </Button>
             </Box>
             {message && (
