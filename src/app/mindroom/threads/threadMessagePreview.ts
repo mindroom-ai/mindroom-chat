@@ -123,15 +123,21 @@ export const stripPreviewMarkdown = (value: string): string =>
     // case of the label scans.
     .replace(/!\[([^\]]*)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
     .replace(/\[([^\]]+)\]\((?:[^()\n]|\([^()\n]*\))*\)/g, '$1')
-    // Hide asterisks and tildes in code spans from the emphasis rules, so a
-    // glob or operator in code (`**/*.ts`) is never paired as emphasis.
-    .replace(/`[^`\n]+`/g, (span) => span.replace(/\*/g, '\uE000').replace(/~/g, '\uE001'))
+    // Read code spans before the emphasis rules, so a * or ~ in one (`**/*.ts`)
+    // is never paired as emphasis. As in CommonMark, a span is an unescaped
+    // backtick run closed by the next run of the same length. Until the end, its
+    // * and ~ are U+E000 and U+E001, and each backtick run one U+E002.
+    .replace(
+      /(?<![\\`])(`+)(?!`)([^\n]*?[^`\n])\1(?!`)/g,
+      (_, _run, code: string) =>
+        `\uE002${code.replace(/\*/g, '\uE000').replace(/~/g, '\uE001')}\uE002`
+    )
     // Like the italic rule below, require non-word flanking so ** operators in
     // code (x**2 + y**2) are never paired as bold.
     .replace(/(^|[^\w*])\*\*([^\s*](?:[^\n]*?[^\s*])??)\*\*(?![\w*])/g, '$1$2')
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
-    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/\uE002/g, '')
     .replace(/\uE000/g, '*')
     .replace(/\uE001/g, '~')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');

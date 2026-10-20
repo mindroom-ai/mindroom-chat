@@ -42,6 +42,18 @@ describe('stripPreviewMarkdown', () => {
     expect(stripPreviewMarkdown('type `~~x~~` for ~~struck~~')).toBe('type ~~x~~ for struck');
   });
 
+  it('pairs code spans by backtick run length and never at an escaped backtick', () => {
+    expect(stripPreviewMarkdown('Use \\`**bold**\\` for emphasis')).toBe(
+      'Use \\`bold\\` for emphasis'
+    );
+    expect(stripPreviewMarkdown('Use ``foo`` and **bold** with `bar`.')).toBe(
+      'Use foo and bold with bar.'
+    );
+    expect(stripPreviewMarkdown('``a`` **b** `c`')).toBe('a b c');
+    expect(stripPreviewMarkdown('`a`b`')).toBe('ab`');
+    expect(stripPreviewMarkdown('`a`**`b`**')).toBe('ab');
+  });
+
   it('strips link and image syntax down to their labels', () => {
     expect(
       stripPreviewMarkdown('see [the docs](https://example.com) and ![diagram](mxc://x)')

@@ -7,10 +7,14 @@
 - Problem: a thread preview of `**a** and **b**` read `a** and **b`, and `- **x**: rise, in **kelvin**` read `x**: rise, in **kelvin`.
   The bold strip rule in `stripPreviewMarkdown` made the rest of the bold text an optional group, and a greedy optional group is tried before it is skipped, so one-character bold ran on to the next closing `**` on the line.
   Asterisks and tildes inside code spans were paired as emphasis too: ``**`**/*.ts`** matches`` read `/*.ts** matches`, and ``Use `**` for powers and **bold**`` read ```Use `` for powers and **bold```.
+  Code spans were also paired one backtick at a time, unlike CommonMark: an escaped backtick opened one, and the backtick left over after ```` ``foo`` ```` paired with a later one, so prose between them lost its emphasis stripping.
 - Fix: the optional group is lazy (`??`), so it is skipped first and one-character bold ends at its own marker. Longer bold was already right, because the group's inner match is lazy.
   The italic rule has the same shape but cannot cross a `*`, so it never ran on; strikethrough and code have no optional group. Neither changes.
-  Before the emphasis rules run, `*` and `~` inside each code span become private-use characters (U+E000, U+E001); they turn back after the code rule drops the backticks, so code shows as before and its markers are never paired.
-- Tests: `threadMessagePreview.test.ts` checks both bold previews above, and code spans holding `**/*.ts`, `**` and `~~x~~` inside and beside emphasis (each fails without its change).
+  Code spans are read once, before the emphasis rules, as CommonMark reads them: a backtick run that is not escaped, closed by the next run of the same length.
+  Each span's `*` and `~` become private-use characters (U+E000, U+E001) and each backtick run U+E002, which flanks emphasis as a backtick does; at the end U+E002 is dropped and the other two turn back.
+  Reading spans once, rather than again after the emphasis rules, keeps the pairs fixed: removing `**` between two spans (`` `a`**`b`** ``) would make their backticks adjacent and pair them differently.
+- Tests: `threadMessagePreview.test.ts` checks both bold previews above, code spans holding `**/*.ts`, `**` and `~~x~~` inside and beside emphasis, and pairing by run length, at an escaped backtick and between adjacent spans (each fails without its change, except the adjacent-span guard).
+- Not covered: a span is not trimmed of one space at each end as in CommonMark, because the preview collapses whitespace anyway and, where a span wrapped across lines is mispaired, the trim joined words (`sha256) and DeliveryState` read `sha256)andDeliveryState`). Spans still cannot cross a line break.
 
 ### One stale stop-chip filter in Reactions (2026-10-19)
 
