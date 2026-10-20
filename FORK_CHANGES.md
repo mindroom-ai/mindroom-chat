@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Show every call's fields in a folded approval group (2026-10-20)
+
+- Problem: a group of several calls of one tool, folded behind "Show N calls" with "Approve all N once", previewed fields merged from the first call's keys only (`mergeArgumentFields`).
+  A field only a later call carried, such as `cc` on a second `send_email`, was missing from the preview.
+- Fix: the merged preview takes the keys of every call, in first-seen order, and the usual target-first ordering still applies.
+  A field some calls lack is merged like a value that differs between calls: the values present are joined.
+- Tests: `argumentFields.test.ts` merges `{ to }` with `{ to, cc }` and expects `cc` (fails without the change).
+
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
