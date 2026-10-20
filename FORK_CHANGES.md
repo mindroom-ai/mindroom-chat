@@ -2,13 +2,17 @@
 
 ## Runbook
 
-### Give agent request buttons a soft, iconed style (2026-10-20)
+### Soft buttons for agent requests and the computer panel (2026-10-20)
 
 - Why: the "View computer", "Open Settings", "Open canvas" and "Open Members" buttons under an agent's UI request were solid `Secondary` folds buttons with body-size text, a bright white pill under the message in dark themes.
-- Change: `ChatUiActionButton` draws them as soft, outlined `Primary` buttons (`radii="300"`, button text `B300`), like the file download buttons, with an icon per action: Monitor, Setting, Category and User.
-  Behavior, labels and the unavailable note are unchanged.
-- Tests: the `ChatUiActionProvider.test.tsx` folds mock gains `Icon` and `Icons`.
-- Validation: typecheck, ESLint, build, and the ui-actions unit tests pass; `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel, and a temporary screenshot step showed the button in light and dark, at rest and hovered.
+  The computer panel's actions ("Take control", "Resume agent", "Stop" and the rest) were solid `Primary` and `Critical` buttons with body-size text, a bright lavender and salmon pair.
+- Change: both draw soft, outlined buttons (`fill="Soft"`, `outlined`, `radii="300"`, like the file retry button) with button text `B300`.
+  `ChatUiActionButton` switches to `Primary` and adds an icon per action: Monitor, Setting, Category and User.
+  `ComputerPanel` keeps each button's variant and shares the props in `actionButtonProps`.
+  Behavior and labels are unchanged.
+- Tests: the `ChatUiActionProvider.test.tsx` folds mock gains `Icon` and `Icons`; the `ComputerPanel.test.tsx` mock keeps `outlined` off the DOM.
+- Validation: typecheck, ESLint, build, and the ui-actions and computer unit tests pass; `e2e/agent-ui-actions.spec.ts` passes against a local Tuwunel.
+  A temporary Playwright spec (local Tuwunel, a mocked computer API and a minimal RFB server so the panel connects) captured the request button and the panel's watch and control actions in light and dark, before and after.
 
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
