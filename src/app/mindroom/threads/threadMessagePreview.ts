@@ -1,8 +1,8 @@
 import { MsgType } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { TFunction } from 'i18next';
-import { Element, Text as DOMText, htmlToDOM, type DOMNode } from 'html-react-parser';
-import { tokenizeTextWithLatex } from '../../plugins/math';
+import { htmlToDOM, type DOMNode, type Element } from 'html-react-parser';
+import { findInlineLatexMatch, tokenizeTextWithLatex } from '../../plugins/math';
 import { sanitizeForRegex } from '../../utils/regex';
 import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
 import { sanitizeCustomHtml } from '../../utils/sanitize';
@@ -149,45 +149,56 @@ const NO_PREVIEW: ThreadPreview = { text: undefined, localization: undefined };
 
 // The message renders math in formatted_body text outside code, pre and direct
 // link text, and in data-mx-maths elements (react-custom-html-parser). Find each
-// formula there in the body in order, literal ones too, and preview math as "…".
-const replaceFormattedMath = (body: string, formattedBody: string): string => {
-  let text = '';
+// formula there in the text in order, literal ones too, and preview math as "…".
+const replaceFormattedMath = (text: string, formattedBody?: string): string => {
+  if (!formattedBody || !(text.includes('$$') || findInlineLatexMatch(text))) return text;
+  let out = '';
   let from = 0;
-  const visit = (latex: string, isMath: boolean): void => {
-    const source = new RegExp(`\\$\\$?\\s*${sanitizeForRegex(latex)}\\s*\\$\\$?`, 'g');
+  const visit = (latex: string, display: boolean, isMath: boolean): void => {
+    const formula = sanitizeForRegex(latex.trim());
+    if (!formula) return;
+    // Delimited as the tokenizer reads them, with nothing that backtracks across the text.
+    const source = display
+      ? new RegExp(`^[ \\t>*+-]*\\$\\$\\s*${formula}\\s*\\$\\$$`, 'gm')
+      : new RegExp(`(?<![\\dA-Za-z$\\\\])\\$${formula}\\$(?![\\dA-Za-z$])`, 'g');
     source.lastIndex = from;
-    const match = source.exec(body);
-    // From a formula the body lacks, the rest stays as written and is not searched again.
-    text += body.slice(from, match?.index) + (match && isMath ? '…' : match?.[0] ?? '');
+    const match = source.exec(text);
+    // From a formula the text lacks, the rest stays as written and is not searched again.
+    out += text.slice(from, match?.index) + (match && isMath ? '…' : match?.[0] ?? '');
     from = match ? source.lastIndex : Infinity;
   };
-  const walk = (nodes: DOMNode[], inCode = false, parent = ''): void =>
+  const tokenize = (data: string, isMath: boolean) =>
+    tokenizeTextWithLatex(data).forEach(
+      (p) => p.type === 'math' && visit(p.content, p.displayMode, isMath)
+    );
+  const nodeText = (node: DOMNode): string =>
+    'data' in node ? node.data : ((node as Element).children as DOMNode[]).map(nodeText).join('');
+  const walk = (nodes: DOMNode[], parent = ''): void =>
     nodes.forEach((node) => {
-      if (node instanceof DOMText) {
-        const isMath = !inCode && parent !== 'pre' && parent !== 'a';
-        tokenizeTextWithLatex(node.data).forEach(
-          (p) => p.type === 'math' && visit(p.content, isMath)
-        );
-      } else if (node instanceof Element && 'data-mx-maths' in node.attribs) {
-        visit(node.attribs['data-mx-maths'], true);
-      } else if (node instanceof Element) {
-        walk(node.children as DOMNode[], inCode || node.name === 'code', node.name);
-      }
+      if ('data' in node) return tokenize(node.data, parent !== 'a');
+      const { name, attribs = {}, children = [] } = node as Element;
+      if ('data-mx-maths' in attribs) return visit(attribs['data-mx-maths'], name === 'div', true);
+      // Code shows its whole text literally, even split by highlighting spans.
+      if (/^(?:code|pre)$/.test(name)) return tokenize(nodeText(node), false);
+      return walk(children as DOMNode[], name);
     });
   walk(htmlToDOM(sanitizeCustomHtml(formattedBody)));
-  return text + body.slice(from);
+  return out + text.slice(from);
 };
 
+const toProse = (text: string): string => stripPreviewMarkdown(text).replace(/\s+/g, ' ').trim();
+
 const computeBodyPreview = (body: string, formattedBody?: string): ThreadPreview => {
-  const trimmed = trimReplyFromBody(body);
-  const withoutReply = formattedBody ? replaceFormattedMath(trimmed, formattedBody) : trimmed;
+  const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
     withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
       ? // Drop a split-off lone high surrogate at the cut point.
         withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
       : withoutToolMarkers;
-  const prose = stripPreviewMarkdown(boundedSource).replace(/\s+/g, ' ').trim();
+  const replaced = toProse(replaceFormattedMath(boundedSource, formattedBody));
+  // "…" must not make a finished message read as a streaming placeholder.
+  const prose = hasLikelyIncompleteStreamingBody(replaced) ? toProse(boundedSource) : replaced;
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
@@ -211,18 +222,21 @@ const computeBodyPreview = (body: string, formattedBody?: string): ThreadPreview
 
 // Thread records, cross-room index entries and the minimap preview the root
 // and latest replies of every thread on each rebuild. The analysis depends
-// only on the body, so a least-recently-used cache sized above one large
-// room's working set (523 threads) reuses it across rebuilds. The character
-// budget bounds the strings it can keep alive.
+// only on the body and, for math, formatted_body, so a least-recently-used cache
+// sized above one large room's working set (523 threads) reuses it across
+// rebuilds. The character budget bounds the strings it can keep alive.
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
-const analyzeBodyPreview = (body: string, html: unknown): ThreadPreview => {
-  // Only math previews differently from the body; then formatted_body keys the analysis too.
-  const formattedBody = typeof html === 'string' && html && body.includes('$') ? html : undefined;
-  const key = formattedBody ? `${body}\0${formattedBody}` : body;
+const analyzeBodyPreview = (body: string, value: unknown): ThreadPreview => {
+  // Math reads a formatted_body up to 16 KB, keyed by its hash to keep the budget the body's.
+  const html =
+    typeof value === 'string' && value.length <= 16_384 && body.includes('$') ? value : '';
+  let hash = 0;
+  for (let i = 0; i < html.length; i += 1) hash = (Math.imul(hash, 31) + html.charCodeAt(i)) | 0;
+  const key = html ? `${body}\0${hash}` : body;
   const cached = bodyPreviewCache.get(key);
   if (cached) {
     // Map iteration follows insertion order, so re-inserting marks it recent.
@@ -231,7 +245,7 @@ const analyzeBodyPreview = (body: string, html: unknown): ThreadPreview => {
     return cached;
   }
 
-  const analysis = computeBodyPreview(body, formattedBody);
+  const analysis = computeBodyPreview(body, html);
   bodyPreviewCache.set(key, analysis);
   bodyPreviewCacheChars += key.length;
   for (const oldest of bodyPreviewCache.keys()) {

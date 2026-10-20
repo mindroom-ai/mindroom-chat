@@ -6,12 +6,13 @@
 
 - Problem: a one-line thread preview showed an agent's formulas as raw LaTeX, e.g. `$$f \approx \frac{…}$$`, while the message rendered them.
   The closed #475 guessed math from the Markdown `body`, but agent messages render `formatted_body`, where code, indented and quoted code and link text keep `$…$` literal, and each guess missed another construct.
-- Fix: when a message has a `formatted_body` and its body has a `$`, `threadMessagePreview.ts` sanitizes it with `sanitizeCustomHtml` and finds math as the renderer does: `tokenizeTextWithLatex` on text outside `code`, `pre` and direct `a` text, plus `data-mx-maths` elements.
-  It finds those formulas, literal ones too, in order in the body and replaces the rendered ones with "…" before the usual Markdown strip; from the first formula the body lacks, the rest stays as written.
-  The preview cache keys such messages on body and `formatted_body`.
+- Fix: when the bounded preview source has math-looking `$` and the message has a `formatted_body` up to 16 KB, `threadMessagePreview.ts` sanitizes it with `sanitizeCustomHtml` and finds math as the renderer does: `tokenizeTextWithLatex` on text outside direct `a` text, on the whole text of each `code` and `pre` as literal, and `data-mx-maths` elements.
+  It finds those formulas, literal ones too, in order in the source with the tokenizer's delimiters, and replaces the rendered ones with "…" before the usual Markdown strip; from the first formula the source lacks, the rest stays as written.
+  A preview that would then read as a streaming placeholder keeps dev's text.
+  The preview cache keys such messages on the body and a hash of `formatted_body`.
   Other messages preview as before.
-- Tests: `threadMessagePreview.test.ts` uses MindRoom `markdown_to_html` output: demo math becomes "…"; `$x$` in a code span, fences, indented and quoted indented code, inline and reference link text stays literal beside a rendered `$x$`; prices stay; a reply fallback is skipped; a body without `formatted_body` previews as before.
-- Not covered: from a formula the body writes differently from the HTML, such as an escaped `\$x\$` the renderer shows as math, the preview stays raw, as before.
+- Tests: `threadMessagePreview.test.ts` uses MindRoom `markdown_to_html` output: demo math becomes "…"; a formula stays literal in code spans (also next to letters), fences (also Pygments-highlighted), indented and quoted indented code, inline and reference link text, and with loose dollars (`$ x $`, `$n $`, mid-line `$$x$$`); prices stay; a reply fallback is skipped; a finished "Thinking about $x$" message, a body without `formatted_body`, and one with more than 16 KB of it preview as before; adversarial bodies stay fast.
+- Not covered: from a formula the body writes differently from the HTML, such as an escaped `\$x\$` the renderer shows as math, the preview stays raw; a literal copy of a formula that only a bare URL, an `mxc` image alt or a raw-HTML attribute holds can take that formula's "…".
 
 ### Edit messages too large for one event (2026-10-19)
 

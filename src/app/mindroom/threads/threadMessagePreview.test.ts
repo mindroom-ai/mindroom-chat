@@ -199,9 +199,42 @@ describe('getThreadMessagePreviewText', () => {
       '<p>See <a href="https://example.com">$x$</a> and $x$</p>\n',
       'See [$x$][ref] and … [ref]: https://example.com',
     ],
-  ])('keeps $x$ in %s literal, as the message does', (_name, body, formattedBody, preview) => {
-    expect(getThreadMessagePreviewText(htmlContent(body, formattedBody))).toBe(preview);
-  });
+    [
+      'code next to letters',
+      'Type `a$x$` or `$x$b` then $x$',
+      '<p>Type <code>a$x$</code> or <code>$x$b</code> then $x$</p>\n',
+      'Type a$x$ or $x$b then …',
+    ],
+    [
+      'a highlighted ```latex fence',
+      '```latex\n$E = mc^2$\n```\nSo $E = mc^2$ holds.',
+      '<pre><code class="language-latex"><span style="color: #BA2121">$</span><span style="color: #008000">E </span><span style="color: #666">=</span><span style="color: #008000"> mc^</span><span style="color: #666">2</span><span style="color: #BA2121">$</span>\n</code></pre>\n<p>So $E = mc^2$ holds.</p>\n',
+      '$E = mc^2$ So … holds.',
+    ],
+    [
+      'spaced dollars',
+      'Pay $ x $ now, then $x$',
+      '<p>Pay $ x $ now, then $x$</p>\n',
+      'Pay $ x $ now, then …',
+    ],
+    [
+      'a space before the closing dollar',
+      'Use $n $ then $n$',
+      '<p>Use $n $ then $n$</p>\n',
+      'Use $n $ then …',
+    ],
+    [
+      'mid-line $$',
+      'Not $$x$$ inline, but $x$',
+      '<p>Not $$x$$ inline, but $x$</p>\n',
+      'Not $$x$$ inline, but …',
+    ],
+  ])(
+    'keeps the formula in %s literal, as the message does',
+    (_name, body, formattedBody, preview) => {
+      expect(getThreadMessagePreviewText(htmlContent(body, formattedBody))).toBe(preview);
+    }
+  );
 
   it('skips math in the reply fallback, which the message hides', () => {
     const content = htmlContent(
@@ -220,6 +253,31 @@ describe('getThreadMessagePreviewText', () => {
         )
       )
     ).toBe('Rooms cost $5-$10 a night, meals $75');
+  });
+
+  it('keeps a finished message from reading as a streaming placeholder', () => {
+    const body = 'Thinking about $x$ gives the answer.';
+    expect(getThreadMessagePreviewText(htmlContent(body, `<p>${body}</p>\n`))).toBe(body);
+  });
+
+  it('previews from the body alone past 16 KB of formatted_body', () => {
+    const html = `<p>Fit $x$</p>\n<pre><code>${'a'.repeat(17_000)}</code></pre>\n`;
+    expect(getThreadMessagePreviewText(htmlContent('Fit $x$', html))).toBe('Fit $x$');
+  });
+
+  it('stays fast on formulas that could backtrack', () => {
+    const start = performance.now();
+    const spaces = ' '.repeat(60_000);
+    const empty = '<span data-mx-maths=""></span>';
+    expect(getThreadMessagePreviewText(htmlContent(`$${spaces}x`, empty))).toBe('$');
+    expect(getThreadMessagePreviewText(htmlContent(`$x$${spaces}x`, `<p>$x$</p>${empty}`))).toBe(
+      '…'
+    );
+    const lines = `$$${' '.repeat(40)}\n`.repeat(40);
+    expect(
+      getThreadMessagePreviewText(htmlContent(`$x$\n${lines}`, '<p>$x$</p><div>$$\nb\n$$</div>'))
+    ).toBe(`… ${'$$ '.repeat(40).trim()}`);
+    expect(performance.now() - start).toBeLessThan(500);
   });
 
   it('previews a body without formatted_body as before, even after the same body with it', () => {
