@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Editor } from 'slate';
 import type { Room, RoomMember } from 'matrix-js-sdk';
 import { UserMentionAutocomplete } from './UserMentionAutocomplete';
+import { SEARCH_NOW_SCAN_LIMIT } from '../../../hooks/useAsyncSearch';
 
 const member = (userId: string, name: string) =>
   ({
@@ -127,6 +128,25 @@ describe('UserMentionAutocomplete', () => {
 
     pressTab();
 
+    expect(replaceWithElement).toHaveBeenCalledWith({}, {}, { id: '@mind:x' });
+  });
+
+  it('inserts nothing on Tab until the search reaches a match past the immediate scan', () => {
+    const others = Array.from({ length: SEARCH_NOW_SCAN_LIMIT }, (_, i) =>
+      member(`@u${i}:x`, `User ${i}`)
+    );
+    members = [...others, mind];
+    act(() => {
+      create(picker());
+    });
+
+    pressTab();
+    expect(replaceWithElement).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.runAllTimers();
+    });
+    pressTab();
     expect(replaceWithElement).toHaveBeenCalledWith({}, {}, { id: '@mind:x' });
   });
 });

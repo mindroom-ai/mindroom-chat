@@ -104,8 +104,11 @@ export function UserMentionAutocomplete({
   const [result, search, resetSearch] = useAsyncSearch(members, getRoomMemberStr, SEARCH_OPTIONS);
   // The search runs after paint; until it answers the typed text, match here so Tab never takes an unmatched member.
   let matchingMembers = result?.items ?? members;
+  let scannedAll = true;
   if (query.text && result?.query !== normalize(query.text, SEARCH_OPTIONS.normalizeOptions)) {
-    matchingMembers = searchNow(members, query.text, getRoomMemberStr, SEARCH_OPTIONS);
+    const found = searchNow(members, query.text, getRoomMemberStr, SEARCH_OPTIONS);
+    matchingMembers = found.items;
+    scannedAll = found.scannedAll;
   }
   const autoCompleteMembers = matchingMembers.slice(0, 20).filter(withAllowedMembership);
 
@@ -132,6 +135,8 @@ export function UserMentionAutocomplete({
         return;
       }
       if (autoCompleteMembers.length === 0) {
+        // A member past the scan may still match; let the search answer rather than guess.
+        if (!scannedAll) return;
         const userId = userIdFromQueryText(mx, query.text);
         handleAutocomplete(userId, userId);
         return;
