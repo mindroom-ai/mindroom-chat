@@ -8,6 +8,7 @@ type SearchResultOptions = {
   ts: number;
   editTargetId?: string;
   content?: Record<string, unknown>;
+  sender?: string;
 };
 
 const makeSearchResult = ({
@@ -16,36 +17,35 @@ const makeSearchResult = ({
   ts,
   editTargetId,
   content,
+  sender = '@alice:example.org',
 }: SearchResultOptions): ISearchResult =>
   ({
     rank: ts,
     result: {
-      content:
-        content ??
-        {
-          ...(editTargetId
-            ? {
-                'm.new_content': {
-                  body: `${eventId} body`,
-                  msgtype: 'm.text',
-                },
-                'm.relates_to': {
-                  event_id: editTargetId,
-                  rel_type: 'm.replace',
-                },
-              }
-            : {}),
-          body: `${eventId} body`,
-          msgtype: 'm.text',
-        },
+      content: content ?? {
+        ...(editTargetId
+          ? {
+              'm.new_content': {
+                body: `${eventId} body`,
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: editTargetId,
+                rel_type: 'm.replace',
+              },
+            }
+          : {}),
+        body: `${eventId} body`,
+        msgtype: 'm.text',
+      },
       event_id: eventId,
       origin_server_ts: ts,
       room_id: roomId,
-      sender: '@alice:example.org',
+      sender,
       type: 'm.room.message',
     } as IEventWithRoomId,
     context: {} as IResultContext,
-  }) as ISearchResult;
+  } as ISearchResult);
 
 const getEventIds = (results: ISearchResult[]): string[] =>
   results.map((result) => result.result.event_id);
@@ -78,6 +78,26 @@ describe('deduplicateResults', () => {
     ];
 
     expect(getEventIds(deduplicateResults(results))).toEqual(['$edit-3']);
+  });
+
+  it('merges an edit into the original only when the same sender sent both', () => {
+    const original = makeSearchResult({ eventId: '$original', ts: 100 });
+    const otherSenderEdit = makeSearchResult({
+      eventId: '$other-sender-edit',
+      ts: 200,
+      editTargetId: '$original',
+      sender: '@bob:example.org',
+    });
+    const ownEdit = makeSearchResult({ eventId: '$own-edit', ts: 300, editTargetId: '$original' });
+
+    expect(getEventIds(deduplicateResults([original, otherSenderEdit]))).toEqual([
+      '$original',
+      '$other-sender-edit',
+    ]);
+    expect(getEventIds(deduplicateResults([original, otherSenderEdit, ownEdit]))).toEqual([
+      '$other-sender-edit',
+      '$own-edit',
+    ]);
   });
 
   it('keeps an edit-only match when the original is not present', () => {

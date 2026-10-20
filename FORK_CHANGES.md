@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Merge an edit into a search result only from the message's sender (2026-10-20)
+
+- Problem: message search merged an edit (`m.replace`) into the result of the message it names without checking who sent the edit, and kept the newer of the two.
+  So an edit another member sent, naming someone else's message, showed in place of that message's result and hid it; the timeline ignores such edits.
+- Fix: `getCanonicalSearchEventKey` includes the sender, so `deduplicateResults` and the merge across pages in `MessageSearch` fold an edit only into a message from the same sender.
+  Someone else's edit stays a result of its own, as an edit does when the message it names does not match the search.
+- Tests: `useMessageSearch.test.ts` "merges an edit into the original only when the same sender sent both": another member's edit leaves the original result in place (fails without the change), and the sender's own edit still replaces it.
+
 ### Follow the encrypted-room URL preview setting in pinned messages and the inbox (2026-10-20)
 
 - Problem: the Pinned Messages panel (`RoomPinMenu`) and the Notifications inbox showed URL previews whenever `urlPreview` was on, so turning off URL previews in encrypted rooms (`encUrlPreview`) still showed, and fetched, previews for links in encrypted rooms there.
