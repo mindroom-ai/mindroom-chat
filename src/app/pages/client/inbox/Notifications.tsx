@@ -235,6 +235,7 @@ function RoomNotificationsGroupComp({
   const mentionClickHandler = useMentionClickHandler(room.roomId);
   const spoilerClickHandler = useSpoilerClickHandler();
   const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
+  const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const showLinkFavicons = shouldShowLinkFavicons(
     { mediaAutoLoad, urlPreview, encUrlPreview },
     room.hasEncryptionStateEvent()
@@ -286,7 +287,7 @@ function RoomNotificationsGroupComp({
             edited={!!mEvent.replacingEvent()}
             getContent={(() => mEvent.getContent()) as GetContentCallback}
             mediaAutoLoad={mediaAutoLoad}
-            urlPreview={urlPreview}
+            urlPreview={showUrlPreview}
             htmlReactParserOptions={htmlReactParserOptions}
             linkifyOpts={linkifyOpts}
             outlineAttachment

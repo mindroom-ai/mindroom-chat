@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Follow the encrypted-room URL preview setting in pinned messages and the inbox (2026-10-20)
+
+- Problem: the Pinned Messages panel (`RoomPinMenu`) and the Notifications inbox showed URL previews whenever `urlPreview` was on, so turning off URL previews in encrypted rooms (`encUrlPreview`) still showed, and fetched, previews for links in encrypted rooms there.
+  The timeline already used `encUrlPreview` for encrypted rooms; both views come from Cinny, which has the same gap.
+- Fix: both views pass `encUrlPreview` for rooms with `room.hasEncryptionStateEvent()` and `urlPreview` otherwise, as `useTimelineMessageFeature` does.
+- Tests: `RoomPinMenu.test.ts` "uses the encrypted-room URL preview setting when encrypted is ..." renders a pinned message with `urlPreview` on and `encUrlPreview` off: no preview in an encrypted room (fails without the change), a preview in an unencrypted one.
+- Not covered: the inbox has no component test.
+
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
