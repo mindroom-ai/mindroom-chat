@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Keep menus, dialogs and shortcuts on the app's portal container (2026-10-20)
+
+- Problem: `App.tsx` and `hasBlockingPortalOverlay` looked `#portalContainer` up by id on every render and every check.
+  Message-extras HTML keeps SVG `id` attributes, and a message comes before the real container in the page, so a message with an `<svg id="portalContainer">` took its place while on screen: keyboard shortcuts and edge-swipes treated the SVG's children as an open overlay and stopped, and after a layout breakpoint change menus and dialogs rendered into the SVG, where they were invisible.
+- Fix: `portalOverlay.ts` looks the container up once, at startup, and exports it; `App.tsx` and `hasBlockingPortalOverlay` use that element.
+- Tests: `portalOverlay.test.ts` adds an `<svg id="portalContainer">` to the page after startup; shortcuts are not blocked and the exported container is still the app's (fails without the change: the SVG counts as an open overlay).
+
 ### Show every call's fields in a folded approval group (2026-10-20)
 
 - Problem: a group of several calls of one tool, folded behind "Show N calls" with "Approve all N once", previewed fields merged from the first call's keys only (`mergeArgumentFields`).

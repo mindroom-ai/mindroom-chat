@@ -3,6 +3,13 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
 
+const portal = vi.hoisted(() => {
+  const container: { children: unknown[] } = { children: [] };
+  // portalOverlay looks the container up once, when it is imported.
+  vi.stubGlobal('document', { getElementById: () => container });
+  return container;
+});
+
 const hookState: {
   callback?: (event: KeyboardEvent) => void;
 } = {};
@@ -29,16 +36,8 @@ const renderHookHarness = (portalChildren: unknown[] = []) => {
     open: false,
   };
 
-  vi.stubGlobal('document', {
-    activeElement: null,
-    getElementById: (id: string) =>
-      id === 'portalContainer'
-        ? {
-            children: portalChildren,
-            childElementCount: portalChildren.length,
-          }
-        : null,
-  });
+  portal.children = portalChildren;
+  vi.stubGlobal('document', { activeElement: null });
   vi.stubGlobal('window', {});
 
   function Harness() {
