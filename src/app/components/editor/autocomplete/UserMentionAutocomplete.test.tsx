@@ -13,7 +13,10 @@ const member = (userId: string, name: string) =>
     membership: 'join',
     getMxcAvatarUrl: () => undefined,
   } as unknown as RoomMember);
-const members = [member('@maya:x', 'Maya'), member('@grace:x', 'Grace'), member('@mind:x', 'Mind')];
+const maya = member('@maya:x', 'Maya');
+const grace = member('@grace:x', 'Grace');
+const mind = member('@mind:x', 'Mind');
+let members: RoomMember[] = [];
 
 const replaceWithElement = vi.hoisted(() => vi.fn());
 vi.mock('../utils', () => ({
@@ -68,22 +71,61 @@ afterEach(() => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
 });
 
+const room = { roomId: '!r:x', getCanonicalAlias: () => null, getMember: () => null };
+const picker = () => (
+  <UserMentionAutocomplete
+    room={room as unknown as Room}
+    editor={{} as Editor}
+    query={{ range: {} as never, prefix: '@', text: 'Min' }}
+    requestClose={() => undefined}
+  />
+);
+
+const pressTab = () => {
+  replaceWithElement.mockClear();
+  const tab = { key: 'Tab', preventDefault: () => undefined } as KeyboardEvent;
+  act(() => keydownListeners.forEach((handler) => handler(tab)));
+};
+
+// Answers the search for `Min` in full, then hands the picker a new member list, as useRoomMembers does.
+const renderThenChangeMembers = (nextMembers: RoomMember[]) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(picker());
+  });
+  act(() => {
+    vi.advanceTimersByTime(100);
+  });
+  members = nextMembers;
+  act(() => renderer.update(picker()));
+};
+
 describe('UserMentionAutocomplete', () => {
   it('takes a member matching the typed text on Tab before the search answers', () => {
-    const room = { roomId: '!r:x', getCanonicalAlias: () => null, getMember: () => null };
+    members = [maya, grace, mind];
     act(() => {
-      create(
-        <UserMentionAutocomplete
-          room={room as unknown as Room}
-          editor={{} as Editor}
-          query={{ range: {} as never, prefix: '@', text: 'Min' }}
-          requestClose={() => undefined}
-        />
-      );
+      create(picker());
     });
 
-    const tab = { key: 'Tab', preventDefault: () => undefined } as KeyboardEvent;
-    act(() => keydownListeners.forEach((handler) => handler(tab)));
+    pressTab();
+
+    expect(replaceWithElement).toHaveBeenCalledWith({}, {}, { id: '@mind:x' });
+  });
+
+  it('takes a matching member on Tab after the member list changes', () => {
+    members = [maya, grace, mind];
+    renderThenChangeMembers([...members]);
+
+    pressTab();
+
+    expect(replaceWithElement).toHaveBeenCalledWith({}, {}, { id: '@mind:x' });
+  });
+
+  it('takes the named member on Tab once the list grows to include them', () => {
+    members = [maya, grace];
+    renderThenChangeMembers([maya, grace, mind]);
+
+    pressTab();
 
     expect(replaceWithElement).toHaveBeenCalledWith({}, {}, { id: '@mind:x' });
   });

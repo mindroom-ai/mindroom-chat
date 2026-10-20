@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MatchHandler,
   AsyncSearch,
@@ -104,7 +104,7 @@ export const orderSearchItems = <TSearchItem extends object | string | number>(
   return orderedItems;
 };
 
-/** The result `useAsyncSearch` reaches for `query`, computed at once. */
+/** What `useAsyncSearch` finds for `query`, computed at once: the first `limit` matches, ordered. */
 export const searchNow = <TSearchItem extends object | string | number>(
   list: TSearchItem[],
   query: string,
@@ -112,10 +112,14 @@ export const searchNow = <TSearchItem extends object | string | number>(
   options?: UseAsyncSearchOptions
 ): TSearchItem[] => {
   const normalizedQuery = normalize(query, options?.normalizeOptions);
-  const matches = list.filter((item) =>
-    performMatch(getItemStr(item, normalizedQuery), normalizedQuery, options)
-  );
-  return orderSearchItems(normalizedQuery, matches.slice(0, options?.limit), getItemStr, options);
+  const limit = options?.limit ?? Infinity;
+  const matches: TSearchItem[] = [];
+  for (let i = 0; i < list.length && matches.length < limit; i += 1) {
+    if (performMatch(getItemStr(list[i], normalizedQuery), normalizedQuery, options)) {
+      matches.push(list[i]);
+    }
+  }
+  return orderSearchItems(normalizedQuery, matches, getItemStr, options);
 };
 
 export const useAsyncSearch = <TSearchItem extends object | string | number>(
@@ -124,9 +128,10 @@ export const useAsyncSearch = <TSearchItem extends object | string | number>(
   options?: UseAsyncSearchOptions
 ): [UseAsyncSearchResult<TSearchItem> | undefined, AsyncSearchHandler, SearchResetHandler] => {
   const [result, setResult] = useState<UseAsyncSearchResult<TSearchItem>>();
-  const queryRef = useRef<string>();
 
   const [searchCallback, terminateSearch] = useMemo(() => {
+    setResult(undefined);
+
     const handleMatch: MatchHandler<TSearchItem> = (item, query) => {
       const itemStr = getItemStr(item, query);
 
@@ -143,22 +148,15 @@ export const useAsyncSearch = <TSearchItem extends object | string | number>(
     return AsyncSearch(list, handleMatch, handleResult, options);
   }, [list, options, getItemStr]);
 
-  // A new list keeps the last result and runs its query again, rather than showing the unfiltered list.
-  useEffect(() => {
-    if (queryRef.current !== undefined) searchCallback(queryRef.current);
-  }, [searchCallback]);
-
   const searchHandler: AsyncSearchHandler = useCallback(
     (query) => {
       const normalizedQuery = normalize(query, options?.normalizeOptions);
-      queryRef.current = normalizedQuery;
       searchCallback(normalizedQuery);
     },
     [searchCallback, options?.normalizeOptions]
   );
 
   const resetHandler: SearchResetHandler = useCallback(() => {
-    queryRef.current = undefined;
     terminateSearch();
     setResult(undefined);
   }, [terminateSearch]);

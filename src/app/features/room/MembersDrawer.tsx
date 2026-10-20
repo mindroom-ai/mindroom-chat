@@ -364,6 +364,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
     getRoomMemberStr,
     SEARCH_OPTIONS
   );
+  if (!result && searchInputRef.current?.value) search(searchInputRef.current.value);
 
   const processMembers = result ? result.items : filteredMembers;
 

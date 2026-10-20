@@ -5,16 +5,14 @@
 ### Match the typed name in the mention picker before its search answers (2026-10-19)
 
 - Problem: typing `@Min` and pressing Tab quickly, or while the room's members loaded, could tag someone else.
-  `UserMentionAutocomplete` listed, and Tab took the first of, the whole member list whenever `useAsyncSearch` had no result: until the search, which runs in an effect after paint, answered the typed text, and again each time `useRoomMembers` handed over a new array (after `loadMembersIfNeeded` and on every membership or power-level event), because the hook cleared its result whenever its list changed.
+  `UserMentionAutocomplete` listed, and Tab took the first of, the whole member list whenever `useAsyncSearch` had no result: until the search, which runs in an effect after paint, answered the typed text, and again each time `useRoomMembers` handed over a new array (after `loadMembersIfNeeded` and on every membership or power-level event), because the hook clears its result whenever its list changes.
   The demo director worked around it by waiting for the named member and clicking that option (demo#10).
-- Fix:
-  - `useAsyncSearch` keeps its result when the list changes and runs the last query again on the new list, so no caller falls back to its unfiltered list while a query is active.
-    `Members` and `MembersDrawer` drop the search during render that recovered from the cleared result.
-  - Until the result answers the typed text, `UserMentionAutocomplete` matches the members at once with `searchNow`, the hook's own matching and ordering.
-- Tests:
-  - `UserMentionAutocomplete.test.tsx`: Tab before the search answers takes the member matching `Min` (fails without the change: it takes the first member).
-  - `useAsyncSearch.test.tsx`: a new list keeps the query and searches it again (fails without the change: the result is gone).
-- Not covered: the immediate match scans every member once per keystroke, which is cheap for MindRoom rooms but not measured for rooms with thousands of members.
+- Fix: until the hook's result answers the typed text, `UserMentionAutocomplete` matches the members at once with `searchNow`, which finds what the hook would: the first 1,000 matches in list order, ordered by `orderSearchItems`.
+  `useAsyncSearch` itself is unchanged; the mention picker is the only caller that hands its first item to Tab.
+- Tests: `UserMentionAutocomplete.test.tsx` presses Tab before the search answers, after the member list changes, and after the list grows to include the named member; each takes the member matching `Min` (all fail without the change: Tab takes the first member).
+- Not covered:
+  - `RoomMentionAutocomplete`, `EmoticonAutocomplete` and `CommandAutocomplete` still list everything until their search answers, and again after their list changes; Tab can take the first item then.
+  - The immediate match stops at 1,000 matches but scans every member for a query few match, once per render until the search answers.
 
 ### Read thread replies only with thread and unthreaded receipts (2026-10-19)
 
