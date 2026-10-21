@@ -23,10 +23,14 @@
   - `Thread.addEventsAsHistory(events)` appends like `addEvents(events, false)`, but the timeline events carry `liveEvent: false`.
     Replies still count and announce `ThreadEvent.NewReply`, so thread lists and counts behave as before.
     `addFetchedEventsToThread` uses it for both of its appends; backfill is unchanged.
-  - Both replay sites in `updateThreadMetadata` go through `replayBufferedEvents`, which adds the buffer the same way and skips the thread's own per-event listener (receipts, metadata refresh); the replay's `TimelineReset` and the `ThreadEvent.Update` at the end of initialization cover it.
+  - Both replay sites in `updateThreadMetadata` go through `replayBufferedEvents`, which adds the buffer the same way and skips the thread's own timeline listener (synthesized receipts, metadata refresh); the `ThreadEvent.Update` at the end of initialization covers it, and after the first page also the replay's `TimelineReset`.
+    The buffer holds only reactions and edits, so reply counts are unaffected.
+    On a server without thread support, `addEvent` itself still announces and refreshes per replayed event, as before.
   - Aggregation is unchanged: reactions count and edits apply as before.
 - Behavior change: live-event listeners no longer see these events.
   The open thread gets them through `onRepaired` (one `setSupplementalThreadEvents` for the batch) and the SDK timeline refresh, without per-event auto-scroll or live-tail tracking.
+  When a reconcile appends a newest event before sync delivers it, sync's copy is a duplicate the SDK drops, so that event is never live: no auto-scroll or expand-once for it, and an agent UI action in it is not run (`chatUiController` acts on live events only).
+  In encrypted rooms the engine no longer schedules a decrypted save for these events; the reconcile's backfill already behaved so.
   A card that only shows a thread no longer caches its buffered relations; they stay in the saved sync, and the next open saves them.
 - Tests:
   - `reconciler.sdkThread.test.ts`: the reconcile's append of events newer than the SDK window now expects no live event (4 before), with the same two new replies announced.
