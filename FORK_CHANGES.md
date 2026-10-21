@@ -2,6 +2,48 @@
 
 ## Runbook
 
+### Add a thread's fetched and buffered history to the SDK as history, not live events (2026-10-21)
+
+- Report: opening the iPhone app froze it in a thread for many seconds; the owner thinks this started in the last weeks.
+- Export (build `119ce345`): the WebContent process had been killed in the background, so the app cold-started into a thread after 11.7 h.
+  The heartbeat stopped 4 s after start and resumed 26.4 s later (`heartbeat_gap`).
+  Right after the gap, 1,379 cache transactions were open (1,071 read-write); each waited about 15.5 s, and 1,132 newer ones were still open at export.
+  Of those that settled in the export's last 2.5 s, 542 were thread saves of the shape a single live event makes (`events`, `meta`, `attachments`, `attachment_references`, `room_ledger`), 273 the redaction check before a thread save, and none room saves.
+  The trace's memory buffer kept only those 2.5 s (2,190 earlier events dropped) and the stored trace timed out on read, so the freeze itself is not in the export.
+- Reproduction (production build, unminified, Chromium with iPhone 13 emulation and 4x CPU throttling, local Tuwunel): an agent thread of 300 replies, each with a 🛑 reaction and 3 streamed edits, plus 100 more sent after the thread was last open; then a cold start at the thread's URL.
+  With the thread cached, the longest task was 1.1 s. With the thread never opened, it was 5.5 s, followed by 76 per-event thread saves (412 transactions in all), the export's pattern.
+  93% of that task was `runThreadReconcilePass` > `addFetchedEventsToThread` > `Thread.addEvents(…, false)`: the open's reconcile appended the fetched reactions and edits newer than the SDK's first page, and the SDK announced each as a live event.
+  For each, `roomLiveRenderController` called `setSupplementalThreadEvents(threadId, [event])`, which merges and re-hydrates the whole supplemental set (redaction lookups through the SDK's linear `findEventById`), so the cost grows with the fetched events times the thread's length.
+  The sync engine then saved each live event in its own transaction, and each edit's target again when its compaction fired.
+- Cause: the SDK's `Thread.addEventToTimeline` announces everything it appends as live (`fromCache: false`).
+  #370 moved a reconcile's history older than the SDK window to backfill, but events newer than the window's first event stayed appended, and a reply's reactions and edits are newer than the reply.
+  The same holds for the relations an unopened thread buffers since #360 (every reaction, and the newest edit of each reply, from the saved sync and live sync): `Thread.initialize()` replays them through `addEvent`, and a real-SDK test with 600 buffered relations gave 600 live events and 600 engine writes, plus one `ThreadEvent.Update` and a synthesized read receipt per event from the thread's own listener.
+  None of these events needs the live path: the reconcile already persists its batch (`persistRepair`) and hands it to the render (`onRepaired`), and the open's SDK bootstrap saves the whole SDK thread timeline after `initialize()` (`threadOpenSdkBootstrap.ts`).
+- Fix (SDK patch):
+  - `Thread.addEventsAsHistory(events)` appends like `addEvents(events, false)`, but the timeline events carry `liveEvent: false`.
+    Replies still count and announce `ThreadEvent.NewReply`, so thread lists and counts behave as before.
+    `addFetchedEventsToThread` uses it for both of its appends; backfill is unchanged.
+  - Both replay sites in `updateThreadMetadata` go through `replayBufferedEvents`, which adds the buffer the same way and skips the thread's own per-event listener (receipts, metadata refresh); the replay's `TimelineReset` and the `ThreadEvent.Update` at the end of initialization cover it.
+  - Aggregation is unchanged: reactions count and edits apply as before.
+- Behavior change: live-event listeners no longer see these events.
+  The open thread gets them through `onRepaired` (one `setSupplementalThreadEvents` for the batch) and the SDK timeline refresh, without per-event auto-scroll or live-tail tracking.
+  A card that only shows a thread no longer caches its buffered relations; they stay in the saved sync, and the next open saves them.
+- Tests:
+  - `reconciler.sdkThread.test.ts`: the reconcile's append of events newer than the SDK window now expects no live event (4 before), with the same two new replies announced.
+  - `matrixSdkThreadBootstrapRequests.test.ts`: opening a deferred thread whose saved sync held 30 replies with 30 reactions and 30 edits announces no live event and at most two `ThreadEvent.Update`s, applies the latest reply's edit and counts an older reply's reaction.
+    It fails without the change (60 live events), and with only the listener skip removed (62 updates).
+- Validation:
+  - The same reproduction with the fix: the reconcile's 5.5 s task is gone (longest task 1.1 s, during startup, as before), the longest main-thread gap drops from 5.6 s to 1.5 s, long tasks in the first 20 s from 14.3 s to 9.4 s, and IndexedDB transactions from 412 to 83, with 4 thread saves instead of 76.
+    The thread shows the same rows on both builds: the final edit of every reply and its 🛑 chip, at the bottom and after scrolling up.
+  - The patch applies to a fresh `matrix-js-sdk@41.7.0` and reproduces the patched files.
+  - `npm run typecheck`, `npm run build` and `npm run lint` (0 errors, the 18 existing warnings) pass; Prettier passes on the changed files.
+  - `npx vitest run`: 6,870 passed and the 4 known failures on `dev` (`xcodeCloudPostClone.test.ts` 3, `useRoomInputSendSessionController.test.ts` 1).
+  - Not checked on an iPhone; WebKit's IndexedDB timings differ from Chromium's.
+- Next:
+  - The saved sync's replay at startup still announces thread events as live, because `Room.addLiveEvents` does not pass `fromCache` on to threads; the reproduction counted 500 before `PREPARED`, cheap because the engine ignores them and the UI was not mounted yet.
+  - `setSupplementalThreadEvents` re-hydrates its whole set per call and `EventTimelineSet.findEventById` scans linearly; a burst of genuinely live thread events still pays both.
+  - Storage events filled the deep trace's memory buffer within 2.5 s and the stored trace timed out, which hid the freeze; the next export should keep the seconds before a long task.
+
 ### Soft, outlined buttons everywhere (2026-10-20)
 
 - Why: solid folds buttons read as bright pills in dark themes: a white "View computer" under an agent's UI request, a lavender and salmon pair in the computer panel, and the same in settings (Save computer service, Use app default, Open Connections), dialogs, auth and room settings.

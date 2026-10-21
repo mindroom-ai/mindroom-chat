@@ -124,7 +124,10 @@ describe('reconciler SDK thread injection', () => {
     expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
   });
 
-  it('still appends events newer than the SDK window as new replies', async () => {
+  it('appends events newer than the SDK window as new replies, not as live events', async () => {
+    // Announced as live, each fetched edit and reaction re-hydrated the open thread's
+    // render fallback and was saved on its own: a cold start into a long thread froze
+    // for 5.5 s in Chromium at 4x CPU throttling.
     const env = setup();
     const server = thread(40);
     const sdkThread = createInitializedThreadForRoot(env.room, env.root);
@@ -134,7 +137,7 @@ describe('reconciler SDK thread injection', () => {
     const { newReplies, liveArrivals } = await reconcile(env, sdkThread, server);
 
     expect(newReplies).toEqual(['$reply-39', '$reply-40']);
-    expect(liveArrivals).toEqual(ids(server.slice(76)));
+    expect(liveArrivals).toEqual([]);
     expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
     expect(sdkThread.lastReply()?.getId()).toBe('$reply-40');
   });
