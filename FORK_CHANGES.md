@@ -2,13 +2,16 @@
 
 ## Runbook
 
-### Name the inviter on invite cards, with the Matrix ID on hover (2026-10-20)
+### Name the inviter on invite cards next to their Matrix ID (2026-10-20)
 
-- Problem: invite cards on the Invites page read "From: @maya:matrix.localhost" instead of the inviter's name (mindroom-chat#490 item 11, demo recording bring-the-team-in).
-  `makeInviteData` already resolved the name, but the card passed `senderId` to `sharedUi.invites.from`; upstream Cinny does the same.
-- Fix: the card shows `senderName`: the display name from the inviter's `m.room.member` event, which Tuwunel (`summary_stripped`) and Synapse put in the invite's stripped state, or the ID's localpart when that event has no display name.
-  The name's `<b>` carries the full Matrix ID as its `title`, as other names do (`UserHero`), so the locale strings are unchanged.
-- Tests: `Invites.test.tsx` builds an invite from stripped state and expects "Maya" with the `title` "@maya:matrix.localhost" (fails without the change).
+- Problem: invite cards on the Invites page read "From: @maya:matrix.localhost", without the inviter's name (mindroom-chat#490 item 11, demo recording bring-the-team-in).
+  Upstream Cinny showed the display name ("Invited by Maya") until #2336, which switched the card to the raw `senderId` in the same change that sorted invites into Primary, Public and Spam by sender.
+  A display name alone can be spoofed: `@mallory:evil.example` can call itself "Maya", or even "@maya:matrix.localhost", so the ID must stay visible; a `title` is out of reach on touch and keyboard.
+- Fix: the card shows both, as Element does: "From: Maya (@maya:matrix.localhost)".
+  The name is the inviter's `m.room.member` display name, which Tuwunel (`summary_stripped`) and Synapse put in the invite's stripped state; without one, or when it equals the ID, the card shows the full ID alone.
+  An ID-shaped name still gets the real ID after it, and the `<b>` keeps the ID as its `title`.
+  The combined text goes into `{{sender}}`, so the locale strings, and Arabic's isolation marks around the value, are unchanged.
+- Tests: `Invites.test.tsx` builds invites from stripped state and expects "Maya (@maya:matrix.localhost)", the full ID without a display name, and "@maya:matrix.localhost (@mallory:evil.example)" for an ID-shaped name (all fail on the previous name-only version).
 
 ### Soft, outlined buttons everywhere (2026-10-20)
 

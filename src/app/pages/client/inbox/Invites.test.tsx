@@ -16,9 +16,17 @@ vi.mock('../../../components/room-avatar', () => ({ RoomAvatar: () => null }));
 vi.mock('../../../components/room-topic-viewer', () => ({ RoomTopicViewer: () => null }));
 vi.mock('../../../components/message', () => ({ Time: () => null }));
 
-it('shows the inviter display name and keeps the Matrix ID on hover', () => {
+it.each([
+  ['@maya:matrix.localhost', 'Maya', 'Maya (@maya:matrix.localhost)'],
+  ['@maya:matrix.localhost', undefined, '@maya:matrix.localhost'],
+  // A display name shaped like someone else's ID still shows the real ID.
+  [
+    '@mallory:evil.example',
+    '@maya:matrix.localhost',
+    '@maya:matrix.localhost (@mallory:evil.example)',
+  ],
+])('shows inviter %s named %s as "%s"', (inviterId, displayname, expected) => {
   const myUserId = '@me:matrix.localhost';
-  const inviterId = '@maya:matrix.localhost';
   const mx = createClient({ baseUrl: 'https://matrix.example', userId: myUserId });
   const roomId = '!invite:matrix.localhost';
   const room = new Room(roomId, mx, myUserId);
@@ -29,7 +37,7 @@ it('shows the inviter display name and keeps the Matrix ID on hover', () => {
       type: 'm.room.member',
       state_key: inviterId,
       sender: inviterId,
-      content: { membership: 'join', displayname: 'Maya' },
+      content: { membership: 'join', displayname },
     }),
     new MatrixEvent({
       room_id: roomId,
@@ -53,6 +61,6 @@ it('shows the inviter display name and keeps the Matrix ID on hover', () => {
   );
 
   const sender = renderer.root.find((node) => node.type === 'b' && node.props.title !== undefined);
+  expect(sender.children).toEqual([expected]);
   expect(sender.props.title).toBe(inviterId);
-  expect(sender.children).toEqual(['Maya']);
 });

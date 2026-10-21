@@ -46,7 +46,7 @@ import {
 } from '../../../utils/room';
 import { nameInitials } from '../../../utils/common';
 import { RoomAvatar } from '../../../components/room-avatar';
-import { getMxIdLocalPart, rateLimitedActions } from '../../../utils/matrix';
+import { rateLimitedActions } from '../../../utils/matrix';
 import { Time } from '../../../components/message';
 import { useElementSizeObserver } from '../../../hooks/useElementSizeObserver';
 import { onEnterOrSpace, stopPropagation } from '../../../utils/keyboard';
@@ -107,9 +107,7 @@ export const makeInviteData = (
   const content = memberEvent?.getContent();
   const senderId = memberEvent?.getSender();
 
-  const senderName = senderId
-    ? getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId
-    : undefined;
+  const senderDisplayName = senderId ? getMemberDisplayName(room, senderId) : undefined;
   const inviteTs = memberEvent?.getTs();
   const reason =
     content && 'reason' in content && typeof content.reason === 'string'
@@ -125,7 +123,8 @@ export const makeInviteData = (
     roomAlias: room.getCanonicalAlias() ?? undefined,
 
     senderId: senderId ?? 'Unknown',
-    senderName: senderName ?? 'Unknown',
+    // A display name can claim any name or ID, so the real ID always shows next to it.
+    senderName: senderDisplayName ? `${senderDisplayName} (${senderId})` : senderId ?? 'Unknown',
     inviteTs,
     reason,
 
