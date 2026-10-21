@@ -52,7 +52,7 @@ function RegistrationTokenErrorDialog({
             required
           />
         </Box>
-        <Button variant="Critical" type="submit">
+        <Button variant="Critical" type="submit" fill="Soft" outlined radii="300">
           <Text as="span" size="B400">
             {t('sharedUi.registrationTokenStage.retry')}
           </Text>

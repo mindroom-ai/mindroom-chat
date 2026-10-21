@@ -44,8 +44,16 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
         >
           <Box direction="Column" gap="200">
             <Box gap="200" wrap="Wrap">
-              <Button size="300" variant="Primary" disabled={!backendUrl} onClick={open}>
-                <Text size="T300">{t('settings.general.connections.open')}</Text>
+              <Button
+                size="300"
+                variant="Primary"
+                fill="Soft"
+                outlined
+                radii="300"
+                disabled={!backendUrl}
+                onClick={open}
+              >
+                <Text size="B300">{t('settings.general.connections.open')}</Text>
               </Button>
             </Box>
             {!backendUrl && (

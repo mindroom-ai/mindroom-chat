@@ -134,7 +134,14 @@ export function AddServer() {
                     <Text size="B400">Save</Text>
                   </Button> */}
 
-                  <Button type="submit" onClick={handleView} variant="Secondary" fill="Soft">
+                  <Button
+                    type="submit"
+                    onClick={handleView}
+                    variant="Secondary"
+                    fill="Soft"
+                    outlined
+                    radii="300"
+                  >
                     <Text size="B400">{t('sharedUi.explore.view')}</Text>
                   </Button>
                 </Box>
@@ -149,6 +156,8 @@ export function AddServer() {
         size="300"
         before={<Icon size="100" src={Icons.Plus} />}
         onClick={() => setDialog(true)}
+        outlined
+        radii="300"
       >
         <Text size="B300" truncate>
           {t('sharedUi.explore.addServer')}

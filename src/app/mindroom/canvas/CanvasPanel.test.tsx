@@ -42,10 +42,16 @@ vi.mock('folds', () => ({
     fill: _fill,
     variant: _variant,
     size: _size,
+    outlined: _outlined,
+    radii: _radii,
     ...props
-  }: React.ComponentProps<'button'> & { fill?: string; variant?: string; size?: string }) => (
-    <button {...props}>{children}</button>
-  ),
+  }: React.ComponentProps<'button'> & {
+    fill?: string;
+    variant?: string;
+    size?: string;
+    outlined?: boolean;
+    radii?: string;
+  }) => <button {...props}>{children}</button>,
   Chip: ({
     children,
     as: _as,

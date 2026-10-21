@@ -55,6 +55,7 @@ export function ApprovalGrantStatus({
           onClick={() => {
             if (canSend) void submit(record, { revoke: true });
           }}
+          radii="300"
         >
           <Text size="B300">{t('mindroomUi.messages.approvalGrantStatus.stopAutoApproval')}</Text>
         </Button>

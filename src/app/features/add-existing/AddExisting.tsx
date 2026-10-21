@@ -385,10 +385,12 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                             disabled={applyingChanges}
                             before={
                               applyingChanges && (
-                                <Spinner variant="Success" fill="Solid" size="100" />
+                                <Spinner variant="Success" fill="Soft" size="100" />
                               )
                             }
                             onClick={handleApplyChanges}
+                            outlined
+                            fill="Soft"
                           >
                             <Text size="B300">{t('featureUi.addExisting.applyChanges')}</Text>
                           </Button>

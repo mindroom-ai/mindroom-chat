@@ -102,6 +102,8 @@ function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupI
         onClick={onOpenLocalMindroomSettings}
         before={<Icon size="200" src={safeIcon(Icons.Link)} />}
         style={{ justifyContent: 'flex-start' }}
+        outlined
+        radii="300"
       >
         <Text as="span" size="B300" style={{ overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
           {t('sharedUi.welcomePage.enterPairCode')}
@@ -211,6 +213,9 @@ export function WelcomePage() {
                     target="_blank"
                     rel="noreferrer noopener"
                     before={<Icon size="200" src={safeIcon(Icons.Code)} />}
+                    fill="Soft"
+                    outlined
+                    radii="300"
                   >
                     <Text as="span" size="B400" truncate>
                       {sourceLabel}
@@ -225,6 +230,8 @@ export function WelcomePage() {
                     rel="noreferrer noopener"
                     fill="Soft"
                     before={<Icon size="200" src={safeIcon(Icons.Info)} />}
+                    outlined
+                    radii="300"
                   >
                     <Text as="span" size="B400" truncate>
                       {docsLabel}

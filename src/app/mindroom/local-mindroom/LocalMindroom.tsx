@@ -296,9 +296,11 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
                                     disabled={isRevoking}
                                     before={
                                       isRevoking && (
-                                        <Spinner variant="Critical" fill="Solid" size="200" />
+                                        <Spinner variant="Critical" fill="Soft" size="200" />
                                       )
                                     }
+                                    outlined
+                                    fill="Soft"
                                   >
                                     <Text size="B300">
                                       {t('mindroomUi.local-mindroom.localMindroom.confirmRevoke')}

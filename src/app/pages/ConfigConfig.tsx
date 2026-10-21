@@ -48,8 +48,11 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
               )}
             </Box>
             <Button
-              variant="Critical"
+              variant="Primary"
               onClick={() => (authenticationRequired ? authenticate() : retry())}
+              fill="Soft"
+              outlined
+              radii="300"
             >
               <Text as="span" size="B400">
                 {authenticationRequired
@@ -58,7 +61,7 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
               </Text>
             </Button>
             {ignore && (
-              <Button variant="Critical" onClick={() => ignore()} fill="Soft">
+              <Button variant="Critical" onClick={() => ignore()} fill="Soft" outlined radii="300">
                 <Text as="span" size="B400">
                   {t('sharedUi.configConfig.continueOffline')}
                 </Text>

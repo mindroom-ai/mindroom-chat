@@ -140,6 +140,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
               ) : undefined
             }
             onClick={() => void runAction('decline')}
+            outlined
           >
             <Text size="B300">{t('featureUi.room.joinRequestItem.decline')}</Text>
           </Button>
@@ -155,12 +156,14 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             disabled={disabled}
             before={
               loading && actionState.action === 'approve' ? (
-                <Spinner size="100" variant="Primary" fill="Solid" />
+                <Spinner size="100" variant="Primary" fill="Soft" />
               ) : settled && actionState.action === 'approve' ? (
                 <Icon size="50" src={Icons.Check} />
               ) : undefined
             }
             onClick={() => void runAction('approve')}
+            outlined
+            fill="Soft"
           >
             <Text size="B300">{t('featureUi.room.joinRequestItem.approve')}</Text>
           </Button>

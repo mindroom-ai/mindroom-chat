@@ -56,6 +56,8 @@ function KeyBackupNudgeCard() {
         onClick={openSecuritySettings}
         before={<Icon size="200" src={Icons.ShieldLock} />}
         style={{ justifyContent: 'flex-start' }}
+        outlined
+        radii="300"
       >
         <Text as="span" size="B300">
           {t('mindroomUi.onboarding.keyBackupNudge.setUpBackup')}

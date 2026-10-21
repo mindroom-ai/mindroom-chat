@@ -24,7 +24,7 @@ function DummyErrorDialog({
           <Text size="H4">{title}</Text>
           <Text>{message}</Text>
         </Box>
-        <Button variant="Critical" onClick={onRetry}>
+        <Button variant="Critical" onClick={onRetry} fill="Soft" outlined radii="300">
           <Text as="span" size="B400">
             {t('sharedUi.dummyStage.retry')}
           </Text>

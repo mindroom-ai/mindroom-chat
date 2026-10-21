@@ -292,8 +292,10 @@ export function PermissionGroups({
                 variant="Success"
                 radii="300"
                 disabled={applyingChanges}
-                before={applyingChanges && <Spinner variant="Success" fill="Solid" size="100" />}
+                before={applyingChanges && <Spinner variant="Success" fill="Soft" size="100" />}
                 onClick={handleApplyChanges}
+                outlined
+                fill="Soft"
               >
                 <Text size="B300">
                   {t('featureUi.commonSettings.permissions.permissionGroups.applyChanges')}

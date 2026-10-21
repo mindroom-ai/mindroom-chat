@@ -47,6 +47,7 @@ export function HexColorPickerPopOut({ picker, onRemove, children }: HexColorPic
                   fill="Soft"
                   radii="400"
                   onClick={() => onRemove()}
+                  outlined
                 >
                   <Text size="B300">{t('sharedUi.hexColorPickerPopOut.remove')}</Text>
                 </Button>

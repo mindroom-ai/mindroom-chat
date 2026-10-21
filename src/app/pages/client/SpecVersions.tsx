@@ -119,6 +119,8 @@ export function SpecVersions({
               }
               window.location.reload();
             }}
+            outlined
+            radii="300"
           >
             <Text as="span" size="B400">
               {t('sharedUi.specVersions.cancelAndReturnToSignIn')}
@@ -136,17 +138,19 @@ export function SpecVersions({
                     'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection'
                   )}
                 </Text>
-                <Button variant="Critical" onClick={retry}>
+                <Button variant="Primary" onClick={retry} fill="Soft" outlined radii="300">
                   <Text as="span" size="B400">
                     {t('sharedUi.specVersions.retry')}
                   </Text>
                 </Button>
                 <Button
-                  variant="Critical"
+                  variant="Secondary"
                   fill="Soft"
                   onClick={handleClearCache}
                   disabled={clearing}
                   before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
+                  outlined
+                  radii="300"
                 >
                   <Text as="span" size="B400">
                     {clearing
@@ -154,7 +158,7 @@ export function SpecVersions({
                       : t('sharedUi.specVersions.clearCacheAndReload')}
                   </Text>
                 </Button>
-                <Button variant="Critical" onClick={ignore} fill="Soft">
+                <Button variant="Critical" onClick={ignore} fill="Soft" outlined radii="300">
                   <Text as="span" size="B400">
                     {t('sharedUi.specVersions.continue')}
                   </Text>

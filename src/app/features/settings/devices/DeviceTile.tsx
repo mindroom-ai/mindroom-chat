@@ -195,9 +195,10 @@ function DeviceRename({ device, onCancel, onRename, refreshDeviceList }: DeviceR
             size="300"
             variant="Success"
             radii="300"
-            fill="Solid"
+            fill="Soft"
             disabled={renaming}
-            before={renaming && <Spinner size="100" variant="Success" fill="Solid" />}
+            before={renaming && <Spinner size="100" variant="Success" fill="Soft" />}
+            outlined
           >
             <Text size="B300">{t('featureUi.settings.devices.deviceTile.save')}</Text>
           </Button>
@@ -209,6 +210,7 @@ function DeviceRename({ device, onCancel, onRename, refreshDeviceList }: DeviceR
             fill="Soft"
             onClick={onCancel}
             disabled={renaming}
+            outlined
           >
             <Text size="B300">{t('featureUi.settings.devices.deviceTile.cancel')}</Text>
           </Button>

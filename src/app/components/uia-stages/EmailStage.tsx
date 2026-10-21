@@ -54,7 +54,7 @@ function EmailErrorDialog({
             required
           />
         </Box>
-        <Button variant="Primary" type="submit">
+        <Button variant="Primary" type="submit" fill="Soft" outlined radii="300">
           <Text as="span" size="B400">
             {t('sharedUi.emailStage.sendVerificationEmail')}
           </Text>
@@ -158,7 +158,13 @@ export function EmailStageDialog({
               <Text style={{ color: color.Critical.Main }}>{`${errorCode}: ${error}`}</Text>
             )}
           </Box>
-          <Button variant="Primary" onClick={() => handleSubmit(emailTokenState.data.result.sid)}>
+          <Button
+            variant="Primary"
+            onClick={() => handleSubmit(emailTokenState.data.result.sid)}
+            fill="Soft"
+            outlined
+            radii="300"
+          >
             <Text as="span" size="B400">
               {t('sharedUi.emailStage.continue')}
             </Text>

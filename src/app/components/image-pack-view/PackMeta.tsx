@@ -170,6 +170,7 @@ export function ImagePackProfileEdit({ meta, onCancel, onSave }: ImagePackProfil
                 fill="Soft"
                 radii="300"
                 onClick={() => pickFile('image/*')}
+                outlined
               >
                 <Text size="B300">{t('sharedUi.packMeta.upload')}</Text>
               </Button>
@@ -218,7 +219,15 @@ export function ImagePackProfileEdit({ meta, onCancel, onSave }: ImagePackProfil
         />
       </Box>
       <Box gap="300">
-        <Button type="submit" variant="Success" size="300" radii="300" disabled={uploadingAvatar}>
+        <Button
+          type="submit"
+          variant="Success"
+          size="300"
+          radii="300"
+          disabled={uploadingAvatar}
+          fill="Soft"
+          outlined
+        >
           <Text size="B300">{t('sharedUi.packMeta.save')}</Text>
         </Button>
         <Button
@@ -228,6 +237,7 @@ export function ImagePackProfileEdit({ meta, onCancel, onSave }: ImagePackProfil
           fill="Soft"
           size="300"
           radii="300"
+          outlined
         >
           <Text size="B300">{t('sharedUi.packMeta.cancel')}</Text>
         </Button>

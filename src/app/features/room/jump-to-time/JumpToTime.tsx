@@ -241,7 +241,7 @@ export function JumpToTime({ onCancel, onSubmit }: JumpToTimeProps) {
                 variant="Primary"
                 before={
                   timestampState.status === AsyncStatus.Loading ? (
-                    <Spinner fill="Solid" variant="Primary" size="200" />
+                    <Spinner fill="Soft" variant="Primary" size="200" />
                   ) : undefined
                 }
                 aria-disabled={
@@ -249,6 +249,9 @@ export function JumpToTime({ onCancel, onSubmit }: JumpToTimeProps) {
                   timestampState.status === AsyncStatus.Success
                 }
                 onClick={handleSubmit}
+                outlined
+                radii="300"
+                fill="Soft"
               >
                 <Text size="B400">{t('featureUi.room.jumpToTime.openTimeline')}</Text>
               </Button>

@@ -86,7 +86,7 @@ export function AccountSwitcher({
 
               <Box gap="200" wrap="Wrap">
                 {active ? (
-                  <Button size="300" radii="300" onClick={onOpenSettings}>
+                  <Button size="300" radii="300" onClick={onOpenSettings} fill="Soft" outlined>
                     <Text size="B300">{t('accountSwitcher.openSettings')}</Text>
                   </Button>
                 ) : (
@@ -96,6 +96,8 @@ export function AccountSwitcher({
                       radii="300"
                       onClick={() => onSwitchAccount(session)}
                       disabled={removing}
+                      fill="Soft"
+                      outlined
                     >
                       <Text size="B300">{t('accountSwitcher.switch')}</Text>
                     </Button>
@@ -124,7 +126,7 @@ export function AccountSwitcher({
 
       <Box gap="200" wrap="Wrap">
         {onAddAccount && (
-          <Button size="300" radii="300" onClick={onAddAccount}>
+          <Button size="300" radii="300" onClick={onAddAccount} fill="Soft" outlined>
             <Text size="B300">{t('accountSwitcher.addAccount')}</Text>
           </Button>
         )}

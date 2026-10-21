@@ -187,6 +187,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
                 radii="300"
                 before={<Icon src={Icons.Warning} size="50" />}
                 onClick={loadPdfJS}
+                outlined
               >
                 <Text size="B300">{t('sharedUi.pdfViewer.retry')}</Text>
               </Button>
@@ -252,7 +253,14 @@ export const PdfViewer = as<'div', PdfViewerProps>(
                           radii="300"
                           aria-label={t('sharedUi.pdfViewer.pageNumber')}
                         />
-                        <Button type="submit" size="300" variant="Primary" radii="300">
+                        <Button
+                          type="submit"
+                          size="300"
+                          variant="Primary"
+                          radii="300"
+                          fill="Soft"
+                          outlined
+                        >
                           <Text size="B300">{t('sharedUi.pdfViewer.jumpToPage')}</Text>
                         </Button>
                       </Box>

@@ -161,6 +161,8 @@ export function AuthLayout() {
                 fill="Soft"
                 size="400"
                 onClick={() => navigate(addAccountReturnPath, { replace: true })}
+                outlined
+                radii="300"
               >
                 {t('sharedUi.authLayout.backToCurrentAccount')}
               </Button>

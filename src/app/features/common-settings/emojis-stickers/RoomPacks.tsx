@@ -132,7 +132,9 @@ function CreatePackTile({ packs, roomId }: CreatePackTileProps) {
             radii="300"
             type="submit"
             disabled={creating}
-            before={creating && <Spinner size="200" variant="Success" fill="Solid" />}
+            before={creating && <Spinner size="200" variant="Success" fill="Soft" />}
+            outlined
+            fill="Soft"
           >
             <Text size="B400">{t('featureUi.commonSettings.emojisStickers.roomPacks.create')}</Text>
           </Button>
@@ -358,8 +360,10 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
                 variant="Critical"
                 radii="300"
                 disabled={applyingChanges}
-                before={applyingChanges && <Spinner variant="Critical" fill="Solid" size="100" />}
+                before={applyingChanges && <Spinner variant="Critical" fill="Soft" size="100" />}
                 onClick={handleApplyChanges}
+                outlined
+                fill="Soft"
               >
                 <Text size="B300">
                   {t('featureUi.commonSettings.emojisStickers.roomPacks.delete')}

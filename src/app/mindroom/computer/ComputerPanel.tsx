@@ -19,6 +19,9 @@ import * as css from './ComputerPanel.css';
 
 const LazyComputerScreen = lazy(() => import('./ComputerScreen'));
 
+// Soft, outlined actions read as controls without a bright solid fill in dark themes.
+const actionButtonProps = { size: '300', fill: 'Soft', outlined: true, radii: '300' } as const;
+
 type PanelPhase =
   | 'selecting'
   | 'connecting'
@@ -639,44 +642,59 @@ export function ComputerPanel({
         <div className={css.Actions}>
           {phase === 'selecting' && (
             <Button
+              {...actionButtonProps}
               disabled={!chosenAgent}
               onClick={() => {
                 if (chosenAgent) setActiveAgentId(chosenAgent.userId);
               }}
-              size="300"
               variant="Primary"
             >
-              <Text>Watch computer</Text>
+              <Text size="B300">Watch computer</Text>
             </Button>
           )}
           {canControl && status?.mode === 'view' && (
-            <Button disabled={!!operation} onClick={handleTakeControl} size="300" variant="Primary">
-              <Text>{operation === 'take' ? 'Taking control…' : 'Take control'}</Text>
+            <Button
+              {...actionButtonProps}
+              disabled={!!operation}
+              onClick={handleTakeControl}
+              variant="Primary"
+            >
+              <Text size="B300">{operation === 'take' ? 'Taking control…' : 'Take control'}</Text>
             </Button>
           )}
           {status?.mode === 'control' && phase === 'ready' && (
             <Button
+              {...actionButtonProps}
               disabled={!!operation || !continuationReady}
               onClick={handleResumeAgent}
-              size="300"
               variant="Primary"
             >
-              <Text>{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
+              <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
             </Button>
           )}
           {(phase === 'disconnected' || phase === 'error') && (
-            <Button disabled={!!operation} onClick={handleReconnect} size="300" variant="Secondary">
-              <Text>Reconnect</Text>
+            <Button
+              {...actionButtonProps}
+              disabled={!!operation}
+              onClick={handleReconnect}
+              variant="Secondary"
+            >
+              <Text size="B300">Reconnect</Text>
             </Button>
           )}
           {phase === 'stopped' && (
-            <Button onClick={handleReconnect} size="300" variant="Primary">
-              <Text>Start computer</Text>
+            <Button {...actionButtonProps} onClick={handleReconnect} variant="Primary">
+              <Text size="B300">Start computer</Text>
             </Button>
           )}
           {sessionRef.current && phase !== 'stopped' && (
-            <Button disabled={!!operation} onClick={handleStop} size="300" variant="Critical">
-              <Text>{operation === 'stop' ? 'Stopping…' : 'Stop'}</Text>
+            <Button
+              {...actionButtonProps}
+              disabled={!!operation}
+              onClick={handleStop}
+              variant="Critical"
+            >
+              <Text size="B300">{operation === 'stop' ? 'Stopping…' : 'Stop'}</Text>
             </Button>
           )}
         </div>

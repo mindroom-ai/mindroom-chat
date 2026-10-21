@@ -284,10 +284,11 @@ function ImportKeysTile() {
                 onClick={() => setFile(undefined)}
                 size="300"
                 variant="Warning"
-                fill="Solid"
+                fill="Soft"
                 radii="300"
                 before={<Icon size="100" src={Icons.File} filled />}
                 after={<Icon size="100" src={Icons.Cross} />}
+                outlined
               >
                 <Text as="span" size="B300" truncate>
                   {file.name}

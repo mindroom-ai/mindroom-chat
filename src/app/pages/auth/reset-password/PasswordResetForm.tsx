@@ -70,7 +70,7 @@ function ResetPasswordComplete({
                   'sharedUi.passwordResetForm.passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword'
                 )}
               </Text>
-              <Button variant="Primary" onClick={handleClick}>
+              <Button variant="Primary" onClick={handleClick} fill="Soft" outlined radii="300">
                 <Text size="B400" as="span">
                   {t('sharedUi.passwordResetForm.login')}
                 </Text>
@@ -252,7 +252,7 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
         />
       )}
       <span data-spacing-node />
-      <Button type="submit" variant="Primary" size="500">
+      <Button type="submit" variant="Primary" size="500" fill="Soft" outlined>
         <Text as="span" size="B500">
           {t('sharedUi.passwordResetForm.resetPassword')}
         </Text>

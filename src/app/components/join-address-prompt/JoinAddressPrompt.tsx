@@ -127,7 +127,7 @@ export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressProps) {
                   </Text>
                 )}
               </Box>
-              <Button type="submit" variant="Primary">
+              <Button type="submit" variant="Primary" fill="Soft" outlined radii="300">
                 <Text size="B400">{t('sharedUi.joinAddressPrompt.open')}</Text>
               </Button>
             </Box>

@@ -139,11 +139,12 @@ export const VideoContent = as<'div', VideoContentProps>(
           <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
             <Button
               variant="Secondary"
-              fill="Solid"
+              fill="Soft"
               radii="300"
               size="300"
               onClick={loadSrc}
               before={<Icon size="Inherit" src={Icons.Play} filled />}
+              outlined
             >
               <Text size="B300">{t('sharedUi.videoContent.watch')}</Text>
             </Button>

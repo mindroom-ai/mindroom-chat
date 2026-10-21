@@ -98,7 +98,9 @@ export function SecretStorageRecoveryPassphrase({
             size="400"
             radii="300"
             disabled={loading}
-            before={loading && <Spinner size="200" variant="Success" fill="Solid" />}
+            before={loading && <Spinner size="200" variant="Success" fill="Soft" />}
+            outlined
+            fill="Soft"
           >
             <Text as="span" size="B400">
               {t('sharedUi.secretStorage.verify')}
@@ -193,7 +195,9 @@ export function SecretStorageRecoveryKey({
             size="400"
             radii="300"
             disabled={loading}
-            before={loading && <Spinner size="200" variant="Success" fill="Solid" />}
+            before={loading && <Spinner size="200" variant="Success" fill="Soft" />}
+            outlined
+            fill="Soft"
           >
             <Text as="span" size="B400">
               {t('sharedUi.secretStorage.verify')}

@@ -150,8 +150,10 @@ export function UserBanAlert({ userId, reason, canUnban, bannedBy, ts }: UserBan
               variant="Critical"
               radii="300"
               onClick={unban}
-              before={banning && <Spinner size="100" variant="Critical" fill="Solid" />}
+              before={banning && <Spinner size="100" variant="Critical" fill="Soft" />}
               disabled={banning}
+              outlined
+              fill="Soft"
             >
               <Text size="B300">{t('sharedUi.userModeration.unban')}</Text>
             </Button>
@@ -345,6 +347,7 @@ export function UserModeration({ userId, canKick, canBan, canInvite }: UserModer
               }
               onClick={invite}
               disabled={disabled}
+              outlined
             >
               <Text size="B300">{t('sharedUi.userModeration.invite')}</Text>
             </Button>
@@ -365,6 +368,7 @@ export function UserModeration({ userId, canKick, canBan, canInvite }: UserModer
               }
               onClick={kick}
               disabled={disabled}
+              outlined
             >
               <Text size="B300">{t('sharedUi.userModeration.kick')}</Text>
             </Button>
@@ -374,17 +378,18 @@ export function UserModeration({ userId, canKick, canBan, canInvite }: UserModer
               style={{ flexGrow: 1 }}
               size="300"
               variant="Critical"
-              fill="Solid"
+              fill="Soft"
               radii="300"
               before={
                 banState.status === AsyncStatus.Loading ? (
-                  <Spinner size="50" variant="Critical" fill="Solid" />
+                  <Spinner size="50" variant="Critical" fill="Soft" />
                 ) : (
                   <Icon size="50" src={Icons.Prohibited} />
                 )
               }
               onClick={ban}
               disabled={disabled}
+              outlined
             >
               <Text size="B300">{t('sharedUi.userModeration.ban')}</Text>
             </Button>
