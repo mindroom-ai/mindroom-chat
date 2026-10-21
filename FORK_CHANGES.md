@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Name the inviter on invite cards, with the Matrix ID on hover (2026-10-20)
+
+- Problem: invite cards on the Invites page read "From: @maya:matrix.localhost" instead of the inviter's name (mindroom-chat#490 item 11, demo recording bring-the-team-in).
+  `makeInviteData` already resolved the name, but the card passed `senderId` to `sharedUi.invites.from`; upstream Cinny does the same.
+- Fix: the card shows `senderName`: the display name from the inviter's `m.room.member` event, which Tuwunel (`summary_stripped`) and Synapse put in the invite's stripped state, or the ID's localpart when that event has no display name.
+  The name's `<b>` carries the full Matrix ID as its `title`, as other names do (`UserHero`), so the locale strings are unchanged.
+- Tests: `Invites.test.tsx` builds an invite from stripped state and expects "Maya" with the `title` "@maya:matrix.localhost" (fails without the change).
+
 ### Soft, outlined buttons everywhere (2026-10-20)
 
 - Why: solid folds buttons read as bright pills in dark themes: a white "View computer" under an agent's UI request, a lavender and salmon pair in the computer panel, and the same in settings (Save computer service, Use app default, Open Connections), dialogs, auth and room settings.

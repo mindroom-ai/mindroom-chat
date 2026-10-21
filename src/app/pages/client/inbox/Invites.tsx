@@ -85,7 +85,11 @@ type InviteData = {
   isEncrypted: boolean;
 };
 
-const makeInviteData = (mx: MatrixClient, room: Room, useAuthentication: boolean): InviteData => {
+export const makeInviteData = (
+  mx: MatrixClient,
+  room: Room,
+  useAuthentication: boolean
+): InviteData => {
   const userId = mx.getSafeUserId();
   const direct = isDirectInvite(room, userId);
 
@@ -149,7 +153,7 @@ type InviteCardProps = {
   hideAvatar: boolean;
   disabled?: boolean;
 };
-function InviteCard({
+export function InviteCard({
   invite,
   compact,
   hour24Clock,
@@ -309,8 +313,8 @@ function InviteCard({
                 shouldUnescape
                 tOptions={{ interpolation: { escapeValue: true } }}
                 i18nKey="sharedUi.invites.from"
-                values={{ sender: invite.senderId }}
-                components={{ b: <b /> }}
+                values={{ sender: invite.senderName }}
+                components={{ b: <b title={invite.senderId} /> }}
               />
             </Text>
           </Box>
