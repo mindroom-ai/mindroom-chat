@@ -338,9 +338,10 @@ const detectDivergence = (
 /**
  * Add the fetched events (oldest first) to the SDK thread, which after an app
  * open usually holds only its latest page. Events older than that page go in
- * as backfill, and newer ones are appended as history, not live events.
- * Listeners re-rendered and persisted each new reply or live event on its own,
- * which froze the app for seconds when a reconcile fetched a long thread.
+ * as backfill, and newer ones are appended as history, not live events
+ * (replies still announce NewReply). Listeners re-rendered and persisted each
+ * live event on its own, which froze the app for seconds when a reconcile
+ * fetched a long thread.
  * The repaired batch reaches the render through `onRepaired` and the cache
  * through `persistRepair`. An unopened thread is left alone: loading its first
  * page replaces its timeline and replays its buffered relations.

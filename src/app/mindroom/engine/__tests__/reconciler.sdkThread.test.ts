@@ -142,6 +142,27 @@ describe('reconciler SDK thread injection', () => {
     expect(sdkThread.lastReply()?.getId()).toBe('$reply-40');
   });
 
+  it('appends to a window that starts at the root as history, not as live events', async () => {
+    const env = setup();
+    const server = thread(5);
+    const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+    sdkThread.timelineSet.addEventsToTimeline(
+      [env.root],
+      true,
+      false,
+      sdkThread.liveTimeline,
+      null
+    );
+    sdkThread.addEvents(server.slice(0, 6).map(env.mapper), false);
+    await settle();
+
+    const { newReplies, liveArrivals } = await reconcile(env, sdkThread, server);
+
+    expect(newReplies).toEqual(['$reply-4', '$reply-5']);
+    expect(liveArrivals).toEqual([]);
+    expect(sdkThread.events.map((event) => event.getId())).toEqual([ROOT, ...ids(server)]);
+  });
+
   it('adds everything as backfill to an opened thread with an empty window', async () => {
     const env = setup();
     const server = thread(10);

@@ -29,11 +29,11 @@
   - Aggregation is unchanged: reactions count and edits apply as before.
 - Behavior change: live-event listeners no longer see these events.
   The open thread gets them through `onRepaired` (one `setSupplementalThreadEvents` for the batch) and the SDK timeline refresh, without per-event auto-scroll or live-tail tracking.
-  When a reconcile appends a newest event before sync delivers it, sync's copy is a duplicate the SDK drops, so that event is never live: no auto-scroll or expand-once for it, and an agent UI action in it is not run (`chatUiController` acts on live events only).
+  When a reconcile appends a newest event before sync delivers it, sync's copy is a duplicate the SDK drops, so that event is never live: no auto-scroll, expand-once, notification or sound for it, no immediate unread recompute (the server's counts still update it), and an agent UI action in it is not run (`chatUiController` acts on live events only).
   In encrypted rooms the engine no longer schedules a decrypted save for these events; the reconcile's backfill already behaved so.
-  A card that only shows a thread no longer caches its buffered relations; they stay in the saved sync, and the next open saves them.
+  A card that only shows a thread no longer caches its buffered relations; the next open fetches and saves them.
 - Tests:
-  - `reconciler.sdkThread.test.ts`: the reconcile's append of events newer than the SDK window now expects no live event (4 before), with the same two new replies announced.
+  - `reconciler.sdkThread.test.ts`: the reconcile's append of events newer than the SDK window, and its append to a window that starts at the root, announce no live event (4 each before), with the same two new replies announced.
   - `matrixSdkThreadBootstrapRequests.test.ts`: opening a deferred thread whose saved sync held 30 replies with 30 reactions and 30 edits announces no live event and at most two `ThreadEvent.Update`s, applies the latest reply's edit and counts an older reply's reaction.
     It fails without the change (60 live events), and with only the listener skip removed (62 updates).
 - Validation:
@@ -43,6 +43,8 @@
   - `npm run typecheck`, `npm run build` and `npm run lint` (0 errors, the 18 existing warnings) pass; Prettier passes on the changed files.
   - `npx vitest run`: 6,870 passed and the 4 known failures on `dev` (`xcodeCloudPostClone.test.ts` 3, `useRoomInputSendSessionController.test.ts` 1).
   - Not checked on an iPhone; WebKit's IndexedDB timings differ from Chromium's.
+- PR #492 review (Opus 5.5 and GPT-6 Astra, both approved at `753302bf`): added the root-first append test both asked for (it fails with that append reverted) and the notification, sound and unread effects Opus listed.
+  Declined: restoring the previous `addingHistory` value on exit (no call nests) and keeping a fetched page's strictly newer tail live (Opus, optional; the race is documented above and the SDK's first page has the same one).
 - Next:
   - The saved sync's replay at startup still announces thread events as live, because `Room.addLiveEvents` does not pass `fromCache` on to threads; the reproduction counted 500 before `PREPARED`, cheap because the engine ignores them and the UI was not mounted yet.
   - `setSupplementalThreadEvents` re-hydrates its whole set per call and `EventTimelineSet.findEventById` scans linearly; a burst of genuinely live thread events still pays both.
