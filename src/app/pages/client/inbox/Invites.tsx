@@ -46,7 +46,7 @@ import {
 } from '../../../utils/room';
 import { nameInitials } from '../../../utils/common';
 import { RoomAvatar } from '../../../components/room-avatar';
-import { getMxIdLocalPart, rateLimitedActions } from '../../../utils/matrix';
+import { rateLimitedActions } from '../../../utils/matrix';
 import { Time } from '../../../components/message';
 import { useElementSizeObserver } from '../../../hooks/useElementSizeObserver';
 import { onEnterOrSpace, stopPropagation } from '../../../utils/keyboard';
@@ -66,6 +66,8 @@ import { settingsAtom } from '../../../state/settings';
 import { acceptInvite, acceptInvites } from './acceptInvite';
 
 const COMPACT_CARD_WIDTH = 548;
+// Embedding, override and isolate controls; a display name keeps none of them.
+const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/g;
 
 type InviteData = {
   room: Room;
@@ -85,7 +87,11 @@ type InviteData = {
   isEncrypted: boolean;
 };
 
-const makeInviteData = (mx: MatrixClient, room: Room, useAuthentication: boolean): InviteData => {
+export const makeInviteData = (
+  mx: MatrixClient,
+  room: Room,
+  useAuthentication: boolean
+): InviteData => {
   const userId = mx.getSafeUserId();
   const direct = isDirectInvite(room, userId);
 
@@ -103,8 +109,8 @@ const makeInviteData = (mx: MatrixClient, room: Room, useAuthentication: boolean
   const content = memberEvent?.getContent();
   const senderId = memberEvent?.getSender();
 
-  const senderName = senderId
-    ? getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId
+  const senderDisplayName = senderId
+    ? getMemberDisplayName(room, senderId)?.replace(BIDI_CONTROLS, '')
     : undefined;
   const inviteTs = memberEvent?.getTs();
   const reason =
@@ -121,7 +127,12 @@ const makeInviteData = (mx: MatrixClient, room: Room, useAuthentication: boolean
     roomAlias: room.getCanonicalAlias() ?? undefined,
 
     senderId: senderId ?? 'Unknown',
-    senderName: senderName ?? 'Unknown',
+    // A display name can claim any name or ID, so the real ID always shows next to it.
+    // The name is isolated (FSI...PDI) and the ID kept left-to-right (LRI...PDI), so neither
+    // the name's direction nor an RTL locale can reorder the ID.
+    senderName: senderDisplayName
+      ? `\u2068${senderDisplayName}\u2069 (\u2066${senderId}\u2069)`
+      : senderId ?? 'Unknown',
     inviteTs,
     reason,
 
@@ -149,7 +160,7 @@ type InviteCardProps = {
   hideAvatar: boolean;
   disabled?: boolean;
 };
-function InviteCard({
+export function InviteCard({
   invite,
   compact,
   hour24Clock,
@@ -309,8 +320,8 @@ function InviteCard({
                 shouldUnescape
                 tOptions={{ interpolation: { escapeValue: true } }}
                 i18nKey="sharedUi.invites.from"
-                values={{ sender: invite.senderId }}
-                components={{ b: <b /> }}
+                values={{ sender: invite.senderName }}
+                components={{ b: <b title={invite.senderId} /> }}
               />
             </Text>
           </Box>
