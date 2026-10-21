@@ -10,8 +10,13 @@
 - Fix: the card shows both, as Element does: "From: Maya (@maya:matrix.localhost)".
   The name is the inviter's `m.room.member` display name, which Tuwunel (`summary_stripped`) and Synapse put in the invite's stripped state; without one, or when it equals the ID, the card shows the full ID alone.
   An ID-shaped name still gets the real ID after it, and the `<b>` keeps the ID as its `title`.
-  The combined text goes into `{{sender}}`, so the locale strings, and Arabic's isolation marks around the value, are unchanged.
-- Tests: `Invites.test.tsx` builds invites from stripped state and expects "Maya (@maya:matrix.localhost)", the full ID without a display name, and "@maya:matrix.localhost (@mallory:evil.example)" for an ID-shaped name (all fail on the previous name-only version).
+  The name loses its bidi embedding, override and isolate controls (js-sdk's `rawDisplayName` strips only LRO and RLO), and the card builds `FSI name PDI (LRI id PDI)`.
+  Without that, a name such as `RLI "Maya (@maya:matrix.localhost)"` from `@mallory:evil.example` rendered the real ID mangled in front, "(mallory:evil.example@) Maya (@maya:matrix.localhost)", and a stray PDI in a name would close a plain wrapper early.
+  In Arabic, the locale's single isolate around `{{sender}}` took an Arabic name's direction and reversed the ID to "(maya:matrix.localhost@)"; the inner isolates keep the ID left to right, after the name, in either direction.
+  The combined text still goes into `{{sender}}`, so the locale strings are unchanged.
+- Tests: `Invites.test.tsx` builds invites from stripped state and expects the isolated "Maya (@maya:matrix.localhost)", the plain ID without a display name, "@maya:matrix.localhost (@mallory:evil.example)" for an ID-shaped name, and a name with RLI, RLE and a leading PDI stripped and isolated (all but the plain ID fail on the previous version).
+  `e2e/invite-cards.spec.ts` renders the four cards of `e2e/fixtures/invite-cards.html` in English and Arabic in Chromium and measures each character of the real ID: it reads left to right and starts after every character before it.
+  On the previous version it fails for the RLI name in English and the Arabic name in Arabic.
 
 ### Soft, outlined buttons everywhere (2026-10-20)
 

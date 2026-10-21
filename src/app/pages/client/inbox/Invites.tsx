@@ -66,6 +66,8 @@ import { settingsAtom } from '../../../state/settings';
 import { acceptInvite, acceptInvites } from './acceptInvite';
 
 const COMPACT_CARD_WIDTH = 548;
+// Embedding, override and isolate controls; a display name keeps none of them.
+const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/g;
 
 type InviteData = {
   room: Room;
@@ -107,7 +109,9 @@ export const makeInviteData = (
   const content = memberEvent?.getContent();
   const senderId = memberEvent?.getSender();
 
-  const senderDisplayName = senderId ? getMemberDisplayName(room, senderId) : undefined;
+  const senderDisplayName = senderId
+    ? getMemberDisplayName(room, senderId)?.replace(BIDI_CONTROLS, '')
+    : undefined;
   const inviteTs = memberEvent?.getTs();
   const reason =
     content && 'reason' in content && typeof content.reason === 'string'
@@ -124,7 +128,11 @@ export const makeInviteData = (
 
     senderId: senderId ?? 'Unknown',
     // A display name can claim any name or ID, so the real ID always shows next to it.
-    senderName: senderDisplayName ? `${senderDisplayName} (${senderId})` : senderId ?? 'Unknown',
+    // The name is isolated (FSI...PDI) and the ID kept left-to-right (LRI...PDI), so neither
+    // the name's direction nor an RTL locale can reorder the ID.
+    senderName: senderDisplayName
+      ? `\u2068${senderDisplayName}\u2069 (\u2066${senderId}\u2069)`
+      : senderId ?? 'Unknown',
     inviteTs,
     reason,
 

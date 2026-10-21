@@ -16,16 +16,34 @@ vi.mock('../../../components/room-avatar', () => ({ RoomAvatar: () => null }));
 vi.mock('../../../components/room-topic-viewer', () => ({ RoomTopicViewer: () => null }));
 vi.mock('../../../components/message', () => ({ Time: () => null }));
 
+// Bidi isolates: the card isolates the name (FSI...PDI) and keeps the ID left-to-right (LRI...PDI).
+const FSI = '\u2068';
+const LRI = '\u2066';
+const PDI = '\u2069';
+
 it.each([
-  ['@maya:matrix.localhost', 'Maya', 'Maya (@maya:matrix.localhost)'],
-  ['@maya:matrix.localhost', undefined, '@maya:matrix.localhost'],
+  [
+    'a display name',
+    '@maya:matrix.localhost',
+    'Maya',
+    `${FSI}Maya${PDI} (${LRI}@maya:matrix.localhost${PDI})`,
+  ],
+  ['no display name', '@maya:matrix.localhost', undefined, '@maya:matrix.localhost'],
   // A display name shaped like someone else's ID still shows the real ID.
   [
+    'an ID-shaped name',
     '@mallory:evil.example',
     '@maya:matrix.localhost',
-    '@maya:matrix.localhost (@mallory:evil.example)',
+    `${FSI}@maya:matrix.localhost${PDI} (${LRI}@mallory:evil.example${PDI})`,
   ],
-])('shows inviter %s named %s as "%s"', (inviterId, displayname, expected) => {
+  // Bidi controls in the name would reorder the ID; a leading PDI would close the isolate early.
+  [
+    'a name with bidi controls',
+    '@mallory:evil.example',
+    `${PDI}\u202B\u2067Maya (@maya:matrix.localhost)\u200E\u200F`,
+    `${FSI}Maya (@maya:matrix.localhost)\u200E\u200F${PDI} (${LRI}@mallory:evil.example${PDI})`,
+  ],
+])('shows an inviter with %s next to the real ID', (_case, inviterId, displayname, expected) => {
   const myUserId = '@me:matrix.localhost';
   const mx = createClient({ baseUrl: 'https://matrix.example', userId: myUserId });
   const roomId = '!invite:matrix.localhost';
