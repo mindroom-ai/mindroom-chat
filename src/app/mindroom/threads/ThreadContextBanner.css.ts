@@ -50,6 +50,9 @@ export const EyebrowRow = style({
   selectors: { '&:empty': { display: 'none' } },
   '@media': {
     [shortViewport]: {
+      // Beside the title on short screens, it keeps to the room left of the thread actions.
+      flexShrink: 1,
+      minWidth: 0,
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
     },
   },
@@ -61,19 +64,19 @@ const narrowTitle = '(max-width: 26rem)';
 
 // "Thread View" is chrome, not content: it says the same thing on every
 // thread the user opens, so it shows only while the thread has no title, and
-// gives way to a status chip, such as an open YOLO window, in a narrow header.
-// It uses the same uppercase/12px/W500 treatment the sidebar category headers
-// and the SHOW MORE pill already use for that role.
+// gives way to a status chip, such as an open YOLO window, in a narrow or
+// short header. It uses the same uppercase/12px/W500 treatment the sidebar
+// category headers and the SHOW MORE pill already use for that role.
+const besideStatusChip = {
+  [`${EyebrowRow}:has(> [data-thread-status-chip]) > &`]: { display: 'none' },
+};
 export const ViewLabel = style({
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
   fontWeight: config.fontWeight.W500,
   whiteSpace: 'nowrap',
-  '@container': {
-    [narrowTitle]: {
-      selectors: { [`${EyebrowRow}:has(> [data-thread-status-chip]) > &`]: { display: 'none' } },
-    },
-  },
+  '@container': { [narrowTitle]: { selectors: besideStatusChip } },
+  '@media': { [shortViewport]: { selectors: besideStatusChip } },
 });
 
 // On short screens the approvals chip that stays in view sits beside the title.

@@ -19,6 +19,7 @@ const clock = (timestamp: number) =>
 test('the thread header says whose YOLO window is open there, until when', async ({
   page,
   context,
+  browser,
 }, testInfo) => {
   test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -199,6 +200,59 @@ test('the thread header says whose YOLO window is open there, until when', async
   for (const chip of [own, theirs, permissions]) expect(await leftOf(chip, options)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 390, height: 844 });
+
+  // A phone held sideways puts the chips beside the title, still clear of the thread actions.
+  const sideways = await browser.newContext({
+    viewport: { width: 667, height: 375 },
+    hasTouch: true,
+  });
+  await sideways.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({
+      json: {
+        ...config,
+        homeserverList: [homeserver],
+        defaultHomeserver: 0,
+        allowCustomHomeservers: true,
+        hashRouter: { enabled: false },
+        auth: { allowRegistration: false, disablePasswordLogin: false },
+      },
+    });
+  });
+  const landscape = await sideways.newPage();
+  await loginWithPassword(landscape, { homeserver: homeserver!, username, password });
+  await landscape.goto(
+    `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
+  );
+  const sidewaysBanner = landscape.locator('[data-thread-context-banner="true"]');
+  const sidewaysOptions = sidewaysBanner.getByRole('button', {
+    name: 'Thread options',
+    exact: true,
+  });
+  await expect(sidewaysOptions).toBeInViewport();
+  for (const chip of [
+    sidewaysBanner.getByText(`YOLO until ${clock(ownEnd)}`, { exact: true }),
+    sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
+    sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
+  ]) {
+    await expect(chip).toBeVisible();
+    expect(await leftOf(chip, sidewaysOptions)).toBe(true);
+  }
+  await landscape.screenshot({ path: testInfo.outputPath('phone-landscape-light.png') });
+  // A wider phone sideways also shows the room list, leaving the title column little room.
+  await landscape.setViewportSize({ width: 844, height: 390 });
+  await expect(sidewaysOptions).toBeInViewport();
+  for (const chip of [
+    sidewaysBanner.getByText(`YOLO until ${clock(ownEnd)}`, { exact: true }),
+    sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
+    sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
+  ]) {
+    await expect(chip).toBeVisible();
+    expect(await leftOf(chip, sidewaysOptions)).toBe(true);
+  }
+  await landscape.screenshot({ path: testInfo.outputPath('phone-landscape-wide-light.png') });
+  await sideways.close();
 
   // A window that ends goes away on its own, and `!yolo off` clears the state.
   const shortEnd = Date.now() + 5_000;
