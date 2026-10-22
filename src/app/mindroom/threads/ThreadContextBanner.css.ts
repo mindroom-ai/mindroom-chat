@@ -79,7 +79,8 @@ export const ViewLabel = style({
   '@media': { [shortViewport]: { selectors: besideStatusChip } },
 });
 
-// On short screens the approvals chip that stays in view sits beside the title.
+// On short screens the status chips that stay in view sit beside the title, and
+// the title takes a line of its own below them when too little room is left.
 // A size container, so the byline can wrap by the room the title has: a tablet
 // with the room list open leaves as little as a phone.
 export const TitleColumn = style({
@@ -88,7 +89,13 @@ export const TitleColumn = style({
   flexDirection: 'column',
   minWidth: 0,
   gap: 0,
-  ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
+  ...whenCompact({
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: config.space.S200,
+    rowGap: config.space.S100,
+  }),
 });
 
 // Collapsed, the status chips sit between Back and Show details and wrap onto more lines when they do not fit.
@@ -121,8 +128,8 @@ export const DesktopOnlyTags = style({
   },
 });
 
-// On short screens the title and a scheduled task share one line and truncate together, and they take only the
-// room the status chips leave, so a long title never squeezes a chip.
+// On short screens the title and a scheduled task share one line and truncate together; with less than 8rem
+// beside the status chips they move below them, so neither the title nor a chip is squeezed to nothing.
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -134,7 +141,7 @@ export const SubtitleRow = style({
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
   },
   '@media': {
-    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0' },
+    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 8rem' },
     // Narrow screens move the tags to their own row, which can leave the
     // eyebrow row with nothing showing.
     '(max-width: 480px)': {

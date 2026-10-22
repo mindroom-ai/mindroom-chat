@@ -205,8 +205,8 @@ test('the thread header says whose YOLO window is open there, until when', async
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // A phone held sideways puts the chips beside the title, which MindRoom usually sets, and the title takes only
-  // the room the chips leave, so the chips stay clear of the thread actions.
+  // A phone held sideways puts the chips beside the title, which MindRoom usually sets, and moves the title below
+  // them when too little room is left, so neither is squeezed and the chips stay clear of the thread actions.
   await matrixFetch(
     homeserver!,
     `/rooms/${encodeURIComponent(fixture.roomId)}/send/m.room.message/summary-${suffix}`,
@@ -242,7 +242,8 @@ test('the thread header says whose YOLO window is open there, until when', async
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
   const sidewaysBanner = landscape.locator('[data-thread-context-banner="true"]');
-  await expect(sidewaysBanner.getByText('Release notes drafted', { exact: false })).toBeVisible();
+  const sidewaysTitle = sidewaysBanner.getByText('Release notes drafted', { exact: false });
+  await expect(sidewaysTitle).toBeVisible();
   const sidewaysOptions = sidewaysBanner.getByRole('button', {
     name: 'Thread options',
     exact: true,
@@ -253,7 +254,7 @@ test('the thread header says whose YOLO window is open there, until when', async
     sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
     sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
   ];
-  // The two wider ones also show the room list and members; at the widest the viewer's end time fits in full.
+  // The two wider ones also show the room list and members, which leave 844 too little room for the viewer's end time.
   for (const [width, height, ownInFull] of [
     [667, 375, true],
     [844, 390, false],
@@ -266,6 +267,7 @@ test('the thread header says whose YOLO window is open there, until when', async
       expect(await leftOf(chip, sidewaysOptions)).toBe(true);
     }
     if (ownInFull) expect(await fullText(sidewaysOwn)).toBe(true);
+    expect((await sidewaysTitle.boundingBox())?.width ?? 0).toBeGreaterThan(80);
     await landscape.screenshot({ path: testInfo.outputPath(`phone-landscape-${width}-light.png`) });
   }
   await sideways.close();
