@@ -13,9 +13,11 @@
     `useAgentRoomStateVersion` refreshes on that type, agent membership, and live-state resets.
     The jobs contract now only parses and orders.
   - `server/mindroomServer.ts` parses `api_origin` (through `resolveComputerApiUrl`) and `computer`; `server/useMindroomServers.ts` lists a room's servers and every origin in the user's joined rooms.
-  - A published origin is used only while the homeserver binds tokens. Whether to offer one is asked of the homeserver once per client (`confirmOpenIdBinding`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback.
+  - A published origin is used only while the homeserver binds tokens.
+    Whether to offer one is asked of the homeserver once per client (`readOpenIdBinding` from `useBindsOpenIdTokens`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback.
     A check that could not reach the homeserver is asked again on the next mount, and the check bypasses the HTTP cache.
     A token for a published origin is requested only after a new check (`requestAudienceOpenIdToken(..., { requireBinding: true })`), by the Connections card and the Computer panel, so a homeserver that stopped binding gets no token sent there.
+    A homeserver that cannot be asked fails that request with a `ConnectionError`, so the Computer panel retries it as it does an unreachable homeserver.
   - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off, and an unusable deployment value counts as unset.
   - In a room, each agent opens its own published server (`ComputerAgent.serverUrl`), so a room with agents of two MindRooms opens each one's computer on its own backend; with a configured URL, agents carry none.
     The Computer action shows only for agents that publish `computer: true`.

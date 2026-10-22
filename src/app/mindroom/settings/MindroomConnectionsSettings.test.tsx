@@ -32,12 +32,14 @@ vi.mock('folds', () => ({
     children,
     onClick,
     disabled,
+    'aria-label': ariaLabel,
   }: {
     children?: React.ReactNode;
     onClick?: () => void;
     disabled?: boolean;
+    'aria-label'?: string;
   }) => (
-    <button onClick={onClick} disabled={disabled}>
+    <button onClick={onClick} disabled={disabled} aria-label={ariaLabel}>
       {children}
     </button>
   ),
@@ -212,6 +214,10 @@ describe('connections settings', () => {
       .findAllByType('button')
       .filter((node) => node.findByType('span').children.join('') === OPEN_LABEL);
     expect(buttons).toHaveLength(2);
+    expect(buttons.map((button) => button.props['aria-label'])).toEqual([
+      'Open Connections https://mind.example.org',
+      'Open Connections http://localhost:8765',
+    ]);
     expect(texts()).toEqual(
       expect.arrayContaining(['https://mind.example.org', 'http://localhost:8765'])
     );

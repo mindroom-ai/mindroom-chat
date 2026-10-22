@@ -54,6 +54,11 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
                   outlined
                   radii="300"
                   disabled={!backendUrl}
+                  aria-label={
+                    backendUrl && discovered
+                      ? `${t('settings.general.connections.open')} ${backendUrl}`
+                      : undefined
+                  }
                   onClick={() => backendUrl && open(backendUrl)}
                 >
                   <Text size="B300">{t('settings.general.connections.open')}</Text>

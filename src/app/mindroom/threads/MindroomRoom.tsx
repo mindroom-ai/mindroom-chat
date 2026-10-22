@@ -79,9 +79,7 @@ export function Room() {
   const clientConfig = useClientConfig();
   const servers = useRoomMindroomServers(room);
   const bindsTokens = useBindsOpenIdTokens();
-  const roomServerUrl = bindsTokens
-    ? (servers.find((server) => server.computer) ?? servers[0])?.apiUrl
-    : undefined;
+  const roomServerUrl = bindsTokens ? servers.find((server) => server.computer)?.apiUrl : undefined;
   const configuredApiUrl = useComputerApiUrl();
   const computerApiUrl = useComputerApiUrl(roomServerUrl);
   // Found servers apply per agent, so a room with agents of two MindRooms opens each one's own.

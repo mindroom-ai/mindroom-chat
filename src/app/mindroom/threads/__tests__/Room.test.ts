@@ -28,7 +28,7 @@ type MockComputerPanelProps = {
   requestedAgent?: { userId: string };
   onInteractionChange?: (interaction: { agentUserId?: string; locked: boolean }) => void;
   onClose?: () => void;
-  agents: Array<{ userId: string; name: string }>;
+  agents: Array<{ userId: string; name: string; serverUrl?: string }>;
   continuationReady?: boolean;
   apiUrl: string;
   roomId: string;
@@ -484,6 +484,25 @@ describe('Room', () => {
       expect(roomState.computerPanelProps?.agents.map((agent) => agent.serverUrl)).toEqual([
         'http://localhost:8765',
         'https://other.example.org',
+      ]);
+    });
+
+    it('lets a configured server win over every published one', async () => {
+      roomState.clientConfig = configured;
+      roomState.bindsOpenIdTokens = true;
+      roomState.mindroomServers = [server(true)];
+      roomState.members = [
+        { membership: 'join', userId: helper },
+        { membership: 'join', userId: '@alice:example.org' },
+      ];
+      const { Room } = await import('../../../features/room/Room');
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      expect(roomState.computerPanelProps?.apiUrl).toBe('https://computer.example.org');
+      expect(roomState.computerPanelProps?.agents.map((agent) => agent.serverUrl)).toEqual([
+        undefined,
       ]);
     });
 

@@ -1,4 +1,4 @@
-import type { MatrixClient } from 'matrix-js-sdk';
+import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { requestAudienceOpenIdToken } from './openidAudience';
 
@@ -60,19 +60,27 @@ describe('requestAudienceOpenIdToken', () => {
   });
 
   it.each([
-    ['does not bind tokens', versions({})],
-    ['says binding is off', versions({ 'io.mindroom.openid_audience': false })],
-    ['cannot be reached', new Error('offline')],
-    ['answers with an error', new Response('', { status: 502 })],
-  ])('requests no token for a published server when the homeserver %s', async (_case, response) => {
-    const { mx, authedRequest } = makeClient();
-    answerVersions(response);
-    await expect(
-      requestAudienceOpenIdToken(mx, 'https://found.example', { requireBinding: true })
-    ).rejects.toThrow('does not bind sign-in tokens');
-    expect(authedRequest).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-  });
+    ['does not bind tokens', versions({}), Error],
+    ['says binding is off', versions({ 'io.mindroom.openid_audience': false }), Error],
+    // A homeserver that cannot be asked fails like any unreachable one, so the Computer panel retries.
+    ['cannot be reached', new Error('offline'), ConnectionError],
+    ['answers with an error', new Response('', { status: 502 }), ConnectionError],
+  ])(
+    'requests no token for a published server when the homeserver %s',
+    async (_case, response, errorType) => {
+      const { mx, authedRequest } = makeClient();
+      answerVersions(response);
+      const request = requestAudienceOpenIdToken(mx, 'https://found.example', {
+        requireBinding: true,
+      });
+      await expect(request).rejects.toThrow(errorType);
+      await expect(request).rejects.toSatisfy(
+        (error: Error) => error instanceof ConnectionError === (errorType === ConnectionError)
+      );
+      expect(authedRequest).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    }
+  );
 
   it('passes a failed request on to the caller', async () => {
     const { mx, authedRequest } = makeClient();
