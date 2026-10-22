@@ -261,16 +261,15 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
     return false;
   }
 
-  let sawVisibleMainEvent = false;
+  // Only a message counts as unread, whether or not the read position is loaded.
   for (let i = liveEvents.length - 1; i >= 0; i -= 1) {
     const event = liveEvents[i];
     if (!event) return false;
     if (event.getId() === readUpToId) return false;
     if (isHiddenRoomActivity(room, event)) continue;
-    sawVisibleMainEvent = true;
     if (isNotificationEvent(event)) return true;
   }
-  return sawVisibleMainEvent;
+  return false;
 };
 
 export const getUnreadInfo = (room: Room): UnreadInfo => {

@@ -557,7 +557,49 @@ describe('roomHaveUnread', () => {
     expect(roomHaveUnread(mx, room)).toBe(true);
   });
 
-  it('keeps the unread fallback when the loaded main-timeline slice still contains visible activity', () => {
+  it("ignores an agent's background state, reactions and redactions when the read position is not loaded", () => {
+    const agent = '@mindroom_mind:example.org';
+    const backgroundJobs = new MatrixEvent({
+      content: { jobs: [] },
+      event_id: '$jobs',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: agent,
+      state_key: agent,
+      type: 'io.mindroom.background_jobs',
+    });
+    const reaction = new MatrixEvent({
+      content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: '$root', key: '👀' } },
+      event_id: '$reaction',
+      origin_server_ts: 1001,
+      room_id: '!room:example.org',
+      sender: agent,
+      type: 'm.reaction',
+    });
+    const redaction = new MatrixEvent({
+      content: { redacts: '$reaction' },
+      event_id: '$redaction',
+      origin_server_ts: 1002,
+      redacts: '$reaction',
+      room_id: '!room:example.org',
+      sender: agent,
+      type: 'm.room.redaction',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => null),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [backgroundJobs, reaction, redaction],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(false);
+  });
+
+  it("counts another member's message as unread when the read position is not loaded", () => {
     const mainEvent = makeMessageEvent('$main', 1000, '@bob:example.org');
     const room = {
       findEventById: vi.fn(() => undefined),

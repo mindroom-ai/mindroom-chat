@@ -346,9 +346,25 @@ describe('CanvasIndexFeature', () => {
       },
     });
 
+  // The planner agent publishes its MindRoom server, as a MindRoom that sets no Computers URL does.
+  const serverState = new MatrixEvent({
+    type: 'io.mindroom.server',
+    state_key: AGENT,
+    sender: AGENT,
+    room_id: ROOM_ID,
+    event_id: '$server',
+    origin_server_ts: 1,
+    content: { api_origin: 'http://localhost:8765', computer: true },
+  });
+
   const createClient = () => {
     const room = {
       roomId: ROOM_ID,
+      myUserId: VIEWER,
+      getMyMembership: () => 'join',
+      currentState: {
+        getStateEvents: (type: string) => (type === 'io.mindroom.server' ? [serverState] : []),
+      },
       getMember: (userId: string) => ({ userId, membership: 'join' }),
       getLiveTimeline: () => ({ getEvents: () => [] }),
       getThreads: () => [],
@@ -356,6 +372,7 @@ describe('CanvasIndexFeature', () => {
     } as unknown as Room;
     return Object.assign(new EventEmitter(), {
       getSafeUserId: () => VIEWER,
+      getUserId: () => VIEWER,
       getHomeserverUrl: () => HOMESERVER,
       getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
       getRooms: () => [room],
@@ -373,7 +390,20 @@ describe('CanvasIndexFeature', () => {
   };
 
   // Canvases are off in every case; only the computer service differs.
-  const recordNoticeWith = async (mindroom: ClientConfig['mindroom']) => {
+  const recordNoticeWith = async (mindroom: ClientConfig['mindroom'], bindsTokens = false) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              versions: ['v1.11'],
+              unstable_features: { 'io.mindroom.openid_audience': bindsTokens },
+            }),
+            { status: 200 }
+          )
+      )
+    );
     const mx = createClient();
     let renderer: ReactTestRenderer | undefined;
     await act(async () => {
@@ -393,11 +423,16 @@ describe('CanvasIndexFeature', () => {
         )
       );
     });
+    // The homeserver's binding answer arrives after the first render.
+    await act(async () => {
+      await settle();
+    });
     mx.emit(ClientEvent.Event, showComputerNotice());
     await settle();
     await act(async () => {
       renderer?.unmount();
     });
+    vi.unstubAllGlobals();
     return isComputerShown(SESSION, ROOM_ID, '$thread');
   };
 
@@ -414,5 +449,9 @@ describe('CanvasIndexFeature', () => {
 
   it('records nothing with canvases and computers both off', async () => {
     expect(await recordNoticeWith({ canvas: { enabled: false } })).toBe(false);
+  });
+
+  it('records for a server the room agents publish while the homeserver binds tokens', async () => {
+    expect(await recordNoticeWith({ canvas: { enabled: false } }, true)).toBe(true);
   });
 });

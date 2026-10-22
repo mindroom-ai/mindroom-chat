@@ -45,11 +45,6 @@ describe('parseBackgroundJobsStateEvent', () => {
     ]);
   });
 
-  it('ignores state whose state key is not its sender', () => {
-    const event = jobsEvent([job('job_1')], { stateKey: '@mindroom_other:example.org' });
-    expect(parseBackgroundJobsStateEvent(event)).toEqual([]);
-  });
-
   it('drops malformed items and keeps the rest', () => {
     const jobs = [job('job_1'), { job_id: 7 }, 'nonsense', job('job_2', { tool: null })];
     expect(parseBackgroundJobsStateEvent(jobsEvent(jobs)).map((item) => item.jobId)).toEqual([

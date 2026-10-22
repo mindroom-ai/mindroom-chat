@@ -17,14 +17,14 @@ const window = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const windowsEvent = (windows: unknown, { sender = ROUTER, stateKey = sender } = {}) =>
+const windowsEvent = (windows: unknown) =>
   new MatrixEvent({
     content: { windows },
-    event_id: `$${stateKey}`,
+    event_id: '$yolo',
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender,
-    state_key: stateKey,
+    sender: ROUTER,
+    state_key: ROUTER,
     type: MINDROOM_YOLO_EVENT,
   });
 
@@ -34,10 +34,6 @@ describe('parseYoloStateEvent', () => {
       { threadId: '$thread', requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
       { threadId: null, requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
     ]);
-  });
-
-  it('ignores state whose state key is not its sender', () => {
-    expect(parseYoloStateEvent(windowsEvent([window()], { stateKey: ALICE }))).toEqual([]);
   });
 
   it('drops malformed windows and keeps the rest', () => {

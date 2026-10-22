@@ -34,11 +34,10 @@ const parseJob = (value: unknown): BackgroundJob | undefined => {
   return { jobId, threadId: threadId ?? null, kind, tool, status, startedAt };
 };
 
-/** Read one agent's jobs; an agent may only describe its own jobs, under its own user ID. */
+/** Read one agent's jobs from state `agentRoomState` already checked the agent published about itself. */
 export const parseBackgroundJobsStateEvent = (event: MatrixEvent): BackgroundJob[] => {
-  const sender = event.getSender();
   const jobs = event.getContent().jobs;
-  if (!sender || event.getStateKey() !== sender || !Array.isArray(jobs)) return [];
+  if (!Array.isArray(jobs)) return [];
   return jobs.flatMap((value) => parseJob(value) ?? []);
 };
 
@@ -48,7 +47,7 @@ const byCodePoint = (a: string, b: string): number => {
   return a > b ? 1 : 0;
 };
 
-/** Every job the room's agents publish, oldest first. */
+/** Every job of the agents' jobs state, oldest first. */
 export const selectBackgroundJobs = (events: MatrixEvent[]): BackgroundJob[] =>
   events
     .flatMap(parseBackgroundJobsStateEvent)

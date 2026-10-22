@@ -27,15 +27,14 @@ const parseWindow = (value: unknown): YoloWindow | undefined => {
   return Number.isNaN(timestamp) ? undefined : { threadId, requesterId, expiresAt: timestamp };
 };
 
-/** Read one router's windows; a router may only describe them under its own user ID. */
+/** Read one router's windows from state `agentRoomState` already checked the router published about itself. */
 export const parseYoloStateEvent = (event: MatrixEvent): YoloWindow[] => {
-  const sender = event.getSender();
   const windows = event.getContent().windows;
-  if (!sender || event.getStateKey() !== sender || !Array.isArray(windows)) return [];
+  if (!Array.isArray(windows)) return [];
   return windows.flatMap((value) => parseWindow(value) ?? []);
 };
 
-/** Every window the room's MindRoom router publishes. */
+/** Every window of the routers' YOLO state. */
 export const selectYoloWindows = (events: MatrixEvent[]): YoloWindow[] =>
   events.flatMap(parseYoloStateEvent);
 
