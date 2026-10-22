@@ -78,6 +78,8 @@ describe('MindRoom server state', () => {
     ['http://localhost:8765', true],
     ['http://127.0.0.1:8765', true],
     ['http://[::1]:8765', true],
+    ['http://[::ffff:127.0.0.1]:8765', true],
+    ['https://127.example.org', false],
     ['http://192.168.1.50:8765', false],
     ['https://mind.example.org', false],
   ])('tells whether %s is this device', (origin, loopback) => {
