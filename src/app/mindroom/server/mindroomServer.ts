@@ -30,7 +30,8 @@ export const selectMindroomServers = (events: MatrixEvent[]): MindroomServer[] =
 
 /** Whether an origin is this device itself, which a published server must not be for a phone. */
 export const isLoopbackOrigin = (origin: string): boolean => {
-  const { hostname } = new URL(origin);
+  // A trailing dot names the same host, as in localhost.
+  const hostname = new URL(origin).hostname.replace(/\.$/, '');
   // URL parsing writes an IPv4-mapped loopback such as [::ffff:127.0.0.1] as [::ffff:7f..].
   return (
     hostname === 'localhost' ||
