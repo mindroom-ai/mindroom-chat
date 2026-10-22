@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### Find the MindRoom server from the agents in the user's rooms (2026-10-22)
+
+- Why: hosted Chat ships `mindroom.computers.apiUrl` empty, so every user had to type their MindRoom address under Computers before Connections or Computers worked, and Chat showed a Computer button for every agent once a URL was set, even agents without a worker computer.
+- Backend dependency: mindroom-ai/mindroom#3058 (`io.mindroom.server`): every MindRoom agent, team, and the router publishes room state keyed by its own user ID, `{"api_origin": <origin>, "computer": <bool>}`, on every join.
+  The origin is the backend's OpenID audience (`MINDROOM_PUBLIC_URL`, or `http://localhost:<MINDROOM_PORT>`), so a token Chat binds to it verifies there.
+  Matrix accepts a state key that starts with `@` only from that user, so only the agent itself can write it; managed rooms give the type power level 0.
+- Design:
+  - `matrix/agentRoomState.ts` owns who may describe themselves in room state, for this and `io.mindroom.background_jobs`: the state key is the sender, the sender is a MindRoom agent on the viewer's homeserver, and an agent known to have left is ignored (one whose membership is not loaded yet counts as joined).
+    `useAgentRoomStateVersion` refreshes on that type, agent membership, and live-state resets.
+    The jobs contract now only parses and orders.
+  - `server/mindroomServer.ts` parses `api_origin` (through `resolveComputerApiUrl`) and `computer`; `server/useMindroomServers.ts` lists a room's servers and every origin in the user's joined rooms.
+  - A published origin is used only while the homeserver binds tokens.
+    Whether to offer one is asked of the homeserver once per client (`readOpenIdBinding` from `useBindsOpenIdTokens`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback.
+    A check that could not reach the homeserver is asked again on the next mount, and the check bypasses the HTTP cache.
+    A token for a published origin is requested only after a new check (`requestAudienceOpenIdToken(..., { requireBinding: true })`), by the Connections card and the Computer panel, so a homeserver that stopped binding gets no token sent there.
+    The check runs again after the token is issued, and the token is dropped unless binding still holds, so binding switched off during the request cannot hand that origin an unbound token.
+    A homeserver that cannot be asked fails that request with a `ConnectionError`, so the Computer panel retries it as it does an unreachable homeserver.
+  - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off, and an unusable deployment value counts as unset.
+  - In a room, each agent opens its own published server (`ComputerAgent.serverUrl`), so a room with agents of two MindRooms opens each one's computer on its own backend; with a configured URL, agents carry none.
+    The Computer action shows only for agents that publish `computer: true`.
+    With a configured URL, an agent whose MindRoom does not publish its server yet keeps the action, as before; while discovering, such an agent has no server to open and gets none.
+  - Settings, General: every origin found gets its own **Open Connections** button with its address beside it, so a hostile agent cannot pass its portal off as the user's own; the Computers field shows the found origin as its placeholder while the setting follows the default.
+  - In the native apps a published `localhost` server is the phone itself, so it is ignored.
+  - The canvas index recorder runs when any of these origins exists, as it did for a configured one.
+- No new catalog keys: the address beside a button and the placeholder are data, not text.
+- Tests: `agentRoomState.test.ts` (self-description, homeserver, left agents), `mindroomServer.test.ts` (origin, computer flag, order, loopback origins), `useMindroomServers.test.tsx` (an agent that moves server and leaves, unrelated state, a retried check, a localhost server in the native apps), `openidAudience.test.ts` (a fresh, uncached check before a published server's token and again after it is issued; none when the homeserver does not bind, says off, stops binding, is unreachable, or errors, the last two as a `ConnectionError`), `ComputerPanel.test.tsx` (a found agent opens its own server after the checks; no token once binding is off), `MindroomConnectionsSettings.test.tsx` (found servers named and labelled, several by address, the configured server winning, a server turned off staying off, the fresh check only for found servers), `MindroomComputerSettings.test.tsx` (the placeholder), `Room.test.ts` (the Computer action with a found server, without binding, without a computer, without publishing, with an unusable deployment URL, a configured URL winning, each found agent's own server, and no computer for a silent agent while discovering), and `MindroomClientNonUIFeatures.test.ts` (the recorder for a found server only while the homeserver binds).
+  Mutation checks failed the matching tests for each of: any state key, any homeserver, left agents kept, a truthy computer flag, oldest first, a loose binding answer, a failed check counted as binding, no fresh check before a token or after it is issued, the card or panel skipping it, the HTTP cache allowed, a failed check kept forever, an unreachable check made final or treated as binding, the panel ignoring the agent's server, the room giving agents no server, binding ignored in the room or globally, the found origin ignored, a turned-off service ignored, an unusable deployment URL blocking discovery, a found server left unnamed or unlabelled, no placeholder, agents without published state hidden with a configured URL or kept while discovering, and a localhost server kept in the native apps.
+- Not caused by this change: `useRoomInputSendSessionController.test.ts` ("restores an already-cleared caption…") and `native/xcodeCloudPostClone.test.ts` also fail on `dev` here.
+
 ### Add a thread's fetched and buffered history to the SDK as history, not live events (2026-10-21)
 
 - Report: opening the iPhone app froze it in a thread for many seconds; the owner thinks this started in the last weeks.

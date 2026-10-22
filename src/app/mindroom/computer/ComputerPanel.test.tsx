@@ -127,6 +127,7 @@ const makeMatrixClient = (userId = '@alice:example.org') =>
   ({
     http: { authedRequest: vi.fn().mockResolvedValue(openIdToken) },
     getSafeUserId: () => userId,
+    getHomeserverUrl: () => 'https://example.org',
     getRoom: () => ({
       getMember: (memberId: string) =>
         memberId === '@mindroom_helper:example.org' ? { rawDisplayName: 'Helper <Bot>' } : null,
@@ -237,6 +238,51 @@ describe('ComputerPanel', () => {
       undefined,
       { 'io.mindroom.audience': 'https://computer.example.org' }
     );
+  });
+
+  const homeserverVersions = (binds: boolean) =>
+    vi.fn(async () =>
+      jsonResponse(200, {
+        versions: ['v1.11'],
+        unstable_features: { 'io.mindroom.openid_audience': binds },
+      })
+    );
+  const foundAgent = {
+    userId: '@mindroom_helper:example.org',
+    name: 'Helper',
+    serverUrl: 'https://found.example.org',
+  };
+
+  it('opens an agent found from its own server there, after the homeserver confirms it binds tokens', async () => {
+    const versions = homeserverVersions(true);
+    vi.stubGlobal('fetch', versions);
+    const mx = makeMatrixClient();
+    const request = createGateway();
+    renderPanel({ mx, request, agents: [foundAgent] });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(vi.mocked(request).mock.calls[0][0]).toBe(
+      'https://found.example.org/api/computers/sessions'
+    );
+    // Once before the token is requested and once after it is issued.
+    expect(versions).toHaveBeenCalledTimes(2);
+    expect(mx.http.authedRequest).toHaveBeenCalledWith(
+      'POST',
+      '/user/%40alice%3Aexample.org/openid/request_token',
+      undefined,
+      { 'io.mindroom.audience': 'https://found.example.org' }
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('gives a found server no token once the homeserver no longer binds tokens', async () => {
+    vi.stubGlobal('fetch', homeserverVersions(false));
+    const mx = makeMatrixClient();
+    const request = createGateway();
+    renderPanel({ mx, request, agents: [foundAgent] });
+    await waitFor(() => expect(container.textContent).toContain('Computer unavailable'));
+    expect(mx.http.authedRequest).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it('preserves the same viewer and human control when another reveal is requested', async () => {
