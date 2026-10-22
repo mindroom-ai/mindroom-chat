@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Enable the computer screen's input only after Take control (2026-10-22)
+
+- Problem: the Computer panel took the session's `mode` from the server unchecked, so a server that answered `control` for a new session got the screen's input enabled and keyboard focus moved into it, without the user pressing Take control.
+  A computer server published by another agent in the room could do this when that agent's `show_computer` notice opened the panel, and the user's next keystrokes went to that server.
+- Fix: `ComputerSessionClient` reports `control` only after its own `take` succeeded; every other status it returns, including the new session's, reads `view`.
+  MindRoom's server starts every session in watch mode, so nothing changes with it.
+- Tests: `api.test.ts` "reports control only after this client took it": a server that always answers `control` reads `view` until `take` and again after `release` (fails without the change).
+
 ### Mark a room unread only for a message, also when the read position is not loaded (2026-10-22)
 
 - Problem: when the user's read position was not in the loaded live timeline, `roomHaveUnread` marked the room unread if any main-timeline event was loaded, not only a message.
