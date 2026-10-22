@@ -71,7 +71,7 @@ function CrossRoomThreadIndexFeature() {
 // notes where an agent showed its computer, which the header's Computer button needs.
 export function CanvasIndexFeature() {
   const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  const computersAvailable = useComputerApiUrls().length > 0;
+  const computersAvailable = useComputerApiUrls().urls.length > 0;
   useCanvasIndexRecorder(useMatrixClient(), canvasesEnabled || computersAvailable);
   return null;
 }

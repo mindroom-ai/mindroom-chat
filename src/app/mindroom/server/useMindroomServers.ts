@@ -1,58 +1,52 @@
 import {
   RoomEvent,
   RoomStateEvent,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
-  type RoomMember,
-  type RoomState,
 } from 'matrix-js-sdk';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useSpecVersions } from '../../hooks/useSpecVersions';
-import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { agentRoomState, useAgentRoomStateVersion } from '../matrix/agentRoomState';
+import { confirmOpenIdBinding } from '../matrix/openidAudience';
 import {
   MINDROOM_SERVER_EVENT,
-  OPENID_AUDIENCE_FEATURE,
   distinctServerUrls,
   selectMindroomServers,
   type MindroomServer,
 } from './mindroomServer';
 
-// An agent whose membership is not loaded yet, as with lazy-loaded members, counts as joined.
 const roomServers = (room: Room): MindroomServer[] =>
-  selectMindroomServers(
-    room.currentState.getStateEvents(MINDROOM_SERVER_EVENT),
-    room.myUserId,
-    (userId) => {
-      const member = room.getMember(userId);
-      return member === null || member.membership === 'join';
-    }
-  );
+  selectMindroomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
 
-/** Whether the homeserver binds OpenID tokens, so Chat may open the origins agents publish. */
-export const useBindsOpenIdTokens = (): boolean =>
-  useSpecVersions().unstable_features?.[OPENID_AUDIENCE_FEATURE] === true;
+// One check per client for what Chat shows; a token for a published origin is only ever requested after a new one.
+const bindingChecks = new WeakMap<MatrixClient, Promise<boolean>>();
+
+/** Whether the homeserver binds OpenID tokens, asked once per client, so Chat may offer the origins agents publish. */
+export const useBindsOpenIdTokens = (): boolean => {
+  const mx = useMatrixClient();
+  const [binds, setBinds] = useState(false);
+  useEffect(() => {
+    let current = true;
+    let check = bindingChecks.get(mx);
+    if (!check) {
+      check = confirmOpenIdBinding(mx);
+      bindingChecks.set(mx, check);
+    }
+    check.then((value) => {
+      if (current) setBinds(value);
+    });
+    return () => {
+      current = false;
+    };
+  }, [mx]);
+  return binds;
+};
 
 /** The servers of the room's agents, read again when one changes or an agent's membership does. */
 export const useRoomMindroomServers = (room: Room): MindroomServer[] => {
-  const [version, refresh] = useForceUpdate();
-  useEffect(() => {
-    const onState = (event: MatrixEvent) => {
-      if (event.getType() === MINDROOM_SERVER_EVENT) refresh();
-    };
-    const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (isMindroomAgentUserIdForViewer(member.userId, room.myUserId)) refresh();
-    };
-    room.on(RoomStateEvent.Events, onState);
-    room.on(RoomStateEvent.Members, onMember);
-    room.on(RoomEvent.CurrentStateUpdated, refresh);
-    return () => {
-      room.removeListener(RoomStateEvent.Events, onState);
-      room.removeListener(RoomStateEvent.Members, onMember);
-      room.removeListener(RoomEvent.CurrentStateUpdated, refresh);
-    };
-  }, [room, refresh]);
+  const version = useAgentRoomStateVersion(room, MINDROOM_SERVER_EVENT);
   return useMemo(() => {
     void version;
     return roomServers(room);
@@ -65,19 +59,16 @@ export const useMindroomServerUrls = (): string[] => {
   const bindsTokens = useBindsOpenIdTokens();
   const [version, refresh] = useForceUpdate();
   useEffect(() => {
-    const viewer = mx.getUserId() ?? undefined;
     const onState = (event: MatrixEvent) => {
       if (event.getType() === MINDROOM_SERVER_EVENT) refresh();
     };
-    const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (isMindroomAgentUserIdForViewer(member.userId, viewer)) refresh();
-    };
+    // Membership changes in any room can change which agents' servers count.
     mx.on(RoomStateEvent.Events, onState);
-    mx.on(RoomStateEvent.Members, onMember);
+    mx.on(RoomStateEvent.Members, refresh);
     mx.on(RoomEvent.MyMembership, refresh);
     return () => {
       mx.removeListener(RoomStateEvent.Events, onState);
-      mx.removeListener(RoomStateEvent.Members, onMember);
+      mx.removeListener(RoomStateEvent.Members, refresh);
       mx.removeListener(RoomEvent.MyMembership, refresh);
     };
   }, [mx, refresh]);

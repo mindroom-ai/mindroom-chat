@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     client: {
       clientRunning: true,
       getSafeUserId: () => '@alice:example.org',
+      getHomeserverUrl: () => 'https://example.org',
       http: { authedRequest },
     },
   };
@@ -155,9 +156,53 @@ describe('connections settings', () => {
     render('');
     expect(openButton().props.disabled).toBeFalsy();
     expect(texts()).not.toContain(NO_BACKEND);
-    expect(texts()).not.toContain('http://localhost:8765');
+    // A found server is named, so a hostile agent cannot pass its portal off as the user's own.
+    expect(texts()).toContain('http://localhost:8765');
     click();
     expect(mocks.openConnectionsPortal.mock.calls[0][0].backendUrl).toBe('http://localhost:8765');
+  });
+
+  it.each([
+    [true, 1],
+    [false, 0],
+  ])(
+    'asks the homeserver afresh before a token for a found server (binds: %s)',
+    async (binds, requests) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                versions: ['v1.11'],
+                unstable_features: { 'io.mindroom.openid_audience': binds },
+              }),
+              { status: 200 }
+            )
+        )
+      );
+      mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
+      mocks.discoveredUrls = ['http://localhost:8765'];
+      render('');
+      click();
+      const token =
+        mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('http://localhost:8765');
+      if (binds) await expect(token).resolves.toEqual({ access_token: 'openid-token' });
+      else await expect(token).rejects.toThrow('does not bind sign-in tokens');
+      expect(mocks.authedRequest).toHaveBeenCalledTimes(requests);
+      vi.unstubAllGlobals();
+    }
+  );
+
+  it('asks nothing extra before a token for a configured server', async () => {
+    const versions = vi.fn();
+    vi.stubGlobal('fetch', versions);
+    mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
+    render('https://backend.example');
+    click();
+    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('https://backend.example');
+    expect(versions).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it('offers each published server by its address when the agents come from several', () => {

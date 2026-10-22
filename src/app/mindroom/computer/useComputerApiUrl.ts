@@ -16,11 +16,14 @@ export const useComputerApiUrl = (discoveredUrl?: string): string | undefined =>
   return resolveComputerServiceUrl(preference, config.mindroom?.computers?.apiUrl || discoveredUrl);
 };
 
-/** Every MindRoom server to offer outside a room: the configured one, else each one agents published. */
-export const useComputerApiUrls = (): string[] => {
-  const discovered = useMindroomServerUrls();
+/**
+ * Every MindRoom server to offer outside a room: the configured one, else each one agents published,
+ * which `discovered` marks so a token for one is requested only after the homeserver confirms binding.
+ */
+export const useComputerApiUrls = (): { urls: string[]; discovered: boolean } => {
+  const discoveredUrls = useMindroomServerUrls();
   const preference = useAtomValue(computerServicePreferenceAtom);
   const configured = useComputerApiUrl();
-  if (configured) return [configured];
-  return preference === null ? discovered : [];
+  if (configured) return { urls: [configured], discovered: false };
+  return { urls: preference === null ? discoveredUrls : [], discovered: true };
 };

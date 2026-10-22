@@ -82,7 +82,10 @@ export function Room() {
   const roomServerUrl = bindsTokens
     ? (servers.find((server) => server.computer) ?? servers[0])?.apiUrl
     : undefined;
+  const configuredApiUrl = useComputerApiUrl();
   const computerApiUrl = useComputerApiUrl(roomServerUrl);
+  // Found servers apply per agent, so a room with agents of two MindRooms opens each one's own.
+  const discovering = !configuredApiUrl && computerApiUrl !== undefined;
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
   const canvasLibraries = clientConfig.mindroom?.canvas?.libraries === true;
   const computerAgents = useMemo<ComputerAgent[]>(
@@ -98,8 +101,11 @@ export function Room() {
         .map((member) => ({
           userId: member.userId,
           name: member.name?.trim() || member.userId,
+          serverUrl: discovering
+            ? servers.find((server) => server.agentUserId === member.userId)?.apiUrl
+            : undefined,
         })),
-    [members, servers]
+    [members, servers, discovering]
   );
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();

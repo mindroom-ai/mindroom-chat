@@ -12,7 +12,7 @@ import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 export function MindroomConnectionsSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const backendUrls = useComputerApiUrls();
+  const { urls: backendUrls, discovered } = useComputerApiUrls();
   const [blocked, setBlocked] = useState(false);
 
   // The native shells have no pop-up window to hand a token to.
@@ -25,7 +25,9 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
       getOpenIdToken: async (audience) => {
         // An account switch stops this client but not the portal session, so a stopped client never answers.
         if (!mx.clientRunning) throw new Error('Matrix client stopped');
-        const token = await requestAudienceOpenIdToken(mx, audience);
+        const token = await requestAudienceOpenIdToken(mx, audience, {
+          requireBinding: discovered,
+        });
         if (!mx.clientRunning) throw new Error('Matrix client stopped');
         return token;
       },
@@ -42,7 +44,7 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
           description={t('settings.general.connections.description')}
         >
           <Box direction="Column" gap="200">
-            {/* Several servers, as when the user's rooms hold agents of two MindRooms, are told apart by address. */}
+            {/* A found server is named, so the user sees where the portal opens before signing in there. */}
             {(backendUrls.length > 0 ? backendUrls : [undefined]).map((backendUrl) => (
               <Box key={backendUrl ?? 'none'} gap="200" wrap="Wrap" alignItems="Center">
                 <Button
@@ -56,7 +58,7 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
                 >
                   <Text size="B300">{t('settings.general.connections.open')}</Text>
                 </Button>
-                {backendUrl && backendUrls.length > 1 && <Text size="T200">{backendUrl}</Text>}
+                {backendUrl && discovered && <Text size="T200">{backendUrl}</Text>}
               </Box>
             ))}
             {backendUrls.length === 0 && (

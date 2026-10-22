@@ -168,6 +168,9 @@ export function ComputerPanel({
     [activeAgentId, agents, requestedAgent]
   );
   const selectedAgentUserId = selectedAgent?.userId;
+  // A server found from the agent itself must be trusted afresh before it gets a token.
+  const agentServerUrl = selectedAgent?.serverUrl;
+  const sessionApiUrl = agentServerUrl ?? apiUrl;
 
   useEffect(() => {
     onInteractionChange?.({
@@ -256,10 +259,12 @@ export function ComputerPanel({
       const startedAt = Date.now();
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const openIdToken = await requestAudienceOpenIdToken(mx, apiUrl);
+          const openIdToken = await requestAudienceOpenIdToken(mx, sessionApiUrl, {
+            requireBinding: agentServerUrl !== undefined,
+          });
           if (lifecycleRef.current !== lifecycle) return undefined;
           return await createComputerSession({
-            apiUrl,
+            apiUrl: sessionApiUrl,
             agentUserId: selectedAgentUserId,
             openIdToken,
             request,
@@ -322,7 +327,7 @@ export function ComputerPanel({
       if (sessionRef.current === createdSession) sessionRef.current = undefined;
     };
   }, [
-    apiUrl,
+    agentServerUrl,
     connectStream,
     disposeSession,
     mx,
@@ -330,6 +335,7 @@ export function ComputerPanel({
     restart,
     roomId,
     selectedAgentUserId,
+    sessionApiUrl,
     threadId,
   ]);
 

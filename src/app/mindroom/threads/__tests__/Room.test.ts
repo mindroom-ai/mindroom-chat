@@ -455,6 +455,29 @@ describe('Room', () => {
       expect(await computerAvailable()).toBe(false);
     });
 
+    it('gives each found agent its own server, and configured servers to none', async () => {
+      const other = '@mindroom_other:example.org';
+      roomState.bindsOpenIdTokens = true;
+      roomState.mindroomServers = [
+        server(true),
+        { agentUserId: other, apiUrl: 'https://other.example.org', computer: true, ts: 2 },
+      ];
+      roomState.members = [
+        { membership: 'join', userId: helper },
+        { membership: 'join', userId: other },
+        { membership: 'join', userId: '@alice:example.org' },
+      ];
+      const { Room } = await import('../../../features/room/Room');
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      expect(roomState.computerPanelProps?.agents.map((agent) => agent.serverUrl)).toEqual([
+        'http://localhost:8765',
+        'https://other.example.org',
+      ]);
+    });
+
     it('keeps the action for an agent whose MindRoom does not publish its server yet', async () => {
       roomState.clientConfig = configured;
       expect(await computerAvailable()).toBe(true);

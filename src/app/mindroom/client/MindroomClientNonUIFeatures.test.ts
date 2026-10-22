@@ -10,7 +10,6 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
-import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { createSessionId } from '../../state/sessions';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { Membership } from '../../../types/matrix/room';
@@ -392,6 +391,19 @@ describe('CanvasIndexFeature', () => {
 
   // Canvases are off in every case; only the computer service differs.
   const recordNoticeWith = async (mindroom: ClientConfig['mindroom'], bindsTokens = false) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              versions: ['v1.11'],
+              unstable_features: { 'io.mindroom.openid_audience': bindsTokens },
+            }),
+            { status: 200 }
+          )
+      )
+    );
     const mx = createClient();
     let renderer: ReactTestRenderer | undefined;
     await act(async () => {
@@ -403,28 +415,24 @@ describe('CanvasIndexFeature', () => {
             ClientConfigProvider,
             { value: { mindroom } },
             React.createElement(
-              SpecVersionsProvider,
-              {
-                value: {
-                  versions: [],
-                  unstable_features: { 'io.mindroom.openid_audience': bindsTokens },
-                },
-              },
-              React.createElement(
-                MatrixClientProvider,
-                { value: mx },
-                React.createElement(CanvasIndexFeature)
-              )
+              MatrixClientProvider,
+              { value: mx },
+              React.createElement(CanvasIndexFeature)
             )
           )
         )
       );
+    });
+    // The homeserver's binding answer arrives after the first render.
+    await act(async () => {
+      await settle();
     });
     mx.emit(ClientEvent.Event, showComputerNotice());
     await settle();
     await act(async () => {
       renderer?.unmount();
     });
+    vi.unstubAllGlobals();
     return isComputerShown(SESSION, ROOM_ID, '$thread');
   };
 
