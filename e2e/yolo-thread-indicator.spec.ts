@@ -205,32 +205,36 @@ test('the thread header says whose YOLO window is open there, until when', async
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // A phone held sideways puts the chips beside the title, which MindRoom usually sets, and moves the title below
-  // them when too little room is left, so neither is squeezed and the chips stay clear of the thread actions.
-  await matrixFetch(
-    homeserver!,
-    `/rooms/${encodeURIComponent(fixture.roomId)}/send/m.room.message/summary-${suffix}`,
-    {
-      method: 'PUT',
-      accessToken: router.access_token,
-      body: JSON.stringify({
-        msgtype: 'm.notice',
-        body: 'Release notes drafted and the build tag prepared for review',
-        'io.mindroom.thread_summary': {
-          version: 1,
-          summary: 'Release notes drafted and the build tag prepared for review',
-          generated_at: new Date().toISOString(),
-          message_count: 2,
-        },
-        'm.relates_to': {
-          rel_type: 'm.thread',
-          event_id: fixture.rootId,
-          is_falling_back: true,
-          'm.in_reply_to': { event_id: fixture.rootId },
-        },
-      }),
-    }
-  );
+  // MindRoom usually titles a thread with a summary.
+  const summarize = (summary: string) =>
+    matrixFetch(
+      homeserver!,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/send/m.room.message/${randomUUID()}`,
+      {
+        method: 'PUT',
+        accessToken: router.access_token,
+        body: JSON.stringify({
+          msgtype: 'm.notice',
+          body: summary,
+          'io.mindroom.thread_summary': {
+            version: 1,
+            summary,
+            generated_at: new Date().toISOString(),
+            message_count: 2,
+          },
+          'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: fixture.rootId,
+            is_falling_back: true,
+            'm.in_reply_to': { event_id: fixture.rootId },
+          },
+        }),
+      }
+    );
+
+  // A phone held sideways puts the chips beside the title and moves the title below them when too little room is
+  // left, so neither is squeezed and the chips stay clear of the thread actions.
+  await summarize('Release notes drafted and the build tag prepared for review');
   const sideways = await browser.newContext({
     viewport: { width: 667, height: 375 },
     hasTouch: true,
@@ -270,6 +274,17 @@ test('the thread header says whose YOLO window is open there, until when', async
     expect((await sidewaysTitle.boundingBox())?.width ?? 0).toBeGreaterThan(80);
     await landscape.screenshot({ path: testInfo.outputPath(`phone-landscape-${width}-light.png`) });
   }
+  // A short title that fits beside the remaining chip stays on its line.
+  await publish([]);
+  await summarize('Ship it');
+  const shortTitle = sidewaysBanner.getByText('Ship it', { exact: true });
+  await expect(shortTitle).toBeVisible();
+  await expect(sidewaysBanner.getByText(/^YOLO/)).toHaveCount(0);
+  const middle = async (locator: typeof shortTitle) => {
+    const box = await locator.boundingBox();
+    return box ? box.y + box.height / 2 : Number.NaN;
+  };
+  expect(Math.abs((await middle(shortTitle)) - (await middle(sidewaysChips[2])))).toBeLessThan(4);
   await sideways.close();
 
   // A window that ends goes away on its own, and `!yolo off` clears the state.
