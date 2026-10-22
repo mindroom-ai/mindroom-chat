@@ -3078,6 +3078,12 @@
       "stopFailed": "Kon {{tool}} niet stoppen. Probeer het opnieuw.",
       "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"
+    },
+    "yolo": {
+      "ownLabel": "YOLO tot {{time}}",
+      "otherLabel": "YOLO voor {{name}} tot {{time}}",
+      "ownDetail": "Je toolaanroepen in deze thread lopen tot {{time}} zonder goedkeuring. Stuur !yolo off om dit te beëindigen.",
+      "otherDetail": "Toolaanroepen die {{name}} in deze thread vraagt, lopen tot {{time}} zonder goedkeuring."
     }
   },
   "roomSchedules": {

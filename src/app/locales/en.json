@@ -3078,6 +3078,12 @@
       "stopFailed": "Could not stop {{tool}}. Try again.",
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"
+    },
+    "yolo": {
+      "ownLabel": "YOLO until {{time}}",
+      "otherLabel": "YOLO for {{name}} until {{time}}",
+      "ownDetail": "Your tool calls in this thread run without approval until {{time}}. Send !yolo off to end it.",
+      "otherDetail": "Tool calls {{name}} requests in this thread run without approval until {{time}}."
     }
   },
   "roomSchedules": {

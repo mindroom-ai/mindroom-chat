@@ -1,5 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { fromJoinedAgents } from '../matrix/agentIdentity';
 
 /** Each MindRoom agent's live background jobs in a room, as state keyed by the agent's own user ID. */
 export const MINDROOM_BACKGROUND_JOBS_EVENT = 'io.mindroom.background_jobs';
@@ -58,11 +58,7 @@ export const selectBackgroundJobs = (
   viewerUserId: string | undefined,
   isJoined: (userId: string) => boolean
 ): BackgroundJob[] =>
-  events
-    .filter((event) => {
-      const sender = event.getSender();
-      return !!sender && isMindroomAgentUserIdForViewer(sender, viewerUserId) && isJoined(sender);
-    })
+  fromJoinedAgents(events, viewerUserId, isJoined)
     .flatMap(parseBackgroundJobsStateEvent)
     .sort((a, b) => byCodePoint(a.startedAt, b.startedAt) || byCodePoint(a.jobId, b.jobId));
 

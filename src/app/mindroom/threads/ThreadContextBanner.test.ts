@@ -32,6 +32,10 @@ vi.mock('./ThreadActionsMenu', () => ({
 vi.mock('../messages/ThreadApprovalControls', () => ({
   ThreadApprovalPermissions: () => React.createElement('b', { 'data-approvals': 'true' }),
 }));
+vi.mock('../yolo/YoloWindowChips', () => ({
+  YoloWindowChips: ({ threadId }: { threadId: string }) =>
+    React.createElement('i', { 'data-yolo': threadId }),
+}));
 
 // The optical glass needs a real DOM node; pass the banner's own ref through.
 vi.mock('../../components/glass/liquid/useLiquidGlass', () => ({
@@ -717,6 +721,8 @@ describe('ThreadContextBanner rendering', () => {
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
     expect(buttons(renderer)).toEqual(['Back to room', 'Show thread details']);
     expect(renderer.root.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
+    // An open YOLO window stays in view with the thread's own ID.
+    expect(renderer.root.findAllByProps({ 'data-yolo': '$root' })).toHaveLength(1);
     expect(JSON.stringify(renderer.toJSON())).not.toContain('A concise thread summary');
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
     // Hide unmounted with the menu; focus moves to the button that undoes it.

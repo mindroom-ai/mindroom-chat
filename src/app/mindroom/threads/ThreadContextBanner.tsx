@@ -30,6 +30,7 @@ import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
+import { YoloWindowChips } from '../yolo/YoloWindowChips';
 import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import { useSetting } from '../../state/hooks/settings';
@@ -299,9 +300,10 @@ export function ThreadContextBanner({
       >
         {collapsed ? (
           // Collapsed to back and Show details; the tint still says resolved, and
-          // an active permissions grant stays in view.
+          // an open YOLO window and an active permissions grant stay in view.
           <Box alignItems="Center" gap="100">
             {backButton}
+            <YoloWindowChips room={room} threadId={threadId} />
             <ThreadApprovalPermissions />
             <IconTooltip label={t('thread.showDetails')}>
               {(triggerRef) => (
@@ -331,6 +333,7 @@ export function ThreadContextBanner({
                   </Text>
                 )}
                 {/* Desktop: tags inline on title row */}
+                <YoloWindowChips room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
                 {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (

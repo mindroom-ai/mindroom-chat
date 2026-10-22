@@ -3066,6 +3066,12 @@
       "stopFailed": "{{tool}}을(를) 중지하지 못했습니다. 다시 시도하세요.",
       "stopAllFailed": "백그라운드 작업을 중지하지 못했습니다. 다시 시도하세요.",
       "inRoom": "백그라운드 작업 실행 중"
+    },
+    "yolo": {
+      "ownLabel": "{{time}}까지 YOLO",
+      "otherLabel": "{{name}}님의 YOLO ({{time}}까지)",
+      "ownDetail": "{{time}}까지 이 스레드에서 내 도구 호출은 승인 없이 실행됩니다. 끝내려면 !yolo off를 보내세요.",
+      "otherDetail": "{{time}}까지 이 스레드에서 {{name}}님이 요청한 도구 호출은 승인 없이 실행됩니다."
     }
   },
   "roomSchedules": {

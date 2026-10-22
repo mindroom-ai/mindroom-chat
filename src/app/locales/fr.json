@@ -3144,6 +3144,12 @@
       "stopFailed": "Impossible d’arrêter {{tool}}. Réessayez.",
       "stopAllFailed": "Impossible d’arrêter les tâches en arrière-plan. Réessayez.",
       "inRoom": "Tâches en arrière-plan en cours"
+    },
+    "yolo": {
+      "ownLabel": "YOLO jusqu’à {{time}}",
+      "otherLabel": "YOLO pour {{name}} jusqu’à {{time}}",
+      "ownDetail": "Vos appels d’outils dans ce fil s’exécutent sans approbation jusqu’à {{time}}. Envoyez !yolo off pour y mettre fin.",
+      "otherDetail": "Les appels d’outils que {{name}} demande dans ce fil s’exécutent sans approbation jusqu’à {{time}}."
     }
   },
   "roomSchedules": {

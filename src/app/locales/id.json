@@ -3066,6 +3066,12 @@
       "stopFailed": "Tidak dapat menghentikan {{tool}}. Coba lagi.",
       "stopAllFailed": "Tidak dapat menghentikan tugas latar belakang. Coba lagi.",
       "inRoom": "Tugas latar belakang sedang berjalan"
+    },
+    "yolo": {
+      "ownLabel": "YOLO hingga {{time}}",
+      "otherLabel": "YOLO untuk {{name}} hingga {{time}}",
+      "ownDetail": "Panggilan alat Anda di utas ini berjalan tanpa persetujuan hingga {{time}}. Kirim !yolo off untuk mengakhirinya.",
+      "otherDetail": "Panggilan alat yang diminta {{name}} di utas ini berjalan tanpa persetujuan hingga {{time}}."
     }
   },
   "roomSchedules": {

@@ -3144,6 +3144,12 @@
       "stopFailed": "Impossibile interrompere {{tool}}. Riprova.",
       "stopAllFailed": "Impossibile interrompere le attività in background. Riprova.",
       "inRoom": "Attività in background in corso"
+    },
+    "yolo": {
+      "ownLabel": "YOLO fino alle {{time}}",
+      "otherLabel": "YOLO per {{name}} fino alle {{time}}",
+      "ownDetail": "Le tue chiamate agli strumenti in questo thread vengono eseguite senza approvazione fino alle {{time}}. Invia !yolo off per terminare.",
+      "otherDetail": "Le chiamate agli strumenti che {{name}} richiede in questo thread vengono eseguite senza approvazione fino alle {{time}}."
     }
   },
   "roomSchedules": {

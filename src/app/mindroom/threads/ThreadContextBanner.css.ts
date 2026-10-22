@@ -33,17 +33,6 @@ export const Banner = style([
   glassFloating,
 ]);
 
-// "Thread View" is chrome, not content: it says the same thing on every
-// thread the user opens, so it shows only while the thread has no title. It
-// uses the same uppercase/12px/W500 treatment the sidebar category headers and
-// the SHOW MORE pill already use for that role.
-export const ViewLabel = style({
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  fontWeight: config.fontWeight.W500,
-  whiteSpace: 'nowrap',
-});
-
 // Back, title and actions; narrow screens add the tags as a second row.
 export const TitleRow = style({
   display: 'grid',
@@ -60,6 +49,27 @@ export const EyebrowRow = style({
   '@media': {
     [shortViewport]: {
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
+    },
+  },
+});
+
+// Where the title column is narrow (phones, tablets with the room list), a
+// byline or a status chip would squeeze the rest to an ellipsis.
+const narrowTitle = '(max-width: 26rem)';
+
+// "Thread View" is chrome, not content: it says the same thing on every
+// thread the user opens, so it shows only while the thread has no title, and
+// gives way to a status chip, such as an open YOLO window, in a narrow header.
+// It uses the same uppercase/12px/W500 treatment the sidebar category headers
+// and the SHOW MORE pill already use for that role.
+export const ViewLabel = style({
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontWeight: config.fontWeight.W500,
+  whiteSpace: 'nowrap',
+  '@container': {
+    [narrowTitle]: {
+      selectors: { [`${EyebrowRow}:has(> [data-thread-status-chip]) > &`]: { display: 'none' } },
     },
   },
 });
@@ -123,7 +133,6 @@ export const SubtitleRow = style({
 // the chip it made that column taller than the buttons beside it. Where the
 // title column is narrow (phones, tablets with the room list) the byline would
 // squeeze the title to an ellipsis, so it takes a line of its own there.
-const narrowTitle = '(max-width: 26rem)';
 export const ResolutionByline = style({
   display: 'inline-flex',
   minWidth: 0,

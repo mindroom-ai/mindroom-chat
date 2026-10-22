@@ -1,4 +1,4 @@
-import { KnownMembership, type RoomMember } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixEvent, type RoomMember } from 'matrix-js-sdk';
 import { getMxIdLocalPart, getMxIdServer } from '../../utils/matrix';
 import { AI_RUN_METADATA_KEY } from '../messages/aiRun';
 
@@ -51,6 +51,20 @@ export const isMindroomAgentUserIdForViewer = (
   const viewerServer = getMxIdServer(viewerUserId);
   return !!targetServer && targetServer === viewerServer;
 };
+
+/**
+ * State events of one type that MindRoom accounts on the viewer's homeserver publish, from accounts still in the
+ * room; one known to have left cannot clear its state, so its last event is ignored.
+ */
+export const fromJoinedAgents = (
+  events: readonly MatrixEvent[],
+  viewerUserId: string | undefined,
+  isJoined: (userId: string) => boolean
+): MatrixEvent[] =>
+  events.filter((event) => {
+    const sender = event.getSender();
+    return !!sender && isMindroomAgentUserIdForViewer(sender, viewerUserId) && isJoined(sender);
+  });
 
 const hasAgentContentKey = (content: Record<string, unknown>): boolean =>
   AGENT_CONTENT_KEYS.some((key) => content[key] !== undefined);

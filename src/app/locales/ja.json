@@ -3066,6 +3066,12 @@
       "stopFailed": "{{tool}} を停止できませんでした。もう一度お試しください。",
       "stopAllFailed": "バックグラウンドジョブを停止できませんでした。もう一度お試しください。",
       "inRoom": "バックグラウンドジョブを実行中"
+    },
+    "yolo": {
+      "ownLabel": "{{time}} まで YOLO",
+      "otherLabel": "{{name}} の YOLO（{{time}} まで）",
+      "ownDetail": "{{time}} まで、このスレッドでのあなたのツール呼び出しは承認なしで実行されます。終了するには !yolo off を送信してください。",
+      "otherDetail": "{{time}} まで、このスレッドで {{name}} が依頼したツール呼び出しは承認なしで実行されます。"
     }
   },
   "roomSchedules": {

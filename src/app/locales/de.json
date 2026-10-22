@@ -3078,6 +3078,12 @@
       "stopFailed": "{{tool}} konnte nicht gestoppt werden. Versuche es erneut.",
       "stopAllFailed": "Die Hintergrundaufgaben konnten nicht gestoppt werden. Versuche es erneut.",
       "inRoom": "Hintergrundaufgaben laufen"
+    },
+    "yolo": {
+      "ownLabel": "YOLO bis {{time}}",
+      "otherLabel": "YOLO für {{name}} bis {{time}}",
+      "ownDetail": "Deine Tool-Aufrufe in diesem Thread laufen bis {{time}} ohne Freigabe. Sende !yolo off, um das zu beenden.",
+      "otherDetail": "Tool-Aufrufe, die {{name}} in diesem Thread anfordert, laufen bis {{time}} ohne Freigabe."
     }
   },
   "roomSchedules": {
