@@ -19,9 +19,18 @@ export const readOpenIdBinding = (mx: MatrixClient): Promise<boolean | undefined
     () => undefined
   );
 
+const assertBinding = async (mx: MatrixClient): Promise<void> => {
+  const binds = await readOpenIdBinding(mx);
+  if (binds === undefined)
+    throw new ConnectionError('The homeserver could not be asked whether it binds sign-in tokens.');
+  if (!binds)
+    throw new Error('The homeserver does not bind sign-in tokens, so this server is not trusted.');
+};
+
 /**
  * Request a token bound to `audience`. With `requireBinding`, as for an origin an agent published,
- * it is requested only after the homeserver confirms it binds tokens, so it is useless anywhere else.
+ * the homeserver must confirm it binds tokens both before the token is requested and after it is
+ * issued, so a binding switched off in between cannot hand that origin an unbound token.
  * A homeserver that cannot be asked fails like any unreachable homeserver, so callers may retry.
  */
 export const requestAudienceOpenIdToken = async (
@@ -29,21 +38,13 @@ export const requestAudienceOpenIdToken = async (
   audience: string,
   { requireBinding = false }: { requireBinding?: boolean } = {}
 ): Promise<IOpenIDToken> => {
-  if (requireBinding) {
-    const binds = await readOpenIdBinding(mx);
-    if (binds === undefined)
-      throw new ConnectionError(
-        'The homeserver could not be asked whether it binds sign-in tokens.'
-      );
-    if (!binds)
-      throw new Error(
-        'The homeserver does not bind sign-in tokens, so this server is not trusted.'
-      );
-  }
-  return mx.http.authedRequest<IOpenIDToken>(
+  if (requireBinding) await assertBinding(mx);
+  const token = await mx.http.authedRequest<IOpenIDToken>(
     Method.Post,
     `/user/${encodeURIComponent(mx.getSafeUserId())}/openid/request_token`,
     undefined,
     { [OPENID_AUDIENCE_FIELD]: audience }
   );
+  if (requireBinding) await assertBinding(mx);
+  return token;
 };

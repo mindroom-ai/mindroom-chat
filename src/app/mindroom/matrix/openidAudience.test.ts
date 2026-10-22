@@ -19,12 +19,13 @@ const makeClient = (userId = '@alice:example.org') => {
   return { mx, authedRequest };
 };
 
+// Every request gets a fresh response, since a body can be read only once.
 const answerVersions = (response: Response | Error) =>
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
       if (response instanceof Error) throw response;
-      return response;
+      return response.clone();
     })
   );
 const versions = (unstableFeatures: Record<string, boolean>) =>
@@ -78,6 +79,34 @@ describe('requestAudienceOpenIdToken', () => {
         (error: Error) => error instanceof ConnectionError === (errorType === ConnectionError)
       );
       expect(authedRequest).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    }
+  );
+
+  it.each([
+    ['stops binding', versions({}), Error],
+    ['cannot be asked again', new Error('offline'), ConnectionError],
+  ])(
+    'returns no token for a published server when the homeserver %s after issuing it',
+    async (_case, afterIssue, errorType) => {
+      const { mx, authedRequest } = makeClient();
+      const answers = [versions({ 'io.mindroom.openid_audience': true }), afterIssue];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          const answer = answers.shift()!;
+          if (answer instanceof Error) throw answer;
+          return answer;
+        })
+      );
+      const request = requestAudienceOpenIdToken(mx, 'https://found.example', {
+        requireBinding: true,
+      });
+      await expect(request).rejects.toThrow(errorType);
+      await expect(request).rejects.toSatisfy(
+        (error: Error) => error instanceof ConnectionError === (errorType === ConnectionError)
+      );
+      expect(authedRequest).toHaveBeenCalledTimes(1);
       vi.unstubAllGlobals();
     }
   );

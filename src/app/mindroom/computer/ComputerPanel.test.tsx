@@ -263,7 +263,8 @@ describe('ComputerPanel', () => {
     expect(vi.mocked(request).mock.calls[0][0]).toBe(
       'https://found.example.org/api/computers/sessions'
     );
-    expect(versions).toHaveBeenCalledTimes(1);
+    // Once before the token is requested and once after it is issued.
+    expect(versions).toHaveBeenCalledTimes(2);
     expect(mx.http.authedRequest).toHaveBeenCalledWith(
       'POST',
       '/user/%40alice%3Aexample.org/openid/request_token',

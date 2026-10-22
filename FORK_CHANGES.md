@@ -17,6 +17,7 @@
     Whether to offer one is asked of the homeserver once per client (`readOpenIdBinding` from `useBindsOpenIdTokens`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback.
     A check that could not reach the homeserver is asked again on the next mount, and the check bypasses the HTTP cache.
     A token for a published origin is requested only after a new check (`requestAudienceOpenIdToken(..., { requireBinding: true })`), by the Connections card and the Computer panel, so a homeserver that stopped binding gets no token sent there.
+    The check runs again after the token is issued, and the token is dropped unless binding still holds, so binding switched off during the request cannot hand that origin an unbound token.
     A homeserver that cannot be asked fails that request with a `ConnectionError`, so the Computer panel retries it as it does an unreachable homeserver.
   - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off, and an unusable deployment value counts as unset.
   - In a room, each agent opens its own published server (`ComputerAgent.serverUrl`), so a room with agents of two MindRooms opens each one's computer on its own backend; with a configured URL, agents carry none.
