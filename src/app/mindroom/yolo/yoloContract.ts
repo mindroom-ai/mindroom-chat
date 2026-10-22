@@ -1,5 +1,4 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { fromJoinedAgents } from '../matrix/agentIdentity';
 
 /** The room's open `!yolo` windows, as state the MindRoom router keys by its own user ID. */
 export const MINDROOM_YOLO_EVENT = 'io.mindroom.yolo';
@@ -36,12 +35,9 @@ export const parseYoloStateEvent = (event: MatrixEvent): YoloWindow[] => {
   return windows.flatMap((value) => parseWindow(value) ?? []);
 };
 
-/** Every window of the room, from MindRoom accounts still in it. */
-export const selectYoloWindows = (
-  events: MatrixEvent[],
-  viewerUserId: string | undefined,
-  isJoined: (userId: string) => boolean
-): YoloWindow[] => fromJoinedAgents(events, viewerUserId, isJoined).flatMap(parseYoloStateEvent);
+/** Every window the room's MindRoom router publishes. */
+export const selectYoloWindows = (events: MatrixEvent[]): YoloWindow[] =>
+  events.flatMap(parseYoloStateEvent);
 
 /** The windows still open in one thread, the earliest-ending first. */
 export const openYoloWindowsInThread = (

@@ -7,8 +7,14 @@ import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from './he
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
+// The header names the end in the default 12-hour clock, with the day when it is not today.
 const clock = (timestamp: number) =>
-  new Date(timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+  new Date(timestamp).toLocaleString('en', {
+    weekday: new Date(timestamp).toDateString() === new Date().toDateString() ? undefined : 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 
 test('the thread header says whose YOLO window is open there, until when', async ({
   page,
@@ -115,17 +121,84 @@ test('the thread header says whose YOLO window is open there, until when', async
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
-  // On a phone, the chip stays in the header in light and dark.
-  await publish([{ threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: ownEnd }]);
-  await expect(banner.getByText(/^YOLO/)).toHaveCount(1);
+  // On a phone, the viewer's window, a colleague's, and an active permission share the header: each takes its
+  // own line rather than hiding another, none runs under the thread actions, and the viewer's end time is shown in
+  // full; a long name may end in an ellipsis, with the whole text in its title.
+  const grantEnd = new Date(Date.now() + 10 * 60_000).toISOString();
+  await matrixFetch(
+    homeserver!,
+    `/rooms/${encodeURIComponent(fixture.roomId)}/send/io.mindroom.tool_approval/grant-${suffix}`,
+    {
+      method: 'PUT',
+      accessToken: router.access_token,
+      body: JSON.stringify({
+        msgtype: 'io.mindroom.tool_approval',
+        body: 'Approved: save_note',
+        approval_id: `grant-${suffix}`,
+        tool_name: 'save_note',
+        agent_name: 'assistant',
+        status: 'approved',
+        approvable: true,
+        approver_user_id: viewer.user_id,
+        requester_id: viewer.user_id,
+        arguments: { title: 'Release notes' },
+        requested_at: new Date().toISOString(),
+        expires_at: grantEnd,
+        resolved_at: new Date().toISOString(),
+        resolved_by: viewer.user_id,
+        auto_approval: { grant_id: `grant-${suffix}`, expires_at: grantEnd, revoked_at: null },
+        thread_id: fixture.rootId,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: fixture.rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: fixture.rootId },
+        },
+      }),
+    }
+  );
+  const permissions = banner.getByRole('button', { name: '1 active permission', exact: true });
+  const options = banner.getByRole('button', { name: 'Thread options', exact: true });
+  const show = banner.getByRole('button', { name: 'Show thread details', exact: true });
+  const fullText = (chip: typeof own) =>
+    chip.evaluate((node) => node.scrollWidth <= node.clientWidth);
+  const leftOf = async (chip: typeof own, control: typeof own) => {
+    const [chipBox, controlBox] = [await chip.boundingBox(), await control.boundingBox()];
+    return !!chipBox && !!controlBox && chipBox.x + chipBox.width <= controlBox.x;
+  };
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(own).toBeVisible();
-  // The repeated "Thread View" label gives way, so the end time is not cut short.
+  await expect(permissions).toBeVisible();
+  // The repeated "Thread View" label gives way to the status chips.
   await expect(banner.getByText('Thread View', { exact: true })).toBeHidden();
-  expect(await own.evaluate((chip) => chip.scrollWidth <= chip.clientWidth)).toBe(true);
+  for (const chip of [own, theirs, permissions]) {
+    await expect(chip).toBeVisible();
+    expect(await leftOf(chip, options)).toBe(true);
+  }
+  expect(await fullText(own)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('phone-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
+
+  // Collapsed, the chips stay between Back and Show details, which stays on screen.
+  await options.click();
+  await page.getByRole('menuitem', { name: 'Hide thread details' }).click();
+  await expect(show).toBeInViewport();
+  for (const chip of [own, theirs, permissions]) {
+    await expect(chip).toBeVisible();
+    expect(await leftOf(chip, show)).toBe(true);
+  }
+  expect(await fullText(own)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('phone-collapsed-light.png') });
+
+  // On the narrowest phones, neither layout pushes a control off screen or under a chip.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(show).toBeInViewport();
+  for (const chip of [own, theirs, permissions]) expect(await leftOf(chip, show)).toBe(true);
+  await show.click();
+  await expect(options).toBeInViewport();
+  for (const chip of [own, theirs, permissions]) expect(await leftOf(chip, options)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
 
   // A window that ends goes away on its own, and `!yolo off` clears the state.
   const shortEnd = Date.now() + 5_000;

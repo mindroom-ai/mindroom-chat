@@ -168,6 +168,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ResolvedButton: 'ResolvedButton',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
+  StatusChips: 'StatusChips',
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
   SummaryTextChanged: 'SummaryTextChanged',

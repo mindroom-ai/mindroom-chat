@@ -1,5 +1,4 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { fromJoinedAgents } from '../matrix/agentIdentity';
 
 /** Each MindRoom agent's live background jobs in a room, as state keyed by the agent's own user ID. */
 export const MINDROOM_BACKGROUND_JOBS_EVENT = 'io.mindroom.background_jobs';
@@ -49,16 +48,9 @@ const byCodePoint = (a: string, b: string): number => {
   return a > b ? 1 : 0;
 };
 
-/**
- * Every job of the room, oldest first. Only MindRoom agents on the viewer's homeserver that are still
- * in the room publish jobs; an agent known to have left cannot clear its state, so its last list is ignored.
- */
-export const selectBackgroundJobs = (
-  events: MatrixEvent[],
-  viewerUserId: string | undefined,
-  isJoined: (userId: string) => boolean
-): BackgroundJob[] =>
-  fromJoinedAgents(events, viewerUserId, isJoined)
+/** Every job the room's agents publish, oldest first. */
+export const selectBackgroundJobs = (events: MatrixEvent[]): BackgroundJob[] =>
+  events
     .flatMap(parseBackgroundJobsStateEvent)
     .sort((a, b) => byCodePoint(a.startedAt, b.startedAt) || byCodePoint(a.jobId, b.jobId));
 

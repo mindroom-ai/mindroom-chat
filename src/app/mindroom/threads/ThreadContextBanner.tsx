@@ -303,8 +303,10 @@ export function ThreadContextBanner({
           // an open YOLO window and an active permissions grant stay in view.
           <Box alignItems="Center" gap="100">
             {backButton}
-            <YoloWindowChips room={room} threadId={threadId} />
-            <ThreadApprovalPermissions />
+            <div className={css.StatusChips}>
+              <YoloWindowChips room={room} threadId={threadId} />
+              <ThreadApprovalPermissions />
+            </div>
             <IconTooltip label={t('thread.showDetails')}>
               {(triggerRef) => (
                 <IconButton

@@ -45,6 +45,8 @@ export const TitleRow = style({
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
+  // Status chips take another line instead of squeezing each other.
+  flexWrap: 'wrap',
   selectors: { '&:empty': { display: 'none' } },
   '@media': {
     [shortViewport]: {
@@ -84,6 +86,16 @@ export const TitleColumn = style({
   minWidth: 0,
   gap: 0,
   ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
+});
+
+// Collapsed, the status chips sit between Back and Show details and wrap onto more lines when they do not fit.
+export const StatusChips = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: config.space.S100,
+  minWidth: 0,
+  selectors: { '&:empty': { display: 'none' } },
 });
 
 export const TagsRow = style({

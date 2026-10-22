@@ -12,17 +12,15 @@ import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
  * What MindRoom agents publish in one room state event type, read again only when such an event, an agent's
- * membership, or the room's live state changes. An agent whose membership is not loaded yet, as with lazy-loaded
- * members, counts as joined until its member event says otherwise. `select` must be a stable function.
+ * membership, or the room's live state changes. Only MindRoom accounts on the viewer's homeserver that are still in
+ * the room count; one known to have left cannot clear its state, so its last event is ignored, while an agent whose
+ * membership is not loaded yet, as with lazy-loaded members, counts as joined until its member event says otherwise.
+ * `select` reads only those events and must be a stable function.
  */
 export const useAgentRoomState = <T>(
   room: Room,
   eventType: string,
-  select: (
-    events: MatrixEvent[],
-    viewerUserId: string | undefined,
-    isJoined: (userId: string) => boolean
-  ) => T
+  select: (events: MatrixEvent[]) => T
 ): T => {
   const [version, refresh] = useForceUpdate();
   useEffect(() => {
@@ -43,9 +41,13 @@ export const useAgentRoomState = <T>(
   }, [room, eventType, refresh]);
   return useMemo(() => {
     void version;
-    return select(room.currentState.getStateEvents(eventType), room.myUserId, (userId) => {
-      const member = room.getMember(userId);
-      return member === null || member.membership === 'join';
-    });
+    return select(
+      room.currentState.getStateEvents(eventType).filter((event) => {
+        const sender = event.getSender();
+        if (!sender || !isMindroomAgentUserIdForViewer(sender, room.myUserId)) return false;
+        const member = room.getMember(sender);
+        return member === null || member.membership === 'join';
+      })
+    );
   }, [room, eventType, select, version]);
 };

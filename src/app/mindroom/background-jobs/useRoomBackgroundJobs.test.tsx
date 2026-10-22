@@ -95,6 +95,48 @@ it('shows an agent whose membership is not loaded yet, and drops it once it is k
   expect(seen.at(-1)).toEqual([]);
 });
 
+it('reads jobs only from MindRoom agents of the viewer’s homeserver, under their own user ID', async () => {
+  const room = makeRoom();
+  const published = (sender: string, stateKey: string, jobId: string) =>
+    new MatrixEvent({
+      type: MINDROOM_BACKGROUND_JOBS_EVENT,
+      state_key: stateKey,
+      sender,
+      room_id: '!room:example.org',
+      event_id: `$${jobId}`,
+      origin_server_ts: 1,
+      content: {
+        jobs: [
+          {
+            job_id: jobId,
+            thread_id: null,
+            kind: 'tool',
+            tool: 'run_tests',
+            status: 'running',
+            requester_id: viewer,
+            started_at: '2026-10-11T00:00:00+00:00',
+          },
+        ],
+      },
+    });
+  await room.addLiveEvents(
+    [
+      membership('join'),
+      jobsEvent(['job_1']),
+      published('@mallory:example.org', '@mallory:example.org', 'job_person'),
+      published('@mindroom_code:elsewhere.org', '@mindroom_code:elsewhere.org', 'job_foreign'),
+      published(agent, '@mindroom_other:example.org', 'job_spoofed'),
+    ],
+    { addToState: true }
+  );
+
+  expect(
+    mount(room)
+      .at(-1)
+      ?.map((job) => job.jobId)
+  ).toEqual(['job_1']);
+});
+
 it('does not render again for unrelated room state', async () => {
   const room = makeRoom();
   await room.addLiveEvents([membership('join'), jobsEvent(['job_1'])], { addToState: true });

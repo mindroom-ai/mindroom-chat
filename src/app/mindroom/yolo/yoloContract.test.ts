@@ -4,7 +4,6 @@ import {
   MINDROOM_YOLO_EVENT,
   openYoloWindowsInThread,
   parseYoloStateEvent,
-  selectYoloWindows,
   type YoloWindow,
 } from './yoloContract';
 
@@ -51,23 +50,6 @@ describe('parseYoloStateEvent', () => {
     ];
     expect(parseYoloStateEvent(windowsEvent(windows))).toHaveLength(1);
     expect(parseYoloStateEvent(windowsEvent('nonsense'))).toEqual([]);
-  });
-});
-
-describe('selectYoloWindows', () => {
-  it('reads only MindRoom accounts of the viewer’s homeserver that are still in the room', () => {
-    const events = [
-      windowsEvent([window()]),
-      windowsEvent([window({ requester_id: '@bob:example.org' })], { sender: ALICE }),
-      windowsEvent([window()], { sender: '@mindroom_router:elsewhere.org' }),
-      windowsEvent([window({ requester_id: '@carol:example.org' })], {
-        sender: '@mindroom_router_old:example.org',
-      }),
-    ];
-    const joined = (userId: string) => userId !== '@mindroom_router_old:example.org';
-    expect(selectYoloWindows(events, ALICE, joined).map((item) => item.requesterId)).toEqual([
-      ALICE,
-    ]);
   });
 });
 
