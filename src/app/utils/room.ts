@@ -261,8 +261,7 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
     return false;
   }
 
-  // Only a message is unread, also when the read position is not loaded: an agent's state
-  // events, reactions and redactions never show, so nothing the user opens could clear them.
+  // Only a message counts as unread, whether or not the read position is loaded.
   for (let i = liveEvents.length - 1; i >= 0; i -= 1) {
     const event = liveEvents[i];
     if (!event) return false;

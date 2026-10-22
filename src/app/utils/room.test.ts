@@ -565,7 +565,7 @@ describe('roomHaveUnread', () => {
       origin_server_ts: 1000,
       room_id: '!room:example.org',
       sender: agent,
-      state_key: '',
+      state_key: agent,
       type: 'io.mindroom.background_jobs',
     });
     const reaction = new MatrixEvent({
@@ -587,7 +587,7 @@ describe('roomHaveUnread', () => {
     });
     const room = {
       findEventById: vi.fn(() => undefined),
-      getEventReadUpTo: vi.fn(() => '$older'),
+      getEventReadUpTo: vi.fn(() => null),
       getLiveTimeline: vi.fn(() => ({
         getEvents: () => [backgroundJobs, reaction, redaction],
       })),
