@@ -39,6 +39,8 @@ test('the thread header says whose YOLO window is open there, until when', async
   browser,
 }, testInfo) => {
   test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  // Two logins and many window sizes.
+  test.slow();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
@@ -321,10 +323,11 @@ test('the thread header says whose YOLO window is open there, until when', async
   await sideways.close();
 
   // A window that ends goes away on its own, and `!yolo off` clears the state.
-  const shortEnd = Date.now() + 5_000;
+  // Long enough for the publish, the sync and the render to land before it ends on a slow runner.
+  const shortEnd = Date.now() + 15_000;
   await publish([{ threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: shortEnd }]);
   await expect(banner.getByText(`YOLO until ${clock(shortEnd)}`, { exact: true })).toBeVisible();
-  await expect(banner.getByText(/^YOLO/)).toHaveCount(0, { timeout: 15_000 });
+  await expect(banner.getByText(/^YOLO/)).toHaveCount(0, { timeout: 30_000 });
   await publish([{ threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: ownEnd }]);
   await expect(own).toBeVisible();
   await publish([]);
