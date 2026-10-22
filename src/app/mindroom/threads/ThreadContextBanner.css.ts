@@ -42,13 +42,15 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
+// Several status chips take more lines instead of squeezing each other.
+const severalStatusChips = ':has(> [data-thread-status-chip] ~ [data-thread-status-chip])';
+
 // Holds the eyebrow, the status chips and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
   selectors: {
     '&:empty': { display: 'none' },
-    // Several status chips take more lines instead of squeezing each other.
-    '&:has(> [data-thread-status-chip] ~ [data-thread-status-chip])': { flexWrap: 'wrap' },
+    [`&${severalStatusChips}`]: { flexWrap: 'wrap' },
   },
   '@media': {
     [shortViewport]: {
@@ -110,7 +112,8 @@ export const StatusChips = style({
   selectors: { '&:empty': { display: 'none' } },
 });
 
-// The tags take the room the status chips leave on their line, clipped.
+// The tags take the room the status chips leave on their line, clipped. Beside several chips, which wrap, they
+// take a line of their own when less than 5rem, or less than they need, would be left.
 export const TagsRow = style({
   display: 'inline-flex',
   flex: '1 1 0',
@@ -118,6 +121,9 @@ export const TagsRow = style({
   gap: '0.3rem',
   flexWrap: 'nowrap',
   overflow: 'hidden',
+  selectors: {
+    [`${EyebrowRow}${severalStatusChips} > &`]: { flex: '1 1 5rem', maxWidth: 'max-content' },
+  },
 });
 
 /**

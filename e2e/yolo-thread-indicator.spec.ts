@@ -321,6 +321,19 @@ test('the thread header says whose YOLO window is open there, until when', async
     await expect(permissions).toBeVisible();
     expect(Math.abs((await middle(firstTag)) - (await middle(permissions)))).toBeLessThan(4);
   }
-  await page.setViewportSize({ width: 1024, height: 768 });
+
+  // Beside several status chips the tags keep their full width, beside the chips or on a line of their own.
+  await publish([
+    { threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: ownEnd },
+    { threadId: fixture.rootId, requesterId: colleague.user_id, expiresAt: colleagueEnd },
+  ]);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(theirs).toBeVisible();
+  const tagsInFull = await firstTag.evaluate((node) => {
+    let row = node.parentElement;
+    while (row && getComputedStyle(row).overflow !== 'hidden') row = row.parentElement;
+    return !!row && row.scrollWidth <= row.clientWidth;
+  });
+  expect(tagsInFull).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('desktop-tags-light.png') });
 });
