@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Mark a room unread only for a message, also when the read position is not loaded (2026-10-22)
+
+- Problem: when the user's read position was not in the loaded live timeline, `roomHaveUnread` marked the room unread if any main-timeline event was loaded, not only a message.
+  An agent's own state events (`io.mindroom.background_jobs`), reactions and redactions never show, but they counted, so the room kept an unread dot that opening it did not clear; only Mark as read did.
+  In an agent room the conversation happens in threads, so the main-timeline receipt can stay on an old event for weeks, outside the loaded slice.
+- Fix: `roomHaveUnread` returns true only for a notification event (`isNotificationEvent`) newer than the read position, whether or not that position is loaded.
+  This is the rule it already followed when the position is loaded.
+  Trade-off: a message in the unloaded gap behind later state or reactions no longer shows a dot of its own; the server's notification count still marks it, except in rooms set to mentions only.
+- Tests: `room.test.ts` "ignores an agent's background state, reactions and redactions when the read position is not loaded" (fails without the change); the existing case for another member's message with an unloaded read position still counts it as unread.
+
 ### Find the MindRoom server from the agents in the user's rooms (2026-10-22)
 
 - Why: hosted Chat ships `mindroom.computers.apiUrl` empty, so every user had to type their MindRoom address under Computers before Connections or Computers worked, and Chat showed a Computer button for every agent once a URL was set, even agents without a worker computer.
