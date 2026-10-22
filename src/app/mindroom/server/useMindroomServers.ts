@@ -7,6 +7,7 @@ import {
   type RoomMember,
   type RoomState,
 } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import { useEffect, useMemo, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -16,12 +17,16 @@ import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
+  isLoopbackOrigin,
   selectMindroomServers,
   type MindroomServer,
 } from './mindroomServer';
 
+// In the native apps a published localhost server is the phone itself, never the agent's MindRoom.
 const roomServers = (room: Room): MindroomServer[] =>
-  selectMindroomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
+  selectMindroomServers(agentRoomState(room, MINDROOM_SERVER_EVENT)).filter(
+    (server) => !(Capacitor.isNativePlatform() && isLoopbackOrigin(server.apiUrl))
+  );
 
 // One answer per client for what Chat shows; a token for a published origin is only ever requested after a
 // new check. A check that could not reach the homeserver is not kept, so the next mount asks again.

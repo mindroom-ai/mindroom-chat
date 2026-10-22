@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
+  isLoopbackOrigin,
   parseMindroomServer,
   selectMindroomServers,
 } from './mindroomServer';
@@ -71,5 +72,15 @@ describe('MindRoom server state', () => {
         server('http://localhost:8765', 2),
       ])
     ).toEqual(['https://mind.example.org', 'http://localhost:8765']);
+  });
+
+  it.each([
+    ['http://localhost:8765', true],
+    ['http://127.0.0.1:8765', true],
+    ['http://[::1]:8765', true],
+    ['http://192.168.1.50:8765', false],
+    ['https://mind.example.org', false],
+  ])('tells whether %s is this device', (origin, loopback) => {
+    expect(isLoopbackOrigin(origin)).toBe(loopback);
   });
 });

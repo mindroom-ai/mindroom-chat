@@ -28,6 +28,12 @@ export const parseMindroomServer = (event: MatrixEvent): MindroomServer | undefi
 export const selectMindroomServers = (events: MatrixEvent[]): MindroomServer[] =>
   events.flatMap((event) => parseMindroomServer(event) ?? []).sort((a, b) => b.ts - a.ts);
 
+/** Whether an origin is this device itself, which a published server must not be for a phone. */
+export const isLoopbackOrigin = (origin: string): boolean => {
+  const { hostname } = new URL(origin);
+  return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.');
+};
+
 /** Each distinct server origin, newest first. */
 export const distinctServerUrls = (servers: MindroomServer[]): string[] => [
   ...new Set([...servers].sort((a, b) => b.ts - a.ts).map((server) => server.apiUrl)),

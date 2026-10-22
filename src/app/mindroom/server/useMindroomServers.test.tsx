@@ -6,6 +6,11 @@ import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT, type MindroomServer } from './mindroomServer';
 import { useBindsOpenIdTokens, useRoomMindroomServers } from './useMindroomServers';
 
+const native = vi.hoisted(() => ({ isNativePlatform: false }));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: () => native.isNativePlatform },
+}));
+
 const viewer = '@alice:example.org';
 const agent = '@mindroom_code:example.org';
 let serial = 0;
@@ -126,4 +131,15 @@ it('asks the homeserver again after a check that could not reach it', async () =
   expect(await mountBinding()).toBe(true);
   expect(versions).toHaveBeenCalledTimes(2);
   vi.unstubAllGlobals();
+});
+
+it('ignores a published localhost server in the native apps, where it is the phone itself', async () => {
+  const room = makeRoom();
+  await room.addLiveEvents([membership('join'), serverEvent('http://localhost:8765')], {
+    addToState: true,
+  });
+  native.isNativePlatform = true;
+  const seen = mount(room);
+  expect(seen.at(-1)).toEqual([]);
+  native.isNativePlatform = false;
 });

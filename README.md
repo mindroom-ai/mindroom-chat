@@ -67,7 +67,7 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
 - **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation ([Interactive Canvases](https://docs.mindroom.chat/canvases/)).
   Canvases are on at chat.mindroom.chat and in iOS builds, and self-hosted deployments turn them on in [Configuration](#configuration).
-- **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
+- **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; on a homeserver that binds OpenID tokens, such as mindroom.chat, Chat opens the server the agents publish, and otherwise choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
 - **Commands**: `!` commands autocomplete as you type.
@@ -166,7 +166,7 @@ Notable options:
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
 - canvases and their npm library loading via `mindroom.canvas.enabled` and `mindroom.canvas.libraries`,
-- the default computer service via `mindroom.computers.apiUrl`,
+- the default computer service via `mindroom.computers.apiUrl`, which otherwise comes from the agents on a homeserver that binds OpenID tokens,
 - agent UI automatic-opening policy via `mindroom.uiActions.autoOpenFromHomeservers`,
 - additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
 - sidebar entry points including `sidebar.showThreads` and `sidebar.showExploreCommunityInSimpleMode`,
