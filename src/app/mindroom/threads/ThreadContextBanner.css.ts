@@ -121,7 +121,8 @@ export const DesktopOnlyTags = style({
   },
 });
 
-// On short screens the title and a scheduled task share one line and truncate together.
+// On short screens the title and a scheduled task share one line and truncate together, and they take only the
+// room the status chips leave, so a long title never squeezes a chip.
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -133,7 +134,7 @@ export const SubtitleRow = style({
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
   },
   '@media': {
-    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap' },
+    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0' },
     // Narrow screens move the tags to their own row, which can leave the
     // eyebrow row with nothing showing.
     '(max-width: 480px)': {

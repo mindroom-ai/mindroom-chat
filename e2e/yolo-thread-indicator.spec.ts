@@ -1,11 +1,28 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test } from '@playwright/test';
+import { expect, test, type BrowserContext } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from './helpers/matrix';
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
+
+// Point the app at the disposable homeserver.
+const routeConfig = (context: BrowserContext) =>
+  context.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({
+      json: {
+        ...config,
+        homeserverList: [homeserver],
+        defaultHomeserver: 0,
+        allowCustomHomeservers: true,
+        hashRouter: { enabled: false },
+        auth: { allowRegistration: false, disablePasswordLogin: false },
+      },
+    });
+  });
 
 // The header names the end in the default 12-hour clock, with the day when it is not today.
 const clock = (timestamp: number) =>
@@ -88,20 +105,7 @@ test('the thread header says whose YOLO window is open there, until when', async
     { threadId: '$another-thread', requesterId: viewer.user_id, expiresAt: ownEnd },
   ]);
 
-  await context.route('**/config.json', async (route) => {
-    const response = await route.fetch();
-    const config = await response.json();
-    await route.fulfill({
-      json: {
-        ...config,
-        homeserverList: [homeserver],
-        defaultHomeserver: 0,
-        allowCustomHomeservers: true,
-        hashRouter: { enabled: false },
-        auth: { allowRegistration: false, disablePasswordLogin: false },
-      },
-    });
-  });
+  await routeConfig(context);
   await page.setViewportSize({ width: 1280, height: 800 });
   await loginWithPassword(page, { homeserver: homeserver!, username, password });
   await page.goto(
@@ -201,57 +205,69 @@ test('the thread header says whose YOLO window is open there, until when', async
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // A phone held sideways puts the chips beside the title, still clear of the thread actions.
+  // A phone held sideways puts the chips beside the title, which MindRoom usually sets, and the title takes only
+  // the room the chips leave, so the chips stay clear of the thread actions.
+  await matrixFetch(
+    homeserver!,
+    `/rooms/${encodeURIComponent(fixture.roomId)}/send/m.room.message/summary-${suffix}`,
+    {
+      method: 'PUT',
+      accessToken: router.access_token,
+      body: JSON.stringify({
+        msgtype: 'm.notice',
+        body: 'Release notes drafted and the build tag prepared for review',
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'Release notes drafted and the build tag prepared for review',
+          generated_at: new Date().toISOString(),
+          message_count: 2,
+        },
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: fixture.rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: fixture.rootId },
+        },
+      }),
+    }
+  );
   const sideways = await browser.newContext({
     viewport: { width: 667, height: 375 },
     hasTouch: true,
   });
-  await sideways.route('**/config.json', async (route) => {
-    const response = await route.fetch();
-    const config = await response.json();
-    await route.fulfill({
-      json: {
-        ...config,
-        homeserverList: [homeserver],
-        defaultHomeserver: 0,
-        allowCustomHomeservers: true,
-        hashRouter: { enabled: false },
-        auth: { allowRegistration: false, disablePasswordLogin: false },
-      },
-    });
-  });
+  await routeConfig(sideways);
   const landscape = await sideways.newPage();
   await loginWithPassword(landscape, { homeserver: homeserver!, username, password });
   await landscape.goto(
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
   const sidewaysBanner = landscape.locator('[data-thread-context-banner="true"]');
+  await expect(sidewaysBanner.getByText('Release notes drafted', { exact: false })).toBeVisible();
   const sidewaysOptions = sidewaysBanner.getByRole('button', {
     name: 'Thread options',
     exact: true,
   });
-  await expect(sidewaysOptions).toBeInViewport();
-  for (const chip of [
-    sidewaysBanner.getByText(`YOLO until ${clock(ownEnd)}`, { exact: true }),
+  const sidewaysOwn = sidewaysBanner.getByText(`YOLO until ${clock(ownEnd)}`, { exact: true });
+  const sidewaysChips = [
+    sidewaysOwn,
     sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
     sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
-  ]) {
-    await expect(chip).toBeVisible();
-    expect(await leftOf(chip, sidewaysOptions)).toBe(true);
+  ];
+  // The widest of these also shows the room list and members; there the viewer's end time fits in full.
+  for (const [width, height, ownInFull] of [
+    [667, 375, true],
+    [844, 390, false],
+    [932, 430, true],
+  ] as const) {
+    await landscape.setViewportSize({ width, height });
+    await expect(sidewaysOptions).toBeInViewport();
+    for (const chip of sidewaysChips) {
+      await expect(chip).toBeVisible();
+      expect(await leftOf(chip, sidewaysOptions)).toBe(true);
+    }
+    if (ownInFull) expect(await fullText(sidewaysOwn)).toBe(true);
+    await landscape.screenshot({ path: testInfo.outputPath(`phone-landscape-${width}-light.png`) });
   }
-  await landscape.screenshot({ path: testInfo.outputPath('phone-landscape-light.png') });
-  // A wider phone sideways also shows the room list, leaving the title column little room.
-  await landscape.setViewportSize({ width: 844, height: 390 });
-  await expect(sidewaysOptions).toBeInViewport();
-  for (const chip of [
-    sidewaysBanner.getByText(`YOLO until ${clock(ownEnd)}`, { exact: true }),
-    sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
-    sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
-  ]) {
-    await expect(chip).toBeVisible();
-    expect(await leftOf(chip, sidewaysOptions)).toBe(true);
-  }
-  await landscape.screenshot({ path: testInfo.outputPath('phone-landscape-wide-light.png') });
   await sideways.close();
 
   // A window that ends goes away on its own, and `!yolo off` clears the state.

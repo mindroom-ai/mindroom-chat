@@ -334,9 +334,9 @@ export function ThreadContextBanner({
                     {t('thread.view')}
                   </Text>
                 )}
-                {/* Desktop: tags inline on title row */}
                 <YoloWindowChips room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
+                {/* Desktop: tags inline on title row */}
                 {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (
                   <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
