@@ -13,7 +13,7 @@
   - `server/mindroomServer.ts` parses `api_origin` (through `resolveComputerApiUrl`) and `computer`; `server/useMindroomServers.ts` lists a room's servers and every origin in the user's joined rooms.
   - A published origin is used only while the homeserver binds tokens. Whether to offer one is asked of the homeserver once per client (`confirmOpenIdBinding`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback; any failure counts as no.
     A token for a published origin is requested only after a new check (`requestAudienceOpenIdToken(..., { requireBinding: true })`), by the Connections card and the Computer panel, so a homeserver that stopped binding gets no token sent there.
-  - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off.
+  - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off, and an unusable deployment value counts as unset.
   - In a room, each agent opens its own published server (`ComputerAgent.serverUrl`), so a room with agents of two MindRooms opens each one's computer on its own backend; with a configured URL, agents carry none.
     The Computer action shows only for agents that publish `computer: true`; an agent whose MindRoom does not publish its server yet keeps the action, as before.
   - Settings, General: every origin found gets its own **Open Connections** button with its address beside it, so a hostile agent cannot pass its portal off as the user's own; the Computers field shows the found origin as its placeholder while the setting follows the default.

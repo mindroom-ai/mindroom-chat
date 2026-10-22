@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMindroomServerUrls } from '../server/useMindroomServers';
+import { resolveComputerApiUrl } from './api';
 import {
   computerServicePreferenceAtom,
   resolveComputerServiceUrl,
@@ -13,7 +14,9 @@ import {
 export const useComputerApiUrl = (discoveredUrl?: string): string | undefined => {
   const preference = useAtomValue(computerServicePreferenceAtom);
   const config = useClientConfig();
-  return resolveComputerServiceUrl(preference, config.mindroom?.computers?.apiUrl || discoveredUrl);
+  // An unusable deployment value counts as unset, as it does in Settings.
+  const deploymentUrl = resolveComputerApiUrl(config.mindroom?.computers?.apiUrl);
+  return resolveComputerServiceUrl(preference, deploymentUrl ?? discoveredUrl);
 };
 
 /**

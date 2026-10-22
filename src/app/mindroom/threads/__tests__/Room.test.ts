@@ -444,6 +444,15 @@ describe('Room', () => {
       expect(await computerAvailable()).toBe(true);
     });
 
+    it('uses the published server when the deployment URL is unusable', async () => {
+      roomState.clientConfig = {
+        mindroom: { computers: { apiUrl: 'http://public.example.org/path' } },
+      };
+      roomState.mindroomServers = [server(true)];
+      roomState.bindsOpenIdTokens = true;
+      expect(await computerAvailable()).toBe(true);
+    });
+
     it('ignores a published server on a homeserver that does not bind tokens', async () => {
       roomState.mindroomServers = [server(true)];
       expect(await computerAvailable()).toBe(false);
