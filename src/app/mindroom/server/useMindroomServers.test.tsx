@@ -1,9 +1,10 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT, type MindroomServer } from './mindroomServer';
-import { useRoomMindroomServers } from './useMindroomServers';
+import { useBindsOpenIdTokens, useRoomMindroomServers } from './useMindroomServers';
 
 const viewer = '@alice:example.org';
 const agent = '@mindroom_code:example.org';
@@ -83,4 +84,46 @@ it('does not render again for unrelated room state', async () => {
   await addState(room, stateEvent('m.room.topic', '', { topic: 'Release prep' }));
 
   expect(seen).toHaveLength(renders);
+});
+
+it('asks the homeserver again after a check that could not reach it', async () => {
+  const mx = createClient({ baseUrl: 'https://example.org', userId: viewer });
+  const versions = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          versions: ['v1.11'],
+          unstable_features: { 'io.mindroom.openid_audience': true },
+        }),
+        { status: 200 }
+      )
+    );
+  vi.stubGlobal('fetch', versions);
+  const mountBinding = async () => {
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useBindsOpenIdTokens());
+      return null;
+    }
+    await act(async () => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <Probe />
+        </MatrixClientProvider>
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    return seen.at(-1);
+  };
+  expect(await mountBinding()).toBe(false);
+  expect(await mountBinding()).toBe(true);
+  expect(await mountBinding()).toBe(true);
+  expect(versions).toHaveBeenCalledTimes(2);
+  vi.unstubAllGlobals();
 });

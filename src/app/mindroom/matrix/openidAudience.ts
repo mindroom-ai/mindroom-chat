@@ -7,15 +7,21 @@ export const OPENID_AUDIENCE_FIELD = 'io.mindroom.audience';
 /** The homeserver advertises this in `/versions` while it binds tokens to the audience they were requested for. */
 export const OPENID_AUDIENCE_FEATURE = 'io.mindroom.openid_audience';
 
+const freshFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: 'no-store' });
+
 /**
- * Ask the homeserver now whether it binds tokens. The client's cached versions can outlive a rollback,
- * so they never decide this, and any failure counts as no binding.
+ * Ask the homeserver now whether it binds tokens, or undefined when it cannot be asked. The client's
+ * cached versions can outlive a rollback, so they never decide this.
  */
-export const confirmOpenIdBinding = (mx: MatrixClient): Promise<boolean> =>
-  specVersions(fetch, mx.getHomeserverUrl()).then(
+export const readOpenIdBinding = (mx: MatrixClient): Promise<boolean | undefined> =>
+  specVersions(freshFetch, mx.getHomeserverUrl()).then(
     (versions) => versions.unstable_features?.[OPENID_AUDIENCE_FEATURE] === true,
-    () => false
+    () => undefined
   );
+
+/** Whether the homeserver confirms now that it binds tokens; any failure counts as no binding. */
+export const confirmOpenIdBinding = async (mx: MatrixClient): Promise<boolean> =>
+  (await readOpenIdBinding(mx)) === true;
 
 /**
  * Request a token bound to `audience`. With `requireBinding`, as for an origin an agent published,

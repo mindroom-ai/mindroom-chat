@@ -9,13 +9,17 @@
   The origin is the backend's OpenID audience (`MINDROOM_PUBLIC_URL`, or `http://localhost:<MINDROOM_PORT>`), so a token Chat binds to it verifies there.
   Matrix accepts a state key that starts with `@` only from that user, so only the agent itself can write it; managed rooms give the type power level 0.
 - Design:
-  - `matrix/agentRoomState.ts` owns who may describe themselves in room state, for this and `io.mindroom.background_jobs`: the state key is the sender, the sender is a MindRoom agent on the viewer's homeserver, and an agent known to have left is ignored (one whose membership is not loaded yet counts as joined). `useAgentRoomStateVersion` refreshes on that type, agent membership, and live-state resets. The jobs contract now only parses and orders.
+  - `matrix/agentRoomState.ts` owns who may describe themselves in room state, for this and `io.mindroom.background_jobs`: the state key is the sender, the sender is a MindRoom agent on the viewer's homeserver, and an agent known to have left is ignored (one whose membership is not loaded yet counts as joined).
+    `useAgentRoomStateVersion` refreshes on that type, agent membership, and live-state resets.
+    The jobs contract now only parses and orders.
   - `server/mindroomServer.ts` parses `api_origin` (through `resolveComputerApiUrl`) and `computer`; `server/useMindroomServers.ts` lists a room's servers and every origin in the user's joined rooms.
-  - A published origin is used only while the homeserver binds tokens. Whether to offer one is asked of the homeserver once per client (`confirmOpenIdBinding`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback; any failure counts as no.
+  - A published origin is used only while the homeserver binds tokens. Whether to offer one is asked of the homeserver once per client (`confirmOpenIdBinding`, a fresh `/versions` request), never read from the cached versions, which outlive a rollback.
+    A check that could not reach the homeserver is asked again on the next mount, and the check bypasses the HTTP cache.
     A token for a published origin is requested only after a new check (`requestAudienceOpenIdToken(..., { requireBinding: true })`), by the Connections card and the Computer panel, so a homeserver that stopped binding gets no token sent there.
   - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off, and an unusable deployment value counts as unset.
   - In a room, each agent opens its own published server (`ComputerAgent.serverUrl`), so a room with agents of two MindRooms opens each one's computer on its own backend; with a configured URL, agents carry none.
-    The Computer action shows only for agents that publish `computer: true`; an agent whose MindRoom does not publish its server yet keeps the action, as before.
+    The Computer action shows only for agents that publish `computer: true`.
+    With a configured URL, an agent whose MindRoom does not publish its server yet keeps the action, as before; while discovering, such an agent has no server to open and gets none.
   - Settings, General: every origin found gets its own **Open Connections** button with its address beside it, so a hostile agent cannot pass its portal off as the user's own; the Computers field shows the found origin as its placeholder while the setting follows the default.
   - The canvas index recorder runs when any of these origins exists, as it did for a configured one.
 - No new catalog keys: the address beside a button and the placeholder are data, not text.

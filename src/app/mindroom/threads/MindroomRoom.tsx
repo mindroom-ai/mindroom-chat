@@ -95,8 +95,10 @@ export function Room() {
           (member) =>
             member.membership === KnownMembership.Join &&
             isMindroomAgentUserId(member.userId) &&
-            // An agent whose MindRoom does not publish its server yet keeps the Computer action.
-            (servers.find((server) => server.agentUserId === member.userId)?.computer ?? true)
+            // With a configured URL, an agent whose MindRoom does not publish its server yet keeps the
+            // action; while discovering, only agents with a published server have one to open.
+            (servers.find((server) => server.agentUserId === member.userId)?.computer ??
+              !discovering)
         )
         .map((member) => ({
           userId: member.userId,

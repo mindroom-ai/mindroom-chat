@@ -53,7 +53,7 @@ describe('requestAudienceOpenIdToken', () => {
     ).resolves.toBe(token);
     expect(fetch).toHaveBeenCalledWith(
       'https://example.org/_matrix/client/versions',
-      expect.anything()
+      expect.objectContaining({ cache: 'no-store' })
     );
     expect(authedRequest).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();

@@ -487,6 +487,24 @@ describe('Room', () => {
       ]);
     });
 
+    it('offers no computer for an agent that publishes no server while Chat discovers servers', async () => {
+      const silent = '@mindroom_silent:example.org';
+      roomState.bindsOpenIdTokens = true;
+      roomState.mindroomServers = [server(true)];
+      roomState.members = [
+        { membership: 'join', userId: helper },
+        { membership: 'join', userId: silent },
+        { membership: 'join', userId: '@alice:example.org' },
+      ];
+      const { Room } = await import('../../../features/room/Room');
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      // The silent agent would otherwise open on the helper's server, with no binding check for it.
+      expect(roomState.computerPanelProps?.agents.map((agent) => agent.userId)).toEqual([helper]);
+    });
+
     it('keeps the action for an agent whose MindRoom does not publish its server yet', async () => {
       roomState.clientConfig = configured;
       expect(await computerAvailable()).toBe(true);

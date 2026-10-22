@@ -4,12 +4,15 @@ import {
   type MatrixClient,
   type MatrixEvent,
   type Room,
+  type RoomMember,
+  type RoomState,
 } from 'matrix-js-sdk';
 import { useEffect, useMemo, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { agentRoomState, useAgentRoomStateVersion } from '../matrix/agentRoomState';
-import { confirmOpenIdBinding } from '../matrix/openidAudience';
+import { readOpenIdBinding } from '../matrix/openidAudience';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
@@ -20,8 +23,9 @@ import {
 const roomServers = (room: Room): MindroomServer[] =>
   selectMindroomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
 
-// One check per client for what Chat shows; a token for a published origin is only ever requested after a new one.
-const bindingChecks = new WeakMap<MatrixClient, Promise<boolean>>();
+// One answer per client for what Chat shows; a token for a published origin is only ever requested after a
+// new check. A check that could not reach the homeserver is not kept, so the next mount asks again.
+const bindingChecks = new WeakMap<MatrixClient, Promise<boolean | undefined>>();
 
 /** Whether the homeserver binds OpenID tokens, asked once per client, so Chat may offer the origins agents publish. */
 export const useBindsOpenIdTokens = (): boolean => {
@@ -31,11 +35,12 @@ export const useBindsOpenIdTokens = (): boolean => {
     let current = true;
     let check = bindingChecks.get(mx);
     if (!check) {
-      check = confirmOpenIdBinding(mx);
+      check = readOpenIdBinding(mx);
       bindingChecks.set(mx, check);
     }
     check.then((value) => {
-      if (current) setBinds(value);
+      if (value === undefined) bindingChecks.delete(mx);
+      if (current) setBinds(value === true);
     });
     return () => {
       current = false;
@@ -59,16 +64,20 @@ export const useMindroomServerUrls = (): string[] => {
   const bindsTokens = useBindsOpenIdTokens();
   const [version, refresh] = useForceUpdate();
   useEffect(() => {
+    const viewer = mx.getUserId() ?? undefined;
     const onState = (event: MatrixEvent) => {
       if (event.getType() === MINDROOM_SERVER_EVENT) refresh();
     };
-    // Membership changes in any room can change which agents' servers count.
+    // Only an agent's membership, or the user's own, changes which servers count.
+    const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
+      if (isMindroomAgentUserIdForViewer(member.userId, viewer)) refresh();
+    };
     mx.on(RoomStateEvent.Events, onState);
-    mx.on(RoomStateEvent.Members, refresh);
+    mx.on(RoomStateEvent.Members, onMember);
     mx.on(RoomEvent.MyMembership, refresh);
     return () => {
       mx.removeListener(RoomStateEvent.Events, onState);
-      mx.removeListener(RoomStateEvent.Members, refresh);
+      mx.removeListener(RoomStateEvent.Members, onMember);
       mx.removeListener(RoomEvent.MyMembership, refresh);
     };
   }, [mx, refresh]);
