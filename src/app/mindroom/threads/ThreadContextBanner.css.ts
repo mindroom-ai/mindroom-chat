@@ -42,15 +42,16 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
-// Several status chips take more lines instead of squeezing each other.
-const severalStatusChips = ':has(> [data-thread-status-chip] ~ [data-thread-status-chip])';
+// A YOLO window's chip is wide, so beside one the status chips and the tags take more lines instead of squeezing
+// each other. Without one, the row keeps its single line.
+const withYoloWindow = ':has(> [data-thread-status-chip="yolo"])';
 
 // Holds the eyebrow, the status chips and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
   selectors: {
     '&:empty': { display: 'none' },
-    [`&${severalStatusChips}`]: { flexWrap: 'wrap' },
+    [`&${withYoloWindow}`]: { flexWrap: 'wrap' },
   },
   '@media': {
     [shortViewport]: {
@@ -112,8 +113,8 @@ export const StatusChips = style({
   selectors: { '&:empty': { display: 'none' } },
 });
 
-// The tags take the room the status chips leave on their line, clipped. Beside several chips, which wrap, they
-// take a line of their own when less than 5rem, or less than they need, would be left.
+// The tags take the room the status chips leave on their line, clipped. Beside a YOLO window they stay on that
+// line only when they fit in full, and take a line of their own otherwise.
 export const TagsRow = style({
   display: 'inline-flex',
   flex: '1 1 0',
@@ -122,7 +123,7 @@ export const TagsRow = style({
   flexWrap: 'nowrap',
   overflow: 'hidden',
   selectors: {
-    [`${EyebrowRow}${severalStatusChips} > &`]: { flex: '1 1 5rem', maxWidth: 'max-content' },
+    [`${EyebrowRow}${withYoloWindow} > &`]: { flex: '0 1 auto' },
   },
 });
 

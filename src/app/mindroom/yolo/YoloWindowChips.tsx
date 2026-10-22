@@ -56,7 +56,7 @@ export function YoloWindowChips({ room, threadId }: { room: Room; threadId: stri
           <span
             key={requesterId}
             className={css.Chip}
-            data-thread-status-chip=""
+            data-thread-status-chip="yolo"
             title={
               own
                 ? t('mindroomUi.yolo.ownDetail', values)

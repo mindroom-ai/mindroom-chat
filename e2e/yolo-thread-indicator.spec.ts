@@ -126,6 +126,38 @@ test('the thread header says whose YOLO window is open there, until when', async
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
+  // Beside a YOLO window a desktop thread's tags show in full, beside the chip or on a line of their own.
+  for (const tag of ['launch', 'docs', 'qa']) {
+    await sendStateEvent(
+      homeserver!,
+      viewer.access_token,
+      fixture.roomId,
+      'com.mindroom.thread.tags',
+      JSON.stringify([fixture.rootId, tag]),
+      { set_by: viewer.user_id, set_at: new Date().toISOString() }
+    );
+  }
+  // Tags sort by name, and the desktop row comes before the hidden phone one.
+  const firstTag = banner.getByText('docs', { exact: true }).first();
+  const tagsInFull = () =>
+    firstTag.evaluate((node) => {
+      let row = node.parentElement;
+      while (row && getComputedStyle(row).overflow !== 'hidden') row = row.parentElement;
+      return !!row && row.scrollWidth <= row.clientWidth;
+    });
+  await publish([
+    { threadId: fixture.rootId, requesterId: colleague.user_id, expiresAt: colleagueEnd },
+  ]);
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect(own).toHaveCount(0);
+  await expect(firstTag).toBeVisible();
+  expect(await tagsInFull()).toBe(true);
+  await publish([
+    { threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: ownEnd },
+    { threadId: fixture.rootId, requesterId: colleague.user_id, expiresAt: colleagueEnd },
+  ]);
+  await expect(own).toBeVisible();
+
   // On a phone, the viewer's window, a colleague's, and an active permission share the header: each takes its
   // own line rather than hiding another, none runs under the thread actions, and the viewer's end time is shown in
   // full; a long name may end in an ellipsis, with the whole text in its title.
@@ -298,19 +330,8 @@ test('the thread header says whose YOLO window is open there, until when', async
   await publish([]);
   await expect(banner.getByText(/^YOLO/)).toHaveCount(0);
 
-  // On desktop, tags stay on the line of the active-permissions chip and are clipped where they do not fit.
-  for (const tag of ['launch', 'docs', 'qa']) {
-    await sendStateEvent(
-      homeserver!,
-      viewer.access_token,
-      fixture.roomId,
-      'com.mindroom.thread.tags',
-      JSON.stringify([fixture.rootId, tag]),
-      { set_by: viewer.user_id, set_at: new Date().toISOString() }
-    );
-  }
-  // Tags sort by name, and the desktop row comes before the hidden phone one.
-  const firstTag = banner.getByText('docs', { exact: true }).first();
+  // Without a YOLO window, desktop tags stay on the line of the active-permissions chip and are clipped where they
+  // do not fit.
   // With both side panels open these leave the title column some, little, and almost no room.
   for (const [width, height] of [
     [1024, 768],
@@ -322,18 +343,15 @@ test('the thread header says whose YOLO window is open there, until when', async
     expect(Math.abs((await middle(firstTag)) - (await middle(permissions)))).toBeLessThan(4);
   }
 
-  // Beside several status chips the tags keep their full width, beside the chips or on a line of their own.
+  // Beside two YOLO windows and that chip the tags show in full too.
   await publish([
     { threadId: fixture.rootId, requesterId: viewer.user_id, expiresAt: ownEnd },
     { threadId: fixture.rootId, requesterId: colleague.user_id, expiresAt: colleagueEnd },
   ]);
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await expect(theirs).toBeVisible();
-  const tagsInFull = await firstTag.evaluate((node) => {
-    let row = node.parentElement;
-    while (row && getComputedStyle(row).overflow !== 'hidden') row = row.parentElement;
-    return !!row && row.scrollWidth <= row.clientWidth;
-  });
-  expect(tagsInFull).toBe(true);
+  for (const width of [1280, 1360]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect(theirs).toBeVisible();
+    expect(await tagsInFull()).toBe(true);
+  }
   await page.screenshot({ path: testInfo.outputPath('desktop-tags-light.png') });
 });
