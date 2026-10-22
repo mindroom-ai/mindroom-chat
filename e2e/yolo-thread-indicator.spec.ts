@@ -309,10 +309,18 @@ test('the thread header says whose YOLO window is open there, until when', async
       { set_by: viewer.user_id, set_at: new Date().toISOString() }
     );
   }
-  await page.setViewportSize({ width: 1024, height: 768 });
   // Tags sort by name, and the desktop row comes before the hidden phone one.
   const firstTag = banner.getByText('docs', { exact: true }).first();
-  await expect(firstTag).toBeVisible();
-  expect(Math.abs((await middle(firstTag)) - (await middle(permissions)))).toBeLessThan(4);
+  // With both side panels open these leave the title column some, little, and almost no room.
+  for (const [width, height] of [
+    [1024, 768],
+    [932, 768],
+    [820, 1000],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(permissions).toBeVisible();
+    expect(Math.abs((await middle(firstTag)) - (await middle(permissions)))).toBeLessThan(4);
+  }
+  await page.setViewportSize({ width: 1024, height: 768 });
   await page.screenshot({ path: testInfo.outputPath('desktop-tags-light.png') });
 });

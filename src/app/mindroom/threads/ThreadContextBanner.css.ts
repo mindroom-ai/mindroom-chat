@@ -45,9 +45,11 @@ export const TitleRow = style({
 // Holds the eyebrow, the status chips and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
-  // Status chips take another line instead of squeezing each other.
-  flexWrap: 'wrap',
-  selectors: { '&:empty': { display: 'none' } },
+  selectors: {
+    '&:empty': { display: 'none' },
+    // Several status chips take more lines instead of squeezing each other.
+    '&:has(> [data-thread-status-chip] ~ [data-thread-status-chip])': { flexWrap: 'wrap' },
+  },
   '@media': {
     [shortViewport]: {
       // Beside the title on short screens, it keeps to the room left of the thread actions.
@@ -108,7 +110,7 @@ export const StatusChips = style({
   selectors: { '&:empty': { display: 'none' } },
 });
 
-// The tags take the room the status chips leave, clipped, rather than a line of their own.
+// The tags take the room the status chips leave on their line, clipped.
 export const TagsRow = style({
   display: 'inline-flex',
   flex: '1 1 0',
