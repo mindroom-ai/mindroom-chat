@@ -1,10 +1,10 @@
 import { style } from '@vanilla-extract/css';
 import { color } from 'folds';
-import { Chip as ApprovalChip } from '../messages/ThreadApprovals.css';
+import { HeaderChip } from '../messages/ThreadApprovals.css';
 
 // The header's active-permissions chip, in the warning tone since nothing asks first, and not a button.
 export const Chip = style([
-  ApprovalChip,
+  HeaderChip,
   {
     borderColor: color.Warning.ContainerLine,
     background: color.Warning.Container,

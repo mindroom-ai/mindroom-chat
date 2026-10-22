@@ -253,7 +253,7 @@ test('the thread header says whose YOLO window is open there, until when', async
     sidewaysBanner.getByText(`YOLO for Robin until ${clock(colleagueEnd)}`, { exact: true }),
     sidewaysBanner.getByRole('button', { name: '1 active permission', exact: true }),
   ];
-  // The widest of these also shows the room list and members; there the viewer's end time fits in full.
+  // The two wider ones also show the room list and members; at the widest the viewer's end time fits in full.
   for (const [width, height, ownInFull] of [
     [667, 375, true],
     [844, 390, false],

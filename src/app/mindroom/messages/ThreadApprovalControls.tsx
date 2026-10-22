@@ -585,7 +585,7 @@ export function ThreadApprovalPermissions() {
     <>
       <button
         ref={trigger}
-        className={css.Chip}
+        className={css.HeaderChip}
         type="button"
         data-thread-status-chip=""
         onClick={() => setOpen(true)}

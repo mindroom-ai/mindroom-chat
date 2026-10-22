@@ -3146,10 +3146,10 @@
       "inRoom": "Attività in background in corso"
     },
     "yolo": {
-      "ownLabel": "YOLO fino alle {{time}}",
-      "otherLabel": "YOLO per {{name}} fino alle {{time}}",
-      "ownDetail": "Le tue chiamate agli strumenti in questo thread vengono eseguite senza approvazione fino alle {{time}}. Invia !yolo off per terminare.",
-      "otherDetail": "Le chiamate agli strumenti che {{name}} richiede in questo thread vengono eseguite senza approvazione fino alle {{time}}."
+      "ownLabel": "YOLO fino a {{time}}",
+      "otherLabel": "YOLO per {{name}} fino a {{time}}",
+      "ownDetail": "Le tue chiamate agli strumenti in questo thread vengono eseguite senza approvazione fino a {{time}}. Invia !yolo off per terminare.",
+      "otherDetail": "Le chiamate agli strumenti che {{name}} richiede in questo thread vengono eseguite senza approvazione fino a {{time}}."
     }
   },
   "roomSchedules": {

@@ -61,7 +61,6 @@ export const ReviewPulse = style({
     },
   },
 });
-// A header status chip; on a header too narrow even for its own line, it ends in an ellipsis.
 export const Chip = style({
   border: `1px solid ${color.Surface.ContainerLine}`,
   borderRadius: 16,
@@ -71,11 +70,12 @@ export const Chip = style({
   cursor: 'pointer',
   fontSize: 12,
   whiteSpace: 'nowrap',
-  minWidth: 0,
-  maxWidth: '100%',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
 });
+// A thread header status chip; on a header too narrow even for its own line, it ends in an ellipsis.
+export const HeaderChip = style([
+  Chip,
+  { minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' },
+]);
 export const Receipt = style([
   disclosure.Surface,
   { selectors: { '&:not(:first-child)': { marginBlockStart: config.space.S100 } } },
