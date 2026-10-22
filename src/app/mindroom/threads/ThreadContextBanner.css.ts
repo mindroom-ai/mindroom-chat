@@ -42,7 +42,7 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
-// Holds the eyebrow, the approvals chip and the tags; often none of them.
+// Holds the eyebrow, the status chips and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
   // Status chips take another line instead of squeezing each other.
@@ -108,8 +108,10 @@ export const StatusChips = style({
   selectors: { '&:empty': { display: 'none' } },
 });
 
+// The tags take the room the status chips leave, clipped, rather than a line of their own.
 export const TagsRow = style({
   display: 'inline-flex',
+  flex: '1 1 0',
   alignItems: 'center',
   gap: '0.3rem',
   flexWrap: 'nowrap',

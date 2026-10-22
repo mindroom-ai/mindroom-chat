@@ -167,6 +167,11 @@ test('the thread header says whose YOLO window is open there, until when', async
   const show = banner.getByRole('button', { name: 'Show thread details', exact: true });
   const fullText = (chip: typeof own) =>
     chip.evaluate((node) => node.scrollWidth <= node.clientWidth);
+  // Where a chip's line runs through its middle.
+  const middle = async (locator: typeof own) => {
+    const box = await locator.boundingBox();
+    return box ? box.y + box.height / 2 : Number.NaN;
+  };
   const leftOf = async (chip: typeof own, control: typeof own) => {
     const [chipBox, controlBox] = [await chip.boundingBox(), await control.boundingBox()];
     return !!chipBox && !!controlBox && chipBox.x + chipBox.width <= controlBox.x;
@@ -280,10 +285,6 @@ test('the thread header says whose YOLO window is open there, until when', async
   const shortTitle = sidewaysBanner.getByText('Ship it', { exact: true });
   await expect(shortTitle).toBeVisible();
   await expect(sidewaysBanner.getByText(/^YOLO/)).toHaveCount(0);
-  const middle = async (locator: typeof shortTitle) => {
-    const box = await locator.boundingBox();
-    return box ? box.y + box.height / 2 : Number.NaN;
-  };
   expect(Math.abs((await middle(shortTitle)) - (await middle(sidewaysChips[2])))).toBeLessThan(4);
   await sideways.close();
 
@@ -296,4 +297,22 @@ test('the thread header says whose YOLO window is open there, until when', async
   await expect(own).toBeVisible();
   await publish([]);
   await expect(banner.getByText(/^YOLO/)).toHaveCount(0);
+
+  // On desktop, tags stay on the line of the active-permissions chip and are clipped where they do not fit.
+  for (const tag of ['launch', 'docs', 'qa']) {
+    await sendStateEvent(
+      homeserver!,
+      viewer.access_token,
+      fixture.roomId,
+      'com.mindroom.thread.tags',
+      JSON.stringify([fixture.rootId, tag]),
+      { set_by: viewer.user_id, set_at: new Date().toISOString() }
+    );
+  }
+  await page.setViewportSize({ width: 1024, height: 768 });
+  // Tags sort by name, and the desktop row comes before the hidden phone one.
+  const firstTag = banner.getByText('docs', { exact: true }).first();
+  await expect(firstTag).toBeVisible();
+  expect(Math.abs((await middle(firstTag)) - (await middle(permissions)))).toBeLessThan(4);
+  await page.screenshot({ path: testInfo.outputPath('desktop-tags-light.png') });
 });
