@@ -10,6 +10,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { createSessionId } from '../../state/sessions';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { Membership } from '../../../types/matrix/room';
@@ -346,9 +347,25 @@ describe('CanvasIndexFeature', () => {
       },
     });
 
+  // The planner agent publishes its MindRoom server, as a MindRoom that sets no Computers URL does.
+  const serverState = new MatrixEvent({
+    type: 'io.mindroom.server',
+    state_key: AGENT,
+    sender: AGENT,
+    room_id: ROOM_ID,
+    event_id: '$server',
+    origin_server_ts: 1,
+    content: { api_origin: 'http://localhost:8765', computer: true },
+  });
+
   const createClient = () => {
     const room = {
       roomId: ROOM_ID,
+      myUserId: VIEWER,
+      getMyMembership: () => 'join',
+      currentState: {
+        getStateEvents: (type: string) => (type === 'io.mindroom.server' ? [serverState] : []),
+      },
       getMember: (userId: string) => ({ userId, membership: 'join' }),
       getLiveTimeline: () => ({ getEvents: () => [] }),
       getThreads: () => [],
@@ -356,6 +373,7 @@ describe('CanvasIndexFeature', () => {
     } as unknown as Room;
     return Object.assign(new EventEmitter(), {
       getSafeUserId: () => VIEWER,
+      getUserId: () => VIEWER,
       getHomeserverUrl: () => HOMESERVER,
       getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
       getRooms: () => [room],
@@ -373,7 +391,7 @@ describe('CanvasIndexFeature', () => {
   };
 
   // Canvases are off in every case; only the computer service differs.
-  const recordNoticeWith = async (mindroom: ClientConfig['mindroom']) => {
+  const recordNoticeWith = async (mindroom: ClientConfig['mindroom'], bindsTokens = false) => {
     const mx = createClient();
     let renderer: ReactTestRenderer | undefined;
     await act(async () => {
@@ -385,9 +403,18 @@ describe('CanvasIndexFeature', () => {
             ClientConfigProvider,
             { value: { mindroom } },
             React.createElement(
-              MatrixClientProvider,
-              { value: mx },
-              React.createElement(CanvasIndexFeature)
+              SpecVersionsProvider,
+              {
+                value: {
+                  versions: [],
+                  unstable_features: { 'io.mindroom.openid_audience': bindsTokens },
+                },
+              },
+              React.createElement(
+                MatrixClientProvider,
+                { value: mx },
+                React.createElement(CanvasIndexFeature)
+              )
             )
           )
         )
@@ -414,5 +441,9 @@ describe('CanvasIndexFeature', () => {
 
   it('records nothing with canvases and computers both off', async () => {
     expect(await recordNoticeWith({ canvas: { enabled: false } })).toBe(false);
+  });
+
+  it('records for a server the room agents publish while the homeserver binds tokens', async () => {
+    expect(await recordNoticeWith({ canvas: { enabled: false } }, true)).toBe(true);
   });
 });

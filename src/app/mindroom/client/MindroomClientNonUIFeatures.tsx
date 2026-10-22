@@ -30,7 +30,7 @@ import {
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
-import { useComputerApiUrl } from '../computer/useComputerApiUrl';
+import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
 
@@ -71,8 +71,8 @@ function CrossRoomThreadIndexFeature() {
 // notes where an agent showed its computer, which the header's Computer button needs.
 export function CanvasIndexFeature() {
   const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  const computerApiUrl = useComputerApiUrl();
-  useCanvasIndexRecorder(useMatrixClient(), canvasesEnabled || !!computerApiUrl);
+  const computersAvailable = useComputerApiUrls().length > 0;
+  useCanvasIndexRecorder(useMatrixClient(), canvasesEnabled || computersAvailable);
   return null;
 }
 

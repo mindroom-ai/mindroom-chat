@@ -106,6 +106,13 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       conversationCanvasesFor: [] as unknown[][],
       computerShown: false,
       computerShownFor: [] as unknown[][],
+      mindroomServers: [] as Array<{
+        agentUserId: string;
+        apiUrl: string;
+        computer: boolean;
+        ts: number;
+      }>,
+      bindsOpenIdTokens: false,
       roomViewProps: undefined as MockRoomViewProps | undefined,
       setPeopleDrawer: vi.fn(),
     },
@@ -238,6 +245,12 @@ vi.mock('../../../hooks/useClientConfig', () => ({
   useClientConfig: () => roomState.clientConfig,
 }));
 
+vi.mock('../../server/useMindroomServers', () => ({
+  useRoomMindroomServers: () => roomState.mindroomServers,
+  useBindsOpenIdTokens: () => roomState.bindsOpenIdTokens,
+  useMindroomServerUrls: () => [],
+}));
+
 vi.mock('../../computer/ComputerPanel', () => ({
   ComputerPanel: (props: MockComputerPanelProps) => {
     const { threadId } = props;
@@ -349,6 +362,8 @@ describe('Room', () => {
     roomState.conversationCanvasesFor = [];
     roomState.computerShown = false;
     roomState.computerShownFor = [];
+    roomState.mindroomServers = [];
+    roomState.bindsOpenIdTokens = false;
     mx.relations.mockReset();
     roomState.roomViewProps = undefined;
     roomState.setPeopleDrawer.mockReset();
@@ -400,6 +415,50 @@ describe('Room', () => {
       renderer!.update(React.createElement(Room));
     });
     expect(roomState.roomViewProps?.hasMindroomAgents).toBe(true);
+  });
+
+  describe('the Computer action', () => {
+    const helper = '@mindroom_helper:example.org';
+    const server = (computer: boolean) => ({
+      agentUserId: helper,
+      apiUrl: 'http://localhost:8765',
+      computer,
+      ts: 1,
+    });
+    const computerAvailable = async () => {
+      roomState.members = [
+        { membership: 'join', userId: helper },
+        { membership: 'join', userId: '@alice:example.org' },
+      ];
+      const { Room } = await import('../../../features/room/Room');
+      await act(async () => {
+        create(React.createElement(Room));
+      });
+      return roomState.roomViewProps?.computerAvailable;
+    };
+    const configured = { mindroom: { computers: { apiUrl: 'https://computer.example.org' } } };
+
+    it('uses the server the room agent published while the homeserver binds tokens', async () => {
+      roomState.mindroomServers = [server(true)];
+      roomState.bindsOpenIdTokens = true;
+      expect(await computerAvailable()).toBe(true);
+    });
+
+    it('ignores a published server on a homeserver that does not bind tokens', async () => {
+      roomState.mindroomServers = [server(true)];
+      expect(await computerAvailable()).toBe(false);
+    });
+
+    it('hides the action for an agent whose MindRoom says it has no computer', async () => {
+      roomState.clientConfig = configured;
+      roomState.mindroomServers = [server(false)];
+      expect(await computerAvailable()).toBe(false);
+    });
+
+    it('keeps the action for an agent whose MindRoom does not publish its server yet', async () => {
+      roomState.clientConfig = configured;
+      expect(await computerAvailable()).toBe(true);
+    });
   });
 
   it('passes the live pending join request count to the room header surface', async () => {

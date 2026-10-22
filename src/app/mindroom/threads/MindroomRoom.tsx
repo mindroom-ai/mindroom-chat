@@ -27,6 +27,7 @@ import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentId
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
+import { useBindsOpenIdTokens, useRoomMindroomServers } from '../server/useMindroomServers';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
@@ -76,7 +77,12 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const clientConfig = useClientConfig();
-  const computerApiUrl = useComputerApiUrl();
+  const servers = useRoomMindroomServers(room);
+  const bindsTokens = useBindsOpenIdTokens();
+  const roomServerUrl = bindsTokens
+    ? (servers.find((server) => server.computer) ?? servers[0])?.apiUrl
+    : undefined;
+  const computerApiUrl = useComputerApiUrl(roomServerUrl);
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
   const canvasLibraries = clientConfig.mindroom?.canvas?.libraries === true;
   const computerAgents = useMemo<ComputerAgent[]>(
@@ -84,13 +90,16 @@ export function Room() {
       members
         .filter(
           (member) =>
-            member.membership === KnownMembership.Join && isMindroomAgentUserId(member.userId)
+            member.membership === KnownMembership.Join &&
+            isMindroomAgentUserId(member.userId) &&
+            // An agent whose MindRoom does not publish its server yet keeps the Computer action.
+            (servers.find((server) => server.agentUserId === member.userId)?.computer ?? true)
         )
         .map((member) => ({
           userId: member.userId,
           name: member.name?.trim() || member.userId,
         })),
-    [members]
+    [members, servers]
   );
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();

@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Find the MindRoom server from the agents in the user's rooms (2026-10-22)
+
+- Why: hosted Chat ships `mindroom.computers.apiUrl` empty, so every user had to type their MindRoom address under Computers before Connections or Computers worked, and Chat showed a Computer button for every agent once a URL was set, even agents without a worker computer.
+- Backend dependency: mindroom-ai/mindroom (`io.mindroom.server`): every MindRoom agent, team, and the router publishes room state keyed by its own user ID, `{"api_origin": <origin>, "computer": <bool>}`, in each room it joins.
+  The origin is the backend's OpenID audience (`MINDROOM_PUBLIC_URL`, or `http://localhost:<MINDROOM_PORT>`), so a token Chat binds to it verifies there.
+  Matrix accepts a state key that starts with `@` only from that user, so only the agent itself can write it; managed rooms give the type power level 0.
+- Design:
+  - `server/mindroomServer.ts` reads an event only when its state key is its sender and the sender is a MindRoom agent on the viewer's homeserver (`isMindroomAgentUserIdForViewer`), and only when `api_origin` passes `resolveComputerApiUrl`.
+  - `server/useMindroomServers.ts`: `useRoomMindroomServers(room)` lists the servers of the room's joined agents, newest first, following `useRoomBackgroundJobs`; `useMindroomServerUrls()` lists each origin published in the user's joined rooms; `useBindsOpenIdTokens()` reads `io.mindroom.openid_audience` from `/versions`.
+  - A published origin is used only while the homeserver binds tokens: a token Chat then sends to it is bound to that origin, so a hostile agent learns nothing it could replay elsewhere.
+    On other homeservers nothing changes.
+  - Order: the user's Computers setting, then the deployment's `apiUrl`, then a published origin; a user who turned computers off keeps them off.
+    In a room, the origin of the agent with a computer, else of the newest agent; in Settings, every origin found, each with its own **Open Connections** button and its address beside it when there are several, as when the user's rooms hold agents of two MindRooms.
+  - The Computer action shows only for joined agents that publish `computer: true`; an agent whose MindRoom does not publish its server yet keeps the action, as before.
+  - The canvas index recorder runs when any of these origins exists, as it did for a configured one.
+- No new catalog keys: the address beside a button is data, not text.
+- Tests: `mindroomServer.test.ts` covers the self-description, viewer-homeserver, origin, joined, and order rules; `useMindroomServers.test.tsx` follows an agent that moves server and leaves, and ignores unrelated state.
+  `MindroomConnectionsSettings.test.tsx` covers a discovered server, several servers by address, the configured server winning, and a server turned off staying off.
+  `Room.test.ts` covers the Computer action with a discovered server, without binding, for an agent without a computer, and for an agent whose MindRoom does not publish.
+  `MindroomClientNonUIFeatures.test.ts` covers the recorder running for a discovered server only while the homeserver binds tokens.
+  Mutation checks failed the matching tests: any state key, any homeserver, a truthy computer flag, agents that left, oldest first, binding ignored in the room and globally, the discovered origin ignored, a turned-off service ignored, and the computer flag ignored or defaulting to false.
+- Not caused by this change: `useRoomInputSendSessionController.test.ts` ("restores an already-cleared caption…") and `native/xcodeCloudPostClone.test.ts` also fail on `dev` here.
+
 ### Add a thread's fetched and buffered history to the SDK as history, not live events (2026-10-21)
 
 - Report: opening the iPhone app froze it in a thread for many seconds; the owner thinks this started in the last weeks.
