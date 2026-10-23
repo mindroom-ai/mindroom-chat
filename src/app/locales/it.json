@@ -3144,6 +3144,16 @@
       "stopFailed": "Impossibile interrompere {{tool}}. Riprova.",
       "stopAllFailed": "Impossibile interrompere le attività in background. Riprova.",
       "inRoom": "Attività in background in corso"
+    },
+    "autoApprove": {
+      "label": "Approvazione automatica",
+      "labelOne": "Approvazione automatica: {{name}}",
+      "labelMany": "Approvazione automatica: {{name}} +{{count}}",
+      "title": "Approvazione automatica",
+      "intro": "In questo thread, le chiamate agli strumenti richieste da queste persone vengono eseguite senza schede di approvazione.",
+      "you": "Tu",
+      "until": "Fino a {{time}}",
+      "ownUntil": "Fino a {{time}}. Invia !auto_approve off per terminarla."
     }
   },
   "roomSchedules": {

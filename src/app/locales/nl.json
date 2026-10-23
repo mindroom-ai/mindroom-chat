@@ -3078,6 +3078,16 @@
       "stopFailed": "Kon {{tool}} niet stoppen. Probeer het opnieuw.",
       "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"
+    },
+    "autoApprove": {
+      "label": "Automatische goedkeuring",
+      "labelOne": "Automatische goedkeuring: {{name}}",
+      "labelMany": "Automatische goedkeuring: {{name}} +{{count}}",
+      "title": "Automatische goedkeuring",
+      "intro": "In deze thread lopen toolaanroepen die deze mensen vragen zonder goedkeuringskaarten.",
+      "you": "Jij",
+      "until": "Tot {{time}}",
+      "ownUntil": "Tot {{time}}. Stuur !auto_approve off om dit te beëindigen."
     }
   },
   "roomSchedules": {

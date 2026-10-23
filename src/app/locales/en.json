@@ -3078,6 +3078,16 @@
       "stopFailed": "Could not stop {{tool}}. Try again.",
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"
+    },
+    "autoApprove": {
+      "label": "Auto-approve",
+      "labelOne": "Auto-approve: {{name}}",
+      "labelMany": "Auto-approve: {{name}} +{{count}}",
+      "title": "Auto-approve",
+      "intro": "In this thread, tool calls these people request run without approval cards.",
+      "you": "You",
+      "until": "Until {{time}}",
+      "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
     }
   },
   "roomSchedules": {
