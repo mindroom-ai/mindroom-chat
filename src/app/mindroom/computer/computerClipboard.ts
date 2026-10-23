@@ -22,8 +22,10 @@ export type ComputerClipboardOptions = {
   onPaste?: (result: PasteResult) => void;
 };
 
-// X11 keysyms XK_Control_L, XK_V and XK_v. The package exports only RFB, not its key table.
+// X11 keysyms XK_Control_L, XK_Shift_L, XK_V and XK_v.
+// The package exports only RFB, not its key table.
 const CONTROL_L_KEYSYM = 0xffe3;
+const SHIFT_L_KEYSYM = 0xffe1;
 const SHIFT_V_KEYSYM = 0x56;
 const V_KEYSYM = 0x76;
 
@@ -57,6 +59,7 @@ export function attachComputerClipboard(
 
   let detached = false;
   let ctrlMapped = false;
+  let shiftMapped = false;
   let ctrlDown = false;
   let shiftDown = false;
   let pendingCopy: PendingCopy | undefined;
@@ -64,7 +67,14 @@ export function attachComputerClipboard(
   const hasPrimaryModifier = (event: KeyboardEvent) =>
     apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 
-  const releaseMappedCtrl = () => {
+  const releaseMappedShift = () => {
+    if (!shiftMapped) return;
+    shiftMapped = false;
+    rfb.sendKey(SHIFT_L_KEYSYM, 'ShiftLeft', false);
+  };
+
+  const releaseMappedKeys = () => {
+    releaseMappedShift();
     if (!ctrlMapped) return;
     ctrlMapped = false;
     rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
@@ -77,12 +87,14 @@ export function attachComputerClipboard(
     }
     if (text) rfb.clipboardPasteFrom(text);
     const keysym = shiftDown ? SHIFT_V_KEYSYM : V_KEYSYM;
-    // After the shortcut the remote already holds Ctrl; a menu paste sends the whole chord.
-    const chord = !(apple ? ctrlMapped : ctrlDown);
-    if (chord) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
+    const ctrlHeld = apple ? ctrlMapped : ctrlDown;
+    // Off Apple a held Ctrl is pressed again: noVNC on Windows holds a Ctrl press back
+    // up to 100 ms to detect AltGr, and would send it after the v.
+    if (!ctrlHeld || !apple) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
     rfb.sendKey(keysym, 'KeyV', true);
     rfb.sendKey(keysym, 'KeyV', false);
-    if (chord) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
+    // A paste with no Ctrl held (the browser's Edit menu) sends the whole chord.
+    if (!ctrlHeld) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
     onPaste?.('sent');
   };
 
@@ -128,6 +140,17 @@ export function attachComputerClipboard(
       return;
     }
 
+    if (ctrlMapped && event.key === 'Shift') {
+      // noVNC's Mac path presses and releases every key typed with Cmd, which would drop Shift.
+      event.preventDefault();
+      event.stopPropagation();
+      if (!shiftMapped) {
+        shiftMapped = true;
+        rfb.sendKey(SHIFT_L_KEYSYM, 'ShiftLeft', true);
+      }
+      return;
+    }
+
     if (!hasPrimaryModifier(event) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (key === 'v') {
@@ -153,10 +176,22 @@ export function attachComputerClipboard(
   const handleKeyUp = (event: KeyboardEvent) => {
     ctrlDown = event.ctrlKey;
     shiftDown = event.shiftKey;
-    if (event.key !== 'Meta' || !ctrlMapped) return;
-    event.preventDefault();
-    event.stopPropagation();
-    releaseMappedCtrl();
+    if (event.key === 'Shift' && shiftMapped) {
+      event.preventDefault();
+      event.stopPropagation();
+      releaseMappedShift();
+    } else if (event.key === 'Meta' && ctrlMapped) {
+      event.preventDefault();
+      event.stopPropagation();
+      releaseMappedKeys();
+    }
+  };
+
+  // Focus can leave with Cmd held, for example on a Cmd+click, and the keyup lands elsewhere.
+  const handleFocusOut = (event: FocusEvent) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && target.contains(next)) return;
+    releaseMappedKeys();
   };
 
   // Firefox aims paste at the body and Chromium at any selection elsewhere on the page,
@@ -171,7 +206,7 @@ export function attachComputerClipboard(
   const handleBlur = () => {
     ctrlDown = false;
     shiftDown = false;
-    releaseMappedCtrl();
+    releaseMappedKeys();
   };
 
   // A server push without a pending copy gesture never reaches the local clipboard.
@@ -182,6 +217,7 @@ export function attachComputerClipboard(
 
   target.addEventListener('keydown', handleKeyDown, true);
   target.addEventListener('keyup', handleKeyUp, true);
+  target.addEventListener('focusout', handleFocusOut);
   doc.addEventListener('paste', handlePaste, true);
   view.addEventListener('blur', handleBlur);
   rfb.addEventListener('clipboard', handleRemoteClipboard);
@@ -190,10 +226,11 @@ export function attachComputerClipboard(
     detached = true;
     target.removeEventListener('keydown', handleKeyDown, true);
     target.removeEventListener('keyup', handleKeyUp, true);
+    target.removeEventListener('focusout', handleFocusOut);
     doc.removeEventListener('paste', handlePaste, true);
     view.removeEventListener('blur', handleBlur);
     rfb.removeEventListener('clipboard', handleRemoteClipboard);
     takePendingCopy()?.reject(new Error('The computer screen closed.'));
-    releaseMappedCtrl();
+    releaseMappedKeys();
   };
 }

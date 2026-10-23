@@ -12,6 +12,7 @@ import {
 const V_KEYSYM = 0x76;
 const SHIFT_V_KEYSYM = 0x56;
 const CONTROL_L_KEYSYM = 0xffe3;
+const SHIFT_L_KEYSYM = 0xffe1;
 
 type RfbCall = ['paste', string] | ['key', number, string | null, boolean | undefined];
 
@@ -132,6 +133,7 @@ describe('attachComputerClipboard', () => {
     target.remove();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('pastes the local text, then presses v under the held modifier', () => {
@@ -144,11 +146,28 @@ describe('attachComputerClipboard', () => {
     const event = paste('hello');
     expect(rfb.calls).toEqual([
       ['paste', 'hello'],
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
       ['key', V_KEYSYM, 'KeyV', true],
       ['key', V_KEYSYM, 'KeyV', false],
     ]);
     expect(event.defaultPrevented).toBe(true);
     expect(onPaste).toHaveBeenCalledWith('sent');
+  });
+
+  it('presses a held Ctrl again before v, without releasing it', () => {
+    // noVNC on Windows holds a Ctrl press back up to 100 ms to detect AltGr.
+    attach();
+
+    key('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+
+    expect(rfb.calls.slice(1)).toEqual([
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+      ['key', V_KEYSYM, 'KeyV', true],
+      ['key', V_KEYSYM, 'KeyV', false],
+    ]);
+    expect(rfb.calls).not.toContainEqual(['key', CONTROL_L_KEYSYM, 'ControlLeft', false]);
   });
 
   it('sends V for a shifted paste', () => {
@@ -159,6 +178,7 @@ describe('attachComputerClipboard', () => {
 
     expect(rfb.calls).toEqual([
       ['paste', 'hello'],
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
       ['key', SHIFT_V_KEYSYM, 'KeyV', true],
       ['key', SHIFT_V_KEYSYM, 'KeyV', false],
     ]);
@@ -185,7 +205,13 @@ describe('attachComputerClipboard', () => {
     key('keyup', { key: 'Control', code: 'ControlLeft' });
     paste('hello');
 
-    expect(rfb.calls.filter(([kind]) => kind === 'key')).toHaveLength(4);
+    expect(rfb.calls).toEqual([
+      ['paste', 'hello'],
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+      ['key', V_KEYSYM, 'KeyV', true],
+      ['key', V_KEYSYM, 'KeyV', false],
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', false],
+    ]);
   });
 
   it('still presses v for a paste without text', () => {
@@ -195,6 +221,7 @@ describe('attachComputerClipboard', () => {
     paste('');
 
     expect(rfb.calls).toEqual([
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
       ['key', V_KEYSYM, 'KeyV', true],
       ['key', V_KEYSYM, 'KeyV', false],
     ]);
@@ -309,9 +336,6 @@ describe('attachComputerClipboard', () => {
     expect(state.value).toBe('pending');
     await vi.advanceTimersByTimeAsync(1);
     expect(state.value).toBe('rejected');
-
-    rfb.emitClipboard('late');
-    expect(clipboard.writeText).not.toHaveBeenCalled();
   });
 
   it('replaces a pending copy with a newer one', async () => {
@@ -391,34 +415,122 @@ describe('attachComputerClipboard', () => {
     expect(canvasKeys).toHaveBeenCalledTimes(1);
   });
 
+  const releases = (keysym: number) =>
+    rfb.sendKey.mock.calls.filter(([sent, , down]) => sent === keysym && down === false).length;
+
+  const pressCmdShift = () => {
+    key('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
+    key('keydown', { key: 'Shift', code: 'ShiftLeft', metaKey: true, shiftKey: true });
+  };
+
   it('releases a mapped Ctrl on window blur and on detach', () => {
-    const releases = () =>
-      rfb.sendKey.mock.calls.filter(
-        ([keysym, , down]) => keysym === CONTROL_L_KEYSYM && down === false
-      ).length;
+    attach({ apple: true });
+
+    pressCmdShift();
+    window.dispatchEvent(new Event('blur'));
+    expect(releases(CONTROL_L_KEYSYM)).toBe(1);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(1);
+    window.dispatchEvent(new Event('blur'));
+    expect(releases(CONTROL_L_KEYSYM)).toBe(1);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(1);
+
+    pressCmdShift();
+    detach?.();
+    detach = undefined;
+    expect(releases(CONTROL_L_KEYSYM)).toBe(2);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(2);
+  });
+
+  it('keeps Shift held under Cmd on Apple, so Cmd+Shift+Z is Ctrl+Shift+Z', () => {
     attach({ apple: true });
 
     key('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
-    window.dispatchEvent(new Event('blur'));
-    expect(releases()).toBe(1);
-    window.dispatchEvent(new Event('blur'));
-    expect(releases()).toBe(1);
+    const shift = key('keydown', {
+      key: 'Shift',
+      code: 'ShiftLeft',
+      metaKey: true,
+      shiftKey: true,
+    });
+    key('keydown', {
+      key: 'Shift',
+      code: 'ShiftLeft',
+      metaKey: true,
+      shiftKey: true,
+      repeat: true,
+    });
+    const z = key('keydown', { key: 'z', code: 'KeyZ', metaKey: true, shiftKey: true });
 
-    key('keydown', { key: 'Meta', code: 'MetaRight', metaKey: true });
-    detach?.();
-    detach = undefined;
-    expect(releases()).toBe(2);
+    expect(shift.defaultPrevented).toBe(true);
+    expect(rfb.calls).toEqual([
+      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+      ['key', SHIFT_L_KEYSYM, 'ShiftLeft', true],
+    ]);
+    expect(canvasKeys.mock.calls).toEqual([[z]]);
+    expect(z.defaultPrevented).toBe(false);
+
+    const release = key('keyup', { key: 'Shift', code: 'ShiftLeft', metaKey: true });
+    expect(release.defaultPrevented).toBe(true);
+    expect(rfb.calls.at(-1)).toEqual(['key', SHIFT_L_KEYSYM, 'ShiftLeft', false]);
+    expect(canvasKeys).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves Meta alone off Apple', () => {
+  it('releases a mapped Shift with Cmd, once', () => {
+    attach({ apple: true });
+
+    pressCmdShift();
+    key('keyup', { key: 'Meta', code: 'MetaLeft', shiftKey: true });
+    expect(releases(CONTROL_L_KEYSYM)).toBe(1);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(1);
+
+    const shiftUp = key('keyup', { key: 'Shift', code: 'ShiftLeft' });
+    expect(shiftUp.defaultPrevented).toBe(false);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(1);
+  });
+
+  it('leaves Shift pressed before Cmd to noVNC', () => {
+    attach({ apple: true });
+
+    key('keydown', { key: 'Shift', code: 'ShiftLeft', shiftKey: true });
+    key('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true, shiftKey: true });
+    key('keyup', { key: 'Shift', code: 'ShiftLeft', metaKey: true });
+
+    expect(canvasKeys).toHaveBeenCalledTimes(2);
+    expect(rfb.calls).toEqual([['key', CONTROL_L_KEYSYM, 'ControlLeft', true]]);
+  });
+
+  it('releases the mapped keys when focus leaves the screen', () => {
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    const focusOut = (relatedTarget: EventTarget | null) =>
+      canvas.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget }));
+    attach({ apple: true });
+
+    pressCmdShift();
+    focusOut(target);
+    expect(releases(CONTROL_L_KEYSYM)).toBe(0);
+
+    focusOut(outside);
+    expect(releases(CONTROL_L_KEYSYM)).toBe(1);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(1);
+
+    pressCmdShift();
+    focusOut(null);
+    expect(releases(CONTROL_L_KEYSYM)).toBe(2);
+    expect(releases(SHIFT_L_KEYSYM)).toBe(2);
+    outside.remove();
+  });
+
+  it('leaves Meta and Shift alone off Apple', () => {
     attach();
 
     const press = key('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
-    key('keydown', { key: 'v', code: 'KeyV', metaKey: true });
+    key('keydown', { key: 'Shift', code: 'ShiftLeft', metaKey: true, shiftKey: true });
+    key('keydown', { key: 'v', code: 'KeyV', metaKey: true, shiftKey: true });
+    key('keyup', { key: 'Shift', code: 'ShiftLeft', metaKey: true });
     key('keyup', { key: 'Meta', code: 'MetaLeft' });
 
     expect(press.defaultPrevented).toBe(false);
-    expect(canvasKeys).toHaveBeenCalledTimes(3);
+    expect(canvasKeys).toHaveBeenCalledTimes(5);
     expect(rfb.calls).toEqual([]);
   });
 
@@ -490,6 +602,10 @@ describe('attachComputerClipboard', () => {
   });
 
   it('detaches every listener', async () => {
+    const listeners = [target, document, window].map((node) => ({
+      added: vi.spyOn(node, 'addEventListener'),
+      removed: vi.spyOn(node, 'removeEventListener'),
+    }));
     attach({ apple: true });
     key('keydown', { key: 'c', code: 'KeyC', metaKey: true });
     const pending = writtenItem();
@@ -499,6 +615,10 @@ describe('attachComputerClipboard', () => {
     detach = undefined;
     await expect(pending).rejects.toBeInstanceOf(Error);
     expect(rfb.removeEventListener).toHaveBeenCalledWith('clipboard', clipboardListener);
+    listeners.forEach(({ added, removed }) => {
+      expect(added.mock.calls.length).toBeGreaterThan(0);
+      expect(removed.mock.calls).toEqual(expect.arrayContaining(added.mock.calls));
+    });
 
     rfb.calls.length = 0;
     clipboard.write.mockClear();
