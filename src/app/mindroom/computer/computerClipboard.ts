@@ -60,7 +60,9 @@ export function attachComputerClipboard(
   let detached = false;
   let ctrlMapped = false;
   let shiftMapped = false;
-  let ctrlDown = false;
+  // Off Apple, the Ctrl keys noVNC holds: it sends only presses that reach the screen.
+  let leftCtrlHeld = false;
+  let rightCtrlHeld = false;
   let shiftDown = false;
   let pendingCopy: PendingCopy | undefined;
 
@@ -71,6 +73,11 @@ export function attachComputerClipboard(
     if (!shiftMapped) return;
     shiftMapped = false;
     rfb.sendKey(SHIFT_L_KEYSYM, 'ShiftLeft', false);
+  };
+
+  const forgetHeldCtrl = () => {
+    leftCtrlHeld = false;
+    rightCtrlHeld = false;
   };
 
   const releaseMappedKeys = () => {
@@ -87,14 +94,16 @@ export function attachComputerClipboard(
     }
     if (text) rfb.clipboardPasteFrom(text);
     const keysym = shiftDown ? SHIFT_V_KEYSYM : V_KEYSYM;
-    const ctrlHeld = apple ? ctrlMapped : ctrlDown;
-    // Off Apple a held Ctrl is pressed again: noVNC on Windows holds a Ctrl press back
-    // up to 100 ms to detect AltGr, and would send it after the v.
-    if (!ctrlHeld || !apple) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
+    // With no Ctrl held on the remote (a Ctrl pressed outside the screen, or the
+    // browser's Edit menu) the whole chord is sent.
+    const chord = apple ? !ctrlMapped : !leftCtrlHeld && !rightCtrlHeld;
+    // noVNC on Windows holds a left-Ctrl press back up to 100 ms to detect AltGr, and
+    // would send it after the v. It is pressed again here, and noVNC's keyup releases it.
+    const pressLeftCtrl = !apple && leftCtrlHeld;
+    if (chord || pressLeftCtrl) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
     rfb.sendKey(keysym, 'KeyV', true);
     rfb.sendKey(keysym, 'KeyV', false);
-    // A paste with no Ctrl held (the browser's Edit menu) sends the whole chord.
-    if (!ctrlHeld) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
+    if (chord) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
     onPaste?.('sent');
   };
 
@@ -125,9 +134,11 @@ export function attachComputerClipboard(
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    ctrlDown = event.ctrlKey;
     shiftDown = event.shiftKey;
-    if (!isControlling() || event.isComposing) return;
+    if (!isControlling()) return;
+    if (!apple && event.code === 'ControlLeft') leftCtrlHeld = true;
+    if (!apple && event.code === 'ControlRight') rightCtrlHeld = true;
+    if (event.isComposing) return;
 
     if (apple && event.key === 'Meta') {
       // Cmd acts as Ctrl on the remote; noVNC would send it as Alt.
@@ -174,8 +185,9 @@ export function attachComputerClipboard(
   };
 
   const handleKeyUp = (event: KeyboardEvent) => {
-    ctrlDown = event.ctrlKey;
     shiftDown = event.shiftKey;
+    if (event.code === 'ControlLeft') leftCtrlHeld = false;
+    if (event.code === 'ControlRight') rightCtrlHeld = false;
     if (event.key === 'Shift' && shiftMapped) {
       event.preventDefault();
       event.stopPropagation();
@@ -187,10 +199,11 @@ export function attachComputerClipboard(
     }
   };
 
-  // Focus can leave with Cmd held, for example on a Cmd+click, and the keyup lands elsewhere.
+  // Focus can leave with a modifier held, for example on a Cmd+click, and its keyup lands elsewhere.
   const handleFocusOut = (event: FocusEvent) => {
     const next = event.relatedTarget;
     if (next instanceof Node && target.contains(next)) return;
+    forgetHeldCtrl();
     releaseMappedKeys();
   };
 
@@ -203,8 +216,9 @@ export function attachComputerClipboard(
     sendPaste(event.clipboardData?.getData('text/plain') ?? '');
   };
 
+  // noVNC releases its keys on window blur.
   const handleBlur = () => {
-    ctrlDown = false;
+    forgetHeldCtrl();
     shiftDown = false;
     releaseMappedKeys();
   };

@@ -136,12 +136,23 @@ describe('attachComputerClipboard', () => {
     vi.restoreAllMocks();
   });
 
+  const pressLeftCtrl = () =>
+    key('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
+
+  const chord = (keysym = V_KEYSYM): RfbCall[] => [
+    ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+    ['key', keysym, 'KeyV', true],
+    ['key', keysym, 'KeyV', false],
+    ['key', CONTROL_L_KEYSYM, 'ControlLeft', false],
+  ];
+
   it('pastes the local text, then presses v under the held modifier', () => {
     attach();
 
+    pressLeftCtrl();
     const shortcut = key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
     expect(shortcut.defaultPrevented).toBe(false);
-    expect(canvasKeys).not.toHaveBeenCalled();
+    expect(canvasKeys.mock.calls.map(([event]) => event)).not.toContain(shortcut);
 
     const event = paste('hello');
     expect(rfb.calls).toEqual([
@@ -154,11 +165,11 @@ describe('attachComputerClipboard', () => {
     expect(onPaste).toHaveBeenCalledWith('sent');
   });
 
-  it('presses a held Ctrl again before v, without releasing it', () => {
-    // noVNC on Windows holds a Ctrl press back up to 100 ms to detect AltGr.
+  it('presses a held left Ctrl again before v, without releasing it', () => {
+    // noVNC on Windows holds a left-Ctrl press back up to 100 ms to detect AltGr.
     attach();
 
-    key('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
+    pressLeftCtrl();
     key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
     paste('hello');
 
@@ -170,9 +181,65 @@ describe('attachComputerClipboard', () => {
     expect(rfb.calls).not.toContainEqual(['key', CONTROL_L_KEYSYM, 'ControlLeft', false]);
   });
 
+  it('presses a bare v under a right Ctrl', () => {
+    attach();
+
+    key('keydown', { key: 'Control', code: 'ControlRight', ctrlKey: true, location: 2 });
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+
+    expect(rfb.calls).toEqual([
+      ['paste', 'hello'],
+      ['key', V_KEYSYM, 'KeyV', true],
+      ['key', V_KEYSYM, 'KeyV', false],
+    ]);
+  });
+
+  it('sends the whole chord for a Ctrl pressed outside the screen', () => {
+    attach();
+
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+  });
+
+  it('sends the whole chord for a Ctrl pressed while watching', () => {
+    controlling = false;
+    attach();
+
+    pressLeftCtrl();
+    controlling = true;
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+  });
+
+  it('sends the whole chord once blur or focus out drops the held Ctrl', () => {
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    attach();
+
+    pressLeftCtrl();
+    window.dispatchEvent(new Event('blur'));
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+
+    rfb.calls.length = 0;
+    pressLeftCtrl();
+    canvas.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+    outside.remove();
+  });
+
   it('sends V for a shifted paste', () => {
     attach();
 
+    pressLeftCtrl();
     key('keydown', { key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true });
     paste('hello');
 
@@ -201,6 +268,7 @@ describe('attachComputerClipboard', () => {
   it('sends the chord again once the modifier is up', () => {
     attach();
 
+    pressLeftCtrl();
     key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
     key('keyup', { key: 'Control', code: 'ControlLeft' });
     paste('hello');
@@ -217,6 +285,7 @@ describe('attachComputerClipboard', () => {
   it('still presses v for a paste without text', () => {
     attach();
 
+    pressLeftCtrl();
     key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
     paste('');
 
