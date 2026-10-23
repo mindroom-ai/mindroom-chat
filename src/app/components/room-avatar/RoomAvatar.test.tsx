@@ -36,5 +36,11 @@ describe('RoomAvatar', () => {
     expect(container.querySelector('img')?.getAttribute('src')).toBe(
       'https://hs.test/_matrix/client/v1/media/thumbnail/hs.test/a'
     );
+
+    // A URL that failed before is tried again once it comes back.
+    renderAvatar('https://hs.test/_matrix/media/v3/thumbnail/hs.test/a');
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      'https://hs.test/_matrix/media/v3/thumbnail/hs.test/a'
+    );
   });
 });
