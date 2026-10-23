@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Copy and paste through the computer screen while in control (2026-10-23)
+
+- Why: the clipboard bridge (next entry) was not attached to the screen yet, so copy and paste still did not reach the agent computer. Focus on the screen's own element also left noVNC's keyboard dead, because noVNC listens only on its canvas.
+- Change: `ComputerScreen` attaches `attachComputerClipboard` in its RFB effect, once per stream. It reads `mode` and the new `onPaste` prop through refs, so changing mode never recreates the RFB. Its cleanup detaches the bridge before `rfb.disconnect()`, so a mapped Ctrl or Shift is released while the socket is open. `RfbClient` gains `clipboardPasteFrom` and `sendKey`. The wrapper's bubble-phase `keydown`/`paste` stops stay.
+  - Focus handoff: while in control, focus that lands on the wrapper itself moves on to noVNC's canvas (`rfb.focus({ preventScroll: true })`). That happens on Tab, and on a click in the letterbox margin, where the mousedown focuses the wrapper after `onPointerDown` focused the canvas. The canvas is where noVNC's keyboard and the bridge's Ctrl tracking listen. While watching, focus stays on the wrapper: Shift+Tab from the canvas lands there, and a handoff in every mode sent it straight back (Chromium: canvas, canvas, canvas, canvas).
+- Tests: `ComputerScreen.test.tsx` (6 cases). New cases:
+  - a paste is ignored while watching, and on the same RFB after switching to control gives `clipboardPasteFrom('hi')` and the newer `onPaste('sent')`;
+  - unmount releases a mapped Ctrl (Mac platform, Cmd held) before `disconnect`, and the old screen, put back and focused, bridges nothing;
+  - focusing the wrapper calls `rfb.focus` once while in control, and focusing the canvas does not call it again;
+  - focusing the wrapper while watching does not call it.
+
+  The existing "keeps keyboard and paste events inside" case now renders watching, so the bridge stays out of its paste. Browser fixture: `e2e/fixtures/computer-clipboard.{html,tsx}` mounts the real `ComputerScreen` with a stand-in RFB that:
+  - builds noVNC's screen `div` and `tabindex="-1"` canvas;
+  - focuses the canvas and stops mousedown;
+  - while not view-only, stops and prevents every key, and logs a key-up only for a key it saw go down;
+  - records `clipboardPasteFrom`/`sendKey` on `window.__rfb`, and fires `clipboard` from it.
+
+  `e2e/computer-clipboard.spec.ts` (config `playwright.computer-clipboard.config.ts`) seeds and reads the local clipboard with a native copy and paste in a textarea:
+
+  | Case | Chromium | Firefox | WebKit (Linux) |
+  | --- | --- | --- | --- |
+  | Ctrl+V gives `clipboardPasteFrom('local text')`, `Control_L` down, `v` down and up; noVNC sees only Ctrl | passes | passes | skipped: no `paste` on the screen, and its `readText()` gets `NotAllowedError` under Playwright |
+  | Ctrl+C reaches noVNC, and a `clipboard` reply becomes the local clipboard | passes | passes | passes |
+  | A `clipboard` push without a copy shortcut leaves the local clipboard, after a click on the screen | passes | passes | passes |
+  | Tab and a letterbox click hand focus to the canvas while in control | passes | passes | passes |
+  | Tab and Shift+Tab move past the screen while watching | passes | passes | passes |
+
+  Chromium ran on the host. Firefox and WebKit ran in `mcr.microsoft.com/playwright:v1.58.2-noble`. With the WebKit skip lifted, the read was refused with `NotAllowedError` and no calls were recorded. Each change below made its case fail in Chromium: no bridge (paste, copy), no handoff (handoff), handoff in every mode (Tab while watching), and an ungated server push (push).
+- Validation: `npx vitest run src/app/mindroom/computer` (8 files, 165 tests), `npm run typecheck`, `npm run lint` (0 errors), `npm run build`, prettier on the touched files, and `tsc` on the new e2e files pass. `npx playwright test -c playwright.computer-clipboard.config.ts` gives 5 passed on the host Chromium, and 14 passed and 1 skipped in the container.
+- Risks: in control, noVNC's grabbed keyboard stops and sends every key, Tab and Shift+Tab included. Keyboard focus cannot leave the canvas until the user clicks elsewhere or releases control. That was already so after Take control; the handoff now also applies after Tab into the screen. The macOS paths are still unverified on a Linux host.
+- Next: show "Text over 512 KB cannot be pasted into the computer." in `ComputerPanel` from `onPaste`, until the next `sent`.
+
 ### Add a gesture-gated clipboard bridge for the computer screen (2026-10-23)
 
 - Why: copy and paste between the user's machine and the agent computer did not work. noVNC 1.7 has no browser clipboard sync, and its canvas `preventDefault`s every key, so the browser never fires `paste` on the screen.

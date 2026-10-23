@@ -1,12 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
+import { attachComputerClipboard, type PasteResult } from './computerClipboard';
 
 export type RfbClient = {
   addEventListener(name: string, listener: EventListener): void;
   removeEventListener(name: string, listener: EventListener): void;
   disconnect(): void;
   focus(options?: FocusOptions): void;
+  clipboardPasteFrom(text: string): void;
+  sendKey(keysym: number, code: string | null, down?: boolean): void;
   scaleViewport: boolean;
   viewOnly: boolean;
 };
@@ -23,6 +26,7 @@ export type ComputerScreenProps = {
   mode: 'view' | 'control';
   onConnected: () => void;
   onDisconnected: (message?: string) => void;
+  onPaste?: (result: PasteResult) => void;
   createRfb?: RfbFactory;
 };
 
@@ -34,15 +38,20 @@ export function ComputerScreen({
   mode,
   onConnected,
   onDisconnected,
+  onPaste,
   createRfb = defaultRfbFactory,
 }: ComputerScreenProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const rfbRef = useRef<RfbClient>();
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
+  const pasteCallbackRef = useRef(onPaste);
+  const modeRef = useRef(mode);
 
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
+  pasteCallbackRef.current = onPaste;
+  modeRef.current = mode;
   const binaryProtocol = protocols[0];
   const ticketProtocol = protocols[1];
 
@@ -70,8 +79,15 @@ export function ComputerScreen({
     rfb.addEventListener('securityfailure', handleSecurityFailure);
     target.addEventListener('keydown', keepInputInsideComputer);
     target.addEventListener('paste', keepInputInsideComputer);
+    // Read through refs, so a change of mode never reconnects the stream.
+    const detachClipboard = attachComputerClipboard(target, rfb, {
+      isControlling: () => modeRef.current === 'control',
+      onPaste: (result) => pasteCallbackRef.current?.(result),
+    });
 
     return () => {
+      // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
+      detachClipboard();
       rfb.removeEventListener('connect', handleConnect);
       rfb.removeEventListener('disconnect', handleDisconnect);
       rfb.removeEventListener('securityfailure', handleSecurityFailure);
@@ -97,6 +113,14 @@ export function ComputerScreen({
       className={css.Screen}
       data-mindroom-computer-input
       onPointerDown={() => rfbRef.current?.focus({ preventScroll: true })}
+      onFocus={(event) => {
+        // noVNC's keyboard listens only on its canvas, so focus that lands on this element
+        // (Tab, or a click in the letterbox margin) moves on to it. Watching, it stays here,
+        // so Shift+Tab from the canvas can leave the screen.
+        if (mode === 'control' && event.target === event.currentTarget) {
+          rfbRef.current?.focus({ preventScroll: true });
+        }
+      }}
       role="application"
       aria-label="Agent computer"
       // The RFB surface must receive raw keyboard input while the user controls it.
