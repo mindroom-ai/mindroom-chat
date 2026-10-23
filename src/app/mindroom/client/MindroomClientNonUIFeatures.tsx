@@ -17,6 +17,7 @@ import { settingsAtom } from '../../state/settings';
 import { notificationPermission, setFavicon } from '../../utils/dom';
 import { Membership } from '../../../types/matrix/room';
 import { MINDROOM_FAVICON_SRC } from '../branding/branding';
+import { playChime } from '../notifications/playChime';
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
@@ -95,7 +96,6 @@ type InviteObservationState = {
 };
 
 export function MindroomInviteNotifications() {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const invites = useAtomValue(allInvitesAtom);
   const mx = useMatrixClient();
   const inviteObservationStateRef = useRef<InviteObservationState>();
@@ -130,11 +130,6 @@ export function MindroomInviteNotifications() {
     },
     [navigate]
   );
-
-  const playSound = useCallback(() => {
-    const audioElement = audioRef.current;
-    void audioElement?.play().catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     const observationState = inviteObservationStateRef.current;
@@ -180,17 +175,12 @@ export function MindroomInviteNotifications() {
       }
 
       if (notificationSound) {
-        playSound();
+        playChime(InviteSound).catch(() => undefined);
       }
     }
-  }, [mx, invites, showNotifications, notificationSound, notify, playSound]);
+  }, [mx, invites, showNotifications, notificationSound, notify]);
 
-  return (
-    // eslint-disable-next-line jsx-a11y/media-has-caption
-    <audio ref={audioRef} preload="none" style={{ display: 'none' }}>
-      <source src={InviteSound} type="audio/ogg" />
-    </audio>
-  );
+  return null;
 }
 
 function MindroomNativeIOSPushFeature() {
