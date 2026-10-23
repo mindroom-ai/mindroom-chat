@@ -11,7 +11,8 @@ export const playChime = async (src: string): Promise<void> => {
   playingSources.add(src);
   let context: AudioContext | undefined;
   try {
-    const data = await (await fetch(src)).arrayBuffer();
+    // Bounded, so a stalled request cannot hold the guard above and mute later chimes.
+    const data = await (await fetch(src, { signal: AbortSignal.timeout(10000) })).arrayBuffer();
     const audioContext = new AudioContext();
     context = audioContext;
     const buffer = await audioContext.decodeAudioData(data);

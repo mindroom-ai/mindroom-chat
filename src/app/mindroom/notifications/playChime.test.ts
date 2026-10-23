@@ -48,7 +48,7 @@ describe('playChime', () => {
     const [context] = FakeAudioContext.instances;
     expect(context.source.start).toHaveBeenCalledOnce();
 
-    expect(fetch).toHaveBeenCalledWith(SRC);
+    expect(fetch).toHaveBeenCalledWith(SRC, { signal: expect.any(AbortSignal) });
     expect(context.source.buffer).toEqual({ duration: 0.5 });
     expect(context.source.connect).toHaveBeenCalledWith(context.destination);
     expect(context.close).not.toHaveBeenCalled();

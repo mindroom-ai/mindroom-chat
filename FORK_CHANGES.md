@@ -11,8 +11,9 @@
 - Fix: `playChime` (`mindroom/notifications/playChime.ts`) fetches the sound, plays it through a fresh `AudioContext`, and closes the context when the sound ends.
   A page playing only Web Audio gets WebKit's `AmbientSound` category, which mixes with other apps' audio.
   A context the autoplay policy keeps suspended never ends, so `playChime` also closes it 2 s after the sound's length, so it cannot play a stale chime once the browser lets it start.
-  A chime that is still sounding absorbs another call for the same sound, as `play()` on the old playing element did, so one sync with messages in several rooms chimes once.
-  Capacitor's WKWebView sets `mediaTypesRequiringUserActionForPlayback = []`, so the iOS app still chimes before the first tap, as it did with `<audio>`.
+  A chime that is still loading or sounding absorbs another call for the same sound, as `play()` on the old playing element did, so one sync with messages in several rooms chimes once.
+  The fetch times out after 10 s, so a stalled request cannot keep that guard and mute later chimes.
+  Capacitor's WKWebView sets `mediaTypesRequiringUserActionForPlayback = []`, so WebKit adds no user-gesture restriction to the context (`AudioContext::constructCommon`) and the iOS app should still chime before the first tap; not checked on a device.
 - Behavior change: `AmbientSound` follows the ring/silent switch, so in-app chimes are now silent on a muted iPhone, like iOS notification sounds; before, they played.
 - Not changed: the incoming-call ringtone in `CallEmbedProvider` still uses `<audio>`, so it pauses music the way the phone's own ringtone does. Voice messages and calls keep their categories.
 - Remaining risk: after the user plays a voice message or a video with sound, WebKit keeps the page in `MediaPlayback` until a system interruption or until that element goes away, so a chime in that state can still interrupt music.
