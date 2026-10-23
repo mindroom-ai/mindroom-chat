@@ -73,12 +73,19 @@ export function ComputerScreen({
     const handleSecurityFailure = () =>
       disconnectedCallbackRef.current('The computer connection was denied.');
     const keepInputInsideComputer = (event: Event) => event.stopPropagation();
+    // onPointerDown puts focus on the canvas, where noVNC's keyboard listens. A press in the
+    // letterbox margin would then move it back to the screen element, so in control it is
+    // cancelled. Focus from Tab stays on the screen element, as noVNC takes Tab on its canvas.
+    const keepPressFocusOnCanvas = (event: MouseEvent) => {
+      if (modeRef.current === 'control') event.preventDefault();
+    };
 
     rfb.addEventListener('connect', handleConnect);
     rfb.addEventListener('disconnect', handleDisconnect);
     rfb.addEventListener('securityfailure', handleSecurityFailure);
     target.addEventListener('keydown', keepInputInsideComputer);
     target.addEventListener('paste', keepInputInsideComputer);
+    target.addEventListener('mousedown', keepPressFocusOnCanvas);
     // Read through refs, so a change of mode never reconnects the stream.
     const detachClipboard = attachComputerClipboard(target, rfb, {
       isControlling: () => modeRef.current === 'control',
@@ -93,6 +100,7 @@ export function ComputerScreen({
       rfb.removeEventListener('securityfailure', handleSecurityFailure);
       target.removeEventListener('keydown', keepInputInsideComputer);
       target.removeEventListener('paste', keepInputInsideComputer);
+      target.removeEventListener('mousedown', keepPressFocusOnCanvas);
       rfbRef.current = undefined;
       rfb.disconnect();
     };
@@ -113,14 +121,6 @@ export function ComputerScreen({
       className={css.Screen}
       data-mindroom-computer-input
       onPointerDown={() => rfbRef.current?.focus({ preventScroll: true })}
-      onFocus={(event) => {
-        // noVNC's keyboard listens only on its canvas, so focus that lands on this element
-        // (Tab, or a click in the letterbox margin) moves on to it. Watching, it stays here,
-        // so Shift+Tab from the canvas can leave the screen.
-        if (mode === 'control' && event.target === event.currentTarget) {
-          rfbRef.current?.focus({ preventScroll: true });
-        }
-      }}
       role="application"
       aria-label="Agent computer"
       // The RFB surface must receive raw keyboard input while the user controls it.

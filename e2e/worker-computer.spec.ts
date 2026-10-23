@@ -176,14 +176,14 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   const pasted = 'pasted from chat ✓';
   await writeLocalClipboard(pasted);
   await clickRemoteInput();
-  // The computer runs Linux, so its shortcuts use Control on every host.
-  await page.keyboard.press('Control+a');
-  await page.keyboard.press('Control+v');
+  // The local shortcut is Cmd on a Mac, which the bridge maps to Ctrl on the Linux computer.
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('ControlOrMeta+v');
   await page.screenshot({ path: testInfo.outputPath('desktop-pasted.png') });
   // A different local clipboard shows that the copy below carries the computer's text back.
   await writeLocalClipboard('local text before the copy');
-  await page.keyboard.press('Control+a');
-  await page.keyboard.press('Control+c');
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('ControlOrMeta+c');
   await expect.poll(readLocalClipboard).toBe(pasted);
 
   const separator = page.getByRole('separator', { name: 'Resize computer panel', exact: true });

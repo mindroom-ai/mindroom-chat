@@ -44,6 +44,12 @@ const paste = (text: string, on: Element) => {
   return event;
 };
 
+const mouseDown = (on: Element) => {
+  const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+  on.dispatchEvent(event);
+  return event;
+};
+
 describe('ComputerScreen', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -237,18 +243,28 @@ describe('ComputerScreen', () => {
     }
   });
 
-  it('hands focus on the screen element to the canvas while in control', () => {
+  it('leaves focus from the keyboard on the screen element while in control', () => {
     renderScreen({ createRfb: createRfbWithCanvas(), mode: 'control' });
     const { surface, canvas } = screenElements();
     vi.mocked(rfb.focus).mockClear();
 
-    // Tab, or a click in the letterbox margin, focuses the element around noVNC's canvas.
+    // Tab lands here, and must be free to move on: noVNC takes Tab on its canvas.
     surface.focus();
+    expect(document.activeElement).toBe(surface);
+    canvas.focus();
+    expect(rfb.focus).not.toHaveBeenCalled();
+  });
+
+  it('keeps focus on the canvas through a press in the letterbox while in control', () => {
+    renderScreen({ createRfb: createRfbWithCanvas(), mode: 'control' });
+    const { surface } = screenElements();
+    vi.mocked(rfb.focus).mockClear();
+
+    surface.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(rfb.focus).toHaveBeenCalledOnce();
     expect(rfb.focus).toHaveBeenCalledWith({ preventScroll: true });
-
-    canvas.focus();
-    expect(rfb.focus).toHaveBeenCalledOnce();
+    // Its default would move focus from the canvas back to this element.
+    expect(mouseDown(surface).defaultPrevented).toBe(true);
   });
 
   it('leaves focus on the screen element while watching', () => {
@@ -259,5 +275,6 @@ describe('ComputerScreen', () => {
     surface.focus();
     expect(document.activeElement).toBe(surface);
     expect(rfb.focus).not.toHaveBeenCalled();
+    expect(mouseDown(surface).defaultPrevented).toBe(false);
   });
 });

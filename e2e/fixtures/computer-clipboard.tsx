@@ -42,6 +42,11 @@ window.__rfb = fixture;
 
 // Stands in for noVNC's RFB without a server: the same canvas inside the target, the same
 // mouse and keyboard handling on it, and the calls recorded instead of sent.
+// It does not emulate noVNC's mouse capture (native setCapture, or the capture proxy noVNC
+// uses without it), so the middle-click case passes here for a slightly different reason than
+// in the app. In Firefox the press and release both land on the canvas here, while in the app
+// native setCapture keeps the release there. In Chromium the app fires no paste at all, as the
+// capture proxy cancels the mouseup, so only this page sends one.
 class FixtureRfb extends EventTarget implements RfbClient {
   scaleViewport = false;
 

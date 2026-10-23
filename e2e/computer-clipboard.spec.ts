@@ -148,21 +148,27 @@ test('sends nothing for a middle-click paste on the screen while in control', as
   await expect(localText(page)).toHaveValue('local text');
 });
 
-test('hands focus to the canvas on Tab and on a letterbox click while in control', async ({
+test('Tab and Shift+Tab move past the screen in control, and a letterbox click focuses the canvas', async ({
   page,
 }) => {
   await openScreen(page, 'control');
-  const canvas = page.locator('canvas');
+  const before = page.getByRole('button', { name: 'Before' });
+  const screen = page.getByRole('application', { name: 'Agent computer' });
+  const after = page.getByRole('button', { name: 'After' });
 
-  await page.getByRole('button', { name: 'Before' }).focus();
+  // noVNC takes Tab on its canvas, so focus from the keyboard stays on the screen element.
+  await before.focus();
   await page.keyboard.press('Tab');
-  await expect(canvas).toBeFocused();
+  await expect(screen).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(after).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(screen).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(before).toBeFocused();
 
-  await page.getByRole('button', { name: 'Before' }).focus();
-  await page.getByRole('application', { name: 'Agent computer' }).click({
-    position: { x: 4, y: 4 },
-  });
-  await expect(canvas).toBeFocused();
+  await screen.click({ position: { x: 4, y: 4 } });
+  await expect(page.locator('canvas')).toBeFocused();
 });
 
 test('Tab and Shift+Tab move past the screen while watching', async ({ page }) => {
