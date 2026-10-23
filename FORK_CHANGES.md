@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Play notification chimes without stopping music in other apps on iOS (2026-10-22)
+
+- Problem: on iOS the message and invite chimes stopped music and podcasts playing in other apps.
+  Both chimes played through a hidden `<audio>` element, and WebKit gives a page that has played an audible `<audio>` element the `MediaPlayback` audio-session category, which does not mix (`MediaSessionManagerCocoa::updateSessionState`).
+  The category also stays after the chime ends: WebKit keeps counting an element that has played audibly until a system interruption, and the chime elements stayed mounted.
+  The earlier `preload="none"` fix ("CINNY-106 invite chime + iOS PWA audio session" below) only stopped the cold-open interruption; every chime still interrupted.
+- Fix: `playChime` (`mindroom/notifications/playChime.ts`) fetches the sound, plays it through a fresh `AudioContext`, and closes the context when the sound ends.
+  A page playing only Web Audio gets WebKit's `AmbientSound` category, which mixes with other apps' audio.
+  A context the autoplay policy keeps suspended never ends, so `playChime` also closes it 2 s after the sound's length, so it cannot play a stale chime once the browser lets it start.
+  A chime that is still loading or sounding absorbs another call for the same sound, as `play()` on the old playing element did, so one sync with messages in several rooms chimes once.
+  The fetch times out after 10 s, so a stalled request cannot keep that guard and mute later chimes.
+  Capacitor's WKWebView sets `mediaTypesRequiringUserActionForPlayback = []`, so WebKit adds no user-gesture restriction to the context (`AudioContext::constructCommon`) and the iOS app should still chime before the first tap; not checked on a device.
+- Behavior change: `AmbientSound` follows the ring/silent switch, so in-app chimes are now silent on a muted iPhone, like iOS notification sounds; before, they played.
+- Not changed: the incoming-call ringtone in `CallEmbedProvider` still uses `<audio>`, so it pauses music the way the phone's own ringtone does. Voice messages and calls keep their categories.
+- Remaining risk: after the user plays a voice message or a video with sound, WebKit keeps the page in `MediaPlayback` until a system interruption or until that element goes away, so a chime in that state can still interrupt music.
+  Not checked on a device: this checkout runs on Linux. The chimes are Ogg Vorbis; iOS versions that cannot decode Ogg (before 18.4) could not play them through `<audio>` either.
+- Tests: `playChime.test.ts` (plays through Web Audio and closes on end, closes a never-started context after the timeout, chimes once for an overlapping call, closes on a decode failure); `MindroomClientNonUIFeatures.test.ts` invite cases assert `playChime(InviteSound)` and that nothing renders.
+
 ### Enable the computer screen's input only after Take control (2026-10-22)
 
 - Problem: the Computer panel took the session's `mode` from the server unchecked, so a server that answered `control` for a new session got the screen's input enabled and keyboard focus moved into it, without the user pressing Take control.
