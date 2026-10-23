@@ -15,6 +15,8 @@ import { ComputerApiError, ComputerSessionClient, createComputerSession } from '
 import type { ComputerScreenProps } from './ComputerScreen';
 import type { ComputerAgent, ComputerStatus, ComputerStreamConnection } from './types';
 import { sendComputerContinuation } from './continuation';
+import { IconTooltip } from '../tooltip/IconTooltip';
+import { ExpandIcon, ShrinkIcon } from '../sidebar/panelIcons';
 import * as css from './ComputerPanel.css';
 
 const LazyComputerScreen = lazy(() => import('./ComputerScreen'));
@@ -88,6 +90,9 @@ export type ComputerPanelProps = {
   ScreenComponent?: ComponentType<ComputerScreenProps>;
   requestedAgent?: { userId: string };
   onInteractionChange?: (interaction: ComputerInteraction) => void;
+  /** Whether the panel fills the room; with `onToggleExpanded`, shows the Expand toggle. */
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -126,6 +131,8 @@ export function ComputerPanel({
   ScreenComponent = LazyComputerScreen,
   requestedAgent,
   onInteractionChange,
+  expanded = false,
+  onToggleExpanded,
 }: ComputerPanelProps) {
   const [chosenAgentId, setChosenAgentId] = useState<string | undefined>(requestedAgent?.userId);
   const [activeAgentId, setActiveAgentId] = useState<string | undefined>(requestedAgent?.userId);
@@ -563,9 +570,26 @@ export function ComputerPanel({
           <Icon size="300" src={Icons.Monitor} />
           <Text size="H4">Computer</Text>
         </Box>
-        <IconButton onClick={handleClose} aria-label="Close computer" size="300">
-          <Icon size="300" src={Icons.Cross} />
-        </IconButton>
+        <Box alignItems="Center" gap="100">
+          {onToggleExpanded && (
+            <IconTooltip label="Expand computer">
+              {(triggerRef) => (
+                <IconButton
+                  ref={triggerRef}
+                  onClick={onToggleExpanded}
+                  aria-label="Expand computer"
+                  aria-pressed={expanded}
+                  size="300"
+                >
+                  <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+                </IconButton>
+              )}
+            </IconTooltip>
+          )}
+          <IconButton onClick={handleClose} aria-label="Close computer" size="300">
+            <Icon size="300" src={Icons.Cross} />
+          </IconButton>
+        </Box>
       </div>
 
       <div className={css.Body}>

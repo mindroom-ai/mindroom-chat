@@ -28,6 +28,8 @@ type MockComputerPanelProps = {
   requestedAgent?: { userId: string };
   onInteractionChange?: (interaction: { agentUserId?: string; locked: boolean }) => void;
   onClose?: () => void;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
   agents: Array<{ userId: string; name: string; serverUrl?: string }>;
   continuationReady?: boolean;
   apiUrl: string;
@@ -328,6 +330,9 @@ vi.mock('../../../state/callEmbed', () => ({
 }));
 
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+
+const computerWrapper = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findByProps({ 'data-testid': 'resizable-computer-panel' });
 
 describe('Room', () => {
   beforeEach(() => {
@@ -1194,6 +1199,136 @@ describe('Room', () => {
       roomId: '!room:example.org',
       threadId: '$thread',
     });
+  });
+
+  it('shows the computer as a resizable column, 672 px wide by default', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+
+    const json = JSON.stringify(renderer!.toJSON());
+    expect(json).toContain('"data-testid":"resizable-computer-panel"');
+    expect(json).toContain('"role":"separator"');
+    expect(json).toContain('"aria-label":"Resize computer panel"');
+    expect(computerWrapper(renderer!).props.style).toEqual({ width: 672 });
+    // The conversation and the panel are the only columns: no divider Line sits between them.
+    expect((renderer!.toJSON() as { children: unknown[] }).children).toHaveLength(2);
+
+    // Phones show the panel full screen: no box and no resize handle of its own, and the
+    // screen stays connected (the panel is not remounted) as the viewport changes.
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('"role":"separator"');
+    expect(roomState.panelDisposals).toBe(0);
+
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(renderer!.root.findAllByProps({ role: 'separator' })).toHaveLength(1);
+    expect(computerWrapper(renderer!).props.style).toEqual({ width: 672 });
+    expect(roomState.panelDisposals).toBe(0);
+    await act(async () => renderer!.unmount());
+  });
+
+  it("reads the computer's width from its own per-account storage key", async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    // This file runs in Node, which has no localStorage: give the panel a small in-memory one.
+    const stored = new Map<string, string>([
+      ['mindroom.computer.width:@alice:example.org', '800'],
+      // Other panels' widths and other accounts' computer widths must not leak in.
+      ['mindroom.computer.width:@bob:example.org', '500'],
+      ['mindroom.canvas.width:@alice:example.org', '450'],
+    ]);
+    const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+    });
+    try {
+      const { Room } = await import('../../../features/room/Room');
+      let renderer: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      expect(computerWrapper(renderer!).props.style).toEqual({ width: 800 });
+      await act(async () => renderer!.unmount());
+    } finally {
+      if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
+      else Reflect.deleteProperty(globalThis, 'localStorage');
+    }
+  });
+
+  it("an expanded computer takes the conversation's column without reconnecting", async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+
+    expect(computerWrapper(renderer!).props.style).toEqual({ width: 672 });
+    expect(renderer!.root.findAllByProps({ role: 'separator' })).toHaveLength(1);
+
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(true);
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(0);
+    // The panel fills the room: full width and no resize handle.
+    expect(computerWrapper(renderer!).props.style).toEqual({ width: '100%' });
+    expect(renderer!.root.findAllByProps({ role: 'separator' })).toHaveLength(0);
+
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+    expect(roomState.panelDisposals).toBe(0);
+    expect(computerWrapper(renderer!).props.style).toEqual({ width: 672 });
+    expect(renderer!.root.findAllByProps({ role: 'separator' })).toHaveLength(1);
+
+    // Closing the computer forgets the expansion.
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    await act(async () => roomState.computerPanelProps?.onClose?.());
+    expect(roomViewShown()).toBe(true);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+
+    // Phones already show the computer full screen: no Expand toggle.
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomState.computerPanelProps?.onToggleExpanded).toBeUndefined();
+
+    // A computer expanded on a desktop keeps the conversation unmounted on a phone, like the canvas.
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer.update(React.createElement(Room)));
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    const disposals = roomState.panelDisposals;
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(disposals);
+    await act(async () => renderer!.unmount());
   });
 
   it.each(['$root', '$reply'])(

@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Expand the computer panel over the conversation (2026-10-23)
+
+- Why: even a wide Computer column shares the room with the conversation, so a person could not give the agent's screen the whole room, which the canvas already allows.
+- Change: `ComputerPanel` takes `expanded` and `onToggleExpanded` and shows an "Expand computer" toggle (`aria-pressed`, `ExpandIcon`/`ShrinkIcon`) before Close. `MindroomRoom.tsx` keeps `computerExpanded` like `canvasExpanded`: it passes `fullWidth` to the resizable wrapper, unmounts the conversation through `panelFillsRoom` (the canvas guard plus an open, expanded computer), and resets when the computer closes. The panel itself stays mounted, so the screen does not reconnect. Phones get no toggle because the computer is already full screen there.
+- Tests: `ComputerPanel.test.tsx` checks the toggle's label, `aria-pressed`, click, and absence without a handler. `Room.test.ts` checks Expand hides the room view with `panelDisposals` still 0, that the computer's wrapper is `width: 100%` with no resize separator while expanded and 672 px with the separator again after Restore, that closing then reopening resets, that phones get no handler, and that a computer expanded on a desktop keeps the conversation unmounted after narrowing to a phone. A real-Chromium pass against a local Tuwunel and a fake computer service (minimal RFB server) checked these:
+  - dragging tracks the pointer and stops at the 360 px conversation minimum;
+  - the width survives a reload;
+  - Expand fills the room and Restore brings the conversation back;
+  - the WebSocket count stayed at 1 through three drags, Expand and Restore;
+  - at 390 px there is no handle and no Expand button;
+  - at the 200 px minimum the header's title, Expand and Close all fit.
+
+### Make the computer panel resizable (2026-10-23)
+
+- Why: the Computer panel was a fixed-width column, so a person could not give the agent's screen more room, while the canvas panel already could.
+- Change: `MindroomRoom.tsx` wraps `ComputerPanel` in `ResizablePanel` like `RoomCanvasPanel` does (right side, default 672px, up to 1600px, the conversation keeps at least `CONVERSATION_MIN_WIDTH`), stores the width per account under `mindroom.computer.width:<userId>`, closes the panel when dragged to the collapse threshold, and passes through on phones. The resize handle replaces the divider `Line`. `ComputerPanel.css.ts` keeps re-exporting the shared `Panel`, which now fills the wrapper. The two numbers are `COMPUTER_DEFAULT_WIDTH` and `COMPUTER_MAX_WIDTH`.
+- Tests: `Room.test.ts` checks the computer renders inside `resizable-computer-panel` at the 672 px default with a "Resize computer panel" separator and no extra divider, reads a stored width only from `mindroom.computer.width:<viewer userId>` (800 seeded in an in-memory `localStorage`, other accounts' and the canvas's keys ignored), and that phones render no separator while a Desktop-to-Mobile-to-Desktop change never disposes the panel (no reconnect).
+
+### Share the resizable side-panel style and Expand icons (2026-10-23)
+
+- Why: the Computer panel is to become resizable and expandable like the canvas panel, so it needs what only the canvas owned. This step is a refactor with no visible change.
+- Change: the shared side panel (`sidebar/SidePanel.css.ts` `Panel`) now fills its resizable wrapper on desktop (`flex: 1 1 auto`, `width: 100%`) instead of its own fixed `clamp(22rem, 42vw, 42rem)` column; the canvas re-exports it in place of its own override, and phones keep the full-screen panel. `ExpandIcon` and `ShrinkIcon` move from `CanvasPanel.tsx` to `sidebar/panelIcons.tsx`. `CONVERSATION_MIN_WIDTH` (360) moves from `RoomCanvasPanel.tsx` to `sidebar/ResizablePanel.tsx`.
+- Tests: no new tests; `RoomCanvasPanel.test.tsx` adds `CONVERSATION_MIN_WIDTH` to its `ResizablePanel` mock, which now has to provide the export `RoomCanvasPanel` imports.
+
 ### Show auto-approve in the thread header (2026-10-22)
 
 - Why: MindRoom PR #3065 adds `!auto_approve <minutes>`, which lets a person's tool calls in one thread run without approval cards for up to 24 hours. Nothing in the thread showed it, so people could not tell that calls would run unasked, whose, or for how long.
