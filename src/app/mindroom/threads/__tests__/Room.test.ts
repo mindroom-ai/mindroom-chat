@@ -3,8 +3,11 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
+import { isKeyHotkey } from 'is-hotkey';
 import type { ClientConfig } from '../../../hooks/useClientConfig';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
+import { useKeyDown } from '../../../hooks/useKeyDown';
+import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../notifications/readReceipts';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -137,7 +140,7 @@ vi.mock('../../sidebar/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'ha
 vi.mock('../../sidebar/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 
 vi.mock('is-hotkey', () => ({
-  isKeyHotkey: () => false,
+  isKeyHotkey: vi.fn(() => false),
 }));
 
 vi.mock('jotai', async () => {
@@ -1319,15 +1322,65 @@ describe('Room', () => {
     await act(async () => renderer.update(React.createElement(Room)));
     expect(roomState.computerPanelProps?.onToggleExpanded).toBeUndefined();
 
-    // A computer expanded on a desktop keeps the conversation unmounted on a phone, like the canvas.
+    await act(async () => renderer!.unmount());
+  });
+
+  it("unmounts the conversation under the phone's full-screen computer without reconnecting", async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    roomState.screenSize = 'Mobile';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    const pressEscape = () => {
+      vi.mocked(isKeyHotkey).mockReturnValue(true);
+      try {
+        vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
+      } finally {
+        vi.mocked(isKeyHotkey).mockReturnValue(false);
+      }
+    };
+    expect(roomViewShown()).toBe(true);
+
+    // The phone's computer covers the conversation, which must not mark messages read unseen,
+    // on Escape either.
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(0);
+    const marked = () =>
+      vi.mocked(markThreadAsRead).mock.calls.length +
+      vi.mocked(markRoomAndThreadsAsRead).mock.calls.length;
+    vi.mocked(markThreadAsRead).mockClear();
+    vi.mocked(markRoomAndThreadsAsRead).mockClear();
+    pressEscape();
+    expect(marked()).toBe(0);
+
+    // Crossing the breakpoint keeps the same panel (and its stream) either way.
     roomState.screenSize = 'Desktop';
     await act(async () => renderer.update(React.createElement(Room)));
-    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
-    const disposals = roomState.panelDisposals;
+    expect(roomViewShown()).toBe(true);
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomState.panelDisposals).toBe(0);
+
     roomState.screenSize = 'Mobile';
     await act(async () => renderer.update(React.createElement(Room)));
     expect(roomViewShown()).toBe(false);
-    expect(roomState.panelDisposals).toBe(disposals);
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomState.panelDisposals).toBe(0);
+
+    // Closing the computer brings the conversation back, and Escape marks it read again.
+    await act(async () => roomState.computerPanelProps?.onClose?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(roomViewShown()).toBe(true);
+    pressEscape();
+    expect(marked()).toBe(1);
     await act(async () => renderer!.unmount());
   });
 
