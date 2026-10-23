@@ -50,7 +50,11 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
     return () => clearTimeout(timer);
   }, [nextEnd, now]);
 
-  if (windows.length === 0) return null;
+  if (windows.length === 0) {
+    // The dialog closes with the last window, so a later window does not reopen it unasked.
+    if (open) setOpen(false);
+    return null;
+  }
   const others = windows.filter(({ requesterId }) => requesterId !== room.myUserId);
   let label = t('mindroomUi.autoApprove.label');
   if (others.length === windows.length) {
@@ -67,7 +71,11 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
         className={css.Chip}
         type="button"
         data-thread-status-chip=""
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // The clock only moves at a window's end, so the dialog names today's ends without a weekday.
+          setNow(Date.now());
+          setOpen(true);
+        }}
       >
         <Icon className={css.ChipIcon} src={Icons.Warning} size="50" aria-hidden="true" />
         {label}

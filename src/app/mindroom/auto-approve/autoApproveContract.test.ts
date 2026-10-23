@@ -13,7 +13,8 @@ const ALICE = '@alice:example.org';
 const window = (overrides: Record<string, unknown> = {}) => ({
   thread_id: '$thread',
   requester_id: ALICE,
-  expires_at: '2026-10-22T15:30:00+00:00',
+  // The router writes Python's isoformat(), with microseconds.
+  expires_at: '2026-10-22T15:30:00.123456+00:00',
   ...overrides,
 });
 
@@ -33,8 +34,12 @@ describe('parseAutoApproveStateEvent', () => {
     expect(
       parseAutoApproveStateEvent(windowsEvent([window(), window({ thread_id: null })]))
     ).toEqual([
-      { threadId: '$thread', requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
-      { threadId: null, requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
+      {
+        threadId: '$thread',
+        requesterId: ALICE,
+        expiresAt: Date.parse('2026-10-22T15:30:00.123Z'),
+      },
+      { threadId: null, requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00.123Z') },
     ]);
   });
 

@@ -126,6 +126,22 @@ it('lists whose calls run without approval and until when, in the viewer’s clo
   expect(entries[1]).toContain('09:30');
 });
 
+it('closes the dialog with the last window, so a later window does not reopen it', () => {
+  state.windows = [{ threadId: '$thread', requesterId: ME, expiresAt: NOW + 60_000 }];
+  render();
+  act(() => {
+    chip()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+  state.windows = [];
+  render();
+  expect(container.innerHTML).toBe('');
+  state.windows = [{ threadId: '$thread', requesterId: ME, expiresAt: NOW + 120_000 }];
+  render();
+  expect(chip()).not.toBeNull();
+  expect(container.querySelector('[role="dialog"]')).toBeNull();
+});
+
 it('drops a window that ended while the device slept once the page comes back', () => {
   state.windows = [{ threadId: '$thread', requesterId: ME, expiresAt: NOW + 60_000 }];
   render();
