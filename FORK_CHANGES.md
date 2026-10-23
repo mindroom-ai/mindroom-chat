@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Render tool calls in a long reply's preview when the reply ran many tools (2026-10-22)
+
+- Problem: a reply too large for one event arrives as a plain-text preview, which `formatMindroomMarkdownTextBodyAsHtml` turns into HTML before the sidecar loads.
+  Its guard against deep parser recursion counted every `*`, `_`, `~`, backtick, `|`, `$` and `[` in the whole body, including the standalone ``🔧 `tool_name` [N]`` lines that become HTML without reaching the parser.
+  A reply with 81 tool calls spent 527 of the 512-character budget on those lines alone (underscores in names such as `matrix_matrix_read_room_recent`, two backticks and a bracket each), so the preview showed every call as raw text until the sidecar loaded.
+- Fix: the budget leaves out standalone tool marker lines, which cannot open a code or math block, and still runs before the protected-block scan.
+  When a line with two adjacent backticks or `~~~` outside a code block turns rich markers off, those lines reach the parser, so the whole body is counted again.
+  Paste markers still count, and the block-line guard is unchanged.
+- Tests: `blocks.test.ts` "does not count standalone tool markers against the parser budget": 120 markers plus a bold word render as markers and Markdown (fails without the change), and the same markers next to such a line still fall back.
+
 ### Unload the conversation under the phone's full-screen computer (2026-10-23)
 
 - Problem: on phones (`ScreenSize.Mobile`) the Computer panel is a fixed full-screen overlay, but `RoomView` stayed mounted underneath it, where it can mark incoming messages read while the person cannot see them. The canvas already unmounts the conversation on phones, and the computer did so only when expanded on a desktop.
