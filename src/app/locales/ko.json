@@ -3066,6 +3066,16 @@
       "stopFailed": "{{tool}}을(를) 중지하지 못했습니다. 다시 시도하세요.",
       "stopAllFailed": "백그라운드 작업을 중지하지 못했습니다. 다시 시도하세요.",
       "inRoom": "백그라운드 작업 실행 중"
+    },
+    "autoApprove": {
+      "label": "자동 승인",
+      "labelOne": "자동 승인: {{name}}",
+      "labelMany": "자동 승인: {{name}} +{{count}}",
+      "title": "자동 승인",
+      "intro": "이 스레드에서는 이 사람들이 요청한 도구 호출이 승인 카드 없이 실행됩니다.",
+      "you": "나",
+      "until": "{{time}}까지",
+      "ownUntil": "{{time}}까지. 끝내려면 !auto_approve off를 보내세요."
     }
   },
   "roomSchedules": {

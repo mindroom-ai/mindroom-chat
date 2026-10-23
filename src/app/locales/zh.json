@@ -3066,6 +3066,16 @@
       "stopFailed": "无法停止 {{tool}}，请重试。",
       "stopAllFailed": "无法停止后台任务，请重试。",
       "inRoom": "后台任务运行中"
+    },
+    "autoApprove": {
+      "label": "自动批准",
+      "labelOne": "自动批准：{{name}}",
+      "labelMany": "自动批准：{{name}} +{{count}}",
+      "title": "自动批准",
+      "intro": "在此话题中，这些人请求的工具调用无需审批卡片即可运行。",
+      "you": "你",
+      "until": "至 {{time}}",
+      "ownUntil": "至 {{time}}。发送 !auto_approve off 可提前结束。"
     }
   },
   "roomSchedules": {

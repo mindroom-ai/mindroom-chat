@@ -3144,6 +3144,16 @@
       "stopFailed": "Não foi possível parar {{tool}}. Tente novamente.",
       "stopAllFailed": "Não foi possível parar as tarefas em segundo plano. Tente novamente.",
       "inRoom": "Tarefas em segundo plano em execução"
+    },
+    "autoApprove": {
+      "label": "Aprovação automática",
+      "labelOne": "Aprovação automática: {{name}}",
+      "labelMany": "Aprovação automática: {{name}} +{{count}}",
+      "title": "Aprovação automática",
+      "intro": "Neste tópico, as chamadas de ferramentas que estas pessoas pedem são executadas sem cartões de aprovação.",
+      "you": "Você",
+      "until": "Até {{time}}",
+      "ownUntil": "Até {{time}}. Envie !auto_approve off para encerrar."
     }
   },
   "roomSchedules": {

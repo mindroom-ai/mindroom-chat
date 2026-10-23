@@ -3066,6 +3066,16 @@
       "stopFailed": "{{tool}} を停止できませんでした。もう一度お試しください。",
       "stopAllFailed": "バックグラウンドジョブを停止できませんでした。もう一度お試しください。",
       "inRoom": "バックグラウンドジョブを実行中"
+    },
+    "autoApprove": {
+      "label": "自動承認",
+      "labelOne": "自動承認: {{name}}",
+      "labelMany": "自動承認: {{name}} +{{count}}",
+      "title": "自動承認",
+      "intro": "このスレッドでは、これらの人が依頼したツール呼び出しは承認カードなしで実行されます。",
+      "you": "あなた",
+      "until": "{{time}} まで",
+      "ownUntil": "{{time}} まで。終了するには !auto_approve off を送信してください。"
     }
   },
   "roomSchedules": {

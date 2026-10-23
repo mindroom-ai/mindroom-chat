@@ -3066,6 +3066,16 @@
       "stopFailed": "無法停止 {{tool}}，請再試一次。",
       "stopAllFailed": "無法停止背景工作，請再試一次。",
       "inRoom": "背景工作執行中"
+    },
+    "autoApprove": {
+      "label": "自動批准",
+      "labelOne": "自動批准：{{name}}",
+      "labelMany": "自動批准：{{name}} +{{count}}",
+      "title": "自動批准",
+      "intro": "在此討論串中，這些人要求的工具呼叫無需核准卡片即可執行。",
+      "you": "你",
+      "until": "至 {{time}}",
+      "ownUntil": "至 {{time}}。傳送 !auto_approve off 可提前結束。"
     }
   },
   "roomSchedules": {

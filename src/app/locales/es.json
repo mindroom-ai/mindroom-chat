@@ -3144,6 +3144,16 @@
       "stopFailed": "No se pudo detener {{tool}}. Inténtalo de nuevo.",
       "stopAllFailed": "No se pudieron detener las tareas en segundo plano. Inténtalo de nuevo.",
       "inRoom": "Tareas en segundo plano en curso"
+    },
+    "autoApprove": {
+      "label": "Aprobación automática",
+      "labelOne": "Aprobación automática: {{name}}",
+      "labelMany": "Aprobación automática: {{name}} +{{count}}",
+      "title": "Aprobación automática",
+      "intro": "En este hilo, las llamadas a herramientas que piden estas personas se ejecutan sin tarjetas de aprobación.",
+      "you": "Tú",
+      "until": "Hasta {{time}}",
+      "ownUntil": "Hasta {{time}}. Envía !auto_approve off para terminarla."
     }
   },
   "roomSchedules": {
