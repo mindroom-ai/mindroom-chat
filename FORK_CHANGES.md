@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Share the resizable side-panel style and Expand icons (2026-10-23)
+
+- Why: the Computer panel is to become resizable and expandable like the canvas panel, so it needs what only the canvas owned. This step is a refactor with no visible change.
+- Change: `ResizableSidePanel` (the side panel that leaves its width to the resizable wrapper on desktop) moves from `canvas/CanvasPanel.css.ts` to `sidebar/SidePanel.css.ts`, and the canvas re-exports it as `Panel`. `ExpandIcon` and `ShrinkIcon` move from `CanvasPanel.tsx` to `sidebar/panelIcons.tsx`. `CONVERSATION_MIN_WIDTH` (360) moves from `RoomCanvasPanel.tsx` to `sidebar/ResizablePanel.tsx`.
+- Tests: no new tests; `RoomCanvasPanel.test.tsx` adds `CONVERSATION_MIN_WIDTH` to its `ResizablePanel` mock, which now has to provide the export `RoomCanvasPanel` imports.
+
 ### Show auto-approve in the thread header (2026-10-22)
 
 - Why: MindRoom PR #3065 adds `!auto_approve <minutes>`, which lets a person's tool calls in one thread run without approval cards for up to 24 hours. Nothing in the thread showed it, so people could not tell that calls would run unasked, whose, or for how long.

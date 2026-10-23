@@ -26,6 +26,19 @@ export const Panel = style([
   },
 ]);
 
+// The resizable wrapper owns the width on desktop; phones keep the full-screen side panel.
+export const ResizableSidePanel = style([
+  Panel,
+  {
+    '@media': {
+      [`screen and (min-width: ${toRem(751)})`]: {
+        flex: '1 1 auto',
+        width: '100%',
+      },
+    },
+  },
+]);
+
 export const Header = style({
   alignItems: 'center',
   borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
