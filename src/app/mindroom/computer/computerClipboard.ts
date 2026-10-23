@@ -60,25 +60,29 @@ export function attachComputerClipboard(
   let detached = false;
   let ctrlMapped = false;
   let shiftMapped = false;
-  // Off Apple, the Ctrl keys noVNC holds. Its keyboard listens only on its canvas,
+  // Off Apple, whether noVNC holds the left Ctrl. Its keyboard listens only on its canvas,
   // not on the focusable wrapper around it.
   let leftCtrlHeld = false;
-  let rightCtrlHeld = false;
   let shiftDown = false;
   let pendingCopy: PendingCopy | undefined;
+  // The text last pushed to the computer, or written locally after a copy. Pushing it
+  // again would replace whatever the computer copied since.
+  let synced: string | undefined;
 
   const hasPrimaryModifier = (event: KeyboardEvent) =>
     apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+
+  // From `key`, or from `code` when that is not an ASCII letter (a Cyrillic or Greek
+  // layout, say), as Chromium does for its own shortcuts.
+  const shortcutLetter = (event: KeyboardEvent) => {
+    if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+    return event.code.startsWith('Key') ? event.code.slice(3).toLowerCase() : undefined;
+  };
 
   const releaseMappedShift = () => {
     if (!shiftMapped) return;
     shiftMapped = false;
     rfb.sendKey(SHIFT_L_KEYSYM, 'ShiftLeft', false);
-  };
-
-  const forgetHeldCtrl = () => {
-    leftCtrlHeld = false;
-    rightCtrlHeld = false;
   };
 
   const releaseMappedKeys = () => {
@@ -89,15 +93,20 @@ export function attachComputerClipboard(
   };
 
   const sendPaste = (text: string) => {
-    if (new TextEncoder().encode(text).length > MAX_PASTE_BYTES) {
+    const push = text !== '' && text !== synced;
+    if (push && new TextEncoder().encode(text).length > MAX_PASTE_BYTES) {
       onPaste?.('too-large');
       return;
     }
-    if (text) rfb.clipboardPasteFrom(text);
+    if (push) {
+      rfb.clipboardPasteFrom(text);
+      synced = text;
+    }
     const keysym = shiftDown ? SHIFT_V_KEYSYM : V_KEYSYM;
-    // With no Ctrl held on the remote (a Ctrl pressed outside the screen, or the
-    // browser's Edit menu) the whole chord is sent.
-    const chord = apple ? !ctrlMapped : !leftCtrlHeld && !rightCtrlHeld;
+    // Unless the remote holds Chat's mapped Ctrl or noVNC's left Ctrl, the whole chord
+    // is sent: for a right Ctrl (its Control_R stays down), a Ctrl pressed outside the
+    // screen, or the browser's Edit menu.
+    const chord = apple ? !ctrlMapped : !leftCtrlHeld;
     // noVNC on Windows holds a left-Ctrl press back up to 100 ms to detect AltGr, and
     // would send it after the v. It is pressed again here, and noVNC's keyup releases it.
     const pressLeftCtrl = !apple && leftCtrlHeld;
@@ -125,13 +134,20 @@ export function attachComputerClipboard(
       pendingCopy = { resolve, reject, timer };
     });
     // The write starts inside the gesture; the text follows when the computer answers.
+    let written: Promise<void>;
     if (typeof ClipboardItem === 'undefined') {
-      text.then((value) => local.writeText(value)).catch(() => undefined);
-      return;
+      written = text.then((value) => local.writeText(value));
+    } else {
+      const blob = text.then((value) => new Blob([value], { type: 'text/plain' }));
+      blob.catch(() => undefined);
+      written = local.write([new ClipboardItem({ 'text/plain': blob })]);
     }
-    const blob = text.then((value) => new Blob([value], { type: 'text/plain' }));
-    blob.catch(() => undefined);
-    local.write([new ClipboardItem({ 'text/plain': blob })]).catch(() => undefined);
+    Promise.all([text, written]).then(
+      ([value]) => {
+        synced = value;
+      },
+      () => undefined
+    );
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -139,7 +155,6 @@ export function attachComputerClipboard(
     if (!isControlling()) return;
     const reachesNoVnc = event.target instanceof HTMLCanvasElement && target.contains(event.target);
     if (!apple && reachesNoVnc && event.code === 'ControlLeft') leftCtrlHeld = true;
-    if (!apple && reachesNoVnc && event.code === 'ControlRight') rightCtrlHeld = true;
     if (event.isComposing) return;
 
     if (apple && event.key === 'Meta') {
@@ -165,7 +180,7 @@ export function attachComputerClipboard(
     }
 
     if (!hasPrimaryModifier(event) || event.altKey) return;
-    const key = event.key.toLowerCase();
+    const key = shortcutLetter(event);
     if (key === 'v') {
       if (!readOnShortcut) {
         // Hidden from noVNC, whose preventDefault would stop the browser's paste.
@@ -189,7 +204,6 @@ export function attachComputerClipboard(
   const handleKeyUp = (event: KeyboardEvent) => {
     shiftDown = event.shiftKey;
     if (event.code === 'ControlLeft') leftCtrlHeld = false;
-    if (event.code === 'ControlRight') rightCtrlHeld = false;
     if (event.key === 'Shift' && shiftMapped) {
       event.preventDefault();
       event.stopPropagation();
@@ -205,7 +219,7 @@ export function attachComputerClipboard(
   const handleFocusOut = (event: FocusEvent) => {
     const next = event.relatedTarget;
     if (next instanceof Node && target.contains(next)) return;
-    forgetHeldCtrl();
+    leftCtrlHeld = false;
     releaseMappedKeys();
   };
 
@@ -218,9 +232,10 @@ export function attachComputerClipboard(
     sendPaste(event.clipboardData?.getData('text/plain') ?? '');
   };
 
-  // noVNC releases its keys on window blur.
+  // noVNC releases its keys on window blur. The Shift keyup may land outside the window,
+  // and a menu paste brings no keydown that would read Shift again.
   const handleBlur = () => {
-    forgetHeldCtrl();
+    leftCtrlHeld = false;
     shiftDown = false;
     releaseMappedKeys();
   };

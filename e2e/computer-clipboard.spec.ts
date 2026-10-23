@@ -92,6 +92,27 @@ test('copies the computer clipboard after the copy shortcut while in control', a
   await expect.poll(() => readLocalClipboard(page)).toBe('remote text');
 });
 
+test('pastes only the keys for the text a computer copy wrote', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit fires no paste on the screen');
+  await openScreen(page, 'control');
+
+  await page.locator('canvas').click();
+  await page.keyboard.press('ControlOrMeta+c');
+  await sendRemoteClipboard(page, 'remote text');
+  await expect.poll(() => readLocalClipboard(page)).toBe('remote text');
+
+  await page.locator('canvas').click();
+  await page.keyboard.press('ControlOrMeta+v');
+
+  // The computer already holds this text, and may have copied newer text since.
+  await expect.poll(async () => (await recorded(page)).pastes).toEqual(['sent']);
+  expect((await recorded(page)).calls).toEqual([
+    ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+    ['key', V_KEYSYM, 'KeyV', true],
+    ['key', V_KEYSYM, 'KeyV', false],
+  ]);
+});
+
 test('keeps the local clipboard from a computer push without a copy shortcut', async ({ page }) => {
   await openScreen(page, 'control');
   await copyLocally(page, 'local text');
