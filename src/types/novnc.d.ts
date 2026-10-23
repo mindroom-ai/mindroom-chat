@@ -13,5 +13,9 @@ declare module '@novnc/novnc' {
     disconnect(): void;
 
     focus(options?: FocusOptions): void;
+
+    clipboardPasteFrom(text: string): void;
+
+    sendKey(keysym: number, code: string | null, down?: boolean): void;
   }
 }

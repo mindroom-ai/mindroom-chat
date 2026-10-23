@@ -37,7 +37,9 @@ vi.mock('folds', () => ({
   Tooltip: () => null,
   TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
     children(() => undefined),
-  Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  Text: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
+    <span role={role}>{children}</span>
+  ),
 }));
 
 vi.mock('./ComputerPanel.css.ts', () => ({
@@ -218,6 +220,73 @@ describe('ComputerPanel', () => {
     act(() => root.render(<ComputerPanel {...props} />));
     return props;
   };
+
+  const pasteRefusal = 'Text over 512 KB cannot be pasted into the computer.';
+  const refusalAlert = () =>
+    Array.from(container.querySelectorAll('[role="alert"]')).find(
+      (alert) => alert.textContent === pasteRefusal
+    );
+
+  it('says when pasted text is too large, until a paste is sent', async () => {
+    renderPanel();
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(refusalAlert()).toBeUndefined();
+
+    act(() => screenConnections[0].onPaste!('too-large'));
+    expect(refusalAlert()).toBeDefined();
+
+    act(() => screenConnections[0].onPaste!('sent'));
+    expect(refusalAlert()).toBeUndefined();
+  });
+
+  it('clears the paste refusal when another agent is chosen', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    act(() => screenConnections[0].onPaste!('too-large'));
+    expect(refusalAlert()).toBeDefined();
+
+    const select = container.querySelector('select')!;
+    await act(async () => {
+      select.value = agents[1].userId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(refusalAlert()).toBeUndefined();
+    await click(findButton(container, 'Watch computer'));
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(refusalAlert()).toBeUndefined();
+  });
+
+  it('clears the paste refusal when Reconnect opens a new screen', async () => {
+    vi.useFakeTimers();
+    const gateway = createGateway();
+    let denied = false;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (denied && init?.method === 'GET') {
+        return jsonResponse(403, { detail: 'Requester cannot use this agent.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ request });
+    await advance();
+    act(() => screenConnections[0].onPaste!('too-large'));
+    expect(refusalAlert()).toBeDefined();
+
+    denied = true;
+    act(() => screenConnections[0].onDisconnected());
+    await advance(500);
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(refusalAlert()).toBeDefined();
+
+    denied = false;
+    await click(findButton(container, 'Reconnect'));
+    await advance();
+    expect(screenConnections).toHaveLength(2);
+    expect(refusalAlert()).toBeUndefined();
+  });
 
   it('opens the requested agent directly in a multi-agent room', async () => {
     const request = createGateway();
