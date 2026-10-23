@@ -1196,6 +1196,35 @@ describe('Room', () => {
     });
   });
 
+  it('shows the computer as a resizable column with its own stored width', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+
+    const json = JSON.stringify(renderer!.toJSON());
+    expect(json).toContain('"data-testid":"resizable-computer-panel"');
+    expect(json).toContain('"role":"separator"');
+    expect(json).toContain('"aria-label":"Resize computer panel"');
+    // The conversation and the panel are the only columns: no divider Line sits between them.
+    expect((renderer!.toJSON() as { children: unknown[] }).children).toHaveLength(2);
+
+    // Phones show the panel full screen: no box and no resize handle of its own.
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('"role":"separator"');
+    await act(async () => renderer!.unmount());
+  });
+
   it.each(['$root', '$reply'])(
     'routes continuation after canonical root %s resolves',
     async (resolvedRoot) => {

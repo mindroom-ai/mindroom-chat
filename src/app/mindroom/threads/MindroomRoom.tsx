@@ -40,6 +40,7 @@ import {
 } from '../canvas/canvasIndex';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
+import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { settingsModalAtom } from '../../state/settingsModal';
 import {
@@ -50,6 +51,9 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActionProvider';
 import type { ChatUiAction, ChatUiSettingsSection } from '../ui-actions/chatUiProtocol';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
+
+const COMPUTER_DEFAULT_WIDTH = 672;
+const COMPUTER_MAX_WIDTH = 1600;
 
 const UI_SETTINGS_PAGES: Record<ChatUiSettingsSection, SettingsPages> = {
   general: SettingsPages.GeneralPage,
@@ -358,10 +362,18 @@ export function Room() {
             </>
           )}
           {!callView && effectiveComputerOpen && computerApiUrl && (
-            <>
-              {screenSize === ScreenSize.Desktop && (
-                <Line variant="Background" direction="Vertical" size="300" />
-              )}
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.computer.width:${mx.getSafeUserId()}`}
+              defaultWidth={COMPUTER_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={COMPUTER_MAX_WIDTH}
+              passthrough={screenSize === ScreenSize.Mobile}
+              resizeLabel="Resize computer panel"
+              collapseLabel="Close computer"
+              onCollapse={closeComputer}
+              testId="resizable-computer-panel"
+            >
               <ComputerPanel
                 key={computerApiUrl}
                 agents={computerAgents}
@@ -374,7 +386,7 @@ export function Room() {
                 onInteractionChange={reportInteraction}
                 onClose={closeComputer}
               />
-            </>
+            </ResizablePanel>
           )}
           {canvasShown && canvasEvent && (
             <>

@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Make the computer panel resizable (2026-10-23)
+
+- Why: the Computer panel was a fixed-width column, so a person could not give the agent's screen more room, while the canvas panel already could.
+- Change: `MindroomRoom.tsx` wraps `ComputerPanel` in `ResizablePanel` like `RoomCanvasPanel` does (right side, default 672px, up to 1600px, the conversation keeps at least `CONVERSATION_MIN_WIDTH`), stores the width per account under `mindroom.computer.width:<userId>`, closes the panel when dragged to the collapse threshold, and passes through on phones. The resize handle replaces the divider `Line`. `ComputerPanel.css.ts` now exports `ResizableSidePanel` as `Panel`. The two numbers are `COMPUTER_DEFAULT_WIDTH` and `COMPUTER_MAX_WIDTH`.
+- Tests: `Room.test.ts` checks the computer renders inside `resizable-computer-panel` with a "Resize computer panel" separator and no extra divider, and that phones render no separator.
+
 ### Share the resizable side-panel style and Expand icons (2026-10-23)
 
 - Why: the Computer panel is to become resizable and expandable like the canvas panel, so it needs what only the canvas owned. This step is a refactor with no visible change.
