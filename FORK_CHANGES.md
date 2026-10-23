@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Say when a paste is too large for the computer (2026-10-23)
+
+- Why: `ComputerScreen` refuses pasted text over 512 KiB, because the proxy drops client messages over 1 MiB, but nothing told the user. The paste just did nothing
+- Change: `ComputerPanel` passes `onPaste` to the screen and shows "Text over 512 KB cannot be pasted into the computer." as a `role="alert"` beside the send error, from a `pasteError` state. A `sent` paste removes it. A new session (session effect) and a new screen connecting (`onConnected`, which covers a same-session Reconnect) clear it. Copy is literal English, as in the rest of the panel
+- Tests: `ComputerPanel.test.tsx` (3 new cases, the `Text` mock now keeps `role`):
+  - `onPaste('too-large')` shows the alert and `onPaste('sent')` removes it;
+  - choosing another agent clears it, and it stays clear after Watch;
+  - after a disconnect, Reconnect opening a new screen clears it.
+- Validation: `npx vitest run src/app/mindroom/computer` (8 files, 168 tests), `npm run typecheck`, `npm run lint` (0 errors), `npm run build`, and prettier on the touched files pass.
+- Risks: the message stays while the screen is gone (stopped, disconnected) until a new session or screen connects.
+- Next: none for the clipboard bridge.
+
 ### Copy and paste through the computer screen while in control (2026-10-23)
 
 - Why: the clipboard bridge (next entry) was not attached to the screen yet, so copy and paste still did not reach the agent computer. Focus on the screen's own element also left noVNC's keyboard dead, because noVNC listens only on its canvas.

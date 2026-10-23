@@ -145,6 +145,7 @@ export function ComputerPanel({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [sendError, setSendError] = useState<string>();
+  const [pasteError, setPasteError] = useState<string>();
   const [releaseNotice, setReleaseNotice] = useState<'released' | 'sent'>();
   const sessionRef = useRef<ComputerSessionClient>();
   const lifecycleRef = useRef(0);
@@ -251,6 +252,7 @@ export function ComputerPanel({
     setConnected(false);
     setError(undefined);
     setSendError(undefined);
+    setPasteError(undefined);
     setReleaseNotice(undefined);
     setOperation(undefined);
 
@@ -629,8 +631,16 @@ export function ComputerPanel({
                   setConnected(true);
                   setPhase('ready');
                   setError(undefined);
+                  setPasteError(undefined);
                 }}
                 onDisconnected={(message) => handleDisconnected(stream.protocols[1], message)}
+                onPaste={(result) =>
+                  setPasteError(
+                    result === 'too-large'
+                      ? 'Text over 512 KB cannot be pasted into the computer.'
+                      : undefined
+                  )
+                }
                 protocols={stream.protocols}
                 url={stream.url}
               />
@@ -666,6 +676,11 @@ export function ComputerPanel({
         {sendError && (
           <Text className={css.Error} size="T300" role="alert">
             {sendError}
+          </Text>
+        )}
+        {pasteError && (
+          <Text className={css.Error} size="T300" role="alert">
+            {pasteError}
           </Text>
         )}
 
