@@ -3078,6 +3078,16 @@
       "stopFailed": "{{tool}} durdurulamadı. Tekrar deneyin.",
       "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"
+    },
+    "autoApprove": {
+      "label": "Otomatik onay",
+      "labelOne": "Otomatik onay: {{name}}",
+      "labelMany": "Otomatik onay: {{name}} +{{count}}",
+      "title": "Otomatik onay",
+      "intro": "Bu ileti dizisinde bu kişilerin istediği araç çağrıları onay kartı olmadan çalışır.",
+      "you": "Siz",
+      "until": "{{time}} saatine kadar",
+      "ownUntil": "{{time}} saatine kadar. Bitirmek için !auto_approve off gönderin."
     }
   },
   "roomSchedules": {

@@ -3078,6 +3078,16 @@
       "stopFailed": "{{tool}} konnte nicht gestoppt werden. Versuche es erneut.",
       "stopAllFailed": "Die Hintergrundaufgaben konnten nicht gestoppt werden. Versuche es erneut.",
       "inRoom": "Hintergrundaufgaben laufen"
+    },
+    "autoApprove": {
+      "label": "Automatische Genehmigung",
+      "labelOne": "Automatische Genehmigung: {{name}}",
+      "labelMany": "Automatische Genehmigung: {{name}} +{{count}}",
+      "title": "Automatische Genehmigung",
+      "intro": "In diesem Thread laufen Tool-Aufrufe, die diese Personen anfordern, ohne Freigabekarten.",
+      "you": "Du",
+      "until": "Bis {{time}}",
+      "ownUntil": "Bis {{time}}. Sende !auto_approve off, um sie zu beenden."
     }
   },
   "roomSchedules": {

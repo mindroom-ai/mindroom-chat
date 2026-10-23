@@ -11,7 +11,7 @@ import { Capacitor } from '@capacitor/core';
 import { useEffect, useMemo, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { agentRoomState, useAgentRoomStateVersion } from '../matrix/agentRoomState';
+import { agentRoomState, useAgentRoomState } from '../matrix/agentRoomState';
 import { readOpenIdBinding } from '../matrix/openidAudience';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import {
@@ -23,10 +23,13 @@ import {
 } from './mindroomServer';
 
 // In the native apps a published localhost server is the phone itself, never the agent's MindRoom.
-const roomServers = (room: Room): MindroomServer[] =>
-  selectMindroomServers(agentRoomState(room, MINDROOM_SERVER_EVENT)).filter(
+const selectRoomServers = (events: MatrixEvent[]): MindroomServer[] =>
+  selectMindroomServers(events).filter(
     (server) => !(Capacitor.isNativePlatform() && isLoopbackOrigin(server.apiUrl))
   );
+
+const roomServers = (room: Room): MindroomServer[] =>
+  selectRoomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
 
 // One answer per client for what Chat shows; a token for a published origin is only ever requested after a
 // new check. A check that could not reach the homeserver is not kept, so the next mount asks again.
@@ -55,13 +58,8 @@ export const useBindsOpenIdTokens = (): boolean => {
 };
 
 /** The servers of the room's agents, read again when one changes or an agent's membership does. */
-export const useRoomMindroomServers = (room: Room): MindroomServer[] => {
-  const version = useAgentRoomStateVersion(room, MINDROOM_SERVER_EVENT);
-  return useMemo(() => {
-    void version;
-    return roomServers(room);
-  }, [room, version]);
-};
+export const useRoomMindroomServers = (room: Room): MindroomServer[] =>
+  useAgentRoomState(room, MINDROOM_SERVER_EVENT, selectRoomServers);
 
 /** Every server the agents in the user's rooms publish, newest first, while the homeserver binds tokens. */
 export const useMindroomServerUrls = (): string[] => {

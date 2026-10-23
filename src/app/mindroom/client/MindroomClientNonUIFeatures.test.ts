@@ -8,21 +8,21 @@ import { ClientEvent, MatrixEvent, type MatrixClient, type Room } from 'matrix-j
 import { MemoryRouter } from 'react-router-dom';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import InviteSound from '../../../../public/sound/invite.ogg';
 import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { createSessionId } from '../../state/sessions';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { Membership } from '../../../types/matrix/room';
 import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
+import { playChime } from '../notifications/playChime';
 import { CanvasIndexFeature, MindroomInviteNotifications } from './MindroomClientNonUIFeatures';
+
+vi.mock('../notifications/playChime', () => ({ playChime: vi.fn(() => Promise.resolve()) }));
 
 type MockRoom = {
   roomId: string;
   getMyMembership: () => Membership;
-};
-
-type AudioMock = HTMLAudioElement & {
-  play: ReturnType<typeof vi.fn>;
 };
 
 const createInviteRoom = (roomId: string): MockRoom => ({
@@ -48,11 +48,7 @@ const removeInvite = (store: Store, roomId: string) => {
   store.set(allInvitesAtom, { type: 'DELETE', roomId });
 };
 
-const renderInviteNotifications = (
-  store: Store,
-  mx: MatrixClient,
-  audioElement: AudioMock
-): ReactTestRenderer =>
+const renderInviteNotifications = (store: Store, mx: MatrixClient): ReactTestRenderer =>
   create(
     React.createElement(
       Provider,
@@ -71,21 +67,15 @@ const renderInviteNotifications = (
           React.createElement(MindroomInviteNotifications)
         )
       )
-    ),
-    {
-      createNodeMock: (element) => (element.type === 'audio' ? audioElement : null),
-    }
+    )
   );
 
 describe('MindroomInviteNotifications', () => {
   let renderer: ReactTestRenderer | undefined;
-  let play: ReturnType<typeof vi.fn>;
-  let audioElement: AudioMock;
+  const play = vi.mocked(playChime);
   let notificationMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    play = vi.fn(() => Promise.resolve());
-    audioElement = { play } as unknown as AudioMock;
     notificationMock = vi.fn(() => ({ close: vi.fn() }));
     Object.defineProperty(notificationMock, 'permission', {
       configurable: true,
@@ -114,9 +104,9 @@ describe('MindroomInviteNotifications', () => {
     const mx = createMatrixClient(['!cached-a:new', '!cached-b:new']);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, mx, audioElement);
+      renderer = renderInviteNotifications(store, mx);
     });
-    expect(renderer?.root.findByType('audio').props.preload).toBe('none');
+    expect(renderer?.toJSON()).toBeNull();
 
     await act(async () => {
       setInvites(store, ['!cached-a:new', '!cached-b:new']);
@@ -131,7 +121,7 @@ describe('MindroomInviteNotifications', () => {
     const mx = createMatrixClient([]);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, mx, audioElement);
+      renderer = renderInviteNotifications(store, mx);
     });
 
     await act(async () => {
@@ -139,6 +129,7 @@ describe('MindroomInviteNotifications', () => {
     });
 
     expect(play).toHaveBeenCalledOnce();
+    expect(play).toHaveBeenCalledWith(InviteSound);
     expect(notificationMock).toHaveBeenCalledOnce();
     expect(notificationMock).toHaveBeenCalledWith(
       'Invitation',
@@ -155,7 +146,7 @@ describe('MindroomInviteNotifications', () => {
     const mx = createMatrixClient([roomId]);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, mx, audioElement);
+      renderer = renderInviteNotifications(store, mx);
     });
 
     await act(async () => {
@@ -172,7 +163,7 @@ describe('MindroomInviteNotifications', () => {
     const mx = createMatrixClient([roomId]);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, mx, audioElement);
+      renderer = renderInviteNotifications(store, mx);
     });
     await act(async () => {
       addInvite(store, roomId);
@@ -195,7 +186,7 @@ describe('MindroomInviteNotifications', () => {
     const bobMx = createMatrixClient(['!bob-cached:new']);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, aliceMx, audioElement);
+      renderer = renderInviteNotifications(store, aliceMx);
     });
     await act(async () => {
       renderer?.update(
@@ -235,7 +226,7 @@ describe('MindroomInviteNotifications', () => {
     const bobMx = createMatrixClient([]);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, aliceMx, audioElement);
+      renderer = renderInviteNotifications(store, aliceMx);
     });
     await act(async () => {
       renderer?.update(
@@ -278,7 +269,7 @@ describe('MindroomInviteNotifications', () => {
     const bobMx = createMatrixClient([]);
 
     await act(async () => {
-      renderer = renderInviteNotifications(store, aliceMx, audioElement);
+      renderer = renderInviteNotifications(store, aliceMx);
     });
     await act(async () => {
       renderer?.update(
