@@ -3145,11 +3145,15 @@
       "stopAllFailed": "Impossibile interrompere le attività in background. Riprova.",
       "inRoom": "Attività in background in corso"
     },
-    "yolo": {
-      "ownLabel": "YOLO fino a {{time}}",
-      "otherLabel": "YOLO per {{name}} fino a {{time}}",
-      "ownDetail": "Le tue chiamate agli strumenti in questo thread vengono eseguite senza approvazione fino a {{time}}. Invia !yolo off per terminare.",
-      "otherDetail": "Le chiamate agli strumenti che {{name}} richiede in questo thread vengono eseguite senza approvazione fino a {{time}}."
+    "autoApprove": {
+      "label": "Approvazione automatica",
+      "labelOne": "Approvazione automatica: {{name}}",
+      "labelMany": "Approvazione automatica: {{name}} +{{count}}",
+      "title": "Approvazione automatica",
+      "intro": "In questo thread, le chiamate agli strumenti richieste da queste persone vengono eseguite senza schede di approvazione.",
+      "you": "Tu",
+      "until": "Fino a {{time}}",
+      "ownUntil": "Fino a {{time}}. Invia !auto_approve off per terminarla."
     }
   },
   "roomSchedules": {

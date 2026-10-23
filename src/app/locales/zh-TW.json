@@ -3067,11 +3067,15 @@
       "stopAllFailed": "無法停止背景工作，請再試一次。",
       "inRoom": "背景工作執行中"
     },
-    "yolo": {
-      "ownLabel": "YOLO 至 {{time}}",
-      "otherLabel": "{{name}} 的 YOLO 至 {{time}}",
-      "ownDetail": "在 {{time}} 之前，你在此討論串中的工具呼叫無需核准即可執行。傳送 !yolo off 可提前結束。",
-      "otherDetail": "在 {{time}} 之前，{{name}} 在此討論串中要求的工具呼叫無需核准即可執行。"
+    "autoApprove": {
+      "label": "自動批准",
+      "labelOne": "自動批准：{{name}}",
+      "labelMany": "自動批准：{{name}} +{{count}}",
+      "title": "自動批准",
+      "intro": "在此討論串中，這些人要求的工具呼叫無需核准卡片即可執行。",
+      "you": "你",
+      "until": "至 {{time}}",
+      "ownUntil": "至 {{time}}。傳送 !auto_approve off 可提前結束。"
     }
   },
   "roomSchedules": {

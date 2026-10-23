@@ -3145,11 +3145,15 @@
       "stopAllFailed": "No se pudieron detener las tareas en segundo plano. Inténtalo de nuevo.",
       "inRoom": "Tareas en segundo plano en curso"
     },
-    "yolo": {
-      "ownLabel": "YOLO hasta {{time}}",
-      "otherLabel": "YOLO para {{name}} hasta {{time}}",
-      "ownDetail": "Tus llamadas a herramientas en este hilo se ejecutan sin aprobación hasta {{time}}. Envía !yolo off para terminarlo.",
-      "otherDetail": "Las llamadas a herramientas que {{name}} pide en este hilo se ejecutan sin aprobación hasta {{time}}."
+    "autoApprove": {
+      "label": "Aprobación automática",
+      "labelOne": "Aprobación automática: {{name}}",
+      "labelMany": "Aprobación automática: {{name}} +{{count}}",
+      "title": "Aprobación automática",
+      "intro": "En este hilo, las llamadas a herramientas que piden estas personas se ejecutan sin tarjetas de aprobación.",
+      "you": "Tú",
+      "until": "Hasta {{time}}",
+      "ownUntil": "Hasta {{time}}. Envía !auto_approve off para terminarla."
     }
   },
   "roomSchedules": {

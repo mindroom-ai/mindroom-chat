@@ -46,7 +46,7 @@ import {
 } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
 
-function ApprovalDialog({
+export function ApprovalDialog({
   title,
   subtitle,
   leading,

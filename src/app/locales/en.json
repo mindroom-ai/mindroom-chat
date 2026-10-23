@@ -3079,11 +3079,15 @@
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"
     },
-    "yolo": {
-      "ownLabel": "YOLO until {{time}}",
-      "otherLabel": "YOLO for {{name}} until {{time}}",
-      "ownDetail": "Your tool calls in this thread run without approval until {{time}}. Send !yolo off to end it.",
-      "otherDetail": "Tool calls {{name}} requests in this thread run without approval until {{time}}."
+    "autoApprove": {
+      "label": "Auto-approve",
+      "labelOne": "Auto-approve: {{name}}",
+      "labelMany": "Auto-approve: {{name}} +{{count}}",
+      "title": "Auto-approve",
+      "intro": "In this thread, tool calls these people request run without approval cards.",
+      "you": "You",
+      "until": "Until {{time}}",
+      "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
     }
   },
   "roomSchedules": {

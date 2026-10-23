@@ -42,50 +42,35 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
-// A YOLO window's chip is wide, so beside one the status chips and the tags take more lines instead of squeezing
-// each other. Without one, the row keeps its single line.
-const withYoloWindow = ':has(> [data-thread-status-chip="yolo"])';
-
-// Holds the eyebrow, the status chips and the tags; often none of them.
+// Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
-  selectors: {
-    '&:empty': { display: 'none' },
-    [`&${withYoloWindow}`]: { flexWrap: 'wrap' },
-  },
+  selectors: { '&:empty': { display: 'none' } },
   '@media': {
     [shortViewport]: {
-      // Beside the title on short screens, it keeps to the room left of the thread actions.
+      // Beside the title, the status chips keep to the room left of the thread actions.
       flexShrink: 1,
       minWidth: 0,
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
     },
+    // Phones show the tags in a row of their own, so here only status chips take another line.
+    '(max-width: 480px)': { flexWrap: 'wrap' },
   },
 });
 
-// Where the title column is narrow (phones, tablets with the room list), a
-// byline or a status chip would squeeze the rest to an ellipsis.
-const narrowTitle = '(max-width: 26rem)';
-
 // "Thread View" is chrome, not content: it says the same thing on every
-// thread the user opens, so it shows only while the thread has no title, and
-// gives way to a status chip, such as an open YOLO window, in a narrow or
-// short header. It uses the same uppercase/12px/W500 treatment the sidebar
-// category headers and the SHOW MORE pill already use for that role.
-const besideStatusChip = {
-  [`${EyebrowRow}:has(> [data-thread-status-chip]) > &`]: { display: 'none' },
-};
+// thread the user opens, so it shows only while the thread has no title and
+// gives way to a status chip. It uses the same uppercase/12px/W500 treatment
+// the sidebar category headers and the SHOW MORE pill already use for that role.
 export const ViewLabel = style({
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
   fontWeight: config.fontWeight.W500,
   whiteSpace: 'nowrap',
-  '@container': { [narrowTitle]: { selectors: besideStatusChip } },
-  '@media': { [shortViewport]: { selectors: besideStatusChip } },
+  selectors: { [`${EyebrowRow}:has(> [data-thread-status-chip]) > &`]: { display: 'none' } },
 });
 
-// On short screens the status chips that stay in view sit beside the title, and
-// the title takes a line of its own below them when too little room is left.
+// On short screens the approvals chip that stays in view sits beside the title.
 // A size container, so the byline can wrap by the room the title has: a tablet
 // with the room list open leaves as little as a phone.
 export const TitleColumn = style({
@@ -94,27 +79,10 @@ export const TitleColumn = style({
   flexDirection: 'column',
   minWidth: 0,
   gap: 0,
-  ...whenCompact({
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: config.space.S200,
-    rowGap: config.space.S100,
-  }),
+  ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
 });
 
-// Collapsed, the status chips sit between Back and Show details and wrap onto more lines when they do not fit.
-export const StatusChips = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: config.space.S100,
-  minWidth: 0,
-  selectors: { '&:empty': { display: 'none' } },
-});
-
-// The tags take the room the status chips leave on their line, clipped. Beside a YOLO window they stay on that
-// line only when they fit in full, and take a line of their own otherwise.
+// The tags take the room the status chips leave, clipped where they do not fit.
 export const TagsRow = style({
   display: 'inline-flex',
   flex: '1 1 0',
@@ -122,9 +90,6 @@ export const TagsRow = style({
   gap: '0.3rem',
   flexWrap: 'nowrap',
   overflow: 'hidden',
-  selectors: {
-    [`${EyebrowRow}${withYoloWindow} > &`]: { flex: '0 1 auto' },
-  },
 });
 
 /**
@@ -139,9 +104,8 @@ export const DesktopOnlyTags = style({
   },
 });
 
-// On short screens the title and a scheduled task share one line and truncate together; with less room beside
-// the status chips than 8rem, or than they need when shorter, they move below them, so neither the title nor a
-// chip is squeezed to nothing.
+// On short screens the title and a scheduled task share one line and truncate together; they take the room the
+// status chips leave, down to a short stub.
 export const SubtitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -153,12 +117,7 @@ export const SubtitleRow = style({
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
   },
   '@media': {
-    [shortViewport]: {
-      marginTop: 0,
-      flexWrap: 'nowrap',
-      flex: '1 1 8rem',
-      maxWidth: 'max-content',
-    },
+    [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
     // Narrow screens move the tags to their own row, which can leave the
     // eyebrow row with nothing showing.
     '(max-width: 480px)': {
@@ -173,6 +132,7 @@ export const SubtitleRow = style({
 // the chip it made that column taller than the buttons beside it. Where the
 // title column is narrow (phones, tablets with the room list) the byline would
 // squeeze the title to an ellipsis, so it takes a line of its own there.
+const narrowTitle = '(max-width: 26rem)';
 export const ResolutionByline = style({
   display: 'inline-flex',
   minWidth: 0,

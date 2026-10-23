@@ -3067,11 +3067,15 @@
       "stopAllFailed": "Tidak dapat menghentikan tugas latar belakang. Coba lagi.",
       "inRoom": "Tugas latar belakang sedang berjalan"
     },
-    "yolo": {
-      "ownLabel": "YOLO hingga {{time}}",
-      "otherLabel": "YOLO untuk {{name}} hingga {{time}}",
-      "ownDetail": "Panggilan alat Anda di utas ini berjalan tanpa persetujuan hingga {{time}}. Kirim !yolo off untuk mengakhirinya.",
-      "otherDetail": "Panggilan alat yang diminta {{name}} di utas ini berjalan tanpa persetujuan hingga {{time}}."
+    "autoApprove": {
+      "label": "Persetujuan otomatis",
+      "labelOne": "Persetujuan otomatis: {{name}}",
+      "labelMany": "Persetujuan otomatis: {{name}} +{{count}}",
+      "title": "Persetujuan otomatis",
+      "intro": "Di utas ini, panggilan alat yang diminta orang-orang ini berjalan tanpa kartu persetujuan.",
+      "you": "Anda",
+      "until": "Hingga {{time}}",
+      "ownUntil": "Hingga {{time}}. Kirim !auto_approve off untuk mengakhirinya."
     }
   },
   "roomSchedules": {

@@ -3079,11 +3079,15 @@
       "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"
     },
-    "yolo": {
-      "ownLabel": "{{time}} saatine kadar YOLO",
-      "otherLabel": "{{name}} için {{time}} saatine kadar YOLO",
-      "ownDetail": "Bu ileti dizisindeki araç çağrılarınız {{time}} saatine kadar onay olmadan çalışır. Bitirmek için !yolo off gönderin.",
-      "otherDetail": "{{name}} kullanıcısının bu ileti dizisinde istediği araç çağrıları {{time}} saatine kadar onay olmadan çalışır."
+    "autoApprove": {
+      "label": "Otomatik onay",
+      "labelOne": "Otomatik onay: {{name}}",
+      "labelMany": "Otomatik onay: {{name}} +{{count}}",
+      "title": "Otomatik onay",
+      "intro": "Bu ileti dizisinde bu kişilerin istediği araç çağrıları onay kartı olmadan çalışır.",
+      "you": "Siz",
+      "until": "{{time}} saatine kadar",
+      "ownUntil": "{{time}} saatine kadar. Bitirmek için !auto_approve off gönderin."
     }
   },
   "roomSchedules": {

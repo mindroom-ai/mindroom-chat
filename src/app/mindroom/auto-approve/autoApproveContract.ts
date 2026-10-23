@@ -1,10 +1,10 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 
-/** The room's open `!yolo` windows, as state the MindRoom router keys by its own user ID. */
-export const MINDROOM_YOLO_EVENT = 'io.mindroom.yolo';
+/** The room's open `!auto_approve` windows, as state the MindRoom router keys by its own user ID. */
+export const MINDROOM_AUTO_APPROVE_EVENT = 'io.mindroom.auto_approve';
 
 /** One person's window in which their tool calls in a thread run without approval cards. */
-export type YoloWindow = {
+export type AutoApproveWindow = {
   threadId: string | null;
   requesterId: string;
   expiresAt: number;
@@ -13,7 +13,7 @@ export type YoloWindow = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const parseWindow = (value: unknown): YoloWindow | undefined => {
+const parseWindow = (value: unknown): AutoApproveWindow | undefined => {
   if (!isRecord(value)) return undefined;
   const { thread_id: threadId, requester_id: requesterId, expires_at: expiresAt } = value;
   if (
@@ -28,22 +28,22 @@ const parseWindow = (value: unknown): YoloWindow | undefined => {
 };
 
 /** Read one router's windows from state `agentRoomState` already checked the router published about itself. */
-export const parseYoloStateEvent = (event: MatrixEvent): YoloWindow[] => {
+export const parseAutoApproveStateEvent = (event: MatrixEvent): AutoApproveWindow[] => {
   const windows = event.getContent().windows;
   if (!Array.isArray(windows)) return [];
   return windows.flatMap((value) => parseWindow(value) ?? []);
 };
 
-/** Every window of the routers' YOLO state. */
-export const selectYoloWindows = (events: MatrixEvent[]): YoloWindow[] =>
-  events.flatMap(parseYoloStateEvent);
+/** Every window of the routers' auto-approve state. */
+export const selectAutoApproveWindows = (events: MatrixEvent[]): AutoApproveWindow[] =>
+  events.flatMap(parseAutoApproveStateEvent);
 
 /** The windows still open in one thread, the earliest-ending first. */
-export const openYoloWindowsInThread = (
-  windows: YoloWindow[],
+export const openAutoApproveWindowsInThread = (
+  windows: AutoApproveWindow[],
   threadId: string,
   now: number
-): YoloWindow[] =>
+): AutoApproveWindow[] =>
   windows
     .filter((window) => window.threadId === threadId && window.expiresAt > now)
     .sort((a, b) => a.expiresAt - b.expiresAt);

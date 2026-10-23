@@ -1,11 +1,11 @@
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { describe, expect, it } from 'vitest';
 import {
-  MINDROOM_YOLO_EVENT,
-  openYoloWindowsInThread,
-  parseYoloStateEvent,
-  type YoloWindow,
-} from './yoloContract';
+  MINDROOM_AUTO_APPROVE_EVENT,
+  openAutoApproveWindowsInThread,
+  parseAutoApproveStateEvent,
+  type AutoApproveWindow,
+} from './autoApproveContract';
 
 const ROUTER = '@mindroom_router:example.org';
 const ALICE = '@alice:example.org';
@@ -20,17 +20,19 @@ const window = (overrides: Record<string, unknown> = {}) => ({
 const windowsEvent = (windows: unknown) =>
   new MatrixEvent({
     content: { windows },
-    event_id: '$yolo',
+    event_id: '$windows',
     origin_server_ts: 1,
     room_id: '!room:example.org',
     sender: ROUTER,
     state_key: ROUTER,
-    type: MINDROOM_YOLO_EVENT,
+    type: MINDROOM_AUTO_APPROVE_EVENT,
   });
 
-describe('parseYoloStateEvent', () => {
+describe('parseAutoApproveStateEvent', () => {
   it('parses each listed window with its end as a timestamp', () => {
-    expect(parseYoloStateEvent(windowsEvent([window(), window({ thread_id: null })]))).toEqual([
+    expect(
+      parseAutoApproveStateEvent(windowsEvent([window(), window({ thread_id: null })]))
+    ).toEqual([
       { threadId: '$thread', requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
       { threadId: null, requesterId: ALICE, expiresAt: Date.parse('2026-10-22T15:30:00Z') },
     ]);
@@ -44,14 +46,14 @@ describe('parseYoloStateEvent', () => {
       window({ thread_id: undefined }),
       'nonsense',
     ];
-    expect(parseYoloStateEvent(windowsEvent(windows))).toHaveLength(1);
-    expect(parseYoloStateEvent(windowsEvent('nonsense'))).toEqual([]);
+    expect(parseAutoApproveStateEvent(windowsEvent(windows))).toHaveLength(1);
+    expect(parseAutoApproveStateEvent(windowsEvent('nonsense'))).toEqual([]);
   });
 });
 
-describe('openYoloWindowsInThread', () => {
+describe('openAutoApproveWindowsInThread', () => {
   const at = (iso: string) => Date.parse(iso);
-  const windows: YoloWindow[] = [
+  const windows: AutoApproveWindow[] = [
     { threadId: '$thread', requesterId: '@bob:example.org', expiresAt: at('2026-10-22T16:00:00Z') },
     { threadId: '$thread', requesterId: ALICE, expiresAt: at('2026-10-22T15:30:00Z') },
     { threadId: '$other', requesterId: ALICE, expiresAt: at('2026-10-22T16:00:00Z') },
@@ -63,7 +65,7 @@ describe('openYoloWindowsInThread', () => {
   ];
 
   it('keeps the thread’s windows that have not ended, the earliest-ending first', () => {
-    const open = openYoloWindowsInThread(windows, '$thread', at('2026-10-22T15:00:00Z'));
+    const open = openAutoApproveWindowsInThread(windows, '$thread', at('2026-10-22T15:00:00Z'));
     expect(open.map((item) => item.requesterId)).toEqual([ALICE, '@bob:example.org']);
   });
 });

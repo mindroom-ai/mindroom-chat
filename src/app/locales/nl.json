@@ -3079,11 +3079,15 @@
       "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"
     },
-    "yolo": {
-      "ownLabel": "YOLO tot {{time}}",
-      "otherLabel": "YOLO voor {{name}} tot {{time}}",
-      "ownDetail": "Je toolaanroepen in deze thread lopen tot {{time}} zonder goedkeuring. Stuur !yolo off om dit te beëindigen.",
-      "otherDetail": "Toolaanroepen die {{name}} in deze thread vraagt, lopen tot {{time}} zonder goedkeuring."
+    "autoApprove": {
+      "label": "Automatische goedkeuring",
+      "labelOne": "Automatische goedkeuring: {{name}}",
+      "labelMany": "Automatische goedkeuring: {{name}} +{{count}}",
+      "title": "Automatische goedkeuring",
+      "intro": "In deze thread lopen toolaanroepen die deze mensen vragen zonder goedkeuringskaarten.",
+      "you": "Jij",
+      "until": "Tot {{time}}",
+      "ownUntil": "Tot {{time}}. Stuur !auto_approve off om dit te beëindigen."
     }
   },
   "roomSchedules": {

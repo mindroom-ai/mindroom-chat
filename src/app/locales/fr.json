@@ -3145,11 +3145,15 @@
       "stopAllFailed": "Impossible d’arrêter les tâches en arrière-plan. Réessayez.",
       "inRoom": "Tâches en arrière-plan en cours"
     },
-    "yolo": {
-      "ownLabel": "YOLO jusqu’à {{time}}",
-      "otherLabel": "YOLO pour {{name}} jusqu’à {{time}}",
-      "ownDetail": "Vos appels d’outils dans ce fil s’exécutent sans approbation jusqu’à {{time}}. Envoyez !yolo off pour y mettre fin.",
-      "otherDetail": "Les appels d’outils que {{name}} demande dans ce fil s’exécutent sans approbation jusqu’à {{time}}."
+    "autoApprove": {
+      "label": "Approbation automatique",
+      "labelOne": "Approbation automatique : {{name}}",
+      "labelMany": "Approbation automatique : {{name}} +{{count}}",
+      "title": "Approbation automatique",
+      "intro": "Dans ce fil, les appels d’outils demandés par ces personnes s’exécutent sans carte d’approbation.",
+      "you": "Vous",
+      "until": "Jusqu’à {{time}}",
+      "ownUntil": "Jusqu’à {{time}}. Envoyez !auto_approve off pour y mettre fin."
     }
   },
   "roomSchedules": {
