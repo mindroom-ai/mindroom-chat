@@ -60,7 +60,8 @@ export function attachComputerClipboard(
   let detached = false;
   let ctrlMapped = false;
   let shiftMapped = false;
-  // Off Apple, the Ctrl keys noVNC holds: it sends only presses that reach the screen.
+  // Off Apple, the Ctrl keys noVNC holds. Its keyboard listens only on its canvas,
+  // not on the focusable wrapper around it.
   let leftCtrlHeld = false;
   let rightCtrlHeld = false;
   let shiftDown = false;
@@ -136,8 +137,9 @@ export function attachComputerClipboard(
   const handleKeyDown = (event: KeyboardEvent) => {
     shiftDown = event.shiftKey;
     if (!isControlling()) return;
-    if (!apple && event.code === 'ControlLeft') leftCtrlHeld = true;
-    if (!apple && event.code === 'ControlRight') rightCtrlHeld = true;
+    const reachesNoVnc = event.target instanceof HTMLCanvasElement && target.contains(event.target);
+    if (!apple && reachesNoVnc && event.code === 'ControlLeft') leftCtrlHeld = true;
+    if (!apple && reachesNoVnc && event.code === 'ControlRight') rightCtrlHeld = true;
     if (event.isComposing) return;
 
     if (apple && event.key === 'Meta') {

@@ -86,9 +86,9 @@ describe('attachComputerClipboard', () => {
     });
   };
 
-  const key = (type: 'keydown' | 'keyup', init: KeyboardEventInit) => {
+  const key = (type: 'keydown' | 'keyup', init: KeyboardEventInit, on: Element = canvas) => {
     const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
-    canvas.dispatchEvent(event);
+    on.dispatchEvent(event);
     return event;
   };
 
@@ -198,6 +198,30 @@ describe('attachComputerClipboard', () => {
   it('sends the whole chord for a Ctrl pressed outside the screen', () => {
     attach();
 
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    paste('hello');
+
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+  });
+
+  it('sends the whole chord for a Ctrl pressed while the wrapper has focus', () => {
+    // noVNC listens only on its canvas, so it never sees this press.
+    target.tabIndex = 0;
+    target.focus();
+    attach();
+
+    key('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true }, target);
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true }, target);
+    paste('hello', target);
+
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+  });
+
+  it('forgets a right Ctrl on its keyup', () => {
+    attach();
+
+    key('keydown', { key: 'Control', code: 'ControlRight', ctrlKey: true, location: 2 });
+    key('keyup', { key: 'Control', code: 'ControlRight', location: 2 });
     key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
     paste('hello');
 
