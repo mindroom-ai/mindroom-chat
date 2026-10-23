@@ -1,3 +1,5 @@
+import { getBrowserClipboard } from '../../utils/dom';
+
 // noVNC 1.7 has no browser clipboard sync. This bridge pastes local text only from a
 // user's paste, and writes the local clipboard only for a copy gesture.
 
@@ -18,7 +20,7 @@ export type ComputerClipboardOptions = {
   isControlling: () => boolean;
   apple?: boolean; // default isApplePlatform()
   readOnShortcut?: boolean; // default WebKit, which fires no paste on the screen
-  clipboard?: Pick<Clipboard, 'readText' | 'write' | 'writeText'>; // default navigator.clipboard
+  clipboard?: Pick<Clipboard, 'readText' | 'write' | 'writeText'>; // default getBrowserClipboard()
   onPaste?: (result: PasteResult) => void;
 };
 
@@ -53,7 +55,7 @@ export function attachComputerClipboard(
   const apple = options.apple ?? isApplePlatform();
   const readOnShortcut = options.readOnShortcut ?? isWebKit();
   // Missing outside a secure context.
-  const clipboard = options.clipboard ?? (navigator.clipboard as Clipboard | undefined);
+  const clipboard = options.clipboard ?? getBrowserClipboard();
   const doc = target.ownerDocument;
   const view = doc.defaultView ?? window;
 
