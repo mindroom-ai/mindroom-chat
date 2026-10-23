@@ -43,7 +43,7 @@ export const agentRoomState = (room: Room, eventType: string): MatrixEvent[] =>
   });
 
 /** A number that changes when the room's state of this type, an agent's membership, or its live state does. */
-export const useAgentRoomStateVersion = (room: Room, eventType: string): number => {
+const useAgentRoomStateVersion = (room: Room, eventType: string): number => {
   const [version, refresh] = useForceUpdate();
   useEffect(() => {
     const onState = (event: MatrixEvent) => {
