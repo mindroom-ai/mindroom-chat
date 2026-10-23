@@ -1331,6 +1331,47 @@ describe('Room', () => {
     await act(async () => renderer!.unmount());
   });
 
+  it("unmounts the conversation under the phone's full-screen computer without reconnecting", async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    roomState.screenSize = 'Mobile';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    expect(roomViewShown()).toBe(true);
+
+    // The phone's computer covers the conversation, which must not mark messages read unseen.
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(0);
+
+    // Crossing the breakpoint keeps the same panel (and its stream) either way.
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomViewShown()).toBe(true);
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomState.panelDisposals).toBe(0);
+
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomViewShown()).toBe(false);
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomState.panelDisposals).toBe(0);
+
+    // Closing the computer brings the conversation back.
+    await act(async () => roomState.computerPanelProps?.onClose?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(roomViewShown()).toBe(true);
+    await act(async () => renderer!.unmount());
+  });
+
   it.each(['$root', '$reply'])(
     'routes continuation after canonical root %s resolves',
     async (resolvedRoot) => {

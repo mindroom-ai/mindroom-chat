@@ -37,7 +37,7 @@ See [the computer deployment guide](https://docs.mindroom.chat/tools/worker-comp
 
 Canvases retain their opaque sandbox, restrictive CSP, and two-frame navigation containment.
 Library loading permits only `https://cdn.jsdelivr.net/npm/` scripts, styles, and fonts.
-Phones use the existing full-screen panel, including safe-area padding and a close button; the hidden canvas conversation is unmounted.
+Phones use the existing full-screen panel, including safe-area padding and a close button; the conversation under a canvas or computer is unmounted.
 Long canvas titles shrink while the version controls and close button keep their full width, verified at a 320px viewport.
 The native bridge checks WebKit's frame metadata before plugin/Cordova messages or synchronous cookie/HTTP prompts, and Capacitor injects bridge scripts only into the main frame.
 Android also requires its frame-aware bridge; legacy bridge fallbacks and synchronous interfaces are disabled, with SystemBars viewport handling invoked from a native page-commit callback.

@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Unload the conversation under the phone's full-screen computer (2026-10-23)
+
+- Problem: on phones (`ScreenSize.Mobile`) the Computer panel is a fixed full-screen overlay, but `RoomView` stayed mounted underneath it, where it can mark incoming messages read while the person cannot see them. The canvas already unmounts the conversation on phones, and the computer did so only when expanded on a desktop.
+- Fix: `MindroomRoom.tsx` adds `computerFillsRoom = effectiveComputerOpen && (computerExpanded || screenSize === ScreenSize.Mobile)`, the canvas's rule, to `panelFillsRoom`. `ComputerPanel` keeps its position among the `Box`'s children, so crossing the phone breakpoint never remounts it and the noVNC stream stays connected. `docs/ios-panels.md` now says the conversation under a canvas or computer is unmounted.
+- Tests: `Room.test.ts` "unmounts the conversation under the phone's full-screen computer without reconnecting" opens the computer on a phone (room view gone), switches to Desktop (room view back) and to Mobile again (gone), with `panelDisposals` 0 throughout, then closes the computer (room view back). It fails without the change. No existing test needed to change. The e2e specs that open the computer on a 390 px viewport (`agent-ui-actions.spec.ts`, `worker-computer.spec.ts`) assert only on the panel while it is open, so they are unaffected.
+- Validation: the targeted vitest run, full `npm test` (only the known `xcodeCloudPostClone` and `useRoomInputSendSessionController` failures), `npm run typecheck`, `npm run lint` (0 errors), `npm run build` and prettier pass.
+
 ### Retry avatars when their URL changes (2026-10-23)
 
 - Problem: after the 2026-10-22 fix below, a fresh login on chat.mindroom.chat still showed the space icons as their fallback until a reload.
