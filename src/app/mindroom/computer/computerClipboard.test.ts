@@ -350,6 +350,59 @@ describe('attachComputerClipboard', () => {
     input.remove();
   });
 
+  const auxClick = (button: number, on: Element = canvas) =>
+    on.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button }));
+
+  it('sends nothing for the paste of a middle click on the screen', () => {
+    // Linux's primary-selection paste: noVNC sent the click, so the remote pastes its own.
+    const canvasPaste = vi.fn();
+    canvas.addEventListener('paste', canvasPaste);
+    attach();
+
+    auxClick(1);
+    const event = paste('only highlighted');
+
+    expect(rfb.calls).toEqual([]);
+    expect(onPaste).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+    expect(canvasPaste).not.toHaveBeenCalled();
+
+    // The mark is used up by that paste.
+    paste('hello');
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+  });
+
+  it('pastes again once the middle click is a task old, or a key went down since', async () => {
+    attach();
+
+    auxClick(1);
+    await nextTask();
+    paste('hello');
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+
+    rfb.calls.length = 0;
+    auxClick(1);
+    key('keydown', { key: 'a', code: 'KeyA' });
+    paste('world');
+    expect(rfb.calls).toEqual([['paste', 'world'], ...chord()]);
+  });
+
+  it('takes the paste after another button or a middle click outside the screen', () => {
+    const outside = document.createElement('div');
+    document.body.append(outside);
+    attach();
+
+    auxClick(2);
+    paste('hello');
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+
+    rfb.calls.length = 0;
+    auxClick(1, outside);
+    paste('world');
+    expect(rfb.calls).toEqual([['paste', 'world'], ...chord()]);
+    outside.remove();
+  });
+
   it('refuses a paste over 512 KiB', () => {
     attach();
 
@@ -486,6 +539,25 @@ describe('attachComputerClipboard', () => {
 
     await expect(writtenItem(0)).rejects.toBeInstanceOf(Error);
     await expect(writtenItem(1).then(blobText)).resolves.toBe('from remote');
+  });
+
+  it('rejects a pending copy whose reply comes after control ended', async () => {
+    // noVNC drops clipboard events only once the screen's effect has set viewOnly.
+    vi.useFakeTimers();
+    attach();
+
+    key('keydown', { key: 'c', code: 'KeyC', ctrlKey: true });
+    const state = settled(writtenItem());
+    controlling = false;
+    rfb.emitClipboard('from remote');
+
+    // Rejected by the reply itself, not by the 2 s reply timeout.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.value).toBe('rejected');
+    // Nothing was synced, so the same text is still pushed.
+    controlling = true;
+    paste('from remote');
+    expect(rfb.calls).toEqual([['paste', 'from remote'], ...chord()]);
   });
 
   it('ignores a remote clipboard push without a copy gesture', async () => {
@@ -867,6 +939,60 @@ describe('attachComputerClipboard', () => {
 
     expect(rfb.calls).toEqual([]);
     expect(onPaste).not.toHaveBeenCalled();
+  });
+
+  const deferRead = () => {
+    let resolveRead: (text: string) => void = () => undefined;
+    clipboard.readText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve;
+      })
+    );
+    return (text: string) => resolveRead(text);
+  };
+
+  it('sends nothing when focus leaves the screen before the read resolves', async () => {
+    const input = document.createElement('input');
+    document.body.append(input);
+    const resolveRead = deferRead();
+    attach({ readOnShortcut: true });
+
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    input.focus();
+    resolveRead('hello');
+    await nextTask();
+
+    expect(rfb.calls).toEqual([]);
+    expect(onPaste).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  it('pastes only the latest of two pending reads', async () => {
+    const resolveFirst = deferRead();
+    const resolveSecond = deferRead();
+    attach({ readOnShortcut: true });
+
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    key('keydown', { key: 'v', code: 'KeyV', ctrlKey: true });
+    resolveSecond('second');
+    await nextTask();
+    resolveFirst('first');
+    await nextTask();
+
+    expect(rfb.calls).toEqual([['paste', 'second'], ...chord()]);
+    expect(onPaste).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends V for a shifted shortcut whose Shift is up before the read resolves', async () => {
+    const resolveRead = deferRead();
+    attach({ readOnShortcut: true });
+
+    key('keydown', { key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true });
+    key('keyup', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true });
+    resolveRead('hello');
+    await nextTask();
+
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord(SHIFT_V_KEYSYM)]);
   });
 
   it('leaves the shortcuts to noVNC without a clipboard API', () => {

@@ -124,6 +124,30 @@ test('keeps the local clipboard from a computer push without a copy shortcut', a
   expect(await readLocalClipboard(page)).toBe('local text');
 });
 
+test('sends nothing for a middle-click paste on the screen while in control', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'WebKit fires no paste on a middle click');
+  await openScreen(page, 'control');
+  // Text highlighted locally, which Linux would paste as its primary selection.
+  await copyLocally(page, 'local text');
+  // Seen before the bridge's capture listener on the document.
+  await page.evaluate(() => {
+    window.addEventListener('paste', () => document.body.setAttribute('data-pasted', ''), true);
+  });
+
+  const box = await page.locator('canvas').boundingBox();
+  if (!box) throw new Error('The canvas has no box.');
+  await page.locator('canvas').click();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'middle' });
+
+  await expect(page.locator('body')).toHaveAttribute('data-pasted', '');
+  // noVNC sent the middle click, and the computer pastes its own selection.
+  expect(await recorded(page)).toEqual({ calls: [], noVncKeys: [], pastes: [] });
+  await expect(localText(page)).toHaveValue('local text');
+});
+
 test('hands focus to the canvas on Tab and on a letterbox click while in control', async ({
   page,
 }) => {

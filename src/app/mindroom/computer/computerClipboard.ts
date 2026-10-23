@@ -71,6 +71,11 @@ export function attachComputerClipboard(
   // again would replace whatever the computer copied since.
   let synced: string | undefined;
   let pushes = 0;
+  // Only the latest WebKit read may paste.
+  let reads = 0;
+  // A middle click on the screen, whose primary-selection paste follows on Linux.
+  let middleClicked = false;
+  let middleClickTimer: ReturnType<typeof setTimeout> | undefined;
 
   const hasPrimaryModifier = (event: KeyboardEvent) =>
     apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
@@ -97,7 +102,7 @@ export function attachComputerClipboard(
     rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
   };
 
-  const sendPaste = (text: string) => {
+  const sendPaste = (text: string, shifted: boolean) => {
     const push = text !== '' && text !== synced;
     if (push && new TextEncoder().encode(text).length > MAX_PASTE_BYTES) {
       onPaste?.('too-large');
@@ -108,15 +113,15 @@ export function attachComputerClipboard(
       synced = text;
       pushes += 1;
     }
-    const keysym = shiftDown ? SHIFT_V_KEYSYM : V_KEYSYM;
+    const keysym = shifted ? SHIFT_V_KEYSYM : V_KEYSYM;
     // Unless the remote holds Chat's mapped Ctrl or noVNC's left Ctrl, the whole chord
     // is sent: for a right Ctrl (its Control_R stays down), a Ctrl pressed outside the
     // screen, or the browser's Edit menu.
     const chord = apple ? !ctrlMapped : !leftCtrlHeld;
-    // noVNC on Windows holds a left-Ctrl press back up to 100 ms to detect AltGr, and
-    // would send it after the v. It is pressed again here, and noVNC's keyup releases it.
-    const pressLeftCtrl = !apple && leftCtrlHeld;
-    if (chord || pressLeftCtrl) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
+    // Off Apple, a left Ctrl noVNC holds is pressed again too: noVNC on Windows holds its
+    // press back up to 100 ms to detect AltGr, and would send it after the v. noVNC's keyup
+    // releases it.
+    if (!apple || chord) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', true);
     rfb.sendKey(keysym, 'KeyV', true);
     rfb.sendKey(keysym, 'KeyV', false);
     if (chord) rfb.sendKey(CONTROL_L_KEYSYM, 'ControlLeft', false);
@@ -158,7 +163,24 @@ export function attachComputerClipboard(
     );
   };
 
+  const clearMiddleClick = () => {
+    middleClicked = false;
+    clearTimeout(middleClickTimer);
+  };
+
+  const handleAuxClick = (event: MouseEvent) => {
+    if (event.button !== 1) return;
+    clearTimeout(middleClickTimer);
+    middleClicked = true;
+    // Chromium and Firefox fire that paste while they still handle the click: it came before
+    // a timeout and a MessageChannel task posted here, even after 150 ms of work in this
+    // listener (Linux, 2026-10-23). So the mark can end with this task, and a later paste
+    // from the Edit menu is taken. A window on event.timeStamp would have to guess the jank.
+    middleClickTimer = setTimeout(clearMiddleClick, 0);
+  };
+
   const handleKeyDown = (event: KeyboardEvent) => {
+    clearMiddleClick();
     shiftDown = event.shiftKey;
     if (!isControlling()) return;
     const reachesNoVnc = event.target instanceof HTMLCanvasElement && target.contains(event.target);
@@ -194,12 +216,18 @@ export function attachComputerClipboard(
         // Hidden from noVNC, whose preventDefault would stop the browser's paste.
         event.stopPropagation();
       } else if (clipboard) {
-        // WebKit fires no paste on the screen, so the shortcut reads the clipboard.
+        // WebKit fires no paste on the screen, so the shortcut reads the clipboard. Shift
+        // is taken now, as it may be up by the time the user presses Safari's Paste button.
         event.preventDefault();
         event.stopPropagation();
+        reads += 1;
+        const read = reads;
+        const shifted = event.shiftKey;
         clipboard.readText().then(
           (text) => {
-            if (!detached && isControlling()) sendPaste(text);
+            // The same gates as a paste event, now that the user pressed Paste.
+            const stillHere = !detached && isControlling() && target.contains(doc.activeElement);
+            if (read === reads && stillHere) sendPaste(text, shifted);
           },
           () => undefined
         );
@@ -237,7 +265,13 @@ export function attachComputerClipboard(
     if (!isControlling() || !target.contains(doc.activeElement)) return;
     event.preventDefault();
     event.stopPropagation();
-    sendPaste(event.clipboardData?.getData('text/plain') ?? '');
+    // The primary selection of a middle click: noVNC sent the click, so the computer pastes
+    // its own, and text only highlighted here stays here.
+    if (middleClicked) {
+      clearMiddleClick();
+      return;
+    }
+    sendPaste(event.clipboardData?.getData('text/plain') ?? '', shiftDown);
   };
 
   // noVNC releases its keys on window blur. The Shift keyup may land outside the window,
@@ -248,8 +282,14 @@ export function attachComputerClipboard(
     releaseMappedKeys();
   };
 
-  // A server push without a pending copy gesture never reaches the local clipboard.
+  // A server push without a pending copy gesture never reaches the local clipboard. A reply
+  // after control ended rejects the copy: noVNC drops clipboard events while view-only, but
+  // the screen sets that in an effect, a moment after the mode changed.
   const handleRemoteClipboard = (event: Event) => {
+    if (!isControlling()) {
+      takePendingCopy()?.reject(new Error('Control ended before the computer replied.'));
+      return;
+    }
     const text = (event as CustomEvent<{ text?: unknown }>).detail?.text;
     if (typeof text === 'string') takePendingCopy()?.resolve(text);
   };
@@ -257,6 +297,7 @@ export function attachComputerClipboard(
   target.addEventListener('keydown', handleKeyDown, true);
   target.addEventListener('keyup', handleKeyUp, true);
   target.addEventListener('focusout', handleFocusOut);
+  target.addEventListener('auxclick', handleAuxClick, true);
   doc.addEventListener('paste', handlePaste, true);
   view.addEventListener('blur', handleBlur);
   rfb.addEventListener('clipboard', handleRemoteClipboard);
@@ -266,6 +307,8 @@ export function attachComputerClipboard(
     target.removeEventListener('keydown', handleKeyDown, true);
     target.removeEventListener('keyup', handleKeyUp, true);
     target.removeEventListener('focusout', handleFocusOut);
+    target.removeEventListener('auxclick', handleAuxClick, true);
+    clearMiddleClick();
     doc.removeEventListener('paste', handlePaste, true);
     view.removeEventListener('blur', handleBlur);
     rfb.removeEventListener('clipboard', handleRemoteClipboard);
