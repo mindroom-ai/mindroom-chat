@@ -40,6 +40,7 @@ import {
 } from '../canvas/canvasIndex';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
+import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { settingsModalAtom } from '../../state/settingsModal';
 import {
@@ -50,6 +51,9 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActionProvider';
 import type { ChatUiAction, ChatUiSettingsSection } from '../ui-actions/chatUiProtocol';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
+
+const COMPUTER_DEFAULT_WIDTH = 672;
+const COMPUTER_MAX_WIDTH = 1600;
 
 const UI_SETTINGS_PAGES: Record<ChatUiSettingsSection, SettingsPages> = {
   general: SettingsPages.GeneralPage,
@@ -149,12 +153,21 @@ export function Room() {
     if (!canvasEvent) setCanvasExpanded(false);
   }, [canvasEvent]);
   const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
+  // An expanded computer takes the conversation's column the same way; closing it resets.
+  const [computerExpanded, setComputerExpanded] = useState(false);
+  useEffect(() => {
+    if (!effectiveComputerOpen) setComputerExpanded(false);
+  }, [effectiveComputerOpen]);
+  const toggleComputerExpanded = useCallback(() => setComputerExpanded((value) => !value), []);
   const callView = room.isCallRoom();
   const canvasShown =
     !callView && canvasEnabled && !callActive && !effectiveComputerOpen && !!canvasEvent;
   // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
-  // On phones the canvas always covers the conversation.
+  // On phones the canvas and the computer always cover the conversation.
   const canvasFillsRoom = canvasShown && (canvasExpanded || screenSize === ScreenSize.Mobile);
+  const computerFillsRoom =
+    effectiveComputerOpen && (computerExpanded || screenSize === ScreenSize.Mobile);
+  const panelFillsRoom = canvasFillsRoom || computerFillsRoom;
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -171,7 +184,12 @@ export function Room() {
     threadId,
     viewMode,
   });
-  useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId: routedThreadId });
+  useRoomEscapeReadReceipts({
+    conversationHidden: panelFillsRoom,
+    hideActivity,
+    roomId: room.roomId,
+    threadId: routedThreadId,
+  });
 
   const uiUnavailable = useCallback(
     (action: ChatUiAction): string | undefined => {
@@ -317,7 +335,7 @@ export function Room() {
               </Box>
             </Box>
           )}
-          {!callView && !canvasFillsRoom && (
+          {!callView && !panelFillsRoom && (
             <Box grow="Yes" direction="Column">
               <Box grow="Yes">
                 <RoomView
@@ -358,10 +376,19 @@ export function Room() {
             </>
           )}
           {!callView && effectiveComputerOpen && computerApiUrl && (
-            <>
-              {screenSize === ScreenSize.Desktop && (
-                <Line variant="Background" direction="Vertical" size="300" />
-              )}
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.computer.width:${mx.getSafeUserId()}`}
+              defaultWidth={COMPUTER_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={COMPUTER_MAX_WIDTH}
+              passthrough={screenSize === ScreenSize.Mobile}
+              resizeLabel="Resize computer panel"
+              collapseLabel="Close computer"
+              onCollapse={closeComputer}
+              fullWidth={computerExpanded}
+              testId="resizable-computer-panel"
+            >
               <ComputerPanel
                 key={computerApiUrl}
                 agents={computerAgents}
@@ -373,8 +400,12 @@ export function Room() {
                 requestedAgent={requestedAgent}
                 onInteractionChange={reportInteraction}
                 onClose={closeComputer}
+                expanded={computerExpanded}
+                onToggleExpanded={
+                  screenSize === ScreenSize.Mobile ? undefined : toggleComputerExpanded
+                }
               />
-            </>
+            </ResizablePanel>
           )}
           {canvasShown && canvasEvent && (
             <>
