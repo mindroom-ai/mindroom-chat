@@ -400,6 +400,16 @@ describe('attachComputerClipboard', () => {
     expect(canvasKeys).toHaveBeenCalledTimes(2);
   });
 
+  it('leaves a symbol or dead key on a letter key to noVNC, such as BÉPO Ctrl+.', () => {
+    attach();
+
+    key('keydown', { key: '.', code: 'KeyV', ctrlKey: true });
+    key('keydown', { key: 'Dead', code: 'KeyC', ctrlKey: true });
+
+    expect(canvasKeys).toHaveBeenCalledTimes(2);
+    expect(clipboard.write).not.toHaveBeenCalled();
+  });
+
   it('matches a Latin layout by key, not by position', () => {
     // Dvorak: v sits on the Period key, and k and j on the V and C keys.
     attach();
@@ -563,6 +573,29 @@ describe('attachComputerClipboard', () => {
     rfb.calls.length = 0;
     paste('cut text');
     expect(rfb.calls).toEqual([['paste', 'cut text'], ...chord()]);
+  });
+
+  it('pushes the copied text when a paste raced the copy to the computer', async () => {
+    let finishWrite = () => {};
+    clipboard.write.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve;
+        })
+    );
+    attach();
+
+    key('keydown', { key: 'c', code: 'KeyC', ctrlKey: true });
+    rfb.emitClipboard('from remote');
+    await nextTask();
+    // The older local text reaches the computer while the copy is still being written.
+    paste('older local text');
+    finishWrite();
+    await nextTask();
+    rfb.calls.length = 0;
+    paste('from remote');
+
+    expect(rfb.calls).toEqual([['paste', 'from remote'], ...chord()]);
   });
 
   it('pushes the same local text once', () => {

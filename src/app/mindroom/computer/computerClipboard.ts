@@ -68,14 +68,17 @@ export function attachComputerClipboard(
   // The text last pushed to the computer, or written locally after a copy. Pushing it
   // again would replace whatever the computer copied since.
   let synced: string | undefined;
+  let pushes = 0;
 
   const hasPrimaryModifier = (event: KeyboardEvent) =>
     apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 
-  // From `key`, or from `code` when that is not an ASCII letter (a Cyrillic or Greek
-  // layout, say), as Chromium does for its own shortcuts.
+  // From `key`, or from `code` when that is another script's letter (a Cyrillic or Greek
+  // layout, say), as Chromium does for its own shortcuts. Symbols and dead keys on a letter
+  // key, such as BÉPO's period on V, stay with noVNC.
   const shortcutLetter = (event: KeyboardEvent) => {
     if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+    if (!/^\p{L}$/u.test(event.key)) return undefined;
     return event.code.startsWith('Key') ? event.code.slice(3).toLowerCase() : undefined;
   };
 
@@ -101,6 +104,7 @@ export function attachComputerClipboard(
     if (push) {
       rfb.clipboardPasteFrom(text);
       synced = text;
+      pushes += 1;
     }
     const keysym = shiftDown ? SHIFT_V_KEYSYM : V_KEYSYM;
     // Unless the remote holds Chat's mapped Ctrl or noVNC's left Ctrl, the whole chord
@@ -142,9 +146,11 @@ export function attachComputerClipboard(
       blob.catch(() => undefined);
       written = local.write([new ClipboardItem({ 'text/plain': blob })]);
     }
+    // A paste pushed while the copy was under way replaced it on the computer.
+    const pushesBefore = pushes;
     Promise.all([text, written]).then(
       ([value]) => {
-        synced = value;
+        if (pushes === pushesBefore) synced = value;
       },
       () => undefined
     );
