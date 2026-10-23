@@ -26,6 +26,21 @@
 - Change: the shared side panel (`sidebar/SidePanel.css.ts` `Panel`) now fills its resizable wrapper on desktop (`flex: 1 1 auto`, `width: 100%`) instead of its own fixed `clamp(22rem, 42vw, 42rem)` column; the canvas re-exports it in place of its own override, and phones keep the full-screen panel. `ExpandIcon` and `ShrinkIcon` move from `CanvasPanel.tsx` to `sidebar/panelIcons.tsx`. `CONVERSATION_MIN_WIDTH` (360) moves from `RoomCanvasPanel.tsx` to `sidebar/ResizablePanel.tsx`.
 - Tests: no new tests; `RoomCanvasPanel.test.tsx` adds `CONVERSATION_MIN_WIDTH` to its `ResizablePanel` mock, which now has to provide the export `RoomCanvasPanel` imports.
 
+### Keep the loaded server versions after a fresh login (2026-10-22)
+
+- Problem: after a fresh login, space icons and the user's own avatar showed their fallback until the page was reloaded.
+  On a fresh login `SpecVersions` has no cached versions, so its loader fetches `/versions`, renders the client and caches them.
+  The first sync adds rooms, so `ClientRoot` passes `allowCachedContent` and `SpecVersions` switches to its cached-content branch; that branch read `cachedVersions` from a memo computed at mount (still empty) and provided `{ versions: [] }`.
+  With no versions, `useMediaAuthentication` is false, so avatars got legacy `/_matrix/media/v3/` URLs, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.`
+  `RoomAvatar` and `UserAvatar` keep their fallback after one failed load, so the icons stayed broken even after the background refresh restored the versions.
+  A reload reads the cache at mount, which is why it worked after a refresh.
+- Fix: `SpecVersions` re-reads the cached versions when cached content becomes allowed; the loader cached them when it rendered the client.
+  The background refresh now depends on whether versions are cached, not on the cached object, so re-reading does not send a second `/versions` request.
+- Not changed: if the first sync renders rooms before `/versions` loads, or writing the versions to localStorage fails (for example a full storage quota), the client still gets `{ versions: [] }` until the refresh answers.
+  Switching branches still remounts the client once after the first sync, `RoomAvatar` and `UserAvatar` still do not retry a failed load, and the upload config still uses the legacy `/_matrix/media/v3/config` endpoint.
+- Tests: `SpecVersions.test.ts` "keeps loaded versions when cached content becomes available after a fresh login" and "does not refresh again when cached content becomes allowed" (each fails without its change).
+  Reproduced against a local Tuwunel with a production build in Chromium: before the change the three space icons failed with legacy-URL 403s after login; after it all 18 avatars load and no legacy thumbnail is requested.
+
 ### Show auto-approve in the thread header (2026-10-22)
 
 - Why: MindRoom PR #3065 adds `!auto_approve <minutes>`, which lets a person's tool calls in one thread run without approval cards for up to 24 hours. Nothing in the thread showed it, so people could not tell that calls would run unasked, whose, or for how long.
