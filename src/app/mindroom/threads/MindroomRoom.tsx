@@ -165,9 +165,7 @@ export function Room() {
   // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
   // On phones the canvas always covers the conversation.
   const canvasFillsRoom = canvasShown && (canvasExpanded || screenSize === ScreenSize.Mobile);
-  const panelFillsRoom =
-    canvasFillsRoom ||
-    (effectiveComputerOpen && computerExpanded && screenSize !== ScreenSize.Mobile);
+  const panelFillsRoom = canvasFillsRoom || (effectiveComputerOpen && computerExpanded);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);

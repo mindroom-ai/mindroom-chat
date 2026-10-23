@@ -1,8 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
-export { Header } from '../sidebar/SidePanel.css';
-export { ResizableSidePanel as Panel } from '../sidebar/SidePanel.css';
+export { Header, Panel } from '../sidebar/SidePanel.css';
 
 export const TitleGroup = style({
   flex: '1 1 auto',

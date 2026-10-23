@@ -1318,6 +1318,16 @@ describe('Room', () => {
     roomState.screenSize = 'Mobile';
     await act(async () => renderer.update(React.createElement(Room)));
     expect(roomState.computerPanelProps?.onToggleExpanded).toBeUndefined();
+
+    // A computer expanded on a desktop keeps the conversation unmounted on a phone, like the canvas.
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer.update(React.createElement(Room)));
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    const disposals = roomState.panelDisposals;
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(disposals);
     await act(async () => renderer!.unmount());
   });
 

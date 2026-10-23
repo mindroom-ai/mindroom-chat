@@ -1,7 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-export { Header, ResizableSidePanel as Panel } from '../sidebar/SidePanel.css';
+export { Header, Panel } from '../sidebar/SidePanel.css';
 
 export const Body = style({
   display: 'flex',
