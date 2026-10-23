@@ -6,11 +6,15 @@ import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { inSameDay } from '../../utils/time';
+import { useAgentRoomState } from '../matrix/agentRoomState';
 import { userDisplayName } from '../messages/approvalPeople';
 import { ApprovalDialog, ApprovalGroup } from '../messages/ThreadApprovalControls';
 import { usePageResume } from '../threads/usePageResume';
-import { openAutoApproveWindowsInThread } from './autoApproveContract';
-import { useRoomAutoApproveWindows } from './useRoomAutoApproveWindows';
+import {
+  MINDROOM_AUTO_APPROVE_EVENT,
+  openAutoApproveWindowsInThread,
+  selectAutoApproveWindows,
+} from './autoApproveContract';
 import * as css from './AutoApproveChip.css';
 
 // setTimeout fires at once past this many milliseconds, so a later end is reached in steps.
@@ -36,7 +40,11 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
   const [now, setNow] = useState(Date.now);
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const windows = openAutoApproveWindowsInThread(useRoomAutoApproveWindows(room), threadId, now);
+  const windows = openAutoApproveWindowsInThread(
+    useAgentRoomState(room, MINDROOM_AUTO_APPROVE_EVENT, selectAutoApproveWindows),
+    threadId,
+    now
+  );
   const nextEnd = windows[0]?.expiresAt;
 
   // Timers can stop while a device sleeps, so a window that ended meanwhile goes as the page comes back.

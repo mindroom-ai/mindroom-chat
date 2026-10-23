@@ -6,7 +6,7 @@ import {
   type RoomMember,
   type RoomState,
 } from 'matrix-js-sdk';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
@@ -62,4 +62,17 @@ export const useAgentRoomStateVersion = (room: Room, eventType: string): number 
     };
   }, [room, eventType, refresh]);
   return version;
+};
+
+/** What `select` makes of the room's agent state of this type, read again only when that state could have changed. */
+export const useAgentRoomState = <T>(
+  room: Room,
+  eventType: string,
+  select: (events: MatrixEvent[]) => T
+): T => {
+  const version = useAgentRoomStateVersion(room, eventType);
+  return useMemo(() => {
+    void version;
+    return select(agentRoomState(room, eventType));
+  }, [room, eventType, select, version]);
 };

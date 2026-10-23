@@ -8,7 +8,7 @@ import type { AutoApproveWindow } from './autoApproveContract';
 import { AutoApproveChip } from './AutoApproveChip';
 
 const state = vi.hoisted(() => ({ windows: [] as AutoApproveWindow[], hour24Clock: false }));
-vi.mock('./useRoomAutoApproveWindows', () => ({ useRoomAutoApproveWindows: () => state.windows }));
+vi.mock('../matrix/agentRoomState', () => ({ useAgentRoomState: () => state.windows }));
 vi.mock('../../state/hooks/settings', () => ({
   useSetting: () => [state.hour24Clock, () => undefined],
 }));
