@@ -10,6 +10,7 @@
   In the production session the client rendered at 17:04:14 UTC with 18 legacy thumbnail requests, and authenticated ones only started 40 seconds later.
   The URLs then switched to authenticated ones, but `RoomAvatar` and `UserAvatar` kept their fallback after the first failed load, so 9 of the 18 were never requested again.
 - Fix: `RoomAvatar` and `UserAvatar` remember which URL failed instead of a flag, so a new URL loads.
+  `RoomNavItem` no longer remounts its `RoomAvatar` with `key={roomAvatarUrl}`, a workaround for the same flag that only covered the room list.
 - Not changed: until the service worker takes control, avatars still show their fallback, after a legacy-URL 403 each.
   Why the service worker can take 40 seconds is not known: in one of five production runs that left the page 2 to 3 seconds after it loaded, the install stalled for 40 seconds and then lost its registration.
 - Tests: `RoomAvatar.test.tsx` and `UserAvatar.test.tsx` "loads a new src after the previous one failed" (each fails without the change).
