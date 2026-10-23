@@ -442,7 +442,9 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
       [...markers, '', 'Done: **sent**.'].join('\n\n')
     );
 
-    expect(formattedBody).toContain('<p>🔧 <code>matrix_matrix_read_room_recent</code> [120]</p>');
+    expect(
+      formattedBody.match(/<p>🔧 <code>matrix_matrix_read_room_recent<\/code> \[\d+\]<\/p>/g)
+    ).toHaveLength(120);
     expect(formattedBody).toContain('<strong data-md="**">sent</strong>');
     // An ambiguous `` line sends the markers through the parser, so they count again.
     expect(formatMindroomMarkdownTextBodyAsHtml([...markers, 'a `` b'].join('\n\n'))).toBe('');
