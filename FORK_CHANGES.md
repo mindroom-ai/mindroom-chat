@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Check clipboard and panel layout against a live worker computer (2026-10-23)
+
+- Why: unit tests and the stand-in RFB fixture cover the clipboard bridge, but nothing had run it against the real Xvnc, the backend's filtering RFB proxy and the agent's Chromium.
+- Change: `e2e/worker-computer.spec.ts` gains these checks in the second control session:
+  - Paste: the local clipboard (`navigator.clipboard`, Chromium clipboard permissions) holds `pasted from chat ✓`. A click on the remote input, `Control+a` and `Control+v` paste it there.
+  - Copy: the local clipboard is set to other text, then `Control+a` and `Control+c` in the remote bring `pasted from chat ✓` back. The `✓` is outside Latin-1, so it can only travel through the extended clipboard's UTF-8, in both directions.
+  - Layout: dragging `Resize computer panel` 200 px narrows the panel from 672 to 472 px. Expand widens it and sets `aria-pressed`, and Restore brings back 472 px. A `MutationObserver` logs every panel status from Take control on, and the log is only `You have control`, so `Connecting display…` never shows. No new display WebSocket opens, and the open one stays open.
+
+  The first control session's remote click now goes through a shared `clickRemoteInput` helper.
+- Fixture: the backend's `scripts/test-worker-computer.py --serve` at mindroom `origin/main` `51a792dff`, with `--image ghcr.io/mindroom-ai/mindroom:v2026.10.458` (no `--build`) and its own disposable Tuwunel. On `origin/main` the script fails at startup with `Error: timeout must be a positive number of seconds; omit it for the default limit.`. It starts the fixture page's server with shell `timeout: 0`, which the shell tool rejects since mindroom #2888. A local, uncommitted patch started that server with `nohup … &` instead. The backend script needs that fix upstream. The fixture also serves one run only: after the spec's Stop and Start, the remote browser no longer shows the fixture page (a rerun read a black pixel, `[0, 0, 0, 255]`), so each run needs a new fixture.
+- Validation: three passes in host Chromium 155 (the last two on the final spec), each against a new fixture, each about 1.1 min (`E2E_BASE_URL=http://127.0.0.1:4391 E2E_NO_WEB_SERVER=1 E2E_COMPUTER_FIXTURE=<output>/chat-fixture.json npx playwright test e2e/worker-computer.spec.ts`). The traced run's first `readText()` already returned `pasted from chat ✓`. `tsc` on the spec (a temporary tsconfig), eslint and prettier on the touched files, `npm run typecheck`, `npm run lint` (0 errors) and `npm run build` pass.
+- Risks:
+  - Copying from the remote's context menu, or text the agent copies, does not reach the local clipboard, by design: no local gesture happened.
+  - The macOS paths are unverified (Cmd+C/V/A/L in Safari, Chrome and the macOS app, and Safari's Paste button).
+  - The worker image has no glyph for `✓`, so the remote shows a box; the text itself arrives intact.
+- Next: the owner checks Cmd+C/V/A/L on the remote in macOS Safari or the macOS app, and in Chrome.
+
 ### Say when a paste is too large for the computer (2026-10-23)
 
 - Why: `ComputerScreen` refuses pasted text over 512 KiB, because the proxy drops client messages over 1 MiB, but nothing told the user. The paste just did nothing
