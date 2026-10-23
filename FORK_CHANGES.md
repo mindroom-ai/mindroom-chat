@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Retry avatars when their URL changes (2026-10-23)
+
+- Problem: after the 2026-10-22 fix below, a fresh login on chat.mindroom.chat still showed the space icons as their fallback until a reload.
+  Login there is SSO only, so the page that registers the service worker is left within seconds, and the client renders on the page the identity provider returns to.
+  If the service worker has not taken control of that page yet, `useMediaAuthentication` is false and avatars get legacy `/_matrix/media/v3/` URLs, which Tuwunel answers with 403.
+  In the production session the client rendered at 17:04:14 UTC with 18 legacy thumbnail requests, and authenticated ones only started 40 seconds later.
+  The URLs then switched to authenticated ones, but `RoomAvatar` and `UserAvatar` kept their fallback after the first failed load, so 9 of the 18 were never requested again.
+- Fix: `RoomAvatar` and `UserAvatar` remember which URL failed instead of a flag, and forget it when the URL changes (like `ModelIcon`), so a new URL loads and a URL that comes back is tried again.
+  This matters beyond the service worker switch: room list rows are keyed by index, so one `RoomNavItem` shows different rooms as the list reorders.
+  `RoomNavItem` no longer remounts its `RoomAvatar` with `key={roomAvatarUrl}`, a workaround for the same flag that only covered the room list.
+- Not changed: until the service worker takes control, avatars still show their fallback, after a legacy-URL 403 each.
+  Why the service worker can take 40 seconds is not known: in one of five production runs that left the page 2 to 3 seconds after it loaded, the install stalled for 40 seconds and then lost its registration.
+- Tests: `RoomAvatar.test.tsx` and `UserAvatar.test.tsx` "loads a new src after the previous one failed", which also loads the failed URL again when it comes back (each part fails without its change).
+
 ### Expand the computer panel over the conversation (2026-10-23)
 
 - Why: even a wide Computer column shares the room with the conversation, so a person could not give the agent's screen the whole room, which the canvas already allows.
@@ -37,7 +51,7 @@
 - Fix: `SpecVersions` re-reads the cached versions when cached content becomes allowed; the loader cached them when it rendered the client.
   The background refresh now depends on whether versions are cached, not on the cached object, so re-reading does not send a second `/versions` request.
 - Not changed: if the first sync renders rooms before `/versions` loads, or writing the versions to localStorage fails (for example a full storage quota), the client still gets `{ versions: [] }` until the refresh answers.
-  Switching branches still remounts the client once after the first sync, `RoomAvatar` and `UserAvatar` still do not retry a failed load, and the upload config still uses the legacy `/_matrix/media/v3/config` endpoint.
+  Switching branches still remounts the client once after the first sync, `RoomAvatar` and `UserAvatar` did not yet retry a failed load (see "Retry avatars when their URL changes"), and the upload config still uses the legacy `/_matrix/media/v3/config` endpoint.
 - Tests: `SpecVersions.test.ts` "keeps loaded versions when cached content becomes available after a fresh login" and "does not refresh again when cached content becomes allowed" (each fails without its change).
   Reproduced against a local Tuwunel with a production build in Chromium: before the change the three space icons failed with legacy-URL 403s after login; after it all 18 avatars load and no legacy thumbnail is requested.
 
