@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Add a gesture-gated clipboard bridge for the computer screen (2026-10-23)
+
+- Why: copy and paste between the user's machine and the agent computer did not work. noVNC 1.7 has no browser clipboard sync, and its canvas `preventDefault`s every key, so the browser never fires `paste` on the screen.
+- Change: new `computer/computerClipboard.ts`, `attachComputerClipboard(target, rfb, options)`, which returns a detach function. It is not wired to `ComputerScreen` yet (next step). `src/types/novnc.d.ts` declares `clipboardPasteFrom` and `sendKey`. Every rule applies only while `isControlling()`, and composing keydowns are left to noVNC.
+  - Paste: Ctrl+V (Cmd+V on Apple, no Alt) is hidden from noVNC with its default kept, so the browser fires `paste`. The bridge takes `paste` at the document (capture) while focus is inside the screen, `preventDefault`s and stops it, calls `rfb.clipboardPasteFrom(text)`, then presses `v` (`V` with Shift). If the remote holds no Ctrl (a menu paste, or the modifier released), it sends the whole Ctrl+V chord. Text over `MAX_PASTE_BYTES` (512 KiB UTF-8) sends nothing and reports `onPaste('too-large')`.
+  - WebKit (Safari and every iOS browser; the `readOnShortcut` option) fires no `paste` on the non-editable screen, so the shortcut `preventDefault`s the keydown and calls `clipboard.readText()` instead. Safari shows its native Paste button. A refused read sends nothing.
+  - Copy and cut: Ctrl/Cmd+C or X still reaches noVNC, and inside the same gesture the bridge calls `clipboard.write([new ClipboardItem({ 'text/plain': next })])`. `next` resolves with the next RFB `clipboard` text, or rejects after `COPY_REPLY_TIMEOUT_MS` (2 s) or when a newer gesture or detach replaces it. Without `ClipboardItem`, `writeText` runs when `next` resolves. Write failures are swallowed. A `clipboard` event with no pending gesture is ignored, so a server cannot write the user's clipboard.
+  - Apple: Cmd keydown sends `Control_L` down once per press (repeats send nothing) and its keyup sends it up, both stopped and prevented. Window blur and detach release it.
+  - Two changes from the spec, both from the spike below: `paste` is taken at the document, not the screen element, and the WebKit `readText` fallback exists. The `v`-or-chord choice uses the remote's Ctrl state at send time (the mapped Ctrl on Apple, the last key event's `ctrlKey` elsewhere) instead of a `pendingShortcut` flag, because the WebKit read resolves after the keydown.
+- Spike (throwaway Playwright page outside the repo: a focused `<canvas tabindex="-1">` whose keydown is prevented like noVNC's, inside a wrapper whose capture listener stops Ctrl+V). Chromium 145 ran on the host; Firefox 146 and WebKit 26 (Linux) ran in `mcr.microsoft.com/playwright:v1.58.2-noble`. The clipboard was read back by a native paste into a textarea.
+
+  | Question | Chromium | Firefox | WebKit (Linux) |
+  | --- | --- | --- | --- |
+  | Ctrl+V with noVNC's `preventDefault` (today) | no `paste` | no `paste` | no `paste` |
+  | `paste` after the stopped Ctrl+V, nothing selected | yes, on the canvas, with text | yes, on `BODY`, with text | none |
+  | Same, with text selected elsewhere | on the selected element | on the selected element | none |
+  | Same, with a caret left in a contenteditable | on the canvas, editor unchanged | on the editor, and the text is inserted there | on the editor, and the text is inserted there |
+  | Same, with a document capture listener that prevents it while the canvas has focus | editor unchanged | editor unchanged | editor unchanged |
+  | `clipboard.write` of a `ClipboardItem` whose promise resolves after 300 ms, called in the keydown | resolves; clipboard holds the text | resolves; clipboard holds the text | resolves; clipboard holds the text |
+  | Same promise rejecting | write rejects; earlier text stays | write rejects (`DataError`); earlier text stays | write rejects (`NotAllowedError`); earlier text stays |
+  | `readText()` in the keydown | resolves | resolves | `NotAllowedError`: unverifiable under Playwright, where Safari would show its Paste button |
+  | Clipboard permissions Playwright accepts | `clipboard-read`, `clipboard-write` | none ("Unknown permission") | `clipboard-read` only |
+
+  The macOS key paths (Cmd+V through the Edit menu in Chrome, and Safari's Paste button) cannot run on a Linux host. Playwright's Desktop Safari reports a Mac user agent but a Linux `navigator.platform`.
+- Tests: `computerClipboard.test.ts` (jsdom, fake RFB, stubbed `ClipboardItem`, 30 cases) checks: paste then `v` under the held modifier; `V` with Shift; the whole chord without the shortcut or after the modifier is up; `v` for an empty paste; a paste aimed at the body taken while the screen has focus; a paste ignored while focus is elsewhere; exactly 512 KiB sent and 524,290 bytes refused as `too-large`; Alt+V and composing keydowns left to noVNC; nothing while watching; copy and cut resolving to a `text/plain` Blob; a 2 s timeout; a newer copy replacing the older one; an unsolicited push ignored; the `writeText` fallback; swallowed write failures; Cmd mapped to Ctrl once per press, with Ctrl+V on Apple left to noVNC; release on blur and detach; Meta untouched off Apple; the WebKit `readText` path, including the chord after Cmd is up and nothing on a refused read; the shortcuts left to noVNC without a clipboard API (outside a secure context); detach removing every listener and rejecting a pending copy; and `isApplePlatform`.
+- Next: attach the bridge in `ComputerScreen` once per stream, reading `mode` through a ref, and detach before `rfb.disconnect()` so a mapped Ctrl is released on the open socket. Then show the "too large" message in `ComputerPanel`.
+
 ### Expand the computer panel over the conversation (2026-10-23)
 
 - Why: even a wide Computer column shares the room with the conversation, so a person could not give the agent's screen the whole room, which the canvas already allows.
