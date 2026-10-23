@@ -184,7 +184,12 @@ export function Room() {
     threadId,
     viewMode,
   });
-  useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId: routedThreadId });
+  useRoomEscapeReadReceipts({
+    conversationHidden: panelFillsRoom,
+    hideActivity,
+    roomId: room.roomId,
+    threadId: routedThreadId,
+  });
 
   const uiUnavailable = useCallback(
     (action: ChatUiAction): string | undefined => {

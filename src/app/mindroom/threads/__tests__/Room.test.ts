@@ -3,8 +3,11 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
+import { isKeyHotkey } from 'is-hotkey';
 import type { ClientConfig } from '../../../hooks/useClientConfig';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
+import { useKeyDown } from '../../../hooks/useKeyDown';
+import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../notifications/readReceipts';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -137,7 +140,7 @@ vi.mock('../../sidebar/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'ha
 vi.mock('../../sidebar/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 
 vi.mock('is-hotkey', () => ({
-  isKeyHotkey: () => false,
+  isKeyHotkey: vi.fn(() => false),
 }));
 
 vi.mock('jotai', async () => {
@@ -1335,13 +1338,25 @@ describe('Room', () => {
       renderer = create(React.createElement(Room));
     });
     const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    const pressEscape = () => {
+      vi.mocked(isKeyHotkey).mockReturnValueOnce(true);
+      vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
+    };
     expect(roomViewShown()).toBe(true);
 
-    // The phone's computer covers the conversation, which must not mark messages read unseen.
+    // The phone's computer covers the conversation, which must not mark messages read unseen,
+    // on Escape either.
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
     expect(roomViewShown()).toBe(false);
     expect(roomState.panelDisposals).toBe(0);
+    const marked = () =>
+      vi.mocked(markThreadAsRead).mock.calls.length +
+      vi.mocked(markRoomAndThreadsAsRead).mock.calls.length;
+    vi.mocked(markThreadAsRead).mockClear();
+    vi.mocked(markRoomAndThreadsAsRead).mockClear();
+    pressEscape();
+    expect(marked()).toBe(0);
 
     // Crossing the breakpoint keeps the same panel (and its stream) either way.
     roomState.screenSize = 'Desktop';
@@ -1356,10 +1371,12 @@ describe('Room', () => {
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
     expect(roomState.panelDisposals).toBe(0);
 
-    // Closing the computer brings the conversation back.
+    // Closing the computer brings the conversation back, and Escape marks it read again.
     await act(async () => roomState.computerPanelProps?.onClose?.());
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
     expect(roomViewShown()).toBe(true);
+    pressEscape();
+    expect(marked()).toBe(1);
     await act(async () => renderer!.unmount());
   });
 
