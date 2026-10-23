@@ -444,7 +444,7 @@ describe('SpecVersions', () => {
     });
   });
 
-  it('refreshes cached versions once when cached content becomes allowed', async () => {
+  it('does not refresh again when cached content becomes allowed', async () => {
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',
       baseUrl: 'https://example.com',

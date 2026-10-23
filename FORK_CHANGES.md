@@ -30,14 +30,15 @@
 
 - Problem: after a fresh login, space icons and the user's own avatar showed their fallback until the page was reloaded.
   On a fresh login `SpecVersions` has no cached versions, so its loader fetches `/versions`, renders the client and caches them.
-  The first sync caches the client shell, which switches `SpecVersions` to its cached-content branch; that branch read `cachedVersions` from a memo computed at mount (still empty) and provided `{ versions: [] }`.
-  With no versions, `useMediaAuthentication` is false, so avatars got legacy `/_matrix/media/v3/` URLs, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.` `RoomAvatar` and `UserAvatar` keep their fallback after one failed load, so the icons stayed broken even after the background refresh restored the versions.
+  The first sync adds rooms, so `ClientRoot` passes `allowCachedContent` and `SpecVersions` switches to its cached-content branch; that branch read `cachedVersions` from a memo computed at mount (still empty) and provided `{ versions: [] }`.
+  With no versions, `useMediaAuthentication` is false, so avatars got legacy `/_matrix/media/v3/` URLs, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.`
+  `RoomAvatar` and `UserAvatar` keep their fallback after one failed load, so the icons stayed broken even after the background refresh restored the versions.
   A reload reads the cache at mount, which is why it worked after a refresh.
 - Fix: `SpecVersions` re-reads the cached versions when cached content becomes allowed; the loader cached them when it rendered the client.
   The background refresh now depends on whether versions are cached, not on the cached object, so re-reading does not send a second `/versions` request.
-- Not changed: if the first sync renders rooms before `/versions` loads, or localStorage is blocked, the client still gets `{ versions: [] }` until the refresh answers.
+- Not changed: if the first sync renders rooms before `/versions` loads, or writing the versions to localStorage fails (for example a full storage quota), the client still gets `{ versions: [] }` until the refresh answers.
   Switching branches still remounts the client once after the first sync, `RoomAvatar` and `UserAvatar` still do not retry a failed load, and the upload config still uses the legacy `/_matrix/media/v3/config` endpoint.
-- Tests: `SpecVersions.test.ts` "keeps loaded versions when cached content becomes available after a fresh login" and "refreshes cached versions once when cached content becomes allowed" (each fails without its change).
+- Tests: `SpecVersions.test.ts` "keeps loaded versions when cached content becomes available after a fresh login" and "does not refresh again when cached content becomes allowed" (each fails without its change).
   Reproduced against a local Tuwunel with a production build in Chromium: before the change the three space icons failed with legacy-URL 403s after login; after it all 18 avatars load and no legacy thumbnail is requested.
 
 ### Show auto-approve in the thread header (2026-10-22)
