@@ -434,7 +434,7 @@ describe('SpecVersions', () => {
     });
     expect(renderer.root.findByType('main').props['data-versions']).toBe('v1.11');
 
-    // The first sync caches the client shell; the client must not lose the versions it loaded.
+    // The first sync adds rooms, so ClientRoot allows cached content; the client must not lose the versions it loaded.
     await act(async () => {
       renderer.update(render(true));
     });
