@@ -1339,8 +1339,12 @@ describe('Room', () => {
     });
     const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
     const pressEscape = () => {
-      vi.mocked(isKeyHotkey).mockReturnValueOnce(true);
-      vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
+      vi.mocked(isKeyHotkey).mockReturnValue(true);
+      try {
+        vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
+      } finally {
+        vi.mocked(isKeyHotkey).mockReturnValue(false);
+      }
     };
     expect(roomViewShown()).toBe(true);
 
