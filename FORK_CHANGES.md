@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Expand the computer panel over the conversation (2026-10-23)
+
+- Why: even a wide Computer column shares the room with the conversation, so a person could not give the agent's screen the whole room, which the canvas already allows.
+- Change: `ComputerPanel` takes `expanded` and `onToggleExpanded` and shows an "Expand computer" toggle (`aria-pressed`, `ExpandIcon`/`ShrinkIcon`) before Close. `MindroomRoom.tsx` keeps `computerExpanded` like `canvasExpanded`: it passes `fullWidth` to the resizable wrapper, unmounts the conversation through `panelFillsRoom` (the canvas guard plus an open, expanded computer off phones), and resets when the computer closes. The panel itself stays mounted, so the screen does not reconnect. Phones get no toggle because the computer is already full screen there.
+- Tests: `ComputerPanel.test.tsx` checks the toggle's label, `aria-pressed`, click, and absence without a handler. `Room.test.ts` checks expand hides the room view with `panelDisposals` still 0, restore brings it back, close then reopen resets, and phones get no handler. Browser check (drag, reload keeps width, no "Connecting display..." flash on Expand, no handle or button at 390 px) is pending, to be done before the PR.
+
 ### Make the computer panel resizable (2026-10-23)
 
 - Why: the Computer panel was a fixed-width column, so a person could not give the agent's screen more room, while the canvas panel already could.

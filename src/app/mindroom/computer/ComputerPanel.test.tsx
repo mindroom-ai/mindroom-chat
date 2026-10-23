@@ -24,11 +24,19 @@ vi.mock('folds', () => ({
     </button>
   ),
   Icon: () => <span />,
-  IconButton: ({ children, ...props }: React.ComponentProps<'button'>) => (
-    <button {...props}>{children}</button>
+  IconButton: React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
+    ({ children, ...props }, ref) => (
+      <button {...props} ref={ref}>
+        {children}
+      </button>
+    )
   ),
   Icons: { Cross: 'Cross', Monitor: 'Monitor' },
   Spinner: () => <span />,
+  // Icon buttons name themselves in tooltips; render only the trigger.
+  Tooltip: () => null,
+  TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+    children(() => undefined),
   Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));
 
@@ -226,6 +234,24 @@ describe('ComputerPanel', () => {
     expect(input).toBe('https://computer.example.org/api/computers/sessions');
     expect(JSON.parse(init!.body as string).agent_user_id).toBe('@mindroom_second:example.org');
     expect(container.querySelector('select')!.value).toBe('@mindroom_second:example.org');
+  });
+
+  it('shows Expand computer as a pressed toggle only when given one', async () => {
+    const onToggleExpanded = vi.fn();
+    const expandButton = () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Expand computer"]');
+
+    renderPanel({ onToggleExpanded, expanded: false });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(expandButton()!.getAttribute('aria-pressed')).toBe('false');
+    await click(expandButton()!);
+    expect(onToggleExpanded).toHaveBeenCalledTimes(1);
+
+    renderPanel({ onToggleExpanded, expanded: true });
+    await waitFor(() => expect(expandButton()!.getAttribute('aria-pressed')).toBe('true'));
+
+    renderPanel({ onToggleExpanded: undefined });
+    await waitFor(() => expect(expandButton()).toBeNull());
   });
 
   it('requests an OpenID token bound to the computer service origin', async () => {

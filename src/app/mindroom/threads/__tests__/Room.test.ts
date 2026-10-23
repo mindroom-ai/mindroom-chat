@@ -28,6 +28,8 @@ type MockComputerPanelProps = {
   requestedAgent?: { userId: string };
   onInteractionChange?: (interaction: { agentUserId?: string; locked: boolean }) => void;
   onClose?: () => void;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
   agents: Array<{ userId: string; name: string; serverUrl?: string }>;
   continuationReady?: boolean;
   apiUrl: string;
@@ -1222,6 +1224,47 @@ describe('Room', () => {
     await act(async () => renderer.update(React.createElement(Room)));
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
     expect(JSON.stringify(renderer!.toJSON())).not.toContain('"role":"separator"');
+    await act(async () => renderer!.unmount());
+  });
+
+  it("an expanded computer takes the conversation's column without reconnecting", async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    roomState.search = '?threadId=%24thread';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(true);
+    expect(roomViewShown()).toBe(false);
+    expect(roomState.panelDisposals).toBe(0);
+
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+    expect(roomState.panelDisposals).toBe(0);
+
+    // Closing the computer forgets the expansion.
+    await act(async () => roomState.computerPanelProps?.onToggleExpanded?.());
+    await act(async () => roomState.computerPanelProps?.onClose?.());
+    expect(roomViewShown()).toBe(true);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.expanded).toBe(false);
+    expect(roomViewShown()).toBe(true);
+
+    // Phones already show the computer full screen: no Expand toggle.
+    roomState.screenSize = 'Mobile';
+    await act(async () => renderer.update(React.createElement(Room)));
+    expect(roomState.computerPanelProps?.onToggleExpanded).toBeUndefined();
     await act(async () => renderer!.unmount());
   });
 

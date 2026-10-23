@@ -153,12 +153,21 @@ export function Room() {
     if (!canvasEvent) setCanvasExpanded(false);
   }, [canvasEvent]);
   const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
+  // An expanded computer takes the conversation's column the same way; closing it resets.
+  const [computerExpanded, setComputerExpanded] = useState(false);
+  useEffect(() => {
+    if (!effectiveComputerOpen) setComputerExpanded(false);
+  }, [effectiveComputerOpen]);
+  const toggleComputerExpanded = useCallback(() => setComputerExpanded((value) => !value), []);
   const callView = room.isCallRoom();
   const canvasShown =
     !callView && canvasEnabled && !callActive && !effectiveComputerOpen && !!canvasEvent;
   // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
   // On phones the canvas always covers the conversation.
   const canvasFillsRoom = canvasShown && (canvasExpanded || screenSize === ScreenSize.Mobile);
+  const panelFillsRoom =
+    canvasFillsRoom ||
+    (effectiveComputerOpen && computerExpanded && screenSize !== ScreenSize.Mobile);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -321,7 +330,7 @@ export function Room() {
               </Box>
             </Box>
           )}
-          {!callView && !canvasFillsRoom && (
+          {!callView && !panelFillsRoom && (
             <Box grow="Yes" direction="Column">
               <Box grow="Yes">
                 <RoomView
@@ -372,6 +381,7 @@ export function Room() {
               resizeLabel="Resize computer panel"
               collapseLabel="Close computer"
               onCollapse={closeComputer}
+              fullWidth={computerExpanded}
               testId="resizable-computer-panel"
             >
               <ComputerPanel
@@ -385,6 +395,10 @@ export function Room() {
                 requestedAgent={requestedAgent}
                 onInteractionChange={reportInteraction}
                 onClose={closeComputer}
+                expanded={computerExpanded}
+                onToggleExpanded={
+                  screenSize === ScreenSize.Mobile ? undefined : toggleComputerExpanded
+                }
               />
             </ResizablePanel>
           )}
