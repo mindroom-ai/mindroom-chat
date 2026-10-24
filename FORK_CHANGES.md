@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Make each streaming edit cheap for the rest of the screen (2026-10-23)
+
+- Problem: every streaming `m.replace` edit cost about 41 ms of main-thread time and 6 React commits in a long thread (production build), so at 10 edits/s Chat used about 40% of the main thread and starved the Computer screen's noVNC client.
+  Phase 1b of the worker-computer performance investigation traced this to three causes, fixed here one commit each.
+- Change:
+  - `src/app/hooks/useForceUpdate.js`, a leftover from Cinny, is deleted. Vite and Vitest resolve `.js` before `.ts`, so it shadowed `useForceUpdate.ts`, which TypeScript type-checked. The `.js` version returned a new function every render, so every effect and memo that lists it (`useStateEvent`, `usePinnedThreadEvents`, `usePinnedEventIds`, the agent room state and server hooks, the command palette, the call button) subscribed its listeners again on every render. The `.ts` hook returns React's stable `dispatch` and a counter, and every caller uses the first value only as a memo dependency.
+- Tests: `useForceUpdate.test.tsx` checks that the update function stays the same across renders and that the version counts updates (fails with the `.js` file restored, which returns `null` and `{}`), and that no `.js` or `.jsx` file in `src` shadows a `.ts` or `.tsx` module.
+
 ### Show what a reply and the conversation so far cost in a redesigned Reply details dialog (2026-10-23)
 
 - Why: the owner wanted to see how expensive one reply was and how expensive a conversation had become up to a point. The MindRoom backend now prices each reply on a model with configured `pricing` and sends `io.mindroom.ai_run.cost.usd` as a micro-dollar decimal string, because Matrix event JSON forbids floats, plus `usage.uncached_input_tokens`, the input not read from cache, split with each provider's cache accounting. A first version put the cost beside every reply's timestamp and a thread total in the banner; the owner found prices everywhere overwhelming and wanted them only in the dialog, with no setting. A second, plain grouped-list dialog read as boring, so three directions were mocked against [Impeccable](https://github.com/pbakaus/impeccable)'s Operate guidance (a working screen in the product's palette plus one signature move), and the owner chose a tinted cost summary with a token-mix bar, plus a per-reply cost histogram.
