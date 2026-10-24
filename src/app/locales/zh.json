@@ -2755,7 +2755,7 @@
         "fromCache": "来自缓存",
         "output": "输出",
         "contextWindow": "上下文窗口",
-        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}",
         "timeToFirstToken": "首个词元",
         "technicalDetails": "技术详情",
         "configuredModel": "配置的模型",
@@ -2770,7 +2770,6 @@
         "costHistory": "此对话中每条回复的费用",
         "costHistoryBar": "第 {{index}} 条回复：{{cost}}",
         "costHistoryPosition": "本条回复 · 第 {{index}} / {{count}} 条",
-        "replyNumber": "第 {{index}} 条回复",
         "toolCallCount_one": "{{count}} 次工具调用",
         "toolCallCount_other": "{{count}} 次工具调用"
       }

@@ -168,13 +168,21 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(history.getByRole('listitem').nth(1)).toHaveAttribute('aria-current', 'true');
   await expect(history.getByRole('listitem').nth(1)).toHaveText('Reply 2: $0.0051');
   await expect(costCard).toContainText('This reply · 2 of 3');
+  // Pointing at a bar names its reply in the caption; pointing at a token part gives its share.
+  // Each bar's hidden label already reads "Reply N: $…", so check the ring and the caption.
+  await history.getByRole('listitem').first().hover();
+  await expect(history.getByRole('listitem').first()).toHaveAttribute('data-pointed', 'true');
+  await expect(costCard).not.toContainText('This reply · 2 of 3');
+  await section('Tokens').locator('[aria-hidden] > span').first().hover();
+  await expect(page.getByText('1,408 · 82.6%', { exact: true })).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(costCard).toContainText('This reply · 2 of 3');
   await expect(section('Tokens')).toContainText('Tokens1,705');
   await expect(section('Tokens')).toContainText('From cache 1,408');
   await expect(section('Tokens')).toContainText('New input 266');
   await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
   await expect(dialog).toContainText('2 tool calls');
   await expect(dialog).toContainText('First token 412 ms');
-  await page.mouse.move(0, 0);
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-light.png') });
   // High-contrast modes replace backgrounds, so the chart keeps its own colors there.
   await page.emulateMedia({ forcedColors: 'active' });
