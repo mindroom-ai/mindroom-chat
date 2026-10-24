@@ -65,6 +65,7 @@ const addState = (room: Room, event: MatrixEvent) =>
   });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => renderer?.unmount());
   renderer = undefined;
 });
@@ -207,7 +208,6 @@ it('renders the servers of all rooms again only when an agent membership changes
   await addState(room, membership('leave'));
   await afterSyncBatch();
   expect(seen.at(-1)).toEqual([]);
-  vi.unstubAllGlobals();
 });
 
 it('reads the servers of all rooms once for a sync batch of agent member events', async () => {
@@ -232,7 +232,6 @@ it('reads the servers of all rooms once for a sync batch of agent member events'
   });
   await afterSyncBatch();
   expect(seen.at(-1)).toEqual([]);
-  vi.unstubAllGlobals();
 });
 
 it('asks the homeserver again after a check that could not reach it', async () => {
@@ -274,7 +273,6 @@ it('asks the homeserver again after a check that could not reach it', async () =
   expect(await mountBinding()).toBe(true);
   expect(await mountBinding()).toBe(true);
   expect(versions).toHaveBeenCalledTimes(2);
-  vi.unstubAllGlobals();
 });
 
 it('ignores a published localhost server in the native apps, where it is the phone itself', async () => {
