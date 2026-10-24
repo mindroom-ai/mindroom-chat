@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -111,6 +111,34 @@ it('does not render again when sync re-delivers an agent membership that did not
   await addState(room, membership('leave'));
   expect(seen.at(-1)).toEqual([]);
   await addState(room, membership('join'));
+  expect(seen.at(-1)?.map((server) => server.apiUrl)).toEqual(['http://localhost:8765']);
+});
+
+it('shows a membership change that lands between a commit and its passive effects', async () => {
+  const room = makeRoom();
+  await room.addLiveEvents([membership('join'), serverEvent('http://localhost:8765')], {
+    addToState: true,
+  });
+  const seen: MindroomServer[][] = [];
+  let rejoined = false;
+  function Probe() {
+    const servers = useRoomMindroomServers(room);
+    seen.push(servers);
+    // Runs right after the commit that drops the server, before React runs passive effects.
+    useLayoutEffect(() => {
+      if (servers.length > 0 || rejoined) return;
+      rejoined = true;
+      room.currentState.setStateEvents([membership('join')]);
+    }, [servers]);
+    return null;
+  }
+  act(() => {
+    renderer = create(<Probe />);
+  });
+
+  await addState(room, membership('leave'));
+
+  expect(rejoined).toBe(true);
   expect(seen.at(-1)?.map((server) => server.apiUrl)).toEqual(['http://localhost:8765']);
 });
 

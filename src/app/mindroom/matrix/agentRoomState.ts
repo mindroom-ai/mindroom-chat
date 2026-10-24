@@ -6,7 +6,7 @@ import {
   type RoomMember,
   type RoomState,
 } from 'matrix-js-sdk';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
@@ -53,7 +53,8 @@ const useAgentRoomStateEvents = (room: Room, eventType: string): MatrixEvent[] =
     return agentRoomState(room, eventType);
   }, [room, eventType, version]);
   const renderedEvents = useRef(events);
-  useEffect(() => {
+  // Synchronously with the commit, so an event that lands before passive effects compares with what is shown.
+  useLayoutEffect(() => {
     renderedEvents.current = events;
   }, [events]);
   useEffect(() => {

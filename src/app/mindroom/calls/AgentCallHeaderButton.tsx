@@ -1,4 +1,11 @@
-import React, { MouseEventHandler, useEffect, useId, useRef, useState } from 'react';
+import React, {
+  MouseEventHandler,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Thread, ThreadEvent, UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
@@ -59,7 +66,8 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   // In a thread, only agents that took part in it can be called about it.
   const candidates = inThread ? keepThreadSenders(roomCandidates, room, threadId) : roomCandidates;
   const rendered = useRef({ roomCandidates, candidates });
-  useEffect(() => {
+  // Synchronously with the commit, so a thread update that lands before passive effects compares with what is shown.
+  useLayoutEffect(() => {
     rendered.current = { roomCandidates, candidates };
   });
 

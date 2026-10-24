@@ -8,7 +8,7 @@ import {
   type RoomState,
 } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { agentRoomState, useAgentRoomState } from '../matrix/agentRoomState';
@@ -82,7 +82,8 @@ export const useMindroomServerUrls = (): string[] => {
     return bindsTokens ? joinedRoomServerUrls(mx) : [];
   }, [mx, bindsTokens, version]);
   const renderedUrls = useRef(urls);
-  useEffect(() => {
+  // Synchronously with the commit, so a check that runs before passive effects compares with what is shown.
+  useLayoutEffect(() => {
     renderedUrls.current = urls;
   }, [urls]);
   useEffect(() => {
