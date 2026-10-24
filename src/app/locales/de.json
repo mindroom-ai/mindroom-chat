@@ -3088,6 +3088,11 @@
       "you": "Du",
       "until": "Bis {{time}}",
       "ownUntil": "Bis {{time}}. Sende !auto_approve off, um sie zu beenden."
+    },
+    "notices": {
+      "dismiss": "Hinweis schließen",
+      "showMore": "Mehr anzeigen",
+      "showLess": "Weniger anzeigen"
     }
   },
   "roomSchedules": {

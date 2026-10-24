@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### Show operator notices from `notices.json` above every screen (2026-10-23)
+
+- Why: operators need one-off banners, such as a maintenance window, that each person can dismiss and that change or disappear for everyone without a rebuild.
+  They must keep working while Matrix and MindRoom are down, so they cannot come from either.
+- Change: `src/app/mindroom/notices/` adds `NoticeLayout`, which `App.tsx` wraps around `FeatureCheck`, so the banners sit above sign-in, loading, errors and every client page.
+  - `useNotices` fetches `appUrl('notices.json')` with `cache: 'no-store'` on mount, every 60 s and on window focus.
+    Each request aborts after 10 s, and time windows advance on every tick, even while a request hangs.
+    The native apps skip the fetch, because their relative URL reads the bundled, empty copy.
+  - `notices.ts` validates each entry and drops invalid ones: `id` (at most 200 characters), `text` (at most 1000, which bounds the parser's recursion), `level` (info, warning, success or critical), optional `icon`, `startsAt`/`endsAt`, `dismissible`, and `https:` `linkUrl`/`linkText` (at most 200).
+    Times need an explicit offset and a date and time that exist; `Date.parse` alone rolls February 30 into March.
+    At most three notices show, in file order.
+  - A 404 or an invalid file means no notices.
+    A network or server error, a redirect, a body that fails mid-read, or a timeout keeps the last list, so a notice about an outage stays up during it.
+  - Dismissals live in localStorage by `id` (newest 50), sync across tabs through the `storage` event, and stay in the tab's state when storage rejects writes.
+    A `dismissible: false` notice ignores them.
+  - `noticeText.tsx` renders inline Markdown only.
+    It runs the composer's inline parser (`parseInlineMDWithRules`, a rules parameter split out of `parseInlineMD`) with bold, italic, strike, code and an https-only link rule, then `sanitizeCustomHtml`, then an `html-react-parser` allowlist of `strong`, `i`, `s`, `code` and https `a` (`target=_blank`, `rel=noopener noreferrer`).
+    Raw HTML is escaped first, so it shows as typed.
+    The link rule checks the URL as typed (before that escaping), and a URL that `new URL` rejects stays literal.
+    A parse failure falls back to plain text, and an error boundary keeps a broken notice from taking down the app.
+  - The banner is a flat strip in the level's Folds `Container` colors.
+    The stack is a `role="status"` region (`aria-atomic="false"`, so only a changed notice is read) in normal flow, at most half of `#root` tall (not `dvh`, which ignores the iOS keyboard), scrolling, with rows that never shrink.
+    The app sits in a `flex: 1 1 0; min-height: 0` column below it, so headers and the composer stay on screen.
+    Text folds to three lines with "Show more".
+  - `public/notices.json` (`[]`) is copied into the build.
+    The Docker image serves `/opt/mindroom/notices/notices.json` with `Cache-Control: no-store`, also under a base path, before the SPA fallback.
+    Operators mount a directory there (a ConfigMap without `subPath`); README "Notices" documents the schema and the mount.
+- Tests:
+  - `notices.test.ts`: validation, time windows, the visibility cap, dismissal storage, fetch outcomes including failed body reads.
+  - `noticeText.test.tsx`: each inline form, link edge cases, raw HTML and `javascript:`/`data:` links as text, image syntax, worst-case input at the length cap.
+  - `NoticeBanners.test.tsx` (jsdom): the status region, plain-text rendering, links, dismissal across a remount and without storage, refresh by interval and focus, a hung request, error handling, the clamp toggle, the native skip, the layout.
+  - `e2e/notice-banners.spec.ts`: phone and desktop widths in light and dark, long URLs and link labels wrapping, a keyboard-sized `#root` with a scrolling stack, dismissal across a reload, removal on focus, and screenshots.
+  - `scripts/test-authentication-recovery-nginx.mjs` now also checks the notices route under both prefixes, a ConfigMap-style `..data` swap, and a 404 when the file is missing.
+- Risks: a dismissal is per browser profile, not per Matrix account, because notices show before sign-in.
+  The native apps show no notices.
+  A tab running an older build shows none until it reloads.
+- Next: none.
+
 ### Render tool calls in a long reply's preview when the reply ran many tools (2026-10-22)
 
 - Problem: a reply too large for one event arrives as a plain-text preview, which `formatMindroomMarkdownTextBodyAsHtml` turns into HTML before the sidecar loads.

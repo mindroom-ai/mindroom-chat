@@ -3076,6 +3076,11 @@
       "you": "나",
       "until": "{{time}}까지",
       "ownUntil": "{{time}}까지. 끝내려면 !auto_approve off를 보내세요."
+    },
+    "notices": {
+      "dismiss": "공지 닫기",
+      "showMore": "더 보기",
+      "showLess": "간단히 보기"
     }
   },
   "roomSchedules": {

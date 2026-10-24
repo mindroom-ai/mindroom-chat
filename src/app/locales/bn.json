@@ -1817,6 +1817,11 @@
       "you": "আপনি",
       "until": "{{time}} পর্যন্ত",
       "ownUntil": "{{time}} পর্যন্ত। শেষ করতে !auto_approve off পাঠান।"
+    },
+    "notices": {
+      "dismiss": "বিজ্ঞপ্তি খারিজ করুন",
+      "showMore": "আরও দেখুন",
+      "showLess": "কম দেখুন"
     }
   },
   "nav": {

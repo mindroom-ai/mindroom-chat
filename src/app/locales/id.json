@@ -3076,6 +3076,11 @@
       "you": "Anda",
       "until": "Hingga {{time}}",
       "ownUntil": "Hingga {{time}}. Kirim !auto_approve off untuk mengakhirinya."
+    },
+    "notices": {
+      "dismiss": "Tutup pemberitahuan",
+      "showMore": "Tampilkan lebih banyak",
+      "showLess": "Tampilkan lebih sedikit"
     }
   },
   "roomSchedules": {
