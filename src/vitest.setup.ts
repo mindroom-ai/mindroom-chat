@@ -35,6 +35,47 @@ vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
   Result: 'activity-result',
 }));
 vi.mock('./app/components/user-avatar/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
+vi.mock('./app/mindroom/messages/MindroomReplyDetails.css', () => {
+  const parts = {
+    cacheRead: 'part-cache-read',
+    newInput: 'part-new-input',
+    input: 'part-input',
+    output: 'part-output',
+  };
+  return {
+    Body: 'reply-details',
+    Lead: 'reply-details-lead',
+    Tile: 'reply-details-tile',
+    ModelName: 'reply-details-model-name',
+    ModelSource: 'reply-details-model-source',
+    Status: { error: 'reply-details-status-error', cancelled: 'reply-details-status-cancelled' },
+    CostCard: 'reply-details-cost-card',
+    CostFigures: { one: 'reply-details-cost-figures-one', two: 'reply-details-cost-figures-two' },
+    CostFigure: 'reply-details-cost-figure',
+    CostLabel: 'reply-details-cost-label',
+    CostValue: 'reply-details-cost-value',
+    CostNote: 'reply-details-cost-note',
+    Bars: 'reply-details-bars',
+    HiddenLabel: 'reply-details-hidden-label',
+    Bar: { earlier: 'bar-earlier', current: 'bar-current', later: 'bar-later' },
+    Axis: 'reply-details-axis',
+    AxisEdge: 'reply-details-axis-edge',
+    AxisCenter: 'reply-details-axis-center',
+    Section: 'reply-details-section',
+    SectionHeader: 'reply-details-section-header',
+    HeaderValue: 'reply-details-header-value',
+    Meter: 'reply-details-meter',
+    Segment: parts,
+    Legend: 'reply-details-legend',
+    LegendItem: 'reply-details-legend-item',
+    Swatch: parts,
+    Meta: 'reply-details-meta',
+    MetaValue: 'reply-details-meta-value',
+    TechnicalSummary: 'reply-details-technical-summary',
+    TechnicalRows: 'reply-details-technical-rows',
+    Identifier: 'reply-details-identifier',
+  };
+});
 vi.mock('./app/components/glass/Surface.css', () => ({
   inheritSurface: 'surface-inherit',
 }));

@@ -2611,26 +2611,11 @@
         "moreOptions": "Meer opties"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Contextvenster van verzoek",
-        "aiRunMetadata": "Metadata van AI-run",
         "close": "Sluiten",
-        "status": "Status",
-        "model": "Model",
-        "tokens": "Tokens",
-        "runCache": "Run-cache",
-        "requestContext": "Verzoekcontext",
-        "requestCache": "Verzoekcache",
-        "tools": "Gereedschappen",
-        "ttft": "TTFT",
-        "run": "Run",
-        "session": "Sessie",
-        "openAiRunMetadata": "Metadata van AI-run openen",
-        "tokenUsage": "Tokengebruik",
         "downloadingOriginal": "Origineel downloaden...",
         "retryDownloadOriginal": "Download van origineel opnieuw proberen",
         "downloadOriginal": "Origineel downloaden",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens"
+        "replyDetails": "Antwoorddetails"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Berichtextra's"
@@ -2768,28 +2753,38 @@
         "retry": "Opnieuw proberen",
         "delete": "Verwijderen"
       },
-      "aiRunDisplay": {
-        "inputTokens": "in {{formattedCount}}",
-        "outputTokens": "uit {{formattedCount}}",
-        "totalTokens": "totaal {{formattedCount}}",
-        "readTokens": "gelezen {{formattedCount}}",
-        "writeTokens": "geschreven {{formattedCount}}",
-        "notReadTokens": "niet gelezen {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token ({{percentage}}% van venster)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% van venster)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token ({{percentage}}% van venster); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% van venster); {{suffix}}",
-        "reportedCacheRead_one": "gerapporteerd uit cache gelezen: {{formattedCount}} token",
-        "reportedCacheRead_other": "gerapporteerd uit cache gelezen: {{formattedCount}} tokens",
-        "cacheWrite_one": "naar cache geschreven: {{formattedCount}} token",
-        "cacheWrite_other": "naar cache geschreven: {{formattedCount}} tokens",
-        "cacheRead": "Uit cache gelezen",
-        "newInput": "Nieuwe invoer",
-        "reserve": "Reserve"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokens",
+        "cost": "Kosten",
+        "conversationSoFar": "Gesprek tot nu toe",
+        "failed": "Mislukt",
+        "stopped": "Gestopt",
+        "thisReply": "Dit antwoord",
+        "input": "Invoer",
+        "fromCache": "Uit cache",
+        "output": "Uitvoer",
+        "contextWindow": "Contextvenster",
+        "contextWindowUsage": "{{input}} van {{window}} · {{percentage}}%",
+        "timeToFirstToken": "Eerste token",
+        "technicalDetails": "Technische details",
+        "configuredModel": "Geconfigureerd model",
+        "runId": "Run-ID",
+        "sessionId": "Sessie-ID",
+        "newInput": "Nieuwe invoer",
+        "replyCount_one": "{{count}} antwoord",
+        "replyCount_other": "{{count}} antwoorden",
+        "loadedReplyCount_one": "{{count}} geladen antwoord",
+        "loadedReplyCount_other": "{{count}} geladen antwoorden",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Kosten van elk antwoord in dit gesprek",
+        "costHistoryBar": "Antwoord {{index}}: {{cost}}",
+        "costHistoryPosition": "Dit antwoord · {{index}} van {{count}}",
+        "replyNumber": "Antwoord {{index}}",
+        "toolCallCount_one": "{{count}} gereedschapsaanroep",
+        "toolCallCount_other": "{{count}} gereedschapsaanroepen"
       }
     },
     "native": {

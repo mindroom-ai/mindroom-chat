@@ -2605,26 +2605,11 @@
         "moreOptions": "Opsi lainnya"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Jendela konteks permintaan",
-        "aiRunMetadata": "Metadata eksekusi AI",
         "close": "Tutup",
-        "status": "Status",
-        "model": "Model",
-        "tokens": "Token",
-        "runCache": "Cache eksekusi",
-        "requestContext": "Konteks permintaan",
-        "requestCache": "Cache permintaan",
-        "tools": "Alat",
-        "ttft": "Waktu ke token pertama",
-        "run": "Eksekusi",
-        "session": "Sesi",
-        "openAiRunMetadata": "Buka metadata eksekusi AI",
-        "tokenUsage": "Penggunaan token",
         "downloadingOriginal": "Mengunduh berkas asli...",
         "retryDownloadOriginal": "Coba lagi mengunduh berkas asli",
         "downloadOriginal": "Unduh berkas asli",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token"
+        "replyDetails": "Detail balasan"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Tambahan pesan"
@@ -2756,28 +2741,38 @@
         "retry": "Coba lagi",
         "delete": "Hapus"
       },
-      "aiRunDisplay": {
-        "inputTokens": "masuk {{formattedCount}}",
-        "outputTokens": "keluar {{formattedCount}}",
-        "totalTokens": "total {{formattedCount}}",
-        "readTokens": "baca {{formattedCount}}",
-        "writeTokens": "tulis {{formattedCount}}",
-        "notReadTokens": "tidak dibaca {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token ({{percentage}}% jendela)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} token ({{percentage}}% jendela)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token ({{percentage}}% jendela); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} token ({{percentage}}% jendela); {{suffix}}",
-        "reportedCacheRead_one": "pembacaan cache yang dilaporkan: {{formattedCount}} token",
-        "reportedCacheRead_other": "pembacaan cache yang dilaporkan: {{formattedCount}} token",
-        "cacheWrite_one": "penulisan cache: {{formattedCount}} token",
-        "cacheWrite_other": "penulisan cache: {{formattedCount}} token",
-        "cacheRead": "Pembacaan cache",
-        "newInput": "Input baru",
-        "reserve": "Cadangan"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Token",
+        "cost": "Biaya",
+        "conversationSoFar": "Percakapan sejauh ini",
+        "failed": "Gagal",
+        "stopped": "Dihentikan",
+        "thisReply": "Balasan ini",
+        "input": "Masukan",
+        "fromCache": "Dari cache",
+        "output": "Keluaran",
+        "contextWindow": "Jendela konteks",
+        "contextWindowUsage": "{{input}} dari {{window}} · {{percentage}}%",
+        "timeToFirstToken": "Token pertama",
+        "technicalDetails": "Detail teknis",
+        "configuredModel": "Model yang dikonfigurasi",
+        "runId": "ID proses",
+        "sessionId": "ID sesi",
+        "newInput": "Input baru",
+        "replyCount_one": "{{count}} balasan",
+        "replyCount_other": "{{count}} balasan",
+        "loadedReplyCount_one": "{{count}} balasan dimuat",
+        "loadedReplyCount_other": "{{count}} balasan dimuat",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Biaya setiap balasan dalam percakapan ini",
+        "costHistoryBar": "Balasan {{index}}: {{cost}}",
+        "costHistoryPosition": "Balasan ini · {{index}} dari {{count}}",
+        "replyNumber": "Balasan {{index}}",
+        "toolCallCount_one": "{{count}} panggilan alat",
+        "toolCallCount_other": "{{count}} panggilan alat"
       }
     },
     "native": {

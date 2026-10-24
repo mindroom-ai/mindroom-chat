@@ -2611,26 +2611,11 @@
         "moreOptions": "Diğer seçenekler"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "İstek bağlam penceresi",
-        "aiRunMetadata": "Yapay zekâ çalıştırma üst verileri",
         "close": "Kapat",
-        "status": "Durum",
-        "model": "Model",
-        "tokens": "Tokenler",
-        "runCache": "Çalıştırma önbelleği",
-        "requestContext": "İstek bağlamı",
-        "requestCache": "İstek önbelleği",
-        "tools": "Araçlar",
-        "ttft": "İlk token süresi",
-        "run": "Çalıştırma",
-        "session": "Oturum",
-        "openAiRunMetadata": "Yapay zekâ çalıştırma üst verilerini aç",
-        "tokenUsage": "Token kullanımı",
         "downloadingOriginal": "Özgün dosya indiriliyor...",
         "retryDownloadOriginal": "Özgün dosya indirmesini tekrar dene",
         "downloadOriginal": "Özgün dosyayı indir",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token"
+        "replyDetails": "Yanıt ayrıntıları"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Mesaj ekleri"
@@ -2768,28 +2753,38 @@
         "retry": "Tekrar dene",
         "delete": "Sil"
       },
-      "aiRunDisplay": {
-        "inputTokens": "girdi {{formattedCount}}",
-        "outputTokens": "çıktı {{formattedCount}}",
-        "totalTokens": "toplam {{formattedCount}}",
-        "readTokens": "okuma {{formattedCount}}",
-        "writeTokens": "yazma {{formattedCount}}",
-        "notReadTokens": "okunmayan {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} (%{{percentage}})",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "reportedCacheRead_one": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "reportedCacheRead_other": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "cacheWrite_one": "önbellek yazması: {{formattedCount}} token",
-        "cacheWrite_other": "önbellek yazması: {{formattedCount}} token",
-        "cacheRead": "Önbellek okuması",
-        "newInput": "Yeni girdi",
-        "reserve": "Ayrılan"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokenler",
+        "cost": "Maliyet",
+        "conversationSoFar": "Şu ana kadarki konuşma",
+        "failed": "Başarısız",
+        "stopped": "Durduruldu",
+        "thisReply": "Bu yanıt",
+        "input": "Girdi",
+        "fromCache": "Önbellekten",
+        "output": "Çıktı",
+        "contextWindow": "Bağlam penceresi",
+        "contextWindowUsage": "{{window}} içinden {{input}} · %{{percentage}}",
+        "timeToFirstToken": "İlk token",
+        "technicalDetails": "Teknik ayrıntılar",
+        "configuredModel": "Yapılandırılmış model",
+        "runId": "Çalıştırma kimliği",
+        "sessionId": "Oturum kimliği",
+        "newInput": "Yeni girdi",
+        "replyCount_one": "{{count}} yanıt",
+        "replyCount_other": "{{count}} yanıt",
+        "loadedReplyCount_one": "yüklenen {{count}} yanıt",
+        "loadedReplyCount_other": "yüklenen {{count}} yanıt",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Bu konuşmadaki her yanıtın maliyeti",
+        "costHistoryBar": "Yanıt {{index}}: {{cost}}",
+        "costHistoryPosition": "Bu yanıt · {{count}} yanıttan {{index}}.",
+        "replyNumber": "Yanıt {{index}}",
+        "toolCallCount_one": "{{count}} araç çağrısı",
+        "toolCallCount_other": "{{count}} araç çağrısı"
       }
     },
     "native": {

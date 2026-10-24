@@ -156,6 +156,10 @@ import {
   useThreadApprovalRowMeasurements,
 } from './useThreadApprovalTimeline';
 import { useThreadSummaryTimeline } from './useThreadSummaryTimeline';
+import {
+  ThreadConversationCostProvider,
+  useThreadConversationCostSummary,
+} from './useThreadConversationCost';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -638,6 +642,19 @@ export function RoomTimeline({
     routeId: eventId,
     focusId: focusItem?.eventId,
   });
+  const threadConversationCost = useThreadConversationCostSummary(
+    threadId ? threadEvents : undefined,
+    {
+      history: {
+        sdkLoaded: !!threadInitialSdkLoaded,
+        canPaginateBack: canPaginateThreadBack,
+        hasMoreCachedBack: threadHasMoreCachedBack,
+      },
+      getContent: getThreadEventContent,
+      ignoredUserIds: ignoredUsersSet,
+      viewerId: mx.getUserId() ?? undefined,
+    }
+  );
   // Thread rows that stay in the virtualizer's index space but render nothing.
   const hiddenThreadEventIds = useMemo(
     () =>
@@ -2178,7 +2195,7 @@ export function RoomTimeline({
     );
   };
 
-  return messageFeature.wrapExpansion(
+  const timelineView = messageFeature.wrapExpansion(
     <Box ref={overlayRootRef} grow="Yes" direction="Column" style={{ position: 'relative' }}>
       {shouldShowRoomThreadOverviewControls && (
         <div ref={overviewRef} className={overlay.Overview}>
@@ -2481,5 +2498,10 @@ export function RoomTimeline({
         )}
       </Box>
     </Box>
+  );
+  return (
+    <ThreadConversationCostProvider value={threadConversationCost}>
+      {timelineView}
+    </ThreadConversationCostProvider>
   );
 }

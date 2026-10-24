@@ -2605,26 +2605,11 @@
         "moreOptions": "更多選項"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "請求上下文視窗",
-        "aiRunMetadata": "AI執行後設資料",
         "close": "關閉",
-        "status": "狀態",
-        "model": "模型",
-        "tokens": "詞元",
-        "runCache": "執行快取",
-        "requestContext": "請求上下文",
-        "requestCache": "請求快取",
-        "tools": "工具",
-        "ttft": "TTFT",
-        "run": "執行",
-        "session": "工作階段",
-        "openAiRunMetadata": "檢視 AI 執行中繼資料",
-        "tokenUsage": "詞元用量",
         "downloadingOriginal": "正在下載原版...",
         "retryDownloadOriginal": "重試下載原件",
         "downloadOriginal": "下載原版",
-        "segmentTokenCount_one": "{{label}}：{{formattedCount}} 個詞元",
-        "segmentTokenCount_other": "{{label}}：{{formattedCount}} 個詞元"
+        "replyDetails": "回覆詳情"
       },
       "mindroomMessageExtras": {
         "messageExtras": "訊息附加資訊"
@@ -2756,28 +2741,38 @@
         "retry": "重試",
         "delete": "刪除"
       },
-      "aiRunDisplay": {
-        "inputTokens": "輸入 {{formattedCount}}",
-        "outputTokens": "輸出 {{formattedCount}}",
-        "totalTokens": "總計 {{formattedCount}}",
-        "readTokens": "讀取 {{formattedCount}}",
-        "writeTokens": "寫入 {{formattedCount}}",
-        "notReadTokens": "未讀取 {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}：{{formattedCount}} 個詞元（佔上下文視窗的 {{percentage}}%）",
-        "contextBarTitle_other": "{{label}}：{{formattedCount}} 個詞元（佔上下文視窗的 {{percentage}}%）",
-        "contextBarTitleWithSuffix_one": "{{label}}：{{formattedCount}} 個詞元（佔上下文視窗的 {{percentage}}%）；{{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}：{{formattedCount}} 個詞元（佔上下文視窗的 {{percentage}}%）；{{suffix}}",
-        "reportedCacheRead_one": "回報的快取讀取：{{formattedCount}} 個詞元",
-        "reportedCacheRead_other": "回報的快取讀取：{{formattedCount}} 個詞元",
-        "cacheWrite_one": "快取寫入：{{formattedCount}} 個詞元",
-        "cacheWrite_other": "快取寫入：{{formattedCount}} 個詞元",
-        "cacheRead": "快取讀取",
-        "newInput": "新輸入",
-        "reserve": "保留"
-      },
       "mindroomModelBadge": {
         "model": "模型：{{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "詞元",
+        "cost": "費用",
+        "conversationSoFar": "目前對話",
+        "failed": "失敗",
+        "stopped": "已停止",
+        "thisReply": "這則回覆",
+        "input": "輸入",
+        "fromCache": "來自快取",
+        "output": "輸出",
+        "contextWindow": "上下文視窗",
+        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}%",
+        "timeToFirstToken": "首個詞元",
+        "technicalDetails": "技術詳情",
+        "configuredModel": "設定的模型",
+        "runId": "執行 ID",
+        "sessionId": "工作階段 ID",
+        "newInput": "新輸入",
+        "replyCount_one": "{{count}} 則回覆",
+        "replyCount_other": "{{count}} 則回覆",
+        "loadedReplyCount_one": "已載入 {{count}} 則回覆",
+        "loadedReplyCount_other": "已載入 {{count}} 則回覆",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "此對話中每則回覆的費用",
+        "costHistoryBar": "第 {{index}} 則回覆：{{cost}}",
+        "costHistoryPosition": "這則回覆 · 第 {{index}} / {{count}} 則",
+        "replyNumber": "第 {{index}} 則回覆",
+        "toolCallCount_one": "{{count}} 次工具呼叫",
+        "toolCallCount_other": "{{count}} 次工具呼叫"
       }
     },
     "native": {

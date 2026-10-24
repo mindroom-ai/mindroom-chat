@@ -2611,26 +2611,11 @@
         "moreOptions": "Weitere Optionen"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Kontextfenster der Anfrage",
-        "aiRunMetadata": "Metadaten des KI-Laufs",
         "close": "Schließen",
-        "status": "Status",
-        "model": "Modell",
-        "tokens": "Token",
-        "runCache": "Lauf-Cache",
-        "requestContext": "Anfragekontext",
-        "requestCache": "Anfrage-Cache",
-        "tools": "Werkzeuge",
-        "ttft": "TTFT",
-        "run": "Lauf",
-        "session": "Sitzung",
-        "openAiRunMetadata": "Metadaten des KI-Laufs öffnen",
-        "tokenUsage": "Token-Nutzung",
         "downloadingOriginal": "Original wird heruntergeladen...",
         "retryDownloadOriginal": "Download des Originals wiederholen",
         "downloadOriginal": "Original herunterladen",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} Token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} Token"
+        "replyDetails": "Antwortdetails"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Nachrichtenzusätze"
@@ -2768,28 +2753,38 @@
         "retry": "Erneut versuchen",
         "delete": "Löschen"
       },
-      "aiRunDisplay": {
-        "inputTokens": "ein {{formattedCount}}",
-        "outputTokens": "aus {{formattedCount}}",
-        "totalTokens": "gesamt {{formattedCount}}",
-        "readTokens": "gelesen {{formattedCount}}",
-        "writeTokens": "geschrieben {{formattedCount}}",
-        "notReadTokens": "nicht gelesen {{formattedCount}}",
-        "contextUsage": "{{input}}/{{window}} ({{percentage}} %)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} Token ({{percentage}} % des Fensters)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} Token ({{percentage}} % des Fensters)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} Token ({{percentage}} % des Fensters); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} Token ({{percentage}} % des Fensters); {{suffix}}",
-        "reportedCacheRead_one": "gemeldetes Cache-Lesen: {{formattedCount}} Token",
-        "reportedCacheRead_other": "gemeldetes Cache-Lesen: {{formattedCount}} Token",
-        "cacheWrite_one": "Cache-Schreiben: {{formattedCount}} Token",
-        "cacheWrite_other": "Cache-Schreiben: {{formattedCount}} Token",
-        "cacheRead": "Cache-Lesen",
-        "newInput": "Neue Eingabe",
-        "reserve": "Reserve"
-      },
       "mindroomModelBadge": {
         "model": "Modell: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Token",
+        "cost": "Kosten",
+        "conversationSoFar": "Unterhaltung bisher",
+        "failed": "Fehlgeschlagen",
+        "stopped": "Gestoppt",
+        "thisReply": "Diese Antwort",
+        "input": "Eingabe",
+        "fromCache": "Aus dem Cache",
+        "output": "Ausgabe",
+        "contextWindow": "Kontextfenster",
+        "contextWindowUsage": "{{input}} von {{window}} · {{percentage}} %",
+        "timeToFirstToken": "Erstes Token",
+        "technicalDetails": "Technische Details",
+        "configuredModel": "Konfiguriertes Modell",
+        "runId": "Lauf-ID",
+        "sessionId": "Sitzungs-ID",
+        "newInput": "Neue Eingabe",
+        "replyCount_one": "{{count}} Antwort",
+        "replyCount_other": "{{count}} Antworten",
+        "loadedReplyCount_one": "{{count}} geladene Antwort",
+        "loadedReplyCount_other": "{{count}} geladene Antworten",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Kosten jeder Antwort in dieser Unterhaltung",
+        "costHistoryBar": "Antwort {{index}}: {{cost}}",
+        "costHistoryPosition": "Diese Antwort · {{index}} von {{count}}",
+        "replyNumber": "Antwort {{index}}",
+        "toolCallCount_one": "{{count}} Werkzeugaufruf",
+        "toolCallCount_other": "{{count}} Werkzeugaufrufe"
       }
     },
     "native": {
