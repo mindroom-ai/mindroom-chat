@@ -54,12 +54,26 @@ type MeterPart = {
   percentage: number;
 };
 
-/** A bar split into parts, each naming its tokens and share on hover. */
-function Meter({ parts }: { parts: MeterPart[] }) {
+/**
+ * A bar split into parts, each naming its tokens and share on hover. A bar without a legend
+ * names its parts to screen readers itself.
+ */
+function Meter({ parts, legend = false }: { parts: MeterPart[]; legend?: boolean }) {
   const language = useAppLanguageCode();
+  const amount = (part: MeterPart) =>
+    `${formatMindroomAiRunNumber(part.tokens, language)} · ${formatMindroomAiRunPercentage(
+      part.percentage,
+      language
+    )}`;
   return (
-    // The legend or the section heading carries the numbers for screen readers.
-    <div className={css.Meter} aria-hidden>
+    <div
+      className={css.Meter}
+      aria-hidden={legend || undefined}
+      role={legend ? undefined : 'img'}
+      aria-label={
+        legend ? undefined : parts.map((part) => `${part.label} ${amount(part)}`).join(', ')
+      }
+    >
       {parts.map((part) => (
         <TooltipProvider
           key={part.key}
@@ -70,8 +84,7 @@ function Meter({ parts }: { parts: MeterPart[] }) {
               <Box direction="Column">
                 <Text size="T300">{part.label}</Text>
                 <Text size="T200" priority="300">
-                  {formatMindroomAiRunNumber(part.tokens, language)} ·{' '}
-                  {formatMindroomAiRunPercentage(part.percentage, language)}
+                  {amount(part)}
                 </Text>
               </Box>
             </Tooltip>
@@ -241,7 +254,7 @@ function Tokens({ info }: { info: MindroomAiRunInfo }) {
       title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
       value={formatMindroomAiRunNumber(tokens.total, language)}
     >
-      <Meter parts={tokens.parts} />
+      <Meter parts={tokens.parts} legend />
       <ul className={css.Legend}>
         {tokens.parts.map((part) => (
           <Text as="li" key={part.key} size="T200" className={css.LegendItem}>

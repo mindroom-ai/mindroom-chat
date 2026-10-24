@@ -253,6 +253,11 @@ describe('MindroomReplyDetails', () => {
     render(reply);
 
     expect(section('Context window')?.textContent).toContain('51,663 of 258,000 · 20.0%');
+    // Without a legend, the bar names its parts to screen readers.
+    expect(
+      section('Context window')?.querySelector('[role="img"]')?.getAttribute('aria-label')
+    ).toBe('From cache 49,886 · 19.3%, New input 1,777 · 0.7%');
+    expect(section('Tokens')?.querySelector('[role="img"]')).toBeNull();
   });
 
   it('sums up the run activity in one line', () => {
