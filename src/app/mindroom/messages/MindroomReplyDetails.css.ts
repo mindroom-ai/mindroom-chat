@@ -203,7 +203,7 @@ export const SectionHeader = style({
   gap: config.space.S300,
 });
 
-// The same size as its heading; its stronger color sets it apart.
+// The same size as its heading, set apart by a stronger color and weight.
 export const HeaderValue = style({
   fontWeight: config.fontWeight.W600,
   fontVariantNumeric: 'tabular-nums',

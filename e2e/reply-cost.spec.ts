@@ -183,7 +183,6 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
   await expect(dialog).toContainText('2 tool calls');
   await expect(dialog).toContainText('First token 412 ms');
-  await page.mouse.move(0, 0);
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-light.png') });
   // High-contrast modes replace backgrounds, so the chart keeps its own colors there.
   await page.emulateMedia({ forcedColors: 'active' });

@@ -1,8 +1,9 @@
 import React, { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Text, Tooltip, TooltipProvider } from 'folds';
+import { Text } from 'folds';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { ProviderModelIcon } from '../models/ProviderModelIcon';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import type { ThreadConversationCost } from '../threads/threadConversationCost';
 import { useThreadConversationCost } from '../threads/useThreadConversationCost';
 import { MindroomAiRunInfo } from './aiRun';
@@ -75,21 +76,7 @@ function Meter({ parts, legend = false }: { parts: MeterPart[]; legend?: boolean
       }
     >
       {parts.map((part) => (
-        <TooltipProvider
-          key={part.key}
-          position="Top"
-          offset={4}
-          tooltip={
-            <Tooltip>
-              <Box direction="Column">
-                <Text size="T300">{part.label}</Text>
-                <Text size="T200" priority="300">
-                  {amount(part)}
-                </Text>
-              </Box>
-            </Tooltip>
-          }
-        >
+        <IconTooltip key={part.key} label={part.label} hint={amount(part)} position="Top">
           {(triggerRef) => (
             <span
               ref={triggerRef}
@@ -97,7 +84,7 @@ function Meter({ parts, legend = false }: { parts: MeterPart[]; legend?: boolean
               style={{ width: `${part.percentage}%` }}
             />
           )}
-        </TooltipProvider>
+        </IconTooltip>
       ))}
     </div>
   );
