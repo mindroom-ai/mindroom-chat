@@ -35,6 +35,7 @@ const aiRun = (usd: string) => ({
     output_tokens: 31,
     total_tokens: 1705,
     cache_read_tokens: 1408,
+    uncached_input_tokens: 266,
     time_to_first_token: '0.412',
   },
   context: {
@@ -86,7 +87,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Cut the branch first.',
-    'io.mindroom.ai_run': aiRun('0.0123'),
+    'io.mindroom.ai_run': aiRun('0.0034'),
     'm.relates_to': inThread,
   });
   await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
@@ -111,6 +112,17 @@ test('reply details show what a reply and the conversation so far cost', async (
       'io.mindroom.ai_run': aiRun('0.0051'),
     },
     'm.relates_to': { rel_type: 'm.replace', event_id: streamed },
+  });
+  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: 'Ship it?',
+    'm.relates_to': inThread,
+  });
+  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: 'Done, v2.4 is tagged.',
+    'io.mindroom.ai_run': aiRun('0.0026'),
+    'm.relates_to': inThread,
   });
   // Anyone can write the same keys; only MindRoom's own accounts count.
   await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
@@ -138,40 +150,54 @@ test('reply details show what a reply and the conversation so far cost', async (
       .locator('[data-message-id]')
       .filter({ hasText: body })
       .getByRole('button', { name: 'Reply details', exact: true });
+  const dialog = page.getByRole('dialog', { name: 'Reply details' });
+  const costCard = dialog.getByRole('region', { name: 'Cost', exact: true });
   const section = (heading: string) =>
-    page
+    dialog
       .locator('section')
       .filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
 
   await detailsOf('Then tag it.').click();
-  const cost = section('Cost');
-  await expect(cost).toContainText('This reply$0.0051');
-  await expect(cost).toContainText('Conversation so far$0.017 across 2 replies');
-  await expect(section('Tokens')).toContainText('Input1,674');
-  await expect(section('Tokens')).toContainText('From cache1,408');
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  await expect(costCard).toContainText('This reply$0.0051');
+  await expect(costCard).toContainText('Conversation so far$0.0085');
+  await expect(costCard).toContainText('2 replies');
+  const history = costCard.getByRole('img', { name: 'Cost of each reply in this conversation' });
+  await expect(history.locator('[data-position]')).toHaveCount(3);
+  await expect(history.locator('[data-position="current"]')).toHaveAttribute(
+    'title',
+    'Reply 2: $0.0051'
+  );
+  await expect(costCard).toContainText('This reply · 2 of 3');
+  await expect(section('Tokens')).toContainText('Tokens1,705');
+  await expect(section('Tokens')).toContainText('From cache 1,408');
+  await expect(section('Tokens')).toContainText('New input 266');
+  await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
+  await expect(dialog).toContainText('2 tool calls');
+  await expect(dialog).toContainText('First token 412 ms');
+  await page.mouse.move(0, 0);
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-light.png') });
-  await expect(section('Context window')).toContainText('51,663 of 258,000 tokens · 20.0%');
-  await expect(section('Activity')).toContainText('Time to first token412 ms');
-  await page.getByText('Technical details', { exact: true }).click();
+  await dialog.getByText('Technical details', { exact: true }).click();
   await expect(
-    page.getByText('6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60', { exact: true })
+    dialog.getByText('6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60', { exact: true })
   ).toBeVisible();
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-dark.png') });
   await page.keyboard.press('Escape');
-  await expect(cost).toHaveCount(0);
+  await expect(dialog).toHaveCount(0);
 
   // The viewer's own message wrote the keys too, but its details show no cost.
   await detailsOf('Sounds good').click();
   await expect(section('Tokens')).toBeVisible();
-  await expect(section('Cost')).toHaveCount(0);
+  await expect(costCard).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   await page.setViewportSize({ width: 390, height: 844 });
   // A phone has no hover, so the details open from the keyboard here.
   await detailsOf('Cut the branch first.').focus();
   await page.keyboard.press('Enter');
-  await expect(section('Cost')).toContainText('Conversation so far$0.012 across 1 reply');
+  await expect(costCard).toContainText('Conversation so far$0.0034');
+  await expect(costCard).toContainText('This reply · 1 of 3');
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });

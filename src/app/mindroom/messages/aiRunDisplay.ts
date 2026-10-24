@@ -37,17 +37,49 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
   return currency({ maximumSignificantDigits: 2 }).format(usd);
 };
 
-/** A conversation's cost so far, said as a lower bound while older replies are not loaded. */
-export const formatMindroomConversationCost = (
-  total: { usd: number; replyCount: number },
-  complete: boolean,
-  t: TFunction,
-  locale?: string
-): string => {
-  const values = { cost: formatMindroomCostUsd(total.usd, locale), count: total.replyCount };
-  return complete
-    ? t('mindroomUi.messages.mindroomReplyDetails.conversationCost', values)
-    : t('mindroomUi.messages.mindroomReplyDetails.conversationCostAtLeast', values);
+export type MindroomAiRunTokenPart = {
+  key: 'cacheRead' | 'newInput' | 'input' | 'output';
+  label: string;
+  tokens: number;
+  percentage: number;
+};
+
+const TOKEN_PART_LABELS = {
+  cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
+  newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
+  input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
+  output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
+} as const;
+
+/** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
+export const getMindroomAiRunTokenParts = (
+  info: MindroomAiRunInfo,
+  t?: TFunction
+): { total: number; parts: MindroomAiRunTokenPart[] } | undefined => {
+  const counts: [MindroomAiRunTokenPart['key'], number | undefined][] =
+    info.uncachedInputTokens === undefined
+      ? [
+          ['input', info.inputTokens],
+          ['output', info.outputTokens],
+        ]
+      : [
+          ['cacheRead', info.cacheReadTokens],
+          ['newInput', info.uncachedInputTokens],
+          ['output', info.outputTokens],
+        ];
+  const used = counts.filter((entry): entry is [MindroomAiRunTokenPart['key'], number] => {
+    const tokens = entry[1];
+    return tokens !== undefined && tokens > 0;
+  });
+  const total = used.reduce((sum, [, tokens]) => sum + tokens, 0);
+  if (total <= 0) return undefined;
+  return {
+    total,
+    parts: used.map(([key, tokens]) => {
+      const [labelKey, fallback] = TOKEN_PART_LABELS[key];
+      return { key, label: t ? t(labelKey) : fallback, tokens, percentage: (tokens / total) * 100 };
+    }),
+  };
 };
 
 export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | undefined => {

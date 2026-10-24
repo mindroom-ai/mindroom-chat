@@ -53,6 +53,10 @@ describe('summarizeThreadConversationCost', () => {
     expect(cost?.byEventId.get('$r1')).toEqual({ usd: 0.01, replyCount: 1 });
     expect(cost?.byEventId.get('$r2')?.usd).toBeCloseTo(0.03);
     expect(cost?.byEventId.get('$r2')?.replyCount).toBe(2);
+    expect(cost?.replies).toEqual([
+      { eventId: '$r1', usd: 0.01 },
+      { eventId: '$r2', usd: 0.02 },
+    ]);
   });
 
   it("uses the latest edit's cost", () => {

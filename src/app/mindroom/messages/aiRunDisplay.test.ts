@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
   formatMindroomCostUsd,
+  getMindroomAiRunTokenParts,
   formatMindroomAiRunTimeToFirstToken,
   getMindroomAiRunCompactModelLabel,
   getMindroomAiRunContextBarSegments,
@@ -224,5 +225,49 @@ describe('formatMindroomCostUsd', () => {
     [1234.5, '$1,234.50'],
   ])('formats %s as %s', (usd, expected) => {
     expect(formatMindroomCostUsd(usd, 'en')).toBe(expected);
+  });
+});
+
+describe('getMindroomAiRunTokenParts', () => {
+  it('splits input into cache reads and new input when the backend reports the split', () => {
+    const tokens = getMindroomAiRunTokenParts({
+      inputTokens: 1674,
+      cacheReadTokens: 1408,
+      uncachedInputTokens: 266,
+      outputTokens: 31,
+    });
+
+    expect(tokens?.total).toBe(1705);
+    expect(tokens?.parts.map(({ key, label, tokens: count }) => [key, label, count])).toEqual([
+      ['cacheRead', 'From cache', 1408],
+      ['newInput', 'New input', 266],
+      ['output', 'Output', 31],
+    ]);
+    expect(tokens?.parts[0].percentage).toBeCloseTo((1408 / 1705) * 100);
+  });
+
+  it('keeps input whole for replies recorded before the split was sent', () => {
+    expect(
+      getMindroomAiRunTokenParts({
+        inputTokens: 1674,
+        cacheReadTokens: 1408,
+        outputTokens: 31,
+      })?.parts.map(({ key, tokens }) => [key, tokens])
+    ).toEqual([
+      ['input', 1674],
+      ['output', 31],
+    ]);
+  });
+
+  it('leaves out kinds the reply did not use', () => {
+    expect(
+      getMindroomAiRunTokenParts({ uncachedInputTokens: 100, outputTokens: 10 })?.parts.map(
+        ({ key }) => key
+      )
+    ).toEqual(['newInput', 'output']);
+  });
+
+  it('returns undefined without token counts', () => {
+    expect(getMindroomAiRunTokenParts({})).toBeUndefined();
   });
 });

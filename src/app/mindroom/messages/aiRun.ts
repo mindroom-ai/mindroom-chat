@@ -13,6 +13,7 @@ type MindroomAiRunUsage = {
   total_tokens?: unknown;
   cache_read_tokens?: unknown;
   cache_write_tokens?: unknown;
+  uncached_input_tokens?: unknown;
   time_to_first_token?: unknown;
 };
 
@@ -58,6 +59,8 @@ export type MindroomAiRunInfo = {
   totalTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  /** Input that was not read from cache, split by the backend with each provider's cache accounting. */
+  uncachedInputTokens?: number;
   timeToFirstToken?: number;
   contextInputTokens?: number;
   contextWindowTokens?: number;
@@ -138,6 +141,7 @@ export const getMindroomAiRunInfo = (
     totalTokens: asFiniteNumber(usage?.total_tokens),
     cacheReadTokens: asFiniteNumber(usage?.cache_read_tokens),
     cacheWriteTokens: asFiniteNumber(usage?.cache_write_tokens),
+    uncachedInputTokens: asFiniteNumber(usage?.uncached_input_tokens),
     timeToFirstToken: asNonNegativeDecimal(usage?.time_to_first_token),
     contextInputTokens: asFiniteNumber(context?.input_tokens),
     contextWindowTokens: asFiniteNumber(context?.window_tokens),

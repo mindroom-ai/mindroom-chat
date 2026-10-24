@@ -246,3 +246,16 @@ describe('getMindroomAiRunInfo reply cost', () => {
     ).toBe(0.512);
   });
 });
+
+describe('getMindroomAiRunInfo uncached input', () => {
+  it('reads the uncached input the backend splits from cache reads', () => {
+    expect(
+      getMindroomAiRunInfo({
+        'io.mindroom.ai_run': {
+          version: 1,
+          usage: { input_tokens: 1674, uncached_input_tokens: 266 },
+        },
+      })?.uncachedInputTokens
+    ).toBe(266);
+  });
+});

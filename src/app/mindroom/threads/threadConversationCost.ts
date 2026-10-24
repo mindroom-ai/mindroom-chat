@@ -15,6 +15,8 @@ export type ThreadConversationCost = {
   complete: boolean;
   /** The conversation's cost through each priced reply. */
   byEventId: ReadonlyMap<string, ConversationCostTotal>;
+  /** Each priced reply's own cost, in thread order. */
+  replies: readonly { eventId: string; usd: number }[];
 };
 
 type SummarizeOptions = {
@@ -39,6 +41,7 @@ export const summarizeThreadConversationCost = (
   }: SummarizeOptions
 ): ThreadConversationCost | undefined => {
   const byEventId = new Map<string, ConversationCostTotal>();
+  const replies: { eventId: string; usd: number }[] = [];
   let micros = 0;
   let replyCount = 0;
   events.forEach((event) => {
@@ -49,8 +52,10 @@ export const summarizeThreadConversationCost = (
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
     const costUsd = getMindroomAiRunInfo(getContent(event))?.costUsd;
     if (costUsd === undefined) return;
-    micros += Math.round(costUsd * MICROS_PER_USD);
+    const replyMicros = Math.round(costUsd * MICROS_PER_USD);
+    micros += replyMicros;
     replyCount += 1;
+    replies.push({ eventId, usd: replyMicros / MICROS_PER_USD });
     byEventId.set(eventId, { usd: micros / MICROS_PER_USD, replyCount });
   });
   if (replyCount === 0) return undefined;
@@ -58,5 +63,6 @@ export const summarizeThreadConversationCost = (
     total: { usd: micros / MICROS_PER_USD, replyCount },
     complete: history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
     byEventId,
+    replies,
   };
 };

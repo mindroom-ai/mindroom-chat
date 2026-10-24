@@ -660,11 +660,10 @@ describe('Message reply details menu item', () => {
     });
 
     expect(hasSpanText(renderer, 'Reply details')).toBe(true);
-    expect(rowValue(renderer, 'Input')).toBe('40');
-    expect(rowValue(renderer, 'From cache')).toBe('20');
-    expect(rowValue(renderer, 'Written to cache')).toBe('5');
-    expect(rowValue(renderer, 'Output')).toBe('2');
-    expect(rowValue(renderer, 'Total')).toBe('42');
+    expect(hasSpanText(renderer, 'Tokens')).toBe(true);
+    expect(hasSpanText(renderer, '42')).toBe(true);
+    expect(hasSpanText(renderer, 'Input')).toBe(true);
+    expect(hasSpanText(renderer, 'Output')).toBe(true);
     const setReturnFocus = getDialogFocusTrapOptions(renderer).setReturnFocus as () =>
       | HostNodeMock
       | false;
@@ -685,9 +684,9 @@ describe('Message reply details menu item', () => {
 
     expect(hasSpanText(renderer, 'Reply details')).toBe(true);
     expect(hasSpanText(renderer, 'openai · gpt-5-mini')).toBe(true);
-    expect(hasSpanText(renderer, '65 of 100 tokens · 65.0%')).toBe(true);
-    expect(rowValue(renderer, 'Tool calls')).toBe('3');
-    expect(rowValue(renderer, 'Time to first token')).toBe('42 ms');
+    expect(hasSpanText(renderer, '65 of 100 · 65.0%')).toBe(true);
+    expect(hasSpanText(renderer, '3 tool calls')).toBe(true);
+    expect(hasSpanText(renderer, '42 ms')).toBe(true);
     expect(rowValue(renderer, 'Configured model')).toBe('fast');
     expect(rowValue(renderer, 'Run ID')).toBe('run-123');
     expect(rowValue(renderer, 'Session ID')).toBe('session-456');

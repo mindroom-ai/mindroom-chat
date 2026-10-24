@@ -22,21 +22,27 @@ const reply: MindroomAiRunInfo = {
   outputTokens: 31,
   totalTokens: 1705,
   cacheReadTokens: 1408,
-  timeToFirstToken: 0.042,
-  contextInputTokens: 65,
-  contextWindowTokens: 100,
-  contextCacheReadInputTokens: 20,
-  contextCacheWriteInputTokens: 5,
-  contextUncachedInputTokens: 45,
-  toolCount: 3,
+  uncachedInputTokens: 266,
+  timeToFirstToken: 0.412,
+  contextInputTokens: 51663,
+  contextWindowTokens: 258000,
+  contextCacheReadInputTokens: 49886,
+  contextUncachedInputTokens: 1777,
+  toolCount: 2,
   costUsd: 0.0051,
 };
 
-const threadCost = (complete: boolean): ThreadConversationCost => ({
-  total: { usd: 0.017, replyCount: 2 },
-  complete,
-  byEventId: new Map([['$r2', { usd: 0.017, replyCount: 2 }]]),
-});
+/** A thread whose third of `costs` is the reply shown. */
+const thread = (costs: number[], complete = true): ThreadConversationCost => {
+  let total = 0;
+  const byEventId = new Map<string, { usd: number; replyCount: number }>();
+  const replies = costs.map((usd, index) => {
+    total += usd;
+    byEventId.set(`$r${index + 1}`, { usd: total, replyCount: index + 1 });
+    return { eventId: `$r${index + 1}`, usd };
+  });
+  return { total: { usd: total, replyCount: costs.length }, complete, byEventId, replies };
+};
 
 let container: HTMLDivElement;
 let root: Root;
@@ -59,28 +65,22 @@ const render = (info: MindroomAiRunInfo, eventId?: string, cost?: ThreadConversa
     );
   });
 
-/** Each section's rows as label to value, keyed by the section's heading. */
-const sections = () =>
-  Object.fromEntries(
-    [...container.querySelectorAll('section')].map((section) => [
-      section.querySelector('h3')?.textContent,
-      Object.fromEntries(
-        [...section.querySelectorAll('dt')].map((term) => [
-          term.textContent,
-          term.nextElementSibling?.textContent,
-        ])
-      ),
-    ])
+const text = () => container.textContent ?? '';
+const costCard = () => container.querySelector('[aria-label="Cost"]');
+const histogram = () => container.querySelector('[role="img"]');
+const bars = () => [...(histogram()?.querySelectorAll('[data-position]') ?? [])];
+const section = (heading: string) =>
+  [...container.querySelectorAll('section')].find(
+    (element) => element.querySelector('h3')?.textContent === heading
   );
 
 describe('MindroomReplyDetails', () => {
   it('leads with the model and leaves out a completed status', () => {
     render(reply);
 
-    expect(container.querySelector('h3')?.textContent).not.toBe('Model');
-    expect(container.textContent).toContain('Luna');
-    expect(container.textContent).toContain('openai · gpt-6-luna');
-    expect(container.textContent?.toLowerCase()).not.toContain('completed');
+    expect(text()).toContain('Luna');
+    expect(text()).toContain('openai · gpt-6-luna');
+    expect(text().toLowerCase()).not.toContain('completed');
   });
 
   it.each([
@@ -89,64 +89,98 @@ describe('MindroomReplyDetails', () => {
   ])('flags a %s reply', (status, label) => {
     render({ ...reply, status });
 
-    expect(container.textContent).toContain(label);
+    expect(text()).toContain(label);
   });
 
-  it('shows the reply cost and the conversation so far', () => {
-    render(reply, '$r2', threadCost(true));
+  it('shows the reply cost beside the conversation so far', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051]));
 
-    expect(sections().Cost).toEqual({
-      'This reply': '$0.0051',
-      'Conversation so far': '$0.017 across 2 replies',
-    });
+    expect(costCard()?.textContent).toContain('This reply$0.0051');
+    expect(costCard()?.textContent).toContain('Conversation so far$0.0097');
+    expect(costCard()?.textContent).toContain('3 replies');
   });
 
-  it('says at least while older replies are not loaded', () => {
-    render(reply, '$r2', threadCost(false));
+  it('marks the conversation cost as a lower bound while older replies are not loaded', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051], false));
 
-    expect(sections().Cost['Conversation so far']).toBe('at least $0.017 across 2 replies');
+    expect(costCard()?.textContent).toContain('≥ $0.0097');
+    expect(costCard()?.textContent).toContain('3 loaded replies');
   });
 
   it('shows only the reply cost outside a thread', () => {
-    render(reply, '$r2');
+    render(reply, '$r3');
 
-    expect(sections().Cost).toEqual({ 'This reply': '$0.0051' });
+    expect(costCard()?.textContent).toBe('This reply$0.0051');
+    expect(histogram()).toBeNull();
   });
 
-  it('leaves out the cost section without a cost', () => {
-    render({ ...reply, costUsd: undefined }, '$r2', threadCost(true));
+  it('leaves out the cost card without a cost', () => {
+    render({ ...reply, costUsd: undefined }, '$r3', thread([0.0012, 0.0034, 0.0051]));
 
-    expect(sections().Cost).toBeUndefined();
+    expect(costCard()).toBeNull();
   });
 
-  it('lists tokens by kind', () => {
+  it("draws each reply's cost with this reply highlighted", () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+
+    expect(histogram()?.getAttribute('aria-label')).toBe('Cost of each reply in this conversation');
+    expect(
+      bars().map((bar) => [bar.getAttribute('title'), bar.getAttribute('data-position')])
+    ).toEqual([
+      ['Reply 1: $0.0012', 'earlier'],
+      ['Reply 2: $0.0034', 'earlier'],
+      ['Reply 3: $0.0051', 'current'],
+      ['Reply 4: $0.0026', 'later'],
+    ]);
+    expect(costCard()?.textContent).toContain('Reply 1');
+    expect(costCard()?.textContent).toContain('This reply · 3 of 4');
+  });
+
+  it('numbers no replies while older ones are not loaded', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026], false));
+
+    expect(costCard()?.textContent).not.toContain('3 of 4');
+    expect(costCard()?.textContent).not.toContain('Reply 1');
+  });
+
+  it('draws no histogram for the only priced reply', () => {
+    render(reply, '$r1', thread([0.0051]));
+
+    expect(histogram()).toBeNull();
+  });
+
+  it('draws a window of bars around this reply in long threads', () => {
+    render(reply, '$r50', thread(Array.from({ length: 60 }, () => 0.001)));
+
+    expect(bars()).toHaveLength(40);
+    expect(bars()[0].getAttribute('title')).toBe('Reply 21: $0.001');
+    expect(bars()[39].getAttribute('title')).toBe('Reply 60: $0.001');
+    expect(costCard()?.textContent).toContain('Reply 21');
+  });
+
+  it('shows what the tokens were spent on', () => {
     render(reply);
+    const tokens = section('Tokens');
 
-    expect(sections().Tokens).toEqual({
-      Input: '1,674',
-      'From cache': '1,408',
-      Output: '31',
-      Total: '1,705',
-    });
-  });
-
-  it('shows the context window with a legend for its bar', () => {
-    render(reply);
-    const context = [...container.querySelectorAll('section')].find(
-      (section) => section.querySelector('h3')?.textContent === 'Context window'
-    );
-
-    expect(context?.textContent).toContain('65 of 100 tokens · 65.0%');
-    expect([...(context?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
-      'From cache20',
-      'New input45',
+    expect(tokens?.textContent).toContain('Tokens1,705');
+    expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
+      'From cache 1,408',
+      'New input 266',
+      'Output 31',
     ]);
   });
 
-  it('lists the run activity', () => {
+  it('shows how full the context window was', () => {
     render(reply);
 
-    expect(sections().Activity).toEqual({ 'Tool calls': '3', 'Time to first token': '42 ms' });
+    expect(section('Context window')?.textContent).toContain('51,663 of 258,000 · 20.0%');
+  });
+
+  it('sums up the run activity in one line', () => {
+    render(reply);
+
+    expect(text()).toContain('2 tool calls');
+    expect(text()).toContain('First token 412 ms');
   });
 
   it('keeps identifiers in collapsed technical details', () => {

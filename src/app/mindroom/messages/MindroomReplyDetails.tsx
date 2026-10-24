@@ -3,67 +3,196 @@ import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { ProviderModelIcon } from '../models/ProviderModelIcon';
+import type { ThreadConversationCost } from '../threads/threadConversationCost';
 import { useThreadConversationCost } from '../threads/useThreadConversationCost';
 import { MindroomAiRunInfo } from './aiRun';
 import {
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
-  formatMindroomConversationCost,
   formatMindroomCostUsd,
   getMindroomAiRunCompactModelLabel,
   getMindroomAiRunContextBarSegments,
   getMindroomAiRunContextLabel,
+  getMindroomAiRunTokenParts,
 } from './aiRunDisplay';
 import * as css from './MindroomReplyDetails.css';
 
-type Row = [label: string, value: string | undefined];
+// Enough bars to read a long thread's shape without each one shrinking to a hairline.
+const MAX_HISTORY_BARS = 40;
 
-function Rows({
-  rows,
-  className = css.Rows,
-  valueClassName = css.Value,
-  size = 'T300',
+function Section({
+  title,
+  value,
+  children,
 }: {
-  rows: Row[];
-  className?: string;
-  valueClassName?: string;
-  size?: 'T200' | 'T300';
+  title: string;
+  value?: string;
+  children: ReactNode;
 }) {
   return (
-    <dl className={className}>
-      {rows.map(([label, value]) =>
-        value === undefined ? null : (
-          <React.Fragment key={label}>
-            <Text as="dt" size={size} priority="300">
-              {label}
-            </Text>
-            <Text as="dd" size={size} className={valueClassName}>
-              {value}
-            </Text>
-          </React.Fragment>
-        )
-      )}
-    </dl>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
     <section className={css.Section}>
-      <Text as="h3" size="L400" priority="300">
-        {title}
-      </Text>
+      <div className={css.SectionHeader}>
+        <Text as="h3" size="L400" priority="300">
+          {title}
+        </Text>
+        {value && (
+          <Text size="T300" className={css.HeaderValue}>
+            {value}
+          </Text>
+        )}
+      </div>
       {children}
     </section>
   );
 }
 
-/** A section of label and value rows that renders nothing when none of its values is known. */
-function RowSection({ title, rows }: { title: string; rows: Row[] }) {
-  if (rows.every(([, value]) => value === undefined)) return null;
+/** Each priced reply's cost as a bar, this reply highlighted, in a window around it for long threads. */
+function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost; index: number }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const { replies, complete } = threadCost;
+  const start = Math.max(
+    0,
+    Math.min(index - MAX_HISTORY_BARS / 2, replies.length - MAX_HISTORY_BARS)
+  );
+  const shown = replies.slice(start, start + MAX_HISTORY_BARS);
+  const highest = Math.max(...shown.map(({ usd }) => usd));
   return (
-    <Section title={title}>
-      <Rows rows={rows} />
+    <div>
+      <div
+        className={css.Bars}
+        role="img"
+        aria-label={t('mindroomUi.messages.mindroomReplyDetails.costHistory')}
+      >
+        {shown.map(({ eventId, usd }, offset) => {
+          const position = start + offset;
+          const place = position < index ? 'earlier' : position === index ? 'current' : 'later';
+          const cost = formatMindroomCostUsd(usd, language);
+          return (
+            <span
+              key={eventId}
+              data-position={place}
+              className={css.Bar[place]}
+              style={{ height: `${Math.max(8, highest > 0 ? (usd / highest) * 100 : 0)}%` }}
+              title={
+                complete
+                  ? t('mindroomUi.messages.mindroomReplyDetails.costHistoryBar', {
+                      index: position + 1,
+                      cost,
+                    })
+                  : cost
+              }
+            />
+          );
+        })}
+      </div>
+      {complete ? (
+        <div className={css.Axis.numbered}>
+          <span>
+            {t('mindroomUi.messages.mindroomReplyDetails.replyNumber', { index: start + 1 })}
+          </span>
+          <span>
+            {t('mindroomUi.messages.mindroomReplyDetails.costHistoryPosition', {
+              index: index + 1,
+              count: replies.length,
+            })}
+          </span>
+          <span>
+            {t('mindroomUi.messages.mindroomReplyDetails.replyNumber', {
+              index: start + shown.length,
+            })}
+          </span>
+        </div>
+      ) : (
+        <div className={css.Axis.unnumbered}>
+          <span>{t('mindroomUi.messages.mindroomReplyDetails.thisReply')}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const threadCost = useThreadConversationCost();
+  const throughReply = eventId ? threadCost?.byEventId.get(eventId) : undefined;
+  const index =
+    threadCost && eventId ? threadCost.replies.findIndex((reply) => reply.eventId === eventId) : -1;
+  const conversationCost = throughReply && formatMindroomCostUsd(throughReply.usd, language);
+  return (
+    <section
+      className={css.CostCard}
+      aria-label={t('mindroomUi.messages.mindroomReplyDetails.cost')}
+    >
+      <div className={throughReply ? css.CostFigures.two : css.CostFigures.one}>
+        <div className={css.CostFigure}>
+          <span className={css.CostLabel}>
+            {t('mindroomUi.messages.mindroomReplyDetails.thisReply')}
+          </span>
+          <span className={css.CostValue}>{formatMindroomCostUsd(costUsd, language)}</span>
+        </div>
+        {threadCost && throughReply && (
+          <div className={css.CostFigure}>
+            <span className={css.CostLabel}>
+              {t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar')}
+            </span>
+            <span className={css.CostValue}>
+              {threadCost.complete
+                ? conversationCost
+                : t('mindroomUi.messages.mindroomReplyDetails.atLeastCost', {
+                    cost: conversationCost,
+                  })}
+            </span>
+            <span className={css.CostNote}>
+              {threadCost.complete
+                ? t('mindroomUi.messages.mindroomReplyDetails.replyCount', {
+                    count: throughReply.replyCount,
+                  })
+                : t('mindroomUi.messages.mindroomReplyDetails.loadedReplyCount', {
+                    count: throughReply.replyCount,
+                  })}
+            </span>
+          </div>
+        )}
+      </div>
+      {threadCost && index >= 0 && threadCost.replies.length > 1 && (
+        <CostHistory threadCost={threadCost} index={index} />
+      )}
+    </section>
+  );
+}
+
+function Tokens({ info }: { info: MindroomAiRunInfo }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const tokens = getMindroomAiRunTokenParts(info, t);
+  if (!tokens) return null;
+  return (
+    <Section
+      title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
+      value={formatMindroomAiRunNumber(tokens.total, language)}
+    >
+      <div className={css.Meter} aria-hidden>
+        {tokens.parts.map((part) => (
+          <span
+            key={part.key}
+            className={css.Segment[part.key]}
+            style={{ width: `${part.percentage}%` }}
+          />
+        ))}
+      </div>
+      <ul className={css.Legend}>
+        {tokens.parts.map((part) => (
+          <Text as="li" key={part.key} size="T200" className={css.LegendItem}>
+            <span className={css.Swatch[part.key]} aria-hidden />
+            <Text as="span" size="T200" priority="300">
+              {part.label}
+            </Text>{' '}
+            {formatMindroomAiRunNumber(part.tokens, language)}
+          </Text>
+        ))}
+      </ul>
     </Section>
   );
 }
@@ -75,34 +204,41 @@ function ContextWindow({ info }: { info: MindroomAiRunInfo }) {
   if (!usage) return null;
   const segments = getMindroomAiRunContextBarSegments(info, t);
   return (
-    <Section title={t('mindroomUi.messages.mindroomReplyDetails.contextWindow')}>
-      <Text size="T300">{usage}</Text>
+    <Section title={t('mindroomUi.messages.mindroomReplyDetails.contextWindow')} value={usage}>
       {segments && (
-        <>
-          {/* The legend below says what each part of the bar holds. */}
-          <div className={css.ContextBar} aria-hidden>
-            {segments.map((segment) => (
-              <div
-                key={segment.key}
-                className={css.ContextBarSegment[segment.key]}
-                style={{ width: `${segment.percentage}%` }}
-              />
-            ))}
-          </div>
-          <ul className={css.Legend}>
-            {segments.map((segment) => (
-              <Text as="li" key={segment.key} size="T200" className={css.LegendItem}>
-                <span className={css.Swatch[segment.key]} aria-hidden />
-                <Text as="span" size="T200" priority="300">
-                  {segment.label}
-                </Text>
-                {formatMindroomAiRunNumber(segment.tokens, language)}
-              </Text>
-            ))}
-          </ul>
-        </>
+        // The bar's track is the unused part of the window; the heading gives the numbers.
+        <div className={css.Meter} aria-hidden>
+          {segments.map((segment) => (
+            <span
+              key={segment.key}
+              className={css.Segment[segment.key]}
+              style={{ width: `${segment.percentage}%` }}
+            />
+          ))}
+        </div>
       )}
     </Section>
+  );
+}
+
+function Activity({ info }: { info: MindroomAiRunInfo }) {
+  const { t } = useTranslation();
+  const firstToken = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
+  if (info.toolCount === undefined && !firstToken) return null;
+  return (
+    <Text as="div" size="T200" priority="300" className={css.Meta}>
+      {info.toolCount !== undefined && (
+        <span>
+          {t('mindroomUi.messages.mindroomReplyDetails.toolCallCount', { count: info.toolCount })}
+        </span>
+      )}
+      {firstToken && (
+        <span>
+          {t('mindroomUi.messages.mindroomReplyDetails.timeToFirstToken')}{' '}
+          <span className={css.MetaValue}>{firstToken}</span>
+        </span>
+      )}
+    </Text>
   );
 }
 
@@ -114,7 +250,7 @@ const STATUS_LABEL_KEYS = {
 const isFlaggedStatus = (status: string | undefined): status is keyof typeof STATUS_LABEL_KEYS =>
   status === 'error' || status === 'cancelled';
 
-/** What a MindRoom reply ran on, what it cost, and what it used, grouped from most to least asked about. */
+/** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
 export function MindroomReplyDetails({
   info,
   eventId,
@@ -123,30 +259,27 @@ export function MindroomReplyDetails({
   eventId?: string;
 }) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const threadCost = useThreadConversationCost();
-  const number = (value: number | undefined) => formatMindroomAiRunNumber(value, language);
-
   const modelLabel = getMindroomAiRunCompactModelLabel(info);
   const modelSource = [info.modelProvider, info.modelId].filter(Boolean).join(' · ');
   const status = info.status?.toLowerCase();
-  const throughReply = eventId ? threadCost?.byEventId.get(eventId) : undefined;
 
   return (
     <div className={css.Body}>
       {(modelLabel || isFlaggedStatus(status)) && (
         <div className={css.Lead}>
           {modelLabel && (
-            <ProviderModelIcon provider={info.modelProvider} id={info.modelId} size={20} />
+            <span className={css.Tile}>
+              <ProviderModelIcon provider={info.modelProvider} id={info.modelId} size={20} />
+            </span>
           )}
           <div className={css.ModelName}>
             {modelLabel && (
               <Text size="T400" truncate>
-                {modelLabel}
+                <b>{modelLabel}</b>
               </Text>
             )}
             {modelSource && (
-              <Text size="T200" priority="300" truncate>
+              <Text size="T200" priority="300" className={css.ModelSource}>
                 {modelSource}
               </Text>
             )}
@@ -156,62 +289,35 @@ export function MindroomReplyDetails({
           )}
         </div>
       )}
-      {info.costUsd !== undefined && (
-        <RowSection
-          title={t('mindroomUi.messages.mindroomReplyDetails.cost')}
-          rows={[
-            [
-              t('mindroomUi.messages.mindroomReplyDetails.thisReply'),
-              formatMindroomCostUsd(info.costUsd, language),
-            ],
-            [
-              t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar'),
-              threadCost && throughReply
-                ? formatMindroomConversationCost(throughReply, threadCost.complete, t, language)
-                : undefined,
-            ],
-          ]}
-        />
-      )}
-      <RowSection
-        title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
-        rows={[
-          [t('mindroomUi.messages.mindroomReplyDetails.input'), number(info.inputTokens)],
-          [t('mindroomUi.messages.mindroomReplyDetails.fromCache'), number(info.cacheReadTokens)],
-          [
-            t('mindroomUi.messages.mindroomReplyDetails.writtenToCache'),
-            number(info.cacheWriteTokens),
-          ],
-          [t('mindroomUi.messages.mindroomReplyDetails.output'), number(info.outputTokens)],
-          [t('mindroomUi.messages.mindroomReplyDetails.total'), number(info.totalTokens)],
-        ]}
-      />
+      {info.costUsd !== undefined && <CostCard costUsd={info.costUsd} eventId={eventId} />}
+      <Tokens info={info} />
       <ContextWindow info={info} />
-      <RowSection
-        title={t('mindroomUi.messages.mindroomReplyDetails.activity')}
-        rows={[
-          [t('mindroomUi.messages.mindroomReplyDetails.toolCalls'), number(info.toolCount)],
-          [
-            t('mindroomUi.messages.mindroomReplyDetails.timeToFirstToken'),
-            formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken),
-          ],
-        ]}
-      />
+      <Activity info={info} />
       {(info.modelConfig || info.runId || info.sessionId) && (
         <details>
           <Text as="summary" size="T200" priority="300" className={css.TechnicalSummary}>
             {t('mindroomUi.messages.mindroomReplyDetails.technicalDetails')}
           </Text>
-          <Rows
-            className={css.TechnicalRows}
-            valueClassName={css.Identifier}
-            size="T200"
-            rows={[
-              [t('mindroomUi.messages.mindroomReplyDetails.configuredModel'), info.modelConfig],
-              [t('mindroomUi.messages.mindroomReplyDetails.runId'), info.runId],
-              [t('mindroomUi.messages.mindroomReplyDetails.sessionId'), info.sessionId],
-            ]}
-          />
+          <dl className={css.TechnicalRows}>
+            {(
+              [
+                [t('mindroomUi.messages.mindroomReplyDetails.configuredModel'), info.modelConfig],
+                [t('mindroomUi.messages.mindroomReplyDetails.runId'), info.runId],
+                [t('mindroomUi.messages.mindroomReplyDetails.sessionId'), info.sessionId],
+              ] as const
+            ).map(([label, value]) =>
+              value === undefined ? null : (
+                <React.Fragment key={label}>
+                  <Text as="dt" size="T200" priority="300">
+                    {label}
+                  </Text>
+                  <Text as="dd" size="T200" className={css.Identifier}>
+                    {value}
+                  </Text>
+                </React.Fragment>
+              )
+            )}
+          </dl>
         </details>
       )}
     </div>

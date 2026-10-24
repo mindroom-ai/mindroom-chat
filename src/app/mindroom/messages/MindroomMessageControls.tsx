@@ -88,7 +88,6 @@ function MindroomAiRunInfoDialog({
       <OverlayCenter>
         <FocusTrap
           focusTrapOptions={{
-            initialFocus: false,
             setReturnFocus: () => returnFocusRef.current ?? false,
             onDeactivate: onClose,
             clickOutsideDeactivates: true,
