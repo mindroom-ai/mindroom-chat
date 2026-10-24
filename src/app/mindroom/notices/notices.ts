@@ -46,7 +46,7 @@ const MAX_DISMISSED_NOTICE_IDS = 50;
 
 // An explicit offset is required: a local time would mean a different moment for every reader.
 const NOTICE_TIME_REG =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 const SINGLE_EMOJI_REG = new RegExp(`^(?:${EMOJI_PATTERN})${VARIATION_SELECTOR_PATTERN}?$`);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -75,7 +75,12 @@ export const toHttpsUrl = (value: unknown): string | undefined => {
 /** `undefined` when absent, `null` when present but not a valid timestamp. */
 const parseNoticeTime = (value: unknown): number | undefined | null => {
   if (value === undefined) return undefined;
-  if (typeof value !== 'string' || !NOTICE_TIME_REG.test(value)) return null;
+  const match = typeof value === 'string' ? NOTICE_TIME_REG.exec(value) : null;
+  if (!match) return null;
+  // Date.parse rolls a day that doesn't exist, such as February 30, into the next month.
+  const [year, month, day] = match.slice(1, 4).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : null;
 };

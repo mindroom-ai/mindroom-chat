@@ -68,6 +68,12 @@ describe('parseNotice', () => {
     });
   });
 
+  it('accepts February 29 in a leap year and fractional seconds', () => {
+    expect(parseNotice(entry({ startsAt: '2028-02-29T23:59:59.999+14:00' }))?.startsAt).toBe(
+      Date.parse('2028-02-29T09:59:59.999Z')
+    );
+  });
+
   it('labels a link without text with its host', () => {
     expect(parseNotice(entry({ linkUrl: 'https://status.example.org/x' }))?.link).toEqual({
       url: 'https://status.example.org/x',
@@ -127,6 +133,12 @@ describe('parseNotice', () => {
     ['a time without an offset', entry({ startsAt: '2026-10-24T00:50:00' })],
     ['a date-only time', entry({ endsAt: '2026-10-24' })],
     ['an impossible time', entry({ endsAt: '2026-13-40T00:00:00Z' })],
+    ['February 30', entry({ endsAt: '2026-02-30T00:00:00Z' })],
+    ['February 29 outside a leap year', entry({ startsAt: '2026-02-29T00:00:00-07:00' })],
+    ['April 31', entry({ endsAt: '2026-04-31T00:00Z' })],
+    ['hour 24', entry({ endsAt: '2026-10-24T24:00:00Z' })],
+    ['minute 60', entry({ endsAt: '2026-10-24T23:60:00Z' })],
+    ['an offset of 24 hours', entry({ endsAt: '2026-10-24T00:00:00+24:00' })],
     ['a numeric time', entry({ startsAt: 1761292200000 })],
     ['a null time', entry({ endsAt: null })],
   ])('rejects %s', (_name, value) => {
