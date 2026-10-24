@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DISMISSED_NOTICES_STORAGE_KEY,
+  MAX_NOTICE_TEXT_LENGTH,
   MAX_VISIBLE_NOTICES,
   Notice,
   dismissNotice,
@@ -74,6 +75,11 @@ describe('parseNotice', () => {
     });
   });
 
+  it('accepts text up to the length cap', () => {
+    const text = 'x'.repeat(MAX_NOTICE_TEXT_LENGTH);
+    expect(parseNotice(entry({ text }))?.text).toBe(text);
+  });
+
   it.each(['info', 'warning', 'success', 'critical'])('accepts level %s', (level) => {
     expect(parseNotice(entry({ level }))?.level).toBe(level);
   });
@@ -103,6 +109,7 @@ describe('parseNotice', () => {
     ['a numeric id', entry({ id: 7 })],
     ['missing text', entry({ text: undefined })],
     ['blank text', entry({ text: '  ' })],
+    ['text over the length cap', entry({ text: 'x'.repeat(MAX_NOTICE_TEXT_LENGTH + 1) })],
     ['a missing level', entry({ level: undefined })],
     ['an unknown level', entry({ level: 'error' })],
     ['two emoji', entry({ icon: '🔧🔧' })],

@@ -2,6 +2,7 @@ import React, { ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Capacitor } from '@capacitor/core';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Icon, IconButton, Icons, IconSrc, Text } from 'folds';
 import { appUrl } from '../../utils/basePath';
 import { useResizeObserver } from '../../hooks/useResizeObserver';
@@ -142,7 +143,10 @@ export function NoticeBanners() {
 export function NoticeLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <NoticeBanners />
+      {/* A broken notice must never take the app down with it. */}
+      <ErrorBoundary fallback={null}>
+        <NoticeBanners />
+      </ErrorBoundary>
       <div className={css.NoticeLayoutContent}>{children}</div>
     </>
   );

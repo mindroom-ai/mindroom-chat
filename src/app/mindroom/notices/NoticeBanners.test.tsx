@@ -60,9 +60,15 @@ beforeEach(() => {
   native.value = false;
   localStorage.clear();
   serve({ status: 200, body: [] });
-  fetchMock = vi.fn(async () => {
+  fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
     const next = responses.length > 1 ? responses.shift()! : responses[0];
     if (next.status === 0) throw new TypeError('Failed to fetch');
+    // A request that never answers until it is aborted.
+    if (next.status === -1) {
+      return new Promise<never>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('', 'AbortError')));
+      });
+    }
     return new globalThis.Response(JSON.stringify(next.body ?? null), { status: next.status });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -228,6 +234,27 @@ describe('NoticeBanners', () => {
     });
     await flush();
     expect(texts()).toEqual([]);
+  });
+
+  it('expires notices and keeps polling while a request hangs', async () => {
+    serve({ status: 200, body: [notice('a', { endsAt: '2026-10-24T08:01:30Z' })] });
+    await render();
+    serve({ status: -1 });
+
+    await act(async () => {
+      vi.advanceTimersByTime(NOTICE_REFRESH_INTERVAL_MS);
+    });
+    await flush();
+    expect(texts()).toEqual(['Notice a']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // The hung request times out, the next tick hides the expired notice and polls again.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NOTICE_REFRESH_INTERVAL_MS);
+    });
+    await flush();
+    expect(texts()).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('shows nothing when the first fetch fails', async () => {

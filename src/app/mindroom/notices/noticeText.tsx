@@ -64,10 +64,16 @@ const noticeHtmlOptions: HTMLReactParserOptions = {
 
 /**
  * Renders a notice's text with inline Markdown only: `**bold**`, `*italic*`, `~~strike~~`,
- * `` `code` `` and `[label](https://…)`. Everything else, raw HTML included, is plain text.
+ * `` `code` `` and `[label](https://…)`. Everything else, raw HTML included, is plain text,
+ * and so is the whole text if parsing fails.
  */
-export const renderNoticeText = (text: string): ReactNode =>
-  parse(
-    sanitizeCustomHtml(parseInlineMDWithRules(sanitizeText(text), NOTICE_INLINE_RULES)),
-    noticeHtmlOptions
-  );
+export const renderNoticeText = (text: string): ReactNode => {
+  try {
+    return parse(
+      sanitizeCustomHtml(parseInlineMDWithRules(sanitizeText(text), NOTICE_INLINE_RULES)),
+      noticeHtmlOptions
+    );
+  } catch {
+    return text;
+  }
+};

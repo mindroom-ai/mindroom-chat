@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { renderNoticeText } from './noticeText';
+import { MAX_NOTICE_TEXT_LENGTH } from './notices';
 
 vi.mock('../../styles/CustomHtml.css', () => ({ Code: 'code' }));
 
@@ -116,5 +117,29 @@ describe('renderNoticeText', () => {
 
   it('leaves underline, spoiler and math syntax as text', () => {
     expect(html('||secret|| costs $5 and $6')).toBe('||secret|| costs $5 and $6');
+  });
+
+  it.each([
+    ['**x** '.repeat(166), '<strong>'],
+    ['*a*'.repeat(333), '<i>'],
+    ['_a_ '.repeat(250), '<i>'],
+    ['~~a~~'.repeat(200), '<s>'],
+    ['`a`'.repeat(333), '<code'],
+    ['[a](https://b.example)'.repeat(45), '<a'],
+    [`${'['.repeat(980)}](https://x)`, ''],
+    ['[a](https://'.repeat(83), ''],
+    ['**'.repeat(500), ''],
+    ['\\*'.repeat(500), ''],
+  ])('parses worst-case text at the length cap quickly (%#)', (text, tag) => {
+    expect(text.length).toBeLessThanOrEqual(MAX_NOTICE_TEXT_LENGTH);
+    const started = performance.now();
+    expect(html(text)).toContain(tag);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('never throws for text far over the cap: formatted, or plain if the parser gives up', () => {
+    const text = '**x** '.repeat(5000);
+    const rendered = html(text).replace(/<[^>]+>/g, '');
+    expect([text, 'x '.repeat(5000)]).toContain(rendered);
   });
 });

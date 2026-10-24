@@ -90,6 +90,17 @@ for (const theme of ['light', 'dark'] as const) {
 
     await page.screenshot({ path: testInfo.outputPath(`notices-phone-${theme}.png`) });
 
+    // An unbroken link label wraps too.
+    await serveNotices(page, [{ ...NOTICES[0], linkText: 'x'.repeat(200) }]);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(banners(page)).toHaveCount(1);
+    await expect(status.getByRole('link', { name: 'x'.repeat(200) })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390
+    );
+    const linkBox = await status.getByRole('link', { name: 'x'.repeat(200) }).boundingBox();
+    expect((linkBox?.x ?? 0) + (linkBox?.width ?? 0)).toBeLessThanOrEqual(390);
+
     await serveNotices(page, NOTICES.slice(3));
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(banners(page)).toHaveCount(1);

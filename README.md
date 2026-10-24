@@ -258,7 +258,7 @@ The native apps read only their bundled copy, which is empty, so they show no no
 ```
 
 - `id` (required): a dismissal hides the notice on that device by `id`, so give a changed notice a new `id` to show it again.
-- `text` (required): plain text with inline Markdown only: `**bold**`, `*italic*` or `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://…)` links. Anything else, HTML included, shows as typed. Long text folds to three lines behind "Show more".
+- `text` (required, at most 1000 characters): plain text with inline Markdown only: `**bold**`, `*italic*` or `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://…)` links. Anything else, HTML included, shows as typed. Long text folds to three lines behind "Show more".
 - `level` (required): `info`, `warning`, `success` or `critical`.
 - `icon`: one emoji, or `info`, `warning`, `check`, `clock`, `bell`, `server` or `settings`. Defaults to the level's icon.
 - `startsAt`, `endsAt`: ISO 8601 times with `Z` or an offset; the notice shows from `startsAt` until `endsAt`.

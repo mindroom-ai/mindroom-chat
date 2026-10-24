@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DISMISSED_NOTICES_STORAGE_KEY,
   Notice,
+  NOTICE_FETCH_TIMEOUT_MS,
   NOTICE_REFRESH_INTERVAL_MS,
   dismissNotice,
   fetchNotices,
@@ -22,14 +23,19 @@ export const useNotices = (url: string | undefined) => {
 
   useEffect(() => {
     if (!url) return undefined;
-    const controller = new AbortController();
-    let loading = false;
+    let disposed = false;
+    let request: AbortController | undefined;
     const refresh = () => {
-      if (loading) return;
-      loading = true;
-      fetchNotices(url, controller.signal).then((next) => {
-        loading = false;
-        if (controller.signal.aborted) return;
+      // Time windows advance on every tick, even while a request is still pending.
+      setNow(Date.now());
+      if (request) return;
+      const current = new AbortController();
+      request = current;
+      const timeout = window.setTimeout(() => current.abort(), NOTICE_FETCH_TIMEOUT_MS);
+      fetchNotices(url, current.signal).then((next) => {
+        window.clearTimeout(timeout);
+        request = undefined;
+        if (disposed) return;
         if (next) setNotices(next);
         setNow(Date.now());
       });
@@ -39,7 +45,8 @@ export const useNotices = (url: string | undefined) => {
     const interval = window.setInterval(refresh, NOTICE_REFRESH_INTERVAL_MS);
     window.addEventListener('focus', refresh);
     return () => {
-      controller.abort();
+      disposed = true;
+      request?.abort();
       window.clearInterval(interval);
       window.removeEventListener('focus', refresh);
     };

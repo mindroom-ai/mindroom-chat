@@ -75,7 +75,9 @@ export const NoticeTextExpanded = style({
 });
 
 export const NoticeAction = style({
-  flexShrink: 0,
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  textAlign: 'start',
   padding: 0,
   border: 'none',
   background: 'none',

@@ -10,7 +10,10 @@ import {
 
 export const NOTICES_FILE = 'notices.json';
 export const NOTICE_REFRESH_INTERVAL_MS = 60_000;
+export const NOTICE_FETCH_TIMEOUT_MS = 10_000;
 export const MAX_VISIBLE_NOTICES = 3;
+// Bounds the inline Markdown parser's recursion; a slim banner never needs more.
+export const MAX_NOTICE_TEXT_LENGTH = 1000;
 
 export const NOTICE_LEVELS = ['info', 'warning', 'success', 'critical'] as const;
 export type NoticeLevel = typeof NOTICE_LEVELS[number];
@@ -83,6 +86,7 @@ export const parseNotice = (value: unknown): Notice | undefined => {
   const { id, text, level, icon, startsAt, endsAt, dismissible, linkUrl, linkText } = value;
 
   if (!isNonEmptyString(id) || !isNonEmptyString(text)) return undefined;
+  if (text.length > MAX_NOTICE_TEXT_LENGTH) return undefined;
   if (!(NOTICE_LEVELS as readonly unknown[]).includes(level)) return undefined;
   if (icon !== undefined && !isNoticeIcon(icon)) return undefined;
   if (dismissible !== undefined && typeof dismissible !== 'boolean') return undefined;
