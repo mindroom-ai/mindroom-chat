@@ -240,7 +240,7 @@ Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, `vbscr
 Operators can show short banners above every screen, including sign-in and loading, without a rebuild.
 The web app reads `notices.json` from the root it is served from, on load, every 60 seconds and when the window regains focus, so a change reaches open tabs within about a minute.
 It needs neither Matrix nor MindRoom, so a notice stays up while both are down.
-The native apps read only their bundled copy, which is empty, so they show no notices.
+The native apps don't fetch the file, so they show no notices.
 
 ```json
 [
@@ -257,13 +257,19 @@ The native apps read only their bundled copy, which is empty, so they show no no
 ]
 ```
 
-- `id` (required): a dismissal hides the notice on that device by `id`, so give a changed notice a new `id` to show it again.
-- `text` (required, at most 1000 characters): plain text with inline Markdown only: `**bold**`, `*italic*` or `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://…)` links. Anything else, HTML included, shows as typed. As in chat messages, `_` pairs make italics (`snake_case_name` too), so write `\_` or use `` `code` ``. Write `)` in a link URL as `%29`. Long text folds to three lines behind "Show more".
+- `id` (required, at most 200 characters): a dismissal hides the notice on that device by `id`, so give a changed notice a new `id` to show it again.
+- `text` (required, at most 1000 characters): plain text with inline Markdown only: `**bold**`, `*italic*` or `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://…)` links.
+  Anything else, HTML included, shows as typed.
+  As in chat messages, `_` pairs make italics (`snake_case_name` too), so write `\_` or use `` `code` ``.
+  Write `)` in a link URL as `%29`.
+  Long text folds to three lines behind "Show more".
 - `level` (required): `info`, `warning`, `success` or `critical`.
-- `icon`: one emoji, or `info`, `warning`, `check`, `clock`, `bell`, `server` or `settings`. Defaults to the level's icon.
+- `icon`: one emoji, or `info`, `warning`, `check`, `clock`, `bell`, `server` or `settings`.
+  Defaults to the level's icon.
 - `startsAt`, `endsAt`: ISO 8601 times with `Z` or an offset; the notice shows from `startsAt` until `endsAt`.
-- `dismissible`: `false` hides the dismiss button. Defaults to `true`.
-- `linkUrl`, `linkText`: a link after the text; `linkText` defaults to the host.
+- `dismissible`: `false` hides the dismiss button.
+  Defaults to `true`.
+- `linkUrl`, `linkText` (at most 200 characters): a link after the text; `linkText` defaults to the host.
 
 Links must use `https:`; other links show as text, and an entry with another `linkUrl` is skipped.
 An invalid entry is skipped; an invalid file, or a 404, shows no notices.

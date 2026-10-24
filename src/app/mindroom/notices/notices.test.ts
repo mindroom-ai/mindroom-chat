@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DISMISSED_NOTICES_STORAGE_KEY,
+  MAX_NOTICE_ID_LENGTH,
+  MAX_NOTICE_LINK_TEXT_LENGTH,
   MAX_NOTICE_TEXT_LENGTH,
   MAX_VISIBLE_NOTICES,
   Notice,
@@ -81,9 +83,13 @@ describe('parseNotice', () => {
     });
   });
 
-  it('accepts text up to the length cap', () => {
+  it('accepts the id, text and link text up to their length caps', () => {
+    const id = 'i'.repeat(MAX_NOTICE_ID_LENGTH);
     const text = 'x'.repeat(MAX_NOTICE_TEXT_LENGTH);
-    expect(parseNotice(entry({ text }))?.text).toBe(text);
+    const linkText = 'l'.repeat(MAX_NOTICE_LINK_TEXT_LENGTH);
+    expect(
+      parseNotice(entry({ id, text, linkUrl: 'https://example.org', linkText }))
+    ).toMatchObject({ id, text, link: { text: linkText } });
   });
 
   it.each(['info', 'warning', 'success', 'critical'])('accepts level %s', (level) => {
@@ -116,6 +122,14 @@ describe('parseNotice', () => {
     ['missing text', entry({ text: undefined })],
     ['blank text', entry({ text: '  ' })],
     ['text over the length cap', entry({ text: 'x'.repeat(MAX_NOTICE_TEXT_LENGTH + 1) })],
+    ['an id over the length cap', entry({ id: 'x'.repeat(MAX_NOTICE_ID_LENGTH + 1) })],
+    [
+      'link text over the length cap',
+      entry({
+        linkUrl: 'https://example.org',
+        linkText: 'x'.repeat(MAX_NOTICE_LINK_TEXT_LENGTH + 1),
+      }),
+    ],
     ['a missing level', entry({ level: undefined })],
     ['an unknown level', entry({ level: 'error' })],
     ['two emoji', entry({ icon: '🔧🔧' })],

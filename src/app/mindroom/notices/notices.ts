@@ -14,6 +14,9 @@ export const NOTICE_FETCH_TIMEOUT_MS = 10_000;
 export const MAX_VISIBLE_NOTICES = 3;
 // Bounds the inline Markdown parser's recursion; a slim banner never needs more.
 export const MAX_NOTICE_TEXT_LENGTH = 1000;
+// Ids are stored per dismissal and labels sit unfolded beside the text.
+export const MAX_NOTICE_ID_LENGTH = 200;
+export const MAX_NOTICE_LINK_TEXT_LENGTH = 200;
 
 export const NOTICE_LEVELS = ['info', 'warning', 'success', 'critical'] as const;
 export type NoticeLevel = typeof NOTICE_LEVELS[number];
@@ -92,11 +95,15 @@ export const parseNotice = (value: unknown): Notice | undefined => {
   const { id, text, level, icon, startsAt, endsAt, dismissible, linkUrl, linkText } = value;
 
   if (!isNonEmptyString(id) || !isNonEmptyString(text)) return undefined;
-  if (text.length > MAX_NOTICE_TEXT_LENGTH) return undefined;
+  if (id.length > MAX_NOTICE_ID_LENGTH || text.length > MAX_NOTICE_TEXT_LENGTH) return undefined;
   if (!(NOTICE_LEVELS as readonly unknown[]).includes(level)) return undefined;
   if (icon !== undefined && !isNoticeIcon(icon)) return undefined;
   if (dismissible !== undefined && typeof dismissible !== 'boolean') return undefined;
-  if (linkText !== undefined && !isNonEmptyString(linkText)) return undefined;
+  if (
+    linkText !== undefined &&
+    (!isNonEmptyString(linkText) || linkText.length > MAX_NOTICE_LINK_TEXT_LENGTH)
+  )
+    return undefined;
 
   const start = parseNoticeTime(startsAt);
   const end = parseNoticeTime(endsAt);

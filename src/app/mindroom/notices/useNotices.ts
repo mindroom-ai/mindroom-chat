@@ -64,10 +64,10 @@ export const useNotices = (url: string | undefined) => {
   }, []);
 
   // Merge with the ids shown so far: without localStorage, dismissNotice knows only this one.
-  const dismiss = useCallback(
-    (id: string) => setDismissedIds((ids) => new Set([...ids, ...dismissNotice(id)])),
-    []
-  );
+  const dismiss = useCallback((id: string) => {
+    const stored = dismissNotice(id);
+    setDismissedIds((ids) => new Set([...ids, ...stored]));
+  }, []);
   const visible = useMemo(
     () => selectVisibleNotices(notices, now, dismissedIds),
     [notices, now, dismissedIds]
