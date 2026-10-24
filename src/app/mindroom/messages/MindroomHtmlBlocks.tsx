@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useContext, useState } from 'react';
+import React, { ReactNode, useContext, useMemo, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
@@ -20,6 +20,7 @@ import {
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
+  MINDROOM_TOOL_TRACE_KEY,
   MindroomToolTraceEvent,
   MindroomToolMetadataStatus,
   getMindroomToolTraceEvents,
@@ -40,6 +41,7 @@ import { ApprovalArgumentFields } from './ApprovalArgumentFields';
 import { toToolArgumentFields } from './argumentFields';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
+import type { HtmlReactParserOptionsSource } from '../../utils/htmlReactParserOptions';
 
 type MindroomTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -443,22 +445,16 @@ const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): bo
   return false;
 };
 
-export const withMindroomToolTraceMarkerParserOptions = (
+const getParserToolTraceEvents = (
+  content: Record<string, unknown>
+): MindroomToolTraceEvent[] | undefined =>
+  isMindroomToolTraceV2(content) ? getMindroomToolTraceEvents(content) : undefined;
+
+const createMindroomToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
-  content: Record<string, unknown>,
+  traceEvents: MindroomToolTraceEvent[] | undefined,
   metadataStatus?: MindroomToolMetadataStatus
 ): HTMLReactParserOptions => {
-  // The wrapped options carry per-parse state and a fresh identity, which
-  // defeats parse memoization downstream. Most messages carry no mindroom
-  // markers, so keep the stable base options for them.
-  if (!contentHasMindroomMarkerCandidate(content)) {
-    return baseOpts;
-  }
-
-  const traceEvents = isMindroomToolTraceV2(content)
-    ? getMindroomToolTraceEvents(content)
-    : undefined;
-
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
   const consumedToolIndexes = new Set<number>();
@@ -640,4 +636,44 @@ export const withMindroomToolTraceMarkerParserOptions = (
     },
   };
   return nextOpts;
+};
+
+export const withMindroomToolTraceMarkerParserOptions = (
+  baseOpts: HTMLReactParserOptions,
+  content: Record<string, unknown>,
+  metadataStatus?: MindroomToolMetadataStatus
+): HTMLReactParserOptions => {
+  // The wrapped options carry per-parse state and a fresh identity, which
+  // defeats parse memoization downstream. Most messages carry no mindroom
+  // markers, so keep the stable base options for them.
+  if (!contentHasMindroomMarkerCandidate(content)) {
+    return baseOpts;
+  }
+
+  return createMindroomToolTraceMarkerParserOptions(
+    baseOpts,
+    getParserToolTraceEvents(content),
+    metadataStatus
+  );
+};
+
+/**
+ * The marker parser options for one message, as a function that makes fresh ones for each parse
+ * (they keep state while they parse). The function stays the same while the base options, whether
+ * the content has markers, its tool trace and the metadata status do, so a memoized parse of a
+ * message that did not change is kept when the timeline renders again, as it does for every
+ * streamed edit of another message.
+ */
+export const useMindroomToolTraceMarkerParserOptions = (
+  baseOpts: HTMLReactParserOptions,
+  content: Record<string, unknown>,
+  metadataStatus?: MindroomToolMetadataStatus
+): HtmlReactParserOptionsSource => {
+  const hasMarkers = contentHasMindroomMarkerCandidate(content);
+  const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
+  return useMemo(() => {
+    if (!hasMarkers) return baseOpts;
+    const traceEvents = getParserToolTraceEvents({ [MINDROOM_TOOL_TRACE_KEY]: toolTrace });
+    return () => createMindroomToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus);
+  }, [baseOpts, hasMarkers, toolTrace, metadataStatus]);
 };

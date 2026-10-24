@@ -13,10 +13,12 @@ type MindroomToolTraceContent = {
   events?: unknown;
 };
 
+export const MINDROOM_TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
+
 const getMindroomToolTrace = (
   content: Record<string, unknown>
 ): MindroomToolTraceContent | undefined => {
-  const trace = content['io.mindroom.tool_trace'];
+  const trace = content[MINDROOM_TOOL_TRACE_KEY];
   if (!trace || typeof trace !== 'object') return undefined;
   return trace as MindroomToolTraceContent;
 };

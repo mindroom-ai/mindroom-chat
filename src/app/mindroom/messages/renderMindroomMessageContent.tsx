@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import { HTMLReactParserOptions } from 'html-react-parser';
@@ -8,7 +8,8 @@ import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../compone
 import { trimReplyFromBody } from '../../utils/room';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
-import { withMindroomToolTraceMarkerParserOptions } from './MindroomHtmlBlocks';
+import { useMindroomToolTraceMarkerParserOptions } from './MindroomHtmlBlocks';
+import type { MindroomToolMetadataStatus } from './toolTrace';
 import { isMindroomAiRunStreaming } from './aiRun';
 import {
   formatMindroomMarkdownTextBodyAsHtml,
@@ -70,6 +71,57 @@ function MindroomMessageExtrasRenderNotice({
   }, [onRendered]);
 
   return <>{children}</>;
+}
+
+type MindroomRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
+  htmlReactParserOptions: HTMLReactParserOptions;
+  /** The content whose tool and paste markers the body renders. */
+  markerContent: Record<string, unknown>;
+  metadataStatus?: MindroomToolMetadataStatus;
+};
+
+/** A body with MindRoom's markers, parsed again only when that message changes. */
+function MindroomRenderBody({
+  htmlReactParserOptions,
+  markerContent,
+  metadataStatus,
+  ...props
+}: MindroomRenderBodyProps) {
+  return (
+    <RenderBody
+      {...props}
+      htmlReactParserOptions={useMindroomToolTraceMarkerParserOptions(
+        htmlReactParserOptions,
+        markerContent,
+        metadataStatus
+      )}
+    />
+  );
+}
+
+type MindroomMessageExtrasWithMarkersProps = Omit<
+  ComponentProps<typeof MindroomMessageExtras>,
+  'htmlReactParserOptions'
+> & {
+  htmlReactParserOptions: HTMLReactParserOptions;
+  markerContent: Record<string, unknown>;
+};
+
+/** Message extras with MindRoom's markers, parsed again only when that message changes. */
+function MindroomMessageExtrasWithMarkers({
+  htmlReactParserOptions,
+  markerContent,
+  ...props
+}: MindroomMessageExtrasWithMarkersProps) {
+  return (
+    <MindroomMessageExtras
+      {...props}
+      htmlReactParserOptions={useMindroomToolTraceMarkerParserOptions(
+        htmlReactParserOptions,
+        markerContent
+      )}
+    />
+  );
 }
 
 export const renderMindroomMessageContent = ({
@@ -147,14 +199,12 @@ export const renderMindroomMessageContent = ({
           : undefined);
 
       return (
-        <RenderBody
+        <MindroomRenderBody
           {...props}
           customBody={customBody}
           highlightRegex={highlightRegex}
-          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-            htmlReactParserOptions,
-            renderableContent
-          )}
+          htmlReactParserOptions={htmlReactParserOptions}
+          markerContent={renderableContent}
           linkifyOpts={linkifyOpts}
         />
       );
@@ -200,12 +250,10 @@ export const renderMindroomMessageContent = ({
           fallbackIndex === undefined ? undefined : () => onFallbackExtrasRendered?.(fallbackIndex)
         }
       >
-        <MindroomMessageExtras
+        <MindroomMessageExtrasWithMarkers
           extras={extras}
-          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-            htmlReactParserOptions,
-            parserOptionsContent
-          )}
+          htmlReactParserOptions={htmlReactParserOptions}
+          markerContent={parserOptionsContent}
         />
       </MindroomMessageExtrasRenderNotice>
     );
@@ -293,14 +341,12 @@ export const renderMindroomMessageContent = ({
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props, metadataStatus) => (
-            <RenderBody
+            <MindroomRenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-                htmlReactParserOptions,
-                resolvedContent,
-                metadataStatus
-              )}
+              htmlReactParserOptions={htmlReactParserOptions}
+              markerContent={resolvedContent}
+              metadataStatus={metadataStatus}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -371,14 +417,12 @@ export const renderMindroomMessageContent = ({
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props, metadataStatus) => (
-            <RenderBody
+            <MindroomRenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-                htmlReactParserOptions,
-                resolvedContent,
-                metadataStatus
-              )}
+              htmlReactParserOptions={htmlReactParserOptions}
+              markerContent={resolvedContent}
+              metadataStatus={metadataStatus}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -447,14 +491,12 @@ export const renderMindroomMessageContent = ({
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props, metadataStatus) => (
-            <RenderBody
+            <MindroomRenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-                htmlReactParserOptions,
-                resolvedContent,
-                metadataStatus
-              )}
+              htmlReactParserOptions={htmlReactParserOptions}
+              markerContent={resolvedContent}
+              metadataStatus={metadataStatus}
               linkifyOpts={linkifyOpts}
             />
           )}
