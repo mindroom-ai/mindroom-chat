@@ -41,7 +41,9 @@ type MindroomAiRunTokenPart = {
   percentage: number;
 };
 
-type MindroomAiRunContextBarSegment = MindroomAiRunTokenPart & { key: 'cacheRead' | 'newInput' };
+type MindroomAiRunContextBarSegment = MindroomAiRunTokenPart & {
+  key: 'cacheRead' | 'newInput' | 'input';
+};
 
 const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
@@ -177,13 +179,21 @@ export const getMindroomAiRunContextBarSegments = (
     return undefined;
   }
 
-  const displayedCacheReadTokens = isValidContextBarTokenCount(cacheReadTokens)
-    ? Math.min(cacheReadTokens, inputTokens)
-    : 0;
+  // Without a cache count the split is unknown, so the bar shows the input as one part.
+  if (!isValidContextBarTokenCount(cacheReadTokens)) {
+    return [
+      {
+        key: 'input',
+        label: tokenPartLabel('input', t),
+        tokens: inputTokens,
+        percentage: (inputTokens / windowTokens) * 100,
+      },
+    ];
+  }
+
+  const displayedCacheReadTokens = Math.min(cacheReadTokens, inputTokens);
   const displayedUncachedTokens =
-    isValidContextBarTokenCount(cacheReadTokens) &&
-    isValidContextBarTokenCount(uncachedTokens) &&
-    cacheReadTokens + uncachedTokens === inputTokens
+    isValidContextBarTokenCount(uncachedTokens) && cacheReadTokens + uncachedTokens === inputTokens
       ? uncachedTokens
       : inputTokens - displayedCacheReadTokens;
   return [

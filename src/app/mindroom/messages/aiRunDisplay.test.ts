@@ -171,7 +171,7 @@ describe('getMindroomAiRunContextBarSegments', () => {
     expect(segments?.[0]?.percentage).toBeCloseTo(76.647);
   });
 
-  it('renders a context usage bar even when cache counters are absent', () => {
+  it('renders the context as plain input when cache counters are absent', () => {
     expect(
       getMindroomAiRunContextBarSegments({
         contextInputTokens: 65,
@@ -179,14 +179,8 @@ describe('getMindroomAiRunContextBarSegments', () => {
       })
     ).toEqual([
       {
-        key: 'cacheRead',
-        label: 'From cache',
-        tokens: 0,
-        percentage: 0,
-      },
-      {
-        key: 'newInput',
-        label: 'New input',
+        key: 'input',
+        label: 'Input',
         tokens: 65,
         percentage: 65,
       },
