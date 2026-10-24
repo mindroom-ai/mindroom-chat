@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Tidy Reply details: one text size, a cost chart caption that names the pointed reply, and tooltips on the token bars (2026-10-24)
+
+- Why: the owner found the dialog's mixed text sizes and the chart's axis labels cluttered, wanted no line under the chart, and wanted more detail on hover. In long threads the axis crowded, and in Spanish on a 360px phone its middle label wrapped onto three lines; with two or three replies each bar widened into a block.
+- Change:
+  - Text in the dialog body is 12px apart from the model name (15px) and the two costs (22px). Section values such as the token total match their headings' size and stand out by weight; the chart caption grows from 11.5px to 12px.
+  - The cost chart loses its baseline and its "Reply N" end labels. One caption sits under the bars: "This reply · 2 of 3" (or "This reply" while older replies are not loaded), replaced by "Reply 1: $0.0056" for the bar under the pointer, with that bar ringed. A long thread's window adds its range ("111–150") at the right. The bar is read from the pointer's position over the list, so a finger dragging sideways across the bars moves along them (`touch-action: pan-y` keeps vertical scrolling), and a tap keeps its reply named after the finger lifts. The bars' native `title` tooltips are gone; their hidden labels still read each reply's cost to screen readers.
+  - Bars are at most 20px wide, so a short thread's bars stay bars.
+  - The token and context-window bars share one `Meter`; each part shows a tooltip with its name, tokens and share (`From cache · 1,408 · 82.6%`, the context bar's share being of the window). `getMindroomAiRunContextBarSegments` now labels its parts as the token parts do, and `formatMindroomAiRunPercentage` formats a share in the reader's percent style.
+  - The `replyNumber` string is gone from every locale.
+- Tests: `MindroomReplyDetails.test.tsx` (the caption by default, while history is incomplete, for a long thread's window, and naming the pointed bar for a mouse and a tap), `aiRunDisplay.test.ts` (segment labels, percent formatting), and `e2e/reply-cost.spec.ts` (hovering a bar names it; hovering the cache part shows `1,408 · 82.6%`).
+- Validation: the targeted and full vitest runs, `npm run typecheck`, `npm run lint` (no new warnings), and `e2e/reply-cost.spec.ts` against a local Synapse pass; a throwaway spec rendered 3- and 150-reply threads on desktop, a 390px phone and a 360px Spanish phone, light and dark.
+- Risks: on touch screens the readout was exercised through synthetic pointer events in unit tests and Chromium, not on a device.
+- Next: none.
+
 ### Show what a reply and the conversation so far cost in a redesigned Reply details dialog (2026-10-23)
 
 - Why: the owner wanted to see how expensive one reply was and how expensive a conversation had become up to a point. The MindRoom backend now prices each reply on a model with configured `pricing` and sends `io.mindroom.ai_run.cost.usd` as a micro-dollar decimal string, because Matrix event JSON forbids floats, plus `usage.uncached_input_tokens`, the input not read from cache, split with each provider's cache accounting. A first version put the cost beside every reply's timestamp and a thread total in the banner; the owner found prices everywhere overwhelming and wanted them only in the dialog, with no setting. A second, plain grouped-list dialog read as boring, so three directions were mocked against [Impeccable](https://github.com/pbakaus/impeccable)'s Operate guidance (a working screen in the product's palette plus one signature move), and the owner chose a tinted cost summary with a token-mix bar, plus a per-reply cost histogram.

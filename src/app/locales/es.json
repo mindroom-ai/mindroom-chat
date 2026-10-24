@@ -2838,7 +2838,6 @@
         "costHistory": "Coste de cada respuesta en esta conversación",
         "costHistoryBar": "Respuesta {{index}}: {{cost}}",
         "costHistoryPosition": "Esta respuesta · {{index}} de {{count}}",
-        "replyNumber": "Respuesta {{index}}",
         "toolCallCount_one": "{{count}} llamada a herramientas",
         "toolCallCount_other": "{{count}} llamadas a herramientas",
         "toolCallCount_many": "{{count}} llamadas a herramientas"

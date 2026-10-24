@@ -2770,7 +2770,6 @@
         "costHistory": "Biaya setiap balasan dalam percakapan ini",
         "costHistoryBar": "Balasan {{index}}: {{cost}}",
         "costHistoryPosition": "Balasan ini · {{index}} dari {{count}}",
-        "replyNumber": "Balasan {{index}}",
         "toolCallCount_one": "{{count}} panggilan alat",
         "toolCallCount_other": "{{count}} panggilan alat"
       }

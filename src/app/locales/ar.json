@@ -3006,7 +3006,6 @@
         "costHistory": "تكلفة كل رد في هذه المحادثة",
         "costHistoryBar": "الرد ⁨{{index}}⁩: ⁨{{cost}}⁩",
         "costHistoryPosition": "هذا الرد · ⁨{{index}}⁩ من ⁨{{count}}⁩",
-        "replyNumber": "الرد ⁨{{index}}⁩",
         "toolCallCount_one": "استدعاء أداة واحد (⁨{{count}}⁩)",
         "toolCallCount_other": "⁨{{count}}⁩ استدعاء أداة",
         "toolCallCount_few": "⁨{{count}}⁩ استدعاءات أدوات",

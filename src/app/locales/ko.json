@@ -2770,7 +2770,6 @@
         "costHistory": "이 대화의 답장별 비용",
         "costHistoryBar": "답장 {{index}}: {{cost}}",
         "costHistoryPosition": "이 답장 · {{count}}개 중 {{index}}번째",
-        "replyNumber": "답장 {{index}}",
         "toolCallCount_one": "도구 호출 {{count}}회",
         "toolCallCount_other": "도구 호출 {{count}}회"
       }

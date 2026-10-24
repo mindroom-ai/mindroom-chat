@@ -2782,7 +2782,6 @@
         "costHistory": "Kosten jeder Antwort in dieser Unterhaltung",
         "costHistoryBar": "Antwort {{index}}: {{cost}}",
         "costHistoryPosition": "Diese Antwort · {{index}} von {{count}}",
-        "replyNumber": "Antwort {{index}}",
         "toolCallCount_one": "{{count}} Werkzeugaufruf",
         "toolCallCount_other": "{{count}} Werkzeugaufrufe"
       }

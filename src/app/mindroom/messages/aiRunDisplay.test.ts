@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
+  formatMindroomAiRunPercentage,
   formatMindroomCostUsd,
   getMindroomAiRunTokenParts,
   formatMindroomAiRunTimeToFirstToken,
@@ -122,11 +123,13 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toEqual([
       {
         key: 'cacheRead',
+        label: 'From cache',
         tokens: 20,
         percentage: 20,
       },
       {
         key: 'newInput',
+        label: 'New input',
         tokens: 45,
         percentage: 45,
       },
@@ -155,10 +158,12 @@ describe('getMindroomAiRunContextBarSegments', () => {
     expect(segments).toEqual([
       expect.objectContaining({
         key: 'cacheRead',
+        label: 'From cache',
         tokens: 153294,
       }),
       expect.objectContaining({
         key: 'newInput',
+        label: 'New input',
         tokens: 0,
         percentage: 0,
       }),
@@ -175,11 +180,13 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toEqual([
       {
         key: 'cacheRead',
+        label: 'From cache',
         tokens: 0,
         percentage: 0,
       },
       {
         key: 'newInput',
+        label: 'New input',
         tokens: 65,
         percentage: 65,
       },
@@ -195,6 +202,13 @@ describe('formatMindroomAiRunTimeToFirstToken', () => {
   it('returns undefined for invalid ttft values', () => {
     expect(formatMindroomAiRunTimeToFirstToken(undefined)).toBeUndefined();
     expect(formatMindroomAiRunTimeToFirstToken(-1)).toBeUndefined();
+  });
+});
+
+describe('formatMindroomAiRunPercentage', () => {
+  it('formats a share with one decimal in the percent style of each locale', () => {
+    expect(formatMindroomAiRunPercentage(82.64, 'en')).toBe('82.6%');
+    expect(formatMindroomAiRunPercentage(82.64, 'de')).toBe('82,6\u00a0%');
   });
 });
 

@@ -2894,7 +2894,6 @@
         "costHistory": "Стоимость каждого ответа в этом разговоре",
         "costHistoryBar": "Ответ {{index}}: {{cost}}",
         "costHistoryPosition": "Этот ответ · {{index}} из {{count}}",
-        "replyNumber": "Ответ {{index}}",
         "toolCallCount_one": "{{count}} вызов инструмента",
         "toolCallCount_other": "{{count}} вызова инструментов",
         "toolCallCount_few": "{{count}} вызова инструментов",

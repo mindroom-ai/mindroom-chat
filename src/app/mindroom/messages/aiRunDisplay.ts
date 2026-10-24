@@ -1,12 +1,6 @@
 import type { TFunction } from 'i18next';
 import { MindroomAiRunInfo } from './aiRun';
 
-type MindroomAiRunContextBarSegment = {
-  key: 'cacheRead' | 'newInput';
-  tokens: number;
-  percentage: number;
-};
-
 export const formatMindroomAiRunNumber = (
   value: number | undefined,
   locale?: string
@@ -32,6 +26,14 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
   return currency({ maximumSignificantDigits: 2 }).format(usd);
 };
 
+/** A share of a bar, such as 82.6 %, in the reader's number style. */
+export const formatMindroomAiRunPercentage = (percentage: number, locale?: string): string =>
+  new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(percentage / 100);
+
 type MindroomAiRunTokenPart = {
   key: 'cacheRead' | 'newInput' | 'input' | 'output';
   label: string;
@@ -39,12 +41,19 @@ type MindroomAiRunTokenPart = {
   percentage: number;
 };
 
+type MindroomAiRunContextBarSegment = MindroomAiRunTokenPart & { key: 'cacheRead' | 'newInput' };
+
 const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
   newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
 } as const;
+
+const tokenPartLabel = (key: MindroomAiRunTokenPart['key'], t?: TFunction): string => {
+  const [labelKey, fallback] = TOKEN_PART_LABELS[key];
+  return t ? t(labelKey) : fallback;
+};
 
 /** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
 export const getMindroomAiRunTokenParts = (
@@ -71,8 +80,7 @@ export const getMindroomAiRunTokenParts = (
   return {
     total,
     parts: used.map(([key, tokens]) => {
-      const [labelKey, fallback] = TOKEN_PART_LABELS[key];
-      return { key, label: t ? t(labelKey) : fallback, tokens, percentage: (tokens / total) * 100 };
+      return { key, label: tokenPartLabel(key, t), tokens, percentage: (tokens / total) * 100 };
     }),
   };
 };
@@ -152,7 +160,8 @@ export const getMindroomAiRunContextLabel = (
 };
 
 export const getMindroomAiRunContextBarSegments = (
-  info: MindroomAiRunInfo
+  info: MindroomAiRunInfo,
+  t?: TFunction
 ): MindroomAiRunContextBarSegment[] | undefined => {
   const inputTokens = info.contextInputTokens;
   const windowTokens = info.contextWindowTokens;
@@ -180,11 +189,13 @@ export const getMindroomAiRunContextBarSegments = (
   return [
     {
       key: 'cacheRead',
+      label: tokenPartLabel('cacheRead', t),
       tokens: displayedCacheReadTokens,
       percentage: (displayedCacheReadTokens / windowTokens) * 100,
     },
     {
       key: 'newInput',
+      label: tokenPartLabel('newInput', t),
       tokens: displayedUncachedTokens,
       percentage: (displayedUncachedTokens / windowTokens) * 100,
     },

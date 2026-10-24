@@ -2770,7 +2770,6 @@
         "costHistory": "此对话中每条回复的费用",
         "costHistoryBar": "第 {{index}} 条回复：{{cost}}",
         "costHistoryPosition": "本条回复 · 第 {{index}} / {{count}} 条",
-        "replyNumber": "第 {{index}} 条回复",
         "toolCallCount_one": "{{count}} 次工具调用",
         "toolCallCount_other": "{{count}} 次工具调用"
       }

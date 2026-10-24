@@ -1474,7 +1474,6 @@
         "costHistory": "এই কথোপকথনের প্রতিটি উত্তরের খরচ",
         "costHistoryBar": "উত্তর {{index}}: {{cost}}",
         "costHistoryPosition": "এই উত্তর · {{count}}টির মধ্যে {{index}}",
-        "replyNumber": "উত্তর {{index}}",
         "toolCallCount_one": "{{count}}টি টুল কল",
         "toolCallCount_other": "{{count}}টি টুল কল"
       }

@@ -2770,7 +2770,6 @@
         "costHistory": "この会話の各返信のコスト",
         "costHistoryBar": "返信 {{index}}: {{cost}}",
         "costHistoryPosition": "この返信 · {{count}} 件中 {{index}} 件目",
-        "replyNumber": "返信 {{index}}",
         "toolCallCount_one": "ツール呼び出し {{count}} 回",
         "toolCallCount_other": "ツール呼び出し {{count}} 回"
       }

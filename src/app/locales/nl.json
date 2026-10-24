@@ -2782,7 +2782,6 @@
         "costHistory": "Kosten van elk antwoord in dit gesprek",
         "costHistoryBar": "Antwoord {{index}}: {{cost}}",
         "costHistoryPosition": "Dit antwoord · {{index}} van {{count}}",
-        "replyNumber": "Antwoord {{index}}",
         "toolCallCount_one": "{{count}} gereedschapsaanroep",
         "toolCallCount_other": "{{count}} gereedschapsaanroepen"
       }

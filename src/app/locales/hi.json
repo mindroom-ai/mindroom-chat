@@ -1474,7 +1474,6 @@
         "costHistory": "इस बातचीत में हर जवाब की लागत",
         "costHistoryBar": "जवाब {{index}}: {{cost}}",
         "costHistoryPosition": "यह जवाब · {{count}} में से {{index}}",
-        "replyNumber": "जवाब {{index}}",
         "toolCallCount_one": "{{count}} टूल कॉल",
         "toolCallCount_other": "{{count}} टूल कॉल"
       }

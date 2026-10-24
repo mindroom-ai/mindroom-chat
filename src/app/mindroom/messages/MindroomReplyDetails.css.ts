@@ -136,8 +136,8 @@ export const Bars = style({
   alignItems: 'flex-end',
   gap: toRem(3),
   height: toRem(48),
-  paddingBottom: toRem(4),
-  borderBottom: `${config.borderWidth.B300} solid ${color.Primary.ContainerLine}`,
+  // Vertical drags still scroll the dialog; sideways ones move along the bars.
+  touchAction: 'pan-y',
 });
 
 // Read by screen readers, kept off screen.
@@ -150,10 +150,18 @@ export const HiddenLabel = style({
   whiteSpace: 'nowrap',
 });
 
+// A short thread's few bars stay bars instead of widening into blocks.
 const barBase = style({
   flex: '1 1 0',
   minWidth: toRem(2),
+  maxWidth: toRem(20),
   borderRadius: `${toRem(3)} ${toRem(3)} ${toRem(1)} ${toRem(1)}`,
+  selectors: {
+    '&[data-pointed]': {
+      outline: `${toRem(1.5)} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
 });
 
 // Earlier replies make up the total so far; later ones show what came after.
@@ -166,25 +174,20 @@ export const Bar = styleVariants({
   later: [barBase, { backgroundColor: color.Primary.ContainerLine }],
 });
 
-// Reply numbers keep the ends; the position label centres between them and wraps on narrow cards.
-export const Axis = style({
-  display: 'grid',
-  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-  alignItems: 'start',
-  columnGap: config.space.S200,
-  marginTop: toRem(-6),
-  fontSize: toRem(11.5),
+// One line under the bars: this reply's place, or the reply under the pointer.
+export const Caption = style({
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: config.space.S300,
+  marginTop: toRem(6),
+  fontSize: toRem(12),
   lineHeight: toRem(16),
   opacity: 0.8,
   fontVariantNumeric: 'tabular-nums',
 });
 
-export const AxisEdge = style({
+export const Range = style({
   whiteSpace: 'nowrap',
-});
-
-export const AxisCenter = style({
-  textAlign: 'center',
 });
 
 export const Section = style({
@@ -200,7 +203,9 @@ export const SectionHeader = style({
   gap: config.space.S300,
 });
 
+// The same size as its heading, set apart by weight and color.
 export const HeaderValue = style({
+  fontWeight: config.fontWeight.W600,
   fontVariantNumeric: 'tabular-nums',
   textAlign: 'end',
 });
