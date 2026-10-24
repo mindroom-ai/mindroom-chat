@@ -92,15 +92,22 @@ export const useMindroomServerUrls = (): string[] => {
     };
     // Only an agent's membership, or the user's own, changes which servers count. Sync hands an
     // agent's member event over again with every batch it sends in, unchanged, so render again
-    // only when the servers change.
+    // only when the servers change. A batch can carry many member events, and reading the
+    // servers walks every room, so read them once after the batch.
+    let check: ReturnType<typeof setTimeout> | undefined;
+    const checkServers = () => {
+      check = undefined;
+      if (!sameUrls(joinedRoomServerUrls(mx), renderedUrls.current)) refresh();
+    };
     const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
       if (!bindsTokens || !isMindroomAgentUserIdForViewer(member.userId, viewer)) return;
-      if (!sameUrls(joinedRoomServerUrls(mx), renderedUrls.current)) refresh();
+      check ??= setTimeout(checkServers, 0);
     };
     mx.on(RoomStateEvent.Events, onState);
     mx.on(RoomStateEvent.Members, onMember);
     mx.on(RoomEvent.MyMembership, refresh);
     return () => {
+      clearTimeout(check);
       mx.removeListener(RoomStateEvent.Events, onState);
       mx.removeListener(RoomStateEvent.Members, onMember);
       mx.removeListener(RoomEvent.MyMembership, refresh);

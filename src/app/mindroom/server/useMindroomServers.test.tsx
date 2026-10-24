@@ -114,7 +114,8 @@ it('does not render again when sync re-delivers an agent membership that did not
   expect(seen.at(-1)?.map((server) => server.apiUrl)).toEqual(['http://localhost:8765']);
 });
 
-it('renders the servers of all rooms again only when an agent membership changes them', async () => {
+// A client whose one joined room has an agent with a server, re-emitting room state as the SDK does.
+const mountServerUrls = async () => {
   const mx = createClient({
     baseUrl: 'https://example.org',
     userId: viewer,
@@ -138,7 +139,6 @@ it('renders the servers of all rooms again only when an agent membership changes
   await room.addLiveEvents([joined, serverEvent('http://localhost:8765')], { addToState: true });
   room.updateMyMembership('join');
   mx.store.storeRoom(room);
-  // The SDK re-emits each room's state events on the client.
   mx.reEmitter.reEmit(room, [RoomStateEvent.Events, RoomStateEvent.Members]);
   const seen: string[][] = [];
   function Probe() {
@@ -155,14 +155,54 @@ it('renders the servers of all rooms again only when an agent membership changes
   await act(async () => {
     await Promise.resolve();
   });
+  return { mx, room, joined, seen };
+};
+
+// Member events are checked once after the task that delivered them.
+const afterSyncBatch = () =>
+  act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  });
+
+it('renders the servers of all rooms again only when an agent membership changes them', async () => {
+  const { room, joined, seen } = await mountServerUrls();
   expect(seen.at(-1)).toEqual(['http://localhost:8765']);
   const renders = seen.length;
 
   redeliver(room, joined);
   redeliver(room, joined);
+  await afterSyncBatch();
   expect(seen).toHaveLength(renders);
 
   await addState(room, membership('leave'));
+  await afterSyncBatch();
+  expect(seen.at(-1)).toEqual([]);
+  vi.unstubAllGlobals();
+});
+
+it('reads the servers of all rooms once for a sync batch of agent member events', async () => {
+  const { mx, room, joined, seen } = await mountServerUrls();
+  const renders = seen.length;
+  const roomScans = vi.spyOn(mx, 'getRooms');
+
+  // Initial and catch-up syncs deliver many member events at once.
+  act(() => {
+    for (let index = 0; index < 20; index += 1) {
+      room.currentState.setStateEvents([new MatrixEvent(joined.event)]);
+    }
+  });
+  await afterSyncBatch();
+  expect(roomScans).toHaveBeenCalledTimes(1);
+  expect(seen).toHaveLength(renders);
+
+  act(() => {
+    room.currentState.setStateEvents([membership('leave')]);
+    room.currentState.setStateEvents([membership('join')]);
+    room.currentState.setStateEvents([membership('leave')]);
+  });
+  await afterSyncBatch();
   expect(seen.at(-1)).toEqual([]);
   vi.unstubAllGlobals();
 });
