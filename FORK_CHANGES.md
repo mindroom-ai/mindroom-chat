@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Spread a short thread's cost bars across the chart (2026-10-24)
+
+- Why: with the bars capped at 20px and packed at the start, threads of 2 to about 10 replies left most of the chart empty, which the owner read as the chart squeezed to one side.
+- Change: the bars spread from edge to edge (`justify-content: space-between`) and stop widening at 32px, so a short thread's bars fill the chart without becoming blocks; from about 12 replies the chart looks as before.
+- Tests: `e2e/reply-cost.spec.ts` checks that the three-reply chart's first bar starts at its left edge, its last bar ends at its right edge, and no bar is wider than 32px; without the spreading the last bar ends 210px short.
+- Validation: the message vitest runs, `npm run typecheck`, `npm run lint`, and `e2e/reply-cost.spec.ts` against a local Synapse pass; a throwaway spec rendered 2, 3, 5, 8, 12 and 40-reply threads on desktop and a 390px phone, light and dark.
+- Risks: two replies show one bar at each edge.
+- Next: none.
+
 ### Tidy Reply details: one text size, a cost chart caption that names the pointed reply, and tooltips on the token bars (2026-10-24)
 
 - Why: the owner found the dialog's mixed text sizes and the chart's axis labels cluttered, wanted no line under the chart, and wanted more detail on hover. In long threads the axis crowded, and in Spanish on a 360px phone its middle label wrapped onto three lines; with two or three replies each bar widened into a block.
