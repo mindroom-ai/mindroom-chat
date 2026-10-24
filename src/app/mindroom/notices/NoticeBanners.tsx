@@ -74,10 +74,7 @@ function NoticeBanner({ notice, onDismiss }: NoticeBannerProps) {
           as="div"
           size="T300"
           ref={textRef}
-          className={classNames(
-            css.NoticeText,
-            expanded ? css.NoticeTextExpanded : css.NoticeTextCollapsed
-          )}
+          className={classNames(css.NoticeText, !expanded && css.NoticeTextCollapsed)}
         >
           {content}
         </Text>

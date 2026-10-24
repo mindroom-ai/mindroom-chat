@@ -17,7 +17,6 @@ vi.mock('./NoticeBanners.css', () => ({
   NoticeBody: 'NoticeBody',
   NoticeText: 'NoticeText',
   NoticeTextCollapsed: 'NoticeTextCollapsed',
-  NoticeTextExpanded: 'NoticeTextExpanded',
   NoticeAction: 'NoticeAction',
   NoticeLayoutContent: 'NoticeLayoutContent',
 }));
@@ -286,7 +285,7 @@ describe('NoticeBanners', () => {
     });
     expect(toggle(0)?.textContent).toBe('Show less');
     expect(toggle(0)?.getAttribute('aria-expanded')).toBe('true');
-    expect(text().className).toContain('NoticeTextExpanded');
+    expect(text().className).not.toContain('NoticeTextCollapsed');
   });
 
   it('does not fetch in the native apps', async () => {

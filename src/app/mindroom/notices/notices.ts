@@ -154,6 +154,7 @@ export const fetchNotices = async (
   url: string,
   signal?: AbortSignal
 ): Promise<Notice[] | undefined> => {
+  let body: string;
   try {
     const response = await fetch(url, {
       cache: 'no-store',
@@ -163,13 +164,15 @@ export const fetchNotices = async (
     });
     if (response.status === 404) return [];
     if (!response.ok) return undefined;
-    try {
-      return parseNotices(await response.json());
-    } catch {
-      return [];
-    }
+    body = await response.text();
   } catch {
+    // The request or its body failed or timed out: unknown, not empty.
     return undefined;
+  }
+  try {
+    return parseNotices(JSON.parse(body));
+  } catch {
+    return [];
   }
 };
 

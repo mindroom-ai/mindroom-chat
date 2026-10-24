@@ -9,8 +9,8 @@ export const NoticeStack = style({
   zIndex: 1,
   display: 'flex',
   flexDirection: 'column',
-  // Expanded notices never take more than half the screen from the app.
-  maxHeight: '50dvh',
+  // Expanded notices never take more than half of #root, which follows the keyboard on iOS.
+  maxHeight: '50%',
   overflowY: 'auto',
 });
 
@@ -67,11 +67,6 @@ export const NoticeTextCollapsed = style({
   WebkitBoxOrient: 'vertical',
   WebkitLineClamp: 3,
   overflow: 'hidden',
-});
-
-export const NoticeTextExpanded = style({
-  maxHeight: '40dvh',
-  overflowY: 'auto',
 });
 
 export const NoticeAction = style({

@@ -286,6 +286,21 @@ describe('fetchNotices', () => {
     expect(await fetchNotices('/notices.json')).toEqual([]);
   });
 
+  it('reports a body that fails or is aborted mid-read as unknown', async () => {
+    const failingBody = (error: Error) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(error);
+          },
+        })
+      );
+    respond(failingBody(new TypeError('network error')));
+    expect(await fetchNotices('/notices.json')).toBeUndefined();
+    respond(failingBody(new DOMException('The operation was aborted.', 'AbortError')));
+    expect(await fetchNotices('/notices.json')).toBeUndefined();
+  });
+
   it('reports a network or server error as unknown, so the last list stays', async () => {
     respond(new TypeError('Failed to fetch'));
     expect(await fetchNotices('/notices.json')).toBeUndefined();

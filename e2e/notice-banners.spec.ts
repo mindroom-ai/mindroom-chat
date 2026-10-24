@@ -90,6 +90,23 @@ for (const theme of ['light', 'dark'] as const) {
 
     await page.screenshot({ path: testInfo.outputPath(`notices-phone-${theme}.png`) });
 
+    // With the keyboard open, iOS shrinks #root through --app-height while dvh stays large.
+    // Expanded notices still leave the app at least half of #root.
+    await status.getByRole('button', { name: 'Show more' }).click();
+    await expect(status.getByRole('button', { name: 'Show less' })).toBeVisible();
+    await page.evaluate(() => document.documentElement.style.setProperty('--app-height', '320px'));
+    const keyboardLayout = await page.evaluate(() => {
+      const root = document.getElementById('root')!.getBoundingClientRect();
+      const stack = document.querySelector('[role="status"]')!.getBoundingClientRect();
+      const content = document.querySelector('[role="status"] + div')!.getBoundingClientRect();
+      return { root, stack, content };
+    });
+    expect(keyboardLayout.root.height).toBe(320);
+    expect(keyboardLayout.stack.height).toBeLessThanOrEqual(160.5);
+    expect(keyboardLayout.content.height).toBeGreaterThanOrEqual(159.5);
+    expect(keyboardLayout.content.bottom).toBeLessThanOrEqual(keyboardLayout.root.bottom + 0.5);
+    await page.evaluate(() => document.documentElement.style.removeProperty('--app-height'));
+
     // An unbroken link label wraps too.
     await serveNotices(page, [{ ...NOTICES[0], linkText: 'x'.repeat(200) }]);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
