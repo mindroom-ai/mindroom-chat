@@ -4,26 +4,33 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
+import { renderMindroomMessageContent } from './renderMindroomMessageContent';
+import type { MindroomToolMetadataStatus } from './toolTrace';
 
 const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn((html: string) => html));
+// The tool metadata status the long-text renderer reports, as while a sidecar loads.
+const longText = vi.hoisted(() => ({ status: 'loading' as MindroomToolMetadataStatus }));
 
 vi.mock('../../utils/sanitize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/sanitize')>()),
   sanitizeCustomHtml: sanitizeCustomHtmlSpy,
 }));
 
-// The real RenderBody and its memo, under an MText that passes the formatted body as MText does.
+// The real RenderBody and its memo, under an MText that passes the formatted body and renders
+// the extras after it, as MText does.
 vi.mock('../../components/message', async () => {
   const { RenderBody } = await import('../../components/message/RenderBody');
   return {
     BrokenContent: () => null,
     MEmote: () => null,
     MNotice: () => null,
-    MText: ({ content, renderBody }: any) =>
+    MText: ({ content, renderBody, renderAfterBody }: any) =>
       React.createElement(
         'div',
         null,
-        renderBody({ body: content.body, customBody: content.formatted_body })
+        renderBody({ body: content.body, customBody: content.formatted_body }),
+        renderAfterBody
       ),
     RenderBody,
   };
@@ -42,7 +49,12 @@ vi.mock('./MindroomPasteAttachmentContent', () => ({ MindroomPasteAttachmentCont
 vi.mock('./MindroomThinkingPlaceholder', () => ({ MindroomThinkingPlaceholder: () => null }));
 vi.mock('./MindroomLongTextText', () => ({
   MindroomLongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  MindroomLongTextText: () => null,
+  MindroomLongTextText: ({ content, renderBody }: any) =>
+    renderBody(
+      content,
+      { body: content.body, customBody: content.formatted_body },
+      longText.status
+    ),
 }));
 
 vi.mock('./ApprovalArgumentFields.css', () => ({
@@ -94,9 +106,6 @@ vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Html: 'Html',
 }));
 
-// eslint-disable-next-line import/first
-import { renderMindroomMessageContent } from './renderMindroomMessageContent';
-
 const htmlReactParserOptions: HTMLReactParserOptions = {};
 const linkifyOpts = {};
 
@@ -113,7 +122,7 @@ const agentReply = (text: string, trace: ReturnType<typeof toolTrace>) => ({
   'io.mindroom.tool_trace': trace,
 });
 
-type Reply = ReturnType<typeof agentReply>;
+type Reply = Record<string, unknown> & { formatted_body: string };
 
 function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRegex?: RegExp }) {
   return (
@@ -128,6 +137,7 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
             highlightRegex,
             htmlReactParserOptions,
             linkifyOpts,
+            showMessageExtras: true,
           })}
         </React.Fragment>
       ))}
@@ -137,6 +147,8 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
 
 const parsesOf = (content: Reply) =>
   sanitizeCustomHtmlSpy.mock.calls.filter(([html]) => html === content.formatted_body).length;
+const extrasParses = (toolName: string) =>
+  sanitizeCustomHtmlSpy.mock.calls.filter(([html]) => html.includes(`>${toolName}</code>`)).length;
 
 let renderer: ReactTestRenderer | undefined;
 const render = (replies: Reply[], highlightRegex?: RegExp) =>
@@ -196,6 +208,47 @@ describe('renderMindroomMessageContent parsing', () => {
     render([reply]);
     // A search highlight parses the same reply again with the same parser options.
     render([reply], /Searching/);
+
+    expect(parsesOf(reply)).toBe(2);
+    expect(toolCalls()).toEqual(['web_search']);
+  });
+
+  it('parses the extras of a reply that did not change only once while another reply streams', () => {
+    const done = {
+      ...agentReply('Finished.', toolTrace('web_search')),
+      [MINDROOM_MESSAGE_EXTRAS_KEY]: {
+        version: 1,
+        sections: [{ title: 'Trace', content_type: 'text/markdown', content: '🔧 `lookup` [1]' }],
+      },
+    };
+    let streaming = agentReply('Working on it.', toolTrace('browser_control'));
+    render([done, streaming]);
+    expect(extrasParses('lookup')).toBe(1);
+
+    for (let edit = 1; edit <= 3; edit += 1) {
+      streaming = agentReply(`Working on it, step ${edit}.`, toolTrace('browser_control'));
+      render([{ ...done }, streaming]);
+    }
+
+    expect(extrasParses('lookup')).toBe(1);
+    expect(text()).toContain('lookup');
+    expect(text()).toContain('Working on it, step 3.');
+  });
+
+  it('parses a long reply again when its tool metadata status changes', () => {
+    const reply = {
+      ...agentReply('Long answer.', toolTrace('web_search')),
+      url: 'mxc://example.org/long-text',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    longText.status = 'loading';
+    render([reply]);
+    render([{ ...reply }]);
+    expect(parsesOf(reply)).toBe(1);
+
+    // The sidecar settled without the tool metadata.
+    longText.status = 'unavailable';
+    render([{ ...reply }]);
 
     expect(parsesOf(reply)).toBe(2);
     expect(toolCalls()).toEqual(['web_search']);

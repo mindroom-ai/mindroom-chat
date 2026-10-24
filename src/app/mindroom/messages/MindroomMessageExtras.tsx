@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useMemo, useRef } from 'react';
-import parse from 'html-react-parser';
+import parse, { type HTMLReactParserOptions } from 'html-react-parser';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 import { sanitizeCustomHtml, sanitizeText } from '../../utils/sanitize';
 import {
@@ -15,6 +15,7 @@ import {
   MindroomMessageExtrasSection,
 } from './messageExtrasData';
 import { sanitizeMindroomMessageExtraHtml } from './messageExtrasHtml';
+import { useMindroomToolTraceMarkerParserOptions } from './MindroomHtmlBlocks';
 import * as css from './MindroomMessageExtras.css';
 
 type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
@@ -26,7 +27,9 @@ type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
 
 type MindroomMessageExtrasProps = {
   extras: MindroomMessageExtrasData;
-  htmlReactParserOptions: HtmlReactParserOptionsSource;
+  htmlReactParserOptions: HTMLReactParserOptions;
+  /** The content whose tool and paste markers the sections render. */
+  markerContent: Record<string, unknown>;
 };
 
 const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParserOptionsSource) => {
@@ -102,8 +105,13 @@ function MindroomMessageExtraDetails({ defaultOpen, ...props }: MindroomMessageE
 export function MindroomMessageExtras({
   extras,
   htmlReactParserOptions,
+  markerContent,
 }: MindroomMessageExtrasProps) {
   const { t } = useTranslation();
+  const parserOptions = useMindroomToolTraceMarkerParserOptions(
+    htmlReactParserOptions,
+    markerContent
+  );
   return (
     <div
       className={css.Extras}
@@ -122,7 +130,7 @@ export function MindroomMessageExtras({
               <MindroomMessageExtraSectionContent
                 content={section.content}
                 contentType={section.contentType}
-                htmlReactParserOptions={htmlReactParserOptions}
+                htmlReactParserOptions={parserOptions}
               />
             </div>
           </MindroomMessageExtraDetails>

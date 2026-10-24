@@ -99,31 +99,6 @@ function MindroomRenderBody({
   );
 }
 
-type MindroomMessageExtrasWithMarkersProps = Omit<
-  ComponentProps<typeof MindroomMessageExtras>,
-  'htmlReactParserOptions'
-> & {
-  htmlReactParserOptions: HTMLReactParserOptions;
-  markerContent: Record<string, unknown>;
-};
-
-/** Message extras with MindRoom's markers, parsed again only when that message changes. */
-function MindroomMessageExtrasWithMarkers({
-  htmlReactParserOptions,
-  markerContent,
-  ...props
-}: MindroomMessageExtrasWithMarkersProps) {
-  return (
-    <MindroomMessageExtras
-      {...props}
-      htmlReactParserOptions={useMindroomToolTraceMarkerParserOptions(
-        htmlReactParserOptions,
-        markerContent
-      )}
-    />
-  );
-}
-
 export const renderMindroomMessageContent = ({
   mEvent,
   fromMindroomAgent = false,
@@ -250,7 +225,7 @@ export const renderMindroomMessageContent = ({
           fallbackIndex === undefined ? undefined : () => onFallbackExtrasRendered?.(fallbackIndex)
         }
       >
-        <MindroomMessageExtrasWithMarkers
+        <MindroomMessageExtras
           extras={extras}
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={parserOptionsContent}
