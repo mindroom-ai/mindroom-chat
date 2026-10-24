@@ -219,3 +219,30 @@ describe('isMindroomAiRunStreaming', () => {
     ).toBe(true);
   });
 });
+
+describe('getMindroomAiRunInfo reply cost', () => {
+  const withRun = (run: Record<string, unknown>) => ({
+    'io.mindroom.ai_run': { version: 1, status: 'completed', ...run },
+  });
+
+  it('parses cost.usd decimal strings', () => {
+    expect(getMindroomAiRunInfo(withRun({ cost: { usd: '0.0421' } }))?.costUsd).toBe(0.0421);
+  });
+
+  it('accepts a numeric cost', () => {
+    expect(getMindroomAiRunInfo(withRun({ cost: { usd: 1.5 } }))?.costUsd).toBe(1.5);
+  });
+
+  it('rejects malformed cost values', () => {
+    ['abc', '-1', 'NaN', 'Infinity', '', ' 1', '1e309', -1, Number.NaN, {}, null].forEach((usd) => {
+      expect(getMindroomAiRunInfo(withRun({ cost: { usd } }))?.costUsd).toBeUndefined();
+    });
+    expect(getMindroomAiRunInfo(withRun({ cost: '0.5' }))?.costUsd).toBeUndefined();
+  });
+
+  it('parses time_to_first_token strings the backend sends', () => {
+    expect(
+      getMindroomAiRunInfo(withRun({ usage: { time_to_first_token: '0.512' } }))?.timeToFirstToken
+    ).toBe(0.512);
+  });
+});

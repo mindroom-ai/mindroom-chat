@@ -22,6 +22,22 @@ export const formatMindroomAiRunTimeToFirstToken = (
   return `${Math.round(value * 1000)} ms`;
 };
 
+const MIN_SHOWN_COST_USD = 0.0001;
+
+/** A USD amount sized for per-reply costs: cents from $0.10 up, two significant digits below. */
+export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
+  const currency = (options: Intl.NumberFormatOptions) =>
+    new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', ...options });
+  if (usd === 0) return currency({ minimumFractionDigits: 2 }).format(0);
+  if (usd < MIN_SHOWN_COST_USD)
+    return `<${currency({ maximumSignificantDigits: 1 }).format(MIN_SHOWN_COST_USD)}`;
+  // Rounding decides the style, so $0.0999 reads $0.10, not $0.1.
+  if (Number(usd.toPrecision(2)) >= 0.1) {
+    return currency({ minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(usd);
+  }
+  return currency({ maximumSignificantDigits: 2 }).format(usd);
+};
+
 export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
   if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;

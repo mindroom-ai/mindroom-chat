@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
+  formatMindroomCostUsd,
   formatMindroomAiRunTimeToFirstToken,
   getMindroomAiRunCompactModelLabel,
   getMindroomAiRunContextBarSegments,
@@ -297,5 +298,22 @@ describe('formatMindroomAiRunTimeToFirstToken', () => {
 describe('formatMindroomAiRunNumber', () => {
   it('formats numbers with grouping separators', () => {
     expect(formatMindroomAiRunNumber(12345)).toBe('12,345');
+  });
+});
+
+describe('formatMindroomCostUsd', () => {
+  it.each([
+    [0, '$0.00'],
+    [0.00004, '<$0.0001'],
+    [0.0001, '$0.0001'],
+    [0.000423, '$0.00042'],
+    [0.0031, '$0.0031'],
+    [0.0421, '$0.042'],
+    [0.0999, '$0.10'],
+    [0.5, '$0.50'],
+    [1.234, '$1.23'],
+    [1234.5, '$1,234.50'],
+  ])('formats %s as %s', (usd, expected) => {
+    expect(formatMindroomCostUsd(usd, 'en')).toBe(expected);
   });
 });
