@@ -162,6 +162,8 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
           // A tap keeps its reply named after the finger lifts.
           if (event.pointerType === 'mouse') setPointedId(undefined);
         }}
+        // A finger that starts a vertical scroll on the bars did not mean to point at one.
+        onPointerCancel={() => setPointedId(undefined)}
       >
         {shown.map(({ eventId, usd }, offset) => {
           const position = start + offset;

@@ -183,6 +183,11 @@ describe('MindroomReplyDetails', () => {
     expect(caption()).toEqual(['Reply 4: $0.0026']);
     pointer(histogram()!, 'pointermove', 45, 'touch');
     expect(caption()).toEqual(['This reply · 3 of 4']);
+
+    // A finger that starts scrolling the dialog over the bars leaves none named.
+    pointer(histogram()!, 'pointerdown', 15, 'touch');
+    pointer(histogram()!, 'pointercancel', 15, 'touch');
+    expect(caption()).toEqual(['This reply · 3 of 4']);
   });
 
   it('keeps naming the pointed reply as the thread changes, and forgets a redacted one', () => {
