@@ -168,6 +168,19 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(history.getByRole('listitem').nth(1)).toHaveAttribute('aria-current', 'true');
   await expect(history.getByRole('listitem').nth(1)).toHaveText('Reply 2: $0.0051');
   await expect(costCard).toContainText('This reply · 2 of 3');
+  // A short thread's bars run from edge to edge of the chart and stay narrow.
+  const layout = await history.evaluate((list) => {
+    const box = list.getBoundingClientRect();
+    const bars = [...list.children].map((bar) => bar.getBoundingClientRect());
+    return {
+      start: bars[0].left - box.left,
+      end: box.right - bars[bars.length - 1].right,
+      widest: Math.max(...bars.map((bar) => bar.width)),
+    };
+  });
+  expect(layout.start).toBeLessThan(1);
+  expect(layout.end).toBeLessThan(1);
+  expect(layout.widest).toBeLessThanOrEqual(32);
   // Pointing at a bar names its reply in the caption; pointing at a token part gives its share.
   // Each bar's hidden label already reads "Reply N: $…", so check the ring and the caption.
   await history.getByRole('listitem').first().hover();

@@ -134,6 +134,8 @@ export const Bars = style({
   listStyle: 'none',
   display: 'flex',
   alignItems: 'flex-end',
+  // A short thread's bars spread from edge to edge instead of bunching at the start.
+  justifyContent: 'space-between',
   gap: toRem(3),
   height: toRem(48),
   // Vertical drags still scroll the dialog; sideways ones move along the bars.
@@ -154,7 +156,7 @@ export const HiddenLabel = style({
 const barBase = style({
   flex: '1 1 0',
   minWidth: toRem(2),
-  maxWidth: toRem(20),
+  maxWidth: toRem(32),
   borderRadius: `${toRem(3)} ${toRem(3)} ${toRem(1)} ${toRem(1)}`,
   selectors: {
     '&[data-pointed]': {
