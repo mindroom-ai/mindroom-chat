@@ -81,9 +81,12 @@ export const getMindroomAiRunTokenParts = (
   if (total <= 0) return undefined;
   return {
     total,
-    parts: used.map(([key, tokens]) => {
-      return { key, label: tokenPartLabel(key, t), tokens, percentage: (tokens / total) * 100 };
-    }),
+    parts: used.map(([key, tokens]) => ({
+      key,
+      label: tokenPartLabel(key, t),
+      tokens,
+      percentage: (tokens / total) * 100,
+    })),
   };
 };
 
