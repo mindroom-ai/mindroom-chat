@@ -2755,7 +2755,7 @@
         "fromCache": "キャッシュから",
         "output": "出力",
         "contextWindow": "コンテキストウィンドウ",
-        "contextWindowUsage": "{{window}} 中 {{input}} · {{percentage}}%",
+        "contextWindowUsage": "{{window}} 中 {{input}} · {{percentage}}",
         "timeToFirstToken": "最初のトークン",
         "technicalDetails": "技術的な詳細",
         "configuredModel": "設定済みモデル",

@@ -2755,7 +2755,7 @@
         "fromCache": "来自缓存",
         "output": "输出",
         "contextWindow": "上下文窗口",
-        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}",
         "timeToFirstToken": "首个词元",
         "technicalDetails": "技术详情",
         "configuredModel": "配置的模型",

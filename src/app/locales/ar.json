@@ -2983,7 +2983,7 @@
         "fromCache": "من الذاكرة المؤقتة",
         "output": "الإخراج",
         "contextWindow": "نافذة السياق",
-        "contextWindowUsage": "⁨{{input}}⁩ من ⁨{{window}}⁩ · ⁨{{percentage}}⁩%",
+        "contextWindowUsage": "⁨{{input}}⁩ من ⁨{{window}}⁩ · ⁨{{percentage}}⁩",
         "timeToFirstToken": "أول رمز مميز",
         "technicalDetails": "التفاصيل التقنية",
         "configuredModel": "النموذج المُعدّ",

@@ -2767,7 +2767,7 @@
         "fromCache": "Aus dem Cache",
         "output": "Ausgabe",
         "contextWindow": "Kontextfenster",
-        "contextWindowUsage": "{{input}} von {{window}} · {{percentage}} %",
+        "contextWindowUsage": "{{input}} von {{window}} · {{percentage}}",
         "timeToFirstToken": "Erstes Token",
         "technicalDetails": "Technische Details",
         "configuredModel": "Konfiguriertes Modell",

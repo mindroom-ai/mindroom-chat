@@ -2755,7 +2755,7 @@
         "fromCache": "캐시에서",
         "output": "출력",
         "contextWindow": "컨텍스트 창",
-        "contextWindowUsage": "{{window}} 중 {{input}} · {{percentage}}%",
+        "contextWindowUsage": "{{window}} 중 {{input}} · {{percentage}}",
         "timeToFirstToken": "첫 토큰",
         "technicalDetails": "기술 세부 정보",
         "configuredModel": "구성된 모델",

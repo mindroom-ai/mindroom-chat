@@ -1459,7 +1459,7 @@
         "fromCache": "कैश से",
         "output": "आउटपुट",
         "contextWindow": "संदर्भ विंडो",
-        "contextWindowUsage": "{{window}} में से {{input}} · {{percentage}}%",
+        "contextWindowUsage": "{{window}} में से {{input}} · {{percentage}}",
         "timeToFirstToken": "पहला टोकन",
         "technicalDetails": "तकनीकी विवरण",
         "configuredModel": "कॉन्फ़िगर किया गया मॉडल",

@@ -1459,7 +1459,7 @@
         "fromCache": "ক্যাশে থেকে",
         "output": "আউটপুট",
         "contextWindow": "প্রসঙ্গ উইন্ডো",
-        "contextWindowUsage": "{{window}}টির মধ্যে {{input}} · {{percentage}}%",
+        "contextWindowUsage": "{{window}}টির মধ্যে {{input}} · {{percentage}}",
         "timeToFirstToken": "প্রথম টোকেন",
         "technicalDetails": "প্রযুক্তিগত বিবরণ",
         "configuredModel": "কনফিগার করা মডেল",

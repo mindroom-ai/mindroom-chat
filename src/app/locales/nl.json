@@ -2767,7 +2767,7 @@
         "fromCache": "Uit cache",
         "output": "Uitvoer",
         "contextWindow": "Contextvenster",
-        "contextWindowUsage": "{{input}} van {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} van {{window}} · {{percentage}}",
         "timeToFirstToken": "Eerste token",
         "technicalDetails": "Technische details",
         "configuredModel": "Geconfigureerd model",

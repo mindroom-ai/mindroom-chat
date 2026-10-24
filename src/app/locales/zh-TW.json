@@ -2755,7 +2755,7 @@
         "fromCache": "來自快取",
         "output": "輸出",
         "contextWindow": "上下文視窗",
-        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}",
         "timeToFirstToken": "首個詞元",
         "technicalDetails": "技術詳情",
         "configuredModel": "設定的模型",

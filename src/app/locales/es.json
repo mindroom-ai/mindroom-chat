@@ -2821,7 +2821,7 @@
         "fromCache": "Desde la caché",
         "output": "Salida",
         "contextWindow": "Ventana de contexto",
-        "contextWindowUsage": "{{input}} de {{window}} · {{percentage}} %",
+        "contextWindowUsage": "{{input}} de {{window}} · {{percentage}}",
         "timeToFirstToken": "Primer token",
         "technicalDetails": "Detalles técnicos",
         "configuredModel": "Modelo configurado",

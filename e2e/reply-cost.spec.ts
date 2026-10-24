@@ -169,8 +169,10 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(history.getByRole('listitem').nth(1)).toHaveText('Reply 2: $0.0051');
   await expect(costCard).toContainText('This reply · 2 of 3');
   // Pointing at a bar names its reply in the caption; pointing at a token part gives its share.
+  // Each bar's hidden label already reads "Reply N: $…", so check the ring and the caption.
   await history.getByRole('listitem').first().hover();
-  await expect(costCard).toContainText('Reply 1: $0.0034');
+  await expect(history.getByRole('listitem').first()).toHaveAttribute('data-pointed', 'true');
+  await expect(costCard).not.toContainText('This reply · 2 of 3');
   await section('Tokens').locator('[aria-hidden] > span').first().hover();
   await expect(page.getByText('1,408 · 82.6%', { exact: true })).toBeVisible();
   await page.mouse.move(0, 0);

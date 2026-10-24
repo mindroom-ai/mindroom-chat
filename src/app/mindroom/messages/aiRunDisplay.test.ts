@@ -100,6 +100,16 @@ describe('getMindroomAiRunContextLabel', () => {
     ).toBe('500 of 2,000 · 25.0%');
   });
 
+  it('formats the percentage as the context bar tooltips do', () => {
+    expect(
+      getMindroomAiRunContextLabel(
+        { contextInputTokens: 500, contextWindowTokens: 2000 },
+        undefined,
+        'ru'
+      )
+    ).toBe(`500 of 2\u00a0000 · ${formatMindroomAiRunPercentage(25, 'ru')}`);
+  });
+
   it('returns undefined for incomplete or invalid context values', () => {
     expect(getMindroomAiRunContextLabel({ contextInputTokens: 10 })).toBeUndefined();
     expect(

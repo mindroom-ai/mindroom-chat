@@ -2875,7 +2875,7 @@
         "fromCache": "Из кеша",
         "output": "Вывод",
         "contextWindow": "Окно контекста",
-        "contextWindowUsage": "{{input}} из {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} из {{window}} · {{percentage}}",
         "timeToFirstToken": "Первый токен",
         "technicalDetails": "Технические сведения",
         "configuredModel": "Настроенная модель",

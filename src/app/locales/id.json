@@ -2755,7 +2755,7 @@
         "fromCache": "Dari cache",
         "output": "Keluaran",
         "contextWindow": "Jendela konteks",
-        "contextWindowUsage": "{{input}} dari {{window}} · {{percentage}}%",
+        "contextWindowUsage": "{{input}} dari {{window}} · {{percentage}}",
         "timeToFirstToken": "Token pertama",
         "technicalDetails": "Detail teknis",
         "configuredModel": "Model yang dikonfigurasi",

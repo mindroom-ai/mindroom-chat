@@ -146,10 +146,7 @@ export const getMindroomAiRunContextLabel = (
     return undefined;
   }
 
-  const percentage = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format((inputTokens / windowTokens) * 100);
+  const percentage = formatMindroomAiRunPercentage((inputTokens / windowTokens) * 100, locale);
   const input = formatMindroomAiRunNumber(inputTokens, locale);
   const window = formatMindroomAiRunNumber(windowTokens, locale);
   return t
@@ -158,7 +155,7 @@ export const getMindroomAiRunContextLabel = (
         window,
         percentage,
       })
-    : `${input} of ${window} · ${percentage}%`;
+    : `${input} of ${window} · ${percentage}`;
 };
 
 export const getMindroomAiRunContextBarSegments = (
