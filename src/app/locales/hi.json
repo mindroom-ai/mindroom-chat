@@ -1144,26 +1144,6 @@
       }
     },
     "messages": {
-      "aiRunDisplay": {
-        "cacheRead": "कैश से पढ़े गए",
-        "cacheWrite_one": "कैश में लिखे गए: {{formattedCount}} टोकन",
-        "cacheWrite_other": "कैश में लिखे गए: {{formattedCount}} टोकन",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%); {{suffix}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "inputTokens": "इनपुट {{formattedCount}}",
-        "newInput": "नया इनपुट",
-        "notReadTokens": "नहीं पढ़े गए {{formattedCount}}",
-        "outputTokens": "आउटपुट {{formattedCount}}",
-        "readTokens": "पढ़े गए {{formattedCount}}",
-        "reportedCacheRead_one": "रिपोर्ट की गई कैश रीड: {{formattedCount}} टोकन",
-        "reportedCacheRead_other": "रिपोर्ट की गई कैश रीड: {{formattedCount}} टोकन",
-        "reserve": "आरक्षित",
-        "totalTokens": "कुल {{formattedCount}}",
-        "writeTokens": "लिखे गए {{formattedCount}}"
-      },
       "approvalArguments": {
         "arguments": "आर्ग्युमेंट",
         "loadFailed": "पूरे आर्ग्युमेंट लोड नहीं हो सके।",
@@ -1327,34 +1307,11 @@
         "replyInThread": "थ्रेड में उत्तर दें"
       },
       "mindroomMessageControls": {
-        "aiRunMetadata": "एआई रन मेटाडेटा",
         "close": "बंद करें",
         "downloadingOriginal": "मूल डाउनलोड हो रहा है...",
         "downloadOriginal": "मूल डाउनलोड करें",
-        "model": "मॉडल",
-        "openAiRunMetadata": "एआई रन मेटाडेटा खोलें",
-        "requestCache": "अनुरोध कैश",
-        "requestContext": "अनुरोध का संदर्भ",
-        "requestContextWindow": "अनुरोध की कॉन्टेक्स्ट विंडो",
         "retryDownloadOriginal": "मूल फ़ाइल फिर से डाउनलोड करें",
-        "run": "रन",
-        "runCache": "रन कैश",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} टोकन",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} टोकन",
-        "session": "सत्र",
-        "status": "स्थिति",
-        "tokens": "टोकन",
-        "tokenUsage": "टोकन का उपयोग",
-        "tools": "टूल",
-        "ttft": "पहले टोकन तक का समय",
-        "cost": "लागत",
-        "conversationSoFar": "अब तक की बातचीत",
-        "conversationCost_one": "{{count}} जवाब में {{cost}}",
-        "conversationCost_other": "{{count}} जवाबों में {{cost}}",
-        "conversationCostAtLeast_one": "{{count}} जवाब में कम से कम {{cost}}",
-        "conversationCostAtLeast_other": "{{count}} जवाबों में कम से कम {{cost}}",
-        "replyCost": "यह जवाब: {{cost}}",
-        "replyCostWithConversation": "यह जवाब: {{cost}} · अब तक की बातचीत: {{conversation}}"
+        "replyDetails": "जवाब का विवरण"
       },
       "mindroomMessageExtras": {
         "messageExtras": "संदेश की अतिरिक्त जानकारी"
@@ -1490,6 +1447,35 @@
         "waitingForApproval": "स्वीकृति की प्रतीक्षा",
         "waitingForYou": "आपकी प्रतीक्षा",
         "you": "आप"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "टोकन",
+        "cost": "लागत",
+        "conversationSoFar": "अब तक की बातचीत",
+        "conversationCost_one": "{{count}} जवाब में {{cost}}",
+        "conversationCost_other": "{{count}} जवाबों में {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} जवाब में कम से कम {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} जवाबों में कम से कम {{cost}}",
+        "failed": "विफल",
+        "stopped": "रोका गया",
+        "thisReply": "यह जवाब",
+        "input": "इनपुट",
+        "fromCache": "कैश से",
+        "writtenToCache": "कैश में लिखा गया",
+        "output": "आउटपुट",
+        "total": "कुल",
+        "contextWindow": "संदर्भ विंडो",
+        "contextWindowUsage": "{{window}} में से {{input}} टोकन · {{percentage}}%",
+        "activity": "गतिविधि",
+        "toolCalls": "टूल कॉल",
+        "timeToFirstToken": "पहले टोकन तक का समय",
+        "technicalDetails": "तकनीकी विवरण",
+        "configuredModel": "कॉन्फ़िगर किया गया मॉडल",
+        "provider": "प्रदाता",
+        "modelId": "मॉडल ID",
+        "runId": "रन ID",
+        "sessionId": "सत्र ID",
+        "newInput": "नया इनपुट"
       }
     },
     "native": {
@@ -1699,10 +1685,6 @@
       "timelineMinimap": {
         "jumpToMessage": "संदेश पर जाएँ",
         "message": "संदेश"
-      },
-      "threadCostChip": {
-        "label": "बातचीत की लागत: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "voice": {

@@ -1144,26 +1144,6 @@
       }
     },
     "messages": {
-      "aiRunDisplay": {
-        "cacheRead": "ক্যাশে থেকে পড়া",
-        "cacheWrite_one": "ক্যাশেতে লেখা হয়েছে: {{formattedCount}} টোকেন",
-        "cacheWrite_other": "ক্যাশেতে লেখা হয়েছে: {{formattedCount}} টোকেন",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} টোকেন (উইন্ডোর {{percentage}}%)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} টোকেন (উইন্ডোর {{percentage}}%)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} টোকেন (উইন্ডোর {{percentage}}%); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} টোকেন (উইন্ডোর {{percentage}}%); {{suffix}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "inputTokens": "ইনপুট {{formattedCount}}",
-        "newInput": "নতুন ইনপুট",
-        "notReadTokens": "পড়া হয়নি {{formattedCount}}",
-        "outputTokens": "আউটপুট {{formattedCount}}",
-        "readTokens": "পড়া হয়েছে {{formattedCount}}",
-        "reportedCacheRead_one": "রিপোর্ট করা ক্যাশে রিড: {{formattedCount}} টোকেন",
-        "reportedCacheRead_other": "রিপোর্ট করা ক্যাশে রিড: {{formattedCount}} টোকেন",
-        "reserve": "সংরক্ষিত",
-        "totalTokens": "মোট {{formattedCount}}",
-        "writeTokens": "লেখা হয়েছে {{formattedCount}}"
-      },
       "approvalArguments": {
         "arguments": "আর্গুমেন্ট",
         "loadFailed": "সম্পূর্ণ আর্গুমেন্ট লোড করা যায়নি।",
@@ -1327,34 +1307,11 @@
         "replyInThread": "থ্রেডে উত্তর দিন"
       },
       "mindroomMessageControls": {
-        "aiRunMetadata": "এআই রান মেটাডেটা",
         "close": "বন্ধ করুন",
         "downloadingOriginal": "আসল ডাউনলোড হচ্ছে...",
         "downloadOriginal": "অরিজিনাল ডাউনলোড করুন",
-        "model": "মডেল",
-        "openAiRunMetadata": "AI রান মেটাডেটা খুলুন",
-        "requestCache": "অনুরোধের ক্যাশে",
-        "requestContext": "অনুরোধের প্রসঙ্গ",
-        "requestContextWindow": "অনুরোধের কনটেক্সট উইন্ডো",
         "retryDownloadOriginal": "মূল ফাইল আবার ডাউনলোড করুন",
-        "run": "রান",
-        "runCache": "রানের ক্যাশে",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} টোকেন",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} টোকেন",
-        "session": "অধিবেশন",
-        "status": "স্ট্যাটাস",
-        "tokens": "টোকেন",
-        "tokenUsage": "টোকেন ব্যবহার",
-        "tools": "টুল",
-        "ttft": "প্রথম টোকেন আসার সময়",
-        "cost": "খরচ",
-        "conversationSoFar": "এখন পর্যন্ত কথোপকথন",
-        "conversationCost_one": "{{count}}টি উত্তরে {{cost}}",
-        "conversationCost_other": "{{count}}টি উত্তরে {{cost}}",
-        "conversationCostAtLeast_one": "{{count}}টি উত্তরে অন্তত {{cost}}",
-        "conversationCostAtLeast_other": "{{count}}টি উত্তরে অন্তত {{cost}}",
-        "replyCost": "এই উত্তর: {{cost}}",
-        "replyCostWithConversation": "এই উত্তর: {{cost}} · এখন পর্যন্ত কথোপকথন: {{conversation}}"
+        "replyDetails": "উত্তরের বিবরণ"
       },
       "mindroomMessageExtras": {
         "messageExtras": "বার্তার অতিরিক্ত তথ্য"
@@ -1490,6 +1447,35 @@
         "waitingForApproval": "অনুমোদনের অপেক্ষায়",
         "waitingForYou": "আপনার অপেক্ষায়",
         "you": "আপনি"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "টোকেন",
+        "cost": "খরচ",
+        "conversationSoFar": "এখন পর্যন্ত কথোপকথন",
+        "conversationCost_one": "{{count}}টি উত্তরে {{cost}}",
+        "conversationCost_other": "{{count}}টি উত্তরে {{cost}}",
+        "conversationCostAtLeast_one": "{{count}}টি উত্তরে অন্তত {{cost}}",
+        "conversationCostAtLeast_other": "{{count}}টি উত্তরে অন্তত {{cost}}",
+        "failed": "ব্যর্থ",
+        "stopped": "থামানো হয়েছে",
+        "thisReply": "এই উত্তর",
+        "input": "ইনপুট",
+        "fromCache": "ক্যাশে থেকে",
+        "writtenToCache": "ক্যাশে লেখা হয়েছে",
+        "output": "আউটপুট",
+        "total": "মোট",
+        "contextWindow": "প্রসঙ্গ উইন্ডো",
+        "contextWindowUsage": "{{window}}টির মধ্যে {{input}} টোকেন · {{percentage}}%",
+        "activity": "কার্যকলাপ",
+        "toolCalls": "টুল কল",
+        "timeToFirstToken": "প্রথম টোকেন পর্যন্ত সময়",
+        "technicalDetails": "প্রযুক্তিগত বিবরণ",
+        "configuredModel": "কনফিগার করা মডেল",
+        "provider": "প্রদানকারী",
+        "modelId": "মডেল ID",
+        "runId": "রান ID",
+        "sessionId": "অধিবেশন ID",
+        "newInput": "নতুন ইনপুট"
       }
     },
     "native": {
@@ -1699,10 +1685,6 @@
       "timelineMinimap": {
         "jumpToMessage": "বার্তায় যান",
         "message": "বার্তা"
-      },
-      "threadCostChip": {
-        "label": "কথোপকথনের খরচ: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "voice": {

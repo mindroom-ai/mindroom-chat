@@ -2605,34 +2605,11 @@
         "moreOptions": "추가 옵션"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "요청 컨텍스트 창",
-        "aiRunMetadata": "AI 실행 메타데이터",
         "close": "닫기",
-        "status": "상태",
-        "model": "모델",
-        "tokens": "토큰",
-        "runCache": "실행 캐시",
-        "requestContext": "요청 컨텍스트",
-        "requestCache": "요청 캐시",
-        "tools": "도구",
-        "ttft": "TTFT",
-        "run": "실행",
-        "session": "세션",
-        "openAiRunMetadata": "AI 실행 메타데이터 열기",
-        "tokenUsage": "토큰 사용량",
         "downloadingOriginal": "원본 다운로드 중...",
         "retryDownloadOriginal": "원본 다운로드 재시도",
         "downloadOriginal": "원본 다운로드",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}}토큰",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}}토큰",
-        "cost": "비용",
-        "conversationSoFar": "지금까지의 대화",
-        "conversationCost_one": "답장 {{count}}개에 {{cost}}",
-        "conversationCost_other": "답장 {{count}}개에 {{cost}}",
-        "conversationCostAtLeast_one": "답장 {{count}}개에 최소 {{cost}}",
-        "conversationCostAtLeast_other": "답장 {{count}}개에 최소 {{cost}}",
-        "replyCost": "이 답장: {{cost}}",
-        "replyCostWithConversation": "이 답장: {{cost}} · 지금까지의 대화: {{conversation}}"
+        "replyDetails": "답장 세부 정보"
       },
       "mindroomMessageExtras": {
         "messageExtras": "메시지 부가 정보"
@@ -2764,28 +2741,37 @@
         "retry": "다시 시도",
         "delete": "삭제"
       },
-      "aiRunDisplay": {
-        "inputTokens": "입력 {{formattedCount}}",
-        "outputTokens": "출력 {{formattedCount}}",
-        "totalTokens": "합계 {{formattedCount}}",
-        "readTokens": "읽기 {{formattedCount}}",
-        "writeTokens": "쓰기 {{formattedCount}}",
-        "notReadTokens": "읽지 않음 {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}}토큰 (컨텍스트 창의 {{percentage}}%)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}}토큰 (컨텍스트 창의 {{percentage}}%)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}}토큰 (컨텍스트 창의 {{percentage}}%); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}}토큰 (컨텍스트 창의 {{percentage}}%); {{suffix}}",
-        "reportedCacheRead_one": "보고된 캐시 읽기: {{formattedCount}}토큰",
-        "reportedCacheRead_other": "보고된 캐시 읽기: {{formattedCount}}토큰",
-        "cacheWrite_one": "캐시 쓰기: {{formattedCount}}토큰",
-        "cacheWrite_other": "캐시 쓰기: {{formattedCount}}토큰",
-        "cacheRead": "캐시 읽기",
-        "newInput": "새 입력",
-        "reserve": "예비"
-      },
       "mindroomModelBadge": {
         "model": "모델: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "토큰",
+        "cost": "비용",
+        "conversationSoFar": "지금까지의 대화",
+        "conversationCost_one": "답장 {{count}}개에 {{cost}}",
+        "conversationCost_other": "답장 {{count}}개에 {{cost}}",
+        "conversationCostAtLeast_one": "답장 {{count}}개에 최소 {{cost}}",
+        "conversationCostAtLeast_other": "답장 {{count}}개에 최소 {{cost}}",
+        "failed": "실패",
+        "stopped": "중지됨",
+        "thisReply": "이 답장",
+        "input": "입력",
+        "fromCache": "캐시에서",
+        "writtenToCache": "캐시에 기록",
+        "output": "출력",
+        "total": "합계",
+        "contextWindow": "컨텍스트 창",
+        "contextWindowUsage": "{{window}}토큰 중 {{input}} · {{percentage}}%",
+        "activity": "활동",
+        "toolCalls": "도구 호출",
+        "timeToFirstToken": "첫 토큰까지 걸린 시간",
+        "technicalDetails": "기술 세부 정보",
+        "configuredModel": "구성된 모델",
+        "provider": "제공자",
+        "modelId": "모델 ID",
+        "runId": "실행 ID",
+        "sessionId": "세션 ID",
+        "newInput": "새 입력"
       }
     },
     "native": {
@@ -2988,10 +2974,6 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "대기 중인 예약 작업 {{count}}개",
         "pendingScheduledTasks_other": "대기 중인 예약 작업 {{count}}개"
-      },
-      "threadCostChip": {
-        "label": "대화 비용: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

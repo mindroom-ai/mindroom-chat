@@ -24,17 +24,6 @@ import { stopPropagation } from '../../utils/keyboard';
 import { assignElementRef } from '../../utils/react';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
 import {
-  MindroomAiRunContextBarSegment,
-  formatMindroomAiRunNumber,
-  formatMindroomAiRunTimeToFirstToken,
-  getMindroomAiRunContextBarSegments,
-  getMindroomAiRunContextCacheLabel,
-  getMindroomAiRunContextLabel,
-  getMindroomAiRunModelLabel,
-  getMindroomAiRunUsageCacheLabel,
-  getMindroomAiRunUsageLabel,
-} from './aiRunDisplay';
-import {
   MindroomLongTextSource,
   getMindroomLongTextSource,
   getMindroomLongTextSourceIdentity,
@@ -46,8 +35,8 @@ import {
 import { saveFile } from '../native/nativeFileSave';
 import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
-import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
-import { MindroomAiRunCostButton, useMindroomReplyCostLabels } from './MindroomAiRunCost';
+import { MindroomReplyDetails } from './MindroomReplyDetails';
+import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 
 export function useMindroomMessageControls(
@@ -79,55 +68,6 @@ export function useMindroomMessageControls(
   };
 }
 
-function MindroomAiRunDetail({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <Text size="T200">
-      {label}: {value}
-    </Text>
-  );
-}
-
-const getMindroomAiRunContextBarSegmentClassName = (
-  key: MindroomAiRunContextBarSegment['key']
-): string => {
-  if (key === 'cacheRead') {
-    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentCacheRead}`;
-  }
-  if (key === 'newInput') {
-    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentNewInput}`;
-  }
-  return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentReserve}`;
-};
-
-function MindroomAiRunContextBar({ info }: { info: MindroomAiRunInfo }) {
-  const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const segments = getMindroomAiRunContextBarSegments(info, t, language);
-  if (!segments) return null;
-
-  return (
-    <div
-      className={css.AiRunContextBar}
-      aria-label={t('mindroomUi.messages.mindroomMessageControls.requestContextWindow')}
-    >
-      {segments.map((segment) => (
-        <div
-          key={segment.key}
-          className={getMindroomAiRunContextBarSegmentClassName(segment.key)}
-          style={{ width: `${segment.percentage}%` }}
-          title={segment.title}
-          aria-label={t('mindroomUi.messages.mindroomMessageControls.segmentTokenCount', {
-            label: segment.label,
-            count: segment.tokens,
-            formattedCount: formatMindroomAiRunNumber(segment.tokens, language),
-          })}
-        />
-      ))}
-    </div>
-  );
-}
-
 function MindroomAiRunInfoDialog({
   info,
   eventId,
@@ -142,15 +82,6 @@ function MindroomAiRunInfoDialog({
   returnFocusRef: React.RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const modelLabel = getMindroomAiRunModelLabel(info);
-  const usageLabel = getMindroomAiRunUsageLabel(info, t, language);
-  const usageCacheLabel = getMindroomAiRunUsageCacheLabel(info, t, language);
-  const contextLabel = getMindroomAiRunContextLabel(info, t, language);
-  const contextCacheLabel = getMindroomAiRunContextCacheLabel(info, t, language);
-  const toolsLabel = formatMindroomAiRunNumber(info.toolCount, language);
-  const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
-  const costLabels = useMindroomReplyCostLabels(info, eventId);
 
   return (
     <Overlay open={open} backdrop={<OverlayBackdrop />}>
@@ -164,7 +95,13 @@ function MindroomAiRunInfoDialog({
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Dialog variant="Surface">
+          <Dialog
+            className={glassDenseOverBackdrop}
+            variant="Surface"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
+          >
             <Header
               style={{
                 padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
@@ -175,7 +112,7 @@ function MindroomAiRunInfoDialog({
             >
               <Box grow="Yes">
                 <Text size="H4">
-                  {t('mindroomUi.messages.mindroomMessageControls.aiRunMetadata')}
+                  {t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
                 </Text>
               </Box>
               <IconButton
@@ -187,61 +124,7 @@ function MindroomAiRunInfoDialog({
                 <Icon src={Icons.Cross} />
               </IconButton>
             </Header>
-            <Box
-              style={{ padding: config.space.S400, maxWidth: '24rem' }}
-              direction="Column"
-              gap="100"
-            >
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.status')}
-                value={info.status}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.model')}
-                value={modelLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.cost')}
-                value={costLabels?.cost}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.conversationSoFar')}
-                value={costLabels?.conversation}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.tokens')}
-                value={usageLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.runCache')}
-                value={usageCacheLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.requestContext')}
-                value={contextLabel}
-              />
-              <MindroomAiRunContextBar info={info} />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.requestCache')}
-                value={contextCacheLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.tools')}
-                value={toolsLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.ttft')}
-                value={ttftLabel}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.run')}
-                value={info.runId}
-              />
-              <MindroomAiRunDetail
-                label={t('mindroomUi.messages.mindroomMessageControls.session')}
-                value={info.sessionId}
-              />
-            </Box>
+            <MindroomReplyDetails info={info} eventId={eventId} />
           </Dialog>
         </FocusTrap>
       </OverlayCenter>
@@ -249,27 +132,13 @@ function MindroomAiRunInfoDialog({
   );
 }
 
-export function MindroomAiRunInfoButton({
-  info,
-  eventId,
-  open,
-  onOpen,
-}: {
-  info: MindroomAiRunInfo;
-  eventId?: string;
-  open: boolean;
-  onOpen: () => void;
-}) {
+export function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   const { t } = useTranslation();
-  const costLabels = useMindroomReplyCostLabels(info, eventId);
-  // A priced reply shows its cost in place of the info icon, opening the same details.
-  if (costLabels)
-    return <MindroomAiRunCostButton labels={costLabels} open={open} onOpen={onOpen} />;
   return (
     <button
       type="button"
       className={css.AiRunInfoButton}
-      aria-label={t('mindroomUi.messages.mindroomMessageControls.openAiRunMetadata')}
+      aria-label={t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
       aria-haspopup="dialog"
       aria-pressed={open}
       onClick={onOpen}
@@ -297,15 +166,13 @@ export const MindroomAiRunMenuItem = as<
       ref={ref}
     >
       <Text className={css.MenuItemText} as="span" size="T300" truncate>
-        {t('mindroomUi.messages.mindroomMessageControls.tokenUsage')}
+        {t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
       </Text>
     </MenuItem>
   );
 });
 
 export type MindroomAiRunControlsRenderProps = {
-  info: MindroomAiRunInfo;
-  eventId?: string;
   dialog: ReactNode;
   messageBaseRef: React.Ref<HTMLDivElement>;
   onOpen: () => void;
@@ -335,8 +202,6 @@ export function MindroomAiRunControls({
   );
 
   return children({
-    info,
-    eventId,
     dialog: (
       <MindroomAiRunInfoDialog
         info={info}

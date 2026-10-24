@@ -71,14 +71,7 @@ export function MindroomMessageHeaderExtensions({
 }) {
   if (!controls) return null;
 
-  return (
-    <MindroomAiRunInfoButton
-      info={controls.info}
-      eventId={controls.eventId}
-      open={controls.open}
-      onOpen={onOpenAiRun}
-    />
-  );
+  return <MindroomAiRunInfoButton open={controls.open} onOpen={onOpenAiRun} />;
 }
 
 export function MindroomMessageMenuExtensions({

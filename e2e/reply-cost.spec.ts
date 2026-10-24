@@ -27,12 +27,27 @@ const routeConfig = (context: BrowserContext) =>
 const aiRun = (usd: string) => ({
   version: 1,
   status: 'completed',
+  run_id: '6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60',
+  session_id: '!kWzQpLmNoRsTuVwXyZaB:localhost:$Rk3fJ9sQx2LmVb7NcT0pYwZa4Ue8Hd1Gi6Oj5Ks',
   model: { config: 'luna', display_name: 'Luna', id: 'gpt-6-luna', provider: 'openai' },
-  usage: { input_tokens: 1674, output_tokens: 31, total_tokens: 1705, cache_read_tokens: 1408 },
+  usage: {
+    input_tokens: 1674,
+    output_tokens: 31,
+    total_tokens: 1705,
+    cache_read_tokens: 1408,
+    time_to_first_token: '0.412',
+  },
+  context: {
+    input_tokens: 51663,
+    window_tokens: 258000,
+    cache_read_input_tokens: 49886,
+    uncached_input_tokens: 1777,
+  },
+  tools: { count: 2 },
   cost: { usd },
 });
 
-test('replies show their cost, and the thread its running total', async ({
+test('reply details show what a reply and the conversation so far cost', async ({
   page,
   context,
 }, testInfo) => {
@@ -114,43 +129,50 @@ test('replies show their cost, and the thread its running total', async ({
   await expect(page.getByText('Then tag it.', { exact: true })).toBeVisible();
   await expect(page.getByText(/^Catching up/)).toHaveCount(0);
 
-  const first = page.getByRole('button', {
-    name: 'This reply: $0.012 · Conversation so far: $0.012 across 1 reply',
-    exact: true,
-  });
-  const second = page.getByRole('button', {
-    name: 'This reply: $0.0051 · Conversation so far: $0.017 across 2 replies',
-    exact: true,
-  });
-  await expect(first).toHaveText('$0.012');
-  await expect(second).toHaveText('$0.0051');
-  const banner = page.locator('[data-thread-context-banner="true"]');
-  const total = banner.getByRole('note', {
-    name: 'Conversation cost: $0.017 across 2 replies',
-    exact: true,
-  });
-  await expect(total).toHaveText('$0.017');
-  // The viewer's own message wrote the keys too, but shows no cost.
-  await expect(page.getByRole('button', { name: /^This reply: \$100/ })).toHaveCount(0);
+  // Costs stay in the reply details; the timeline and thread banner show none.
+  await expect(page.getByText(/^\$\d/)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
 
-  await second.click();
-  const cost = page.getByText('Cost: $0.0051', { exact: true });
-  await expect(cost).toBeVisible();
-  await expect(
-    page.getByText('Conversation so far: $0.017 across 2 replies', { exact: true })
-  ).toBeVisible();
+  const detailsOf = (body: string) =>
+    page
+      .locator('[data-message-id]')
+      .filter({ hasText: body })
+      .getByRole('button', { name: 'Reply details', exact: true });
+  const section = (heading: string) =>
+    page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
+
+  await detailsOf('Then tag it.').click();
+  const cost = section('Cost');
+  await expect(cost).toContainText('This reply$0.0051');
+  await expect(cost).toContainText('Conversation so far$0.017 across 2 replies');
+  await expect(section('Tokens')).toContainText('Input1,674');
+  await expect(section('Tokens')).toContainText('From cache1,408');
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-light.png') });
+  await expect(section('Context window')).toContainText('51,663 of 258,000 tokens · 20.0%');
+  await expect(section('Activity')).toContainText('Time to first token412 ms');
+  await page.getByText('Technical details', { exact: true }).click();
+  await expect(
+    page.getByText('6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60', { exact: true })
+  ).toBeVisible();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.screenshot({ path: testInfo.outputPath('desktop-dialog-dark.png') });
   await page.keyboard.press('Escape');
   await expect(cost).toHaveCount(0);
-  await second.blur();
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
+
+  // The viewer's own message wrote the keys too, but its details show no cost.
+  await detailsOf('Sounds good').click();
+  await expect(section('Tokens')).toBeVisible();
+  await expect(section('Cost')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(total).toBeVisible();
-  await expect(second).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('phone-dark.png') });
+  // A phone has no hover, so the details open from the keyboard here.
+  await detailsOf('Cut the branch first.').focus();
+  await page.keyboard.press('Enter');
+  await expect(section('Cost')).toContainText('Conversation so far$0.012 across 1 reply');
+  await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
+  await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });
 });

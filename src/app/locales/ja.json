@@ -2605,34 +2605,11 @@
         "moreOptions": "その他のオプション"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "リクエストコンテキストウィンドウ",
-        "aiRunMetadata": "AI 実行メタデータ",
         "close": "閉じる",
-        "status": "状態",
-        "model": "モデル",
-        "tokens": "トークン",
-        "runCache": "キャッシュの実行",
-        "requestContext": "リクエストコンテキスト",
-        "requestCache": "キャッシュのリクエスト",
-        "tools": "ツール",
-        "ttft": "TTFT",
-        "run": "実行",
-        "session": "セッション",
-        "openAiRunMetadata": "AI 実行メタデータを開く",
-        "tokenUsage": "トークン使用量",
         "downloadingOriginal": "オリジナルをダウンロード中...",
         "retryDownloadOriginal": "オリジナルのダウンロードを再試行",
         "downloadOriginal": "オリジナルをダウンロード",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} トークン",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} トークン",
-        "cost": "コスト",
-        "conversationSoFar": "これまでの会話",
-        "conversationCost_one": "{{count}} 件の返信で {{cost}}",
-        "conversationCost_other": "{{count}} 件の返信で {{cost}}",
-        "conversationCostAtLeast_one": "{{count}} 件の返信で {{cost}} 以上",
-        "conversationCostAtLeast_other": "{{count}} 件の返信で {{cost}} 以上",
-        "replyCost": "この返信: {{cost}}",
-        "replyCostWithConversation": "この返信: {{cost}} · これまでの会話: {{conversation}}"
+        "replyDetails": "返信の詳細"
       },
       "mindroomMessageExtras": {
         "messageExtras": "メッセージの詳細"
@@ -2764,28 +2741,37 @@
         "retry": "再試行",
         "delete": "削除"
       },
-      "aiRunDisplay": {
-        "inputTokens": "入力 {{formattedCount}}",
-        "outputTokens": "出力 {{formattedCount}}",
-        "totalTokens": "合計 {{formattedCount}}",
-        "readTokens": "読み取り {{formattedCount}}",
-        "writeTokens": "書き込み {{formattedCount}}",
-        "notReadTokens": "未読み取り {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）; {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）; {{suffix}}",
-        "reportedCacheRead_one": "報告されたキャッシュ読み取り: {{formattedCount}} トークン",
-        "reportedCacheRead_other": "報告されたキャッシュ読み取り: {{formattedCount}} トークン",
-        "cacheWrite_one": "キャッシュ書き込み: {{formattedCount}} トークン",
-        "cacheWrite_other": "キャッシュ書き込み: {{formattedCount}} トークン",
-        "cacheRead": "キャッシュ読み取り",
-        "newInput": "新しい入力",
-        "reserve": "予約分"
-      },
       "mindroomModelBadge": {
         "model": "モデル: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "トークン",
+        "cost": "コスト",
+        "conversationSoFar": "これまでの会話",
+        "conversationCost_one": "{{count}} 件の返信で {{cost}}",
+        "conversationCost_other": "{{count}} 件の返信で {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} 件の返信で {{cost}} 以上",
+        "conversationCostAtLeast_other": "{{count}} 件の返信で {{cost}} 以上",
+        "failed": "失敗",
+        "stopped": "停止",
+        "thisReply": "この返信",
+        "input": "入力",
+        "fromCache": "キャッシュから",
+        "writtenToCache": "キャッシュに書き込み",
+        "output": "出力",
+        "total": "合計",
+        "contextWindow": "コンテキストウィンドウ",
+        "contextWindowUsage": "{{window}} トークン中 {{input}} · {{percentage}}%",
+        "activity": "アクティビティ",
+        "toolCalls": "ツール呼び出し",
+        "timeToFirstToken": "最初のトークンまでの時間",
+        "technicalDetails": "技術的な詳細",
+        "configuredModel": "設定済みモデル",
+        "provider": "プロバイダー",
+        "modelId": "モデル ID",
+        "runId": "実行 ID",
+        "sessionId": "セッション ID",
+        "newInput": "新しい入力"
       }
     },
     "native": {
@@ -2988,10 +2974,6 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} 個の保留中のスケジュールされたタスク",
         "pendingScheduledTasks_other": "{{count}} 個の保留中のスケジュールされたタスク"
-      },
-      "threadCostChip": {
-        "label": "会話のコスト: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

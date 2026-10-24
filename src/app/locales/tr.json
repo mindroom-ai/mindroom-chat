@@ -2611,34 +2611,11 @@
         "moreOptions": "Diğer seçenekler"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "İstek bağlam penceresi",
-        "aiRunMetadata": "Yapay zekâ çalıştırma üst verileri",
         "close": "Kapat",
-        "status": "Durum",
-        "model": "Model",
-        "tokens": "Tokenler",
-        "runCache": "Çalıştırma önbelleği",
-        "requestContext": "İstek bağlamı",
-        "requestCache": "İstek önbelleği",
-        "tools": "Araçlar",
-        "ttft": "İlk token süresi",
-        "run": "Çalıştırma",
-        "session": "Oturum",
-        "openAiRunMetadata": "Yapay zekâ çalıştırma üst verilerini aç",
-        "tokenUsage": "Token kullanımı",
         "downloadingOriginal": "Özgün dosya indiriliyor...",
         "retryDownloadOriginal": "Özgün dosya indirmesini tekrar dene",
         "downloadOriginal": "Özgün dosyayı indir",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token",
-        "cost": "Maliyet",
-        "conversationSoFar": "Şu ana kadarki konuşma",
-        "conversationCost_one": "{{count}} yanıtta {{cost}}",
-        "conversationCost_other": "{{count}} yanıtta {{cost}}",
-        "conversationCostAtLeast_one": "{{count}} yanıtta en az {{cost}}",
-        "conversationCostAtLeast_other": "{{count}} yanıtta en az {{cost}}",
-        "replyCost": "Bu yanıt: {{cost}}",
-        "replyCostWithConversation": "Bu yanıt: {{cost}} · Şu ana kadarki konuşma: {{conversation}}"
+        "replyDetails": "Yanıt ayrıntıları"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Mesaj ekleri"
@@ -2776,28 +2753,37 @@
         "retry": "Tekrar dene",
         "delete": "Sil"
       },
-      "aiRunDisplay": {
-        "inputTokens": "girdi {{formattedCount}}",
-        "outputTokens": "çıktı {{formattedCount}}",
-        "totalTokens": "toplam {{formattedCount}}",
-        "readTokens": "okuma {{formattedCount}}",
-        "writeTokens": "yazma {{formattedCount}}",
-        "notReadTokens": "okunmayan {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} (%{{percentage}})",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "reportedCacheRead_one": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "reportedCacheRead_other": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "cacheWrite_one": "önbellek yazması: {{formattedCount}} token",
-        "cacheWrite_other": "önbellek yazması: {{formattedCount}} token",
-        "cacheRead": "Önbellek okuması",
-        "newInput": "Yeni girdi",
-        "reserve": "Ayrılan"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokenler",
+        "cost": "Maliyet",
+        "conversationSoFar": "Şu ana kadarki konuşma",
+        "conversationCost_one": "{{count}} yanıtta {{cost}}",
+        "conversationCost_other": "{{count}} yanıtta {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} yanıtta en az {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} yanıtta en az {{cost}}",
+        "failed": "Başarısız",
+        "stopped": "Durduruldu",
+        "thisReply": "Bu yanıt",
+        "input": "Girdi",
+        "fromCache": "Önbellekten",
+        "writtenToCache": "Önbelleğe yazılan",
+        "output": "Çıktı",
+        "total": "Toplam",
+        "contextWindow": "Bağlam penceresi",
+        "contextWindowUsage": "{{window}} tokenden {{input}} · %{{percentage}}",
+        "activity": "Etkinlik",
+        "toolCalls": "Araç çağrıları",
+        "timeToFirstToken": "İlk tokene kadar geçen süre",
+        "technicalDetails": "Teknik ayrıntılar",
+        "configuredModel": "Yapılandırılmış model",
+        "provider": "Sağlayıcı",
+        "modelId": "Model kimliği",
+        "runId": "Çalıştırma kimliği",
+        "sessionId": "Oturum kimliği",
+        "newInput": "Yeni girdi"
       }
     },
     "native": {
@@ -3000,10 +2986,6 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} bekleyen zamanlanmış görev",
         "pendingScheduledTasks_other": "{{count}} bekleyen zamanlanmış görev"
-      },
-      "threadCostChip": {
-        "label": "Konuşma maliyeti: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

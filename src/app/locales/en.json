@@ -2611,34 +2611,11 @@
         "moreOptions": "More Options"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Request context window",
-        "aiRunMetadata": "AI Run Metadata",
         "close": "Close",
-        "status": "Status",
-        "model": "Model",
-        "tokens": "Tokens",
-        "runCache": "Run Cache",
-        "requestContext": "Request Context",
-        "requestCache": "Request Cache",
-        "tools": "Tools",
-        "ttft": "TTFT",
-        "run": "Run",
-        "session": "Session",
-        "openAiRunMetadata": "Open AI run metadata",
-        "tokenUsage": "Token usage",
         "downloadingOriginal": "Downloading Original...",
         "retryDownloadOriginal": "Retry Download Original",
         "downloadOriginal": "Download Original",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens",
-        "cost": "Cost",
-        "conversationSoFar": "Conversation so far",
-        "conversationCost_one": "{{cost}} across {{count}} reply",
-        "conversationCost_other": "{{cost}} across {{count}} replies",
-        "conversationCostAtLeast_one": "at least {{cost}} across {{count}} reply",
-        "conversationCostAtLeast_other": "at least {{cost}} across {{count}} replies",
-        "replyCost": "This reply: {{cost}}",
-        "replyCostWithConversation": "This reply: {{cost}} · Conversation so far: {{conversation}}"
+        "replyDetails": "Reply details"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Message extras"
@@ -2776,28 +2753,37 @@
         "retry": "Retry",
         "delete": "Delete"
       },
-      "aiRunDisplay": {
-        "inputTokens": "in {{formattedCount}}",
-        "outputTokens": "out {{formattedCount}}",
-        "totalTokens": "total {{formattedCount}}",
-        "readTokens": "read {{formattedCount}}",
-        "writeTokens": "write {{formattedCount}}",
-        "notReadTokens": "not read {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token ({{percentage}}% of window)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% of window)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token ({{percentage}}% of window); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% of window); {{suffix}}",
-        "reportedCacheRead_one": "reported cache read: {{formattedCount}} token",
-        "reportedCacheRead_other": "reported cache read: {{formattedCount}} tokens",
-        "cacheWrite_one": "cache write: {{formattedCount}} token",
-        "cacheWrite_other": "cache write: {{formattedCount}} tokens",
-        "cacheRead": "Cache read",
-        "newInput": "New input",
-        "reserve": "Reserve"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "conversationSoFar": "Conversation so far",
+        "conversationCost_one": "{{cost}} across {{count}} reply",
+        "conversationCost_other": "{{cost}} across {{count}} replies",
+        "conversationCostAtLeast_one": "at least {{cost}} across {{count}} reply",
+        "conversationCostAtLeast_other": "at least {{cost}} across {{count}} replies",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "thisReply": "This reply",
+        "input": "Input",
+        "fromCache": "From cache",
+        "writtenToCache": "Written to cache",
+        "output": "Output",
+        "total": "Total",
+        "contextWindow": "Context window",
+        "contextWindowUsage": "{{input}} of {{window}} tokens · {{percentage}}%",
+        "activity": "Activity",
+        "toolCalls": "Tool calls",
+        "timeToFirstToken": "Time to first token",
+        "technicalDetails": "Technical details",
+        "configuredModel": "Configured model",
+        "provider": "Provider",
+        "modelId": "Model ID",
+        "runId": "Run ID",
+        "sessionId": "Session ID",
+        "newInput": "New input"
       }
     },
     "native": {
@@ -3000,10 +2986,6 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} pending scheduled task",
         "pendingScheduledTasks_other": "{{count}} pending scheduled tasks"
-      },
-      "threadCostChip": {
-        "label": "Conversation cost: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

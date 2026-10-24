@@ -31,7 +31,6 @@ import * as css from './ThreadContextBanner.css';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 import { AutoApproveChip } from '../auto-approve/AutoApproveChip';
-import { ThreadCostChip } from './ThreadCostChip';
 import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import { useSetting } from '../../state/hooks/settings';
@@ -335,7 +334,6 @@ export function ThreadContextBanner({
                 )}
                 <AutoApproveChip room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
-                <ThreadCostChip />
                 {/* Desktop: tags inline on title row */}
                 {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (

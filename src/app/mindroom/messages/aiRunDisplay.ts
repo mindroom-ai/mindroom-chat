@@ -2,11 +2,10 @@ import type { TFunction } from 'i18next';
 import { MindroomAiRunInfo } from './aiRun';
 
 export type MindroomAiRunContextBarSegment = {
-  key: 'cacheRead' | 'newInput' | 'reserve';
+  key: 'cacheRead' | 'newInput';
   label: string;
   tokens: number;
   percentage: number;
-  title: string;
 };
 
 export const formatMindroomAiRunNumber = (
@@ -47,8 +46,8 @@ export const formatMindroomConversationCost = (
 ): string => {
   const values = { cost: formatMindroomCostUsd(total.usd, locale), count: total.replyCount };
   return complete
-    ? t('mindroomUi.messages.mindroomMessageControls.conversationCost', values)
-    : t('mindroomUi.messages.mindroomMessageControls.conversationCostAtLeast', values);
+    ? t('mindroomUi.messages.mindroomReplyDetails.conversationCost', values)
+    : t('mindroomUi.messages.mindroomReplyDetails.conversationCostAtLeast', values);
 };
 
 export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | undefined => {
@@ -95,63 +94,10 @@ export const getMindroomAiRunCompactModelLabel = (info: MindroomAiRunInfo): stri
   return provider ? titleCaseWords(provider) : undefined;
 };
 
-export const getMindroomAiRunUsageLabel = (
-  info: MindroomAiRunInfo,
-  t?: TFunction,
-  locale?: string
-): string | undefined => {
-  const parts = [
-    info.inputTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.inputTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.inputTokens, locale),
-          })
-        : `in ${formatMindroomAiRunNumber(info.inputTokens, locale)}`
-      : undefined,
-    info.outputTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.outputTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.outputTokens, locale),
-          })
-        : `out ${formatMindroomAiRunNumber(info.outputTokens, locale)}`
-      : undefined,
-    info.totalTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.totalTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.totalTokens, locale),
-          })
-        : `total ${formatMindroomAiRunNumber(info.totalTokens, locale)}`
-      : undefined,
-  ].filter(Boolean);
+const isValidContextBarTokenCount = (value: number | undefined): value is number =>
+  typeof value === 'number' && value >= 0;
 
-  return parts.length > 0 ? parts.join(' • ') : undefined;
-};
-
-export const getMindroomAiRunUsageCacheLabel = (
-  info: MindroomAiRunInfo,
-  t?: TFunction,
-  locale?: string
-): string | undefined => {
-  const parts = [
-    info.cacheReadTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.readTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.cacheReadTokens, locale),
-          })
-        : `read ${formatMindroomAiRunNumber(info.cacheReadTokens, locale)}`
-      : undefined,
-    info.cacheWriteTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.writeTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.cacheWriteTokens, locale),
-          })
-        : `write ${formatMindroomAiRunNumber(info.cacheWriteTokens, locale)}`
-      : undefined,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(' • ') : undefined;
-};
-
+/** How much of the model's context window the reply's last request filled. */
 export const getMindroomAiRunContextLabel = (
   info: MindroomAiRunInfo,
   t?: TFunction,
@@ -163,115 +109,24 @@ export const getMindroomAiRunContextLabel = (
     return undefined;
   }
 
-  const percentage = formatMindroomAiRunContextBarPercentage(inputTokens, windowTokens, locale);
+  const percentage = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format((inputTokens / windowTokens) * 100);
   const input = formatMindroomAiRunNumber(inputTokens, locale);
   const window = formatMindroomAiRunNumber(windowTokens, locale);
   return t
-    ? t('mindroomUi.messages.aiRunDisplay.contextUsage', { input, window, percentage })
-    : `${input} / ${window} (${percentage}%)`;
-};
-
-export const getMindroomAiRunContextCacheLabel = (
-  info: MindroomAiRunInfo,
-  t?: TFunction,
-  locale?: string
-): string | undefined => {
-  const parts = [
-    info.contextCacheReadInputTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.readTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.contextCacheReadInputTokens, locale),
-          })
-        : `read ${formatMindroomAiRunNumber(info.contextCacheReadInputTokens, locale)}`
-      : undefined,
-    info.contextCacheWriteInputTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.writeTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.contextCacheWriteInputTokens, locale),
-          })
-        : `write ${formatMindroomAiRunNumber(info.contextCacheWriteInputTokens, locale)}`
-      : undefined,
-    info.contextUncachedInputTokens !== undefined
-      ? t
-        ? t('mindroomUi.messages.aiRunDisplay.notReadTokens', {
-            formattedCount: formatMindroomAiRunNumber(info.contextUncachedInputTokens, locale),
-          })
-        : `not read ${formatMindroomAiRunNumber(info.contextUncachedInputTokens, locale)}`
-      : undefined,
-  ].filter(Boolean);
-
-  return parts.length > 0 ? parts.join(' • ') : undefined;
-};
-
-const isValidContextBarTokenCount = (value: number | undefined): value is number =>
-  typeof value === 'number' && value >= 0;
-
-const formatMindroomAiRunContextBarPercentage = (
-  value: number,
-  windowTokens: number,
-  locale?: string
-): string =>
-  new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
-    (value / windowTokens) * 100
-  );
-
-const getMindroomAiRunContextBarTitle = (
-  label: string,
-  tokens: number,
-  windowTokens: number,
-  suffix?: string,
-  t?: TFunction,
-  locale?: string
-): string => {
-  const formattedCount = formatMindroomAiRunNumber(tokens, locale);
-  const percentage = formatMindroomAiRunContextBarPercentage(tokens, windowTokens, locale);
-  if (t) {
-    return suffix
-      ? t('mindroomUi.messages.aiRunDisplay.contextBarTitleWithSuffix', {
-          label,
-          count: tokens,
-          formattedCount,
-          percentage,
-          suffix,
-        })
-      : t('mindroomUi.messages.aiRunDisplay.contextBarTitle', {
-          label,
-          count: tokens,
-          formattedCount,
-          percentage,
-        });
-  }
-  const tokenLabel = tokens === 1 ? 'token' : 'tokens';
-  return `${label}: ${formattedCount} ${tokenLabel} (${percentage}% of window)${
-    suffix ? `; ${suffix}` : ''
-  }`;
-};
-
-const getDisplayedCacheReadTokens = (cacheReadTokens: number | undefined, inputTokens: number) =>
-  isValidContextBarTokenCount(cacheReadTokens) ? Math.min(cacheReadTokens, inputTokens) : 0;
-
-const getCacheReadTitleSuffix = (
-  reportedTokens: number | undefined,
-  displayedTokens: number,
-  t?: TFunction,
-  locale?: string
-) => {
-  if (!isValidContextBarTokenCount(reportedTokens) || reportedTokens <= displayedTokens) {
-    return undefined;
-  }
-  const formattedCount = formatMindroomAiRunNumber(reportedTokens, locale);
-  return t
-    ? t('mindroomUi.messages.aiRunDisplay.reportedCacheRead', {
-        count: reportedTokens,
-        formattedCount,
+    ? t('mindroomUi.messages.mindroomReplyDetails.contextWindowUsage', {
+        input,
+        window,
+        percentage,
       })
-    : `reported cache read: ${formattedCount} tokens`;
+    : `${input} of ${window} tokens · ${percentage}%`;
 };
 
 export const getMindroomAiRunContextBarSegments = (
   info: MindroomAiRunInfo,
-  t?: TFunction,
-  locale?: string
+  t?: TFunction
 ): MindroomAiRunContextBarSegment[] | undefined => {
   const inputTokens = info.contextInputTokens;
   const windowTokens = info.contextWindowTokens;
@@ -287,75 +142,36 @@ export const getMindroomAiRunContextBarSegments = (
     return undefined;
   }
 
-  const displayedCacheReadTokens = getDisplayedCacheReadTokens(cacheReadTokens, inputTokens);
+  const displayedCacheReadTokens = isValidContextBarTokenCount(cacheReadTokens)
+    ? Math.min(cacheReadTokens, inputTokens)
+    : 0;
   const displayedUncachedTokens =
     isValidContextBarTokenCount(cacheReadTokens) &&
     isValidContextBarTokenCount(uncachedTokens) &&
     cacheReadTokens + uncachedTokens === inputTokens
       ? uncachedTokens
       : inputTokens - displayedCacheReadTokens;
-  const reserveTokens = windowTokens - inputTokens;
-  const cacheWriteTokens = info.contextCacheWriteInputTokens;
-  const cacheReadLabel = t ? t('mindroomUi.messages.aiRunDisplay.cacheRead') : 'Cache read';
-  const newInputLabel = t ? t('mindroomUi.messages.aiRunDisplay.newInput') : 'New input';
-  const reserveLabel = t ? t('mindroomUi.messages.aiRunDisplay.reserve') : 'Reserve';
-  const cacheWriteSuffix = isValidContextBarTokenCount(cacheWriteTokens)
-    ? t
-      ? t('mindroomUi.messages.aiRunDisplay.cacheWrite', {
-          count: cacheWriteTokens,
-          formattedCount: formatMindroomAiRunNumber(cacheWriteTokens, locale),
-        })
-      : `cache write: ${formatMindroomAiRunNumber(cacheWriteTokens, locale)} tokens`
-    : undefined;
-  const cacheReadTitleSuffix = getCacheReadTitleSuffix(
-    cacheReadTokens,
-    displayedCacheReadTokens,
-    t,
-    locale
-  );
+  const segment = (
+    key: MindroomAiRunContextBarSegment['key'],
+    label: string,
+    tokens: number
+  ): MindroomAiRunContextBarSegment => ({
+    key,
+    label,
+    tokens,
+    percentage: (tokens / windowTokens) * 100,
+  });
 
   return [
-    {
-      key: 'cacheRead',
-      label: cacheReadLabel,
-      tokens: displayedCacheReadTokens,
-      percentage: (displayedCacheReadTokens / windowTokens) * 100,
-      title: getMindroomAiRunContextBarTitle(
-        cacheReadLabel,
-        displayedCacheReadTokens,
-        windowTokens,
-        cacheReadTitleSuffix,
-        t,
-        locale
-      ),
-    },
-    {
-      key: 'newInput',
-      label: newInputLabel,
-      tokens: displayedUncachedTokens,
-      percentage: (displayedUncachedTokens / windowTokens) * 100,
-      title: getMindroomAiRunContextBarTitle(
-        newInputLabel,
-        displayedUncachedTokens,
-        windowTokens,
-        cacheWriteSuffix,
-        t,
-        locale
-      ),
-    },
-    {
-      key: 'reserve',
-      label: reserveLabel,
-      tokens: reserveTokens,
-      percentage: (reserveTokens / windowTokens) * 100,
-      title: getMindroomAiRunContextBarTitle(
-        reserveLabel,
-        reserveTokens,
-        windowTokens,
-        undefined,
-        t,
-        locale
-      ),
-    },
+    segment(
+      'cacheRead',
+      t ? t('mindroomUi.messages.mindroomReplyDetails.fromCache') : 'From cache',
+      displayedCacheReadTokens
+    ),
+    segment(
+      'newInput',
+      t ? t('mindroomUi.messages.mindroomReplyDetails.newInput') : 'New input',
+      displayedUncachedTokens
+    ),
   ];
 };

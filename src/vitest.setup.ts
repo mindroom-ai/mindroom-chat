@@ -35,8 +35,29 @@ vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
   Result: 'activity-result',
 }));
 vi.mock('./app/components/user-avatar/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
-vi.mock('./app/mindroom/messages/MindroomAiRunCost.css', () => ({ CostButton: 'cost-button' }));
-vi.mock('./app/mindroom/threads/ThreadCostChip.css', () => ({ Chip: 'thread-cost-chip' }));
+vi.mock('./app/mindroom/messages/MindroomReplyDetails.css', () => ({
+  Body: 'reply-details',
+  Lead: 'reply-details-lead',
+  ModelName: 'reply-details-model-name',
+  Status: { error: 'reply-details-status-error', cancelled: 'reply-details-status-cancelled' },
+  Section: 'reply-details-section',
+  Rows: 'reply-details-rows',
+  Value: 'reply-details-value',
+  Identifier: 'reply-details-identifier',
+  ContextBar: 'reply-details-context-bar',
+  ContextBarSegment: {
+    cacheRead: 'reply-details-segment-cache-read',
+    newInput: 'reply-details-segment-new-input',
+  },
+  Legend: 'reply-details-legend',
+  LegendItem: 'reply-details-legend-item',
+  Swatch: {
+    cacheRead: 'reply-details-swatch-cache-read',
+    newInput: 'reply-details-swatch-new-input',
+  },
+  TechnicalSummary: 'reply-details-technical-summary',
+  TechnicalRows: 'reply-details-technical-rows',
+}));
 vi.mock('./app/components/glass/Surface.css', () => ({
   inheritSurface: 'surface-inherit',
 }));

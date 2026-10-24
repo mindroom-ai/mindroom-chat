@@ -2651,37 +2651,11 @@
         "moreOptions": "Mais opções"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Janela de contexto do pedido",
-        "aiRunMetadata": "Metadados da execução de IA",
         "close": "Fechar",
-        "status": "Estado",
-        "model": "Modelo",
-        "tokens": "Tokens",
-        "runCache": "Cache de execução",
-        "requestContext": "Contexto do pedido",
-        "requestCache": "Cache do pedido",
-        "tools": "Ferramentas",
-        "ttft": "TTFT",
-        "run": "Execução",
-        "session": "Sessão",
-        "openAiRunMetadata": "Abrir metadados da execução de IA",
-        "tokenUsage": "Utilização de tokens",
         "downloadingOriginal": "A transferir original...",
         "retryDownloadOriginal": "Tentar transferir o original novamente",
         "downloadOriginal": "Transferir original",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens",
-        "segmentTokenCount_many": "{{label}}: {{formattedCount}} tokens",
-        "cost": "Custo",
-        "conversationSoFar": "Conversa até agora",
-        "conversationCost_one": "{{cost}} em {{count}} resposta",
-        "conversationCost_other": "{{cost}} em {{count}} respostas",
-        "conversationCost_many": "{{cost}} em {{count}} respostas",
-        "conversationCostAtLeast_one": "pelo menos {{cost}} em {{count}} resposta",
-        "conversationCostAtLeast_other": "pelo menos {{cost}} em {{count}} respostas",
-        "conversationCostAtLeast_many": "pelo menos {{cost}} em {{count}} respostas",
-        "replyCost": "Esta resposta: {{cost}}",
-        "replyCostWithConversation": "Esta resposta: {{cost}} · Conversa até agora: {{conversation}}"
+        "replyDetails": "Detalhes da resposta"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Extras da mensagem"
@@ -2833,32 +2807,39 @@
         "retry": "Tentar novamente",
         "delete": "Eliminar"
       },
-      "aiRunDisplay": {
-        "inputTokens": "entrada {{formattedCount}}",
-        "outputTokens": "saída {{formattedCount}}",
-        "totalTokens": "total {{formattedCount}}",
-        "readTokens": "lidos {{formattedCount}}",
-        "writeTokens": "escritos {{formattedCount}}",
-        "notReadTokens": "não lidos {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token ({{percentage}}% da janela)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% da janela)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token ({{percentage}}% da janela); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% da janela); {{suffix}}",
-        "reportedCacheRead_one": "leitura de cache comunicada: {{formattedCount}} token",
-        "reportedCacheRead_other": "leitura de cache comunicada: {{formattedCount}} tokens",
-        "cacheWrite_one": "escrita na cache: {{formattedCount}} token",
-        "cacheWrite_other": "escrita na cache: {{formattedCount}} tokens",
-        "cacheRead": "Leitura da cache",
-        "newInput": "Nova entrada",
-        "reserve": "Reserva",
-        "contextBarTitle_many": "{{label}}: {{formattedCount}} tokens ({{percentage}}% da janela)",
-        "contextBarTitleWithSuffix_many": "{{label}}: {{formattedCount}} tokens ({{percentage}}% da janela); {{suffix}}",
-        "reportedCacheRead_many": "leitura de cache comunicada: {{formattedCount}} tokens",
-        "cacheWrite_many": "escrita na cache: {{formattedCount}} tokens"
-      },
       "mindroomModelBadge": {
         "model": "Modelo: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokens",
+        "cost": "Custo",
+        "conversationSoFar": "Conversa até agora",
+        "conversationCost_one": "{{cost}} em {{count}} resposta",
+        "conversationCost_other": "{{cost}} em {{count}} respostas",
+        "conversationCost_many": "{{cost}} em {{count}} respostas",
+        "conversationCostAtLeast_one": "pelo menos {{cost}} em {{count}} resposta",
+        "conversationCostAtLeast_other": "pelo menos {{cost}} em {{count}} respostas",
+        "conversationCostAtLeast_many": "pelo menos {{cost}} em {{count}} respostas",
+        "failed": "Falhou",
+        "stopped": "Interrompida",
+        "thisReply": "Esta resposta",
+        "input": "Entrada",
+        "fromCache": "Da cache",
+        "writtenToCache": "Escrito na cache",
+        "output": "Saída",
+        "total": "Total",
+        "contextWindow": "Janela de contexto",
+        "contextWindowUsage": "{{input}} de {{window}} tokens · {{percentage}}%",
+        "activity": "Atividade",
+        "toolCalls": "Chamadas de ferramentas",
+        "timeToFirstToken": "Tempo até o primeiro token",
+        "technicalDetails": "Detalhes técnicos",
+        "configuredModel": "Modelo configurado",
+        "provider": "Fornecedor",
+        "modelId": "ID do modelo",
+        "runId": "ID da execução",
+        "sessionId": "ID da sessão",
+        "newInput": "Nova entrada"
       }
     },
     "native": {
@@ -3068,10 +3049,6 @@
         "pendingScheduledTasks_one": "{{count}} tarefa agendada pendente",
         "pendingScheduledTasks_other": "{{count}} tarefas agendadas pendentes",
         "pendingScheduledTasks_many": "{{count}} tarefas agendadas pendentes"
-      },
-      "threadCostChip": {
-        "label": "Custo da conversa: {{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

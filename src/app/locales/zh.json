@@ -2605,34 +2605,11 @@
         "moreOptions": "更多选项"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "请求上下文窗口",
-        "aiRunMetadata": "AI运行元数据",
         "close": "关闭",
-        "status": "状态",
-        "model": "模型",
-        "tokens": "词元",
-        "runCache": "运行缓存",
-        "requestContext": "请求上下文",
-        "requestCache": "请求缓存",
-        "tools": "工具",
-        "ttft": "TTFT",
-        "run": "运行",
-        "session": "会话",
-        "openAiRunMetadata": "查看 AI 运行元数据",
-        "tokenUsage": "词元用量",
         "downloadingOriginal": "正在下载原版...",
         "retryDownloadOriginal": "重试下载原件",
         "downloadOriginal": "下载原版",
-        "segmentTokenCount_one": "{{label}}：{{formattedCount}} 个词元",
-        "segmentTokenCount_other": "{{label}}：{{formattedCount}} 个词元",
-        "cost": "费用",
-        "conversationSoFar": "目前对话",
-        "conversationCost_one": "{{count}} 条回复共 {{cost}}",
-        "conversationCost_other": "{{count}} 条回复共 {{cost}}",
-        "conversationCostAtLeast_one": "{{count}} 条回复至少 {{cost}}",
-        "conversationCostAtLeast_other": "{{count}} 条回复至少 {{cost}}",
-        "replyCost": "本条回复：{{cost}}",
-        "replyCostWithConversation": "本条回复：{{cost}} · 目前对话：{{conversation}}"
+        "replyDetails": "回复详情"
       },
       "mindroomMessageExtras": {
         "messageExtras": "消息附加信息"
@@ -2764,28 +2741,37 @@
         "retry": "重试",
         "delete": "删除"
       },
-      "aiRunDisplay": {
-        "inputTokens": "输入 {{formattedCount}}",
-        "outputTokens": "输出 {{formattedCount}}",
-        "totalTokens": "总计 {{formattedCount}}",
-        "readTokens": "读取 {{formattedCount}}",
-        "writeTokens": "写入 {{formattedCount}}",
-        "notReadTokens": "未读取 {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）",
-        "contextBarTitle_other": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）",
-        "contextBarTitleWithSuffix_one": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）；{{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）；{{suffix}}",
-        "reportedCacheRead_one": "报告的缓存读取：{{formattedCount}} 个词元",
-        "reportedCacheRead_other": "报告的缓存读取：{{formattedCount}} 个词元",
-        "cacheWrite_one": "缓存写入：{{formattedCount}} 个词元",
-        "cacheWrite_other": "缓存写入：{{formattedCount}} 个词元",
-        "cacheRead": "缓存读取",
-        "newInput": "新输入",
-        "reserve": "预留"
-      },
       "mindroomModelBadge": {
         "model": "模型：{{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "词元",
+        "cost": "费用",
+        "conversationSoFar": "目前对话",
+        "conversationCost_one": "{{count}} 条回复共 {{cost}}",
+        "conversationCost_other": "{{count}} 条回复共 {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} 条回复至少 {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} 条回复至少 {{cost}}",
+        "failed": "失败",
+        "stopped": "已停止",
+        "thisReply": "本条回复",
+        "input": "输入",
+        "fromCache": "来自缓存",
+        "writtenToCache": "写入缓存",
+        "output": "输出",
+        "total": "总计",
+        "contextWindow": "上下文窗口",
+        "contextWindowUsage": "{{input}} / {{window}} 个词元 · {{percentage}}%",
+        "activity": "活动",
+        "toolCalls": "工具调用",
+        "timeToFirstToken": "首个词元耗时",
+        "technicalDetails": "技术详情",
+        "configuredModel": "配置的模型",
+        "provider": "提供方",
+        "modelId": "模型 ID",
+        "runId": "运行 ID",
+        "sessionId": "会话 ID",
+        "newInput": "新输入"
       }
     },
     "native": {
@@ -2988,10 +2974,6 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} 待处理的计划任务",
         "pendingScheduledTasks_other": "{{count}} 待处理的计划任务"
-      },
-      "threadCostChip": {
-        "label": "对话费用：{{conversation}}",
-        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {
