@@ -2630,7 +2630,15 @@
         "retryDownloadOriginal": "Download van origineel opnieuw proberen",
         "downloadOriginal": "Origineel downloaden",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens",
+        "cost": "Kosten",
+        "conversationSoFar": "Gesprek tot nu toe",
+        "conversationCost_one": "{{cost}} over {{count}} antwoord",
+        "conversationCost_other": "{{cost}} over {{count}} antwoorden",
+        "conversationCostAtLeast_one": "minstens {{cost}} over {{count}} antwoord",
+        "conversationCostAtLeast_other": "minstens {{cost}} over {{count}} antwoorden",
+        "replyCost": "Dit antwoord: {{cost}}",
+        "replyCostWithConversation": "Dit antwoord: {{cost}} · Gesprek tot nu toe: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Berichtextra's"
@@ -2992,6 +3000,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} openstaande geplande taak",
         "pendingScheduledTasks_other": "{{count}} openstaande geplande taken"
+      },
+      "threadCostChip": {
+        "label": "Kosten van het gesprek: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

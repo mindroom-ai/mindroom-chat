@@ -1346,7 +1346,15 @@
         "tokens": "टोकन",
         "tokenUsage": "टोकन का उपयोग",
         "tools": "टूल",
-        "ttft": "पहले टोकन तक का समय"
+        "ttft": "पहले टोकन तक का समय",
+        "cost": "लागत",
+        "conversationSoFar": "अब तक की बातचीत",
+        "conversationCost_one": "{{count}} जवाब में {{cost}}",
+        "conversationCost_other": "{{count}} जवाबों में {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} जवाब में कम से कम {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} जवाबों में कम से कम {{cost}}",
+        "replyCost": "यह जवाब: {{cost}}",
+        "replyCostWithConversation": "यह जवाब: {{cost}} · अब तक की बातचीत: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "संदेश की अतिरिक्त जानकारी"
@@ -1691,6 +1699,10 @@
       "timelineMinimap": {
         "jumpToMessage": "संदेश पर जाएँ",
         "message": "संदेश"
+      },
+      "threadCostChip": {
+        "label": "बातचीत की लागत: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "voice": {

@@ -38,6 +38,19 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
   return currency({ maximumSignificantDigits: 2 }).format(usd);
 };
 
+/** A conversation's cost so far, said as a lower bound while older replies are not loaded. */
+export const formatMindroomConversationCost = (
+  total: { usd: number; replyCount: number },
+  complete: boolean,
+  t: TFunction,
+  locale?: string
+): string => {
+  const values = { cost: formatMindroomCostUsd(total.usd, locale), count: total.replyCount };
+  return complete
+    ? t('mindroomUi.messages.mindroomMessageControls.conversationCost', values)
+    : t('mindroomUi.messages.mindroomMessageControls.conversationCostAtLeast', values);
+};
+
 export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
   if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;

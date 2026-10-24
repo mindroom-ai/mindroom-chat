@@ -47,6 +47,8 @@ import { saveFile } from '../native/nativeFileSave';
 import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
+import { MindroomAiRunCostButton, useMindroomReplyCostLabels } from './MindroomAiRunCost';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 
 export function useMindroomMessageControls(
   content: Record<string, unknown>,
@@ -59,10 +61,18 @@ export function useMindroomMessageControls(
   }, [content, mEvent]);
   const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
   const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
-  const aiRunInfo = getMindroomAiRunInfo(content);
+  const viewerId = useMatrixClient().getUserId() ?? undefined;
+  const parsedAiRunInfo = getMindroomAiRunInfo(content);
+  // Anyone can write these keys; a cost counts only from MindRoom's own accounts, as in thread totals.
+  const aiRunInfo =
+    parsedAiRunInfo?.costUsd !== undefined &&
+    !isMindroomAgentUserIdForViewer(mEvent?.getSender(), viewerId)
+      ? { ...parsedAiRunInfo, costUsd: undefined }
+      : parsedAiRunInfo;
 
   return {
     aiRunInfo,
+    eventId: mEvent?.getId(),
     longTextLoading,
     longTextSource,
     resolvedLongTextContent,
@@ -120,11 +130,13 @@ function MindroomAiRunContextBar({ info }: { info: MindroomAiRunInfo }) {
 
 function MindroomAiRunInfoDialog({
   info,
+  eventId,
   open,
   onClose,
   returnFocusRef,
 }: {
   info: MindroomAiRunInfo;
+  eventId?: string;
   open: boolean;
   onClose: () => void;
   returnFocusRef: React.RefObject<HTMLElement | null>;
@@ -138,6 +150,7 @@ function MindroomAiRunInfoDialog({
   const contextCacheLabel = getMindroomAiRunContextCacheLabel(info, t, language);
   const toolsLabel = formatMindroomAiRunNumber(info.toolCount, language);
   const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
+  const costLabels = useMindroomReplyCostLabels(info, eventId);
 
   return (
     <Overlay open={open} backdrop={<OverlayBackdrop />}>
@@ -188,6 +201,14 @@ function MindroomAiRunInfoDialog({
                 value={modelLabel}
               />
               <MindroomAiRunDetail
+                label={t('mindroomUi.messages.mindroomMessageControls.cost')}
+                value={costLabels?.cost}
+              />
+              <MindroomAiRunDetail
+                label={t('mindroomUi.messages.mindroomMessageControls.conversationSoFar')}
+                value={costLabels?.conversation}
+              />
+              <MindroomAiRunDetail
                 label={t('mindroomUi.messages.mindroomMessageControls.tokens')}
                 value={usageLabel}
               />
@@ -228,8 +249,22 @@ function MindroomAiRunInfoDialog({
   );
 }
 
-export function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+export function MindroomAiRunInfoButton({
+  info,
+  eventId,
+  open,
+  onOpen,
+}: {
+  info: MindroomAiRunInfo;
+  eventId?: string;
+  open: boolean;
+  onOpen: () => void;
+}) {
   const { t } = useTranslation();
+  const costLabels = useMindroomReplyCostLabels(info, eventId);
+  // A priced reply shows its cost in place of the info icon, opening the same details.
+  if (costLabels)
+    return <MindroomAiRunCostButton labels={costLabels} open={open} onOpen={onOpen} />;
   return (
     <button
       type="button"
@@ -269,6 +304,8 @@ export const MindroomAiRunMenuItem = as<
 });
 
 export type MindroomAiRunControlsRenderProps = {
+  info: MindroomAiRunInfo;
+  eventId?: string;
   dialog: ReactNode;
   messageBaseRef: React.Ref<HTMLDivElement>;
   onOpen: () => void;
@@ -277,10 +314,12 @@ export type MindroomAiRunControlsRenderProps = {
 
 export function MindroomAiRunControls({
   info,
+  eventId,
   forwardedRef,
   children,
 }: {
   info: MindroomAiRunInfo;
+  eventId?: string;
   forwardedRef: React.Ref<HTMLDivElement> | undefined;
   children: (props: MindroomAiRunControlsRenderProps) => ReactNode;
 }) {
@@ -296,9 +335,12 @@ export function MindroomAiRunControls({
   );
 
   return children({
+    info,
+    eventId,
     dialog: (
       <MindroomAiRunInfoDialog
         info={info}
+        eventId={eventId}
         open={open}
         onClose={() => setOpen(false)}
         returnFocusRef={messageBaseRef}

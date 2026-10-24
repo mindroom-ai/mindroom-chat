@@ -2712,7 +2712,19 @@
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} токен",
         "segmentTokenCount_other": "{{label}}: {{formattedCount}} токенов",
         "segmentTokenCount_few": "{{label}}: {{formattedCount}} токена",
-        "segmentTokenCount_many": "{{label}}: {{formattedCount}} токенов"
+        "segmentTokenCount_many": "{{label}}: {{formattedCount}} токенов",
+        "cost": "Стоимость",
+        "conversationSoFar": "Разговор на данный момент",
+        "conversationCost_one": "{{cost}} за {{count}} ответ",
+        "conversationCost_other": "{{cost}} за {{count}} ответа",
+        "conversationCost_few": "{{cost}} за {{count}} ответа",
+        "conversationCost_many": "{{cost}} за {{count}} ответов",
+        "conversationCostAtLeast_one": "не менее {{cost}} за {{count}} ответ",
+        "conversationCostAtLeast_other": "не менее {{cost}} за {{count}} ответа",
+        "conversationCostAtLeast_few": "не менее {{cost}} за {{count}} ответа",
+        "conversationCostAtLeast_many": "не менее {{cost}} за {{count}} ответов",
+        "replyCost": "Этот ответ: {{cost}}",
+        "replyCostWithConversation": "Этот ответ: {{cost}} · Разговор на данный момент: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Дополнительные данные сообщения"
@@ -3124,6 +3136,10 @@
         "pendingScheduledTasks_other": "{{count}} ожидающих запланированных задач",
         "pendingScheduledTasks_few": "{{count}} ожидающих запланированных задач",
         "pendingScheduledTasks_many": "{{count}} ожидающих запланированных задач"
+      },
+      "threadCostChip": {
+        "label": "Стоимость разговора: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

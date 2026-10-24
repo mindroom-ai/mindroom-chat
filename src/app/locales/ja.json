@@ -2624,7 +2624,15 @@
         "retryDownloadOriginal": "オリジナルのダウンロードを再試行",
         "downloadOriginal": "オリジナルをダウンロード",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} トークン",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} トークン"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} トークン",
+        "cost": "コスト",
+        "conversationSoFar": "これまでの会話",
+        "conversationCost_one": "{{count}} 件の返信で {{cost}}",
+        "conversationCost_other": "{{count}} 件の返信で {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} 件の返信で {{cost}} 以上",
+        "conversationCostAtLeast_other": "{{count}} 件の返信で {{cost}} 以上",
+        "replyCost": "この返信: {{cost}}",
+        "replyCostWithConversation": "この返信: {{cost}} · これまでの会話: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "メッセージの詳細"
@@ -2980,6 +2988,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} 個の保留中のスケジュールされたタスク",
         "pendingScheduledTasks_other": "{{count}} 個の保留中のスケジュールされたタスク"
+      },
+      "threadCostChip": {
+        "label": "会話のコスト: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

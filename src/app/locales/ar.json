@@ -2794,7 +2794,23 @@
         "segmentTokenCount_few": "⁨{{label}}⁩: ⁨{{formattedCount}}⁩ الرموز المميزة",
         "segmentTokenCount_many": "⁨{{label}}⁩: ⁨{{formattedCount}}⁩ رمزًا",
         "segmentTokenCount_two": "⁨{{label}}⁩: ⁨{{formattedCount}}⁩ رمز مميز",
-        "segmentTokenCount_zero": "⁨{{label}}⁩: ⁨{{formattedCount}}⁩ الرموز"
+        "segmentTokenCount_zero": "⁨{{label}}⁩: ⁨{{formattedCount}}⁩ الرموز",
+        "cost": "التكلفة",
+        "conversationSoFar": "المحادثة حتى الآن",
+        "conversationCost_one": "⁨{{cost}}⁩ عبر رد واحد (⁨{{count}}⁩)",
+        "conversationCost_other": "⁨{{cost}}⁩ عبر ⁨{{count}}⁩ رد",
+        "conversationCost_few": "⁨{{cost}}⁩ عبر ⁨{{count}}⁩ ردود",
+        "conversationCost_many": "⁨{{cost}}⁩ عبر ⁨{{count}}⁩ ردًا",
+        "conversationCost_two": "⁨{{cost}}⁩ عبر ردّين (⁨{{count}}⁩)",
+        "conversationCost_zero": "⁨{{cost}}⁩ عبر ⁨{{count}}⁩ رد",
+        "conversationCostAtLeast_one": "⁨{{cost}}⁩ على الأقل عبر رد واحد (⁨{{count}}⁩)",
+        "conversationCostAtLeast_other": "⁨{{cost}}⁩ على الأقل عبر ⁨{{count}}⁩ رد",
+        "conversationCostAtLeast_few": "⁨{{cost}}⁩ على الأقل عبر ⁨{{count}}⁩ ردود",
+        "conversationCostAtLeast_many": "⁨{{cost}}⁩ على الأقل عبر ⁨{{count}}⁩ ردًا",
+        "conversationCostAtLeast_two": "⁨{{cost}}⁩ على الأقل عبر ردّين (⁨{{count}}⁩)",
+        "conversationCostAtLeast_zero": "⁨{{cost}}⁩ على الأقل عبر ⁨{{count}}⁩ رد",
+        "replyCost": "هذا الرد: ⁨{{cost}}⁩",
+        "replyCostWithConversation": "هذا الرد: ⁨{{cost}}⁩ · المحادثة حتى الآن: ⁨{{conversation}}⁩"
       },
       "mindroomMessageExtras": {
         "messageExtras": "ملحقات الرسالة"
@@ -3256,6 +3272,10 @@
         "pendingScheduledTasks_many": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
         "pendingScheduledTasks_two": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
         "pendingScheduledTasks_zero": "⁨{{count}}⁩ من المهام المجدولة المعلقة"
+      },
+      "threadCostChip": {
+        "label": "تكلفة المحادثة: ⁨{{conversation}}⁩",
+        "atLeast": "≥ ⁨{{cost}}⁩"
       }
     },
     "recent-threads": {

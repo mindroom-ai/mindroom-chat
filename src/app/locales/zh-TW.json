@@ -2624,7 +2624,15 @@
         "retryDownloadOriginal": "重試下載原件",
         "downloadOriginal": "下載原版",
         "segmentTokenCount_one": "{{label}}：{{formattedCount}} 個詞元",
-        "segmentTokenCount_other": "{{label}}：{{formattedCount}} 個詞元"
+        "segmentTokenCount_other": "{{label}}：{{formattedCount}} 個詞元",
+        "cost": "費用",
+        "conversationSoFar": "目前對話",
+        "conversationCost_one": "{{count}} 則回覆共 {{cost}}",
+        "conversationCost_other": "{{count}} 則回覆共 {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} 則回覆至少 {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} 則回覆至少 {{cost}}",
+        "replyCost": "這則回覆：{{cost}}",
+        "replyCostWithConversation": "這則回覆：{{cost}} · 目前對話：{{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "訊息附加資訊"
@@ -2980,6 +2988,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} 待處理的排程任務",
         "pendingScheduledTasks_other": "{{count}} 待處理的排程任務"
+      },
+      "threadCostChip": {
+        "label": "對話費用：{{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

@@ -2630,7 +2630,15 @@
         "retryDownloadOriginal": "Download des Originals wiederholen",
         "downloadOriginal": "Original herunterladen",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} Token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} Token"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} Token",
+        "cost": "Kosten",
+        "conversationSoFar": "Unterhaltung bisher",
+        "conversationCost_one": "{{cost}} für {{count}} Antwort",
+        "conversationCost_other": "{{cost}} für {{count}} Antworten",
+        "conversationCostAtLeast_one": "mindestens {{cost}} für {{count}} Antwort",
+        "conversationCostAtLeast_other": "mindestens {{cost}} für {{count}} Antworten",
+        "replyCost": "Diese Antwort: {{cost}}",
+        "replyCostWithConversation": "Diese Antwort: {{cost}} · Unterhaltung bisher: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Nachrichtenzusätze"
@@ -2992,6 +3000,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} ausstehende geplante Aufgabe",
         "pendingScheduledTasks_other": "{{count}} ausstehende geplante Aufgaben"
+      },
+      "threadCostChip": {
+        "label": "Kosten der Unterhaltung: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

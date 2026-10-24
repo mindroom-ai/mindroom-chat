@@ -35,6 +35,8 @@ vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
   Result: 'activity-result',
 }));
 vi.mock('./app/components/user-avatar/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
+vi.mock('./app/mindroom/messages/MindroomAiRunCost.css', () => ({ CostButton: 'cost-button' }));
+vi.mock('./app/mindroom/threads/ThreadCostChip.css', () => ({ Chip: 'thread-cost-chip' }));
 vi.mock('./app/components/glass/Surface.css', () => ({
   inheritSurface: 'surface-inherit',
 }));

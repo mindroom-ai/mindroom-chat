@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Show what each reply and the conversation so far cost (2026-10-23)
+
+- Why: the owner wanted to see at a glance how expensive one reply was and how expensive a conversation had become up to a point. The MindRoom backend now prices each reply on a model with configured `pricing` and sends `io.mindroom.ai_run.cost.usd` as a micro-dollar decimal string, because Matrix event JSON forbids floats.
+- Change:
+  - `aiRun.ts` reads `cost.usd` into `costUsd`, accepting a non-negative decimal string or number. The same parser fixes `timeToFirstToken`, which the backend has always sent as a string, so the run dialog's TTFT row was always empty.
+  - `formatMindroomCostUsd` (`aiRunDisplay.ts`) shows cents from $0.10 up and two significant digits below, with `<$0.0001` for smaller amounts.
+  - `summarizeThreadConversationCost` (`threads/threadConversationCost.ts`) adds up the costs of MindRoom agent replies in the open thread's loaded events, reading each row's latest edit, in exact micro-dollar integers, and records the total through each reply. `useThreadConversationCostSummary` sums again when an agent reply decrypts, and the room timeline provides the result to its rows and the thread banner through `ThreadConversationCostProvider`. The total is complete only when the thread's start is loaded (`sdkLoaded`, no backward pagination, no older cached events); otherwise it reads "at least".
+  - A priced reply's header shows its cost (`MindroomAiRunCost.tsx`) in place of the ⓘ button, in the timestamp's text style; it opens the same run dialog, which gains Cost and Conversation so far rows. Its tooltip and accessible name say `This reply: $0.0051 · Conversation so far: $0.017 across 2 replies`. A collapsed consecutive message has no header, so, as with ⓘ, its cost is in the context menu's Token usage dialog.
+  - `ThreadCostChip` shows the thread's total beside the auto-approve and permissions chips in the expanded banner, as a neutral status chip (`role="note"`), and hides the "Thread view" label like the other status chips.
+  - Anyone can write `io.mindroom.ai_run`, so costs count, in totals and on the message, only from MindRoom accounts on the viewer's homeserver (`isMindroomAgentUserIdForViewer`).
+  - Strings are in every locale; `conversationCost` and `conversationCostAtLeast` have each language's plural categories.
+- Tests: `aiRun.test.ts` (cost strings and numbers, malformed values, TTFT strings), `aiRunDisplay.test.ts` (the formatting table), `threadConversationCost.test.ts` (order and running totals, latest edit, other senders, ignored senders, unpriced replies, completeness), `useThreadConversationCost.test.tsx` (sums again on decryption; a mutant without the listener fails), and `MindroomAiRunCost.test.tsx` (labels, the header button, the banner chip; six of nine fail against stubs). `e2e/reply-cost.spec.ts` posts two agent replies, one streamed with its cost only on the final edit, and a viewer message that forges `cost.usd: "100"`, then checks the header chips, tooltip, dialog rows and banner total, and that the forged cost shows nowhere, with desktop and phone screenshots in light and dark. `vitest.setup.ts` mocks the two new style modules, like the other shared ones, so tests that mock `folds` keep loading the message controls.
+- Validation: the targeted vitest runs, `npm run typecheck`, `npm run lint`, `npm run build`, `npm test`, and `e2e/reply-cost.spec.ts` against a local Synapse pass. A live MindRoom backend (`gpt-6-luna` over Codex with `pricing` set) answered three turns in one thread; the replies carried `0.00034`, `0.00012` (cache reads priced) and `0.00011`, and the app showed each on its reply and `$0.00057` in the banner.
+
 ### Render tool calls in a long reply's preview when the reply ran many tools (2026-10-22)
 
 - Problem: a reply too large for one event arrives as a plain-text preview, which `formatMindroomMarkdownTextBodyAsHtml` turns into HTML before the sidecar loads.

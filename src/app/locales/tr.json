@@ -2630,7 +2630,15 @@
         "retryDownloadOriginal": "Özgün dosya indirmesini tekrar dene",
         "downloadOriginal": "Özgün dosyayı indir",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token",
+        "cost": "Maliyet",
+        "conversationSoFar": "Şu ana kadarki konuşma",
+        "conversationCost_one": "{{count}} yanıtta {{cost}}",
+        "conversationCost_other": "{{count}} yanıtta {{cost}}",
+        "conversationCostAtLeast_one": "{{count}} yanıtta en az {{cost}}",
+        "conversationCostAtLeast_other": "{{count}} yanıtta en az {{cost}}",
+        "replyCost": "Bu yanıt: {{cost}}",
+        "replyCostWithConversation": "Bu yanıt: {{cost}} · Şu ana kadarki konuşma: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Mesaj ekleri"
@@ -2992,6 +3000,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} bekleyen zamanlanmış görev",
         "pendingScheduledTasks_other": "{{count}} bekleyen zamanlanmış görev"
+      },
+      "threadCostChip": {
+        "label": "Konuşma maliyeti: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

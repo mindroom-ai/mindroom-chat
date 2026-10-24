@@ -2630,7 +2630,15 @@
         "retryDownloadOriginal": "Retry Download Original",
         "downloadOriginal": "Download Original",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens",
+        "cost": "Cost",
+        "conversationSoFar": "Conversation so far",
+        "conversationCost_one": "{{cost}} across {{count}} reply",
+        "conversationCost_other": "{{cost}} across {{count}} replies",
+        "conversationCostAtLeast_one": "at least {{cost}} across {{count}} reply",
+        "conversationCostAtLeast_other": "at least {{cost}} across {{count}} replies",
+        "replyCost": "This reply: {{cost}}",
+        "replyCostWithConversation": "This reply: {{cost}} · Conversation so far: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Message extras"
@@ -2992,6 +3000,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} pending scheduled task",
         "pendingScheduledTasks_other": "{{count}} pending scheduled tasks"
+      },
+      "threadCostChip": {
+        "label": "Conversation cost: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

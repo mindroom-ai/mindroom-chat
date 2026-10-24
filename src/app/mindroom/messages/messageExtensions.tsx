@@ -52,7 +52,11 @@ export function MindroomMessageExtensionShell({
   if (!state.aiRunInfo) return <>{children()}</>;
 
   return (
-    <MindroomAiRunControls info={state.aiRunInfo} forwardedRef={forwardedRef}>
+    <MindroomAiRunControls
+      info={state.aiRunInfo}
+      eventId={state.eventId}
+      forwardedRef={forwardedRef}
+    >
       {children}
     </MindroomAiRunControls>
   );
@@ -67,7 +71,14 @@ export function MindroomMessageHeaderExtensions({
 }) {
   if (!controls) return null;
 
-  return <MindroomAiRunInfoButton open={controls.open} onOpen={onOpenAiRun} />;
+  return (
+    <MindroomAiRunInfoButton
+      info={controls.info}
+      eventId={controls.eventId}
+      open={controls.open}
+      onOpen={onOpenAiRun}
+    />
+  );
 }
 
 export function MindroomMessageMenuExtensions({

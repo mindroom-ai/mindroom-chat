@@ -2671,7 +2671,17 @@
         "downloadOriginal": "Télécharger l’original",
         "segmentTokenCount_one": "{{label}} : {{formattedCount}} jeton",
         "segmentTokenCount_other": "{{label}} : {{formattedCount}} jetons",
-        "segmentTokenCount_many": "{{label}} : {{formattedCount}} jetons"
+        "segmentTokenCount_many": "{{label}} : {{formattedCount}} jetons",
+        "cost": "Coût",
+        "conversationSoFar": "Conversation jusqu’ici",
+        "conversationCost_one": "{{cost}} pour {{count}} réponse",
+        "conversationCost_other": "{{cost}} pour {{count}} réponses",
+        "conversationCost_many": "{{cost}} pour {{count}} réponses",
+        "conversationCostAtLeast_one": "au moins {{cost}} pour {{count}} réponse",
+        "conversationCostAtLeast_other": "au moins {{cost}} pour {{count}} réponses",
+        "conversationCostAtLeast_many": "au moins {{cost}} pour {{count}} réponses",
+        "replyCost": "Cette réponse : {{cost}}",
+        "replyCostWithConversation": "Cette réponse : {{cost}} · Conversation jusqu’ici : {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Éléments supplémentaires du message"
@@ -3058,6 +3068,10 @@
         "pendingScheduledTasks_one": "{{count}} tâche planifiée en attente",
         "pendingScheduledTasks_other": "{{count}} tâches planifiées en attente",
         "pendingScheduledTasks_many": "{{count}} tâches planifiées en attente"
+      },
+      "threadCostChip": {
+        "label": "Coût de la conversation : {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

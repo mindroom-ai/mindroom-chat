@@ -2671,7 +2671,17 @@
         "downloadOriginal": "Transferir original",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
         "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens",
-        "segmentTokenCount_many": "{{label}}: {{formattedCount}} tokens"
+        "segmentTokenCount_many": "{{label}}: {{formattedCount}} tokens",
+        "cost": "Custo",
+        "conversationSoFar": "Conversa até agora",
+        "conversationCost_one": "{{cost}} em {{count}} resposta",
+        "conversationCost_other": "{{cost}} em {{count}} respostas",
+        "conversationCost_many": "{{cost}} em {{count}} respostas",
+        "conversationCostAtLeast_one": "pelo menos {{cost}} em {{count}} resposta",
+        "conversationCostAtLeast_other": "pelo menos {{cost}} em {{count}} respostas",
+        "conversationCostAtLeast_many": "pelo menos {{cost}} em {{count}} respostas",
+        "replyCost": "Esta resposta: {{cost}}",
+        "replyCostWithConversation": "Esta resposta: {{cost}} · Conversa até agora: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Extras da mensagem"
@@ -3058,6 +3068,10 @@
         "pendingScheduledTasks_one": "{{count}} tarefa agendada pendente",
         "pendingScheduledTasks_other": "{{count}} tarefas agendadas pendentes",
         "pendingScheduledTasks_many": "{{count}} tarefas agendadas pendentes"
+      },
+      "threadCostChip": {
+        "label": "Custo da conversa: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

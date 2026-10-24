@@ -2624,7 +2624,15 @@
         "retryDownloadOriginal": "원본 다운로드 재시도",
         "downloadOriginal": "원본 다운로드",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}}토큰",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}}토큰"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}}토큰",
+        "cost": "비용",
+        "conversationSoFar": "지금까지의 대화",
+        "conversationCost_one": "답장 {{count}}개에 {{cost}}",
+        "conversationCost_other": "답장 {{count}}개에 {{cost}}",
+        "conversationCostAtLeast_one": "답장 {{count}}개에 최소 {{cost}}",
+        "conversationCostAtLeast_other": "답장 {{count}}개에 최소 {{cost}}",
+        "replyCost": "이 답장: {{cost}}",
+        "replyCostWithConversation": "이 답장: {{cost}} · 지금까지의 대화: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "메시지 부가 정보"
@@ -2980,6 +2988,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "대기 중인 예약 작업 {{count}}개",
         "pendingScheduledTasks_other": "대기 중인 예약 작업 {{count}}개"
+      },
+      "threadCostChip": {
+        "label": "대화 비용: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

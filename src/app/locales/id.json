@@ -2624,7 +2624,15 @@
         "retryDownloadOriginal": "Coba lagi mengunduh berkas asli",
         "downloadOriginal": "Unduh berkas asli",
         "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token"
+        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token",
+        "cost": "Biaya",
+        "conversationSoFar": "Percakapan sejauh ini",
+        "conversationCost_one": "{{cost}} untuk {{count}} balasan",
+        "conversationCost_other": "{{cost}} untuk {{count}} balasan",
+        "conversationCostAtLeast_one": "setidaknya {{cost}} untuk {{count}} balasan",
+        "conversationCostAtLeast_other": "setidaknya {{cost}} untuk {{count}} balasan",
+        "replyCost": "Balasan ini: {{cost}}",
+        "replyCostWithConversation": "Balasan ini: {{cost}} · Percakapan sejauh ini: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Tambahan pesan"
@@ -2980,6 +2988,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} tugas terjadwal menunggu",
         "pendingScheduledTasks_other": "{{count}} tugas terjadwal menunggu"
+      },
+      "threadCostChip": {
+        "label": "Biaya percakapan: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "recent-threads": {

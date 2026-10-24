@@ -1346,7 +1346,15 @@
         "tokens": "টোকেন",
         "tokenUsage": "টোকেন ব্যবহার",
         "tools": "টুল",
-        "ttft": "প্রথম টোকেন আসার সময়"
+        "ttft": "প্রথম টোকেন আসার সময়",
+        "cost": "খরচ",
+        "conversationSoFar": "এখন পর্যন্ত কথোপকথন",
+        "conversationCost_one": "{{count}}টি উত্তরে {{cost}}",
+        "conversationCost_other": "{{count}}টি উত্তরে {{cost}}",
+        "conversationCostAtLeast_one": "{{count}}টি উত্তরে অন্তত {{cost}}",
+        "conversationCostAtLeast_other": "{{count}}টি উত্তরে অন্তত {{cost}}",
+        "replyCost": "এই উত্তর: {{cost}}",
+        "replyCostWithConversation": "এই উত্তর: {{cost}} · এখন পর্যন্ত কথোপকথন: {{conversation}}"
       },
       "mindroomMessageExtras": {
         "messageExtras": "বার্তার অতিরিক্ত তথ্য"
@@ -1691,6 +1699,10 @@
       "timelineMinimap": {
         "jumpToMessage": "বার্তায় যান",
         "message": "বার্তা"
+      },
+      "threadCostChip": {
+        "label": "কথোপকথনের খরচ: {{conversation}}",
+        "atLeast": "≥ {{cost}}"
       }
     },
     "voice": {
