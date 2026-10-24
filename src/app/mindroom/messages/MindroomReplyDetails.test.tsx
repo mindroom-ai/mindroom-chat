@@ -20,7 +20,6 @@ const reply: MindroomAiRunInfo = {
   modelProvider: 'openai',
   inputTokens: 1674,
   outputTokens: 31,
-  totalTokens: 1705,
   cacheReadTokens: 1408,
   uncachedInputTokens: 266,
   timeToFirstToken: 0.412,
@@ -67,8 +66,9 @@ const render = (info: MindroomAiRunInfo, eventId?: string, cost?: ThreadConversa
 
 const text = () => container.textContent ?? '';
 const costCard = () => container.querySelector('[aria-label="Cost"]');
-const histogram = () => container.querySelector('[role="img"]');
-const bars = () => [...(histogram()?.querySelectorAll('[data-position]') ?? [])];
+const histogram = () =>
+  container.querySelector('ol[aria-label="Cost of each reply in this conversation"]');
+const bars = () => [...(histogram()?.querySelectorAll('li') ?? [])];
 const section = (heading: string) =>
   [...container.querySelectorAll('section')].find(
     (element) => element.querySelector('h3')?.textContent === heading
@@ -107,6 +107,12 @@ describe('MindroomReplyDetails', () => {
     expect(costCard()?.textContent).toContain('3 loaded replies');
   });
 
+  it('keeps a lower bound numeric for tiny totals', () => {
+    render(reply, '$r2', thread([0.00001, 0.00003], false));
+
+    expect(costCard()?.textContent).toContain('≥ $0.00004');
+  });
+
   it('shows only the reply cost outside a thread', () => {
     render(reply, '$r3');
 
@@ -123,14 +129,17 @@ describe('MindroomReplyDetails', () => {
   it("draws each reply's cost with this reply highlighted", () => {
     render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
 
-    expect(histogram()?.getAttribute('aria-label')).toBe('Cost of each reply in this conversation');
     expect(
-      bars().map((bar) => [bar.getAttribute('title'), bar.getAttribute('data-position')])
+      bars().map((bar) => [
+        bar.textContent,
+        bar.getAttribute('data-position'),
+        bar.getAttribute('aria-current'),
+      ])
     ).toEqual([
-      ['Reply 1: $0.0012', 'earlier'],
-      ['Reply 2: $0.0034', 'earlier'],
-      ['Reply 3: $0.0051', 'current'],
-      ['Reply 4: $0.0026', 'later'],
+      ['Reply 1: $0.0012', 'earlier', null],
+      ['Reply 2: $0.0034', 'earlier', null],
+      ['Reply 3: $0.0051', 'current', 'true'],
+      ['Reply 4: $0.0026', 'later', null],
     ]);
     expect(costCard()?.textContent).toContain('Reply 1');
     expect(costCard()?.textContent).toContain('This reply · 3 of 4');
@@ -139,6 +148,12 @@ describe('MindroomReplyDetails', () => {
   it('numbers no replies while older ones are not loaded', () => {
     render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026], false));
 
+    expect(bars().map((bar) => bar.textContent)).toEqual([
+      '$0.0012',
+      '$0.0034',
+      '$0.0051',
+      '$0.0026',
+    ]);
     expect(costCard()?.textContent).not.toContain('3 of 4');
     expect(costCard()?.textContent).not.toContain('Reply 1');
   });
@@ -153,8 +168,8 @@ describe('MindroomReplyDetails', () => {
     render(reply, '$r50', thread(Array.from({ length: 60 }, () => 0.001)));
 
     expect(bars()).toHaveLength(40);
-    expect(bars()[0].getAttribute('title')).toBe('Reply 21: $0.001');
-    expect(bars()[39].getAttribute('title')).toBe('Reply 60: $0.001');
+    expect(bars()[0].textContent).toBe('Reply 21: $0.001');
+    expect(bars()[39].textContent).toBe('Reply 60: $0.001');
     expect(costCard()?.textContent).toContain('Reply 21');
   });
 

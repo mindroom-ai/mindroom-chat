@@ -44,14 +44,11 @@ describe('getMindroomAiRunInfo', () => {
       modelProvider: 'openai',
       inputTokens: 100,
       outputTokens: 25,
-      totalTokens: 125,
       cacheReadTokens: 20,
-      cacheWriteTokens: 5,
       timeToFirstToken: 0.42,
       contextInputTokens: 125,
       contextWindowTokens: 4000,
       contextCacheReadInputTokens: 20,
-      contextCacheWriteInputTokens: 5,
       contextUncachedInputTokens: 105,
       toolCount: 2,
     });
@@ -69,13 +66,13 @@ describe('getMindroomAiRunInfo', () => {
           version: 1,
           status: 'cached',
           model: { config: 'new', display_name: 'New Model' },
-          usage: { total_tokens: 50 },
+          usage: { output_tokens: 50 },
         },
       },
     });
 
     expect(info?.status).toBe('cached');
-    expect(info?.totalTokens).toBe(50);
+    expect(info?.outputTokens).toBe(50);
     expect(info?.modelConfig).toBe('new');
     expect(info?.modelDisplayName).toBe('New Model');
   });

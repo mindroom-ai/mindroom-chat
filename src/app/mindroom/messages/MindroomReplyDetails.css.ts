@@ -8,9 +8,6 @@ export const Body = style({
   gap: toRem(18),
   padding: `${toRem(18)} ${config.space.S500} ${config.space.S500}`,
   width: `min(${toRem(384)}, calc(100vw - 2 * ${config.space.S400}))`,
-  // Leaves room for the header so expanded technical details scroll instead of leaving the screen.
-  maxHeight: `calc(100dvh - ${toRem(128)})`,
-  overflowY: 'auto',
   boxSizing: 'border-box',
 });
 
@@ -115,12 +112,26 @@ export const CostNote = style({
 });
 
 export const Bars = style({
+  position: 'relative',
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
   display: 'flex',
   alignItems: 'flex-end',
   gap: toRem(3),
   height: toRem(48),
   paddingBottom: toRem(4),
   borderBottom: `${config.borderWidth.B300} solid ${color.Primary.ContainerLine}`,
+});
+
+// Read by screen readers, kept off screen.
+export const HiddenLabel = style({
+  position: 'absolute',
+  width: toRem(1),
+  height: toRem(1),
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
 });
 
 const barBase = style({

@@ -47,8 +47,17 @@ vi.mock('../MessageCopyActions.css', () => ({
 
 vi.mock('../MindroomMessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
+  ReplyDetailsScroll: 'ReplyDetailsScroll',
   MenuItemText: 'MenuItemText',
 }));
+
+vi.mock('../../../components/page', async () => {
+  const { createElement } = await import('react');
+  return {
+    PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+      createElement('div', null, header, children),
+  };
+});
 
 vi.mock('focus-trap-react', () => ({
   default: ({

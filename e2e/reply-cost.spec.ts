@@ -162,12 +162,10 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(costCard).toContainText('This reply$0.0051');
   await expect(costCard).toContainText('Conversation so far$0.0085');
   await expect(costCard).toContainText('2 replies');
-  const history = costCard.getByRole('img', { name: 'Cost of each reply in this conversation' });
-  await expect(history.locator('[data-position]')).toHaveCount(3);
-  await expect(history.locator('[data-position="current"]')).toHaveAttribute(
-    'title',
-    'Reply 2: $0.0051'
-  );
+  const history = costCard.getByRole('list', { name: 'Cost of each reply in this conversation' });
+  await expect(history.getByRole('listitem')).toHaveCount(3);
+  await expect(history.getByRole('listitem').nth(1)).toHaveAttribute('aria-current', 'true');
+  await expect(history.getByRole('listitem').nth(1)).toHaveText('Reply 2: $0.0051');
   await expect(costCard).toContainText('This reply · 2 of 3');
   await expect(section('Tokens')).toContainText('Tokens1,705');
   await expect(section('Tokens')).toContainText('From cache 1,408');

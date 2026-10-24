@@ -59,33 +59,35 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
   const highest = Math.max(...shown.map(({ usd }) => usd));
   return (
     <div>
-      <div
+      {/* A list, so each reply's cost can be read without the hover titles. */}
+      <ol
         className={css.Bars}
-        role="img"
         aria-label={t('mindroomUi.messages.mindroomReplyDetails.costHistory')}
       >
         {shown.map(({ eventId, usd }, offset) => {
           const position = start + offset;
           const place = position < index ? 'earlier' : position === index ? 'current' : 'later';
           const cost = formatMindroomCostUsd(usd, language);
+          const label = complete
+            ? t('mindroomUi.messages.mindroomReplyDetails.costHistoryBar', {
+                index: position + 1,
+                cost,
+              })
+            : cost;
           return (
-            <span
+            <li
               key={eventId}
               data-position={place}
+              aria-current={place === 'current' ? 'true' : undefined}
               className={css.Bar[place]}
               style={{ height: `${Math.max(8, highest > 0 ? (usd / highest) * 100 : 0)}%` }}
-              title={
-                complete
-                  ? t('mindroomUi.messages.mindroomReplyDetails.costHistoryBar', {
-                      index: position + 1,
-                      cost,
-                    })
-                  : cost
-              }
-            />
+              title={label}
+            >
+              <span className={css.HiddenLabel}>{label}</span>
+            </li>
           );
         })}
-      </div>
+      </ol>
       {complete ? (
         <div className={css.Axis.numbered}>
           <span>

@@ -75,8 +75,17 @@ vi.mock('../styles/Modal.css', () => ({
   ModalWide: 'ModalWide',
 }));
 
+vi.mock('./page', async () => {
+  const { createElement } = await import('react');
+  return {
+    PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+      createElement('div', null, header, children),
+  };
+});
+
 vi.mock('../mindroom/messages/MindroomMessageControls.css', () => ({
   MenuItemText: 'MenuItemText',
+  ReplyDetailsScroll: 'ReplyDetailsScroll',
 }));
 
 vi.mock('../hooks/useZoom', () => ({

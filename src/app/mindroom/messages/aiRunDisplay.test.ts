@@ -117,7 +117,6 @@ describe('getMindroomAiRunContextBarSegments', () => {
         contextInputTokens: 65,
         contextWindowTokens: 100,
         contextCacheReadInputTokens: 20,
-        contextCacheWriteInputTokens: 5,
         contextUncachedInputTokens: 45,
       })
     ).toEqual([
@@ -214,7 +213,8 @@ describe('formatMindroomAiRunNumber', () => {
 describe('formatMindroomCostUsd', () => {
   it.each([
     [0, '$0.00'],
-    [0.00004, '<$0.0001'],
+    [0.00004, '$0.00004'],
+    [0.0000123, '$0.000012'],
     [0.0001, '$0.0001'],
     [0.000423, '$0.00042'],
     [0.0031, '$0.0031'],

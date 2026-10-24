@@ -17,6 +17,7 @@ import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import FocusTrap from 'focus-trap-react';
 import { getEventAttachmentOwner } from './eventAttachments';
 import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
+import { PageScroll } from '../../components/page';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -101,29 +102,35 @@ function MindroomAiRunInfoDialog({
             aria-modal="true"
             aria-label={t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
           >
-            <Header
-              style={{
-                padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
-                borderBottomWidth: config.borderWidth.B300,
-              }}
-              variant="Surface"
-              size="500"
+            <PageScroll
+              className={css.ReplyDetailsScroll}
+              header={
+                <Header
+                  style={{
+                    padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
+                    borderBottomWidth: config.borderWidth.B300,
+                  }}
+                  variant="Surface"
+                  size="500"
+                >
+                  <Box grow="Yes">
+                    <Text size="H4">
+                      {t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
+                    </Text>
+                  </Box>
+                  <IconButton
+                    size="300"
+                    onClick={onClose}
+                    radii="300"
+                    aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
+                  >
+                    <Icon src={Icons.Cross} />
+                  </IconButton>
+                </Header>
+              }
             >
-              <Box grow="Yes">
-                <Text size="H4">
-                  {t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
-                </Text>
-              </Box>
-              <IconButton
-                size="300"
-                onClick={onClose}
-                radii="300"
-                aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
-              >
-                <Icon src={Icons.Cross} />
-              </IconButton>
-            </Header>
-            <MindroomReplyDetails info={info} eventId={eventId} />
+              <MindroomReplyDetails info={info} eventId={eventId} />
+            </PageScroll>
           </Dialog>
         </FocusTrap>
       </OverlayCenter>

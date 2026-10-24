@@ -10,9 +10,7 @@ type MindroomAiRunModel = {
 type MindroomAiRunUsage = {
   input_tokens?: unknown;
   output_tokens?: unknown;
-  total_tokens?: unknown;
   cache_read_tokens?: unknown;
-  cache_write_tokens?: unknown;
   uncached_input_tokens?: unknown;
   time_to_first_token?: unknown;
 };
@@ -21,7 +19,6 @@ type MindroomAiRunContext = {
   input_tokens?: unknown;
   window_tokens?: unknown;
   cache_read_input_tokens?: unknown;
-  cache_write_input_tokens?: unknown;
   uncached_input_tokens?: unknown;
 };
 
@@ -56,16 +53,13 @@ export type MindroomAiRunInfo = {
   modelProvider?: string;
   inputTokens?: number;
   outputTokens?: number;
-  totalTokens?: number;
   cacheReadTokens?: number;
-  cacheWriteTokens?: number;
   /** Input that was not read from cache, split by the backend with each provider's cache accounting. */
   uncachedInputTokens?: number;
   timeToFirstToken?: number;
   contextInputTokens?: number;
   contextWindowTokens?: number;
   contextCacheReadInputTokens?: number;
-  contextCacheWriteInputTokens?: number;
   contextUncachedInputTokens?: number;
   toolCount?: number;
   /** The reply's own cost in USD at the deployment's configured model prices. */
@@ -138,15 +132,12 @@ export const getMindroomAiRunInfo = (
     modelProvider: asString(model?.provider),
     inputTokens: asFiniteNumber(usage?.input_tokens),
     outputTokens: asFiniteNumber(usage?.output_tokens),
-    totalTokens: asFiniteNumber(usage?.total_tokens),
     cacheReadTokens: asFiniteNumber(usage?.cache_read_tokens),
-    cacheWriteTokens: asFiniteNumber(usage?.cache_write_tokens),
     uncachedInputTokens: asFiniteNumber(usage?.uncached_input_tokens),
     timeToFirstToken: asNonNegativeDecimal(usage?.time_to_first_token),
     contextInputTokens: asFiniteNumber(context?.input_tokens),
     contextWindowTokens: asFiniteNumber(context?.window_tokens),
     contextCacheReadInputTokens: asFiniteNumber(context?.cache_read_input_tokens),
-    contextCacheWriteInputTokens: asFiniteNumber(context?.cache_write_input_tokens),
     contextUncachedInputTokens: asFiniteNumber(context?.uncached_input_tokens),
     toolCount: asFiniteNumber(tools?.count),
     costUsd: asNonNegativeDecimal(cost?.usd),

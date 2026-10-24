@@ -11,7 +11,7 @@ const Context = createContext<ThreadConversationCost | undefined>(undefined);
 
 export const ThreadConversationCostProvider = Context.Provider;
 
-/** Reply costs of the open thread, for its rows and banner; undefined outside a thread or when nothing is priced. */
+/** Reply costs of the open thread, for Reply details; undefined outside a thread or when nothing is priced. */
 export const useThreadConversationCost = () => useContext(Context);
 
 type SummaryOptions = {

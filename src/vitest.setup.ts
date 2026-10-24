@@ -56,6 +56,7 @@ vi.mock('./app/mindroom/messages/MindroomReplyDetails.css', () => {
     CostValue: 'reply-details-cost-value',
     CostNote: 'reply-details-cost-note',
     Bars: 'reply-details-bars',
+    HiddenLabel: 'reply-details-hidden-label',
     Bar: { earlier: 'bar-earlier', current: 'bar-current', later: 'bar-later' },
     Axis: { numbered: 'axis-numbered', unnumbered: 'axis-unnumbered' },
     Section: 'reply-details-section',

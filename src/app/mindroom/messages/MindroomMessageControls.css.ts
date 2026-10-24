@@ -31,3 +31,8 @@ export const AiRunInfoButton = style([
 export const MenuItemText = style({
   flexGrow: 1,
 });
+
+// The header stays inside the scroll viewport, as in the approval review.
+export const ReplyDetailsScroll = style({
+  maxHeight: 'min(80dvh, calc(100dvh - 24px))',
+});
