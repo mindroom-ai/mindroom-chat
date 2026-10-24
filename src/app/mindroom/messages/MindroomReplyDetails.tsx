@@ -94,9 +94,12 @@ function Meter({ parts }: { parts: MeterPart[] }) {
 function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost; index: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  // The reply under the pointer, which the caption names in place of this one.
-  const [pointed, setPointed] = useState<number>();
+  // The reply under the pointer, which the caption names in place of this one. It is kept by
+  // event ID, because replies can arrive or be redacted while the dialog is open.
+  const [pointedId, setPointedId] = useState<string>();
   const { replies, complete } = threadCost;
+  const pointedIndex = replies.findIndex((reply) => reply.eventId === pointedId);
+  const pointed = pointedIndex < 0 ? undefined : pointedIndex;
   const start = Math.max(
     0,
     Math.min(index - MAX_HISTORY_BARS / 2, replies.length - MAX_HISTORY_BARS)
@@ -112,10 +115,19 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
   };
   // Reading the bar from the pointer's position lets a finger drag across the bars as a mouse does.
   const point = (event: React.PointerEvent<HTMLOListElement>) => {
-    const offset = [...event.currentTarget.children].findIndex(
-      (bar) => event.clientX <= bar.getBoundingClientRect().right
+    const x = event.clientX;
+    const bars = [...event.currentTarget.children].map((bar) => bar.getBoundingClientRect());
+    if (!bars.some((bar) => x >= bar.left) || !bars.some((bar) => x <= bar.right)) {
+      setPointedId(undefined);
+      return;
+    }
+    // The nearest bar, whichever way the bars run, so right-to-left languages point right too.
+    const distance = (bar: DOMRect) => Math.abs(x - (bar.left + bar.right) / 2);
+    const offset = bars.reduce(
+      (nearest, bar, candidate) => (distance(bar) < distance(bars[nearest]) ? candidate : nearest),
+      0
     );
-    setPointed(offset < 0 ? undefined : start + offset);
+    setPointedId(shown[offset].eventId);
   };
   let caption: string;
   if (pointed !== undefined) caption = replyLabel(pointed);
@@ -135,7 +147,7 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
         onPointerMove={point}
         onPointerLeave={(event) => {
           // A tap keeps its reply named after the finger lifts.
-          if (event.pointerType === 'mouse') setPointed(undefined);
+          if (event.pointerType === 'mouse') setPointedId(undefined);
         }}
       >
         {shown.map(({ eventId, usd }, offset) => {

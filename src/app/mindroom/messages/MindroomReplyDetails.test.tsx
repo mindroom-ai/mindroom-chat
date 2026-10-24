@@ -154,12 +154,16 @@ describe('MindroomReplyDetails', () => {
     expect(caption()).toEqual(['This reply · 3 of 4']);
   });
 
+  /** Bars 8px wide with 2px gaps, the first at the left or, right to left, at the right. */
+  const placeBars = (direction: 'ltr' | 'rtl') =>
+    bars().forEach((bar, offset) => {
+      const left = direction === 'ltr' ? offset * 10 : 30 - offset * 10;
+      bar.getBoundingClientRect = () => ({ left, right: left + 8 } as DOMRect);
+    });
+
   it('names the reply under the pointer in the caption', () => {
     render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
-    // Bars 10px wide, each ending at 10, 20, 30 and 40.
-    bars().forEach((bar, offset) => {
-      bar.getBoundingClientRect = () => ({ right: (offset + 1) * 10 } as DOMRect);
-    });
+    placeBars('ltr');
 
     pointer(histogram()!, 'pointermove', 15, 'mouse');
     expect(caption()).toEqual(['Reply 2: $0.0034']);
@@ -179,6 +183,31 @@ describe('MindroomReplyDetails', () => {
     expect(caption()).toEqual(['Reply 4: $0.0026']);
     pointer(histogram()!, 'pointermove', 45, 'touch');
     expect(caption()).toEqual(['This reply · 3 of 4']);
+  });
+
+  it('keeps naming the pointed reply as the thread changes, and forgets a redacted one', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+    placeBars('ltr');
+    pointer(histogram()!, 'pointerdown', 35, 'touch');
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+
+    // A new reply arrives: the tapped reply stays named.
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026, 0.0018]));
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+
+    // The tapped reply is redacted: the caption falls back to this reply.
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051]));
+    expect(caption()).toEqual(['This reply · 3 of 3']);
+  });
+
+  it('names the pointed reply when the bars run right to left', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+    placeBars('rtl');
+
+    pointer(histogram()!, 'pointermove', 3, 'mouse');
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+    pointer(histogram()!, 'pointermove', 31, 'mouse');
+    expect(caption()).toEqual(['Reply 1: $0.0012']);
   });
 
   it('numbers no replies while older ones are not loaded', () => {
