@@ -99,12 +99,23 @@ for (const theme of ['light', 'dark'] as const) {
       const root = document.getElementById('root')!.getBoundingClientRect();
       const stack = document.querySelector('[role="status"]')!.getBoundingClientRect();
       const content = document.querySelector('[role="status"] + div')!.getBoundingClientRect();
-      return { root, stack, content };
+      const stackElement = document.querySelector<HTMLElement>('[role="status"]')!;
+      const rows = [...stackElement.querySelectorAll<HTMLElement>('[data-notice-level]')];
+      return {
+        root,
+        stack,
+        content,
+        stackScrolls: stackElement.scrollHeight > stackElement.clientHeight,
+        // Rows keep their content height instead of shrinking into each other.
+        rowsContained: rows.every((row) => row.scrollHeight <= row.clientHeight + 1),
+      };
     });
     expect(keyboardLayout.root.height).toBe(320);
     expect(keyboardLayout.stack.height).toBeLessThanOrEqual(160.5);
     expect(keyboardLayout.content.height).toBeGreaterThanOrEqual(159.5);
     expect(keyboardLayout.content.bottom).toBeLessThanOrEqual(keyboardLayout.root.bottom + 0.5);
+    expect(keyboardLayout.stackScrolls).toBe(true);
+    expect(keyboardLayout.rowsContained).toBe(true);
     await page.evaluate(() => document.documentElement.style.removeProperty('--app-height'));
 
     // An unbroken link label wraps too.

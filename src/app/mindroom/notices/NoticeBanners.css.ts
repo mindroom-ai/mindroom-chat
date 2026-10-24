@@ -22,6 +22,8 @@ const levelColors = (tone: typeof color.Primary) => ({
 
 export const Notice = recipe({
   base: {
+    // Rows keep their height; the capped stack scrolls instead.
+    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,

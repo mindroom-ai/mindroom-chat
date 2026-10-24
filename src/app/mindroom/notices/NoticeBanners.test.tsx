@@ -172,6 +172,22 @@ describe('NoticeBanners', () => {
     expect(texts()).toEqual(['Notice b', 'Notice c']);
   });
 
+  it('keeps earlier dismissals in this tab when localStorage rejects writes', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    serve({ status: 200, body: [notice('a'), notice('b'), notice('c')] });
+    await render();
+
+    await act(async () => {
+      dismissButton(banners()[0])!.click();
+    });
+    await act(async () => {
+      dismissButton(banners()[0])!.click();
+    });
+    expect(texts()).toEqual(['Notice c']);
+  });
+
   it('offers no dismiss button when a notice is not dismissible', async () => {
     serve({ status: 200, body: [notice('pinned', { dismissible: false })] });
     await render();

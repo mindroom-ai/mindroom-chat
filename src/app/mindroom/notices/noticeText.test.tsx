@@ -118,7 +118,14 @@ describe('renderNoticeText', () => {
     expect(html('| a | b |')).toBe('| a | b |');
   });
 
-  it('leaves underline, spoiler and math syntax as text', () => {
+  it('renders underscores as italics, as chat messages do', () => {
+    expect(html('__init__ and snake_case_name')).toBe(
+      '<i><i>init</i></i> and snake<i>case</i>name'
+    );
+    expect(html('\\_\\_init\\_\\_')).toBe('__init__');
+  });
+
+  it('leaves spoiler and math syntax as text', () => {
     expect(html('||secret|| costs $5 and $6')).toBe('||secret|| costs $5 and $6');
   });
 
@@ -129,14 +136,22 @@ describe('renderNoticeText', () => {
     ['~~a~~'.repeat(200), '<s>'],
     ['`a`'.repeat(333), '<code'],
     ['[a](https://b.example)'.repeat(45), '<a'],
-    [`${'['.repeat(980)}](https://x)`, ''],
-    ['[a](https://'.repeat(83), ''],
-    ['**'.repeat(500), ''],
-    ['\\*'.repeat(500), ''],
+    ['**'.repeat(500), '<strong>'],
   ])('parses worst-case text at the length cap quickly (%#)', (text, tag) => {
     expect(text.length).toBeLessThanOrEqual(MAX_NOTICE_TEXT_LENGTH);
     const started = performance.now();
     expect(html(text)).toContain(tag);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it.each([
+    [`${'['.repeat(980)}](https://x)`, `${'['.repeat(980)}](https://x)`],
+    ['[a](https://'.repeat(83), '[a](https://'.repeat(83)],
+    ['\\*'.repeat(500), '*'.repeat(500)],
+  ])('renders worst-case text without tags at the length cap quickly (%#)', (text, expected) => {
+    expect(text.length).toBeLessThanOrEqual(MAX_NOTICE_TEXT_LENGTH);
+    const started = performance.now();
+    expect(html(text)).toBe(expected);
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
