@@ -1,10 +1,14 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT, type MindroomServer } from './mindroomServer';
-import { useBindsOpenIdTokens, useRoomMindroomServers } from './useMindroomServers';
+import {
+  useBindsOpenIdTokens,
+  useMindroomServerUrls,
+  useRoomMindroomServers,
+} from './useMindroomServers';
 
 const native = vi.hoisted(() => ({ isNativePlatform: false }));
 vi.mock('@capacitor/core', () => ({
@@ -33,13 +37,15 @@ const serverEvent = (apiOrigin: string) =>
   stateEvent(MINDROOM_SERVER_EVENT, agent, { api_origin: apiOrigin, computer: true });
 const membership = (value: string) => stateEvent('m.room.member', agent, { membership: value });
 
-const makeRoom = () =>
-  new Room(
-    '!room:example.org',
-    createClient({ baseUrl: 'http://localhost:1', userId: viewer, timelineSupport: true }),
-    viewer,
-    { timelineSupport: true }
-  );
+const makeRoom = (
+  mx = createClient({ baseUrl: 'http://localhost:1', userId: viewer, timelineSupport: true })
+) => new Room('!room:example.org', mx, viewer, { timelineSupport: true });
+
+// Sync hands the sender's member event over again with each batch, as a new event object.
+const redeliver = (room: Room, event: MatrixEvent) =>
+  act(() => {
+    room.currentState.setStateEvents([new MatrixEvent(event.event)]);
+  });
 
 const mount = (room: Room) => {
   const seen: MindroomServer[][] = [];
@@ -89,6 +95,76 @@ it('does not render again for unrelated room state', async () => {
   await addState(room, stateEvent('m.room.topic', '', { topic: 'Release prep' }));
 
   expect(seen).toHaveLength(renders);
+});
+
+it('does not render again when sync re-delivers an agent membership that did not change', async () => {
+  const room = makeRoom();
+  const joined = membership('join');
+  await room.addLiveEvents([joined, serverEvent('http://localhost:8765')], { addToState: true });
+  const seen = mount(room);
+  const renders = seen.length;
+
+  redeliver(room, joined);
+  redeliver(room, joined);
+  expect(seen).toHaveLength(renders);
+
+  await addState(room, membership('leave'));
+  expect(seen.at(-1)).toEqual([]);
+  await addState(room, membership('join'));
+  expect(seen.at(-1)?.map((server) => server.apiUrl)).toEqual(['http://localhost:8765']);
+});
+
+it('renders the servers of all rooms again only when an agent membership changes them', async () => {
+  const mx = createClient({
+    baseUrl: 'https://example.org',
+    userId: viewer,
+    store: new MemoryStore(),
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            versions: ['v1.11'],
+            unstable_features: { 'io.mindroom.openid_audience': true },
+          }),
+          { status: 200 }
+        )
+    )
+  );
+  const room = makeRoom(mx);
+  const joined = membership('join');
+  await room.addLiveEvents([joined, serverEvent('http://localhost:8765')], { addToState: true });
+  room.updateMyMembership('join');
+  mx.store.storeRoom(room);
+  // The SDK re-emits each room's state events on the client.
+  mx.reEmitter.reEmit(room, [RoomStateEvent.Events, RoomStateEvent.Members]);
+  const seen: string[][] = [];
+  function Probe() {
+    seen.push(useMindroomServerUrls());
+    return null;
+  }
+  await act(async () => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <Probe />
+      </MatrixClientProvider>
+    );
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(seen.at(-1)).toEqual(['http://localhost:8765']);
+  const renders = seen.length;
+
+  redeliver(room, joined);
+  redeliver(room, joined);
+  expect(seen).toHaveLength(renders);
+
+  await addState(room, membership('leave'));
+  expect(seen.at(-1)).toEqual([]);
+  vi.unstubAllGlobals();
 });
 
 it('asks the homeserver again after a check that could not reach it', async () => {

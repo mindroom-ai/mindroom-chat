@@ -8,7 +8,7 @@ import {
   type RoomState,
 } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { agentRoomState, useAgentRoomState } from '../matrix/agentRoomState';
@@ -61,19 +61,41 @@ export const useBindsOpenIdTokens = (): boolean => {
 export const useRoomMindroomServers = (room: Room): MindroomServer[] =>
   useAgentRoomState(room, MINDROOM_SERVER_EVENT, selectRoomServers);
 
+const joinedRoomServerUrls = (mx: MatrixClient): string[] =>
+  distinctServerUrls(
+    mx
+      .getRooms()
+      .filter((room) => room.getMyMembership() === 'join')
+      .flatMap(roomServers)
+  );
+
+const sameUrls = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((url, index) => url === b[index]);
+
 /** Every server the agents in the user's rooms publish, newest first, while the homeserver binds tokens. */
 export const useMindroomServerUrls = (): string[] => {
   const mx = useMatrixClient();
   const bindsTokens = useBindsOpenIdTokens();
   const [version, refresh] = useForceUpdate();
+  const urls = useMemo(() => {
+    void version;
+    return bindsTokens ? joinedRoomServerUrls(mx) : [];
+  }, [mx, bindsTokens, version]);
+  const renderedUrls = useRef(urls);
+  useEffect(() => {
+    renderedUrls.current = urls;
+  }, [urls]);
   useEffect(() => {
     const viewer = mx.getUserId() ?? undefined;
     const onState = (event: MatrixEvent) => {
       if (event.getType() === MINDROOM_SERVER_EVENT) refresh();
     };
-    // Only an agent's membership, or the user's own, changes which servers count.
+    // Only an agent's membership, or the user's own, changes which servers count. Sync hands an
+    // agent's member event over again with every batch it sends in, unchanged, so render again
+    // only when the servers change.
     const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (isMindroomAgentUserIdForViewer(member.userId, viewer)) refresh();
+      if (!bindsTokens || !isMindroomAgentUserIdForViewer(member.userId, viewer)) return;
+      if (!sameUrls(joinedRoomServerUrls(mx), renderedUrls.current)) refresh();
     };
     mx.on(RoomStateEvent.Events, onState);
     mx.on(RoomStateEvent.Members, onMember);
@@ -83,15 +105,6 @@ export const useMindroomServerUrls = (): string[] => {
       mx.removeListener(RoomStateEvent.Members, onMember);
       mx.removeListener(RoomEvent.MyMembership, refresh);
     };
-  }, [mx, refresh]);
-  return useMemo(() => {
-    void version;
-    if (!bindsTokens) return [];
-    return distinctServerUrls(
-      mx
-        .getRooms()
-        .filter((room) => room.getMyMembership() === 'join')
-        .flatMap(roomServers)
-    );
-  }, [mx, bindsTokens, version]);
+  }, [mx, bindsTokens, refresh]);
+  return urls;
 };
