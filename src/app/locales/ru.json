@@ -3220,6 +3220,11 @@
       "you": "Вы",
       "until": "До {{time}}",
       "ownUntil": "До {{time}}. Отправьте !auto_approve off, чтобы закончить."
+    },
+    "notices": {
+      "dismiss": "Скрыть уведомление",
+      "showMore": "Показать больше",
+      "showLess": "Показать меньше"
     }
   },
   "roomSchedules": {

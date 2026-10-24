@@ -3088,6 +3088,11 @@
       "you": "Jij",
       "until": "Tot {{time}}",
       "ownUntil": "Tot {{time}}. Stuur !auto_approve off om dit te beëindigen."
+    },
+    "notices": {
+      "dismiss": "Melding sluiten",
+      "showMore": "Meer tonen",
+      "showLess": "Minder tonen"
     }
   },
   "roomSchedules": {

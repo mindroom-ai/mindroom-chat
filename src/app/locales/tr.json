@@ -3088,6 +3088,11 @@
       "you": "Siz",
       "until": "{{time}} saatine kadar",
       "ownUntil": "{{time}} saatine kadar. Bitirmek için !auto_approve off gönderin."
+    },
+    "notices": {
+      "dismiss": "Bildirimi kapat",
+      "showMore": "Daha fazla göster",
+      "showLess": "Daha az göster"
     }
   },
   "roomSchedules": {

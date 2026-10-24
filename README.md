@@ -235,6 +235,51 @@ Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, `vbscr
 
 </details>
 
+### Notices
+
+Operators can show short banners above every screen, including sign-in and loading, without a rebuild.
+The web app reads `notices.json` from the root it is served from, on load, every 60 seconds and when the window regains focus, so a change reaches open tabs within about a minute.
+It needs neither Matrix nor MindRoom, so a notice stays up while both are down.
+The native apps read only their bundled copy, which is empty, so they show no notices.
+
+```json
+[
+  {
+    "id": "cutover-2026-10-24",
+    "level": "warning",
+    "icon": "clock",
+    "text": "**MindRoom is moving tonight**, 00:50 to 02:00 PDT. Chat and agents may be unavailable; see [the plan](https://example.org/plan).",
+    "startsAt": "2026-10-23T22:00:00-07:00",
+    "endsAt": "2026-10-24T02:30:00-07:00",
+    "linkUrl": "https://status.example.org",
+    "linkText": "Status"
+  }
+]
+```
+
+- `id` (required): a dismissal hides the notice on that device by `id`, so give a changed notice a new `id` to show it again.
+- `text` (required): plain text with inline Markdown only: `**bold**`, `*italic*` or `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://…)` links. Anything else, HTML included, shows as typed. Long text folds to three lines behind "Show more".
+- `level` (required): `info`, `warning`, `success` or `critical`.
+- `icon`: one emoji, or `info`, `warning`, `check`, `clock`, `bell`, `server` or `settings`. Defaults to the level's icon.
+- `startsAt`, `endsAt`: ISO 8601 times with `Z` or an offset; the notice shows from `startsAt` until `endsAt`.
+- `dismissible`: `false` hides the dismiss button. Defaults to `true`.
+- `linkUrl`, `linkText`: a link after the text; `linkText` defaults to the host.
+
+Links must use `https:`; other links show as text, and an entry with another `linkUrl` is skipped.
+An invalid entry is skipped; an invalid file, or a 404, shows no notices.
+If the file cannot be reached (a network or server error), open tabs keep the notices they have until the next successful load.
+At most three notices show at once, in file order.
+To remove a notice for everyone, delete its entry or set `endsAt` in the past; to clear all, serve `[]`.
+
+The Docker image serves `/opt/mindroom/notices/notices.json`, which is `[]`, with `Cache-Control: no-store`, also under a runtime base path.
+Mount a directory over `/opt/mindroom/notices` to replace it:
+
+```bash
+docker run -p 8080:80 -v "$PWD/notices:/opt/mindroom/notices:ro" ghcr.io/mindroom-ai/mindroom-chat:latest
+```
+
+In Kubernetes, mount a ConfigMap with a `notices.json` key at `/opt/mindroom/notices` without `subPath`, so edits reach the pod without a restart (the kubelet syncs ConfigMap volumes within about a minute).
+
 ## Development
 
 ```bash
