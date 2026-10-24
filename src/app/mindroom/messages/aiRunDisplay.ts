@@ -3,7 +3,6 @@ import { MindroomAiRunInfo } from './aiRun';
 
 export type MindroomAiRunContextBarSegment = {
   key: 'cacheRead' | 'newInput';
-  label: string;
   tokens: number;
   percentage: number;
 };
@@ -153,8 +152,7 @@ export const getMindroomAiRunContextLabel = (
 };
 
 export const getMindroomAiRunContextBarSegments = (
-  info: MindroomAiRunInfo,
-  t?: TFunction
+  info: MindroomAiRunInfo
 ): MindroomAiRunContextBarSegment[] | undefined => {
   const inputTokens = info.contextInputTokens;
   const windowTokens = info.contextWindowTokens;
@@ -179,27 +177,16 @@ export const getMindroomAiRunContextBarSegments = (
     cacheReadTokens + uncachedTokens === inputTokens
       ? uncachedTokens
       : inputTokens - displayedCacheReadTokens;
-  const segment = (
-    key: MindroomAiRunContextBarSegment['key'],
-    label: string,
-    tokens: number
-  ): MindroomAiRunContextBarSegment => ({
-    key,
-    label,
-    tokens,
-    percentage: (tokens / windowTokens) * 100,
-  });
-
   return [
-    segment(
-      'cacheRead',
-      t ? t('mindroomUi.messages.mindroomReplyDetails.fromCache') : 'From cache',
-      displayedCacheReadTokens
-    ),
-    segment(
-      'newInput',
-      t ? t('mindroomUi.messages.mindroomReplyDetails.newInput') : 'New input',
-      displayedUncachedTokens
-    ),
+    {
+      key: 'cacheRead',
+      tokens: displayedCacheReadTokens,
+      percentage: (displayedCacheReadTokens / windowTokens) * 100,
+    },
+    {
+      key: 'newInput',
+      tokens: displayedUncachedTokens,
+      percentage: (displayedUncachedTokens / windowTokens) * 100,
+    },
   ];
 };

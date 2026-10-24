@@ -61,6 +61,7 @@ export const Status = styleVariants({
 });
 
 export const CostCard = style({
+  containerType: 'inline-size',
   display: 'flex',
   flexDirection: 'column',
   gap: config.space.S300,
@@ -70,12 +71,18 @@ export const CostCard = style({
   color: color.Primary.OnContainer,
 });
 
+// Side by side only where both figures fit; long currency formats such as "0,00051 US$" stack on phones.
+const sideBySide = '(min-width: 18.25rem)';
+
 export const CostFigures = styleVariants({
   one: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' },
   two: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: config.space.S300,
+    gridTemplateColumns: 'minmax(0, 1fr)',
+    gap: config.space.S200,
+    '@container': {
+      [sideBySide]: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: config.space.S300 },
+    },
   },
 });
 
@@ -83,10 +90,14 @@ export const CostFigure = style({
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
-  selectors: {
-    '& + &': {
-      borderInlineStart: `${config.borderWidth.B300} solid ${color.Primary.ContainerLine}`,
-      paddingInlineStart: config.space.S300,
+  '@container': {
+    [sideBySide]: {
+      selectors: {
+        '& + &': {
+          borderInlineStart: `${config.borderWidth.B300} solid ${color.Primary.ContainerLine}`,
+          paddingInlineStart: config.space.S300,
+        },
+      },
     },
   },
 });
@@ -98,6 +109,7 @@ export const CostLabel = style({
 });
 
 export const CostValue = style({
+  whiteSpace: 'nowrap',
   fontSize: toRem(22),
   fontWeight: 650,
   letterSpacing: '-0.02em',
@@ -150,21 +162,25 @@ export const Bar = styleVariants({
   later: [barBase, { backgroundColor: color.Primary.ContainerLine }],
 });
 
-const axisBase = style({
-  display: 'flex',
-  gap: config.space.S200,
+// Reply numbers keep the ends; the position label centres between them and wraps on narrow cards.
+export const Axis = style({
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  alignItems: 'start',
+  columnGap: config.space.S200,
   marginTop: toRem(-6),
   fontSize: toRem(11.5),
   lineHeight: toRem(16),
   opacity: 0.8,
   fontVariantNumeric: 'tabular-nums',
+});
+
+export const AxisEdge = style({
   whiteSpace: 'nowrap',
 });
 
-// Unnumbered while older replies are not loaded, since their positions are unknown.
-export const Axis = styleVariants({
-  numbered: [axisBase, { justifyContent: 'space-between' }],
-  unnumbered: [axisBase, { justifyContent: 'center' }],
+export const AxisCenter = style({
+  textAlign: 'center',
 });
 
 export const Section = style({

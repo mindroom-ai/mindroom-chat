@@ -88,26 +88,23 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
           );
         })}
       </ol>
-      {complete ? (
-        <div className={css.Axis.numbered}>
-          <span>
+      {/* Older replies are not loaded, so only the highlight marks this reply without numbers. */}
+      {complete && (
+        <div className={css.Axis}>
+          <span className={css.AxisEdge}>
             {t('mindroomUi.messages.mindroomReplyDetails.replyNumber', { index: start + 1 })}
           </span>
-          <span>
+          <span className={css.AxisCenter}>
             {t('mindroomUi.messages.mindroomReplyDetails.costHistoryPosition', {
               index: index + 1,
               count: replies.length,
             })}
           </span>
-          <span>
+          <span className={css.AxisEdge}>
             {t('mindroomUi.messages.mindroomReplyDetails.replyNumber', {
               index: start + shown.length,
             })}
           </span>
-        </div>
-      ) : (
-        <div className={css.Axis.unnumbered}>
-          <span>{t('mindroomUi.messages.mindroomReplyDetails.thisReply')}</span>
         </div>
       )}
     </div>
@@ -204,7 +201,7 @@ function ContextWindow({ info }: { info: MindroomAiRunInfo }) {
   const language = useAppLanguageCode();
   const usage = getMindroomAiRunContextLabel(info, t, language);
   if (!usage) return null;
-  const segments = getMindroomAiRunContextBarSegments(info, t);
+  const segments = getMindroomAiRunContextBarSegments(info);
   return (
     <Section title={t('mindroomUi.messages.mindroomReplyDetails.contextWindow')} value={usage}>
       {segments && (

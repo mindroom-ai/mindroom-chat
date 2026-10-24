@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from './helpers/matrix';
@@ -199,4 +200,40 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });
+
+  // Long currency formats such as "0,0051 US$" must stay inside the card on a phone.
+  const es = JSON.parse(
+    readFileSync(new URL('../src/app/locales/es.json', import.meta.url), 'utf8')
+  ) as { mindroomUi: { messages: Record<string, Record<string, string>> } };
+  const esReplyDetails = es.mindroomUi.messages.mindroomMessageControls.replyDetails;
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.evaluate(() => localStorage.setItem('i18nextLng', 'es'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await page
+    .locator('[data-message-id]')
+    .filter({ hasText: 'Then tag it.' })
+    .getByRole('button', { name: esReplyDetails, exact: true })
+    .focus();
+  await page.keyboard.press('Enter');
+  const esCostCard = page
+    .getByRole('dialog', { name: esReplyDetails })
+    .getByRole('region', { name: es.mindroomUi.messages.mindroomReplyDetails.cost, exact: true });
+  await expect(esCostCard).toContainText('US$');
+  // Every element stays inside its parent, so no figure spills into its neighbour or past the card.
+  const outside = await esCostCard.evaluate((card) =>
+    [card, ...card.querySelectorAll('*')]
+      .filter((element) => element !== card || card.parentElement)
+      .flatMap((element) => {
+        const parent = element === card ? card.parentElement! : element.parentElement!;
+        const rect = element.getBoundingClientRect();
+        const box = parent.getBoundingClientRect();
+        return rect.width > 0 && (rect.right > box.right + 1 || rect.left < box.left - 1)
+          ? [`${element.tagName} ${element.textContent?.slice(0, 24)}`]
+          : [];
+      })
+  );
+  expect(outside).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('phone-dialog-es.png') });
 });

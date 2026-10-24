@@ -122,13 +122,11 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toEqual([
       {
         key: 'cacheRead',
-        label: 'From cache',
         tokens: 20,
         percentage: 20,
       },
       {
         key: 'newInput',
-        label: 'New input',
         tokens: 45,
         percentage: 45,
       },
@@ -157,12 +155,10 @@ describe('getMindroomAiRunContextBarSegments', () => {
     expect(segments).toEqual([
       expect.objectContaining({
         key: 'cacheRead',
-        label: 'From cache',
         tokens: 153294,
       }),
       expect.objectContaining({
         key: 'newInput',
-        label: 'New input',
         tokens: 0,
         percentage: 0,
       }),
@@ -179,13 +175,11 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toEqual([
       {
         key: 'cacheRead',
-        label: 'From cache',
         tokens: 0,
         percentage: 0,
       },
       {
         key: 'newInput',
-        label: 'New input',
         tokens: 65,
         percentage: 65,
       },
