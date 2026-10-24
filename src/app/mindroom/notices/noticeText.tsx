@@ -13,14 +13,25 @@ import { sanitizeCustomHtml, sanitizeText } from '../../utils/sanitize';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { toHttpsUrl } from './notices';
 
+const ESCAPED_TEXT: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+};
+// Undoes sanitizeText, so a URL is checked as the reader typed it.
+const unescapeText = (value: string): string =>
+  value.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ESCAPED_TEXT[entity]);
+
 // The composer's LinkRule, narrowed to https: URLs; any other link stays literal text.
 const HTTPS_LINK_REG = /\[([^[\]]+)\]\((https:\/\/[^\s)]+)\)/;
 const HttpsLinkRule: InlineMDRule = {
   match: (text) => text.match(HTTPS_LINK_REG),
   html: (parseInline, match) => {
     const [source, label, url] = match;
-    // A URL that only looks like https, such as https://a(b, stays literal text.
-    if (!toHttpsUrl(url)) return source;
+    // A URL that only looks like https, such as https://a(b or https://a<b, stays literal text.
+    if (!toHttpsUrl(unescapeText(url))) return source;
     return `<a href="${url}">${parseInline(label)}</a>`;
   },
 };

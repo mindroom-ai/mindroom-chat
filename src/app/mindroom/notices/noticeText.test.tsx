@@ -7,6 +7,9 @@ import { MAX_NOTICE_TEXT_LENGTH } from './notices';
 vi.mock('../../styles/CustomHtml.css', () => ({ Code: 'code' }));
 
 const html = (text: string) => renderToStaticMarkup(<>{renderNoticeText(text)}</>);
+// How React writes plain text into markup.
+const escaped = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const link = (href: string, label: string) =>
   `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
 
@@ -53,10 +56,11 @@ describe('renderNoticeText', () => {
     ['[x](https://javascript:alert(1)@evil.example)'],
     ['[x](https://exa mple.org)'],
     ['[x](https://)'],
+    ['[x](https://exa<mple.org)'],
   ])('keeps %s as literal text', (text) => {
     const rendered = html(text);
     expect(rendered).not.toContain('<a');
-    expect(rendered).toBe(text.replace(/&/g, '&amp;'));
+    expect(rendered).toBe(escaped(text));
   });
 
   it('keeps brackets without a URL and malformed links literal', () => {
@@ -102,13 +106,7 @@ describe('renderNoticeText', () => {
   ])('shows raw HTML %s as text', (text) => {
     const rendered = html(text);
     expect(rendered).not.toMatch(/<(?!\/?(strong|i|s|code|a)\b)[a-z]/i);
-    expect(rendered).toBe(
-      text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-    );
+    expect(rendered).toBe(escaped(text));
   });
 
   it('leaves headings, lists, quotes and tables as text', () => {
