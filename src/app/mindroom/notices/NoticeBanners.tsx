@@ -130,8 +130,9 @@ export function NoticeBanners() {
   const url = useMemo(() => (Capacitor.isNativePlatform() ? undefined : appUrl(NOTICES_FILE)), []);
   const { notices, dismiss } = useNotices(url);
 
+  // aria-atomic: announce only the notice that changed, not the whole stack.
   return (
-    <div role="status" className={css.NoticeStack}>
+    <div role="status" aria-atomic="false" className={css.NoticeStack}>
       {notices.map((notice) => (
         <NoticeBanner key={notice.id} notice={notice} onDismiss={dismiss} />
       ))}

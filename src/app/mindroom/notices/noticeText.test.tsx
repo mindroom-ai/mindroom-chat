@@ -50,6 +50,9 @@ describe('renderNoticeText', () => {
     ['[x](//example.org)'],
     ['[x](/relative)'],
     ['[x](https&#58;//example.org)'],
+    ['[x](https://javascript:alert(1)@evil.example)'],
+    ['[x](https://exa mple.org)'],
+    ['[x](https://)'],
   ])('keeps %s as literal text', (text) => {
     const rendered = html(text);
     expect(rendered).not.toContain('<a');

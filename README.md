@@ -267,7 +267,7 @@ The native apps read only their bundled copy, which is empty, so they show no no
 
 Links must use `https:`; other links show as text, and an entry with another `linkUrl` is skipped.
 An invalid entry is skipped; an invalid file, or a 404, shows no notices.
-If the file cannot be reached (a network or server error), open tabs keep the notices they have until the next successful load.
+If the file cannot be reached (a network or server error, a redirect such as an expired Cloudflare Access session, or no answer within 10 seconds), open tabs keep the notices they have until the next successful load.
 At most three notices show at once, in file order.
 To remove a notice for everyone, delete its entry or set `endsAt` in the past; to clear all, serve `[]`.
 
@@ -278,7 +278,7 @@ Mount a directory over `/opt/mindroom/notices` to replace it:
 docker run -p 8080:80 -v "$PWD/notices:/opt/mindroom/notices:ro" ghcr.io/mindroom-ai/mindroom-chat:latest
 ```
 
-In Kubernetes, mount a ConfigMap with a `notices.json` key at `/opt/mindroom/notices` without `subPath`, so edits reach the pod without a restart (the kubelet syncs ConfigMap volumes within about a minute).
+In Kubernetes, mount a ConfigMap with a `notices.json` key at `/opt/mindroom/notices` without `subPath`, so edits reach the pod without a restart (the kubelet syncs ConfigMap volumes within one to two minutes).
 
 ## Development
 

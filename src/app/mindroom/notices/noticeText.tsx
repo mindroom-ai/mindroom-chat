@@ -18,7 +18,9 @@ const HTTPS_LINK_REG = /\[([^[\]]+)\]\((https:\/\/[^\s)]+)\)/;
 const HttpsLinkRule: InlineMDRule = {
   match: (text) => text.match(HTTPS_LINK_REG),
   html: (parseInline, match) => {
-    const [, label, url] = match;
+    const [source, label, url] = match;
+    // A URL that only looks like https, such as https://a(b, stays literal text.
+    if (!toHttpsUrl(url)) return source;
     return `<a href="${url}">${parseInline(label)}</a>`;
   },
 };

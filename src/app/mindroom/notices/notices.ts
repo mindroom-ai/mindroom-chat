@@ -75,7 +75,8 @@ export const toHttpsUrl = (value: unknown): string | undefined => {
 /** `undefined` when absent, `null` when present but not a valid timestamp. */
 const parseNoticeTime = (value: unknown): number | undefined | null => {
   if (value === undefined) return undefined;
-  const match = typeof value === 'string' ? NOTICE_TIME_REG.exec(value) : null;
+  if (typeof value !== 'string') return null;
+  const match = NOTICE_TIME_REG.exec(value);
   if (!match) return null;
   // Date.parse rolls a day that doesn't exist, such as February 30, into the next month.
   const [year, month, day] = match.slice(1, 4).map(Number);
