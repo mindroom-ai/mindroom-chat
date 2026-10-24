@@ -237,7 +237,7 @@ describe('NoticeBanners', () => {
   });
 
   it('clamps long text and toggles the rest with Show more and Show less', async () => {
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function height(
       this: HTMLElement
     ) {
       return this.textContent === 'Notice long' ? 100 : 60;

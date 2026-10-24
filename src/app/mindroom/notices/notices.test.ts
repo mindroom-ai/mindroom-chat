@@ -111,6 +111,7 @@ describe('parseNotice', () => {
     ['an unknown icon name', entry({ icon: 'wrench' })],
     ['a non-boolean dismissible', entry({ dismissible: 'no' })],
     ['an http link', entry({ linkUrl: 'http://example.org' })],
+    // eslint-disable-next-line no-script-url -- a link that must be rejected
     ['a javascript link', entry({ linkUrl: 'javascript:alert(1)' })],
     ['a data link', entry({ linkUrl: 'data:text/html,<b>x</b>' })],
     ['a relative link', entry({ linkUrl: '/status' })],

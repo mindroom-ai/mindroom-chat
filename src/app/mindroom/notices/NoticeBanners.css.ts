@@ -9,6 +9,9 @@ export const NoticeStack = style({
   zIndex: 1,
   display: 'flex',
   flexDirection: 'column',
+  // Expanded notices never take more than half the screen from the app.
+  maxHeight: '50dvh',
+  overflowY: 'auto',
 });
 
 const levelColors = (tone: typeof color.Primary) => ({
