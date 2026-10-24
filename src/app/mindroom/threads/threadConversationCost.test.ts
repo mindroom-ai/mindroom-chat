@@ -49,7 +49,6 @@ describe('summarizeThreadConversationCost', () => {
       { history: loaded, isTrustedSender }
     );
 
-    expect(cost?.total).toEqual({ usd: 0.03, replyCount: 2 });
     expect(cost?.byEventId.get('$r1')).toEqual({ usd: 0.01, replyCount: 1 });
     expect(cost?.byEventId.get('$r2')?.usd).toBeCloseTo(0.03);
     expect(cost?.byEventId.get('$r2')?.replyCount).toBe(2);
@@ -71,7 +70,7 @@ describe('summarizeThreadConversationCost', () => {
           : event.getContent(),
     });
 
-    expect(cost?.total).toEqual({ usd: 0.5, replyCount: 1 });
+    expect(cost?.byEventId.get('$r1')).toEqual({ usd: 0.5, replyCount: 1 });
     expect(cost?.byEventId.has('$e1')).toBe(false);
   });
 
@@ -81,7 +80,7 @@ describe('summarizeThreadConversationCost', () => {
       { history: loaded, isTrustedSender }
     );
 
-    expect(cost?.total).toEqual({ usd: 0.01, replyCount: 1 });
+    expect(cost?.replies).toEqual([{ eventId: '$r1', usd: 0.01 }]);
     expect(cost?.byEventId.has('$fake')).toBe(false);
   });
 
@@ -101,7 +100,7 @@ describe('summarizeThreadConversationCost', () => {
       { history: loaded, isTrustedSender }
     );
 
-    expect(cost?.total).toEqual({ usd: 0.02, replyCount: 1 });
+    expect(cost?.replies).toEqual([{ eventId: '$r2', usd: 0.02 }]);
     expect(cost?.byEventId.has('$r1')).toBe(false);
   });
 

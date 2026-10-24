@@ -71,7 +71,7 @@ describe('useThreadConversationCostSummary', () => {
 
     act(() => encrypted.decryptAs(pricedContent('0.25')));
 
-    expect(results.at(-1)?.total).toEqual({ usd: 0.25, replyCount: 1 });
+    expect(results.at(-1)?.replies).toEqual([{ eventId: '$r1', usd: 0.25 }]);
     act(() => renderer.unmount());
   });
 

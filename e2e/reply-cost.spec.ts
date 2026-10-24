@@ -176,6 +176,13 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(dialog).toContainText('First token 412 ms');
   await page.mouse.move(0, 0);
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-light.png') });
+  // High-contrast modes replace backgrounds, so the chart keeps its own colors there.
+  await page.emulateMedia({ forcedColors: 'active' });
+  const barColors = await history
+    .getByRole('listitem')
+    .evaluateAll((bars) => bars.map((bar) => getComputedStyle(bar).backgroundColor));
+  expect(new Set(barColors).size).toBe(3);
+  await page.emulateMedia({ forcedColors: 'none' });
   await dialog.getByText('Technical details', { exact: true }).click();
   await expect(
     dialog.getByText('6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60', { exact: true })

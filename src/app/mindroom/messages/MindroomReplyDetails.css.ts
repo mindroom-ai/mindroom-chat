@@ -123,7 +123,11 @@ export const CostNote = style({
   opacity: 0.8,
 });
 
+// The chart's colors carry data, so high-contrast modes keep them instead of painting them over.
+const keepDataColors = { forcedColorAdjust: 'none' } as const;
+
 export const Bars = style({
+  ...keepDataColors,
   position: 'relative',
   margin: 0,
   padding: 0,
@@ -202,6 +206,7 @@ export const HeaderValue = style({
 });
 
 export const Meter = style({
+  ...keepDataColors,
   display: 'flex',
   height: toRem(6),
   borderRadius: config.radii.Pill,
@@ -239,6 +244,7 @@ export const LegendItem = style({
 });
 
 export const Swatch = styleVariants(partColors, (backgroundColor) => ({
+  ...keepDataColors,
   width: toRem(8),
   height: toRem(8),
   borderRadius: toRem(2),

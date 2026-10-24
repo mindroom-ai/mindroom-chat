@@ -3,14 +3,13 @@ import { reactionOrEditEvent } from '../../utils/room';
 import { getMindroomAiRunInfo } from '../messages/aiRun';
 import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 
-export type ConversationCostTotal = {
+type ConversationCostTotal = {
   usd: number;
   /** Replies that carried a cost. */
   replyCount: number;
 };
 
 export type ThreadConversationCost = {
-  total: ConversationCostTotal;
   /** Whether the thread's first event is loaded, so no older reply is missing from the sums. */
   complete: boolean;
   /** The conversation's cost through each priced reply. */
@@ -60,7 +59,6 @@ export const summarizeThreadConversationCost = (
   });
   if (replyCount === 0) return undefined;
   return {
-    total: { usd: micros / MICROS_PER_USD, replyCount },
     complete: history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
     byEventId,
     replies,

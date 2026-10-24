@@ -40,7 +40,7 @@ const thread = (costs: number[], complete = true): ThreadConversationCost => {
     byEventId.set(`$r${index + 1}`, { usd: total, replyCount: index + 1 });
     return { eventId: `$r${index + 1}`, usd };
   });
-  return { total: { usd: total, replyCount: costs.length }, complete, byEventId, replies };
+  return { complete, byEventId, replies };
 };
 
 let container: HTMLDivElement;

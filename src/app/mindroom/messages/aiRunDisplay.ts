@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
 import { MindroomAiRunInfo } from './aiRun';
 
-export type MindroomAiRunContextBarSegment = {
+type MindroomAiRunContextBarSegment = {
   key: 'cacheRead' | 'newInput';
   tokens: number;
   percentage: number;
@@ -32,7 +32,7 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
   return currency({ maximumSignificantDigits: 2 }).format(usd);
 };
 
-export type MindroomAiRunTokenPart = {
+type MindroomAiRunTokenPart = {
   key: 'cacheRead' | 'newInput' | 'input' | 'output';
   label: string;
   tokens: number;
@@ -148,7 +148,7 @@ export const getMindroomAiRunContextLabel = (
         window,
         percentage,
       })
-    : `${input} of ${window} tokens · ${percentage}%`;
+    : `${input} of ${window} · ${percentage}%`;
 };
 
 export const getMindroomAiRunContextBarSegments = (

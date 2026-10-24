@@ -96,7 +96,7 @@ describe('getMindroomAiRunContextLabel', () => {
         contextInputTokens: 500,
         contextWindowTokens: 2000,
       })
-    ).toBe('500 of 2,000 tokens · 25.0%');
+    ).toBe('500 of 2,000 · 25.0%');
   });
 
   it('returns undefined for incomplete or invalid context values', () => {
