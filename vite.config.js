@@ -93,6 +93,11 @@ export const copyFiles = {
       dest: '',
     },
     {
+      // No notices by default; the Docker image serves an operator's file instead (README).
+      src: 'public/notices.json',
+      dest: '',
+    },
+    {
       src: 'public/res/android',
       dest: 'public/',
     },

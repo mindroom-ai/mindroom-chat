@@ -3071,6 +3071,11 @@
       "you": "あなた",
       "until": "{{time}} まで",
       "ownUntil": "{{time}} まで。終了するには !auto_approve off を送信してください。"
+    },
+    "notices": {
+      "dismiss": "お知らせを閉じる",
+      "showMore": "もっと見る",
+      "showLess": "表示を減らす"
     }
   },
   "roomSchedules": {

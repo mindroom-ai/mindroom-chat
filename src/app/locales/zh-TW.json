@@ -3071,6 +3071,11 @@
       "you": "你",
       "until": "至 {{time}}",
       "ownUntil": "至 {{time}}。傳送 !auto_approve off 可提前結束。"
+    },
+    "notices": {
+      "dismiss": "關閉通知",
+      "showMore": "顯示更多",
+      "showLess": "收合"
     }
   },
   "roomSchedules": {

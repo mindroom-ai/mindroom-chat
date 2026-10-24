@@ -3147,6 +3147,11 @@
       "you": "Você",
       "until": "Até {{time}}",
       "ownUntil": "Até {{time}}. Envie !auto_approve off para encerrar."
+    },
+    "notices": {
+      "dismiss": "Fechar aviso",
+      "showMore": "Mostrar mais",
+      "showLess": "Mostrar menos"
     }
   },
   "roomSchedules": {

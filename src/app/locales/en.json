@@ -3083,6 +3083,11 @@
       "you": "You",
       "until": "Until {{time}}",
       "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
+    },
+    "notices": {
+      "dismiss": "Dismiss notice",
+      "showMore": "Show more",
+      "showLess": "Show less"
     }
   },
   "roomSchedules": {

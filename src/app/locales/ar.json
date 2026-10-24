@@ -3339,6 +3339,11 @@
       "you": "أنت",
       "until": "حتى ⁨{{time}}⁩",
       "ownUntil": "حتى ⁨{{time}}⁩. أرسل ⁨!auto_approve off⁩ لإنهاء ذلك."
+    },
+    "notices": {
+      "dismiss": "إخفاء الإشعار",
+      "showMore": "عرض المزيد",
+      "showLess": "عرض أقل"
     }
   },
   "roomSchedules": {

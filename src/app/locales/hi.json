@@ -1812,6 +1812,11 @@
       "you": "आप",
       "until": "{{time}} तक",
       "ownUntil": "{{time}} तक। इसे खत्म करने के लिए !auto_approve off भेजें।"
+    },
+    "notices": {
+      "dismiss": "सूचना ख़ारिज करें",
+      "showMore": "और दिखाएँ",
+      "showLess": "कम दिखाएँ"
     }
   },
   "nav": {
