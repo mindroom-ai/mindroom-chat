@@ -19,10 +19,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 // covers the page with an element, and lets go when a mouseup reaches the window, as a
 // real mouse's does. Its canvas listener stops a mouseup there from bubbling.
 const holdsNoVncCapture = (canvas: HTMLCanvasElement) =>
-  (canvas.ownerDocument as Document & { captureElement?: unknown }).captureElement === canvas &&
+  (document as Document & { captureElement?: unknown }).captureElement === canvas &&
   !('setCapture' in canvas);
-
-const windowOf = (element: Element) => element.ownerDocument.defaultView ?? window;
 
 /**
  * Lets go of noVNC's capture of a canvas that closed while a touchpad drag held it: its
@@ -31,7 +29,7 @@ const windowOf = (element: Element) => element.ownerDocument.defaultView ?? wind
  */
 export function releaseNoVncCapture(canvas: HTMLCanvasElement | null): void {
   if (!canvas || !holdsNoVncCapture(canvas)) return;
-  windowOf(canvas).dispatchEvent(
+  window.dispatchEvent(
     new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, buttons: 0 })
   );
 }
@@ -46,7 +44,6 @@ export function attachComputerTouchpad(
   let pointer: Point | undefined;
   // Where the last mousemove put noVNC's cursor.
   let shown: Point | undefined;
-  let dragging = false;
 
   // The touches that started on the screen, the canvas or its letterbox. `targetTouches`
   // would leave out a finger on the letterbox while another is on the canvas.
@@ -58,7 +55,7 @@ export function attachComputerTouchpad(
   // While noVNC holds the canvas, a release goes to the window, and noVNC hands it on to the
   // canvas. Otherwise its page-covering element would keep the next touch off the screen.
   const releaseTarget = (canvas: HTMLCanvasElement): EventTarget =>
-    holdsNoVncCapture(canvas) ? windowOf(canvas) : canvas;
+    holdsNoVncCapture(canvas) ? window : canvas;
 
   const sendMouse = (
     canvas: HTMLCanvasElement,
@@ -73,13 +70,14 @@ export function attachComputerTouchpad(
     if (type === 'mousemove') shown = at;
   };
 
-  // Moves the pointer, kept inside the canvas as it is now, which may have been resized.
+  // Moves the pointer, kept inside the canvas as it is now, which may have been resized, up
+  // to its last pixel at right - 1 and bottom - 1: on the edge, noVNC hides its cursor.
   const movePointer = (canvas: HTMLCanvasElement, dx: number, dy: number): Point => {
     const rect = canvas.getBoundingClientRect();
     const from = pointer ?? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     pointer = {
-      x: clamp(from.x + dx, rect.left, rect.left + rect.width),
-      y: clamp(from.y + dy, rect.top, rect.top + rect.height),
+      x: clamp(from.x + dx, rect.left, rect.right - 1),
+      y: clamp(from.y + dy, rect.top, rect.bottom - 1),
     };
     return pointer;
   };
@@ -95,13 +93,8 @@ export function attachComputerTouchpad(
   const perform = (canvas: HTMLCanvasElement, action: TouchpadAction) => {
     switch (action.type) {
       case 'move':
-        sendMouse(
-          canvas,
-          'mousemove',
-          movePointer(canvas, action.dx, action.dy),
-          0,
-          dragging ? 1 : 0
-        );
+        // noVNC sends a move with the buttons of its last press or release.
+        sendMouse(canvas, 'mousemove', movePointer(canvas, action.dx, action.dy), 0, 0);
         return;
       case 'click': {
         const [button, buttons] = action.button === 'left' ? [0, 1] : [2, 2];
@@ -111,11 +104,9 @@ export function attachComputerTouchpad(
         return;
       }
       case 'dragStart':
-        dragging = true;
         sendMouse(canvas, 'mousedown', pointAt(canvas), 0, 1);
         return;
       case 'dragEnd':
-        dragging = false;
         sendMouse(canvas, 'mouseup', movePointer(canvas, 0, 0), 0, 0);
         return;
       case 'scroll': {
@@ -155,12 +146,20 @@ export function attachComputerTouchpad(
     // No page scroll or zoom, and noVNC's own gesture handler on the canvas never sees it.
     event.preventDefault();
     event.stopPropagation();
-    if (!pointer) movePointer(canvas, 0, 0);
     const time = event.timeStamp;
     switch (event.type) {
-      case 'touchstart':
-        run(canvas, recognizer.start(screenTouches(event), time));
+      case 'touchstart': {
+        const fingers = screenTouches(event);
+        // A gesture starts: no finger was on the screen yet. noVNC keeps the buttons of its
+        // own gestures, even while watching, and sends them with every move. One that control
+        // cut short never ended there, and its timers can still press. So let go of them
+        // first; with none held, noVNC sends one move without buttons to the pointer.
+        if (event.changedTouches.length === fingers.length) {
+          sendMouse(canvas, 'mouseup', movePointer(canvas, 0, 0), 0, 0);
+        }
+        run(canvas, recognizer.start(fingers, time));
         break;
+      }
       case 'touchmove':
         run(canvas, recognizer.move(screenTouches(event), time));
         break;
@@ -178,16 +177,9 @@ export function attachComputerTouchpad(
   const listenerOptions = { capture: true, passive: false };
   TOUCH_EVENTS.forEach((type) => target.addEventListener(type, handleTouch, listenerOptions));
 
+  // A held button is let go by the stream closing, and noVNC's capture by
+  // `releaseNoVncCapture`.
   return () => {
     TOUCH_EVENTS.forEach((type) => target.removeEventListener(type, handleTouch, true));
-    // A new stream on the same screen: release a held button before noVNC disconnects.
-    // On unmount React has already taken the screen out of the page, and noVNC would place
-    // a release on a canvas with no size at (65535, 65535). The stream closes right after,
-    // and the computer lets go of held buttons then.
-    const canvas = target.querySelector('canvas');
-    const rect = canvas?.getBoundingClientRect();
-    if (canvas?.isConnected && rect && rect.width > 0 && rect.height > 0) {
-      run(canvas, recognizer.cancel());
-    }
   };
 }

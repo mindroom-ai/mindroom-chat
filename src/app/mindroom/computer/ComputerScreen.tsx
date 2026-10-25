@@ -99,10 +99,7 @@ export function ComputerScreen({
     const detachTouchpad = attachComputerTouchpad(target, { isControlling });
 
     return () => {
-      // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket. A held
-      // touchpad drag is too when this screen gets a new url; the panel mounts a new screen
-      // for each stream instead, and on unmount the screen has left the page already, so the
-      // stream closing lets go of the button.
+      // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
       detachClipboard();
       detachTouchpad();
       rfb.removeEventListener('connect', handleConnect);

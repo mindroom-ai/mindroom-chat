@@ -58,6 +58,10 @@ const touch = (
 
 const finger = (x: number, y: number, id = 1): Finger => ({ id, x, y });
 
+// The release that starts each gesture, so noVNC holds no button of its own.
+const letGo = (x: number, y: number) =>
+  expect.objectContaining({ type: 'mouseup', x, y, button: 0, buttons: 0 });
+
 describe('attachComputerTouchpad', () => {
   let wrapper: HTMLDivElement;
   let canvas: HTMLCanvasElement;
@@ -100,7 +104,7 @@ describe('attachComputerTouchpad', () => {
     tap(finger(100, 100), from, from + 50);
     touch('touchstart', canvas, [finger(100, 100)], from + 150);
     touch('touchmove', canvas, [finger(130, 100)], from + 170);
-    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', buttons: 1 });
+    expect(recorded.at(-2)).toMatchObject({ type: 'mousedown', buttons: 1 });
   };
 
   const types = (entries = recorded) => entries.map((entry) => entry.type);
@@ -139,20 +143,20 @@ describe('attachComputerTouchpad', () => {
     attach();
     touch('touchstart', canvas, [finger(100, 100)], 0);
     touch('touchmove', canvas, [finger(105, 100)], 10);
-    expect(recorded).toEqual([]);
+    expect(recorded).toEqual([letGo(210, 145)]);
 
     // 15 px in 10 ms past the slop.
     touch('touchmove', canvas, [finger(120, 100)], 20);
     const first = 210 + 15 * pointerGain(1.5);
-    expect(recorded).toHaveLength(1);
-    expect(recorded[0]).toMatchObject({ type: 'mousemove', x: first, y: 145, buttons: 0 });
-    expect(recorded[0].event).toBeInstanceOf(MouseEvent);
-    expect(recorded[0].event.bubbles).toBe(true);
-    expect(recorded[0].event.cancelable).toBe(true);
+    expect(recorded).toHaveLength(2);
+    expect(recorded[1]).toMatchObject({ type: 'mousemove', x: first, y: 145, buttons: 0 });
+    expect(recorded[1].event).toBeInstanceOf(MouseEvent);
+    expect(recorded[1].event.bubbles).toBe(true);
+    expect(recorded[1].event.cancelable).toBe(true);
 
     // 1 px down in 20 ms: slow, so the base gain.
     touch('touchmove', canvas, [finger(120, 101)], 40);
-    expect(recorded[1]).toMatchObject({
+    expect(recorded[2]).toMatchObject({
       type: 'mousemove',
       x: first,
       y: 145 + pointerGain(0.05),
@@ -160,27 +164,27 @@ describe('attachComputerTouchpad', () => {
     });
 
     touch('touchend', canvas, [], 60, [finger(120, 101)]);
-    expect(types()).toEqual(['mousemove', 'mousemove']);
+    expect(types()).toEqual(['mouseup', 'mousemove', 'mousemove']);
   });
 
   it('clamps the pointer to the canvas', () => {
     attach();
-    // A fast drag left and down, far past the canvas edges.
+    // A fast drag left and down, far past the canvas edges. The pointer stops on the canvas's
+    // last pixel: right - 1 and bottom - 1 (the canvas spans 10 to 410 and 20 to 270).
     touch('touchstart', canvas, [finger(300, 100)], 0);
     touch('touchmove', canvas, [finger(200, 300)], 10);
-    expect(recorded.at(-1)).toMatchObject({ x: 10, y: 270 });
+    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', x: 10, y: 269 });
     touch('touchmove', canvas, [finger(100, 400)], 20);
-    expect(recorded.at(-1)).toMatchObject({ x: 10, y: 270 });
+    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', x: 10, y: 269 });
     touch('touchend', canvas, [], 30, [finger(100, 400)]);
 
-    // To the right edge, then the canvas shrinks (an orientation change or Expand).
+    // Up and right, then the canvas shrinks (an orientation change or Expand).
     touch('touchstart', canvas, [finger(0, 100)], 1000);
-    touch('touchmove', canvas, [finger(200, 100)], 1010);
-    expect(recorded.at(-1)).toMatchObject({ x: 410 });
+    touch('touchmove', canvas, [finger(200, 0)], 1010);
+    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', x: 409, y: 20 });
     rect = { ...rect, width: 200 };
-    touch('touchmove', canvas, [finger(199, 100)], 1030);
-    expect(recorded.at(-1)?.x).toBeLessThanOrEqual(210);
-    expect(recorded.at(-1)?.x).toBeGreaterThan(200);
+    touch('touchmove', canvas, [finger(199, 0)], 1030);
+    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', x: 209, y: 20 });
   });
 
   it('clicks at the pointer', () => {
@@ -194,6 +198,7 @@ describe('attachComputerTouchpad', () => {
 
     tap(finger(50, 50), 1000, 1050);
     expect(recorded).toEqual([
+      letGo(at.x, at.y),
       expect.objectContaining({ type: 'mousedown', x: at.x, y: at.y, button: 0, buttons: 1 }),
       expect.objectContaining({ type: 'mouseup', x: at.x, y: at.y, button: 0, buttons: 0 }),
     ]);
@@ -204,6 +209,7 @@ describe('attachComputerTouchpad', () => {
     // No move yet: noVNC's touch cursor learns the position from a mousemove.
     tap(finger(50, 50), 0, 50);
     expect(recorded).toEqual([
+      letGo(210, 145),
       expect.objectContaining({ type: 'mousemove', x: 210, y: 145, buttons: 0 }),
       expect.objectContaining({ type: 'mousedown', x: 210, y: 145, buttons: 1 }),
       expect.objectContaining({ type: 'mouseup', x: 210, y: 145, buttons: 0 }),
@@ -214,9 +220,10 @@ describe('attachComputerTouchpad', () => {
     recorded.length = 0;
     tap(finger(50, 50), 1000, 1050);
     expect(recorded).toEqual([
-      expect.objectContaining({ type: 'mousemove', x: 110, y: 120, buttons: 0 }),
-      expect.objectContaining({ type: 'mousedown', x: 110, y: 120, buttons: 1 }),
-      expect.objectContaining({ type: 'mouseup', x: 110, y: 120, buttons: 0 }),
+      letGo(109, 119),
+      expect.objectContaining({ type: 'mousemove', x: 109, y: 119, buttons: 0 }),
+      expect.objectContaining({ type: 'mousedown', x: 109, y: 119, buttons: 1 }),
+      expect.objectContaining({ type: 'mouseup', x: 109, y: 119, buttons: 0 }),
     ]);
   });
 
@@ -239,6 +246,7 @@ describe('attachComputerTouchpad', () => {
     expect(captured()).toBeNull();
     expect(overlay()?.style.display).toBe('none');
     expect(recorded).toEqual([
+      letGo(210, 145),
       expect.objectContaining({ type: 'mousemove', x: 210, y: 145, buttons: 0 }),
       expect.objectContaining({ type: 'mousedown', x: 210, y: 145, buttons: 1 }),
       expect.objectContaining({ type: 'mouseup', x: 210, y: 145, button: 0, buttons: 0 }),
@@ -251,8 +259,8 @@ describe('attachComputerTouchpad', () => {
     expect(captured()).toBe(canvas);
     touch('touchend', canvas, [], 190, [finger(130, 100)]);
     expect(captured()).toBeNull();
-    expect(types()).toEqual(['mousedown', 'mousemove', 'mouseup']);
-    expect(recorded[2]).toMatchObject({ x: recorded[1].x, buttons: 0 });
+    expect(types()).toEqual(['mouseup', 'mousedown', 'mousemove', 'mouseup']);
+    expect(recorded[3]).toMatchObject({ x: recorded[2].x, buttons: 0 });
 
     // A two-finger tap's right click too.
     touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 2000);
@@ -270,21 +278,60 @@ describe('attachComputerTouchpad', () => {
     try {
       tap(finger(100, 100), 0, 50);
       expect(nativeCapture).toHaveBeenCalledOnce();
-      expect(types()).toEqual(['mousemove', 'mousedown', 'mouseup']);
+      expect(types()).toEqual(['mouseup', 'mousemove', 'mousedown', 'mouseup']);
     } finally {
       (document as Document & { captureElement?: Element | null }).captureElement = null;
     }
   });
 
+  it("lets go of noVNC's buttons as each gesture starts", () => {
+    attach();
+    // noVNC sends every move with the buttons of its last press or release. Its own gestures
+    // set them while watching, and a drag that control cut short never released them.
+    let noVncButtons = 1;
+    const movesSent: number[] = [];
+    for (const type of ['mousedown', 'mousemove', 'mouseup']) {
+      canvas.addEventListener(type, (event) => {
+        if (type === 'mousemove') movesSent.push(noVncButtons);
+        else noVncButtons = (event as MouseEvent).buttons;
+      });
+    }
+
+    touch('touchstart', canvas, [finger(100, 100)], 0);
+    expect(recorded).toEqual([
+      expect.objectContaining({ type: 'mouseup', x: 210, y: 145, button: 0, buttons: 0 }),
+    ]);
+    touch('touchmove', canvas, [finger(130, 100)], 20);
+    touch('touchmove', canvas, [finger(160, 100)], 40);
+    touch('touchend', canvas, [], 60, [finger(160, 100)]);
+    expect(movesSent).toEqual([0, 0]);
+
+    // Only the first finger of a gesture does it: a second one joins the gesture.
+    recorded.length = 0;
+    touch('touchstart', canvas, [finger(100, 100, 1)], 1000);
+    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 1030, [
+      finger(160, 100, 2),
+    ]);
+    expect(types()).toEqual(['mouseup']);
+    // Two fingers landing together start a gesture too.
+    touch('touchend', canvas, [], 1100, [finger(100, 100, 1), finger(160, 100, 2)]);
+    recorded.length = 0;
+    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 2000);
+    expect(types()).toEqual(['mouseup']);
+  });
+
   it('right-clicks with two fingers', () => {
     attach();
     touch('touchstart', canvas, [finger(100, 100, 1)], 0);
-    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 30);
+    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 30, [
+      finger(160, 100, 2),
+    ]);
     touch('touchend', canvas, [finger(160, 100, 2)], 120, [finger(100, 100, 1)]);
     touch('touchend', canvas, [], 130, [finger(160, 100, 2)]);
 
     const presses = recorded.filter((entry) => entry.type !== 'mousemove');
     expect(presses).toEqual([
+      letGo(210, 145),
       expect.objectContaining({ type: 'mousedown', x: 210, y: 145, button: 2, buttons: 2 }),
       expect.objectContaining({ type: 'mouseup', x: 210, y: 145, button: 2, buttons: 0 }),
     ]);
@@ -300,18 +347,17 @@ describe('attachComputerTouchpad', () => {
     touch('touchmove', canvas, [finger(150, 100)], 190);
     touch('touchend', canvas, [], 210, [finger(150, 100)]);
 
-    expect(types()).toEqual(['mousedown', 'mousemove', 'mousemove', 'mouseup']);
-    expect(recorded[0]).toMatchObject({ x: 210, y: 145, button: 0, buttons: 1 });
-    expect(recorded[1]).toMatchObject({ buttons: 1 });
-    expect(recorded[1].x).toBeGreaterThan(210);
-    expect(recorded[2]).toMatchObject({ buttons: 1 });
-    expect(recorded[3]).toMatchObject({ x: recorded[2].x, button: 0, buttons: 0 });
+    expect(types()).toEqual(['mouseup', 'mousedown', 'mousemove', 'mousemove', 'mouseup']);
+    expect(recorded[1]).toMatchObject({ x: 210, y: 145, button: 0, buttons: 1 });
+    expect(recorded[2].x).toBeGreaterThan(210);
+    expect(recorded[3].x).toBeGreaterThan(recorded[2].x);
+    expect(recorded[4]).toMatchObject({ x: recorded[3].x, button: 0, buttons: 0 });
 
-    // The button is up again for the next move.
+    // The next touch only moves the pointer.
     recorded.length = 0;
     touch('touchstart', canvas, [finger(100, 100)], 2000);
     touch('touchmove', canvas, [finger(130, 100)], 2020);
-    expect(recorded).toEqual([expect.objectContaining({ type: 'mousemove', buttons: 0 })]);
+    expect(types()).toEqual(['mouseup', 'mousemove']);
   });
 
   it('scrolls at the pointer', () => {
@@ -376,7 +422,7 @@ describe('attachComputerTouchpad', () => {
 
     expect(noVncTouch).not.toHaveBeenCalled();
     expect(events.every((event) => event.defaultPrevented)).toBe(true);
-    expect(types()).toEqual(['mousemove']);
+    expect(types()).toEqual(['mouseup', 'mousemove', 'mouseup']);
   });
 
   it('counts only the touches that began on the screen', () => {
@@ -388,7 +434,7 @@ describe('attachComputerTouchpad', () => {
     // A finger resting outside the screen does not make this a two-finger gesture.
     touch('touchstart', canvas, [stray, finger(100, 100)], 0, [finger(100, 100)]);
     touch('touchmove', canvas, [stray, finger(130, 100)], 20, [finger(130, 100)]);
-    expect(types()).toEqual(['mousemove']);
+    expect(types()).toEqual(['mouseup', 'mousemove']);
     touch('touchend', canvas, [stray], 40, [finger(130, 100)]);
 
     // A finger on the letterbox around the canvas is on the screen: this scrolls.
@@ -402,59 +448,29 @@ describe('attachComputerTouchpad', () => {
     touch('touchmove', canvas, [stray, { ...onCanvas, y: 60 }, { ...margin, y: 260 }], 1040, [
       { ...onCanvas, y: 60 },
     ]);
-    expect(types()).toEqual(['wheel']);
+    expect(types()).toEqual(['mouseup', 'wheel']);
     outside.remove();
   });
 
-  it('releases a held drag on detach and on touchcancel', () => {
-    const startDrag = holdDrag;
-    const releases = () =>
-      recorded.filter((entry) => entry.type === 'mouseup' && entry.button === 0).slice(1);
-
-    const detachFirst = attach();
-    startDrag(0);
-    detachFirst();
-    expect(releases()).toEqual([expect.objectContaining({ buttons: 0 })]);
-    expect(recorded.at(-1)).toMatchObject({ type: 'mouseup', buttons: 0 });
-    // Detached: touches pass through and nothing more is sent.
-    const after = touch('touchstart', canvas, [finger(100, 100)], 1000);
-    expect(after.defaultPrevented).toBe(false);
-    expect(releases()).toHaveLength(1);
-
-    recorded = [];
+  it('releases a held drag on touchcancel', () => {
     attach();
-    startDrag(5000);
-    touch('touchcancel', canvas, [], 5200, [finger(130, 100)]);
-    expect(releases()).toEqual([expect.objectContaining({ buttons: 0 })]);
-    detach?.();
-    detach = undefined;
-    expect(releases()).toHaveLength(1);
+    holdDrag(0);
+    recorded.length = 0;
+    touch('touchcancel', canvas, [], 200, [finger(130, 100)]);
+    expect(recorded).toEqual([expect.objectContaining({ type: 'mouseup', button: 0, buttons: 0 })]);
   });
 
-  it('sends no release from a screen that left the page', () => {
-    // React removes the screen before its effects clean up. noVNC would place a release on a
-    // canvas with no size at (65535, 65535); the stream closing lets go of the button instead.
+  it('sends nothing on detach and lets touches pass', () => {
+    // The stream closing lets go of a held button, and releaseNoVncCapture of noVNC's capture.
     const detachFirst = attach();
     holdDrag(0);
     recorded.length = 0;
-    wrapper.remove();
     detachFirst();
+    detach = undefined;
     expect(recorded).toEqual([]);
-
-    // In the page, but with no width or no height.
-    document.body.append(wrapper);
-    for (const size of [
-      { width: 0, height: 250 },
-      { width: 400, height: 0 },
-    ]) {
-      rect = { left: 10, top: 20, width: 400, height: 250 };
-      const detachNext = attach();
-      holdDrag(1000);
-      recorded.length = 0;
-      rect = { ...rect, ...size };
-      detachNext();
-      expect(recorded).toEqual([]);
-    }
+    const after = touch('touchstart', canvas, [finger(100, 100)], 1000);
+    expect(after.defaultPrevented).toBe(false);
+    expect(recorded).toEqual([]);
   });
 
   it('lets go of a held drag once control ends', () => {

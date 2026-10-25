@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
@@ -7,7 +7,7 @@ import { lightTheme } from '../../src/colors.css';
 import { ComputerScreen } from '../../src/app/mindroom/computer/ComputerScreen';
 
 const params = new URLSearchParams(window.location.search);
-const mode = params.get('mode') === 'control' ? 'control' : 'view';
+const initialMode = params.get('mode') === 'control' ? 'control' : 'view';
 document.documentElement.className = `${configClass} ${varsClass} ${lightTheme}`;
 
 // noVNC accepts a socket only if `send`, `close`, `binaryType` and the `on*` handlers are on
@@ -27,6 +27,11 @@ if (mockPrototype !== EventTarget.prototype) {
 
 function Fixture() {
   const [status, setStatus] = useState('Connecting');
+  const [mode, setMode] = useState<'view' | 'control'>(initialMode);
+  // Lets a test change the mode on the open stream, as Take control and Resume agent do.
+  useEffect(() => {
+    Object.assign(window, { setComputerMode: setMode });
+  }, []);
   return (
     <main style={{ display: 'grid', gap: 12, padding: 12 }}>
       <output>{status}</output>
