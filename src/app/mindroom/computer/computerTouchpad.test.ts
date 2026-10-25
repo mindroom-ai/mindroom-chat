@@ -95,6 +95,14 @@ describe('attachComputerTouchpad', () => {
     touch('touchend', canvas, [], to, [at]);
   };
 
+  // A tap, then a touch that moves: the left button is held.
+  const holdDrag = (from: number) => {
+    tap(finger(100, 100), from, from + 50);
+    touch('touchstart', canvas, [finger(100, 100)], from + 150);
+    touch('touchmove', canvas, [finger(130, 100)], from + 170);
+    expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', buttons: 1 });
+  };
+
   const types = (entries = recorded) => entries.map((entry) => entry.type);
 
   beforeEach(() => {
@@ -399,12 +407,7 @@ describe('attachComputerTouchpad', () => {
   });
 
   it('releases a held drag on detach and on touchcancel', () => {
-    const startDrag = (from: number) => {
-      tap(finger(100, 100), from, from + 50);
-      touch('touchstart', canvas, [finger(100, 100)], from + 150);
-      touch('touchmove', canvas, [finger(130, 100)], from + 170);
-      expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', buttons: 1 });
-    };
+    const startDrag = holdDrag;
     const releases = () =>
       recorded.filter((entry) => entry.type === 'mouseup' && entry.button === 0).slice(1);
 
@@ -428,7 +431,35 @@ describe('attachComputerTouchpad', () => {
     expect(releases()).toHaveLength(1);
   });
 
-  it('releases a held drag once control ends', () => {
+  it('sends no release from a screen that left the page', () => {
+    // React removes the screen before its effects clean up. noVNC would place a release on a
+    // canvas with no size at (65535, 65535); the stream closing lets go of the button instead.
+    const detachFirst = attach();
+    holdDrag(0);
+    recorded.length = 0;
+    wrapper.remove();
+    detachFirst();
+    expect(recorded).toEqual([]);
+
+    // In the page, but with no width or no height.
+    document.body.append(wrapper);
+    for (const size of [
+      { width: 0, height: 250 },
+      { width: 400, height: 0 },
+    ]) {
+      rect = { left: 10, top: 20, width: 400, height: 250 };
+      const detachNext = attach();
+      holdDrag(1000);
+      recorded.length = 0;
+      rect = { ...rect, ...size };
+      detachNext();
+      expect(recorded).toEqual([]);
+    }
+  });
+
+  it('lets go of a held drag once control ends', () => {
+    // noVNC sends nothing once view-only, so the computer's button is released when the
+    // stream closes. This ends the gesture and lets go of noVNC's capture here.
     attach();
     tap(finger(100, 100), 0, 50);
     touch('touchstart', canvas, [finger(100, 100)], 150);
@@ -444,29 +475,5 @@ describe('attachComputerTouchpad', () => {
     detach?.();
     detach = undefined;
     expect(recorded).toHaveLength(1);
-  });
-
-  it('ignores its own synthetic events', () => {
-    attach();
-    touch('touchstart', canvas, [finger(100, 100)], 0);
-    touch('touchmove', canvas, [finger(130, 100)], 20);
-    expect(types()).toEqual(['mousemove']);
-
-    // Dispatching the layer's own event again reaches noVNC and nothing else.
-    const own = recorded[0].event;
-    canvas.dispatchEvent(own);
-    wrapper.dispatchEvent(own);
-    expect(types()).toEqual(['mousemove', 'mousemove']);
-
-    // A listener that answers the layer's move with a touch does not re-enter the gesture.
-    recorded.length = 0;
-    let answers = 0;
-    canvas.addEventListener('mousemove', () => {
-      if (answers >= 5) return;
-      answers += 1;
-      touch('touchmove', canvas, [finger(130 + 40 * answers, 100)], 20 + answers);
-    });
-    touch('touchmove', canvas, [finger(150, 100)], 40);
-    expect(types()).toEqual(['mousemove']);
   });
 });

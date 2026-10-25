@@ -23,10 +23,6 @@ export function attachComputerTouchpad(
   const doc = target.ownerDocument;
   const view = doc.defaultView ?? window;
   const recognizer = createTouchpadRecognizer();
-  // The events this layer dispatched. It listens to touch only and dispatches mouse and
-  // wheel events, so with the guard below no listener can feed it back into the gesture.
-  const ownEvents = new WeakSet<Event>();
-  let dispatching = false;
   // In client coordinates. It starts at the canvas centre on the first touch in control.
   let pointer: Point | undefined;
   // Where the last mousemove put noVNC's cursor.
@@ -39,11 +35,6 @@ export function attachComputerTouchpad(
     Array.from(event.touches)
       .filter((touch) => touch.target instanceof Node && target.contains(touch.target))
       .map((touch) => ({ id: touch.identifier, x: touch.clientX, y: touch.clientY }));
-
-  const send = (on: EventTarget, event: Event) => {
-    ownEvents.add(event);
-    on.dispatchEvent(event);
-  };
 
   // noVNC takes the mouse on every press. Without Element.setCapture (all but Firefox) it
   // covers the page with an element, and lets go when a mouseup reaches the window, as a
@@ -64,7 +55,7 @@ export function attachComputerTouchpad(
   ) => {
     const init = { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y };
     const on = type === 'mouseup' ? releaseTarget(canvas) : canvas;
-    send(on, new MouseEvent(type, { ...init, button, buttons }));
+    on.dispatchEvent(new MouseEvent(type, { ...init, button, buttons }));
     if (type === 'mousemove') shown = at;
   };
 
@@ -115,8 +106,7 @@ export function attachComputerTouchpad(
         return;
       case 'scroll': {
         const at = pointAt(canvas);
-        send(
-          canvas,
+        canvas.dispatchEvent(
           new WheelEvent('wheel', {
             bubbles: true,
             cancelable: true,
@@ -133,18 +123,11 @@ export function attachComputerTouchpad(
     }
   };
 
-  const run = (canvas: HTMLCanvasElement | null, actions: TouchpadAction[]) => {
-    if (!canvas || actions.length === 0) return;
-    dispatching = true;
-    try {
-      actions.forEach((action) => perform(canvas, action));
-    } finally {
-      dispatching = false;
-    }
+  const run = (canvas: HTMLCanvasElement, actions: TouchpadAction[]) => {
+    actions.forEach((action) => perform(canvas, action));
   };
 
   const handleTouch = (event: TouchEvent) => {
-    if (ownEvents.has(event) || dispatching) return;
     // noVNC makes its canvas on connect; until then touches pass through.
     const canvas = target.querySelector('canvas');
     if (!canvas) return;
@@ -181,7 +164,14 @@ export function attachComputerTouchpad(
 
   return () => {
     TOUCH_EVENTS.forEach((type) => target.removeEventListener(type, handleTouch, true));
-    // Before noVNC disconnects, so a held button is released on the open socket.
-    run(target.querySelector('canvas'), recognizer.cancel());
+    // A new stream on the same screen: release a held button before noVNC disconnects.
+    // On unmount React has already taken the screen out of the page, and noVNC would place
+    // a release on a canvas with no size at (65535, 65535). The stream closes right after,
+    // and the computer lets go of held buttons then.
+    const canvas = target.querySelector('canvas');
+    const rect = canvas?.getBoundingClientRect();
+    if (canvas?.isConnected && rect && rect.width > 0 && rect.height > 0) {
+      run(canvas, recognizer.cancel());
+    }
   };
 }

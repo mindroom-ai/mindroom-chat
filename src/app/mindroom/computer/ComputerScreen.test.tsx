@@ -272,17 +272,33 @@ describe('ComputerScreen', () => {
   });
 
   it('attaches the touchpad once per stream and detaches it before disconnect', () => {
-    const createRfb = createRfbWithCanvas();
-    renderScreen({ createRfb, mode: 'view' });
-    const { canvas } = screenElements();
     const mouse = vi.fn((event: MouseEvent) => ({ type: event.type, buttons: event.buttons }));
     const mouseOrder: number[] = [];
-    for (const type of ['mousedown', 'mousemove', 'mouseup']) {
-      canvas.addEventListener(type, (event) => {
-        mouse(event as MouseEvent);
-        mouseOrder.push(mouse.mock.invocationCallOrder.at(-1)!);
-      });
-    }
+    const canvases: HTMLCanvasElement[] = [];
+    // Like noVNC: a sized canvas inside the target, which disconnect takes out again.
+    const createRfb = vi.fn((target: HTMLElement): RfbClient => {
+      const canvas = document.createElement('canvas');
+      canvas.getBoundingClientRect = () =>
+        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+      for (const type of ['mousedown', 'mousemove', 'mouseup']) {
+        canvas.addEventListener(type, (event) => {
+          mouse(event as MouseEvent);
+          mouseOrder.push(mouse.mock.invocationCallOrder.at(-1)!);
+        });
+      }
+      target.append(canvas);
+      canvases.push(canvas);
+      return {
+        ...rfb,
+        disconnect: () => {
+          rfb.disconnect();
+          canvas.remove();
+        },
+      };
+    });
+    const firstUrl = 'wss://computer.example.org/api/computers/sessions/session-1/stream';
+    renderScreen({ createRfb, mode: 'view', url: firstUrl });
+    const [canvas] = canvases;
 
     // Watching: noVNC gets the touch, and the touchpad sends nothing.
     expect(touch('touchstart', canvas, 100, 0).defaultPrevented).toBe(false);
@@ -290,9 +306,9 @@ describe('ComputerScreen', () => {
     expect(mouse).not.toHaveBeenCalled();
 
     // In control on the same connection, after the mode went there and back.
-    renderScreen({ createRfb, mode: 'control' });
-    renderScreen({ createRfb, mode: 'view' });
-    renderScreen({ createRfb, mode: 'control' });
+    renderScreen({ createRfb, mode: 'control', url: firstUrl });
+    renderScreen({ createRfb, mode: 'view', url: firstUrl });
+    renderScreen({ createRfb, mode: 'control', url: firstUrl });
     expect(startTouchDrag(canvas, 1000).defaultPrevented).toBe(true);
     expect(createRfb).toHaveBeenCalledOnce();
     // One layer: a single press and a single move with the button held.
@@ -304,13 +320,27 @@ describe('ComputerScreen', () => {
       { type: 'mousemove', buttons: 1 },
     ]);
 
-    act(() => root.unmount());
-
-    // The held button is released while the socket is still open.
+    // A new stream on the same screen: the held button is released on the open socket.
+    renderScreen({
+      createRfb,
+      mode: 'control',
+      url: 'wss://computer.example.org/api/computers/sessions/session-2/stream',
+    });
     expect(mouse.mock.results.at(-1)?.value).toEqual({ type: 'mouseup', buttons: 0 });
     expect(mouse).toHaveBeenCalledTimes(6);
     expect(rfb.disconnect).toHaveBeenCalledOnce();
     expect(mouseOrder.at(-1)).toBeLessThan(vi.mocked(rfb.disconnect).mock.invocationCallOrder[0]);
+
+    // The new stream has its own touchpad, and the old one is gone.
+    expect(createRfb).toHaveBeenCalledTimes(2);
+    expect(canvases[1].isConnected).toBe(true);
+    startTouchDrag(canvases[1], 5000);
+    expect(mouse).toHaveBeenCalledTimes(11);
+
+    // Unmounted, the screen has already left the page: no release at a canvas with no size.
+    act(() => root.unmount());
+    expect(mouse).toHaveBeenCalledTimes(11);
+    expect(rfb.disconnect).toHaveBeenCalledTimes(2);
   });
 
   it('sets touch-action none on the screen only while in control', () => {
