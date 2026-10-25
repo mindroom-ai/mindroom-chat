@@ -187,6 +187,33 @@ describe('one finger', () => {
     expect(actions.map((action) => action.type)).toEqual(['move']);
   });
 
+  it('arms no drag after the second tap of a double tap', () => {
+    const recognizer = createTouchpadRecognizer();
+    const actions = [
+      ...tap(recognizer, { x: 100, y: 100 }, 0, 50),
+      ...tap(recognizer, { x: 100, y: 100 }, 100, 150),
+      // Within the window and the slop of the second tap, but that tap was itself armed.
+      ...recognizer.start([pt(1, 100, 100)], 200),
+      ...recognizer.move([pt(1, 140, 100)], 220),
+      ...recognizer.end([], 240),
+    ];
+    expect(actions.map((action) => action.type)).toEqual(['click', 'click', 'move']);
+  });
+
+  it('arms no drag after three fingers landed from idle', () => {
+    const recognizer = createTouchpadRecognizer();
+    tap(recognizer, { x: 100, y: 100 }, 0, 50);
+    expect(recognizer.start([pt(1, 100, 100), pt(2, 140, 100), pt(3, 180, 100)], 100)).toEqual([]);
+    expect(recognizer.end([], 150)).toEqual([]);
+
+    const actions = [
+      ...recognizer.start([pt(1, 100, 100)], 200),
+      ...recognizer.move([pt(1, 140, 100)], 220),
+      ...recognizer.end([], 240),
+    ];
+    expect(actions.map((action) => action.type)).toEqual(['move']);
+  });
+
   it('arms no drag when another gesture came between the tap and the touch', () => {
     const recognizer = createTouchpadRecognizer();
     tap(recognizer, { x: 100, y: 100 }, 0, 50);

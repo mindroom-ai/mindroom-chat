@@ -158,6 +158,7 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
         } else if (points.length === 2) {
           beginTwoFingers(points[0], points[0], points[1], time);
         } else {
+          lastTap = null;
           state = IGNORED;
         }
         return [];
@@ -183,9 +184,10 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
       case 'scrolling':
         state = IGNORED;
         return [];
-      default:
-        // ignored: wait for every finger to lift
+      case 'ignored':
+        // Wait for every finger to lift.
         return [];
+      // no default
     }
   };
 
@@ -242,9 +244,10 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
         current.lastMid = mid;
         return scrollBy(previous, mid);
       }
-      default:
-        // idle or ignored
+      case 'idle':
+      case 'ignored':
         return [];
+      // no default
     }
   };
 
@@ -257,7 +260,8 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
         const at = { x: current.x, y: current.y, time };
         settle(remaining);
         if (!tapped) return [];
-        lastTap = at;
+        // The second tap of a double tap arms nothing, so a third touch is no tap-then-drag.
+        if (!current.armed) lastTap = at;
         return [{ type: 'click', button: 'left' }];
       }
       case 'moving': {
@@ -285,9 +289,9 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
       case 'ignored':
         settle(remaining);
         return [];
-      default:
-        // idle
+      case 'idle':
         return [];
+      // no default
     }
   };
 
