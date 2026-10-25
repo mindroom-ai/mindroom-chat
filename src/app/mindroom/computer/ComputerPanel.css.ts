@@ -38,6 +38,11 @@ export const Screen = style({
   },
 });
 
+// While in control, touches drive the touchpad, so the browser neither scrolls nor zooms.
+export const ScreenInControl = style({
+  touchAction: 'none',
+});
+
 globalStyle(`${Screen} canvas`, {
   maxHeight: '100%',
   maxWidth: '100%',

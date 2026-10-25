@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, type PasteResult } from './computerClipboard';
+import { attachComputerTouchpad, releaseNoVncCapture } from './computerTouchpad';
 
 export type RfbClient = {
   addEventListener(name: string, listener: EventListener): void;
@@ -47,6 +48,7 @@ export function ComputerScreen({
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
   const modeRef = useRef(mode);
+  const showTouchpadPointerRef = useRef<() => void>();
 
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
@@ -60,10 +62,22 @@ export function ComputerScreen({
     if (!target) return undefined;
 
     const rfb = createRfb(target, url, { wsProtocols: [binaryProtocol, ticketProtocol] });
+    // noVNC appends its canvas here at once, and takes it out again when it disconnects,
+    // which a dropped stream does before the screen unmounts.
+    const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
     rfbRef.current = rfb;
 
-    const handleConnect = () => connectedCallbackRef.current();
+    // Read through refs, so a change of mode never reconnects the stream.
+    const isControlling = () => modeRef.current === 'control';
+    const touchpad = attachComputerTouchpad(target, { isControlling });
+    showTouchpadPointerRef.current = touchpad.showPointer;
+
+    const handleConnect = () => {
+      connectedCallbackRef.current();
+      // In control already: the screen has its first frame now.
+      touchpad.showPointer();
+    };
     const handleDisconnect = (event: Event) => {
       const detail = (event as CustomEvent<{ clean?: boolean }>).detail;
       disconnectedCallbackRef.current(
@@ -86,15 +100,16 @@ export function ComputerScreen({
     target.addEventListener('keydown', keepInputInsideComputer);
     target.addEventListener('paste', keepInputInsideComputer);
     target.addEventListener('mousedown', keepPressFocusOnCanvas);
-    // Read through refs, so a change of mode never reconnects the stream.
     const detachClipboard = attachComputerClipboard(target, rfb, {
-      isControlling: () => modeRef.current === 'control',
+      isControlling,
       onPaste: (result) => pasteCallbackRef.current?.(result),
     });
 
     return () => {
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
       detachClipboard();
+      touchpad.detach();
+      showTouchpadPointerRef.current = undefined;
       rfb.removeEventListener('connect', handleConnect);
       rfb.removeEventListener('disconnect', handleDisconnect);
       rfb.removeEventListener('securityfailure', handleSecurityFailure);
@@ -103,6 +118,9 @@ export function ComputerScreen({
       target.removeEventListener('mousedown', keepPressFocusOnCanvas);
       rfbRef.current = undefined;
       rfb.disconnect();
+      // A drag held at the close, or when the stream dropped, still has noVNC's page-covering
+      // capture element up.
+      releaseNoVncCapture(canvas);
     };
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
 
@@ -112,13 +130,16 @@ export function ComputerScreen({
     rfb.viewOnly = mode !== 'control';
     if (mode === 'control') {
       rfb.focus({ preventScroll: true });
+      // Once noVNC is no longer view-only, so the computer's pointer goes there too.
+      showTouchpadPointerRef.current?.();
     }
   }, [mode]);
 
   return (
     <div
       ref={targetRef}
-      className={css.Screen}
+      // In control, touches drive the touchpad: no page scroll or zoom on the screen.
+      className={mode === 'control' ? `${css.Screen} ${css.ScreenInControl}` : css.Screen}
       data-mindroom-computer-input
       onPointerDown={() => rfbRef.current?.focus({ preventScroll: true })}
       role="application"

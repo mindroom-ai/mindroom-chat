@@ -564,6 +564,10 @@ export function ComputerPanel({
 
   const statusText = phaseLabel(phase, status, connected);
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
+  const showTouchpadHint =
+    canControl &&
+    status?.mode === 'control' &&
+    (window.matchMedia?.('(pointer: coarse)').matches ?? false);
 
   return (
     <aside className={css.Panel} aria-label="Computer panel">
@@ -663,6 +667,11 @@ export function ComputerPanel({
         <Text className={css.Status} size="T300" role="status">
           {statusText}
         </Text>
+        {showTouchpadHint && (
+          <Text className={css.Status} size="T300">
+            Drag to move the pointer. Tap to click, two fingers to scroll.
+          </Text>
+        )}
         {releaseNotice && (
           <Text size="T300">
             Control released.{releaseNotice === 'sent' && ' The agent was asked to continue.'}
