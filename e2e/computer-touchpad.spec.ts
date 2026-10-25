@@ -168,8 +168,11 @@ const openScreen = async (page: Page, mode: 'view' | 'control') => {
   const stub = await serveRfb(page);
   current = stub;
   await page.goto(`/e2e/fixtures/computer-touchpad.html?mode=${mode}`);
-  // A touch device, so noVNC draws its own cursor as on a phone.
-  expect(await page.evaluate(() => navigator.maxTouchPoints)).toBeGreaterThan(0);
+  // A touch device, so noVNC draws its own cursor as on a phone. Linux WebKit reports no touch
+  // points even with hasTouch, so only Chromium can prove it.
+  if (page.context().browser()?.browserType().name() === 'chromium') {
+    expect(await page.evaluate(() => navigator.maxTouchPoints)).toBeGreaterThan(0);
+  }
   await expect(page.getByText('Connected', { exact: true })).toBeVisible();
   await expect.poll(() => stub.framed).toBe(true);
   // noVNC's own canvas; its cursor has another one on the page.
