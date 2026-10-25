@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Drive the computer touchpad through real noVNC (2026-10-25)
+
+- Why: task 3 of 3 of `docs/baspowers/specs/2026-10-25-computer-touchpad-design.md`. The touchpad layer was tested only in jsdom; this drives it with real touch input in a browser, through the real noVNC 1.7 client, and checks the PointerEvents that reach the computer.
+- Change: test only, no product code.
+  - `e2e/fixtures/computer-touchpad.{html,tsx}` mounts `ComputerScreen` with its default noVNC factory, `mode` from the query string, the url `ws://<page host>/rfb-stub` and the protocols `binary` and `mindroom-ticket.test`. A status line shows "Connected" once noVNC connects.
+  - `e2e/computer-touchpad.spec.ts` answers that socket with `page.routeWebSocket` as an RFB 3.8 server: version, security type None, SecurityResult 0, ServerInit for a 400x250 frame at 32 bpp, and one Raw full-frame rectangle for the first FramebufferUpdateRequest. It then reads every client message by type (SetPixelFormat, SetEncodings, FramebufferUpdateRequest, KeyEvent, PointerEvent, ClientCutText), records each PointerEvent `{ mask, x, y }` on the Node side, and records an unknown type as an error that fails the test. Chromium gets raw touch points over CDP `Input.dispatchTouchEvent`; WebKit (`iPhone 13`) gets `page.touchscreen.tap`. A drag or a scroll is followed by a tap, and its click marks the point where everything before it has arrived. Each result has the recorded PointerEvents attached.
+  - `playwright.computer-touchpad.config.ts`: the base Chromium project with `hasTouch: true`, and WebKit with `devices['iPhone 13']`.
+  - Workaround, fixture only: noVNC's `Websock.attach` looks for `send`, `close`, `binaryType` and the `on*` handlers on the socket and on its own prototype only. Playwright's routed `WebSocket` is a subclass of its mock and keeps them one prototype further up, so noVNC threw `Raw channel missing property: send`. The fixture copies the mock's prototype members down onto `WebSocket.prototype`, and leaves a real `WebSocket` alone. The subprotocol needed nothing: the mock reports the first one asked for, `binary`, and noVNC 1.7 does not check it.
+- Tests: the PointerEvents recorded on Chromium are as follows. Masks are 0 none, 1 left, 4 right and 16 wheel down. The pointer starts at the frame centre (200, 125).
+  - A one-finger drag right by 80 px: `0` at x 215, 230 … 305 (seven moves), then the fence tap's `1, 0` at 305.
+  - Two taps away from the pointer: `0, 1, 0, 1, 0`, all at (200, 125). The first press moves noVNC's cursor there first, the second tap still reaches the screen, and noVNC's capture element ends hidden.
+  - A two-finger tap off the pointer: `0, 4, 0` at (200, 125).
+  - Two fingers up by 80 px: `0`, then `16, 0` twice, then the fence's `1, 0`, all at (200, 125).
+  - While watching, a tap reaches the window but records nothing.
+
+  WebKit records the same for the tap and while watching. These product mutations each fail at least one case on Chromium: no touchpad, no `stopPropagation`, no `preventDefault`, releases always on the canvas (it also fails the tap on WebKit), no cursor move before a press, right click as left, and never view-only. `buttons 1` on every move survives, and is equivalent: noVNC 1.7 takes a move's mask from its last press, not from the event.
+
+  | Case | Chromium (host) | WebKit `iPhone 13` (container) |
+  |---|---|---|
+  | a one-finger drag moves the pointer without a button | pass | skip: Playwright's WebKit touchscreen can only tap |
+  | a tap clicks at the pointer | pass | pass |
+  | a two-finger tap right-clicks | pass | skip: same reason |
+  | a two-finger drag scrolls | pass | skip: same reason |
+  | watching sends nothing | pass | pass |
+- Validation: `npm run test:e2e -- --config=playwright.computer-touchpad.config.ts --project chromium` passes 5 of 5, and 25 of 25 with `--repeat-each 5`. WebKit in `mcr.microsoft.com/playwright:v1.58.2-noble` (`--ulimit core=0`) passes 2 and skips 3, and passes 10 of 10 with `--repeat-each 5`. The new files type-check with a temporary tsconfig (`types: ["node", "vite/client"]`). `npm run typecheck`, `npm run lint` (0 errors, the 18 existing warnings), `npm run build`, and eslint and prettier on the new files all pass.
+- Risks: on WebKit only the taps are driven, as Playwright has no touch moves or second finger there. The drag, scroll and right click are covered on WebKit by jsdom alone. Chromium's touch emulation is not a phone: the gain and slop still need a real thumb. The workaround depends on how Playwright 1.58 builds its mock, so a Playwright upgrade may need it changed. The watching case waits a fixed 500 ms, because there is no event to wait for when nothing is sent.
+- Next: the touchpad plan is complete. The next step is to try it on a real phone and tune the constants.
+
 ### Use the computer screen like a touchpad on phones (2026-10-25)
 
 - Why: task 2 of 3 of `docs/baspowers/specs/2026-10-25-computer-touchpad-design.md`. While in control on a touch screen, a drag now moves the pointer, a tap clicks, a double tap double-clicks, tap-then-drag drags, two fingers scroll and a two-finger tap right-clicks. noVNC's own touch handling was direct touch, so a drag selected text instead of moving the pointer.
