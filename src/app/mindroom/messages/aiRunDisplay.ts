@@ -1,12 +1,6 @@
 import type { TFunction } from 'i18next';
 import { MindroomAiRunInfo } from './aiRun';
 
-type MindroomAiRunContextBarSegment = {
-  key: 'cacheRead' | 'newInput';
-  tokens: number;
-  percentage: number;
-};
-
 export const formatMindroomAiRunNumber = (
   value: number | undefined,
   locale?: string
@@ -32,11 +26,23 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
   return currency({ maximumSignificantDigits: 2 }).format(usd);
 };
 
+/** A share of a bar, such as 82.6 %, in the reader's number style. */
+export const formatMindroomAiRunPercentage = (percentage: number, locale?: string): string =>
+  new Intl.NumberFormat(locale, {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(percentage / 100);
+
 type MindroomAiRunTokenPart = {
   key: 'cacheRead' | 'newInput' | 'input' | 'output';
   label: string;
   tokens: number;
   percentage: number;
+};
+
+type MindroomAiRunContextBarSegment = MindroomAiRunTokenPart & {
+  key: 'cacheRead' | 'newInput' | 'input';
 };
 
 const TOKEN_PART_LABELS = {
@@ -45,6 +51,11 @@ const TOKEN_PART_LABELS = {
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
 } as const;
+
+const tokenPartLabel = (key: MindroomAiRunTokenPart['key'], t?: TFunction): string => {
+  const [labelKey, fallback] = TOKEN_PART_LABELS[key];
+  return t ? t(labelKey) : fallback;
+};
 
 /** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
 export const getMindroomAiRunTokenParts = (
@@ -70,10 +81,12 @@ export const getMindroomAiRunTokenParts = (
   if (total <= 0) return undefined;
   return {
     total,
-    parts: used.map(([key, tokens]) => {
-      const [labelKey, fallback] = TOKEN_PART_LABELS[key];
-      return { key, label: t ? t(labelKey) : fallback, tokens, percentage: (tokens / total) * 100 };
-    }),
+    parts: used.map(([key, tokens]) => ({
+      key,
+      label: tokenPartLabel(key, t),
+      tokens,
+      percentage: (tokens / total) * 100,
+    })),
   };
 };
 
@@ -136,10 +149,7 @@ export const getMindroomAiRunContextLabel = (
     return undefined;
   }
 
-  const percentage = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format((inputTokens / windowTokens) * 100);
+  const percentage = formatMindroomAiRunPercentage((inputTokens / windowTokens) * 100, locale);
   const input = formatMindroomAiRunNumber(inputTokens, locale);
   const window = formatMindroomAiRunNumber(windowTokens, locale);
   return t
@@ -148,11 +158,12 @@ export const getMindroomAiRunContextLabel = (
         window,
         percentage,
       })
-    : `${input} of ${window} · ${percentage}%`;
+    : `${input} of ${window} · ${percentage}`;
 };
 
 export const getMindroomAiRunContextBarSegments = (
-  info: MindroomAiRunInfo
+  info: MindroomAiRunInfo,
+  t?: TFunction
 ): MindroomAiRunContextBarSegment[] | undefined => {
   const inputTokens = info.contextInputTokens;
   const windowTokens = info.contextWindowTokens;
@@ -168,23 +179,33 @@ export const getMindroomAiRunContextBarSegments = (
     return undefined;
   }
 
-  const displayedCacheReadTokens = isValidContextBarTokenCount(cacheReadTokens)
-    ? Math.min(cacheReadTokens, inputTokens)
-    : 0;
+  // Without a cache count the split is unknown, so the bar shows the input as one part.
+  if (!isValidContextBarTokenCount(cacheReadTokens)) {
+    return [
+      {
+        key: 'input',
+        label: tokenPartLabel('input', t),
+        tokens: inputTokens,
+        percentage: (inputTokens / windowTokens) * 100,
+      },
+    ];
+  }
+
+  const displayedCacheReadTokens = Math.min(cacheReadTokens, inputTokens);
   const displayedUncachedTokens =
-    isValidContextBarTokenCount(cacheReadTokens) &&
-    isValidContextBarTokenCount(uncachedTokens) &&
-    cacheReadTokens + uncachedTokens === inputTokens
+    isValidContextBarTokenCount(uncachedTokens) && cacheReadTokens + uncachedTokens === inputTokens
       ? uncachedTokens
       : inputTokens - displayedCacheReadTokens;
   return [
     {
       key: 'cacheRead',
+      label: tokenPartLabel('cacheRead', t),
       tokens: displayedCacheReadTokens,
       percentage: (displayedCacheReadTokens / windowTokens) * 100,
     },
     {
       key: 'newInput',
+      label: tokenPartLabel('newInput', t),
       tokens: displayedUncachedTokens,
       percentage: (displayedUncachedTokens / windowTokens) * 100,
     },

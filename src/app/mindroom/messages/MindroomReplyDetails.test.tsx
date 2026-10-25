@@ -69,6 +69,16 @@ const costCard = () => container.querySelector('[aria-label="Cost"]');
 const histogram = () =>
   container.querySelector('ol[aria-label="Cost of each reply in this conversation"]');
 const bars = () => [...(histogram()?.querySelectorAll('li') ?? [])];
+const caption = () =>
+  [...(histogram()?.nextElementSibling?.children ?? [])].map((part) => part.textContent);
+/** A pointer event as React reads it, which jsdom cannot construct with a pointer type. */
+const pointer = (target: Element, type: string, clientX: number, pointerType: string) => {
+  const event = new MouseEvent(type, { bubbles: true, clientX, relatedTarget: document.body });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+};
 const section = (heading: string) =>
   [...container.querySelectorAll('section')].find(
     (element) => element.querySelector('h3')?.textContent === heading
@@ -141,8 +151,68 @@ describe('MindroomReplyDetails', () => {
       ['Reply 3: $0.0051', 'current', 'true'],
       ['Reply 4: $0.0026', 'later', null],
     ]);
-    expect(costCard()?.textContent).toContain('Reply 1');
-    expect(costCard()?.textContent).toContain('This reply · 3 of 4');
+    expect(caption()).toEqual(['This reply · 3 of 4']);
+  });
+
+  /** Bars 8px wide with 2px gaps, the first at the left or, right to left, at the right. */
+  const placeBars = (direction: 'ltr' | 'rtl') =>
+    bars().forEach((bar, offset) => {
+      const left = direction === 'ltr' ? offset * 10 : 30 - offset * 10;
+      bar.getBoundingClientRect = () => ({ left, right: left + 8 } as DOMRect);
+    });
+
+  it('names the reply under the pointer in the caption', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+    placeBars('ltr');
+
+    pointer(histogram()!, 'pointermove', 15, 'mouse');
+    expect(caption()).toEqual(['Reply 2: $0.0034']);
+    expect(bars().map((bar) => bar.hasAttribute('data-pointed'))).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ]);
+
+    pointer(histogram()!, 'pointerout', 15, 'mouse');
+    expect(caption()).toEqual(['This reply · 3 of 4']);
+
+    // A tap keeps its reply named after the finger lifts, until it points past the bars.
+    pointer(histogram()!, 'pointerdown', 35, 'touch');
+    pointer(histogram()!, 'pointerout', 35, 'touch');
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+    pointer(histogram()!, 'pointermove', 45, 'touch');
+    expect(caption()).toEqual(['This reply · 3 of 4']);
+
+    // A finger that starts scrolling the dialog over the bars leaves none named.
+    pointer(histogram()!, 'pointerdown', 15, 'touch');
+    pointer(histogram()!, 'pointercancel', 15, 'touch');
+    expect(caption()).toEqual(['This reply · 3 of 4']);
+  });
+
+  it('keeps naming the pointed reply as the thread changes, and forgets a redacted one', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+    placeBars('ltr');
+    pointer(histogram()!, 'pointerdown', 35, 'touch');
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+
+    // A new reply arrives: the tapped reply stays named.
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026, 0.0018]));
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+
+    // The tapped reply is redacted: the caption falls back to this reply.
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051]));
+    expect(caption()).toEqual(['This reply · 3 of 3']);
+  });
+
+  it('names the pointed reply when the bars run right to left', () => {
+    render(reply, '$r3', thread([0.0012, 0.0034, 0.0051, 0.0026]));
+    placeBars('rtl');
+
+    pointer(histogram()!, 'pointermove', 3, 'mouse');
+    expect(caption()).toEqual(['Reply 4: $0.0026']);
+    pointer(histogram()!, 'pointermove', 31, 'mouse');
+    expect(caption()).toEqual(['Reply 1: $0.0012']);
   });
 
   it('numbers no replies while older ones are not loaded', () => {
@@ -154,8 +224,7 @@ describe('MindroomReplyDetails', () => {
       '$0.0051',
       '$0.0026',
     ]);
-    expect(costCard()?.textContent).not.toContain('3 of 4');
-    expect(costCard()?.textContent).not.toContain('Reply 1');
+    expect(caption()).toEqual(['This reply']);
   });
 
   it('draws no histogram for the only priced reply', () => {
@@ -170,7 +239,7 @@ describe('MindroomReplyDetails', () => {
     expect(bars()).toHaveLength(40);
     expect(bars()[0].textContent).toBe('Reply 21: $0.001');
     expect(bars()[39].textContent).toBe('Reply 60: $0.001');
-    expect(costCard()?.textContent).toContain('Reply 21');
+    expect(caption()).toEqual(['This reply · 50 of 60', '21–60']);
   });
 
   it('shows what the tokens were spent on', () => {
@@ -189,6 +258,11 @@ describe('MindroomReplyDetails', () => {
     render(reply);
 
     expect(section('Context window')?.textContent).toContain('51,663 of 258,000 · 20.0%');
+    // Without a legend, the bar names its parts to screen readers.
+    expect(
+      section('Context window')?.querySelector('[role="img"]')?.getAttribute('aria-label')
+    ).toBe('From cache 49,886 · 19.3%, New input 1,777 · 0.7%');
+    expect(section('Tokens')?.querySelector('[role="img"]')).toBeNull();
   });
 
   it('sums up the run activity in one line', () => {

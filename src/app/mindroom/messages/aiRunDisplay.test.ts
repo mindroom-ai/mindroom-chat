@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
+  formatMindroomAiRunPercentage,
   formatMindroomCostUsd,
   getMindroomAiRunTokenParts,
   formatMindroomAiRunTimeToFirstToken,
@@ -99,6 +100,16 @@ describe('getMindroomAiRunContextLabel', () => {
     ).toBe('500 of 2,000 · 25.0%');
   });
 
+  it('formats the percentage as the context bar tooltips do', () => {
+    expect(
+      getMindroomAiRunContextLabel(
+        { contextInputTokens: 500, contextWindowTokens: 2000 },
+        undefined,
+        'ru'
+      )
+    ).toBe(`500 of 2\u00a0000 · ${formatMindroomAiRunPercentage(25, 'ru')}`);
+  });
+
   it('returns undefined for incomplete or invalid context values', () => {
     expect(getMindroomAiRunContextLabel({ contextInputTokens: 10 })).toBeUndefined();
     expect(
@@ -122,11 +133,13 @@ describe('getMindroomAiRunContextBarSegments', () => {
     ).toEqual([
       {
         key: 'cacheRead',
+        label: 'From cache',
         tokens: 20,
         percentage: 20,
       },
       {
         key: 'newInput',
+        label: 'New input',
         tokens: 45,
         percentage: 45,
       },
@@ -155,10 +168,12 @@ describe('getMindroomAiRunContextBarSegments', () => {
     expect(segments).toEqual([
       expect.objectContaining({
         key: 'cacheRead',
+        label: 'From cache',
         tokens: 153294,
       }),
       expect.objectContaining({
         key: 'newInput',
+        label: 'New input',
         tokens: 0,
         percentage: 0,
       }),
@@ -166,7 +181,7 @@ describe('getMindroomAiRunContextBarSegments', () => {
     expect(segments?.[0]?.percentage).toBeCloseTo(76.647);
   });
 
-  it('renders a context usage bar even when cache counters are absent', () => {
+  it('renders the context as plain input when cache counters are absent', () => {
     expect(
       getMindroomAiRunContextBarSegments({
         contextInputTokens: 65,
@@ -174,12 +189,8 @@ describe('getMindroomAiRunContextBarSegments', () => {
       })
     ).toEqual([
       {
-        key: 'cacheRead',
-        tokens: 0,
-        percentage: 0,
-      },
-      {
-        key: 'newInput',
+        key: 'input',
+        label: 'Input',
         tokens: 65,
         percentage: 65,
       },
@@ -195,6 +206,13 @@ describe('formatMindroomAiRunTimeToFirstToken', () => {
   it('returns undefined for invalid ttft values', () => {
     expect(formatMindroomAiRunTimeToFirstToken(undefined)).toBeUndefined();
     expect(formatMindroomAiRunTimeToFirstToken(-1)).toBeUndefined();
+  });
+});
+
+describe('formatMindroomAiRunPercentage', () => {
+  it('formats a share with one decimal in the percent style of each locale', () => {
+    expect(formatMindroomAiRunPercentage(82.64, 'en')).toBe('82.6%');
+    expect(formatMindroomAiRunPercentage(82.64, 'de')).toBe('82,6\u00a0%');
   });
 });
 

@@ -2767,7 +2767,7 @@
         "fromCache": "Önbellekten",
         "output": "Çıktı",
         "contextWindow": "Bağlam penceresi",
-        "contextWindowUsage": "{{window}} içinden {{input}} · %{{percentage}}",
+        "contextWindowUsage": "{{window}} içinden {{input}} · {{percentage}}",
         "timeToFirstToken": "İlk token",
         "technicalDetails": "Teknik ayrıntılar",
         "configuredModel": "Yapılandırılmış model",
@@ -2782,7 +2782,6 @@
         "costHistory": "Bu konuşmadaki her yanıtın maliyeti",
         "costHistoryBar": "Yanıt {{index}}: {{cost}}",
         "costHistoryPosition": "Bu yanıt · {{count}} yanıttan {{index}}.",
-        "replyNumber": "Yanıt {{index}}",
         "toolCallCount_one": "{{count}} araç çağrısı",
         "toolCallCount_other": "{{count}} araç çağrısı"
       }

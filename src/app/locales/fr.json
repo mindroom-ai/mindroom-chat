@@ -2821,7 +2821,7 @@
         "fromCache": "Depuis le cache",
         "output": "Sortie",
         "contextWindow": "Fenêtre de contexte",
-        "contextWindowUsage": "{{input}} sur {{window}} · {{percentage}} %",
+        "contextWindowUsage": "{{input}} sur {{window}} · {{percentage}}",
         "timeToFirstToken": "Premier jeton",
         "technicalDetails": "Détails techniques",
         "configuredModel": "Modèle configuré",
@@ -2838,7 +2838,6 @@
         "costHistory": "Coût de chaque réponse dans cette conversation",
         "costHistoryBar": "Réponse {{index}} : {{cost}}",
         "costHistoryPosition": "Cette réponse · {{index}} sur {{count}}",
-        "replyNumber": "Réponse {{index}}",
         "toolCallCount_one": "{{count}} appel d’outil",
         "toolCallCount_other": "{{count}} appels d’outils",
         "toolCallCount_many": "{{count}} appels d’outils"
