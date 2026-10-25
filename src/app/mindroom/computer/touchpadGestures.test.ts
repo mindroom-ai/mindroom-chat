@@ -444,6 +444,27 @@ describe('cancel', () => {
     expect(recognizer.cancel()).toEqual([]);
   });
 
+  it('ignores the fingers left down until every one lifts', () => {
+    const recognizer = createTouchpadRecognizer();
+    recognizer.start([pt(1, 100, 100), pt(2, 140, 100)], 0);
+    // One finger is cancelled; the other stays down, and a new one lands next to it.
+    expect(recognizer.cancel([pt(2, 140, 100)])).toEqual([]);
+    expect(recognizer.start([pt(2, 140, 100), pt(3, 180, 100)], 40)).toEqual([]);
+    expect(recognizer.move([pt(2, 140, 60), pt(3, 180, 60)], 60)).toEqual([]);
+    // No right click when they lift.
+    expect(recognizer.end([pt(3, 180, 60)], 100)).toEqual([]);
+    expect(recognizer.end([], 120)).toEqual([]);
+    // Then the next tap clicks again.
+    expect(tap(recognizer, { x: 0, y: 0 }, 400, 450)).toEqual([{ type: 'click', button: 'left' }]);
+  });
+
+  it('is ready for the next touch when no finger is left', () => {
+    const recognizer = createTouchpadRecognizer();
+    recognizer.start([pt(1, 100, 100)], 0);
+    expect(recognizer.cancel([])).toEqual([]);
+    expect(tap(recognizer, { x: 0, y: 0 }, 100, 150)).toEqual([{ type: 'click', button: 'left' }]);
+  });
+
   it('forgets the last tap', () => {
     const recognizer = createTouchpadRecognizer();
     tap(recognizer, { x: 100, y: 100 }, 0, 50);

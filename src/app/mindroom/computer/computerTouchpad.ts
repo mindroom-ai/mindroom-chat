@@ -138,9 +138,9 @@ export function attachComputerTouchpad(
     if (!canvas) return;
     if (!isControlling()) {
       // Control ended mid-gesture: end it here and let go of noVNC's capture. noVNC sends
-      // nothing once view-only; the stream closing releases the computer's button. Touches
-      // pass through.
-      run(canvas, recognizer.cancel());
+      // nothing once view-only; the stream closing releases the computer's button. Fingers
+      // still down stay ignored, should control start before they lift. Touches pass through.
+      run(canvas, recognizer.cancel(screenTouches(event)));
       return;
     }
     // No page scroll or zoom, and noVNC's own gesture handler on the canvas never sees it.
@@ -167,7 +167,8 @@ export function attachComputerTouchpad(
         run(canvas, recognizer.end(screenTouches(event), time));
         break;
       case 'touchcancel':
-        run(canvas, recognizer.cancel());
+        // The fingers still down are ignored until every finger lifts.
+        run(canvas, recognizer.cancel(screenTouches(event)));
         break;
       default:
         break;

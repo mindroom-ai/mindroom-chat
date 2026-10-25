@@ -18,8 +18,11 @@ export type TouchpadRecognizer = {
   move(points: TouchPoint[], time: number): TouchpadAction[];
   /** The touches that are still down after one lifted. */
   end(remaining: TouchPoint[], time: number): TouchpadAction[];
-  /** Releases a held drag and forgets the gesture. */
-  cancel(): TouchpadAction[];
+  /**
+   * Releases a held drag and forgets the gesture. Fingers still down are ignored until every
+   * finger has lifted, so they cannot start a gesture of their own.
+   */
+  cancel(remaining?: TouchPoint[]): TouchpadAction[];
 };
 
 // Movement up to this many px still counts as a tap.
@@ -295,9 +298,9 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
     }
   };
 
-  const cancel: TouchpadRecognizer['cancel'] = () => {
+  const cancel: TouchpadRecognizer['cancel'] = (remaining = []) => {
     const held = state.kind === 'dragging';
-    state = IDLE;
+    settle(remaining);
     lastTap = null;
     return held ? [{ type: 'dragEnd' }] : [];
   };

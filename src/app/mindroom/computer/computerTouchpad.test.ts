@@ -460,6 +460,38 @@ describe('attachComputerTouchpad', () => {
     expect(recorded).toEqual([expect.objectContaining({ type: 'mouseup', button: 0, buttons: 0 })]);
   });
 
+  it('ignores a finger left down after touchcancel until every finger lifts', () => {
+    attach();
+    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 0);
+    // The browser cancels one finger; the other stays down, and a new one lands beside it.
+    touch('touchcancel', canvas, [finger(160, 100, 2)], 20, [finger(100, 100, 1)]);
+    recorded.length = 0;
+    touch('touchstart', canvas, [finger(160, 100, 2), finger(220, 100, 3)], 40, [
+      finger(220, 100, 3),
+    ]);
+    touch('touchend', canvas, [finger(220, 100, 3)], 100, [finger(160, 100, 2)]);
+    touch('touchend', canvas, [], 120, [finger(220, 100, 3)]);
+    // No right click from the left-over finger and the new one.
+    expect(recorded).toEqual([]);
+
+    // Once all have lifted, a tap clicks (moving noVNC's cursor to the pointer first).
+    tap(finger(100, 100), 500, 550);
+    expect(types()).toEqual(['mouseup', 'mousemove', 'mousedown', 'mouseup']);
+  });
+
+  it('ignores a finger that was down when control started until every finger lifts', () => {
+    controlling = false;
+    attach();
+    touch('touchstart', canvas, [finger(100, 100, 1)], 0);
+    controlling = true;
+    touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 40, [
+      finger(160, 100, 2),
+    ]);
+    touch('touchend', canvas, [finger(160, 100, 2)], 100, [finger(100, 100, 1)]);
+    touch('touchend', canvas, [], 120, [finger(160, 100, 2)]);
+    expect(recorded).toEqual([]);
+  });
+
   it('sends nothing on detach and lets touches pass', () => {
     // The stream closing lets go of a held button, and releaseNoVncCapture of noVNC's capture.
     const detachFirst = attach();
