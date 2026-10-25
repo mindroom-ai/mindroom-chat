@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, type PasteResult } from './computerClipboard';
+import { attachComputerTouchpad } from './computerTouchpad';
 
 export type RfbClient = {
   addEventListener(name: string, listener: EventListener): void;
@@ -87,14 +88,18 @@ export function ComputerScreen({
     target.addEventListener('paste', keepInputInsideComputer);
     target.addEventListener('mousedown', keepPressFocusOnCanvas);
     // Read through refs, so a change of mode never reconnects the stream.
+    const isControlling = () => modeRef.current === 'control';
     const detachClipboard = attachComputerClipboard(target, rfb, {
-      isControlling: () => modeRef.current === 'control',
+      isControlling,
       onPaste: (result) => pasteCallbackRef.current?.(result),
     });
+    const detachTouchpad = attachComputerTouchpad(target, { isControlling });
 
     return () => {
-      // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
+      // Before the disconnect, so a mapped Ctrl or Shift and a held touchpad drag are
+      // released on the open socket.
       detachClipboard();
+      detachTouchpad();
       rfb.removeEventListener('connect', handleConnect);
       rfb.removeEventListener('disconnect', handleDisconnect);
       rfb.removeEventListener('securityfailure', handleSecurityFailure);
@@ -118,7 +123,8 @@ export function ComputerScreen({
   return (
     <div
       ref={targetRef}
-      className={css.Screen}
+      // In control, touches drive the touchpad: no page scroll or zoom on the screen.
+      className={mode === 'control' ? `${css.Screen} ${css.ScreenInControl}` : css.Screen}
       data-mindroom-computer-input
       onPointerDown={() => rfbRef.current?.focus({ preventScroll: true })}
       role="application"

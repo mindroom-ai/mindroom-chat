@@ -8,6 +8,7 @@ import { ComputerScreen, type ComputerScreenProps, type RfbClient } from './Comp
 
 vi.mock('./ComputerPanel.css.ts', () => ({
   Screen: 'Screen',
+  ScreenInControl: 'ScreenInControl',
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,6 +49,33 @@ const mouseDown = (on: Element) => {
   const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
   on.dispatchEvent(event);
   return event;
+};
+
+// One finger at (x, 100) on the canvas, as a browser builds a touch event.
+const touch = (
+  type: 'touchstart' | 'touchmove' | 'touchend',
+  on: Element,
+  x: number | undefined,
+  time: number
+) => {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  const touches = x === undefined ? [] : [{ identifier: 1, clientX: x, clientY: 100, target: on }];
+  Object.defineProperties(event, {
+    touches: { value: touches },
+    targetTouches: { value: touches },
+    changedTouches: { value: [{ identifier: 1, clientX: x ?? 0, clientY: 100, target: on }] },
+    timeStamp: { value: time },
+  });
+  on.dispatchEvent(event);
+  return event;
+};
+
+// A tap, then a touch that moves: the touchpad holds the left button down.
+const startTouchDrag = (canvas: Element, from: number) => {
+  touch('touchstart', canvas, 100, from);
+  touch('touchend', canvas, undefined, from + 50);
+  touch('touchstart', canvas, 100, from + 150);
+  return touch('touchmove', canvas, 140, from + 170);
 };
 
 describe('ComputerScreen', () => {
@@ -241,6 +269,64 @@ describe('ComputerScreen', () => {
     } finally {
       platform.mockRestore();
     }
+  });
+
+  it('attaches the touchpad once per stream and detaches it before disconnect', () => {
+    const createRfb = createRfbWithCanvas();
+    renderScreen({ createRfb, mode: 'view' });
+    const { canvas } = screenElements();
+    const mouse = vi.fn((event: MouseEvent) => ({ type: event.type, buttons: event.buttons }));
+    const mouseOrder: number[] = [];
+    for (const type of ['mousedown', 'mousemove', 'mouseup']) {
+      canvas.addEventListener(type, (event) => {
+        mouse(event as MouseEvent);
+        mouseOrder.push(mouse.mock.invocationCallOrder.at(-1)!);
+      });
+    }
+
+    // Watching: noVNC gets the touch, and the touchpad sends nothing.
+    expect(touch('touchstart', canvas, 100, 0).defaultPrevented).toBe(false);
+    touch('touchend', canvas, undefined, 50);
+    expect(mouse).not.toHaveBeenCalled();
+
+    // In control on the same connection, after the mode went there and back.
+    renderScreen({ createRfb, mode: 'control' });
+    renderScreen({ createRfb, mode: 'view' });
+    renderScreen({ createRfb, mode: 'control' });
+    expect(startTouchDrag(canvas, 1000).defaultPrevented).toBe(true);
+    expect(createRfb).toHaveBeenCalledOnce();
+    // One layer: a single press and a single move with the button held.
+    expect(mouse.mock.results.map((result) => result.value)).toEqual([
+      { type: 'mousemove', buttons: 0 },
+      { type: 'mousedown', buttons: 1 },
+      { type: 'mouseup', buttons: 0 },
+      { type: 'mousedown', buttons: 1 },
+      { type: 'mousemove', buttons: 1 },
+    ]);
+
+    act(() => root.unmount());
+
+    // The held button is released while the socket is still open.
+    expect(mouse.mock.results.at(-1)?.value).toEqual({ type: 'mouseup', buttons: 0 });
+    expect(mouse).toHaveBeenCalledTimes(6);
+    expect(rfb.disconnect).toHaveBeenCalledOnce();
+    expect(mouseOrder.at(-1)).toBeLessThan(vi.mocked(rfb.disconnect).mock.invocationCallOrder[0]);
+  });
+
+  it('sets touch-action none on the screen only while in control', () => {
+    const createRfb = createRfbWithCanvas();
+    renderScreen({ createRfb, mode: 'view' });
+    const { surface } = screenElements();
+    // jsdom has no touch-action, so this checks the class that sets it.
+    expect(surface.className).toBe('Screen');
+
+    renderScreen({ createRfb, mode: 'control' });
+    expect(surface.classList).toContain('Screen');
+    expect(surface.classList).toContain('ScreenInControl');
+
+    renderScreen({ createRfb, mode: 'view' });
+    expect(surface.className).toBe('Screen');
+    expect(createRfb).toHaveBeenCalledOnce();
   });
 
   it('leaves focus from the keyboard on the screen element while in control', () => {

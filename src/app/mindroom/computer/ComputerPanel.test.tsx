@@ -415,6 +415,40 @@ describe('ComputerPanel', () => {
     }
   );
 
+  it('shows the touchpad hint on a coarse pointer while in control', async () => {
+    const hint = 'Drag to move the pointer. Tap to click, two fingers to scroll.';
+    let coarse = true;
+    const matchMedia = vi.fn((query: string) => ({
+      matches: query === '(pointer: coarse)' && coarse,
+      media: query,
+    }));
+    vi.stubGlobal('matchMedia', matchMedia);
+    try {
+      renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      expect(container.textContent).not.toContain(hint);
+
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(container.textContent).toContain('You have control'));
+      const lines = Array.from(container.querySelectorAll('span'), (line) => line.textContent);
+      expect(lines).toContain(hint);
+      expect(lines.indexOf(hint)).toBe(lines.indexOf('You have control') + 1);
+
+      await click(findButton(container, 'Resume agent'));
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      expect(container.textContent).not.toContain(hint);
+
+      // A mouse or trackpad: no hint, in control either.
+      coarse = false;
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(container.textContent).toContain('You have control'));
+      expect(container.textContent).not.toContain(hint);
+      expect(matchMedia).toHaveBeenCalledWith('(pointer: coarse)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('does not switch to the remaining agent when the requested agent leaves', async () => {
     const agents = [
       { userId: '@mindroom_first:example.org', name: 'First' },
