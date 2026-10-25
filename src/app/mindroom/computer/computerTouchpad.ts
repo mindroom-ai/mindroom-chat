@@ -137,9 +137,18 @@ export function attachComputerTouchpad(
     const canvas = target.querySelector('canvas');
     if (!canvas) return;
     if (!isControlling()) {
+      // noVNC's gesture handler on the canvas never sees a touch, in either mode: a gesture it
+      // starts while watching keeps its button and its long-press timer past the switch to
+      // control, which then reach the computer. It stops and prevents every touch on the
+      // canvas itself, view-only or not, so the page behaves as before; the letterbox around
+      // the canvas is left alone.
+      if (event.target === canvas) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       // Control ended mid-gesture: end it here and let go of noVNC's capture. noVNC sends
       // nothing once view-only; the stream closing releases the computer's button. Fingers
-      // still down stay ignored, should control start before they lift. Touches pass through.
+      // still down stay ignored, should control start before they lift.
       run(canvas, recognizer.cancel(screenTouches(event)));
       return;
     }
@@ -148,18 +157,9 @@ export function attachComputerTouchpad(
     event.stopPropagation();
     const time = event.timeStamp;
     switch (event.type) {
-      case 'touchstart': {
-        const fingers = screenTouches(event);
-        // A gesture starts: no finger was on the screen yet. noVNC keeps the buttons of its
-        // own gestures, even while watching, and sends them with every move. One that control
-        // cut short never ended there, and its timers can still press. So let go of them
-        // first; with none held, noVNC sends one move without buttons to the pointer.
-        if (event.changedTouches.length === fingers.length) {
-          sendMouse(canvas, 'mouseup', movePointer(canvas, 0, 0), 0, 0);
-        }
-        run(canvas, recognizer.start(fingers, time));
+      case 'touchstart':
+        run(canvas, recognizer.start(screenTouches(event), time));
         break;
-      }
       case 'touchmove':
         run(canvas, recognizer.move(screenTouches(event), time));
         break;

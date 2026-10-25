@@ -239,6 +239,17 @@ const touchscreen = async (page: Page, browserName: string) => {
 
 const at = (mask: number, { x, y }: Point = CENTRE): PointerEvent => ({ mask, x, y });
 
+// Control arrives on the open stream, as a Take control response does.
+const takeControl = async (page: Page) => {
+  await page.evaluate(() =>
+    (window as unknown as { setComputerMode(mode: 'control'): void }).setComputerMode('control')
+  );
+  await expect(page.getByRole('application', { name: 'Agent computer' })).toHaveCSS(
+    'touch-action',
+    'none'
+  );
+};
+
 // noVNC sends in order, so once a click's press and release arrived, everything the touches
 // before it sent has arrived too.
 const untilClicked = async (stub: RfbStub) => {
@@ -258,9 +269,7 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
   await touch.tap(on(0.5, 0.5));
 
   const events = await untilClicked(stub);
-  // Each gesture starts with a release at the pointer, so noVNC holds no button of its own.
-  expect(events[0]).toEqual(at(NONE));
-  const moves = events.slice(1, -3);
+  const moves = events.slice(0, -2);
   expect(moves.length).toBeGreaterThanOrEqual(2);
   expect(moves.map(({ mask, y }) => ({ mask, y }))).toEqual(
     moves.map(() => ({ mask: NONE, y: CENTRE.y }))
@@ -268,7 +277,7 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
   moves.forEach(({ x }, index) => expect(x).toBeGreaterThan(index ? moves[index - 1].x : CENTRE.x));
   // The tap clicks where the drag left the pointer.
   const end = moves[moves.length - 1];
-  expect(events.slice(-3)).toEqual([at(NONE, end), at(LEFT, end), at(NONE, end)]);
+  expect(events.slice(-2)).toEqual([at(LEFT, end), at(NONE, end)]);
 });
 
 test('a tap clicks at the pointer', async ({ page, browserName }) => {
@@ -281,11 +290,10 @@ test('a tap clicks at the pointer', async ({ page, browserName }) => {
   // capture element would take this tap instead of the screen.
   await touch.tap(on(0.75, 0.75));
 
-  // Each tap starts with a release at the pointer, and the first one also moves noVNC's
-  // cursor there before it presses.
+  // The first press moves noVNC's cursor to the pointer before it presses.
   await expect
     .poll(() => stub.pointerEvents)
-    .toEqual([at(NONE), at(NONE), at(LEFT), at(NONE), at(NONE), at(LEFT), at(NONE)]);
+    .toEqual([at(NONE), at(LEFT), at(NONE), at(LEFT), at(NONE)]);
   expect(stub.errors).toEqual([]);
   await expect(page.locator('#noVNC_mouse_capture_elem')).toBeHidden();
 });
@@ -298,8 +306,8 @@ test('a two-finger tap right-clicks', async ({ page, browserName }) => {
   // Off the pointer, as noVNC's own two-finger tap right-clicks between the fingers.
   await touch.tap(on(0.2, 0.3), on(0.4, 0.3));
 
-  // A release, then the cursor move, then the click, all at the pointer.
-  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(NONE), at(RIGHT), at(NONE)]);
+  // The cursor move, then the click, at the pointer.
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(RIGHT), at(NONE)]);
   expect(stub.errors).toEqual([]);
   await expect(page.locator('#noVNC_mouse_capture_elem')).toBeHidden();
 });
@@ -314,15 +322,13 @@ test('a two-finger drag scrolls', async ({ page, browserName }) => {
   await touch.tap(on(0.5, 0.5));
 
   const events = await untilClicked(stub);
-  // After the release and the cursor move, each wheel step is a press and a release of the
-  // wheel button, at the pointer. The tap starts with a release too.
-  const steps = (events.length - 5) / 2;
+  // After the cursor move, each wheel step is a press and a release of the wheel button, at
+  // the pointer.
+  const steps = (events.length - 3) / 2;
   expect(steps).toBeGreaterThanOrEqual(1);
   expect(events).toEqual([
     at(NONE),
-    at(NONE),
     ...Array.from({ length: steps }, () => [at(WHEEL_DOWN), at(NONE)]).flat(),
-    at(NONE),
     at(LEFT),
     at(NONE),
   ]);
@@ -334,8 +340,8 @@ test('control taken during a watched drag holds no button', async ({ page, brows
   const touch = await touchscreen(page, browserName);
   const start = on(0.3, 0.5);
 
-  // Watching, noVNC's own gestures take the touch. Past 50 px it starts a drag: view-only, it
-  // drops the press, but keeps the left button in the mask it sends with every move.
+  // Watching, a drag past 50 px. Had noVNC's own gestures seen it, they would have started a
+  // drag, whose left button noVNC keeps while view-only and sends with every move later.
   await touch.touch('touchStart', [start]);
   for (let step = 1; step <= 4; step += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -343,15 +349,8 @@ test('control taken during a watched drag holds no button', async ({ page, brows
     // eslint-disable-next-line no-await-in-loop
     await touch.touch('touchMove', [{ x: start.x + 20 * step, y: start.y }]);
   }
-  // Control arrives mid-drag, as a Take control response can; then the finger lifts, and the
-  // touchpad keeps that from noVNC, whose drag never ends.
-  await page.evaluate(() =>
-    (window as unknown as { setComputerMode(mode: 'control'): void }).setComputerMode('control')
-  );
-  await expect(page.getByRole('application', { name: 'Agent computer' })).toHaveCSS(
-    'touch-action',
-    'none'
-  );
+  // Control arrives mid-drag; then the finger lifts.
+  await takeControl(page);
   await touch.touch('touchMove', [{ x: start.x + 100, y: start.y }]);
   await touch.touch('touchEnd', []);
 
@@ -363,6 +362,29 @@ test('control taken during a watched drag holds no button', async ({ page, brows
   const moves = events.slice(0, -2);
   expect(moves.length).toBeGreaterThanOrEqual(2);
   expect(moves.map(({ mask }) => mask)).toEqual(moves.map(() => NONE));
+});
+
+test('control taken during a watched long press presses no button', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', WEBKIT_TAPS_ONLY);
+  const { stub, on } = await openScreen(page, 'view');
+  const touch = await touchscreen(page, browserName);
+
+  // Watching, a finger lands and stays. noVNC's own gestures would start their 1 s long-press
+  // timer, which presses the right button once it fires.
+  await touch.touch('touchStart', [on(0.3, 0.5)]);
+  await page.waitForTimeout(200);
+  await takeControl(page);
+  // Past the long press, then the finger lifts, and a tap clicks.
+  await page.waitForTimeout(1000);
+  await touch.touch('touchEnd', []);
+  await touch.tap(on(0.5, 0.5));
+
+  const events = await untilClicked(stub);
+  expect(events.map(({ mask }) => mask)).not.toContain(RIGHT);
+  expect(events).toEqual([at(NONE), at(LEFT), at(NONE)]);
 });
 
 test('watching sends nothing', async ({ page, browserName }) => {

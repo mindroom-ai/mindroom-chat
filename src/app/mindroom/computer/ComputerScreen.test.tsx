@@ -350,8 +350,8 @@ describe('ComputerScreen', () => {
     renderScreen({ createRfb, mode: 'view', url: firstUrl });
     const [canvas] = canvases;
 
-    // Watching: noVNC gets the touch, and the touchpad sends nothing.
-    expect(touch('touchstart', canvas, 100, 0).defaultPrevented).toBe(false);
+    // Watching: the touch is kept from noVNC, as in control, and the touchpad sends nothing.
+    expect(touch('touchstart', canvas, 100, 0).defaultPrevented).toBe(true);
     touch('touchend', canvas, undefined, 50);
     expect(mouse).not.toHaveBeenCalled();
 
@@ -361,12 +361,10 @@ describe('ComputerScreen', () => {
     renderScreen({ createRfb, mode: 'control', url: firstUrl });
     expect(startTouchDrag(canvas, 1000).defaultPrevented).toBe(true);
     expect(createRfb).toHaveBeenCalledOnce();
-    // One layer: a tap, then a press and a move, each gesture starting with a release.
+    // One layer: a tap, then a press and a move.
     const tapThenDrag = [
-      { type: 'mouseup', buttons: 0 },
       { type: 'mousemove', buttons: 0 },
       { type: 'mousedown', buttons: 1 },
-      { type: 'mouseup', buttons: 0 },
       { type: 'mouseup', buttons: 0 },
       { type: 'mousedown', buttons: 1 },
       { type: 'mousemove', buttons: 0 },
