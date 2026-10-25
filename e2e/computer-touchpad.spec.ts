@@ -269,15 +269,17 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
   await touch.tap(on(0.5, 0.5));
 
   const events = await untilClicked(stub);
-  const moves = events.slice(0, -2);
+  // The tap moves the pointer where the drag left it, then clicks there. noVNC sends at most one
+  // move per 17 ms and sends a held one before a press, so that move may be the drag's last.
+  const end = events[events.length - 1];
+  expect(events.slice(-3)).toEqual([at(NONE, end), at(LEFT, end), at(NONE, end)]);
+  const moves = events.slice(0, -3);
   expect(moves.length).toBeGreaterThanOrEqual(2);
   expect(moves.map(({ mask, y }) => ({ mask, y }))).toEqual(
     moves.map(() => ({ mask: NONE, y: CENTRE.y }))
   );
   moves.forEach(({ x }, index) => expect(x).toBeGreaterThan(index ? moves[index - 1].x : CENTRE.x));
-  // The tap clicks where the drag left the pointer.
-  const end = moves[moves.length - 1];
-  expect(events.slice(-2)).toEqual([at(LEFT, end), at(NONE, end)]);
+  expect(moves[moves.length - 1].x).toBeLessThanOrEqual(end.x);
 });
 
 test('a tap clicks at the pointer', async ({ page, browserName }) => {
@@ -290,10 +292,10 @@ test('a tap clicks at the pointer', async ({ page, browserName }) => {
   // capture element would take this tap instead of the screen.
   await touch.tap(on(0.75, 0.75));
 
-  // The first press moves noVNC's cursor to the pointer before it presses.
+  // Each press moves noVNC's cursor to the pointer first.
   await expect
     .poll(() => stub.pointerEvents)
-    .toEqual([at(NONE), at(LEFT), at(NONE), at(LEFT), at(NONE)]);
+    .toEqual([at(NONE), at(LEFT), at(NONE), at(NONE), at(LEFT), at(NONE)]);
   expect(stub.errors).toEqual([]);
   await expect(page.locator('#noVNC_mouse_capture_elem')).toBeHidden();
 });
@@ -322,16 +324,19 @@ test('a two-finger drag scrolls', async ({ page, browserName }) => {
   await touch.tap(on(0.5, 0.5));
 
   const events = await untilClicked(stub);
-  // After the cursor move, each wheel step is a press and a release of the wheel button, at
-  // the pointer.
-  const steps = (events.length - 3) / 2;
-  expect(steps).toBeGreaterThanOrEqual(1);
-  expect(events).toEqual([
-    at(NONE),
-    ...Array.from({ length: steps }, () => [at(WHEEL_DOWN), at(NONE)]).flat(),
-    at(LEFT),
-    at(NONE),
-  ]);
+  // Everything happens at the pointer. Each scroll frame moves the pointer there first, which
+  // noVNC sends at most once per 17 ms, so the number of 0s between wheel steps varies. Each
+  // wheel step is a press and a release of the wheel button. The tap moves, then clicks.
+  expect(events.filter(({ x, y }) => x !== CENTRE.x || y !== CENTRE.y)).toEqual([]);
+  const masks = events.map(({ mask }) => mask);
+  expect(masks.slice(-3)).toEqual([NONE, LEFT, NONE]);
+  const scroll = masks.slice(0, -3);
+  expect(scroll[0]).toBe(NONE);
+  expect(scroll.filter((mask) => mask === WHEEL_DOWN).length).toBeGreaterThanOrEqual(1);
+  expect(scroll.filter((mask) => mask !== NONE && mask !== WHEEL_DOWN)).toEqual([]);
+  scroll.forEach((mask, index) => {
+    if (mask === WHEEL_DOWN) expect(scroll[index + 1]).toBe(NONE);
+  });
 });
 
 test('control taken during a watched drag holds no button', async ({ page, browserName }) => {

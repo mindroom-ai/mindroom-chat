@@ -194,30 +194,30 @@ describe('attachComputerTouchpad', () => {
 
     tap(finger(50, 50), 1000, 1050);
     expect(recorded).toEqual([
+      expect.objectContaining({ type: 'mousemove', x: at.x, y: at.y, buttons: 0 }),
       expect.objectContaining({ type: 'mousedown', x: at.x, y: at.y, button: 0, buttons: 1 }),
       expect.objectContaining({ type: 'mouseup', x: at.x, y: at.y, button: 0, buttons: 0 }),
     ]);
   });
 
-  it('shows the pointer before pressing where noVNC has not seen it', () => {
+  it('moves the pointer before every press', () => {
     attach();
-    // No move yet: noVNC's touch cursor learns the position from a mousemove.
+    // As a mouse is over the canvas before it presses: noVNC's drawn cursor and the computer's
+    // pointer are at the touchpad's pointer before the button, whatever moved them before.
+    const click = (x: number, y: number) => [
+      expect.objectContaining({ type: 'mousemove', x, y, buttons: 0 }),
+      expect.objectContaining({ type: 'mousedown', x, y, buttons: 1 }),
+      expect.objectContaining({ type: 'mouseup', x, y, buttons: 0 }),
+    ];
     tap(finger(50, 50), 0, 50);
-    expect(recorded).toEqual([
-      expect.objectContaining({ type: 'mousemove', x: 210, y: 145, buttons: 0 }),
-      expect.objectContaining({ type: 'mousedown', x: 210, y: 145, buttons: 1 }),
-      expect.objectContaining({ type: 'mouseup', x: 210, y: 145, buttons: 0 }),
-    ]);
+    tap(finger(50, 50), 100, 150);
+    expect(recorded).toEqual([...click(210, 145), ...click(210, 145)]);
 
     // The canvas shrinks under the pointer: the next press moves it inside first.
     rect = { ...rect, width: 100, height: 100 };
     recorded.length = 0;
     tap(finger(50, 50), 1000, 1050);
-    expect(recorded).toEqual([
-      expect.objectContaining({ type: 'mousemove', x: 109, y: 119, buttons: 0 }),
-      expect.objectContaining({ type: 'mousedown', x: 109, y: 119, buttons: 1 }),
-      expect.objectContaining({ type: 'mouseup', x: 109, y: 119, buttons: 0 }),
-    ]);
+    expect(recorded).toEqual(click(109, 119));
   });
 
   it('hands each release to noVNC while it holds the mouse capture', () => {
@@ -251,8 +251,8 @@ describe('attachComputerTouchpad', () => {
     expect(captured()).toBe(canvas);
     touch('touchend', canvas, [], 190, [finger(130, 100)]);
     expect(captured()).toBeNull();
-    expect(types()).toEqual(['mousedown', 'mousemove', 'mouseup']);
-    expect(recorded[2]).toMatchObject({ x: recorded[1].x, buttons: 0 });
+    expect(types()).toEqual(['mousemove', 'mousedown', 'mousemove', 'mouseup']);
+    expect(recorded[3]).toMatchObject({ x: recorded[2].x, buttons: 0 });
 
     // A two-finger tap's right click too.
     touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 2000);
@@ -302,11 +302,12 @@ describe('attachComputerTouchpad', () => {
     touch('touchmove', canvas, [finger(150, 100)], 190);
     touch('touchend', canvas, [], 210, [finger(150, 100)]);
 
-    expect(types()).toEqual(['mousedown', 'mousemove', 'mousemove', 'mouseup']);
-    expect(recorded[0]).toMatchObject({ x: 210, y: 145, button: 0, buttons: 1 });
-    expect(recorded[1].x).toBeGreaterThan(210);
-    expect(recorded[2].x).toBeGreaterThan(recorded[1].x);
-    expect(recorded[3]).toMatchObject({ x: recorded[2].x, button: 0, buttons: 0 });
+    expect(types()).toEqual(['mousemove', 'mousedown', 'mousemove', 'mousemove', 'mouseup']);
+    expect(recorded[0]).toMatchObject({ x: 210, y: 145, buttons: 0 });
+    expect(recorded[1]).toMatchObject({ x: 210, y: 145, button: 0, buttons: 1 });
+    expect(recorded[2].x).toBeGreaterThan(210);
+    expect(recorded[3].x).toBeGreaterThan(recorded[2].x);
+    expect(recorded[4]).toMatchObject({ x: recorded[3].x, button: 0, buttons: 0 });
 
     // The next touch only moves the pointer.
     recorded.length = 0;
@@ -321,6 +322,9 @@ describe('attachComputerTouchpad', () => {
     // Both fingers up by 30 px: the content scrolls down.
     touch('touchmove', canvas, [finger(100, 70, 1), finger(160, 70, 2)], 20);
 
+    // The pointer moves where it is first, as before a press.
+    expect(types()).toEqual(['mousemove', 'wheel']);
+    expect(recorded[0]).toMatchObject({ x: 210, y: 145, buttons: 0 });
     const wheels = recorded.filter((entry) => entry.type === 'wheel');
     expect(wheels).toHaveLength(1);
     expect(wheels[0].event).toBeInstanceOf(WheelEvent);
@@ -428,7 +432,7 @@ describe('attachComputerTouchpad', () => {
     touch('touchmove', canvas, [stray, { ...onCanvas, y: 60 }, { ...margin, y: 260 }], 1040, [
       { ...onCanvas, y: 60 },
     ]);
-    expect(types()).toEqual(['wheel']);
+    expect(types()).toEqual(['mousemove', 'wheel']);
     outside.remove();
   });
 

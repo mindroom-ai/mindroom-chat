@@ -42,8 +42,6 @@ export function attachComputerTouchpad(
   const recognizer = createTouchpadRecognizer();
   // In client coordinates. It starts at the canvas centre on the first touch in control.
   let pointer: Point | undefined;
-  // Where the last mousemove put noVNC's cursor.
-  let shown: Point | undefined;
 
   // The touches that started on the screen, the canvas or its letterbox. `targetTouches`
   // would leave out a finger on the letterbox while another is on the canvas.
@@ -67,7 +65,6 @@ export function attachComputerTouchpad(
     const init = { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y };
     const on = type === 'mouseup' ? releaseTarget(canvas) : canvas;
     on.dispatchEvent(new MouseEvent(type, { ...init, button, buttons }));
-    if (type === 'mousemove') shown = at;
   };
 
   // Moves the pointer, kept inside the canvas as it is now, which may have been resized, up
@@ -82,11 +79,11 @@ export function attachComputerTouchpad(
     return pointer;
   };
 
-  // A mouse is over the canvas before it presses there, so noVNC's cursor follows it. A tap
-  // before any move, or after the canvas shrank under the pointer, moves the cursor first.
+  // A mouse is over the canvas before it presses or scrolls there. So noVNC's drawn cursor and
+  // the computer's pointer go to the pointer first, whatever moved them since.
   const pointAt = (canvas: HTMLCanvasElement): Point => {
     const at = movePointer(canvas, 0, 0);
-    if (shown?.x !== at.x || shown?.y !== at.y) sendMouse(canvas, 'mousemove', at, 0, 0);
+    sendMouse(canvas, 'mousemove', at, 0, 0);
     return at;
   };
 

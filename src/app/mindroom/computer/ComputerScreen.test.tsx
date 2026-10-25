@@ -361,11 +361,12 @@ describe('ComputerScreen', () => {
     renderScreen({ createRfb, mode: 'control', url: firstUrl });
     expect(startTouchDrag(canvas, 1000).defaultPrevented).toBe(true);
     expect(createRfb).toHaveBeenCalledOnce();
-    // One layer: a tap, then a press and a move.
+    // One layer: a tap, then a press and a move, each press after a move to the pointer.
     const tapThenDrag = [
       { type: 'mousemove', buttons: 0 },
       { type: 'mousedown', buttons: 1 },
       { type: 'mouseup', buttons: 0 },
+      { type: 'mousemove', buttons: 0 },
       { type: 'mousedown', buttons: 1 },
       { type: 'mousemove', buttons: 0 },
     ];
