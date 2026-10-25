@@ -6,7 +6,7 @@ import {
   type RoomMember,
   type RoomState,
 } from 'matrix-js-sdk';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
@@ -42,15 +42,30 @@ export const agentRoomState = (room: Room, eventType: string): MatrixEvent[] =>
     return member === null || member.membership === 'join';
   });
 
-/** A number that changes when the room's state of this type, an agent's membership, or its live state does. */
-const useAgentRoomStateVersion = (room: Room, eventType: string): number => {
+const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
+  a.length === b.length && a.every((event, index) => event === b[index]);
+
+/** The room's agent state of this type, read again when it, an agent's membership, or the live state changes. */
+const useAgentRoomStateEvents = (room: Room, eventType: string): MatrixEvent[] => {
   const [version, refresh] = useForceUpdate();
+  const events = useMemo(() => {
+    void version;
+    return agentRoomState(room, eventType);
+  }, [room, eventType, version]);
+  const renderedEvents = useRef(events);
+  // Synchronously with the commit, so an event that lands before passive effects compares with what is shown.
+  useLayoutEffect(() => {
+    renderedEvents.current = events;
+  }, [events]);
   useEffect(() => {
     const onState = (event: MatrixEvent) => {
       if (event.getType() === eventType) refresh();
     };
+    // Sync hands an agent's member event over again with every batch it sends in, unchanged, so
+    // render again only when a membership change adds or drops state.
     const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (isMindroomAgentUserIdForViewer(member.userId, room.myUserId)) refresh();
+      if (!isMindroomAgentUserIdForViewer(member.userId, room.myUserId)) return;
+      if (!sameEvents(agentRoomState(room, eventType), renderedEvents.current)) refresh();
     };
     room.on(RoomStateEvent.Events, onState);
     room.on(RoomStateEvent.Members, onMember);
@@ -61,7 +76,7 @@ const useAgentRoomStateVersion = (room: Room, eventType: string): number => {
       room.removeListener(RoomEvent.CurrentStateUpdated, refresh);
     };
   }, [room, eventType, refresh]);
-  return version;
+  return events;
 };
 
 /** What `select` makes of the room's agent state of this type, read again only when that state could have changed. */
@@ -70,9 +85,6 @@ export const useAgentRoomState = <T>(
   eventType: string,
   select: (events: MatrixEvent[]) => T
 ): T => {
-  const version = useAgentRoomStateVersion(room, eventType);
-  return useMemo(() => {
-    void version;
-    return select(agentRoomState(room, eventType));
-  }, [room, eventType, select, version]);
+  const events = useAgentRoomStateEvents(room, eventType);
+  return useMemo(() => select(events), [select, events]);
 };
