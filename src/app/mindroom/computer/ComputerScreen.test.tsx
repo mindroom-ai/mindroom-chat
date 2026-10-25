@@ -5,6 +5,13 @@ import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComputerScreen, type ComputerScreenProps, type RfbClient } from './ComputerScreen';
+// noVNC's mouse capture, which its canvas takes on every mousedown. The package exports only RFB.
+/* eslint-disable import/no-relative-packages */
+import {
+  releaseCapture,
+  setCapture,
+} from '../../../../node_modules/@novnc/novnc/core/util/events.js';
+/* eslint-enable import/no-relative-packages */
 
 vi.mock('./ComputerPanel.css.ts', () => ({
   Screen: 'Screen',
@@ -68,6 +75,48 @@ const touch = (
   });
   on.dispatchEvent(event);
   return event;
+};
+
+const capturedElement = () =>
+  (document as Document & { captureElement?: Element | null }).captureElement;
+const captureOverlay = () => document.getElementById('noVNC_mouse_capture_elem');
+
+// Like noVNC on its canvas: a press takes the mouse capture, no mouse event bubbles on, a
+// PointerEvent is sent only while connected, and disconnect takes the canvas out.
+const createNoVncLikeRfb = () => {
+  const sent: string[] = [];
+  const reached: string[] = [];
+  let canvas: HTMLCanvasElement | undefined;
+  let connected = true;
+  const createRfb = vi.fn((target: HTMLElement): RfbClient => {
+    const element = document.createElement('canvas');
+    element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+    for (const type of ['mousedown', 'mousemove', 'mouseup']) {
+      element.addEventListener(type, (event) => {
+        event.stopPropagation();
+        const entry = `${event.type} ${(event as MouseEvent).buttons}`;
+        reached.push(entry);
+        if (event.type === 'mousedown') setCapture(element);
+        if (connected) sent.push(entry);
+      });
+    }
+    target.append(element);
+    canvas = element;
+    return {
+      ...rfb,
+      disconnect: () => {
+        rfb.disconnect();
+        connected = false;
+        element.remove();
+      },
+    };
+  });
+  const getCanvas = () => {
+    if (!canvas) throw new Error('No canvas yet.');
+    return canvas;
+  };
+  return { createRfb, getCanvas, sent, reached };
 };
 
 // A tap, then a touch that moves: the touchpad holds the left button down.
@@ -341,6 +390,62 @@ describe('ComputerScreen', () => {
     act(() => root.unmount());
     expect(mouse).toHaveBeenCalledTimes(11);
     expect(rfb.disconnect).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases noVNC's pointer capture when the screen closes mid-drag", () => {
+    const { createRfb, getCanvas, sent } = createNoVncLikeRfb();
+    try {
+      renderScreen({ createRfb, mode: 'control' });
+      startTouchDrag(getCanvas(), 0);
+      expect(capturedElement()).toBe(getCanvas());
+      expect(captureOverlay()?.style.display).toBe('');
+      const sentWhileOpen = [...sent];
+      expect(sentWhileOpen.slice(-2)).toEqual(['mousedown 1', 'mousemove 1']);
+
+      act(() => root.unmount());
+
+      // The page-covering element is gone, so the next tap or click lands where it is aimed.
+      expect(rfb.disconnect).toHaveBeenCalledOnce();
+      expect(capturedElement()).toBeNull();
+      expect(captureOverlay()?.style.display).toBe('none');
+      // Nothing more reached the computer: the release came after the disconnect.
+      expect(sent).toEqual(sentWhileOpen);
+    } finally {
+      releaseCapture();
+      captureOverlay()?.remove();
+    }
+  });
+
+  it('dispatches nothing when the screen closes without a drag', () => {
+    const windowMouseUp = vi.fn();
+    window.addEventListener('mouseup', windowMouseUp);
+    try {
+      for (const tapFirst of [false, true]) {
+        const { createRfb, getCanvas, reached } = createNoVncLikeRfb();
+        container.remove();
+        container = document.createElement('div');
+        document.body.append(container);
+        root = createRoot(container);
+        renderScreen({ createRfb, mode: 'control' });
+        if (tapFirst) {
+          // A tap's own release lets go of the capture.
+          touch('touchstart', getCanvas(), 100, 0);
+          touch('touchend', getCanvas(), undefined, 50);
+          expect(capturedElement()).toBeNull();
+        }
+        const reachedBefore = reached.length;
+        windowMouseUp.mockClear();
+
+        act(() => root.unmount());
+
+        expect(windowMouseUp).not.toHaveBeenCalled();
+        expect(reached).toHaveLength(reachedBefore);
+      }
+    } finally {
+      window.removeEventListener('mouseup', windowMouseUp);
+      releaseCapture();
+      captureOverlay()?.remove();
+    }
   });
 
   it('sets touch-action none on the screen only while in control', () => {

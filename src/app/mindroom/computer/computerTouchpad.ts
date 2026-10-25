@@ -15,13 +15,32 @@ const TOUCH_EVENTS = ['touchstart', 'touchmove', 'touchend', 'touchcancel'] as c
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+// noVNC takes the mouse on every press. Without Element.setCapture (all but Firefox) it
+// covers the page with an element, and lets go when a mouseup reaches the window, as a
+// real mouse's does. Its canvas listener stops a mouseup there from bubbling.
+const holdsNoVncCapture = (canvas: HTMLCanvasElement) =>
+  (canvas.ownerDocument as Document & { captureElement?: unknown }).captureElement === canvas &&
+  !('setCapture' in canvas);
+
+const windowOf = (element: Element) => element.ownerDocument.defaultView ?? window;
+
+/**
+ * Lets go of noVNC's capture of a canvas that closed while a touchpad drag held it: its
+ * disconnect leaves the page-covering element up, which would take the next tap or click.
+ * Call it after `disconnect()`, so noVNC sends nothing more.
+ */
+export function releaseNoVncCapture(canvas: HTMLCanvasElement | null): void {
+  if (!canvas || !holdsNoVncCapture(canvas)) return;
+  windowOf(canvas).dispatchEvent(
+    new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0, buttons: 0 })
+  );
+}
+
 export function attachComputerTouchpad(
   target: HTMLElement,
   options: ComputerTouchpadOptions
 ): () => void {
   const { isControlling } = options;
-  const doc = target.ownerDocument;
-  const view = doc.defaultView ?? window;
   const recognizer = createTouchpadRecognizer();
   // In client coordinates. It starts at the canvas centre on the first touch in control.
   let pointer: Point | undefined;
@@ -36,15 +55,10 @@ export function attachComputerTouchpad(
       .filter((touch) => touch.target instanceof Node && target.contains(touch.target))
       .map((touch) => ({ id: touch.identifier, x: touch.clientX, y: touch.clientY }));
 
-  // noVNC takes the mouse on every press. Without Element.setCapture (all but Firefox) it
-  // covers the page with an element, and lets go when a mouseup reaches the window, as a
-  // real mouse's does. Its canvas listener stops a mouseup there from bubbling, so while it
-  // holds the canvas, a release goes to the window, and noVNC hands it on to the canvas.
-  // Otherwise the element would keep the next touch off the screen.
-  const releaseTarget = (canvas: HTMLCanvasElement): EventTarget => {
-    const captured = (doc as Document & { captureElement?: unknown }).captureElement;
-    return captured === canvas && !('setCapture' in canvas) ? view : canvas;
-  };
+  // While noVNC holds the canvas, a release goes to the window, and noVNC hands it on to the
+  // canvas. Otherwise its page-covering element would keep the next touch off the screen.
+  const releaseTarget = (canvas: HTMLCanvasElement): EventTarget =>
+    holdsNoVncCapture(canvas) ? windowOf(canvas) : canvas;
 
   const sendMouse = (
     canvas: HTMLCanvasElement,

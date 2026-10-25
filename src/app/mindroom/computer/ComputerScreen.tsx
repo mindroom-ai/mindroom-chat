@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, type PasteResult } from './computerClipboard';
-import { attachComputerTouchpad } from './computerTouchpad';
+import { attachComputerTouchpad, releaseNoVncCapture } from './computerTouchpad';
 
 export type RfbClient = {
   addEventListener(name: string, listener: EventListener): void;
@@ -96,6 +96,8 @@ export function ComputerScreen({
     const detachTouchpad = attachComputerTouchpad(target, { isControlling });
 
     return () => {
+      // noVNC takes its canvas out of the target when it disconnects.
+      const canvas = target.querySelector('canvas');
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket. A held
       // touchpad drag is too when a new stream replaces this one; on unmount the screen has
       // left the page already, and the stream closing lets go of the button.
@@ -109,6 +111,8 @@ export function ComputerScreen({
       target.removeEventListener('mousedown', keepPressFocusOnCanvas);
       rfbRef.current = undefined;
       rfb.disconnect();
+      // A drag held on unmount still has noVNC's page-covering capture element up.
+      releaseNoVncCapture(canvas);
     };
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
 
