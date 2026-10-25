@@ -146,7 +146,9 @@ export function attachComputerTouchpad(
     const canvas = target.querySelector('canvas');
     if (!canvas) return;
     if (!isControlling()) {
-      // Control ended mid-gesture: let go of a held button. Touches pass through.
+      // Control ended mid-gesture: end it here and let go of noVNC's capture. noVNC sends
+      // nothing once view-only; the stream closing releases the computer's button. Touches
+      // pass through.
       run(canvas, recognizer.cancel());
       return;
     }

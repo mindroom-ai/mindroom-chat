@@ -116,7 +116,12 @@ const createNoVncLikeRfb = () => {
     if (!canvas) throw new Error('No canvas yet.');
     return canvas;
   };
-  return { createRfb, getCanvas, sent, reached };
+  // The socket closed or failed: noVNC's own `_disconnect` takes the canvas out.
+  const dropStream = () => {
+    connected = false;
+    getCanvas().remove();
+  };
+  return { createRfb, getCanvas, dropStream, sent, reached };
 };
 
 // A tap, then a touch that moves: the touchpad holds the left button down.
@@ -409,6 +414,27 @@ describe('ComputerScreen', () => {
       expect(capturedElement()).toBeNull();
       expect(captureOverlay()?.style.display).toBe('none');
       // Nothing more reached the computer: the release came after the disconnect.
+      expect(sent).toEqual(sentWhileOpen);
+    } finally {
+      releaseCapture();
+      captureOverlay()?.remove();
+    }
+  });
+
+  it("releases noVNC's pointer capture when the stream drops mid-drag", () => {
+    const { createRfb, getCanvas, dropStream, sent } = createNoVncLikeRfb();
+    try {
+      renderScreen({ createRfb, mode: 'control' });
+      startTouchDrag(getCanvas(), 0);
+      expect(capturedElement()).toBe(getCanvas());
+      const sentWhileOpen = [...sent];
+
+      // noVNC disconnects itself first; the panel then drops the stream and the screen.
+      dropStream();
+      act(() => root.unmount());
+
+      expect(capturedElement()).toBeNull();
+      expect(captureOverlay()?.style.display).toBe('none');
       expect(sent).toEqual(sentWhileOpen);
     } finally {
       releaseCapture();

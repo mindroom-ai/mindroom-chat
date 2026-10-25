@@ -61,6 +61,9 @@ export function ComputerScreen({
     if (!target) return undefined;
 
     const rfb = createRfb(target, url, { wsProtocols: [binaryProtocol, ticketProtocol] });
+    // noVNC appends its canvas here at once, and takes it out again when it disconnects,
+    // which a dropped stream does before the screen unmounts.
+    const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
     rfbRef.current = rfb;
 
@@ -96,11 +99,10 @@ export function ComputerScreen({
     const detachTouchpad = attachComputerTouchpad(target, { isControlling });
 
     return () => {
-      // noVNC takes its canvas out of the target when it disconnects.
-      const canvas = target.querySelector('canvas');
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket. A held
-      // touchpad drag is too when a new stream replaces this one; on unmount the screen has
-      // left the page already, and the stream closing lets go of the button.
+      // touchpad drag is too when this screen gets a new url; the panel mounts a new screen
+      // for each stream instead, and on unmount the screen has left the page already, so the
+      // stream closing lets go of the button.
       detachClipboard();
       detachTouchpad();
       rfb.removeEventListener('connect', handleConnect);
@@ -111,7 +113,8 @@ export function ComputerScreen({
       target.removeEventListener('mousedown', keepPressFocusOnCanvas);
       rfbRef.current = undefined;
       rfb.disconnect();
-      // A drag held on unmount still has noVNC's page-covering capture element up.
+      // A drag held at the close, or when the stream dropped, still has noVNC's page-covering
+      // capture element up.
       releaseNoVncCapture(canvas);
     };
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
