@@ -64,7 +64,7 @@ describe('attachComputerTouchpad', () => {
   let rect: { left: number; top: number; width: number; height: number };
   let recorded: Recorded[];
   let controlling: boolean;
-  let detach: (() => void) | undefined;
+  let touchpad: ReturnType<typeof attachComputerTouchpad> | undefined;
 
   const record = (event: Event) => {
     const mouse = event as MouseEvent;
@@ -85,8 +85,8 @@ describe('attachComputerTouchpad', () => {
   };
 
   const attach = () => {
-    detach = attachComputerTouchpad(wrapper, { isControlling: () => controlling });
-    return detach;
+    touchpad = attachComputerTouchpad(wrapper, { isControlling: () => controlling });
+    return touchpad;
   };
 
   // A tap, so the next touch within the double-tap window starts a drag.
@@ -128,8 +128,8 @@ describe('attachComputerTouchpad', () => {
   });
 
   afterEach(() => {
-    detach?.();
-    detach = undefined;
+    touchpad?.detach();
+    touchpad = undefined;
     releaseCapture();
     document.getElementById('noVNC_mouse_capture_elem')?.remove();
     wrapper.remove();
@@ -181,6 +181,69 @@ describe('attachComputerTouchpad', () => {
     rect = { ...rect, width: 200 };
     touch('touchmove', canvas, [finger(199, 0)], 1030);
     expect(recorded.at(-1)).toMatchObject({ type: 'mousemove', x: 209, y: 20 });
+  });
+
+  describe('showing the pointer', () => {
+    let coarse: boolean;
+    beforeEach(() => {
+      coarse = true;
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn((query: string) => ({ matches: query === '(pointer: coarse)' && coarse }))
+      );
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('moves the pointer to the canvas centre on a touch screen, then to where it is', () => {
+      // noVNC draws its cursor on a touch screen only after a mouse event.
+      const { showPointer } = attach();
+      showPointer();
+      expect(recorded).toEqual([
+        expect.objectContaining({ type: 'mousemove', x: 210, y: 145, buttons: 0 }),
+      ]);
+
+      // The first tap then clicks where the pointer shows.
+      recorded.length = 0;
+      tap(finger(50, 50), 0, 50);
+      expect(recorded).toEqual([
+        expect.objectContaining({ type: 'mousemove', x: 210, y: 145, buttons: 0 }),
+        expect.objectContaining({ type: 'mousedown', x: 210, y: 145, buttons: 1 }),
+        expect.objectContaining({ type: 'mouseup', x: 210, y: 145, buttons: 0 }),
+      ]);
+
+      // Later it shows where the pointer is, kept inside the canvas.
+      touch('touchstart', canvas, [finger(100, 100)], 1000);
+      touch('touchmove', canvas, [finger(130, 100)], 1020);
+      touch('touchend', canvas, [], 1040, [finger(130, 100)]);
+      const at = recorded.at(-1)!;
+      recorded.length = 0;
+      showPointer();
+      expect(recorded).toEqual([
+        expect.objectContaining({ type: 'mousemove', x: at.x, y: at.y, buttons: 0 }),
+      ]);
+      // And inside the canvas after it shrank under the pointer.
+      rect = { ...rect, width: 50 };
+      recorded.length = 0;
+      showPointer();
+      expect(recorded).toEqual([
+        expect.objectContaining({ type: 'mousemove', x: 59, y: at.y, buttons: 0 }),
+      ]);
+    });
+
+    it('shows nothing for a mouse or trackpad, while watching, or on a canvas with no size', () => {
+      const { showPointer } = attach();
+      coarse = false;
+      showPointer();
+      coarse = true;
+      controlling = false;
+      showPointer();
+      controlling = true;
+      rect = { ...rect, width: 0 };
+      showPointer();
+      rect = { ...rect, width: 400, height: 0 };
+      showPointer();
+      expect(recorded).toEqual([]);
+    });
   });
 
   it('clicks at the pointer', () => {
@@ -478,11 +541,11 @@ describe('attachComputerTouchpad', () => {
 
   it('sends nothing on detach and lets touches pass', () => {
     // The stream closing lets go of a held button, and releaseNoVncCapture of noVNC's capture.
-    const detachFirst = attach();
+    const { detach } = attach();
     holdDrag(0);
     recorded.length = 0;
-    detachFirst();
-    detach = undefined;
+    detach();
+    touchpad = undefined;
     expect(recorded).toEqual([]);
     const after = touch('touchstart', canvas, [finger(100, 100)], 1000);
     expect(after.defaultPrevented).toBe(false);
@@ -505,8 +568,8 @@ describe('attachComputerTouchpad', () => {
     expect(recorded).toEqual([expect.objectContaining({ type: 'mouseup', buttons: 0 })]);
 
     touch('touchend', canvas, [], 210, [finger(160, 100)]);
-    detach?.();
-    detach = undefined;
+    touchpad?.detach();
+    touchpad = undefined;
     expect(recorded).toHaveLength(1);
   });
 });

@@ -48,6 +48,7 @@ export function ComputerScreen({
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
   const modeRef = useRef(mode);
+  const showTouchpadPointerRef = useRef<() => void>();
 
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
@@ -67,7 +68,16 @@ export function ComputerScreen({
     rfb.scaleViewport = true;
     rfbRef.current = rfb;
 
-    const handleConnect = () => connectedCallbackRef.current();
+    // Read through refs, so a change of mode never reconnects the stream.
+    const isControlling = () => modeRef.current === 'control';
+    const touchpad = attachComputerTouchpad(target, { isControlling });
+    showTouchpadPointerRef.current = touchpad.showPointer;
+
+    const handleConnect = () => {
+      connectedCallbackRef.current();
+      // In control already: the screen has its first frame now.
+      touchpad.showPointer();
+    };
     const handleDisconnect = (event: Event) => {
       const detail = (event as CustomEvent<{ clean?: boolean }>).detail;
       disconnectedCallbackRef.current(
@@ -90,18 +100,16 @@ export function ComputerScreen({
     target.addEventListener('keydown', keepInputInsideComputer);
     target.addEventListener('paste', keepInputInsideComputer);
     target.addEventListener('mousedown', keepPressFocusOnCanvas);
-    // Read through refs, so a change of mode never reconnects the stream.
-    const isControlling = () => modeRef.current === 'control';
     const detachClipboard = attachComputerClipboard(target, rfb, {
       isControlling,
       onPaste: (result) => pasteCallbackRef.current?.(result),
     });
-    const detachTouchpad = attachComputerTouchpad(target, { isControlling });
 
     return () => {
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
       detachClipboard();
-      detachTouchpad();
+      touchpad.detach();
+      showTouchpadPointerRef.current = undefined;
       rfb.removeEventListener('connect', handleConnect);
       rfb.removeEventListener('disconnect', handleDisconnect);
       rfb.removeEventListener('securityfailure', handleSecurityFailure);
@@ -122,6 +130,8 @@ export function ComputerScreen({
     rfb.viewOnly = mode !== 'control';
     if (mode === 'control') {
       rfb.focus({ preventScroll: true });
+      // Once noVNC is no longer view-only, so the computer's pointer goes there too.
+      showTouchpadPointerRef.current?.();
     }
   }, [mode]);
 

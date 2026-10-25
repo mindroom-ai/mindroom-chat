@@ -9,6 +9,12 @@ export type ComputerTouchpadOptions = {
   isControlling: () => boolean;
 };
 
+export type ComputerTouchpad = {
+  detach: () => void;
+  /** On a touch screen in control: call it when control starts and when the stream connects. */
+  showPointer: () => void;
+};
+
 type Point = { x: number; y: number };
 
 const TOUCH_EVENTS = ['touchstart', 'touchmove', 'touchend', 'touchcancel'] as const;
@@ -37,10 +43,10 @@ export function releaseNoVncCapture(canvas: HTMLCanvasElement | null): void {
 export function attachComputerTouchpad(
   target: HTMLElement,
   options: ComputerTouchpadOptions
-): () => void {
+): ComputerTouchpad {
   const { isControlling } = options;
   const recognizer = createTouchpadRecognizer();
-  // In client coordinates. It starts at the canvas centre on the first touch in control.
+  // In client coordinates. It starts at the canvas centre.
   let pointer: Point | undefined;
 
   // The touches that started on the screen, the canvas or its letterbox. `targetTouches`
@@ -130,7 +136,8 @@ export function attachComputerTouchpad(
   };
 
   const handleTouch = (event: TouchEvent) => {
-    // noVNC makes its canvas on connect; until then touches pass through.
+    // noVNC builds its canvas in its constructor and takes it out when it disconnects; with
+    // none, touches pass through.
     const canvas = target.querySelector('canvas');
     if (!canvas) return;
     if (!isControlling()) {
@@ -175,9 +182,22 @@ export function attachComputerTouchpad(
   const listenerOptions = { capture: true, passive: false };
   TOUCH_EVENTS.forEach((type) => target.addEventListener(type, handleTouch, listenerOptions));
 
+  // On a touch screen noVNC draws its cursor only after a mouse event, so a first tap would
+  // click where no pointer shows. This moves the pointer where it is, the canvas centre at
+  // first, so noVNC draws it and the computer's pointer goes there too. A mouse or trackpad
+  // shows its own, and a canvas with no size has had no frame yet.
+  const showPointer = () => {
+    if (!isControlling() || !window.matchMedia?.('(pointer: coarse)').matches) return;
+    const canvas = target.querySelector('canvas');
+    const rect = canvas?.getBoundingClientRect();
+    if (canvas && rect && rect.width > 0 && rect.height > 0) pointAt(canvas);
+  };
+
   // A held button is let go by the stream closing, and noVNC's capture by
   // `releaseNoVncCapture`.
-  return () => {
+  const detach = () => {
     TOUCH_EVENTS.forEach((type) => target.removeEventListener(type, handleTouch, true));
   };
+
+  return { detach, showPointer };
 }

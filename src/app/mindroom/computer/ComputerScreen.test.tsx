@@ -469,6 +469,79 @@ describe('ComputerScreen', () => {
     }
   });
 
+  describe('showing the touchpad pointer', () => {
+    let coarse: boolean;
+    let canvas: HTMLCanvasElement | undefined;
+    let size: { width: number; height: number };
+    const moves = vi.fn();
+    // Like noVNC: a canvas with no size until the stream's first frame sets it.
+    const createRfb = vi.fn((target: HTMLElement): RfbClient => {
+      const element = document.createElement('canvas');
+      element.getBoundingClientRect = () =>
+        ({ left: 0, top: 0, ...size, right: size.width, bottom: size.height } as DOMRect);
+      // With noVNC's view-only flag at that moment: a view-only noVNC sends nothing.
+      element.addEventListener('mousemove', (event) =>
+        moves({
+          x: (event as MouseEvent).clientX,
+          y: (event as MouseEvent).clientY,
+          viewOnly: rfb.viewOnly,
+        })
+      );
+      target.append(element);
+      canvas = element;
+      return rfb;
+    });
+    const connect = () => {
+      size = { width: 400, height: 250 };
+      act(() => listeners.get('connect')?.(new Event('connect')));
+    };
+
+    beforeEach(() => {
+      coarse = true;
+      canvas = undefined;
+      size = { width: 0, height: 0 };
+      moves.mockReset();
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn((query: string) => ({ matches: query === '(pointer: coarse)' && coarse }))
+      );
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('shows it at the canvas centre when control starts on a touch screen', () => {
+      renderScreen({ createRfb, mode: 'view' });
+      connect();
+      expect(moves).not.toHaveBeenCalled();
+
+      // After noVNC stopped being view-only, so it reaches the computer.
+      renderScreen({ createRfb, mode: 'control' });
+      expect(moves.mock.calls).toEqual([[{ x: 200, y: 125, viewOnly: false }]]);
+
+      renderScreen({ createRfb, mode: 'view' });
+      renderScreen({ createRfb, mode: 'control' });
+      expect(moves).toHaveBeenCalledTimes(2);
+      expect(createRfb).toHaveBeenCalledOnce();
+      expect(canvas).toBeDefined();
+    });
+
+    it('shows it once the stream connects while already in control', () => {
+      renderScreen({ createRfb, mode: 'control' });
+      // No frame yet, so no size: nothing to show.
+      expect(moves).not.toHaveBeenCalled();
+      connect();
+      expect(moves.mock.calls).toEqual([[{ x: 200, y: 125, viewOnly: false }]]);
+    });
+
+    it('shows nothing for a mouse or trackpad', () => {
+      coarse = false;
+      renderScreen({ createRfb, mode: 'control' });
+      connect();
+      renderScreen({ createRfb, mode: 'view' });
+      renderScreen({ createRfb, mode: 'control' });
+      expect(moves).not.toHaveBeenCalled();
+    });
+  });
+
   it('sets touch-action none on the screen only while in control', () => {
     const createRfb = createRfbWithCanvas();
     renderScreen({ createRfb, mode: 'view' });

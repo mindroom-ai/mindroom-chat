@@ -273,7 +273,9 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
   // move per 17 ms and sends a held one before a press, so that move may be the drag's last.
   const end = events[events.length - 1];
   expect(events.slice(-3)).toEqual([at(NONE, end), at(LEFT, end), at(NONE, end)]);
-  const moves = events.slice(0, -3);
+  // The pointer showed at the centre when the stream connected in control.
+  expect(events[0]).toEqual(at(NONE));
+  const moves = events.slice(1, -3);
   expect(moves.length).toBeGreaterThanOrEqual(2);
   expect(moves.map(({ mask, y }) => ({ mask, y }))).toEqual(
     moves.map(() => ({ mask: NONE, y: CENTRE.y }))
@@ -285,6 +287,8 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
 test('a tap clicks at the pointer', async ({ page, browserName }) => {
   const { stub, on } = await openScreen(page, 'control');
   const touch = await touchscreen(page, browserName);
+  // Connected in control, the pointer shows at the centre before any touch.
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE)]);
 
   // Away from the pointer: a touchpad clicks where the pointer is, not under the finger.
   await touch.tap(on(0.25, 0.25));
@@ -295,7 +299,7 @@ test('a tap clicks at the pointer', async ({ page, browserName }) => {
   // Each press moves noVNC's cursor to the pointer first.
   await expect
     .poll(() => stub.pointerEvents)
-    .toEqual([at(NONE), at(LEFT), at(NONE), at(NONE), at(LEFT), at(NONE)]);
+    .toEqual([at(NONE), at(NONE), at(LEFT), at(NONE), at(NONE), at(LEFT), at(NONE)]);
   expect(stub.errors).toEqual([]);
   await expect(page.locator('#noVNC_mouse_capture_elem')).toBeHidden();
 });
@@ -308,8 +312,8 @@ test('a two-finger tap right-clicks', async ({ page, browserName }) => {
   // Off the pointer, as noVNC's own two-finger tap right-clicks between the fingers.
   await touch.tap(on(0.2, 0.3), on(0.4, 0.3));
 
-  // The cursor move, then the click, at the pointer.
-  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(RIGHT), at(NONE)]);
+  // The pointer shown on connect, the cursor move, then the click, at the pointer.
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(NONE), at(RIGHT), at(NONE)]);
   expect(stub.errors).toEqual([]);
   await expect(page.locator('#noVNC_mouse_capture_elem')).toBeHidden();
 });
@@ -354,8 +358,9 @@ test('control taken during a watched drag holds no button', async ({ page, brows
     // eslint-disable-next-line no-await-in-loop
     await touch.touch('touchMove', [{ x: start.x + 20 * step, y: start.y }]);
   }
-  // Control arrives mid-drag; then the finger lifts.
+  // Control arrives mid-drag, which shows the pointer at the centre; then the finger lifts.
   await takeControl(page);
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE)]);
   await touch.touch('touchMove', [{ x: start.x + 100, y: start.y }]);
   await touch.touch('touchEnd', []);
 
@@ -389,7 +394,23 @@ test('control taken during a watched long press presses no button', async ({
 
   const events = await untilClicked(stub);
   expect(events.map(({ mask }) => mask)).not.toContain(RIGHT);
-  expect(events).toEqual([at(NONE), at(LEFT), at(NONE)]);
+  // The pointer shown as control started, then the tap.
+  expect(events).toEqual([at(NONE), at(NONE), at(LEFT), at(NONE)]);
+});
+
+test('taking control shows the pointer at the centre', async ({ page, browserName }) => {
+  const { stub, on } = await openScreen(page, 'view');
+  const touch = await touchscreen(page, browserName);
+
+  // On a touch screen noVNC draws its cursor only after a mouse event, so the touchpad shows
+  // its pointer as control starts, before any touch.
+  await takeControl(page);
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE)]);
+
+  // A first tap then clicks where the pointer shows.
+  await touch.tap(on(0.75, 0.25));
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(NONE), at(LEFT), at(NONE)]);
+  expect(stub.errors).toEqual([]);
 });
 
 test('watching sends nothing', async ({ page, browserName }) => {
