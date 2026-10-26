@@ -567,211 +567,225 @@ export function ComputerPanel({
   };
 
   const statusText = phaseLabel(phase, status, connected);
+  const connectingScreen = !stream && (phase === 'connecting' || phase === 'reconnecting');
+  // Only a class changes, so the screen is never remounted when the layout switches.
+  const panelClassName =
+    stream || connectingScreen ? `${css.Panel} ${css.PanelWithScreen}` : css.Panel;
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
   const showTouchpadHint = canControl && status?.mode === 'control' && hasCoarsePointer();
   const inControl = status?.mode === 'control' && phase === 'ready';
 
   return (
-    <aside className={css.Panel} aria-label="Computer panel">
-      <div className={css.Header}>
-        <Box alignItems="Center" gap="200">
-          <Icon size="300" src={Icons.Monitor} />
-          <Text size="H4">Computer</Text>
-        </Box>
-        <Box alignItems="Center" gap="100">
-          {onToggleExpanded && (
-            <IconTooltip label="Expand computer">
-              {(triggerRef) => (
-                <IconButton
-                  ref={triggerRef}
-                  onClick={onToggleExpanded}
-                  aria-label="Expand computer"
-                  aria-pressed={expanded}
-                  size="300"
-                >
-                  <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
-                </IconButton>
-              )}
-            </IconTooltip>
-          )}
-          <IconButton onClick={handleClose} aria-label="Close computer" size="300">
-            <Icon size="300" src={Icons.Cross} />
-          </IconButton>
-        </Box>
-      </div>
+    <aside className={panelClassName} aria-label="Computer panel">
+      <div className={css.Layout}>
+        <div className={css.Header}>
+          <Box alignItems="Center" gap="200">
+            <Icon size="300" src={Icons.Monitor} />
+            <Text size="H4">Computer</Text>
+          </Box>
+          <Box alignItems="Center" gap="100">
+            {onToggleExpanded && (
+              <IconTooltip label="Expand computer">
+                {(triggerRef) => (
+                  <IconButton
+                    ref={triggerRef}
+                    onClick={onToggleExpanded}
+                    aria-label="Expand computer"
+                    aria-pressed={expanded}
+                    size="300"
+                  >
+                    <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+                  </IconButton>
+                )}
+              </IconTooltip>
+            )}
+            <IconButton onClick={handleClose} aria-label="Close computer" size="300">
+              <Icon size="300" src={Icons.Cross} />
+            </IconButton>
+          </Box>
+        </div>
 
-      <div className={css.Body}>
-        {(agents.length > 1 || !selectedAgent) && (
-          <label htmlFor="mindroom-computer-agent">
-            <Text size="L400">Agent</Text>
-            <select
-              id="mindroom-computer-agent"
-              className={css.AgentSelect}
-              aria-label="Agent"
-              value={chosenAgent?.userId ?? ''}
-              onChange={(event) => {
-                const nextAgentId = event.currentTarget.value || undefined;
-                setChosenAgentId(nextAgentId);
-                if (nextAgentId !== activeAgentId) setActiveAgentId(undefined);
-              }}
-            >
-              <option value="">Choose an agent</option>
-              {agents.map((agent) => (
-                <option key={agent.userId} value={agent.userId}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {stream && (
-          <div className={css.ScreenFrame}>
-            <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
-              <ScreenComponent
-                key={`${stream.url}:${stream.protocols[1]}`}
-                ref={screenRef}
-                mode={status?.mode ?? 'view'}
-                onKeyboardChange={setKeyboardOpen}
-                onConnected={() => {
-                  if (activeStreamTicketRef.current !== stream.protocols[1]) return;
-                  connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
-                  setConnected(true);
-                  setPhase('ready');
-                  setError(undefined);
-                  setPasteError(undefined);
+        <div className={css.Body}>
+          {(agents.length > 1 || !selectedAgent) && (
+            <label className={css.AgentField} htmlFor="mindroom-computer-agent">
+              <Text size="L400">Agent</Text>
+              <select
+                id="mindroom-computer-agent"
+                className={css.AgentSelect}
+                aria-label="Agent"
+                value={chosenAgent?.userId ?? ''}
+                onChange={(event) => {
+                  const nextAgentId = event.currentTarget.value || undefined;
+                  setChosenAgentId(nextAgentId);
+                  if (nextAgentId !== activeAgentId) setActiveAgentId(undefined);
                 }}
-                onDisconnected={(message) => handleDisconnected(stream.protocols[1], message)}
-                onPaste={(result) =>
-                  setPasteError(
-                    result === 'too-large'
-                      ? 'Text over 512 KB cannot be pasted into the computer.'
-                      : undefined
-                  )
-                }
-                protocols={stream.protocols}
-                url={stream.url}
-              />
-            </Suspense>
-          </div>
-        )}
+              >
+                <option value="">Choose an agent</option>
+                {agents.map((agent) => (
+                  <option key={agent.userId} value={agent.userId}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
-        {!stream && (phase === 'connecting' || phase === 'reconnecting') && (
-          <>
-            <Box grow="Yes" alignItems="Center" justifyContent="Center" gap="200">
+          {stream && (
+            <div className={css.ScreenFrame}>
+              <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
+                <ScreenComponent
+                  key={`${stream.url}:${stream.protocols[1]}`}
+                  ref={screenRef}
+                  mode={status?.mode ?? 'view'}
+                  onKeyboardChange={setKeyboardOpen}
+                  onConnected={() => {
+                    if (activeStreamTicketRef.current !== stream.protocols[1]) return;
+                    connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
+                    setConnected(true);
+                    setPhase('ready');
+                    setError(undefined);
+                    setPasteError(undefined);
+                  }}
+                  onDisconnected={(message) => handleDisconnected(stream.protocols[1], message)}
+                  onPaste={(result) =>
+                    setPasteError(
+                      result === 'too-large'
+                        ? 'Text over 512 KB cannot be pasted into the computer.'
+                        : undefined
+                    )
+                  }
+                  protocols={stream.protocols}
+                  url={stream.url}
+                />
+              </Suspense>
+            </div>
+          )}
+
+          {connectingScreen && (
+            <Box
+              className={css.ScreenArea}
+              grow="Yes"
+              alignItems="Center"
+              justifyContent="Center"
+              gap="200"
+            >
               <Spinner variant="Secondary" size="300" />
               <Text>{phase === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</Text>
             </Box>
-            {!sessionRef.current && (
+          )}
+
+          <div className={css.Details}>
+            {connectingScreen && !sessionRef.current && (
               <Text size="T200">Starting the computer can take a minute.</Text>
             )}
-          </>
-        )}
+            <Text className={css.Status} size="T300" role="status">
+              {statusText}
+            </Text>
+            {showTouchpadHint && (
+              <Text className={css.Status} size="T300">
+                Drag to move the pointer. Tap to click, two fingers to scroll.
+              </Text>
+            )}
+            {releaseNotice && (
+              <Text size="T300">
+                Control released.{releaseNotice === 'sent' && ' The agent was asked to continue.'}
+              </Text>
+            )}
+            {error && (
+              <Text className={css.Error} size="T300" role="alert">
+                {error}
+              </Text>
+            )}
+            {sendError && (
+              <Text className={css.Error} size="T300" role="alert">
+                {sendError}
+              </Text>
+            )}
+            {pasteError && (
+              <Text className={css.Error} size="T300" role="alert">
+                {pasteError}
+              </Text>
+            )}
 
-        <Text className={css.Status} size="T300" role="status">
-          {statusText}
-        </Text>
-        {showTouchpadHint && (
-          <Text className={css.Status} size="T300">
-            Drag to move the pointer. Tap to click, two fingers to scroll.
-          </Text>
-        )}
-        {releaseNotice && (
-          <Text size="T300">
-            Control released.{releaseNotice === 'sent' && ' The agent was asked to continue.'}
-          </Text>
-        )}
-        {error && (
-          <Text className={css.Error} size="T300" role="alert">
-            {error}
-          </Text>
-        )}
-        {sendError && (
-          <Text className={css.Error} size="T300" role="alert">
-            {sendError}
-          </Text>
-        )}
-        {pasteError && (
-          <Text className={css.Error} size="T300" role="alert">
-            {pasteError}
-          </Text>
-        )}
-
-        <div className={css.Actions}>
-          {phase === 'selecting' && (
-            <Button
-              {...actionButtonProps}
-              disabled={!chosenAgent}
-              onClick={() => {
-                if (chosenAgent) setActiveAgentId(chosenAgent.userId);
-              }}
-              variant="Primary"
-            >
-              <Text size="B300">Watch computer</Text>
-            </Button>
-          )}
-          {canControl && status?.mode === 'view' && (
-            <Button
-              {...actionButtonProps}
-              disabled={!!operation}
-              onClick={handleTakeControl}
-              variant="Primary"
-            >
-              <Text size="B300">{operation === 'take' ? 'Taking control…' : 'Take control'}</Text>
-            </Button>
-          )}
-          {inControl && (
-            <Button
-              {...actionButtonProps}
-              disabled={!!operation || !continuationReady}
-              onClick={handleResumeAgent}
-              variant="Primary"
-            >
-              <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
-            </Button>
-          )}
-          {inControl && connected && hasCoarsePointer() && (
-            <Button
-              {...actionButtonProps}
-              aria-pressed={keyboardOpen}
-              // Focus stays in the keyboard's textarea, so a second tap closes the keyboard.
-              onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
-              // Within the tap itself: iOS opens the keyboard only for a focus inside the gesture.
-              onClick={() =>
-                keyboardOpen
-                  ? screenRef.current?.closeKeyboard()
-                  : screenRef.current?.openKeyboard()
-              }
-              variant="Secondary"
-            >
-              <Text size="B300">Keyboard</Text>
-            </Button>
-          )}
-          {(phase === 'disconnected' || phase === 'error') && (
-            <Button
-              {...actionButtonProps}
-              disabled={!!operation}
-              onClick={handleReconnect}
-              variant="Secondary"
-            >
-              <Text size="B300">Reconnect</Text>
-            </Button>
-          )}
-          {phase === 'stopped' && (
-            <Button {...actionButtonProps} onClick={handleReconnect} variant="Primary">
-              <Text size="B300">Start computer</Text>
-            </Button>
-          )}
-          {sessionRef.current && phase !== 'stopped' && (
-            <Button
-              {...actionButtonProps}
-              disabled={!!operation}
-              onClick={handleStop}
-              variant="Critical"
-            >
-              <Text size="B300">{operation === 'stop' ? 'Stopping…' : 'Stop'}</Text>
-            </Button>
-          )}
+            <div className={css.Actions}>
+              {phase === 'selecting' && (
+                <Button
+                  {...actionButtonProps}
+                  disabled={!chosenAgent}
+                  onClick={() => {
+                    if (chosenAgent) setActiveAgentId(chosenAgent.userId);
+                  }}
+                  variant="Primary"
+                >
+                  <Text size="B300">Watch computer</Text>
+                </Button>
+              )}
+              {canControl && status?.mode === 'view' && (
+                <Button
+                  {...actionButtonProps}
+                  disabled={!!operation}
+                  onClick={handleTakeControl}
+                  variant="Primary"
+                >
+                  <Text size="B300">
+                    {operation === 'take' ? 'Taking control…' : 'Take control'}
+                  </Text>
+                </Button>
+              )}
+              {inControl && (
+                <Button
+                  {...actionButtonProps}
+                  disabled={!!operation || !continuationReady}
+                  onClick={handleResumeAgent}
+                  variant="Primary"
+                >
+                  <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
+                </Button>
+              )}
+              {inControl && connected && hasCoarsePointer() && (
+                <Button
+                  {...actionButtonProps}
+                  aria-pressed={keyboardOpen}
+                  // Focus stays in the keyboard's textarea, so a second tap closes the keyboard.
+                  onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+                  // Within the tap itself: iOS opens the keyboard only for a focus inside the gesture.
+                  onClick={() =>
+                    keyboardOpen
+                      ? screenRef.current?.closeKeyboard()
+                      : screenRef.current?.openKeyboard()
+                  }
+                  variant="Secondary"
+                >
+                  <Text size="B300">Keyboard</Text>
+                </Button>
+              )}
+              {(phase === 'disconnected' || phase === 'error') && (
+                <Button
+                  {...actionButtonProps}
+                  disabled={!!operation}
+                  onClick={handleReconnect}
+                  variant="Secondary"
+                >
+                  <Text size="B300">Reconnect</Text>
+                </Button>
+              )}
+              {phase === 'stopped' && (
+                <Button {...actionButtonProps} onClick={handleReconnect} variant="Primary">
+                  <Text size="B300">Start computer</Text>
+                </Button>
+              )}
+              {sessionRef.current && phase !== 'stopped' && (
+                <Button
+                  {...actionButtonProps}
+                  disabled={!!operation}
+                  onClick={handleStop}
+                  variant="Critical"
+                >
+                  <Text size="B300">{operation === 'stop' ? 'Stopping…' : 'Stop'}</Text>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </aside>
