@@ -18,7 +18,6 @@ const EXPIRY_MARGIN_MS = 60_000;
 
 type AccessRecord = { handoffUrl: string; token?: string };
 
-const records = new Map<string, AccessRecord | undefined>();
 const listeners = new Set<() => void>();
 
 const originOf = (url: string | URL): string | undefined => {
@@ -31,25 +30,20 @@ const originOf = (url: string | URL): string | undefined => {
 
 const readRecord = (url: string | URL): AccessRecord | undefined => {
   const origin = originOf(url);
-  if (!origin) return undefined;
-  if (!records.has(origin)) {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_PREFIX + origin);
-      records.set(origin, stored ? (JSON.parse(stored) as AccessRecord) : undefined);
-    } catch {
-      records.set(origin, undefined);
-    }
+  try {
+    const stored = origin ? localStorage.getItem(STORAGE_KEY_PREFIX + origin) : null;
+    return stored ? (JSON.parse(stored) as AccessRecord) : undefined;
+  } catch {
+    return undefined;
   }
-  return records.get(origin);
 };
 
 const writeRecord = (origin: string, record: AccessRecord | undefined): void => {
-  records.set(origin, record);
   try {
     if (record) localStorage.setItem(STORAGE_KEY_PREFIX + origin, JSON.stringify(record));
     else localStorage.removeItem(STORAGE_KEY_PREFIX + origin);
   } catch {
-    // The in-memory record still serves this launch when storage is unavailable.
+    // Without storage the user signs in again on the next request.
   }
   listeners.forEach((listener) => listener());
 };
