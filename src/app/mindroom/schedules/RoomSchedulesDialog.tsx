@@ -42,6 +42,11 @@ function ScheduleCard({
   const createdTime = parseScheduleTimestamp(task.createdAt);
   const updatedTime = parseScheduleTimestamp(task.updatedAt);
   const recurring = task.scheduleType === 'cron' || !!task.cronExpression || !!task.cronDescription;
+  // Cron fields are UTC; the runtime's description has its own wall time (and, since
+  // 2026.10.557, names its zone), so only the expression is marked UTC.
+  const utcCronExpression = task.cronExpression ? (
+    <bdi>{task.cronExpression} (UTC)</bdi>
+  ) : undefined;
 
   return (
     <Box as="article" direction="Column" gap="300" className={css.Card}>
@@ -72,14 +77,15 @@ function ScheduleCard({
               {t('roomSchedules.recurrence')}
             </Text>
             <Text size="T300" className={css.Wrap}>
-              <span dir="auto">
-                {task.cronDescription ?? task.cronExpression ?? t('roomSchedules.unknownTime')}
-              </span>{' '}
-              <bdi>UTC</bdi>
+              {task.cronDescription ? (
+                <span dir="auto">{task.cronDescription}</span>
+              ) : (
+                utcCronExpression ?? t('roomSchedules.unknownTime')
+              )}
             </Text>
-            {task.cronDescription && task.cronExpression && (
+            {task.cronDescription && utcCronExpression && (
               <Text size="T200" priority="300" className={css.Wrap}>
-                <bdi>{task.cronExpression}</bdi>
+                {utcCronExpression}
               </Text>
             )}
           </Box>

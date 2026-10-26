@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Mark the cron expression, not the description, as UTC in Scheduled tasks (2026-10-26)
+
+- Problem: the room header's Scheduled tasks dialog appended a fixed "UTC" to a recurring task's `cron_description`, which the runtime writes in the task's own timezone.
+  A task stored as `0 19 * * 1` read "At 12:00, only on Monday UTC" above its cron line, so the two lines disagreed by the zone offset.
+  The cron fields are always UTC.
+  Since runtime 2026.10.557 (mindroom#3190) the description names its zone (`At 12:00, only on Monday (America/Los_Angeles)`, or `(UTC)` for patterns kept in UTC).
+  From 2026.9.328 to 2026.10.556 a fixed time of day is local wall time with no zone; before 2026.9.328 descriptions were UTC with no zone.
+- Fix: `RoomSchedulesDialog.tsx` shows the description as the runtime wrote it and labels the cron expression `0 19 * * 1 (UTC)`, also when the expression is the only recurrence line.
+  "Execution time unavailable" no longer gets a "UTC" either.
+  The client converts no times; "UTC" stays a literal, as before, rather than a translated string.
+- Tests: `RoomSchedulesDialog.test.tsx` renders the dialog with a zone-named description, a description without a zone, only a cron expression, and neither (all four fail without the change).
+  The `room-schedules` fixture's recurring task now carries a zone-named description with UTC cron fields (`30 16 * * 1-5`), and `e2e/room-schedules.spec.ts` checks both lines.
+- Validation: `npx vitest run src/app/mindroom/schedules`, Chromium `e2e/room-schedules.spec.ts` (4 of 4), typecheck, lint, prettier and build pass.
+- Not covered: a description from a runtime before 2026.10.557 names no zone; the UTC cron line under it is the only zone shown.
+- Next: none.
+
 ### Keep the Keyboard button in view while typing (2026-10-26)
 
 - Why: after #512 merged into the landscape layout (#510), Opus noted the app hides iOS's Done bar (Capacitor Keyboard's `hideFormAccessoryBar`, on by default), so the Keyboard button is the only way to close the keyboard short of leaving control. On an iPhone in landscape with the keyboard up, the app is about 190–230 px tall; under the header, the side column held the status, the three-line touchpad hint and Resume agent, which pushed the Keyboard button below the visible part.
