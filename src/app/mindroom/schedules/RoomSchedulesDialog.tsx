@@ -42,8 +42,7 @@ function ScheduleCard({
   const createdTime = parseScheduleTimestamp(task.createdAt);
   const updatedTime = parseScheduleTimestamp(task.updatedAt);
   const recurring = task.scheduleType === 'cron' || !!task.cronExpression || !!task.cronDescription;
-  // Cron fields are UTC; the runtime's description has its own wall time (and, since
-  // 2026.10.557, names its zone), so only the expression is marked UTC.
+  // Cron fields are UTC; the runtime writes the description in the task's own wall time.
   const utcCronExpression = task.cronExpression ? (
     <bdi>{task.cronExpression} (UTC)</bdi>
   ) : undefined;
