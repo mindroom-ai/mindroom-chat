@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Drives the computer screen's touchpad through the real noVNC client, against an RFB server
-// stub on the page's WebSocket, and checks the PointerEvents that reach the computer.
+// Drives the computer screen's touchpad and software keyboard through the real noVNC client,
+// against an RFB server stub on the page's WebSocket, and checks the PointerEvents and
+// KeyEvents that reach the computer.
 
 type PointerEvent = { mask: number; x: number; y: number };
+type KeyEvent = { down: boolean; keysym: number };
 type Point = { x: number; y: number };
 
 // Touch emulation under any config: the base config's Chromium has none.
@@ -25,6 +27,7 @@ const WEBKIT_TAPS_ONLY =
 
 type RfbStub = {
   pointerEvents: PointerEvent[];
+  keyEvents: KeyEvent[];
   framed: boolean;
   errors: string[];
 };
@@ -61,7 +64,7 @@ const fullFrame = () => {
 // An RFB 3.8 server with no authentication. After the handshake it reads every client message
 // by its type, so it stays in step, and records each PointerEvent.
 const serveRfb = async (page: Page): Promise<RfbStub> => {
-  const stub: RfbStub = { pointerEvents: [], framed: false, errors: [] };
+  const stub: RfbStub = { pointerEvents: [], keyEvents: [], framed: false, errors: [] };
   await page.routeWebSocket('**/rfb-stub', (ws) => {
     let phase: 'version' | 'security' | 'clientInit' | 'messages' | 'lost' = 'version';
     let input = Buffer.alloc(0);
@@ -91,8 +94,12 @@ const serveRfb = async (page: Page): Promise<RfbStub> => {
           }
           return length;
         }
-        case 4: // KeyEvent
-          return complete(8);
+        case 4: {
+          // KeyEvent: down flag, two bytes of padding, keysym
+          const length = complete(8);
+          if (length) stub.keyEvents.push({ down: input[1] === 1, keysym: input.readUInt32BE(4) });
+          return length;
+        }
         case 5: {
           // PointerEvent
           const length = complete(6);
@@ -159,6 +166,10 @@ test.afterEach(async ({}, testInfo) => {
   if (!current) return;
   await testInfo.attach('pointer-events', {
     body: JSON.stringify(current.pointerEvents),
+    contentType: 'application/json',
+  });
+  await testInfo.attach('key-events', {
+    body: JSON.stringify(current.keyEvents),
     contentType: 'application/json',
   });
   current = undefined;
@@ -432,5 +443,93 @@ test('watching sends nothing', async ({ page, browserName }) => {
   // Nothing to wait for when nothing is sent: give noVNC's tap gesture time to finish.
   await page.waitForTimeout(500);
   expect(stub.pointerEvents).toEqual([]);
+  expect(stub.errors).toEqual([]);
+});
+
+// X11 keysyms.
+const BACKSPACE = 0xff08;
+const RETURN = 0xff0d;
+
+// A press and a release of each keysym, as rfb.sendKey sends with no `down`.
+const pressed = (...keysyms: number[]): KeyEvent[] =>
+  keysyms.flatMap((keysym) => [
+    { down: true, keysym },
+    { down: false, keysym },
+  ]);
+
+test('the software keyboard types on the computer and stays open through a tap', async ({
+  page,
+  browserName,
+}) => {
+  const { stub, on } = await openScreen(page, 'control');
+  const touch = await touchscreen(page, browserName);
+  const keyboard = page.getByRole('button', { name: 'Keyboard' });
+  const input = page.getByRole('textbox', { name: 'Type on the computer' });
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE)]);
+
+  await keyboard.tap();
+  await expect(input).toBeFocused();
+  await expect(keyboard).toHaveAttribute('aria-pressed', 'true');
+
+  // One character at a time, as a software keyboard sends them.
+  await page.keyboard.insertText('H');
+  await page.keyboard.insertText('i');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Backspace');
+  // noVNC sends in order: once the BackSpace's release arrived, everything before it has too.
+  await expect.poll(() => stub.keyEvents).toEqual(pressed(0x48, 0x69, RETURN, BACKSPACE));
+
+  // A tap on the screen clicks on the computer, and the keyboard stays up.
+  await touch.tap(on(0.25, 0.25));
+  await expect.poll(() => stub.pointerEvents).toEqual([at(NONE), at(NONE), at(LEFT), at(NONE)]);
+  await expect(input).toBeFocused();
+  await page.keyboard.insertText('!');
+  await expect.poll(() => stub.keyEvents).toEqual(pressed(0x48, 0x69, RETURN, BACKSPACE, 0x21));
+
+  // More than the field holds: an empty field fires no input event for Backspace, so the
+  // placeholders are put back after every change.
+  for (let press = 0; press < 16; press += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press('Backspace');
+  }
+  await expect
+    .poll(() => stub.keyEvents)
+    .toEqual(pressed(0x48, 0x69, RETURN, BACKSPACE, 0x21, ...Array(16).fill(BACKSPACE)));
+  expect(stub.errors).toEqual([]);
+
+  // A second tap on Keyboard closes it.
+  await keyboard.tap();
+  await expect(keyboard).toHaveAttribute('aria-pressed', 'false');
+  await expect(input).not.toBeFocused();
+});
+
+test('the software keyboard closes when control ends, and types nothing while watching', async ({
+  page,
+}) => {
+  const { stub } = await openScreen(page, 'control');
+  const keyboard = page.getByRole('button', { name: 'Keyboard' });
+  const input = page.getByRole('textbox', { name: 'Type on the computer' });
+
+  await keyboard.tap();
+  await expect(input).toBeFocused();
+  await page.evaluate(() =>
+    (window as unknown as { setComputerMode(mode: 'view'): void }).setComputerMode('view')
+  );
+  await expect(input).not.toBeFocused();
+  await expect(keyboard).toHaveAttribute('aria-pressed', 'false');
+
+  // Watching, Keyboard does not open it, and a field focused anyway takes no text.
+  await keyboard.tap();
+  await expect(input).not.toBeFocused();
+  await input.focus();
+  await page.keyboard.insertText('x');
+
+  // In control again, the next character is the first to reach the computer, as noVNC sends
+  // in order.
+  await takeControl(page);
+  await keyboard.tap();
+  await expect(input).toBeFocused();
+  await page.keyboard.insertText('y');
+  await expect.poll(() => stub.keyEvents).toEqual(pressed(0x79));
   expect(stub.errors).toEqual([]);
 });

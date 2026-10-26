@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 
-import React from 'react';
+import React, { createRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ComputerScreen, type ComputerScreenProps, type RfbClient } from './ComputerScreen';
+import ComputerScreenDefault, {
+  ComputerScreen,
+  type ComputerScreenHandle,
+  type ComputerScreenProps,
+  type RfbClient,
+} from './ComputerScreen';
+import { SOFT_KEYBOARD_BUFFER } from './computerSoftKeyboard';
 // noVNC's mouse capture, which its canvas takes on every mousedown. The package exports only RFB.
 /* eslint-disable import/no-relative-packages */
 import {
@@ -14,6 +20,7 @@ import {
 /* eslint-enable import/no-relative-packages */
 
 vi.mock('./ComputerPanel.css.ts', () => ({
+  KeyboardInput: 'KeyboardInput',
   Screen: 'Screen',
   ScreenInControl: 'ScreenInControl',
 }));
@@ -32,6 +39,7 @@ const rfb: RfbClient = {
   sendKey: vi.fn(),
   scaleViewport: false,
   viewOnly: true,
+  focusOnClick: true,
 };
 
 // Like noVNC, which draws into a focusable canvas inside the target.
@@ -591,5 +599,271 @@ describe('ComputerScreen', () => {
     expect(document.activeElement).toBe(surface);
     expect(rfb.focus).not.toHaveBeenCalled();
     expect(mouseDown(surface).defaultPrevented).toBe(false);
+  });
+  describe('software keyboard', () => {
+    const handle = createRef<ComputerScreenHandle>();
+    const onKeyboardChange = vi.fn();
+    let client: RfbClient;
+    // Like noVNC: a press on its canvas focuses it unless focusOnClick is off.
+    const createRfb = vi.fn((target: HTMLElement): RfbClient => {
+      const canvas = document.createElement('canvas');
+      canvas.tabIndex = -1;
+      canvas.getBoundingClientRect = () =>
+        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+      canvas.addEventListener('mousedown', () => {
+        if (client.focusOnClick) client.focus({ preventScroll: true });
+      });
+      target.append(canvas);
+      client = {
+        ...rfb,
+        focusOnClick: true,
+        focus: (options) => {
+          rfb.focus(options);
+          canvas.focus(options);
+        },
+      };
+      return client;
+    });
+
+    beforeEach(() => {
+      onKeyboardChange.mockReset();
+      createRfb.mockClear();
+    });
+
+    const renderKeyboardScreen = (mode: 'view' | 'control') =>
+      act(() => {
+        root.render(
+          <ComputerScreen
+            ref={handle}
+            createRfb={createRfb}
+            mode={mode}
+            onConnected={() => undefined}
+            onDisconnected={() => undefined}
+            onKeyboardChange={onKeyboardChange}
+            protocols={['binary', 'mindroom-ticket.ticket-1']}
+            url="wss://computer.example.org/api/computers/sessions/session-1/stream"
+          />
+        );
+      });
+    const keyboardInput = () => {
+      const input = container.querySelector<HTMLTextAreaElement>('textarea');
+      if (!input) throw new Error('The computer screen has no keyboard input.');
+      return input;
+    };
+    const typeText = (text: string) => {
+      const input = keyboardInput();
+      input.value += text;
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+    };
+
+    it('keeps a hidden textarea inside the screen that no keyboard Tab lands on', () => {
+      renderKeyboardScreen('view');
+      const input = keyboardInput();
+      const { surface } = screenElements();
+      expect(surface.contains(input)).toBe(true);
+      expect(input.className).toBe('KeyboardInput');
+      expect(input.getAttribute('aria-label')).toBe('Type on the computer');
+      expect(input.getAttribute('autocapitalize')).toBe('off');
+      expect(input.getAttribute('autocorrect')).toBe('off');
+      expect(input.getAttribute('autocomplete')).toBe('off');
+      expect(input.getAttribute('spellcheck')).toBe('false');
+      expect(input.tabIndex).toBe(-1);
+      expect(input.value).toBe(SOFT_KEYBOARD_BUFFER);
+      // Watching, a screen reader's focus brings up no keyboard.
+      expect(input.readOnly).toBe(true);
+      renderKeyboardScreen('control');
+      expect(input.readOnly).toBe(false);
+      // The panel loads the default export lazily and gives it a ref.
+      expect(ComputerScreenDefault).toBe(ComputerScreen);
+    });
+
+    it('opens the keyboard at once in control, and not while watching', () => {
+      renderKeyboardScreen('view');
+      handle.current!.openKeyboard();
+      expect(document.activeElement).not.toBe(keyboardInput());
+      expect(onKeyboardChange).not.toHaveBeenCalled();
+
+      renderKeyboardScreen('control');
+      // Synchronously, inside the caller's tap: no render or effect in between.
+      handle.current!.openKeyboard();
+      expect(document.activeElement).toBe(keyboardInput());
+      expect(onKeyboardChange.mock.calls).toEqual([[true]]);
+      expect(client.focusOnClick).toBe(false);
+      expect(createRfb).toHaveBeenCalledOnce();
+    });
+
+    it('follows focus, so a keyboard dismissed by its own control reads closed', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+      act(() => keyboardInput().blur());
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false]]);
+      expect(client.focusOnClick).toBe(true);
+
+      // Focus moved elsewhere by any other means reads closed too.
+      act(() => handle.current!.openKeyboard());
+      act(() => screenElements().surface.focus());
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false], [true], [false]]);
+    });
+
+    it('closes the keyboard back to the canvas', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+      vi.mocked(rfb.focus).mockClear();
+
+      act(() => handle.current!.closeKeyboard());
+      expect(document.activeElement).toBe(screenElements().canvas);
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false]]);
+
+      // Closed already: nothing moves.
+      act(() => handle.current!.closeKeyboard());
+      expect(rfb.focus).toHaveBeenCalledOnce();
+    });
+
+    it('closes the keyboard when control ends, on the same connection', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+
+      renderKeyboardScreen('view');
+      expect(document.activeElement).not.toBe(keyboardInput());
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false]]);
+      expect(createRfb).toHaveBeenCalledOnce();
+    });
+
+    it('closes the keyboard for a new connection on the same screen', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+      const firstClient = client;
+
+      act(() => {
+        root.render(
+          <ComputerScreen
+            ref={handle}
+            createRfb={(target) => createRfb(target)}
+            mode="control"
+            onConnected={() => undefined}
+            onDisconnected={() => undefined}
+            onKeyboardChange={onKeyboardChange}
+            protocols={['binary', 'mindroom-ticket.ticket-1']}
+            url="wss://computer.example.org/api/computers/sessions/session-1/stream"
+          />
+        );
+      });
+      expect(createRfb).toHaveBeenCalledTimes(2);
+      expect(client).not.toBe(firstClient);
+      expect(document.activeElement).not.toBe(keyboardInput());
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false]]);
+      expect(client.focusOnClick).toBe(true);
+    });
+
+    it('closes the keyboard when the screen goes', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+      const input = keyboardInput();
+
+      act(() => root.unmount());
+      expect(input.isConnected).toBe(false);
+      expect(document.activeElement).not.toBe(input);
+      expect(onKeyboardChange.mock.calls).toEqual([[true], [false]]);
+      root = createRoot(container);
+    });
+
+    it('keeps the keyboard open through taps and presses on the screen', () => {
+      vi.stubGlobal('matchMedia', () => ({ matches: true }));
+      try {
+        renderKeyboardScreen('control');
+        act(() => handle.current!.openKeyboard());
+        const { surface, canvas } = screenElements();
+        vi.mocked(rfb.focus).mockClear();
+
+        // A touchpad tap: the pointerdown on the screen, then the touchpad's press on the canvas.
+        surface.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        touch('touchstart', canvas, 100, 0);
+        touch('touchend', canvas, undefined, 50);
+        // A mouse press in the letterbox, whose default would move focus to the screen element.
+        surface.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        expect(mouseDown(surface).defaultPrevented).toBe(true);
+
+        expect(rfb.focus).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(keyboardInput());
+        expect(onKeyboardChange.mock.calls).toEqual([[true]]);
+
+        // Closed, a press on the screen takes focus to the canvas again.
+        act(() => keyboardInput().blur());
+        surface.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        expect(document.activeElement).toBe(canvas);
+        touch('touchstart', canvas, 100, 1000);
+        touch('touchend', canvas, undefined, 1050);
+        expect(rfb.focus).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('types on the computer only in control, with no Ctrl mapped from keys in it', () => {
+      const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('iPhone');
+      const windowKeyDown = vi.fn();
+      window.addEventListener('keydown', windowKeyDown);
+      try {
+        renderKeyboardScreen('control');
+        act(() => handle.current!.openKeyboard());
+        const input = keyboardInput();
+
+        // A soft keyboard's key: its keydown stays inside, and the bridge maps nothing from it.
+        input.dispatchEvent(
+          new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'a', code: 'KeyA' })
+        );
+        typeText('a');
+        input.dispatchEvent(
+          new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' })
+        );
+        typeText('\n');
+        // A keyboard attached to an iPad: noVNC never sees a letter typed here with Cmd, so
+        // Cmd is not sent as Ctrl, and Cmd+Backspace takes one placeholder with no Ctrl held.
+        const cmd = new KeyboardEvent('keydown', {
+          bubbles: true,
+          cancelable: true,
+          key: 'Meta',
+          code: 'MetaLeft',
+          metaKey: true,
+        });
+        input.dispatchEvent(cmd);
+        expect(cmd.defaultPrevented).toBe(false);
+        input.value = input.value.slice(0, -1);
+        input.dispatchEvent(
+          new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' })
+        );
+        expect(windowKeyDown).not.toHaveBeenCalled();
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([
+          [0x61, null],
+          [0xff0d, null],
+          [0xff08, null],
+        ]);
+
+        vi.mocked(rfb.sendKey).mockClear();
+        renderKeyboardScreen('view');
+        typeText('b');
+        expect(rfb.sendKey).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener('keydown', windowKeyDown);
+        platform.mockRestore();
+      }
+    });
+
+    it('pastes into the computer, not as typing, from the open keyboard', () => {
+      renderKeyboardScreen('control');
+      act(() => handle.current!.openKeyboard());
+
+      const event = paste('hello', keyboardInput());
+      expect(event.defaultPrevented).toBe(true);
+      expect(rfb.clipboardPasteFrom).toHaveBeenCalledWith('hello');
+      // The chord only: Ctrl, v, v, Ctrl. No letter of the text is typed.
+      expect(vi.mocked(rfb.sendKey).mock.calls.map(([keysym]) => keysym)).toEqual([
+        CONTROL_L_KEYSYM,
+        0x76,
+        0x76,
+        CONTROL_L_KEYSYM,
+      ]);
+      expect(keyboardInput().value).toBe(SOFT_KEYBOARD_BUFFER);
+    });
   });
 });

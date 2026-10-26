@@ -1,7 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, {
+  type ForwardedRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, type PasteResult } from './computerClipboard';
+import { attachComputerSoftKeyboard } from './computerSoftKeyboard';
 import { attachComputerTouchpad, releaseNoVncCapture } from './computerTouchpad';
 
 export type RfbClient = {
@@ -13,6 +20,7 @@ export type RfbClient = {
   sendKey(keysym: number, code: string | null, down?: boolean): void;
   scaleViewport: boolean;
   viewOnly: boolean;
+  focusOnClick: boolean;
 };
 
 export type RfbFactory = (
@@ -28,38 +36,80 @@ export type ComputerScreenProps = {
   onConnected: () => void;
   onDisconnected: (message?: string) => void;
   onPaste?: (result: PasteResult) => void;
+  /** Whether the software keyboard is open: its textarea has focus. */
+  onKeyboardChange?: (open: boolean) => void;
   createRfb?: RfbFactory;
+};
+
+export type ComputerScreenHandle = {
+  /**
+   * Opens the software keyboard while in control. Call it from the tap's own handler: iOS shows
+   * the keyboard only for a focus that runs inside the user's gesture.
+   */
+  openKeyboard(): void;
+  closeKeyboard(): void;
 };
 
 const defaultRfbFactory: RfbFactory = (target, url, options) => new RFB(target, url, options);
 
-export function ComputerScreen({
-  url,
-  protocols,
-  mode,
-  onConnected,
-  onDisconnected,
-  onPaste,
-  createRfb = defaultRfbFactory,
-}: ComputerScreenProps) {
+function ComputerScreenWithHandle(
+  {
+    url,
+    protocols,
+    mode,
+    onConnected,
+    onDisconnected,
+    onPaste,
+    onKeyboardChange,
+    createRfb = defaultRfbFactory,
+  }: ComputerScreenProps,
+  ref: ForwardedRef<ComputerScreenHandle>
+) {
   const targetRef = useRef<HTMLDivElement>(null);
+  const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>();
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
+  const keyboardCallbackRef = useRef(onKeyboardChange);
   const modeRef = useRef(mode);
   const showTouchpadPointerRef = useRef<() => void>();
 
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
   pasteCallbackRef.current = onPaste;
+  keyboardCallbackRef.current = onKeyboardChange;
   modeRef.current = mode;
   const binaryProtocol = protocols[0];
   const ticketProtocol = protocols[1];
 
+  // Focus on the software keyboard's textarea, which keeps the keyboard up.
+  const keyboardIsOpen = () => {
+    const input = keyboardInputRef.current;
+    return !!input && input.ownerDocument.activeElement === input;
+  };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openKeyboard: () => {
+        if (modeRef.current !== 'control') return;
+        keyboardInputRef.current?.focus({ preventScroll: true });
+      },
+      closeKeyboard: () => {
+        if (!keyboardIsOpen()) return;
+        // Back to the canvas, where noVNC's keyboard listens, as after a tap on the screen.
+        rfbRef.current?.focus({ preventScroll: true });
+        if (keyboardIsOpen()) keyboardInputRef.current?.blur();
+      },
+    }),
+    []
+  );
+
   useEffect(() => {
     const target = targetRef.current;
-    if (!target) return undefined;
+    const keyboardInput = keyboardInputRef.current;
+    if (!target || !keyboardInput) return undefined;
 
     const rfb = createRfb(target, url, { wsProtocols: [binaryProtocol, ticketProtocol] });
     // noVNC appends its canvas here at once, and takes it out again when it disconnects,
@@ -89,7 +139,8 @@ export function ComputerScreen({
     const keepInputInsideComputer = (event: Event) => event.stopPropagation();
     // onPointerDown puts focus on the canvas, where noVNC's keyboard listens. A press in the
     // letterbox margin would then move it back to the screen element, so in control it is
-    // cancelled. Focus from Tab stays on the screen element, as noVNC takes Tab on its canvas.
+    // cancelled; with the software keyboard open, focus stays in its textarea that way too.
+    // Focus from Tab stays on the screen element, as noVNC takes Tab on its canvas.
     const keepPressFocusOnCanvas = (event: MouseEvent) => {
       if (modeRef.current === 'control') event.preventDefault();
     };
@@ -105,7 +156,30 @@ export function ComputerScreen({
       onPaste: (result) => pasteCallbackRef.current?.(result),
     });
 
+    const detachSoftKeyboard = attachComputerSoftKeyboard(keyboardInput, rfb, { isControlling });
+    let keyboardOpen = false;
+    const reportKeyboard = (open: boolean) => {
+      if (open === keyboardOpen) return;
+      keyboardOpen = open;
+      // While the keyboard is open, noVNC must not take focus to its canvas on the touchpad's
+      // press, which would close the keyboard, as noVNC's own app does for its keyboard.
+      rfb.focusOnClick = !open;
+      keyboardCallbackRef.current?.(open);
+    };
+    // From focus, so the keyboard's own Done or dismiss gesture closes it here too.
+    const handleKeyboardFocus = () => reportKeyboard(true);
+    const handleKeyboardBlur = () => reportKeyboard(false);
+    keyboardInput.addEventListener('focus', handleKeyboardFocus);
+    keyboardInput.addEventListener('blur', handleKeyboardBlur);
+
     return () => {
+      // A new stream starts with the keyboard closed. On unmount the textarea has left the page
+      // already, which took its focus and closed the keyboard.
+      if (keyboardInput.ownerDocument.activeElement === keyboardInput) keyboardInput.blur();
+      keyboardInput.removeEventListener('focus', handleKeyboardFocus);
+      keyboardInput.removeEventListener('blur', handleKeyboardBlur);
+      reportKeyboard(false);
+      detachSoftKeyboard();
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.
       detachClipboard();
       touchpad.detach();
@@ -125,6 +199,8 @@ export function ComputerScreen({
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
 
   useEffect(() => {
+    // Watching, nothing is typed: the keyboard closes.
+    if (mode !== 'control' && keyboardIsOpen()) keyboardInputRef.current?.blur();
     const rfb = rfbRef.current;
     if (!rfb) return;
     rfb.viewOnly = mode !== 'control';
@@ -141,14 +217,34 @@ export function ComputerScreen({
       // In control, touches drive the touchpad: no page scroll or zoom on the screen.
       className={mode === 'control' ? `${css.Screen} ${css.ScreenInControl}` : css.Screen}
       data-mindroom-computer-input
-      onPointerDown={() => rfbRef.current?.focus({ preventScroll: true })}
+      onPointerDown={() => {
+        // A tap while the software keyboard is open keeps it up.
+        if (!keyboardIsOpen()) rfbRef.current?.focus({ preventScroll: true });
+      }}
       role="application"
       aria-label="Agent computer"
       // The RFB surface must receive raw keyboard input while the user controls it.
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={0}
-    />
+    >
+      {/* Inside the screen, so its paste and keys stay with the computer like the canvas's. */}
+      <textarea
+        ref={keyboardInputRef}
+        className={css.KeyboardInput}
+        aria-label="Type on the computer"
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        // Watching, nothing is typed, and a screen reader's focus brings up no keyboard.
+        readOnly={mode !== 'control'}
+        spellCheck={false}
+        // Tab and Shift+Tab pass it by: a hardware keyboard types on the canvas.
+        tabIndex={-1}
+      />
+    </div>
   );
 }
+
+export const ComputerScreen = forwardRef(ComputerScreenWithHandle);
 
 export default ComputerScreen;

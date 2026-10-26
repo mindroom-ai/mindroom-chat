@@ -1,6 +1,7 @@
 import React, {
   ComponentType,
   lazy,
+  RefAttributes,
   Suspense,
   useCallback,
   useEffect,
@@ -12,9 +13,10 @@ import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 import { ComputerApiError, ComputerSessionClient, createComputerSession } from './api';
-import type { ComputerScreenProps } from './ComputerScreen';
+import type { ComputerScreenHandle, ComputerScreenProps } from './ComputerScreen';
 import type { ComputerAgent, ComputerStatus, ComputerStreamConnection } from './types';
 import { sendComputerContinuation } from './continuation';
+import { hasCoarsePointer } from './computerFocus';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ExpandIcon, ShrinkIcon } from '../sidebar/panelIcons';
 import * as css from './ComputerPanel.css';
@@ -87,7 +89,7 @@ export type ComputerPanelProps = {
   continuationReady?: boolean;
   onClose: () => void;
   request?: typeof fetch;
-  ScreenComponent?: ComponentType<ComputerScreenProps>;
+  ScreenComponent?: ComponentType<ComputerScreenProps & RefAttributes<ComputerScreenHandle>>;
   requestedAgent?: { userId: string };
   onInteractionChange?: (interaction: ComputerInteraction) => void;
   /** Whether the panel fills the room; with `onToggleExpanded`, shows the Expand toggle. */
@@ -147,6 +149,8 @@ export function ComputerPanel({
   const [sendError, setSendError] = useState<string>();
   const [pasteError, setPasteError] = useState<string>();
   const [releaseNotice, setReleaseNotice] = useState<'released' | 'sent'>();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const screenRef = useRef<ComputerScreenHandle>(null);
   const sessionRef = useRef<ComputerSessionClient>();
   const lifecycleRef = useRef(0);
   const activeStreamTicketRef = useRef<string>();
@@ -564,10 +568,7 @@ export function ComputerPanel({
 
   const statusText = phaseLabel(phase, status, connected);
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
-  const showTouchpadHint =
-    canControl &&
-    status?.mode === 'control' &&
-    (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+  const showTouchpadHint = canControl && status?.mode === 'control' && hasCoarsePointer();
 
   return (
     <aside className={css.Panel} aria-label="Computer panel">
@@ -628,7 +629,9 @@ export function ComputerPanel({
             <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
               <ScreenComponent
                 key={`${stream.url}:${stream.protocols[1]}`}
+                ref={screenRef}
                 mode={status?.mode ?? 'view'}
+                onKeyboardChange={setKeyboardOpen}
                 onConnected={() => {
                   if (activeStreamTicketRef.current !== stream.protocols[1]) return;
                   connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
@@ -724,6 +727,23 @@ export function ComputerPanel({
               variant="Primary"
             >
               <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
+            </Button>
+          )}
+          {status?.mode === 'control' && phase === 'ready' && hasCoarsePointer() && (
+            <Button
+              {...actionButtonProps}
+              aria-pressed={keyboardOpen}
+              // Focus stays in the keyboard's textarea, so a second tap closes the keyboard.
+              onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+              // Within the tap itself: iOS opens the keyboard only for a focus inside the gesture.
+              onClick={() =>
+                keyboardOpen
+                  ? screenRef.current?.closeKeyboard()
+                  : screenRef.current?.openKeyboard()
+              }
+              variant="Secondary"
+            >
+              <Text size="B300">Keyboard</Text>
             </Button>
           )}
           {(phase === 'disconnected' || phase === 'error') && (

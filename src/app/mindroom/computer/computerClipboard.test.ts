@@ -732,6 +732,38 @@ describe('attachComputerClipboard', () => {
     expect(canvasKeys).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['the software keyboard textarea', true],
+    ['the screen element', false],
+  ])('maps no Cmd and starts no copy for keys on %s', async (_where, textarea) => {
+    // noVNC hears only its canvas, so the letter typed with Cmd would never follow.
+    let on: HTMLElement = target;
+    if (textarea) {
+      on = document.createElement('textarea');
+      target.append(on);
+    } else {
+      target.tabIndex = 0;
+    }
+    on.focus();
+    clipboard.readText.mockResolvedValueOnce('hello');
+    attach({ apple: true, readOnShortcut: true });
+
+    const cmd = key('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true }, on);
+    key('keydown', { key: 'Shift', code: 'ShiftLeft', metaKey: true, shiftKey: true }, on);
+    key('keydown', { key: 'c', code: 'KeyC', metaKey: true }, on);
+    key('keyup', { key: 'Shift', code: 'ShiftLeft', metaKey: true }, on);
+    expect(cmd.defaultPrevented).toBe(false);
+    expect(rfb.calls).toEqual([]);
+    expect(clipboard.write).not.toHaveBeenCalled();
+
+    // A paste from there still reaches the computer, with the whole chord.
+    key('keydown', { key: 'v', code: 'KeyV', metaKey: true }, on);
+    await vi.waitFor(() => expect(onPaste).toHaveBeenCalledWith('sent'));
+    expect(rfb.calls).toEqual([['paste', 'hello'], ...chord()]);
+    key('keyup', { key: 'Meta', code: 'MetaLeft' }, on);
+    expect(rfb.calls).toHaveLength(5);
+  });
+
   const releases = (keysym: number) =>
     rfb.sendKey.mock.calls.filter(([sent, , down]) => sent === keysym && down === false).length;
 

@@ -1,3 +1,4 @@
+import { hasCoarsePointer } from './computerFocus';
 import { createTouchpadRecognizer, type TouchPoint, type TouchpadAction } from './touchpadGestures';
 
 // While in control on a touch screen, the computer screen works like a laptop touchpad.
@@ -187,7 +188,7 @@ export function attachComputerTouchpad(
   // first, so noVNC draws it and the computer's pointer goes there too. A mouse or trackpad
   // shows its own, and a canvas with no size has had no frame yet.
   const showPointer = () => {
-    if (!isControlling() || !window.matchMedia?.('(pointer: coarse)').matches) return;
+    if (!isControlling() || !hasCoarsePointer()) return;
     const canvas = target.querySelector('canvas');
     const rect = canvas?.getBoundingClientRect();
     if (canvas && rect && rect.width > 0 && rect.height > 0) pointAt(canvas);
