@@ -572,7 +572,10 @@ export function ComputerPanel({
   const panelClassName =
     stream || connectingScreen ? `${css.Panel} ${css.PanelWithScreen}` : css.Panel;
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
-  const showTouchpadHint = canControl && status?.mode === 'control' && hasCoarsePointer();
+  // While the keyboard is up, the panel is short: the hint gives its lines to the Keyboard button,
+  // the only way to close the keyboard in the app, which hides iOS's Done bar.
+  const showTouchpadHint =
+    canControl && status?.mode === 'control' && hasCoarsePointer() && !keyboardOpen;
   const inControl = status?.mode === 'control' && phase === 'ready';
 
   return (

@@ -625,6 +625,22 @@ describe('ComputerPanel', () => {
       expect(keyboardButton()).toBeDefined();
     });
 
+    it('hides the touchpad hint while the keyboard is open', async () => {
+      const hint = 'Drag to move the pointer. Tap to click, two fingers to scroll.';
+      renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+      expect(container.textContent).toContain(hint);
+
+      act(() => screenConnections[0].onKeyboardChange!(true));
+      expect(container.textContent).not.toContain(hint);
+      expect(keyboardButton()).toBeDefined();
+
+      act(() => screenConnections[0].onKeyboardChange!(false));
+      expect(container.textContent).toContain(hint);
+    });
+
     it('opens and closes the keyboard through the screen, pressed while it is open', async () => {
       renderPanel();
       await waitFor(() => expect(container.textContent).toContain('Watch mode'));
