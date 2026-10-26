@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Sign in to a homeserver behind Cloudflare Access on iOS (2026-10-25)
+
+- Why: a homeserver behind Cloudflare Access answers the iOS app with a redirect to the Access login, because the app's web view (`capacitor://localhost`) never holds the Access cookie. Login, `/sync` and every other Matrix call fail. Access accepts its app token in a `cf-access-token` header instead of the cookie.
+- Server contract (opt-in, nothing changes for other servers):
+  - `GET /.well-known/mindroom/cloudflare-access`, public, `Access-Control-Allow-Origin: *`: `{"handoff_url": "https://<homeserver>/<path>"}`. The handoff URL must be HTTPS on the homeserver's origin.
+  - The handoff page sits behind Access and redirects to `mindroom://cloudflare-access#token=<CF_Authorization cookie>`.
+  - Access lets CORS preflights through to the origin, and the homeserver allows the `cf-access-token` request header (mindroom-tuwunel). `<img>` cannot send headers, so the Matrix-authenticated media paths `/_matrix/client/v1/media` and `/_matrix/media/v3/upload` (SDK uploads use XHR) bypass Access.
+- Change:
+  - `src/app/mindroom/native/cloudflareAccess.ts`: per-origin record `{handoffUrl, token}` in localStorage. Discovery stores or clears it; an unreachable advert keeps it. Sign-in opens the handoff page with `MindRoomAuth.authenticate` and accepts only a `mindroom://cloudflare-access` callback carrying a JWT whose `exp` is more than a minute away. iOS with the plugin only.
+  - `createMatrixFetchFn` adds `cf-access-token` for the token's origin only.
+  - Login: `CloudflareAccessLoginGate` sits between the versions check (`/versions` stays public) and the login flows. With an advert and no token it shows "<host> requires your organization's sign-in." and Continue; then the usual SSO button runs, and Safari already holds the Access session.
+  - Signed in: `SyncStatus` shows the same prompt instead of "Connection Lost!" once the token is within a minute of expiry, re-checked by timer and on `visibilitychange`. Sync and sends recover by themselves afterwards.
+  - Removing the account forgets the token. `upsertIOSPushPusher` registers no pusher for a server behind Access and the push toggle is hidden: the public gateway would carry a private server's messages out.
+- Tests: `cloudflareAccess.test.ts` (advert validation, callback parsing, expiry, origin scoping), `CloudflareAccessGate.test.tsx` (login gate, expiry while open and after the app returns), `matrixClientFactory.test.ts` (header only for the token's origin), `SyncStatus.test.tsx`, `iosPush.test.ts`, `IOSPushNotification.test.ts`.
+- Risks: not run on a device. Each sign-in shows iOS's "wants to use … to sign in" alert, so a 24 h Access session means one prompt a day. A revoked but unexpired token shows as a lost connection. Android has the same gap and is not covered.
+- Next: device test against a staging server with the contract deployed.
+
 ### Drive the computer touchpad through real noVNC (2026-10-25)
 
 - Why: the last of three touchpad changes. The touchpad layer was tested only in jsdom; this drives it with real touch input in a browser, through the real noVNC 1.7 client, and checks the PointerEvents that reach the computer.
