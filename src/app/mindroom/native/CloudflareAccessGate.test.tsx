@@ -1,0 +1,122 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
+import { Capacitor } from '@capacitor/core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CloudflareAccessLoginGate } from './CloudflareAccessGate';
+import { clearCloudflareAccess } from './cloudflareAccess';
+import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isPluginAvailable: vi.fn() },
+}));
+
+vi.mock('./nativeSso', () => ({
+  authenticateInNativeBrowser: vi.fn(),
+  isNativeIOS: vi.fn(),
+}));
+
+const BASE_URL = 'https://hs.example';
+const base64Url = (value: string): string =>
+  btoa(value).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+const token = [
+  base64Url('{}'),
+  base64Url(JSON.stringify({ exp: Date.now() / 1000 + 3600 })),
+  'sig',
+].join('.');
+
+const textOf = (node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null): string => {
+  if (node === null) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(textOf).join('');
+  return (node.children ?? []).map(textOf).join('');
+};
+
+describe('CloudflareAccessLoginGate', () => {
+  let renderer: ReactTestRenderer | undefined;
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    vi.mocked(isNativeIOS).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    renderer?.unmount();
+    renderer = undefined;
+    clearCloudflareAccess(BASE_URL);
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+    vi.mocked(authenticateInNativeBrowser).mockReset();
+  });
+
+  const render = async () => {
+    await act(async () => {
+      renderer = create(
+        <CloudflareAccessLoginGate baseUrl={BASE_URL} fallback={() => 'loading'}>
+          login form
+        </CloudflareAccessLoginGate>
+      );
+    });
+    return () => textOf(renderer!.toJSON());
+  };
+
+  const clickContinue = () =>
+    act(async () => {
+      renderer!.root.findByType('button').props.onClick();
+    });
+
+  const advertise = () =>
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ handoff_url: `${BASE_URL}/native/cloudflare-access` }))
+    );
+
+  it('shows the login form without looking for an advert outside the iOS app', async () => {
+    vi.mocked(isNativeIOS).mockReturnValue(false);
+
+    const text = await render();
+
+    expect(text()).toBe('login form');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows the login form when the server publishes no advert', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 404 }));
+
+    const text = await render();
+
+    expect(text()).toBe('login form');
+  });
+
+  it('asks for the organization sign-in before the login form of a server behind Access', async () => {
+    advertise();
+
+    const text = await render();
+
+    expect(text()).toContain("hs.example requires your organization's sign-in.");
+    expect(text()).not.toContain('login form');
+  });
+
+  it('shows the login form once the organization sign-in returns a token', async () => {
+    advertise();
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${token}`
+    );
+    const text = await render();
+
+    await clickContinue();
+
+    expect(text()).toBe('login form');
+  });
+
+  it('says so when the organization sign-in does not finish', async () => {
+    advertise();
+    vi.mocked(authenticateInNativeBrowser).mockRejectedValue(new Error('Authentication cancelled'));
+    const text = await render();
+
+    await clickContinue();
+
+    expect(text()).toContain("Sign-in didn't finish. Try again.");
+  });
+});

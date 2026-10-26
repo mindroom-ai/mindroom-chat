@@ -2797,6 +2797,11 @@
         "enable": "Inschakelen",
         "iosPushNotifications": "iOS-pushmeldingen",
         "permissionDenied": "Toestemming voor meldingen is geweigerd. Schakel meldingen voor {{appName}} in via de iOS-instellingen."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} vereist aanmelding via je organisatie.",
+        "continue": "Doorgaan",
+        "signInFailed": "Aanmelden is niet voltooid. Probeer het opnieuw."
       }
     },
     "notifications": {

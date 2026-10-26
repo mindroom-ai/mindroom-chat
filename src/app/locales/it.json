@@ -2854,6 +2854,11 @@
         "enable": "Attiva",
         "iosPushNotifications": "Notifiche push di iOS",
         "permissionDenied": "L’autorizzazione per le notifiche è stata negata. Attiva le notifiche per {{appName}} nelle impostazioni di iOS."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} richiede l’accesso della tua organizzazione.",
+        "continue": "Continua",
+        "signInFailed": "L’accesso non è stato completato. Riprova."
       }
     },
     "notifications": {

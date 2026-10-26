@@ -2797,6 +2797,11 @@
         "enable": "Aktivieren",
         "iosPushNotifications": "iOS-Push-Benachrichtigungen",
         "permissionDenied": "Die Berechtigung für Benachrichtigungen wurde verweigert. Aktiviere Benachrichtigungen für {{appName}} in den iOS-Einstellungen."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} erfordert die Anmeldung deiner Organisation.",
+        "continue": "Weiter",
+        "signInFailed": "Die Anmeldung wurde nicht abgeschlossen. Versuche es erneut."
       }
     },
     "notifications": {

@@ -2785,6 +2785,11 @@
         "enable": "启用",
         "iosPushNotifications": "iOS 推送通知",
         "permissionDenied": "通知权限已被拒绝。请在 iOS“设置”中为 {{appName}} 启用通知。"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} 需要通过你所在的组织登录。",
+        "continue": "继续",
+        "signInFailed": "登录未完成。请重试。"
       }
     },
     "notifications": {
