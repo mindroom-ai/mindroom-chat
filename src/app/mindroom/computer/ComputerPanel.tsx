@@ -569,6 +569,7 @@ export function ComputerPanel({
   const statusText = phaseLabel(phase, status, connected);
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
   const showTouchpadHint = canControl && status?.mode === 'control' && hasCoarsePointer();
+  const inControl = status?.mode === 'control' && phase === 'ready';
 
   return (
     <aside className={css.Panel} aria-label="Computer panel">
@@ -719,7 +720,7 @@ export function ComputerPanel({
               <Text size="B300">{operation === 'take' ? 'Taking control…' : 'Take control'}</Text>
             </Button>
           )}
-          {status?.mode === 'control' && phase === 'ready' && (
+          {inControl && (
             <Button
               {...actionButtonProps}
               disabled={!!operation || !continuationReady}
@@ -729,7 +730,7 @@ export function ComputerPanel({
               <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
             </Button>
           )}
-          {status?.mode === 'control' && phase === 'ready' && hasCoarsePointer() && (
+          {inControl && hasCoarsePointer() && (
             <Button
               {...actionButtonProps}
               aria-pressed={keyboardOpen}

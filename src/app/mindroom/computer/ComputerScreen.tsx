@@ -157,10 +157,7 @@ function ComputerScreenWithHandle(
     });
 
     const detachSoftKeyboard = attachComputerSoftKeyboard(keyboardInput, rfb, { isControlling });
-    let keyboardOpen = false;
     const reportKeyboard = (open: boolean) => {
-      if (open === keyboardOpen) return;
-      keyboardOpen = open;
       // While the keyboard is open, noVNC must not take focus to its canvas on the touchpad's
       // press, which would close the keyboard, as noVNC's own app does for its keyboard.
       rfb.focusOnClick = !open;
@@ -169,15 +166,28 @@ function ComputerScreenWithHandle(
     // From focus, so the keyboard's own Done or dismiss gesture closes it here too.
     const handleKeyboardFocus = () => reportKeyboard(true);
     const handleKeyboardBlur = () => reportKeyboard(false);
+    // A key held on the canvas when typing moves here is released here, and noVNC lets go of
+    // its keys otherwise only on window blur. So every keyup goes on to the canvas: noVNC sends
+    // a release only for a key it holds, which makes a software keyboard's keyup do nothing.
+    // Not Caps Lock, which noVNC on Apple toggles on its keyup.
+    const releaseOnCanvas = (event: KeyboardEvent) => {
+      if (!canvas || event.code === 'CapsLock') return;
+      const { code, key, location, altKey, ctrlKey, metaKey, shiftKey } = event;
+      canvas.dispatchEvent(
+        new KeyboardEvent('keyup', { code, key, location, altKey, ctrlKey, metaKey, shiftKey })
+      );
+    };
     keyboardInput.addEventListener('focus', handleKeyboardFocus);
     keyboardInput.addEventListener('blur', handleKeyboardBlur);
+    keyboardInput.addEventListener('keyup', releaseOnCanvas);
 
     return () => {
+      keyboardInput.removeEventListener('focus', handleKeyboardFocus);
+      keyboardInput.removeEventListener('blur', handleKeyboardBlur);
+      keyboardInput.removeEventListener('keyup', releaseOnCanvas);
       // A new stream starts with the keyboard closed. On unmount the textarea has left the page
       // already, which took its focus and closed the keyboard.
       if (keyboardInput.ownerDocument.activeElement === keyboardInput) keyboardInput.blur();
-      keyboardInput.removeEventListener('focus', handleKeyboardFocus);
-      keyboardInput.removeEventListener('blur', handleKeyboardBlur);
       reportKeyboard(false);
       detachSoftKeyboard();
       // Before the disconnect, so a mapped Ctrl or Shift is released on the open socket.

@@ -11,12 +11,14 @@ import ComputerScreenDefault, {
   type RfbClient,
 } from './ComputerScreen';
 import { SOFT_KEYBOARD_BUFFER } from './computerSoftKeyboard';
-// noVNC's mouse capture, which its canvas takes on every mousedown. The package exports only RFB.
+// noVNC's mouse capture, which its canvas takes on every mousedown, and its keyboard. The
+// package exports only RFB.
 /* eslint-disable import/no-relative-packages */
 import {
   releaseCapture,
   setCapture,
 } from '../../../../node_modules/@novnc/novnc/core/util/events.js';
+import NoVncKeyboard from '../../../../node_modules/@novnc/novnc/core/input/keyboard.js';
 /* eslint-enable import/no-relative-packages */
 
 vi.mock('./ComputerPanel.css.ts', () => ({
@@ -847,6 +849,111 @@ describe('ComputerScreen', () => {
         window.removeEventListener('keydown', windowKeyDown);
         platform.mockRestore();
       }
+    });
+
+    describe('keys held on the canvas', () => {
+      const SHIFT_L = 0xffe1;
+      // noVNC's own keyboard on the canvas, which sends a release only for a key it holds.
+      const createRfbWithNoVncKeyboard = vi.fn((target: HTMLElement): RfbClient => {
+        const canvas = document.createElement('canvas');
+        canvas.tabIndex = -1;
+        target.append(canvas);
+        const keyboard = new NoVncKeyboard(canvas);
+        keyboard.onkeyevent = (keysym: number, code: string, down: boolean) =>
+          rfb.sendKey(keysym, code, down);
+        keyboard.grab();
+        return {
+          ...rfb,
+          focusOnClick: true,
+          focus: (options) => canvas.focus(options),
+          disconnect: () => {
+            keyboard.ungrab();
+            rfb.disconnect();
+          },
+        };
+      });
+      const renderWithNoVncKeyboard = () =>
+        act(() => {
+          root.render(
+            <ComputerScreen
+              ref={handle}
+              createRfb={createRfbWithNoVncKeyboard}
+              mode="control"
+              onConnected={() => undefined}
+              onDisconnected={() => undefined}
+              protocols={['binary', 'mindroom-ticket.ticket-1']}
+              url="wss://computer.example.org/api/computers/sessions/session-1/stream"
+            />
+          );
+        });
+      const key = (type: 'keydown' | 'keyup', on: Element, init: KeyboardEventInit) => {
+        const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
+        on.dispatchEvent(event);
+        return event;
+      };
+
+      it('releases one held when typing moves to the keyboard, and nothing else', () => {
+        renderWithNoVncKeyboard();
+        const { canvas } = screenElements();
+        expect(document.activeElement).toBe(canvas);
+
+        key('keydown', canvas, { code: 'ShiftLeft', key: 'Shift', shiftKey: true });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([[SHIFT_L, 'ShiftLeft', true]]);
+        act(() => handle.current!.openKeyboard());
+        expect(document.activeElement).toBe(keyboardInput());
+
+        // Its keyup lands in the textarea, out of noVNC's reach, and goes on to the canvas.
+        key('keyup', keyboardInput(), { code: 'ShiftLeft', key: 'Shift' });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([
+          [SHIFT_L, 'ShiftLeft', true],
+          [SHIFT_L, 'ShiftLeft', false],
+        ]);
+
+        // Typing then has no Shift. A keydown here never reaches noVNC, and a software
+        // keyboard's keyup releases nothing.
+        vi.mocked(rfb.sendKey).mockClear();
+        key('keydown', keyboardInput(), { code: 'KeyA', key: 'a' });
+        typeText('a');
+        key('keyup', keyboardInput(), { code: 'KeyA', key: 'a' });
+        key('keyup', keyboardInput(), { key: 'Unidentified' });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([[0x61, null]]);
+      });
+
+      it("leaves the clipboard bridge's left Ctrl in step with noVNC's", () => {
+        renderWithNoVncKeyboard();
+        const { canvas } = screenElements();
+        key('keydown', canvas, { code: 'ControlLeft', key: 'Control', ctrlKey: true });
+        act(() => handle.current!.openKeyboard());
+        key('keyup', keyboardInput(), { code: 'ControlLeft', key: 'Control' });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([
+          [CONTROL_L_KEYSYM, 'ControlLeft', true],
+          [CONTROL_L_KEYSYM, 'ControlLeft', false],
+        ]);
+
+        // Both know Ctrl is up: a paste then presses and releases the whole chord.
+        vi.mocked(rfb.sendKey).mockClear();
+        paste('hi', keyboardInput());
+        expect(vi.mocked(rfb.sendKey).mock.calls.map(([keysym, , down]) => [keysym, down])).toEqual(
+          [
+            [CONTROL_L_KEYSYM, true],
+            [0x76, true],
+            [0x76, false],
+            [CONTROL_L_KEYSYM, false],
+          ]
+        );
+      });
+
+      it('does not pass on Caps Lock, which noVNC toggles on its keyup on Apple', () => {
+        const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('iPhone');
+        try {
+          renderWithNoVncKeyboard();
+          act(() => handle.current!.openKeyboard());
+          key('keyup', keyboardInput(), { code: 'CapsLock', key: 'CapsLock' });
+          expect(rfb.sendKey).not.toHaveBeenCalled();
+        } finally {
+          platform.mockRestore();
+        }
+      });
     });
 
     it('pastes into the computer, not as typing, from the open keyboard', () => {

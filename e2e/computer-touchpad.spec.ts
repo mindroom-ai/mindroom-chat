@@ -449,6 +449,7 @@ test('watching sends nothing', async ({ page, browserName }) => {
 // X11 keysyms.
 const BACKSPACE = 0xff08;
 const RETURN = 0xff0d;
+const SHIFT_L = 0xffe1;
 
 // A press and a release of each keysym, as rfb.sendKey sends with no `down`.
 const pressed = (...keysyms: number[]): KeyEvent[] =>
@@ -501,6 +502,24 @@ test('the software keyboard types on the computer and stays open through a tap',
   await keyboard.tap();
   await expect(keyboard).toHaveAttribute('aria-pressed', 'false');
   await expect(input).not.toBeFocused();
+});
+
+test('a key held on the screen is released once typing moves to the keyboard', async ({ page }) => {
+  const { stub } = await openScreen(page, 'control');
+  const screen = page.getByRole('application', { name: 'Agent computer' });
+  const input = page.getByRole('textbox', { name: 'Type on the computer' });
+  await expect(screen.locator('canvas')).toBeFocused();
+
+  // A hardware Shift goes down on noVNC's canvas, and comes up once the keyboard has focus.
+  await page.keyboard.down('Shift');
+  await expect.poll(() => stub.keyEvents).toEqual([{ down: true, keysym: SHIFT_L }]);
+  await page.getByRole('button', { name: 'Keyboard' }).tap();
+  await expect(input).toBeFocused();
+  await page.keyboard.up('Shift');
+  await page.keyboard.insertText('a');
+
+  await expect.poll(() => stub.keyEvents).toEqual([...pressed(SHIFT_L), ...pressed(0x61)]);
+  expect(stub.errors).toEqual([]);
 });
 
 test('the software keyboard closes when control ends, and types nothing while watching', async ({
