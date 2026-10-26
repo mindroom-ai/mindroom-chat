@@ -73,19 +73,19 @@ export function attachComputerSoftKeyboard(
     return pending;
   };
 
-  // Sends what changed since the last value, as presses and releases. TigerVNC presses Shift
+  // Types what changed since the last value, as presses and releases. TigerVNC presses Shift
   // itself for an uppercase keysym.
-  const sendChange = (type: boolean) => {
+  const typeChange = () => {
     const { removed, added } = difference(last, input.value);
     last = input.value;
-    if (!type || !isControlling()) return;
+    if (!isControlling()) return;
     for (let i = 0; i < removed; i += 1) rfb.sendKey(BACKSPACE_KEYSYM, null);
     added.forEach((character) => rfb.sendKey(keysymFor(character), null));
   };
 
   const commit = () => {
     cancelCommit();
-    sendChange(true);
+    typeChange();
     reset();
   };
 
@@ -96,7 +96,7 @@ export function attachComputerSoftKeyboard(
     cancelCommit();
     // In control, the clipboard bridge takes a paste, which then never reaches the field. One
     // that got here anyway is not typed out.
-    sendChange(!/^insertFrom(Paste|Drop)/.test(inputType ?? ''));
+    if (!/^insertFrom(Paste|Drop)/.test(inputType ?? '')) typeChange();
     reset();
   };
 
@@ -104,7 +104,7 @@ export function attachComputerSoftKeyboard(
     composing = true;
     // Android keyboards compose word after word: the last word goes now, and the field is
     // left to the new composition.
-    if (cancelCommit()) sendChange(true);
+    if (cancelCommit()) typeChange();
   };
 
   // WebKit puts the committed text in after compositionend, with an input event of its own;

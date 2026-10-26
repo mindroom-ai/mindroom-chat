@@ -7,7 +7,7 @@ import React, {
 } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
-import { attachComputerClipboard, type PasteResult } from './computerClipboard';
+import { attachComputerClipboard, isApplePlatform, type PasteResult } from './computerClipboard';
 import { attachComputerSoftKeyboard } from './computerSoftKeyboard';
 import { attachComputerTouchpad, releaseNoVncCapture } from './computerTouchpad';
 
@@ -169,13 +169,13 @@ function ComputerScreenWithHandle(
     // A key held on the canvas when typing moves here is released here, and noVNC lets go of
     // its keys otherwise only on window blur. So every keyup goes on to the canvas: noVNC sends
     // a release only for a key it holds, which makes a software keyboard's keyup do nothing.
-    // Not Caps Lock, which noVNC on Apple toggles on its keyup.
+    // noVNC reads its `code`, and the clipboard bridge its `key` and `shiftKey` too. Not Caps
+    // Lock on Apple, where noVNC holds it never and toggles it on every keyup.
+    const apple = isApplePlatform();
     const releaseOnCanvas = (event: KeyboardEvent) => {
-      if (!canvas || event.code === 'CapsLock') return;
-      const { code, key, location, altKey, ctrlKey, metaKey, shiftKey } = event;
-      canvas.dispatchEvent(
-        new KeyboardEvent('keyup', { code, key, location, altKey, ctrlKey, metaKey, shiftKey })
-      );
+      if (!canvas || (apple && event.code === 'CapsLock')) return;
+      const { code, key, shiftKey } = event;
+      canvas.dispatchEvent(new KeyboardEvent('keyup', { code, key, shiftKey }));
     };
     keyboardInput.addEventListener('focus', handleKeyboardFocus);
     keyboardInput.addEventListener('blur', handleKeyboardBlur);

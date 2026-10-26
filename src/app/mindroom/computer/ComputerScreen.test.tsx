@@ -943,6 +943,36 @@ describe('ComputerScreen', () => {
         );
       });
 
+      it("keeps the clipboard bridge's Shift from the textarea's keyups", () => {
+        renderWithNoVncKeyboard();
+        act(() => handle.current!.openKeyboard());
+        // Shift held while a letter comes up, then a paste from the Edit menu: no keydown since
+        // to read Shift from, so the bridge goes by the last keyup, forwarded one included.
+        key('keydown', keyboardInput(), { code: 'ShiftLeft', key: 'Shift', shiftKey: true });
+        key('keyup', keyboardInput(), { code: 'KeyA', key: 'A', shiftKey: true });
+        paste('hi', keyboardInput());
+        expect(vi.mocked(rfb.sendKey).mock.calls.map(([keysym, , down]) => [keysym, down])).toEqual(
+          [
+            [CONTROL_L_KEYSYM, true],
+            [0x56, true],
+            [0x56, false],
+            [CONTROL_L_KEYSYM, false],
+          ]
+        );
+      });
+
+      it('releases a Caps Lock held on the canvas off Apple, where noVNC holds it', () => {
+        renderWithNoVncKeyboard();
+        key('keydown', screenElements().canvas, { code: 'CapsLock', key: 'CapsLock' });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([[0xffe5, 'CapsLock', true]]);
+        act(() => handle.current!.openKeyboard());
+        key('keyup', keyboardInput(), { code: 'CapsLock', key: 'CapsLock' });
+        expect(vi.mocked(rfb.sendKey).mock.calls).toEqual([
+          [0xffe5, 'CapsLock', true],
+          [0xffe5, 'CapsLock', false],
+        ]);
+      });
+
       it('does not pass on Caps Lock, which noVNC toggles on its keyup on Apple', () => {
         const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('iPhone');
         try {
