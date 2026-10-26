@@ -8,6 +8,7 @@ import en from '../../locales/en.json';
 const nativeState = vi.hoisted(() => ({
   native: false,
   failed: false,
+  cloudflareAccess: false,
   toggle: vi.fn<(enabled: boolean) => Promise<void>>(),
 }));
 
@@ -26,7 +27,11 @@ vi.mock('../../features/settings/styles.css', () => ({
 }));
 
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({}),
+  useMatrixClient: () => ({ getHomeserverUrl: () => 'https://matrix.example' }),
+}));
+
+vi.mock('./cloudflareAccess', () => ({
+  hasCloudflareAccess: () => nativeState.cloudflareAccess,
 }));
 
 vi.mock('../../hooks/useClientConfig', () => ({
@@ -66,6 +71,23 @@ vi.mock('./iosPush', () => ({
 }));
 
 describe('IOSPushNotification', () => {
+  it('does not offer push for a server behind Cloudflare Access', async () => {
+    nativeState.native = true;
+    nativeState.cloudflareAccess = true;
+    try {
+      const { IOSPushNotification } = await import('./IOSPushNotification');
+
+      const renderer = create(React.createElement(IOSPushNotification));
+
+      expect(renderer.toJSON()).toBeNull();
+
+      renderer.unmount();
+    } finally {
+      nativeState.native = false;
+      nativeState.cloudflareAccess = false;
+    }
+  });
+
   it('does not render outside native iOS', async () => {
     const { IOSPushNotification } = await import('./IOSPushNotification');
 

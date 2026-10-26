@@ -9,6 +9,9 @@ import {
   setIOSPushEnabled,
   upsertIOSPushPusher,
 } from './iosPush';
+import { hasCloudflareAccess } from './cloudflareAccess';
+
+vi.mock('./cloudflareAccess', () => ({ hasCloudflareAccess: vi.fn(() => false) }));
 
 describe('resolveIOSPushConfig', () => {
   const originalWindow = globalThis.window;
@@ -203,6 +206,7 @@ describe('resolveIOSPushConfig', () => {
 
     const mx = {
       setPusher: async () => undefined,
+      getHomeserverUrl: () => 'https://matrix.example',
     };
     const pushConfig = {
       appId: 'com.mindroom-ios',
@@ -388,5 +392,30 @@ describe('buildIOSPushPusherRequest', () => {
         },
       },
     });
+  });
+});
+
+describe('upsertIOSPushPusher', () => {
+  it('never registers the public push gateway for a server behind Cloudflare Access', async () => {
+    vi.mocked(hasCloudflareAccess).mockImplementation((url) => url === 'https://private.example');
+    const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://private.example' };
+
+    await upsertIOSPushPusher(
+      mx,
+      {
+        appId: 'chat.example',
+        gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        appDisplayName: 'Chat',
+        deviceDisplayName: 'iPhone',
+        profileTag: 'profile-1',
+        append: true,
+        format: 'full',
+        lang: 'en',
+      },
+      'apns-token'
+    );
+
+    expect(mx.setPusher).not.toHaveBeenCalled();
+    expect(hasCloudflareAccess).toHaveBeenCalledWith('https://private.example');
   });
 });

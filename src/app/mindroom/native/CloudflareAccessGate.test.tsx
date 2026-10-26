@@ -110,6 +110,47 @@ describe('CloudflareAccessLoginGate', () => {
     expect(text()).toBe('login form');
   });
 
+  it('asks again when the token expires while the app is open', async () => {
+    vi.useFakeTimers();
+    advertise();
+    const shortToken = [
+      base64Url('{}'),
+      base64Url(JSON.stringify({ exp: Date.now() / 1000 + 120 })),
+      'sig',
+    ].join('.');
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${shortToken}`
+    );
+    const text = await render();
+    await clickContinue();
+    expect(text()).toBe('login form');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+
+    expect(text()).toContain("hs.example requires your organization's sign-in.");
+    vi.useRealTimers();
+  });
+
+  it('checks the token again when the app returns to the foreground', async () => {
+    advertise();
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${token}`
+    );
+    const text = await render();
+    await clickContinue();
+    // A suspended app runs no timers, so only the clock moves.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 3600_000);
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(text()).toContain("hs.example requires your organization's sign-in.");
+    vi.mocked(Date.now).mockRestore();
+  });
+
   it('says so when the organization sign-in does not finish', async () => {
     advertise();
     vi.mocked(authenticateInNativeBrowser).mockRejectedValue(new Error('Authentication cancelled'));

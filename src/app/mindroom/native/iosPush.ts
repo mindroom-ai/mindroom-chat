@@ -3,6 +3,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import type { IPusherRequest, MatrixClient } from 'matrix-js-sdk';
 import { ClientConfig } from '../../hooks/useClientConfig';
 import { getActiveSession, getSessionScopedStorageKey } from '../../state/sessions';
+import { hasCloudflareAccess } from './cloudflareAccess';
 
 type IOSPushDefaultPayload = {
   aps: {
@@ -19,7 +20,7 @@ type MatrixPusherRequest = Omit<IPusherRequest, 'data'> & {
     default_payload: IOSPushDefaultPayload;
   };
 };
-type MatrixPusherClient = Pick<MatrixClient, 'setPusher'>;
+type MatrixPusherClient = Pick<MatrixClient, 'setPusher' | 'getHomeserverUrl'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
 
@@ -316,6 +317,9 @@ export const upsertIOSPushPusher = async (
   token: string,
   sessionId?: string
 ) => {
+  // Notifications through the public gateway would carry a private server's messages out.
+  if (hasCloudflareAccess(mx.getHomeserverUrl())) return;
+
   const normalizedToken = token.trim();
   if (normalizedToken.length === 0) {
     throw new Error('APNs registration returned an empty push token.');
