@@ -564,6 +564,9 @@ export function ComputerPanel({
 
   const statusText = phaseLabel(phase, status, connected);
   const connectingScreen = !stream && (phase === 'connecting' || phase === 'reconnecting');
+  // Only a class changes, so the screen is never remounted when the layout switches.
+  const panelClassName =
+    stream || connectingScreen ? `${css.Panel} ${css.PanelWithScreen}` : css.Panel;
   const canControl = phase === 'ready' && connected && status?.state === 'ready';
   const showTouchpadHint =
     canControl &&
@@ -571,7 +574,7 @@ export function ComputerPanel({
     (window.matchMedia?.('(pointer: coarse)').matches ?? false);
 
   return (
-    <aside className={css.Panel} aria-label="Computer panel">
+    <aside className={panelClassName} aria-label="Computer panel">
       <div className={css.Layout}>
         <div className={css.Header}>
           <Box alignItems="Center" gap="200">

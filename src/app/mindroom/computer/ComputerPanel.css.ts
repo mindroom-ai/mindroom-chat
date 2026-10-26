@@ -3,6 +3,7 @@ import { color, config, toRem } from 'folds';
 import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../sidebar/SidePanel.css';
 
 // The panel's own size picks the layout, so it follows the window, Expand and the resize handle.
+// Only `PanelWithScreen` names the container, so without a screen every rule below is off.
 const panel = createContainer('computerPanel');
 
 // From about the screen's 16:10 shape, the controls below the screen cost it more height than a
@@ -13,17 +14,23 @@ const sideBySide = `${panel} (min-aspect-ratio: 3/2) or ((max-height: 28rem) and
 
 // As wide as the header needs, wider on a big panel, where the screen is limited by height.
 const sideColumnWidth = `minmax(min-content, clamp(${toRem(176)}, 22cqw, ${toRem(256)}))`;
-const sideColumnEnd = `calc(${config.space.S300} + env(safe-area-inset-right, 0px))`;
 
 // The panel sizes from its column or, on phones, the viewport, never from its content, so it can
-// be a size container without collapsing.
+// be a size container without collapsing. `#root` already pads the top, left and right safe areas
+// around the panel in normal flow. The full-screen panel outside that padding is for viewports up
+// to 750 px wide, and no iPhone that narrow in landscape has a notch.
 export const Panel = style([
   SidePanelPanel,
   {
-    containerName: panel,
     containerType: 'size',
   },
 ]);
+
+// While the screen or its connecting spinner shows. With nothing to show beside the controls,
+// they stack across the panel instead of leaving most of it empty.
+export const PanelWithScreen = style({
+  containerName: panel,
+});
 
 export const Layout = style({
   display: 'flex',
@@ -44,7 +51,7 @@ export const Header = style([
   SidePanelHeader,
   {
     '@container': {
-      [sideBySide]: { gridArea: 'header', paddingRight: sideColumnEnd },
+      [sideBySide]: { gridArea: 'header' },
     },
   },
 ]);
@@ -66,18 +73,19 @@ export const AgentField = style({
   '@container': {
     [sideBySide]: {
       gridArea: 'agent',
-      padding: `${config.space.S300} ${sideColumnEnd} 0 ${config.space.S300}`,
+      padding: `${config.space.S300} ${config.space.S300} 0`,
     },
   },
 });
 
-// The screen, or the spinner while it connects: the full height, clear of the home indicator.
+// The screen, or the spinner while it connects: the full height. `#root` pads no bottom inset, so
+// the screen keeps clear of the home indicator and its swipe, which would cover the touchpad.
 export const ScreenArea = style({
   '@container': {
     [sideBySide]: {
       gridArea: 'screen',
       margin: [
-        `max(${config.space.S300}, env(safe-area-inset-top, 0px))`,
+        config.space.S300,
         '0',
         `max(${config.space.S300}, env(safe-area-inset-bottom, 0px))`,
         config.space.S300,
@@ -140,7 +148,7 @@ export const Details = style({
       minHeight: 0,
       overflowWrap: 'anywhere',
       overflowY: 'auto',
-      padding: `${config.space.S300} ${sideColumnEnd} ${config.space.S300} ${config.space.S300}`,
+      padding: config.space.S300,
     },
   },
 });

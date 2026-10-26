@@ -54,9 +54,11 @@ vi.mock('./ComputerPanel.css.ts', () => ({
   Header: 'Header',
   Layout: 'Layout',
   Panel: 'Panel',
+  PanelWithScreen: 'PanelWithScreen',
   Screen: 'Screen',
   ScreenArea: 'ScreenArea',
-  ScreenFrame: 'ScreenFrame',
+  // Composed with ScreenArea, as in the stylesheet.
+  ScreenFrame: 'ScreenArea ScreenFrame',
   Status: 'Status',
 }));
 
@@ -330,8 +332,9 @@ describe('ComputerPanel', () => {
   });
 
   // A container query on the panel moves these into a grid: the screen beside a column of the
-  // rest. jsdom cannot evaluate it, so this pins the structure it places.
-  it('groups the panel into header, agent, screen and details, in reading order', async () => {
+  // rest. jsdom cannot evaluate it, so this pins what it relies on: each region is a child of the
+  // body, which joins the layout's grid, and the reading order stays header, agent, screen, details.
+  it('keeps each region a grid item of the layout, in reading order', async () => {
     const agents = [
       { userId: '@mindroom_first:example.org', name: 'First' },
       { userId: '@mindroom_second:example.org', name: 'Second' },
@@ -344,19 +347,20 @@ describe('ComputerPanel', () => {
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
 
     const panel = container.querySelector('aside[aria-label="Computer panel"]')!;
-    expect(panel.className).toBe('Panel');
-    expect(Array.from(panel.children).map((child) => child.className)).toEqual(['Layout']);
-    const layout = panel.children[0];
-    expect(Array.from(layout.children).map((child) => child.className)).toEqual(['Header', 'Body']);
-    const body = layout.children[1];
-    expect(Array.from(body.children).map((child) => child.className)).toEqual([
-      'AgentField',
-      'ScreenFrame',
-      'Details',
-    ]);
-    const details = body.children[2];
-    expect(details.firstElementChild!.getAttribute('role')).toBe('status');
-    expect(details.lastElementChild!.className).toBe('Actions');
+    const layout = panel.querySelector('.Layout')!;
+    const header = layout.firstElementChild!;
+    expect(header.contains(findButton(container, 'Close computer'))).toBe(true);
+    const body = header.nextElementSibling!;
+    expect(body.classList.contains('Body')).toBe(true);
+    const regionOf = (element: Element, region: string) => {
+      const found = element.closest(`.${region}`);
+      expect(found?.parentElement).toBe(body);
+      return found;
+    };
+    regionOf(container.querySelector('select')!, 'AgentField');
+    regionOf(container.querySelector('[data-testid="computer-screen"]')!, 'ScreenArea');
+    const details = regionOf(container.querySelector('[role="status"]')!, 'Details');
+    expect(details!.contains(findButton(container, 'Take control'))).toBe(true);
 
     const readingOrder = Array.from(
       panel.querySelectorAll('button, select, [data-testid="computer-screen"], [role="status"]')
@@ -383,14 +387,44 @@ describe('ComputerPanel', () => {
     await waitFor(() => expect(container.textContent).toContain('Connecting to computer…'));
 
     const body = container.querySelector('.Body')!;
-    expect(Array.from(body.children).map((child) => child.className)).toEqual([
-      'ScreenArea',
-      'Details',
-    ]);
-    expect(body.children[0].textContent).toBe('Connecting…');
-    expect(body.children[1].firstElementChild!.textContent).toBe(
-      'Starting the computer can take a minute.'
+    const spinner = Array.from(body.querySelectorAll('.ScreenArea')).find(
+      (area) => area.textContent === 'Connecting…'
     );
+    expect(spinner?.parentElement).toBe(body);
+    const notice = Array.from(body.querySelectorAll('span')).find(
+      (text) => text.textContent === 'Starting the computer can take a minute.'
+    );
+    expect(notice?.closest('.Details')?.parentElement).toBe(body);
+  });
+
+  // Without the container name the side layout is off, so the controls span the panel.
+  it('names the panel a layout container only while a screen or its spinner shows', async () => {
+    const panelHasScreen = () =>
+      container
+        .querySelector('aside[aria-label="Computer panel"]')!
+        .classList.contains('PanelWithScreen');
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    renderPanel({ agents });
+    await waitFor(() => expect(container.textContent).toContain('Choose an agent to watch'));
+    expect(panelHasScreen()).toBe(false);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderPanel({ request: vi.fn(() => new Promise<Response>(() => {})) });
+    await waitFor(() => expect(container.textContent).toContain('Connecting to computer…'));
+    expect(panelHasScreen()).toBe(true);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderPanel();
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(panelHasScreen()).toBe(true);
+    await click(findButton(container, 'Stop'));
+    await waitFor(() => expect(container.textContent).toContain('Computer stopped'));
+    expect(panelHasScreen()).toBe(false);
   });
 
   it('requests an OpenID token bound to the computer service origin', async () => {
