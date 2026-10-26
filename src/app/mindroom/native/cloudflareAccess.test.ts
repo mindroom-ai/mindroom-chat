@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Capacitor } from '@capacitor/core';
 import {
-  clearCloudflareAccess,
+  forgetCloudflareAccessToken,
   discoverCloudflareAccess,
   getCloudflareAccessToken,
   hasCloudflareAccess,
@@ -45,7 +45,6 @@ describe('cloudflareAccess', () => {
   });
 
   afterEach(() => {
-    clearCloudflareAccess(BASE_URL);
     localStorage.clear();
     vi.restoreAllMocks();
     vi.mocked(authenticateInNativeBrowser).mockReset();
@@ -124,10 +123,7 @@ describe('cloudflareAccess', () => {
     ['no token', 'mindroom://cloudflare-access#state=1'],
     ['a token that is not a JWT', 'mindroom://cloudflare-access#token=abc'],
     ['a token without exp', `mindroom://cloudflare-access#token=${jwt('soon')}`],
-    [
-      'a token expiring within a minute',
-      `mindroom://cloudflare-access#token=${jwt(NOW / 1000 + 30)}`,
-    ],
+    ['an expired token', `mindroom://cloudflare-access#token=${jwt(NOW / 1000)}`],
   ])('rejects a callback with %s', (_, url) => {
     expect(parseCloudflareAccessCallback(url)).toBeUndefined();
   });
@@ -157,21 +153,27 @@ describe('cloudflareAccess', () => {
     expect(hasCloudflareAccess(BASE_URL)).toBe(true);
   });
 
-  it('stops returning the token a minute before it expires', async () => {
+  it('stops returning the token once it expires', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
       `mindroom://cloudflare-access#token=${validToken}`
     );
     await signInToCloudflareAccess(BASE_URL);
 
-    expect(getCloudflareAccessToken(BASE_URL, NOW + 3540_000)).toBeUndefined();
+    expect(getCloudflareAccessToken(BASE_URL, NOW + 3599_000)).toBe(validToken);
+    expect(getCloudflareAccessToken(BASE_URL, NOW + 3600_000)).toBeUndefined();
   });
 
-  it('clears the record', async () => {
+  it('forgets the token but keeps the server marked as behind Access for its other accounts', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${validToken}`
+    );
+    await signInToCloudflareAccess(BASE_URL);
 
-    clearCloudflareAccess(BASE_URL);
+    forgetCloudflareAccessToken(BASE_URL);
 
-    expect(hasCloudflareAccess(BASE_URL)).toBe(false);
+    expect(getCloudflareAccessToken(BASE_URL)).toBeUndefined();
+    expect(hasCloudflareAccess(BASE_URL)).toBe(true);
   });
 });

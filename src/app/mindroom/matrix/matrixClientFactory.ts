@@ -43,7 +43,8 @@ const isSameOriginRequest = (input: Parameters<typeof fetch>[0]): boolean => {
   return url.origin === origin;
 };
 
-// A server behind Cloudflare Access needs its Access token on every request.
+// A server behind Cloudflare Access needs its Access token on every request. Fetch would
+// carry this header across a redirect to another origin, so such requests do not follow one.
 const withCloudflareAccessToken = (
   input: Parameters<typeof fetch>[0],
   init?: RequestInit
@@ -53,7 +54,7 @@ const withCloudflareAccessToken = (
   if (!token) return init;
   const headers = new Headers(init?.headers);
   headers.set('cf-access-token', token);
-  return { ...init, headers };
+  return { ...init, headers, redirect: 'error' };
 };
 
 export const createMatrixFetchFn =

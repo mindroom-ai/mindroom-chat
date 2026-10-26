@@ -23,7 +23,7 @@ import {
 import { clearAppOwnedCacheLocalStorage } from '../../utils/appOwnedStorage';
 import { getAppBasePath } from '../../utils/basePath';
 import { removeCachedSpecVersions } from '../../state/cachedSpecVersions';
-import { clearCloudflareAccess } from '../native/cloudflareAccess';
+import { forgetCloudflareAccessToken } from '../native/cloudflareAccess';
 import { stopMindroomSyncEngineForClient } from '../engine/mindroomSyncEngine';
 import { getCanvasStateDbName } from '../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../canvas/canvasIndexStore';
@@ -82,7 +82,7 @@ const clearSessionScopedUiState = (
 ): void => {
   const { sessionId, baseUrl, userId } = session;
   removeCachedSpecVersions(baseUrl, userId);
-  clearCloudflareAccess(baseUrl);
+  forgetCloudflareAccessToken(baseUrl);
   if (clearUserScopedState) {
     try {
       clearNavToActivePathStore(userId);

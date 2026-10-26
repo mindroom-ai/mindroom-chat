@@ -91,6 +91,18 @@ describe('createMatrixFetchFn', () => {
     expect(baseFetch.mock.calls[1][1]).toEqual({ method: 'GET' });
   });
 
+  it('refuses redirects for requests carrying the Cloudflare Access token', async () => {
+    // Fetch keeps custom headers across a cross-origin redirect.
+    mocks.getCloudflareAccessToken.mockReturnValue('access-token');
+    const baseFetch = vi.fn().mockResolvedValue({ ok: true });
+    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+
+    await fetchFn('https://hs.example/_matrix/client/v3/sync');
+
+    expect(baseFetch.mock.calls[0][1].redirect).toBe('error');
+    mocks.getCloudflareAccessToken.mockReset();
+  });
+
   it('keeps a captured Matrix delegate routed through dynamic tracing', async () => {
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
     const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);

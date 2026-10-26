@@ -13,8 +13,8 @@ const CALLBACK_SCHEME = 'mindroom';
 const CALLBACK_HOST = 'cloudflare-access';
 const STORAGE_KEY_PREFIX = 'mindroom_cloudflare_access:';
 const DISCOVERY_TIMEOUT_MS = 5_000;
-// A request still in flight when the token expires fails, so stop using it a minute early.
-const EXPIRY_MARGIN_MS = 60_000;
+// setTimeout runs at once for longer delays.
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 
 type AccessRecord = { handoffUrl: string; token?: string };
 
@@ -61,9 +61,11 @@ const tokenExpiresAt = (token: string): number | undefined => {
   }
 };
 
+// Safari keeps the same Access session until it expires, so the sign-in page hands back
+// the same token until then: treat it as valid up to its expiry.
 const isUsable = (token: string, now: number): boolean => {
   const expiresAt = tokenExpiresAt(token);
-  return expiresAt !== undefined && expiresAt - EXPIRY_MARGIN_MS > now;
+  return expiresAt !== undefined && expiresAt > now;
 };
 
 export const isCloudflareAccessSupported = (): boolean =>
@@ -138,31 +140,30 @@ export const signInToCloudflareAccess = async (baseUrl: string): Promise<void> =
   writeRecord(origin, { ...record, token });
 };
 
-export const clearCloudflareAccess = (baseUrl: string): void => {
+/** Drops the token on sign-out; other accounts on the server can still sign in again. */
+export const forgetCloudflareAccessToken = (baseUrl: string): void => {
   const origin = originOf(baseUrl);
-  if (origin && readRecord(origin)) writeRecord(origin, undefined);
+  const record = readRecord(baseUrl);
+  if (origin && record?.token) writeRecord(origin, { handoffUrl: record.handoffUrl });
 };
 
 /** True while a server behind Access has no usable token; updates when the token expires. */
 export const useCloudflareAccessSignInRequired = (baseUrl: string | undefined): boolean => {
-  const [tick, update] = useReducer((count: number) => count + 1, 0);
+  const [, update] = useReducer((count: number) => count + 1, 0);
   const token = baseUrl ? readRecord(baseUrl)?.token : undefined;
 
   useEffect(() => {
     listeners.add(update);
     // Timers stall while iOS suspends the app, so check again when it returns.
     document.addEventListener('visibilitychange', update);
-    const expiresAt = token ? tokenExpiresAt(token) : undefined;
-    const timer =
-      expiresAt === undefined
-        ? undefined
-        : setTimeout(update, Math.max(0, expiresAt - EXPIRY_MARGIN_MS - Date.now()));
+    const delay = token ? (tokenExpiresAt(token) ?? 0) - Date.now() : 0;
+    const timer = delay > 0 ? setTimeout(update, Math.min(delay, MAX_TIMER_DELAY_MS)) : undefined;
     return () => {
       listeners.delete(update);
       document.removeEventListener('visibilitychange', update);
       clearTimeout(timer);
     };
-  }, [token, tick]);
+  }, [token]);
 
   return Boolean(baseUrl && hasCloudflareAccess(baseUrl) && !getCloudflareAccessToken(baseUrl));
 };

@@ -4,7 +4,6 @@ import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-tes
 import { Capacitor } from '@capacitor/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CloudflareAccessLoginGate } from './CloudflareAccessGate';
-import { clearCloudflareAccess } from './cloudflareAccess';
 import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
 
 vi.mock('@capacitor/core', () => ({
@@ -45,7 +44,7 @@ describe('CloudflareAccessLoginGate', () => {
   afterEach(() => {
     renderer?.unmount();
     renderer = undefined;
-    clearCloudflareAccess(BASE_URL);
+    localStorage.clear();
     vi.unstubAllGlobals();
     fetchMock.mockReset();
     vi.mocked(authenticateInNativeBrowser).mockReset();
@@ -110,7 +109,7 @@ describe('CloudflareAccessLoginGate', () => {
     expect(text()).toBe('login form');
   });
 
-  it('asks again when the token expires while the app is open', async () => {
+  it('asks again when the token expires while the app is open, not before', async () => {
     vi.useFakeTimers();
     advertise();
     const shortToken = [
@@ -125,11 +124,20 @@ describe('CloudflareAccessLoginGate', () => {
     await clickContinue();
     expect(text()).toBe('login form');
 
+    // Safari still holds the same Access session until it expires, so asking earlier
+    // would hand the same token back.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(61_000);
+      await vi.advanceTimersByTimeAsync(119_000);
+    });
+    expect(text()).toBe('login form');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
     });
 
     expect(text()).toContain("hs.example requires your organization's sign-in.");
+    // An expired token has no deadline left to wait for.
+    expect(vi.getTimerCount()).toBe(0);
     vi.useRealTimers();
   });
 
