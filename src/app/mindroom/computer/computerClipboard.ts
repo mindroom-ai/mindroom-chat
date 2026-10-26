@@ -187,7 +187,9 @@ export function attachComputerClipboard(
     if (!apple && reachesNoVnc && event.code === 'ControlLeft') leftCtrlHeld = true;
     if (event.isComposing) return;
 
-    if (apple && event.key === 'Meta') {
+    // Only noVNC's canvas sends the keys typed with it: on the screen element, or in the
+    // software keyboard's textarea, a mapped Ctrl or a copy would reach the computer alone.
+    if (apple && reachesNoVnc && event.key === 'Meta') {
       // Cmd acts as Ctrl on the remote; noVNC would send it as Alt.
       event.preventDefault();
       event.stopPropagation();
@@ -234,7 +236,7 @@ export function attachComputerClipboard(
       }
       return;
     }
-    if ((key === 'c' || key === 'x') && clipboard) startCopy(clipboard);
+    if ((key === 'c' || key === 'x') && clipboard && reachesNoVnc) startCopy(clipboard);
   };
 
   const handleKeyUp = (event: KeyboardEvent) => {

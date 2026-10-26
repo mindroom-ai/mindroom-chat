@@ -10,6 +10,8 @@ declare module '@novnc/novnc' {
 
     viewOnly: boolean;
 
+    focusOnClick: boolean;
+
     disconnect(): void;
 
     focus(options?: FocusOptions): void;

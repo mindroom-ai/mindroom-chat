@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '../../src/index.css';
 import { lightTheme } from '../../src/colors.css';
-import { ComputerScreen } from '../../src/app/mindroom/computer/ComputerScreen';
+import {
+  ComputerScreen,
+  type ComputerScreenHandle,
+} from '../../src/app/mindroom/computer/ComputerScreen';
 
 const params = new URLSearchParams(window.location.search);
 const initialMode = params.get('mode') === 'control' ? 'control' : 'view';
@@ -28,6 +31,8 @@ if (mockPrototype !== EventTarget.prototype) {
 function Fixture() {
   const [status, setStatus] = useState('Connecting');
   const [mode, setMode] = useState<'view' | 'control'>(initialMode);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const screenRef = useRef<ComputerScreenHandle>(null);
   // Lets a test change the mode on the open stream, as Take control and Resume agent do.
   useEffect(() => {
     Object.assign(window, { setComputerMode: setMode });
@@ -35,9 +40,22 @@ function Fixture() {
   return (
     <main style={{ display: 'grid', gap: 12, padding: 12 }}>
       <output>{status}</output>
+      {/* Like the panel's Keyboard button, which needs a session to show. */}
+      <button
+        type="button"
+        aria-pressed={keyboardOpen}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() =>
+          keyboardOpen ? screenRef.current?.closeKeyboard() : screenRef.current?.openKeyboard()
+        }
+      >
+        Keyboard
+      </button>
       <div style={{ width: 'min(400px, 100%)', height: 250, background: '#111' }}>
         <ComputerScreen
+          ref={screenRef}
           mode={mode}
+          onKeyboardChange={setKeyboardOpen}
           onConnected={() => setStatus('Connected')}
           onDisconnected={(message) => setStatus(`Disconnected ${message ?? ''}`.trim())}
           protocols={['binary', 'mindroom-ticket.test']}

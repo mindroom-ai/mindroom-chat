@@ -118,6 +118,7 @@ export const Screen = style({
   justifyContent: 'center',
   minHeight: 0,
   outline: 'none',
+  position: 'relative',
   width: '100%',
   selectors: {
     '&:focus-visible': {
@@ -129,6 +130,23 @@ export const Screen = style({
 // While in control, touches drive the touchpad, so the browser neither scrolls nor zooms.
 export const ScreenInControl = style({
   touchAction: 'none',
+});
+
+// The software keyboard's textarea: focusable, so the keyboard opens, but neither seen nor in
+// the way of a touch. Inside the screen, where focusing it scrolls nothing away. At 16px, iOS
+// does not zoom in when it takes focus.
+export const KeyboardInput = style({
+  caretColor: 'transparent',
+  fontSize: '16px',
+  height: '1px',
+  left: 0,
+  margin: 0,
+  opacity: 0,
+  padding: 0,
+  pointerEvents: 'none',
+  position: 'absolute',
+  top: 0,
+  width: '1px',
 });
 
 globalStyle(`${Screen} canvas`, {
