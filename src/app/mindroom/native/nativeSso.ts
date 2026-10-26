@@ -193,15 +193,19 @@ const routeLoginTokenRedirect = (redirectUrl: string, loginToken: string): void 
   window.location.replace(targetUrl);
 };
 
+/** Opens `url` in an iOS authentication session and returns the callback URL it ends at. */
+export const authenticateInNativeBrowser = async (
+  url: string,
+  callbackScheme: string
+): Promise<string | undefined> =>
+  (await getMindRoomAuthPlugin().authenticate({ callbackScheme, url })).url;
+
 export const openNativeSsoBrowser = async (url: string): Promise<void> => {
   if (isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth')) {
-    const result = await getMindRoomAuthPlugin().authenticate({
-      callbackScheme: NATIVE_SSO_SCHEME,
-      url,
-    });
+    const callbackUrl = await authenticateInNativeBrowser(url, NATIVE_SSO_SCHEME);
 
-    if (result.url) {
-      routeNativeSsoCallback(result.url);
+    if (callbackUrl) {
+      routeNativeSsoCallback(callbackUrl);
     }
 
     return;
