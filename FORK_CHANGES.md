@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Put the computer's controls beside the screen in landscape (2026-10-25)
+
+- Why: on a phone in landscape the Computer panel stacked its header, Agent select, status and actions above and below the screen. On an iPhone with the panel expanded, the 1280x800 screen was 384x240 CSS px, and the screen frame's 15rem minimum pushed the actions, and in control the header too, out of the panel. The owner: "It should essentially be optimizing the screen real estate."
+- Change: CSS in `ComputerPanel.css.ts`, plus two layout-only wrappers (`Layout`, `Details`) and grid-area classes in `ComputerPanel.tsx`. The start notice moves into `Details` with the same condition and reading order.
+  - The `aside` is a size container (`container-type: size`); its size comes from its column, or the viewport on phones, never from its content. A new `Layout` div inside it holds the header and the body. Stacked, it is the same flex column as before.
+  - In the side layout, `Layout` becomes a grid: the screen on the left at the full height minus the body padding, and one column on the right with the header, the Agent select and a `Details` group (start notice, status, hint, notices, errors, actions). `Body` turns `display: contents` so its children join the grid. `Details` scrolls on its own, and long error text wraps there instead of widening it. The column is `minmax(min-content, clamp(11rem, 22cqw, 16rem))`: as wide as the header needs, up to 16rem on a big panel. The Agent select fills it, so a long agent name does not widen it.
+  - The side layout applies from aspect ratio 3:2, or 5:4 on a panel under 28rem tall. Measured, the controls below the screen cost it 224 px of height with the Agent select and 168 px without, and the column costs it 224 px of width. The crossover is about 1.47 to 1.56 at desktop heights, so 3:2. A landscape phone is under 28rem tall, where the stacked screen's 15rem minimum and those controls overflow the panel once the Agent select shows; 5:4 brings in an expanded panel beside the room list (521x390 and 609x430).
+  - Safe areas, side layout only: the column's right edge adds `safe-area-inset-right`; the screen keeps clear of the top and bottom insets (`max(S300, inset)`); the actions keep their bottom inset.
+  - DOM order is unchanged: header, Agent select, screen, status and actions. `aria-label="Computer panel"` and `role="status"` stay. `SidePanel.css` and `ComputerScreen` are untouched.
+- Measured (Chromium, canvas CSS px, before → after):
+  - 844x390 expanded, room list collapsed: 384x240 → 554x347.
+  - 932x430, the same: 384x240 → 642x402.
+  - 844x390 expanded beside the room list: 384x240 with the actions out of the panel → 297x186, all controls in view.
+  - 932x430, the same: 384x240 with the actions out → 385x241.
+  - 667x375, a small phone in landscape, where the panel covers the app: 384x240 with the actions out → 477x298.
+  - 2200x900 desktop, expanded: 1082x676 → 1402x876.
+  - A 917x560 side panel: 538x336 → 693x433.
+  - Unchanged: 390x844 portrait (366x229, same positions); the desktop 1600x1000 side panel (648x405); expanded (1242x776); the narrow 200 px panel (176x110); landscape side panels.
+  - Resizing, Expand and Restore, rotating and Take control opened no new stream connection.
+- Validation: `npx vitest run src/app/mindroom/computer src/app/mindroom/sidebar`, `npm run typecheck`, `npm run lint` (0 errors, the existing 18 warnings), `npm run build`, prettier on the touched files. `ComputerPanel.test.tsx` pins the structure the container query places and the reading order, and that the connecting spinner sits in the screen area with the start notice in `Details`.
+- Risks: jsdom cannot evaluate container queries; the side layout was checked in Chromium only, not WebKit, and with zero safe-area insets. With the notch on the right, the right inset widens the column by its size and narrows the screen as much. Like `SidePanel.css`, the margins and the inset padding are physical, so in a right-to-left layout the grid mirrors but they do not. With no screen to show (choosing an agent, an error), the side layout leaves the left of the panel empty. Beside the room list on an 844 px phone, the screen is smaller than before, the cost of keeping the actions in view.
+- Next: check it on an iPhone in landscape, including the notch side and the home indicator.
+
 ### Drive the computer touchpad through real noVNC (2026-10-25)
 
 - Why: the last of three touchpad changes. The touchpad layer was tested only in jsdom; this drives it with real touch input in a browser, through the real noVNC 1.7 client, and checks the PointerEvents that reach the computer.

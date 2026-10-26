@@ -11,7 +11,9 @@ import type { ComputerScreenProps } from './ComputerScreen';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('folds', () => ({
-  Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Box: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
   Button: ({
     before,
     children,
@@ -44,12 +46,16 @@ vi.mock('folds', () => ({
 
 vi.mock('./ComputerPanel.css.ts', () => ({
   Actions: 'Actions',
+  AgentField: 'AgentField',
   AgentSelect: 'AgentSelect',
   Body: 'Body',
+  Details: 'Details',
   Error: 'Error',
   Header: 'Header',
+  Layout: 'Layout',
   Panel: 'Panel',
   Screen: 'Screen',
+  ScreenArea: 'ScreenArea',
   ScreenFrame: 'ScreenFrame',
   Status: 'Status',
 }));
@@ -321,6 +327,70 @@ describe('ComputerPanel', () => {
 
     renderPanel({ onToggleExpanded: undefined });
     await waitFor(() => expect(expandButton()).toBeNull());
+  });
+
+  // A container query on the panel moves these into a grid: the screen beside a column of the
+  // rest. jsdom cannot evaluate it, so this pins the structure it places.
+  it('groups the panel into header, agent, screen and details, in reading order', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    renderPanel({
+      agents,
+      requestedAgent: { userId: agents[0].userId },
+      onToggleExpanded: vi.fn(),
+    });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+
+    const panel = container.querySelector('aside[aria-label="Computer panel"]')!;
+    expect(panel.className).toBe('Panel');
+    expect(Array.from(panel.children).map((child) => child.className)).toEqual(['Layout']);
+    const layout = panel.children[0];
+    expect(Array.from(layout.children).map((child) => child.className)).toEqual(['Header', 'Body']);
+    const body = layout.children[1];
+    expect(Array.from(body.children).map((child) => child.className)).toEqual([
+      'AgentField',
+      'ScreenFrame',
+      'Details',
+    ]);
+    const details = body.children[2];
+    expect(details.firstElementChild!.getAttribute('role')).toBe('status');
+    expect(details.lastElementChild!.className).toBe('Actions');
+
+    const readingOrder = Array.from(
+      panel.querySelectorAll('button, select, [data-testid="computer-screen"], [role="status"]')
+    ).map(
+      (element) =>
+        element.getAttribute('aria-label') ??
+        element.getAttribute('data-testid') ??
+        element.textContent?.trim()
+    );
+    expect(readingOrder).toEqual([
+      'Expand computer',
+      'Close computer',
+      'Agent',
+      'computer-screen',
+      'Watch mode',
+      'Take control',
+      'Stop',
+    ]);
+  });
+
+  it('puts the connecting spinner in the screen area and the start notice in the details', async () => {
+    // A session request that never answers keeps the panel connecting.
+    renderPanel({ request: vi.fn(() => new Promise<Response>(() => {})) });
+    await waitFor(() => expect(container.textContent).toContain('Connecting to computer…'));
+
+    const body = container.querySelector('.Body')!;
+    expect(Array.from(body.children).map((child) => child.className)).toEqual([
+      'ScreenArea',
+      'Details',
+    ]);
+    expect(body.children[0].textContent).toBe('Connecting…');
+    expect(body.children[1].firstElementChild!.textContent).toBe(
+      'Starting the computer can take a minute.'
+    );
   });
 
   it('requests an OpenID token bound to the computer service origin', async () => {
