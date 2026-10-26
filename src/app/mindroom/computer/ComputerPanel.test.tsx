@@ -501,6 +501,26 @@ describe('ComputerPanel', () => {
       expect(keyboardButton()).toBeUndefined();
     });
 
+    it('shows only once the screen is connected, as noVNC drops keys before', async () => {
+      vi.useFakeTimers();
+      renderPanel();
+      await advance();
+      await click(findButton(container, 'Take control'));
+      await advance();
+      expect(keyboardButton()).toBeDefined();
+
+      // The stream drops; the automatic reconnect opens a screen that has not connected yet.
+      screensConnect = false;
+      act(() => screenConnections[0].onDisconnected());
+      await advance(500);
+      expect(screenConnections).toHaveLength(2);
+      expect(findButton(container, 'Resume agent')).toBeInstanceOf(HTMLButtonElement);
+      expect(keyboardButton()).toBeUndefined();
+
+      act(() => screenConnections[1].onConnected());
+      expect(keyboardButton()).toBeDefined();
+    });
+
     it('opens and closes the keyboard through the screen, pressed while it is open', async () => {
       renderPanel();
       await waitFor(() => expect(container.textContent).toContain('Watch mode'));

@@ -730,7 +730,7 @@ export function ComputerPanel({
               <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
             </Button>
           )}
-          {inControl && hasCoarsePointer() && (
+          {inControl && connected && hasCoarsePointer() && (
             <Button
               {...actionButtonProps}
               aria-pressed={keyboardOpen}
