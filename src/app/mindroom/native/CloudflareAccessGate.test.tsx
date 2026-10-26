@@ -141,6 +141,34 @@ describe('CloudflareAccessLoginGate', () => {
     vi.useRealTimers();
   });
 
+  it('asks again when a session longer than the longest timer expires', async () => {
+    vi.useFakeTimers();
+    advertise();
+    const day = 24 * 3600_000;
+    const monthToken = [
+      base64Url('{}'),
+      base64Url(JSON.stringify({ exp: (Date.now() + 30 * day) / 1000 })),
+      'sig',
+    ].join('.');
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${monthToken}`
+    );
+    const text = await render();
+    await clickContinue();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29 * day);
+    });
+    expect(text()).toBe('login form');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(day);
+    });
+
+    expect(text()).toContain("hs.example requires your organization's sign-in.");
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
   it('checks the token again when the app returns to the foreground', async () => {
     advertise();
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(

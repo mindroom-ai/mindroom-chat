@@ -13,7 +13,7 @@ const CALLBACK_SCHEME = 'mindroom';
 const CALLBACK_HOST = 'cloudflare-access';
 const STORAGE_KEY_PREFIX = 'mindroom_cloudflare_access:';
 const DISCOVERY_TIMEOUT_MS = 5_000;
-// setTimeout runs at once for longer delays.
+// setTimeout runs at once for longer delays, so a longer session waits in steps.
 const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 
 type AccessRecord = { handoffUrl: string; token?: string };
@@ -156,8 +156,16 @@ export const useCloudflareAccessSignInRequired = (baseUrl: string | undefined): 
     listeners.add(update);
     // Timers stall while iOS suspends the app, so check again when it returns.
     document.addEventListener('visibilitychange', update);
-    const delay = token ? (tokenExpiresAt(token) ?? 0) - Date.now() : 0;
-    const timer = delay > 0 ? setTimeout(update, Math.min(delay, MAX_TIMER_DELAY_MS)) : undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const waitForExpiry = () => {
+      const delay = token ? (tokenExpiresAt(token) ?? 0) - Date.now() : 0;
+      if (delay <= 0) return;
+      timer = setTimeout(() => {
+        update();
+        waitForExpiry();
+      }, Math.min(delay, MAX_TIMER_DELAY_MS));
+    };
+    waitForExpiry();
     return () => {
       listeners.delete(update);
       document.removeEventListener('visibilitychange', update);
