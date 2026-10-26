@@ -5,7 +5,7 @@
 ### Add MindRoom's new `!` commands to autocomplete (2026-10-26)
 
 - Why: MindRoom added `!jobs`, `!cancel_job`, `!mode` and `!auto_approve` (`src/mindroom/commands/parsing.py` on `origin/main` at `10dc70ba45`), and the composer's `!` menu did not offer them.
-- Change: `mindroomCommands.ts` lists them in the order `!help` does (the `CommandType` order): `jobs` and `cancel_job` after `edit_schedule`, `mode` after `desktop`, `auto_approve` after `thread_mode`. The syntax lines are MindRoom's `_COMMAND_DOCS`, except `!cancel_job <id|all>`, which the parser accepts as written. `MindroomCommandAutocomplete.tsx` maps each to its `mindroomUi.commands.descriptions` string, now in every locale (`bn` and `hi` keep their alphabetical key order). The existing commands' syntax and wording are unchanged.
+- Change: `mindroomCommands.ts` lists them in the order `!help` does (the `CommandType` order): `jobs` and `cancel_job` after `edit_schedule`, `mode` after `desktop`, `auto_approve` after `thread_mode`. The syntax lines are MindRoom's `_COMMAND_DOCS`. `MindroomCommandAutocomplete.tsx` maps each to its `mindroomUi.commands.descriptions` string, now in every locale (`bn` and `hi` keep their alphabetical key order). The existing commands' syntax and wording are unchanged.
 - Validation: `mindroomCommands.test.ts` lists the new names in order and now checks that every command's description is the English locale string, so a command without a locale key fails (it did with `jobs` removed from `en.json`). Command, room-input and i18n tests pass, plus typecheck, lint, build and prettier.
 - Next: none.
 

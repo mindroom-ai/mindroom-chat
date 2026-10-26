@@ -2333,7 +2333,7 @@
         "cancel_schedule": "Batalkan satu jadwal berdasarkan ID atau semua jadwal.",
         "edit_schedule": "Perbarui tugas terjadwal yang ada.",
         "jobs": "Tampilkan daftar tugas latar belakang yang berjalan di sini.",
-        "cancel_job": "Batalkan satu tugas latar belakang berdasarkan id atau semuanya di sini.",
+        "cancel_job": "Batalkan satu tugas latar belakang berdasarkan ID atau semuanya di sini.",
         "config": "Kelola konfigurasi MindRoom (khusus admin).",
         "desktop": "Kelola target Desktop Anda.",
         "mode": "Alihkan satu agen antara alat standar dan antarmuka khusus Bash.",

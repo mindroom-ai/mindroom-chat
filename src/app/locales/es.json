@@ -2361,7 +2361,7 @@
         "cancel_schedule": "Cancelar una programación por ID o todas las programaciones.",
         "edit_schedule": "Actualizar una tarea programada existente.",
         "jobs": "Listar las tareas en segundo plano que se ejecutan aquí.",
-        "cancel_job": "Cancelar una tarea en segundo plano por id o todas las de aquí.",
+        "cancel_job": "Cancelar una tarea en segundo plano por ID o todas las de aquí.",
         "config": "Gestionar la configuración de MindRoom (solo administradores).",
         "desktop": "Gestionar tu destino de escritorio.",
         "mode": "Cambiar un agente entre las herramientas estándar y una interfaz solo con Bash.",

@@ -2336,7 +2336,7 @@
         "cancel_job": "Bir arka plan işini kimliğe göre veya buradakilerin tümünü iptal edin.",
         "config": "MindRoom yapılandırmasını yönetin (yalnızca yöneticiler).",
         "desktop": "Masaüstü hedefinizi yönetin.",
-        "mode": "Bir ajanı standart araçlar ile yalnızca Bash arayüzü arasında değiştirin.",
+        "mode": "Bir ajanın arayüzünü standart araçlar ile yalnızca Bash arasında değiştirin.",
         "model": "Geçerli konuda kullanılan modeli gösterin veya değiştirin.",
         "room_model": "Odanın varsayılan modelini gösterin veya değiştirin (ayarlama/sıfırlama için oda yöneticisi gerekir).",
         "thread_mode": "Geçerli odada kullanılan konu modunu gösterin veya değiştirin (yalnızca oda yöneticileri).",

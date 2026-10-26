@@ -2336,7 +2336,7 @@
         "cancel_job": "Brich eine Hintergrundaufgabe per ID oder alle hier ab.",
         "config": "Verwalte die MindRoom-Konfiguration (nur Administratoren).",
         "desktop": "Verwalte dein Desktop-Ziel.",
-        "mode": "Wechsle einen Agenten zwischen Standardwerkzeugen und einer reinen Bash-Oberfläche.",
+        "mode": "Schalte einen Agenten zwischen Standardwerkzeugen und einer reinen Bash-Oberfläche um.",
         "model": "Zeige oder wechsle das im aktuellen Thread verwendete Modell.",
         "room_model": "Zeige oder wechsle das Standardmodell des Raums (Festlegen/Zurücksetzen erfordert Raumadministratorrechte).",
         "thread_mode": "Zeige oder wechsle den im aktuellen Raum verwendeten Thread-Modus (nur Raumadministratoren).",

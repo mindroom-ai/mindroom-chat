@@ -2361,7 +2361,7 @@
         "cancel_schedule": "Annuler une planification par identifiant ou toutes les planifications.",
         "edit_schedule": "Mettre à jour une tâche planifiée existante.",
         "jobs": "Lister les tâches en arrière-plan en cours ici.",
-        "cancel_job": "Annuler une tâche en arrière-plan par identifiant ou toutes celles d’ici.",
+        "cancel_job": "Annuler une tâche en arrière-plan par identifiant ou toutes celles en cours ici.",
         "config": "Gérer la configuration de MindRoom (administrateurs uniquement).",
         "desktop": "Gérer votre destination Desktop.",
         "mode": "Basculer un agent entre les outils standard et une interface limitée à Bash.",
