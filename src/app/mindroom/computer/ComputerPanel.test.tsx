@@ -1,17 +1,24 @@
 // @vitest-environment jsdom
 
-import React, { useEffect } from 'react';
+import React, { forwardRef, lazy, useEffect, useImperativeHandle } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComputerPanel, type ComputerPanelProps } from './ComputerPanel';
-import type { ComputerScreenProps } from './ComputerScreen';
+import {
+  ComputerScreen,
+  type ComputerScreenHandle,
+  type ComputerScreenProps,
+  type RfbClient,
+} from './ComputerScreen';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('folds', () => ({
-  Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Box: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
   Button: ({
     before,
     children,
@@ -44,13 +51,21 @@ vi.mock('folds', () => ({
 
 vi.mock('./ComputerPanel.css.ts', () => ({
   Actions: 'Actions',
+  AgentField: 'AgentField',
   AgentSelect: 'AgentSelect',
   Body: 'Body',
+  Details: 'Details',
   Error: 'Error',
   Header: 'Header',
+  KeyboardInput: 'KeyboardInput',
+  Layout: 'Layout',
   Panel: 'Panel',
+  PanelWithScreen: 'PanelWithScreen',
   Screen: 'Screen',
-  ScreenFrame: 'ScreenFrame',
+  ScreenArea: 'ScreenArea',
+  // Composed with ScreenArea, as in the stylesheet.
+  ScreenFrame: 'ScreenArea ScreenFrame',
+  ScreenInControl: 'ScreenInControl',
   Status: 'Status',
 }));
 
@@ -117,10 +132,12 @@ const createGateway = () => {
 const screenConnections: ComputerScreenProps[] = [];
 const screenDisposals = vi.fn();
 let screensConnect = true;
-const TestScreen = (screenProps: ComputerScreenProps) => {
+const screenKeyboard = { openKeyboard: vi.fn(), closeKeyboard: vi.fn() };
+const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screenProps, ref) => {
   const screenPropsRef = React.useRef(screenProps);
   screenPropsRef.current = screenProps;
   const { mode, url } = screenProps;
+  useImperativeHandle(ref, () => screenKeyboard, []);
   useEffect(() => {
     const connection = screenPropsRef.current;
     screenConnections.push({
@@ -131,7 +148,7 @@ const TestScreen = (screenProps: ComputerScreenProps) => {
     return () => screenDisposals();
   }, [url]);
   return <div data-testid="computer-screen" data-mode={mode} />;
-};
+});
 
 const makeMatrixClient = (userId = '@alice:example.org') =>
   ({
@@ -193,6 +210,8 @@ describe('ComputerPanel', () => {
   beforeEach(() => {
     screenConnections.length = 0;
     screenDisposals.mockReset();
+    screenKeyboard.openKeyboard.mockReset();
+    screenKeyboard.closeKeyboard.mockReset();
     screensConnect = true;
     container = document.createElement('div');
     document.body.append(container);
@@ -323,6 +342,102 @@ describe('ComputerPanel', () => {
     await waitFor(() => expect(expandButton()).toBeNull());
   });
 
+  // A container query on the panel moves these into a grid: the screen beside a column of the
+  // rest. jsdom cannot evaluate it, so this pins what it relies on: each region is a child of the
+  // body, which joins the layout's grid, and the reading order stays header, agent, screen, details.
+  it('keeps each region a grid item of the layout, in reading order', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    renderPanel({
+      agents,
+      requestedAgent: { userId: agents[0].userId },
+      onToggleExpanded: vi.fn(),
+    });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+
+    const panel = container.querySelector('aside[aria-label="Computer panel"]')!;
+    const layout = panel.querySelector('.Layout')!;
+    const header = layout.firstElementChild!;
+    expect(header.contains(findButton(container, 'Close computer'))).toBe(true);
+    const body = header.nextElementSibling!;
+    expect(body.classList.contains('Body')).toBe(true);
+    const regionOf = (element: Element, region: string) => {
+      const found = element.closest(`.${region}`);
+      expect(found?.parentElement).toBe(body);
+      return found;
+    };
+    regionOf(container.querySelector('select')!, 'AgentField');
+    regionOf(container.querySelector('[data-testid="computer-screen"]')!, 'ScreenArea');
+    const details = regionOf(container.querySelector('[role="status"]')!, 'Details');
+    expect(details!.contains(findButton(container, 'Take control'))).toBe(true);
+
+    const readingOrder = Array.from(
+      panel.querySelectorAll('button, select, [data-testid="computer-screen"], [role="status"]')
+    ).map(
+      (element) =>
+        element.getAttribute('aria-label') ??
+        element.getAttribute('data-testid') ??
+        element.textContent?.trim()
+    );
+    expect(readingOrder).toEqual([
+      'Expand computer',
+      'Close computer',
+      'Agent',
+      'computer-screen',
+      'Watch mode',
+      'Take control',
+      'Stop',
+    ]);
+  });
+
+  it('puts the connecting spinner in the screen area and the start notice in the details', async () => {
+    // A session request that never answers keeps the panel connecting.
+    renderPanel({ request: vi.fn(() => new Promise<Response>(() => {})) });
+    await waitFor(() => expect(container.textContent).toContain('Connecting to computer…'));
+
+    const body = container.querySelector('.Body')!;
+    const spinner = Array.from(body.querySelectorAll('.ScreenArea')).find(
+      (area) => area.textContent === 'Connecting…'
+    );
+    expect(spinner?.parentElement).toBe(body);
+    const notice = Array.from(body.querySelectorAll('span')).find(
+      (text) => text.textContent === 'Starting the computer can take a minute.'
+    );
+    expect(notice?.closest('.Details')?.parentElement).toBe(body);
+  });
+
+  // Without the container name the side layout is off, so the controls span the panel.
+  it('names the panel a layout container only while a screen or its spinner shows', async () => {
+    const panelHasScreen = () =>
+      container
+        .querySelector('aside[aria-label="Computer panel"]')!
+        .classList.contains('PanelWithScreen');
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    renderPanel({ agents });
+    await waitFor(() => expect(container.textContent).toContain('Choose an agent to watch'));
+    expect(panelHasScreen()).toBe(false);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderPanel({ request: vi.fn(() => new Promise<Response>(() => {})) });
+    await waitFor(() => expect(container.textContent).toContain('Connecting to computer…'));
+    expect(panelHasScreen()).toBe(true);
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    renderPanel();
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    expect(panelHasScreen()).toBe(true);
+    await click(findButton(container, 'Stop'));
+    await waitFor(() => expect(container.textContent).toContain('Computer stopped'));
+    expect(panelHasScreen()).toBe(false);
+  });
+
   it('requests an OpenID token bound to the computer service origin', async () => {
     const mx = makeMatrixClient();
     renderPanel({ mx, apiUrl: 'https://computer.example.org' });
@@ -447,6 +562,198 @@ describe('ComputerPanel', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe('the Keyboard button', () => {
+    let coarse: boolean;
+    const keyboardButton = () =>
+      Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Keyboard'
+      );
+
+    beforeEach(() => {
+      coarse = true;
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn((query: string) => ({ matches: query === '(pointer: coarse)' && coarse }))
+      );
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('shows only in control on a touch screen, next to Resume agent', async () => {
+      renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      expect(keyboardButton()).toBeUndefined();
+
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(container.textContent).toContain('You have control'));
+      expect(buttonNames(container)).toEqual(
+        expect.arrayContaining(['Resume agent', 'Keyboard', 'Stop'])
+      );
+      const names = buttonNames(container);
+      expect(names.indexOf('Keyboard')).toBe(names.indexOf('Resume agent') + 1);
+      expect(keyboardButton()?.getAttribute('aria-pressed')).toBe('false');
+
+      await click(findButton(container, 'Resume agent'));
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      expect(keyboardButton()).toBeUndefined();
+
+      // A mouse or trackpad types on the canvas: no button, in control either.
+      coarse = false;
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(container.textContent).toContain('You have control'));
+      expect(keyboardButton()).toBeUndefined();
+    });
+
+    it('shows only once the screen is connected, as noVNC drops keys before', async () => {
+      vi.useFakeTimers();
+      renderPanel();
+      await advance();
+      await click(findButton(container, 'Take control'));
+      await advance();
+      expect(keyboardButton()).toBeDefined();
+
+      // The stream drops; the automatic reconnect opens a screen that has not connected yet.
+      screensConnect = false;
+      act(() => screenConnections[0].onDisconnected());
+      await advance(500);
+      expect(screenConnections).toHaveLength(2);
+      expect(findButton(container, 'Resume agent')).toBeInstanceOf(HTMLButtonElement);
+      expect(keyboardButton()).toBeUndefined();
+
+      act(() => screenConnections[1].onConnected());
+      expect(keyboardButton()).toBeDefined();
+    });
+
+    it('hides the touchpad hint while the keyboard is open', async () => {
+      const hint = 'Drag to move the pointer. Tap to click, two fingers to scroll.';
+      renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+      expect(container.textContent).toContain(hint);
+
+      act(() => screenConnections[0].onKeyboardChange!(true));
+      expect(container.textContent).not.toContain(hint);
+      expect(keyboardButton()).toBeDefined();
+
+      act(() => screenConnections[0].onKeyboardChange!(false));
+      expect(container.textContent).toContain(hint);
+    });
+
+    it('opens and closes the keyboard through the screen, pressed while it is open', async () => {
+      renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+
+      // Keeps focus where it is, so a tap does not close the keyboard before it toggles.
+      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      keyboardButton()!.dispatchEvent(press);
+      expect(press.defaultPrevented).toBe(true);
+
+      await click(keyboardButton()!);
+      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      // The screen reports the keyboard from its textarea's focus.
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
+      act(() => screenConnections[0].onKeyboardChange!(true));
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
+
+      await click(keyboardButton()!);
+      expect(screenKeyboard.closeKeyboard).toHaveBeenCalledOnce();
+      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      act(() => screenConnections[0].onKeyboardChange!(false));
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    // The real screen, on a stand-in for noVNC that connects at once.
+    const createRfb = vi.fn((target: HTMLElement): RfbClient => {
+      const canvas = document.createElement('canvas');
+      canvas.tabIndex = -1;
+      target.append(canvas);
+      const events = new EventTarget();
+      queueMicrotask(() => events.dispatchEvent(new Event('connect')));
+      return {
+        addEventListener: (name, listener) => events.addEventListener(name, listener),
+        removeEventListener: (name, listener) => events.removeEventListener(name, listener),
+        disconnect: vi.fn(),
+        focus: (options) => canvas.focus(options),
+        clipboardPasteFrom: vi.fn(),
+        sendKey: vi.fn(),
+        scaleViewport: false,
+        viewOnly: true,
+        focusOnClick: true,
+      };
+    });
+    // Loaded lazily, as the panel's default screen is, so the ref goes through React.lazy.
+    const RealScreen = lazy(async () => ({
+      default: forwardRef<ComputerScreenHandle, ComputerScreenProps>((props, ref) => (
+        <ComputerScreen {...props} ref={ref} createRfb={createRfb} />
+      )),
+    }));
+    const textarea = () =>
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Type on the computer"]');
+
+    it('focuses the textarea within the tap, and follows its focus', async () => {
+      renderPanel({ ScreenComponent: RealScreen });
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+      const canvas = container.querySelector('canvas')!;
+      expect(document.activeElement).toBe(canvas);
+
+      // iOS opens the keyboard only for a focus that runs while the tap's click is dispatched.
+      let inClick = false;
+      const clickStarts = () => {
+        inClick = true;
+      };
+      const clickEnds = () => {
+        inClick = false;
+      };
+      const focusedInClick = vi.fn(() => inClick);
+      window.addEventListener('click', clickStarts, true);
+      window.addEventListener('click', clickEnds);
+      textarea()!.addEventListener('focus', focusedInClick);
+      try {
+        await click(keyboardButton()!);
+      } finally {
+        window.removeEventListener('click', clickStarts, true);
+        window.removeEventListener('click', clickEnds);
+      }
+      expect(focusedInClick).toHaveBeenCalledOnce();
+      expect(focusedInClick).toHaveReturnedWith(true);
+      expect(document.activeElement).toBe(textarea());
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
+
+      // The keyboard's own dismiss control blurs the textarea.
+      act(() => textarea()!.blur());
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
+
+      await click(keyboardButton()!);
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
+      // A second tap closes it, back to the canvas.
+      await click(keyboardButton()!);
+      expect(document.activeElement).toBe(canvas);
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('closes the keyboard when control ends', async () => {
+      renderPanel({ ScreenComponent: RealScreen });
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+      await click(keyboardButton()!);
+      expect(document.activeElement).toBe(textarea());
+
+      await click(findButton(container, 'Resume agent'));
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      expect(document.activeElement).not.toBe(textarea());
+
+      // Back in control, the keyboard starts closed.
+      await click(findButton(container, 'Take control'));
+      await waitFor(() => expect(keyboardButton()).toBeDefined());
+      expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
+    });
   });
 
   it('does not switch to the remaining agent when the requested agent leaves', async () => {

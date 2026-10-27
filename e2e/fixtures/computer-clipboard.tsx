@@ -50,6 +50,8 @@ window.__rfb = fixture;
 class FixtureRfb extends EventTarget implements RfbClient {
   scaleViewport = false;
 
+  focusOnClick = true;
+
   private readonly canvas = document.createElement('canvas');
 
   private grabbed = false;
@@ -69,7 +71,7 @@ class FixtureRfb extends EventTarget implements RfbClient {
     target.append(screen);
 
     this.canvas.addEventListener('mousedown', (event) => {
-      this.focus({ preventScroll: true });
+      if (this.focusOnClick) this.focus({ preventScroll: true });
       event.stopPropagation();
       event.preventDefault();
     });
