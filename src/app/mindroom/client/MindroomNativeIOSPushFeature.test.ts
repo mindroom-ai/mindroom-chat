@@ -2,13 +2,23 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { registerIOSPush, setIOSPushEnabled } from '../native/iosPush';
+import { registerIOSPush, setIOSPushEnabled, upsertIOSPushPusher } from '../native/iosPush';
 import { MindroomNativeIOSPushFeature } from './MindroomClientNonUIFeatures';
 
-const access = vi.hoisted(() => ({ signInRequired: true }));
+const state = vi.hoisted(() => ({
+  signInRequired: true,
+  onRegistration: undefined as ((token: { value: string }) => void) | undefined,
+  mx: { clientRunning: true, getHomeserverUrl: () => 'https://private.example' },
+  clientConfig: {},
+}));
 
 vi.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: { addListener: vi.fn(async () => ({ remove: vi.fn(async () => undefined) })) },
+  PushNotifications: {
+    addListener: vi.fn(async (event: string, listener: (token: { value: string }) => void) => {
+      if (event === 'registration') state.onRegistration = listener;
+      return { remove: vi.fn(async () => undefined) };
+    }),
+  },
 }));
 
 vi.mock('../native/iosPush', () => ({
@@ -24,31 +34,60 @@ vi.mock('../native/iosPush', () => ({
 
 vi.mock('../native/useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
 vi.mock('../native/cloudflareAccess', () => ({
-  useCloudflareAccessSignInRequired: () => access.signInRequired,
+  useCloudflareAccessSignInRequired: () => state.signInRequired,
 }));
-vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getHomeserverUrl: () => 'https://private.example' }),
-}));
-vi.mock('../../hooks/useClientConfig', () => ({ useClientConfig: () => ({}) }));
+vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
+vi.mock('../../hooks/useClientConfig', () => ({ useClientConfig: () => state.clientConfig }));
 vi.mock('../../hooks/useSessionStore', () => ({ useActiveSession: () => ({ sessionId: 's1' }) }));
 vi.mock('../../hooks/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
+const rerender = (renderer: ReturnType<typeof create>) =>
+  act(async () => renderer.update(React.createElement(MindroomNativeIOSPushFeature)));
+
 describe('MindroomNativeIOSPushFeature', () => {
   afterEach(() => {
-    access.signInRequired = true;
+    state.signInRequired = true;
+    state.onRegistration = undefined;
+    vi.clearAllMocks();
   });
 
   it('waits for the Cloudflare Access sign-in instead of turning push off', async () => {
-    const element = React.createElement(MindroomNativeIOSPushFeature);
-    const renderer = await act(async () => create(element));
-
+    const renderer = await act(async () =>
+      create(React.createElement(MindroomNativeIOSPushFeature))
+    );
     expect(registerIOSPush).not.toHaveBeenCalled();
+
+    state.signInRequired = false;
+    await rerender(renderer);
+    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
+
+    expect(upsertIOSPushPusher).toHaveBeenCalledWith(
+      state.mx,
+      expect.anything(),
+      'apns-token',
+      's1'
+    );
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
 
-    access.signInRequired = false;
-    await act(async () => renderer.update(React.createElement(MindroomNativeIOSPushFeature)));
+  it('keeps push on when a registration fails because the Access token expired meanwhile', async () => {
+    state.signInRequired = false;
+    let rejectUpsert: (error: Error) => void = () => undefined;
+    vi.mocked(upsertIOSPushPusher).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectUpsert = reject;
+      })
+    );
+    const renderer = await act(async () =>
+      create(React.createElement(MindroomNativeIOSPushFeature))
+    );
+    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
 
-    expect(registerIOSPush).toHaveBeenCalledTimes(1);
+    state.signInRequired = true;
+    await rerender(renderer);
+    await act(async () => rejectUpsert(new TypeError('Load failed')));
+
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
     renderer.unmount();
   });

@@ -94,6 +94,10 @@ describe('SyncStatus', () => {
       const { mx, emitSync } = createClient();
       const text = render(mx);
 
+      // A server that left Access keeps syncing; the stale record then prompts nothing.
+      emitSync(SyncState.Syncing, SyncState.Prepared);
+      expect(text()).not.toContain('requires your organization');
+
       emitSync(SyncState.Error, SyncState.Syncing);
 
       expect(text()).toContain("matrix.example requires your organization's sign-in.");

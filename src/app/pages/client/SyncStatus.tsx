@@ -21,7 +21,12 @@ export function SyncStatus({ mx }: SyncStatusProps) {
   const accessSignInRequired = useCloudflareAccessSignInRequired(mx.getHomeserverUrl());
 
   // Requests to a server behind Cloudflare Access fail until the user signs in again.
-  if (accessSignInRequired) {
+  if (
+    accessSignInRequired &&
+    (stateData.current === SyncState.Reconnecting ||
+      stateData.current === SyncState.Error ||
+      unreachable)
+  ) {
     return (
       <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box
