@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Send cookies with the web app manifest request (2026-10-27)
+
+- Why: Chromium fetches `<link rel="manifest">` in CORS mode with credentials omitted unless the link sets `crossorigin="use-credentials"`, even for a same-origin manifest (MDN, Web app manifests). When Chat sits behind a reverse proxy that authenticates by cookie, the manifest request carries no session cookie, gets the sign-in redirect, and the browser reports the manifest as failing to load, so the app cannot be installed.
+- Change: `index.html` adds `crossorigin="use-credentials"` to the manifest link. Without such a proxy nothing changes: the manifest is same-origin (also under a build base path), so a credentialed request needs no CORS headers. Vite and `vite-plugin-pwa` (`manifest: false`) keep the tag as written; the built `index.html` has `<link rel="manifest" href="./manifest.json" crossorigin="use-credentials" />`, or `/chat/manifest.json` with `APP_BUILD_BASE_PATH=/chat`.
+- Tests: `src/indexHtml.test.ts` checks the manifest link asks for credentials (fails without the change).
+- Validation: `npm test` (the only failures, in `xcodeCloudPostClone.test.ts`, `useRoomInputSendSessionController.test.ts` and `RoomTimeline.cache.test.ts`, also fail without the change), typecheck, lint, prettier and build pass.
+- Next: none.
+
 ### Sign in to a homeserver behind Cloudflare Access on iOS (2026-10-25)
 
 - Why: a homeserver behind Cloudflare Access answers the iOS app with a redirect to the Access login, because the app's web view (`capacitor://localhost`) never holds the Access cookie. Login, `/sync` and every other Matrix call fail. Access accepts its app token in a `cf-access-token` header instead of the cookie.
