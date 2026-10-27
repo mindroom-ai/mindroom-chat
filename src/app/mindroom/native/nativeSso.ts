@@ -39,6 +39,7 @@ type NativeAppleLoginOptions = {
   baseUrl: string;
   providerId?: string;
   redirectUrl: string;
+  request?: typeof fetch;
 };
 
 const normalizePath = (path: string): string => path.replace(/\/{2,}/g, '/');
@@ -218,6 +219,7 @@ export const signInWithNativeApple = async ({
   baseUrl,
   providerId,
   redirectUrl,
+  request = fetch,
 }: NativeAppleLoginOptions): Promise<void> => {
   if (!isNativeIOS() || !Capacitor.isPluginAvailable('MindRoomAuth')) {
     throw new Error('Native Apple sign-in is unavailable');
@@ -229,7 +231,7 @@ export const signInWithNativeApple = async ({
     throw new Error('Native Apple sign-in did not return an identity token');
   }
 
-  const response = await fetch(
+  const response = await request(
     `${trimTrailingSlash(baseUrl)}/_matrix/client/unstable/org.mindroom.login/apple`,
     {
       body: JSON.stringify({

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo, useRef } from 'react';
-import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
+import { createMatrixClient, createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import {
   getSSOProviderButtonTitle,
@@ -60,6 +60,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
             baseUrl,
             providerId: provider.id,
             redirectUrl,
+            // Carries the Cloudflare Access token of a server behind Access.
+            request: createMatrixFetchFn(),
           });
         } else {
           await openNativeSsoBrowser(url);

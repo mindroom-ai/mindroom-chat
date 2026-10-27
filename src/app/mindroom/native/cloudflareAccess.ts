@@ -74,8 +74,8 @@ export const isCloudflareAccessSupported = (): boolean =>
 export const hasCloudflareAccess = (baseUrl: string): boolean => Boolean(readRecord(baseUrl));
 
 /**
- * Looks for the server's handoff page and records it. A response without a valid
- * same-origin HTTPS handoff URL clears the record; an unreachable advert keeps it.
+ * Looks for the server's handoff page and records it. A 404 or a response without a
+ * valid same-origin HTTPS handoff URL clears the record; a failed request keeps it.
  */
 export const discoverCloudflareAccess = async (
   baseUrl: string,
@@ -84,15 +84,24 @@ export const discoverCloudflareAccess = async (
   const origin = originOf(baseUrl);
   if (!origin || !isCloudflareAccessSupported()) return false;
 
-  let body: { handoff_url?: unknown } | undefined;
+  let text: string;
   try {
     const response = await request(`${origin}${DISCOVERY_PATH}`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
     });
-    body = response.ok ? await response.json().catch(() => undefined) : undefined;
+    // Only a 404 or a complete answer shows whether the advert exists.
+    if (!response.ok && response.status !== 404) return hasCloudflareAccess(origin);
+    text = response.ok ? await response.text() : '';
   } catch {
     return hasCloudflareAccess(origin);
+  }
+
+  let body: { handoff_url?: unknown } | undefined;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = undefined;
   }
 
   const handoffUrl = typeof body?.handoff_url === 'string' ? body.handoff_url : undefined;
@@ -138,6 +147,12 @@ export const signInToCloudflareAccess = async (baseUrl: string): Promise<void> =
   const token = callbackUrl ? parseCloudflareAccessCallback(callbackUrl) : undefined;
   if (!token) throw new Error('Cloudflare Access sign-in returned no valid token.');
   writeRecord(origin, { ...record, token });
+};
+
+/** Asks for the Access sign-in again when its token has expired; a failed sign-in is ignored. */
+export const renewExpiredCloudflareAccess = async (baseUrl: string): Promise<void> => {
+  if (!hasCloudflareAccess(baseUrl) || getCloudflareAccessToken(baseUrl)) return;
+  await signInToCloudflareAccess(baseUrl).catch(() => undefined);
 };
 
 /** Drops the token on sign-out; other accounts on the server can still sign in again. */

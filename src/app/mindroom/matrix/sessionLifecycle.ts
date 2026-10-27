@@ -23,7 +23,10 @@ import {
 import { clearAppOwnedCacheLocalStorage } from '../../utils/appOwnedStorage';
 import { getAppBasePath } from '../../utils/basePath';
 import { removeCachedSpecVersions } from '../../state/cachedSpecVersions';
-import { forgetCloudflareAccessToken } from '../native/cloudflareAccess';
+import {
+  forgetCloudflareAccessToken,
+  renewExpiredCloudflareAccess,
+} from '../native/cloudflareAccess';
 import { stopMindroomSyncEngineForClient } from '../engine/mindroomSyncEngine';
 import { getCanvasStateDbName } from '../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../canvas/canvasIndexStore';
@@ -306,6 +309,8 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
 
 export const logoutClient = async (mx: MatrixClient) => {
   const activeSession = getActiveSession();
+  // A logout that cannot pass Cloudflare Access leaves this device and its pusher.
+  await renewExpiredCloudflareAccess(mx.getHomeserverUrl());
   stopClientRuntime(mx);
   try {
     await mx.logout();

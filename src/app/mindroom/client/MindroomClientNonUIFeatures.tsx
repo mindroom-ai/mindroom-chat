@@ -29,6 +29,7 @@ import {
   upsertIOSPushPusher,
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
+import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
@@ -183,17 +184,20 @@ export function MindroomInviteNotifications() {
   return null;
 }
 
-function MindroomNativeIOSPushFeature() {
+export function MindroomNativeIOSPushFeature() {
   const mx = useMatrixClient();
   const language = useAppLanguageCode();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
+  const accessSignInRequired = useCloudflareAccessSignInRequired(mx.getHomeserverUrl());
 
   useEffect(() => {
     const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
-    if (!isNativeIOSPlatform() || !pushConfig) return undefined;
+    // Pusher requests to a server behind Cloudflare Access fail until its sign-in is
+    // renewed, and a failure would turn push off; this runs again after the sign-in.
+    if (!isNativeIOSPlatform() || !pushConfig || accessSignInRequired) return undefined;
 
     let disposed = false;
     let registrationHandle: PluginListenerHandle | undefined;
@@ -256,7 +260,7 @@ function MindroomNativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [clientConfig, language, mx, nativePushNotifications, sessionId]);
+  }, [accessSignInRequired, clientConfig, language, mx, nativePushNotifications, sessionId]);
 
   return null;
 }

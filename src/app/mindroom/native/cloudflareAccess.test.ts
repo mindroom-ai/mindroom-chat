@@ -7,6 +7,7 @@ import {
   getCloudflareAccessToken,
   hasCloudflareAccess,
   parseCloudflareAccessCallback,
+  renewExpiredCloudflareAccess,
   signInToCloudflareAccess,
 } from './cloudflareAccess';
 import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
@@ -93,6 +94,26 @@ describe('cloudflareAccess', () => {
     expect(hasCloudflareAccess(BASE_URL)).toBe(true);
   });
 
+  it.each([
+    ['a server error', () => respond('{}', 503)],
+    [
+      'a body that breaks off',
+      () =>
+        vi.fn<typeof fetch>().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.reject(new TypeError('Load failed')),
+          text: () => Promise.reject(new TypeError('Load failed')),
+        } as Response),
+    ],
+  ])('keeps an earlier record after %s', async (_, request) => {
+    await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+
+    await expect(discoverCloudflareAccess(BASE_URL, request())).resolves.toBe(true);
+
+    expect(hasCloudflareAccess(BASE_URL)).toBe(true);
+  });
+
   it('treats an unreachable advert as no Access when nothing was recorded', async () => {
     const offline = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Load failed'));
 
@@ -162,6 +183,30 @@ describe('cloudflareAccess', () => {
 
     expect(getCloudflareAccessToken(BASE_URL, NOW + 3599_000)).toBe(validToken);
     expect(getCloudflareAccessToken(BASE_URL, NOW + 3600_000)).toBeUndefined();
+  });
+
+  it('asks for the Access sign-in again only once the token has expired', async () => {
+    await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${validToken}`
+    );
+
+    await renewExpiredCloudflareAccess(BASE_URL);
+    await renewExpiredCloudflareAccess(BASE_URL);
+
+    expect(authenticateInNativeBrowser).toHaveBeenCalledTimes(1);
+    expect(getCloudflareAccessToken(BASE_URL)).toBe(validToken);
+  });
+
+  it('ignores a failed renewal and servers without Access', async () => {
+    vi.mocked(authenticateInNativeBrowser).mockRejectedValue(new Error('cancelled'));
+
+    await renewExpiredCloudflareAccess(BASE_URL);
+    expect(authenticateInNativeBrowser).not.toHaveBeenCalled();
+
+    await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+    await expect(renewExpiredCloudflareAccess(BASE_URL)).resolves.toBeUndefined();
+    expect(authenticateInNativeBrowser).toHaveBeenCalledTimes(1);
   });
 
   it('forgets the token but keeps the server marked as behind Access for its other accounts', async () => {

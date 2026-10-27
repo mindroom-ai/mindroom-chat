@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SSOAction } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
+import { createMatrixClient, createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
@@ -48,6 +48,7 @@ vi.mock('@capacitor/browser', () => ({
 
 vi.mock('../../mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
+  createMatrixFetchFn: vi.fn(),
 }));
 
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
@@ -214,13 +215,12 @@ describe('SSOLogin', () => {
       identityToken: 'apple-id-token',
       nonce: 'native-nonce',
     });
-    Object.defineProperty(globalThis, 'fetch', {
-      configurable: true,
-      value: vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ loginToken: 'matrix-login-token' }),
-      }),
+    // The exchange goes through the Matrix fetch, which adds a Cloudflare Access token.
+    const matrixFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ loginToken: 'matrix-login-token' }),
     });
+    vi.mocked(createMatrixFetchFn).mockReturnValue(matrixFetch);
     const replaceState = vi.fn();
     const dispatchEvent = vi.fn();
     Object.defineProperty(globalThis, 'window', {
@@ -256,6 +256,10 @@ describe('SSOLogin', () => {
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(signInWithApple).toHaveBeenCalledWith({});
+    expect(matrixFetch).toHaveBeenCalledWith(
+      'https://mindroom.chat/_matrix/client/unstable/org.mindroom.login/apple',
+      expect.objectContaining({ method: 'POST' })
+    );
     expect(vi.mocked(Browser.open)).not.toHaveBeenCalled();
     expect(replaceState).toHaveBeenCalledWith(
       null,

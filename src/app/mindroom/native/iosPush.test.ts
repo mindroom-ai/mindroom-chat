@@ -396,6 +396,30 @@ describe('buildIOSPushPusherRequest', () => {
 });
 
 describe('upsertIOSPushPusher', () => {
+  it('keeps the configured format for a server without Cloudflare Access', async () => {
+    vi.mocked(hasCloudflareAccess).mockReturnValue(false);
+    const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://public.example' };
+
+    await upsertIOSPushPusher(
+      mx,
+      {
+        appId: 'chat.example',
+        gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        appDisplayName: 'Chat',
+        deviceDisplayName: 'iPhone',
+        profileTag: 'profile-1',
+        append: true,
+        format: 'full',
+        lang: 'en',
+      },
+      'apns-token'
+    );
+
+    expect(mx.setPusher).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ format: 'full' }) })
+    );
+  });
+
   it('registers content-free pushes for a server behind Cloudflare Access', async () => {
     vi.mocked(hasCloudflareAccess).mockImplementation((url) => url === 'https://private.example');
     const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://private.example' };
