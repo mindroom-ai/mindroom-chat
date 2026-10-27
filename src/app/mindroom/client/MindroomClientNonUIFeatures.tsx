@@ -29,7 +29,10 @@ import {
   upsertIOSPushPusher,
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
-import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
+import {
+  cloudflareAccessAllowsPush,
+  useCloudflareAccessSignInRequired,
+} from '../native/cloudflareAccess';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
@@ -192,6 +195,7 @@ export function MindroomNativeIOSPushFeature() {
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
   const accessSignInRequired = useCloudflareAccessSignInRequired(mx.getHomeserverUrl());
+  const pushAllowed = cloudflareAccessAllowsPush(mx.getHomeserverUrl());
 
   useEffect(() => {
     const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
@@ -241,7 +245,7 @@ export function MindroomNativeIOSPushFeature() {
       }
       registrationErrorHandle = registrationErrorListener;
 
-      if (!nativePushNotifications) {
+      if (!nativePushNotifications || !pushAllowed) {
         await disableIOSPushPusher(mx, pushConfig, sessionId);
         await unregisterIOSPush().catch(() => undefined);
         return;
@@ -270,7 +274,15 @@ export function MindroomNativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [accessSignInRequired, clientConfig, language, mx, nativePushNotifications, sessionId]);
+  }, [
+    accessSignInRequired,
+    clientConfig,
+    language,
+    mx,
+    nativePushNotifications,
+    pushAllowed,
+    sessionId,
+  ]);
 
   return null;
 }

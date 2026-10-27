@@ -7,6 +7,7 @@ import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
  * app's web view never holds the Access cookie. A server opts in by publishing a handoff
  * page at this public path; the app opens it in the system browser, receives the Access
  * token, and sends it as `cf-access-token` with every Matrix request to that server.
+ * `"push": false` in the advert keeps the app from registering push for that server.
  */
 const DISCOVERY_PATH = '/.well-known/mindroom/cloudflare-access';
 const CALLBACK_SCHEME = 'mindroom';
@@ -16,7 +17,7 @@ const DISCOVERY_TIMEOUT_MS = 5_000;
 // setTimeout runs at once for longer delays, so a longer session waits in steps.
 const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 
-type AccessRecord = { handoffUrl: string; token?: string };
+type AccessRecord = { handoffUrl: string; push?: false; token?: string };
 
 const listeners = new Set<() => void>();
 
@@ -73,6 +74,10 @@ export const isCloudflareAccessSupported = (): boolean =>
 
 export const hasCloudflareAccess = (baseUrl: string): boolean => Boolean(readRecord(baseUrl));
 
+/** False when the server's advert turns push off; read at the last discovery. */
+export const cloudflareAccessAllowsPush = (baseUrl: string): boolean =>
+  readRecord(baseUrl)?.push !== false;
+
 /**
  * Looks for the server's handoff page and records it. A 404 or a response without a
  * valid same-origin HTTPS handoff URL clears the record; a failed request keeps it.
@@ -97,7 +102,7 @@ export const discoverCloudflareAccess = async (
     return hasCloudflareAccess(origin);
   }
 
-  let body: { handoff_url?: unknown } | undefined;
+  let body: { handoff_url?: unknown; push?: unknown } | undefined;
   try {
     body = JSON.parse(text);
   } catch {
@@ -110,7 +115,9 @@ export const discoverCloudflareAccess = async (
     if (current) writeRecord(origin, undefined);
     return false;
   }
-  if (current?.handoffUrl !== handoffUrl) writeRecord(origin, { handoffUrl });
+  const push = body?.push === false ? false : undefined;
+  if (current?.handoffUrl !== handoffUrl) writeRecord(origin, { handoffUrl, push });
+  else if (current.push !== push) writeRecord(origin, { ...current, push });
   return true;
 };
 
@@ -159,7 +166,7 @@ export const renewExpiredCloudflareAccess = async (baseUrl: string): Promise<voi
 export const forgetCloudflareAccessToken = (baseUrl: string): void => {
   const origin = originOf(baseUrl);
   const record = readRecord(baseUrl);
-  if (origin && record?.token) writeRecord(origin, { handoffUrl: record.handoffUrl });
+  if (origin && record?.token) writeRecord(origin, { ...record, token: undefined });
 };
 
 /** True while a server behind Access has no usable token; updates when the token expires. */
