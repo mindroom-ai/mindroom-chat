@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Send cookies with the web app manifest request (2026-10-27)
+
+- Why: Chromium fetches `<link rel="manifest">` in CORS mode with credentials omitted unless the link sets `crossorigin="use-credentials"`, even for a same-origin manifest (MDN, Web app manifests). When Chat sits behind a reverse proxy that authenticates by cookie, the manifest request carries no session cookie, gets the sign-in redirect, and the browser reports the manifest as failing to load, so the app cannot be installed.
+- Change: `index.html` adds `crossorigin="use-credentials"` to the manifest link. Without such a proxy nothing changes: the manifest is same-origin (also under a build base path), so a credentialed request needs no CORS headers. Vite and `vite-plugin-pwa` (`manifest: false`) keep the tag as written; the built `index.html` has `<link rel="manifest" href="./manifest.json" crossorigin="use-credentials" />`, or `/chat/manifest.json` with `APP_BUILD_BASE_PATH=/chat`.
+- Tests: `src/indexHtml.test.ts` checks the manifest link asks for credentials (fails without the change).
+- Validation: typecheck, lint, prettier and build pass. `npm test` passes except `xcodeCloudPostClone.test.ts` and one `useRoomInputSendSessionController.test.ts` case, which fail the same way without the change, and one `RoomTimeline.cache.test.ts` case that failed under the full run's load and passes alone.
+- Next: none.
+
 ### Leave the MindRoom runtime's browser pages to the network (2026-10-27)
 
 - Why: when Chat is served at the origin root next to the MindRoom runtime, the service worker answered every navigation outside its denylist with the cached app shell, so the runtime's own pages opened Chat instead, which read the first segment as a space.
