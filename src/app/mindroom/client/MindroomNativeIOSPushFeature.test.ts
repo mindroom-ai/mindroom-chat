@@ -2,11 +2,18 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { registerIOSPush, setIOSPushEnabled, upsertIOSPushPusher } from '../native/iosPush';
+import {
+  disableIOSPushPusher,
+  registerIOSPush,
+  setIOSPushEnabled,
+  unregisterIOSPush,
+  upsertIOSPushPusher,
+} from '../native/iosPush';
 import { MindroomNativeIOSPushFeature } from './MindroomClientNonUIFeatures';
 
 const state = vi.hoisted(() => ({
   signInRequired: true,
+  pushAllowed: true,
   onRegistration: undefined as ((token: { value: string }) => void) | undefined,
   mx: { clientRunning: true, getHomeserverUrl: () => 'https://private.example' },
   clientConfig: {},
@@ -34,6 +41,7 @@ vi.mock('../native/iosPush', () => ({
 
 vi.mock('../native/useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
 vi.mock('../native/cloudflareAccess', () => ({
+  cloudflareAccessAllowsPush: () => state.pushAllowed,
   useCloudflareAccessSignInRequired: () => state.signInRequired,
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
@@ -47,6 +55,7 @@ const rerender = (renderer: ReturnType<typeof create>) =>
 describe('MindroomNativeIOSPushFeature', () => {
   afterEach(() => {
     state.signInRequired = true;
+    state.pushAllowed = true;
     state.onRegistration = undefined;
     vi.clearAllMocks();
   });
@@ -88,6 +97,24 @@ describe('MindroomNativeIOSPushFeature', () => {
     await rerender(renderer);
     await act(async () => rejectUpsert(new TypeError('Load failed')));
 
+    expect(setIOSPushEnabled).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('only removes the pusher when the server turns push off', async () => {
+    state.signInRequired = false;
+    state.pushAllowed = false;
+    vi.mocked(disableIOSPushPusher).mockRejectedValueOnce(new TypeError('Load failed'));
+    const renderer = await act(async () =>
+      create(React.createElement(MindroomNativeIOSPushFeature))
+    );
+    // A token from a registration started earlier, for instance by another account.
+    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
+
+    expect(disableIOSPushPusher).toHaveBeenCalledWith(state.mx, expect.anything(), 's1');
+    expect(registerIOSPush).not.toHaveBeenCalled();
+    expect(upsertIOSPushPusher).not.toHaveBeenCalled();
+    expect(unregisterIOSPush).not.toHaveBeenCalled();
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
     renderer.unmount();
   });

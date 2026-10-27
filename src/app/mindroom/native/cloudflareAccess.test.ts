@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Capacitor } from '@capacitor/core';
 import {
+  cloudflareAccessAllowsPush,
   forgetCloudflareAccessToken,
   discoverCloudflareAccess,
   getCloudflareAccessToken,
@@ -220,5 +221,26 @@ describe('cloudflareAccess', () => {
 
     expect(getCloudflareAccessToken(BASE_URL)).toBeUndefined();
     expect(hasCloudflareAccess(BASE_URL)).toBe(true);
+  });
+
+  it('keeps push off for a server whose advert turns it off until the advert changes', async () => {
+    expect(cloudflareAccessAllowsPush(BASE_URL)).toBe(true);
+    await discoverCloudflareAccess(
+      BASE_URL,
+      respond(JSON.stringify({ handoff_url: HANDOFF_URL, push: false }))
+    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      `mindroom://cloudflare-access#token=${validToken}`
+    );
+    await signInToCloudflareAccess(BASE_URL);
+    forgetCloudflareAccessToken(BASE_URL);
+    await signInToCloudflareAccess(BASE_URL);
+
+    expect(cloudflareAccessAllowsPush(BASE_URL)).toBe(false);
+
+    await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+
+    expect(cloudflareAccessAllowsPush(BASE_URL)).toBe(true);
+    expect(getCloudflareAccessToken(BASE_URL)).toBe(validToken);
   });
 });

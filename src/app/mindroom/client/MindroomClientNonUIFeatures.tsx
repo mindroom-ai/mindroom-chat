@@ -29,7 +29,10 @@ import {
   upsertIOSPushPusher,
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
-import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
+import {
+  cloudflareAccessAllowsPush,
+  useCloudflareAccessSignInRequired,
+} from '../native/cloudflareAccess';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
@@ -192,6 +195,7 @@ export function MindroomNativeIOSPushFeature() {
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
   const accessSignInRequired = useCloudflareAccessSignInRequired(mx.getHomeserverUrl());
+  const pushAllowed = cloudflareAccessAllowsPush(mx.getHomeserverUrl());
 
   useEffect(() => {
     const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
@@ -210,6 +214,14 @@ export function MindroomNativeIOSPushFeature() {
     let registrationErrorHandle: PluginListenerHandle | undefined;
 
     const setupNativePush = async () => {
+      if (!pushAllowed) {
+        // Only this account's pusher goes: APNs stays on for the device's other accounts,
+        // and no registration listener can set a pusher again. A failed removal is
+        // retried on the next run and leaves the user's own setting alone.
+        await disableIOSPushPusher(mx, pushConfig, sessionId).catch(() => undefined);
+        return;
+      }
+
       const registrationListener = await PushNotifications.addListener('registration', (token) => {
         // A token can arrive after logout has stopped the client.
         if (disposed || !mx.clientRunning) return;
@@ -270,7 +282,15 @@ export function MindroomNativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [accessSignInRequired, clientConfig, language, mx, nativePushNotifications, sessionId]);
+  }, [
+    accessSignInRequired,
+    clientConfig,
+    language,
+    mx,
+    nativePushNotifications,
+    pushAllowed,
+    sessionId,
+  ]);
 
   return null;
 }
