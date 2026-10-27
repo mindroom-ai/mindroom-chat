@@ -396,7 +396,7 @@ describe('buildIOSPushPusherRequest', () => {
 });
 
 describe('upsertIOSPushPusher', () => {
-  it('never registers the public push gateway for a server behind Cloudflare Access', async () => {
+  it('registers content-free pushes for a server behind Cloudflare Access', async () => {
     vi.mocked(hasCloudflareAccess).mockImplementation((url) => url === 'https://private.example');
     const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://private.example' };
 
@@ -415,7 +415,16 @@ describe('upsertIOSPushPusher', () => {
       'apns-token'
     );
 
-    expect(mx.setPusher).not.toHaveBeenCalled();
+    expect(mx.setPusher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          format: 'event_id_only',
+          default_payload: {
+            aps: { sound: 'default', alert: { title: 'Chat', body: 'New message' } },
+          },
+        }),
+      })
+    );
     expect(hasCloudflareAccess).toHaveBeenCalledWith('https://private.example');
   });
 });

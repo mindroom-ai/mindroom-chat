@@ -21,7 +21,6 @@ import {
   unregisterIOSPush,
 } from './iosPush';
 import { useIOSPushEnabled } from './useIOSPushEnabled';
-import { hasCloudflareAccess } from './cloudflareAccess';
 
 export function IOSPushNotification() {
   const { t } = useTranslation();
@@ -83,7 +82,7 @@ export function IOSPushNotification() {
     )
   );
 
-  if (!isNativeIOSPlatform() || hasCloudflareAccess(mx.getHomeserverUrl())) return null;
+  if (!isNativeIOSPlatform()) return null;
 
   const handleToggle = (enabled: boolean) => {
     togglePush(enabled)

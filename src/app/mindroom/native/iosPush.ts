@@ -317,9 +317,6 @@ export const upsertIOSPushPusher = async (
   token: string,
   sessionId?: string
 ) => {
-  // Notifications through the public gateway would carry a private server's messages out.
-  if (hasCloudflareAccess(mx.getHomeserverUrl())) return;
-
   const normalizedToken = token.trim();
   if (normalizedToken.length === 0) {
     throw new Error('APNs registration returned an empty push token.');
@@ -330,7 +327,9 @@ export const upsertIOSPushPusher = async (
     await disablePusherByToken(mx, pushConfig.appId, previousToken);
   }
 
-  await mx.setPusher(buildIOSPushPusherRequest(normalizedToken, pushConfig));
+  // A private server's pushes carry only event and room IDs past the public gateway.
+  const format = hasCloudflareAccess(mx.getHomeserverUrl()) ? 'event_id_only' : pushConfig.format;
+  await mx.setPusher(buildIOSPushPusherRequest(normalizedToken, { ...pushConfig, format }));
   setStoredIOSPushToken(normalizedToken, sessionId);
 };
 
