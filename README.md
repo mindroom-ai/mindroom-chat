@@ -136,6 +136,7 @@ window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = ['/other-app'];
 
 Only root-relative paths without a query or fragment are accepted.
 Each prefix excludes its exact path and descendants without excluding similarly named client routes.
+The MindRoom runtime's own browser pages, `/connections`, `/mcp` and `/reports`, are always excluded and need no entry.
 
 ### Build-time base path
 

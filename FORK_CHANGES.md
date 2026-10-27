@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Leave the MindRoom runtime's browser pages to the network (2026-10-27)
+
+- Why: when Chat is served at the origin root next to the MindRoom runtime, the service worker answered every navigation outside its denylist with the cached app shell, so the runtime's own pages opened Chat instead, which read the first segment as a space.
+  That covers the Connections portal (Settings, General, Connections opens `/connections/` on the backend origin), MCP consent at `/connections/mcp/authorize`, the MCP OAuth authorize endpoint `/mcp/oauth/authorize` that MCP clients open in the browser, and report links under `/reports/public/` and `/reports/private/`.
+  Until now an operator had to list each prefix in `__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__`, which holds eight.
+- Change: `RUNTIME_NAVIGATION_PATHS` in `serviceWorkerNavigation.ts` (`/connections`, `/mcp`, `/reports`) joins the built-in denylist in `sw.ts` through the same `navigationFallbackExcludePathPattern` as configured prefixes, so each covers its exact path and descendants but not `/connect` or `/connectionsfoo`.
+  No Chat route starts with these segments: space and room paths are percent-encoded IDs or aliases.
+  Configured exclusions are unchanged and still hold eight more.
+  Under a base path the worker's scope already leaves root paths alone.
+- Not included: the runtime's standalone `/login` page, which Chat's own `/login` owns on a shared origin.
+- Tests: `serviceWorkerNavigation.test.ts` checks the runtime pages are excluded and Chat routes are not; `sw.test.ts` checks the denylist includes them.
+- Next: none.
+
 ### Sign in to a homeserver behind Cloudflare Access on iOS (2026-10-25)
 
 - Why: a homeserver behind Cloudflare Access answers the iOS app with a redirect to the Access login, because the app's web view (`capacitor://localhost`) never holds the Access cookie. Login, `/sync` and every other Matrix call fail. Access accepts its app token in a `cf-access-token` header instead of the cookie.
