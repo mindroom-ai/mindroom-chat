@@ -2858,6 +2858,11 @@
         "enable": "Ativar",
         "iosPushNotifications": "Notificações push do iOS",
         "permissionDenied": "A permissão de notificações foi recusada. Ative as notificações para {{appName}} nas Definições do iOS."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} requer o início de sessão da sua organização.",
+        "continue": "Continuar",
+        "signInFailed": "O início de sessão não foi concluído. Tente novamente."
       }
     },
     "notifications": {

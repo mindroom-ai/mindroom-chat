@@ -3029,6 +3029,11 @@
         "enable": "تفعيل",
         "iosPushNotifications": "إشعارات iOS",
         "permissionDenied": "تم رفض إذن الإشعارات. فعّل إشعارات ⁨{{appName}}⁩ في إعدادات iOS."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "يتطلب ⁨{{value1}}⁩ تسجيل الدخول عبر مؤسستك.",
+        "continue": "متابعة",
+        "signInFailed": "لم يكتمل تسجيل الدخول. حاول مرة أخرى."
       }
     },
     "notifications": {

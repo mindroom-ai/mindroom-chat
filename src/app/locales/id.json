@@ -2789,6 +2789,11 @@
         "enable": "Aktifkan",
         "iosPushNotifications": "Notifikasi push iOS",
         "permissionDenied": "Izin notifikasi ditolak. Aktifkan notifikasi untuk {{appName}} di Pengaturan iOS."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} memerlukan login organisasi Anda.",
+        "continue": "Lanjutkan",
+        "signInFailed": "Login belum selesai. Coba lagi."
       }
     },
     "notifications": {

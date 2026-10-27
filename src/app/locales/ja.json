@@ -2789,6 +2789,11 @@
         "enable": "有効にする",
         "iosPushNotifications": "iOS プッシュ通知",
         "permissionDenied": "通知が許可されていません。iOS の「設定」で {{appName}} の通知を有効にしてください。"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} には組織のサインインが必要です。",
+        "continue": "続行",
+        "signInFailed": "サインインが完了しませんでした。もう一度お試しください。"
       }
     },
     "notifications": {

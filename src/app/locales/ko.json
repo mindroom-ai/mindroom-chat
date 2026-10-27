@@ -2789,6 +2789,11 @@
         "enable": "사용",
         "iosPushNotifications": "iOS 푸시 알림",
         "permissionDenied": "알림 권한이 거부되었습니다. iOS 설정에서 {{appName}}의 알림을 활성화하세요."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}}에 접속하려면 조직 로그인이 필요합니다.",
+        "continue": "계속",
+        "signInFailed": "로그인이 완료되지 않았습니다. 다시 시도하세요."
       }
     },
     "notifications": {

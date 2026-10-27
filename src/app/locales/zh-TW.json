@@ -2789,6 +2789,11 @@
         "enable": "啟用",
         "iosPushNotifications": "iOS 推播通知",
         "permissionDenied": "通知權限已被拒絕。請在 iOS「設定」中為 {{appName}} 啟用通知。"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} 需要透過你所屬的組織登入。",
+        "continue": "繼續",
+        "signInFailed": "登入未完成。請再試一次。"
       }
     },
     "notifications": {

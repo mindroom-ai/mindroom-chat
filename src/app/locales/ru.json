@@ -2915,6 +2915,11 @@
         "enable": "Включить",
         "iosPushNotifications": "Push-уведомления iOS",
         "permissionDenied": "Разрешение на уведомления отклонено. Включите уведомления для {{appName}} в настройках iOS."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "Для {{value1}} нужен вход через вашу организацию.",
+        "continue": "Продолжить",
+        "signInFailed": "Вход не завершён. Попробуйте ещё раз."
       }
     },
     "notifications": {

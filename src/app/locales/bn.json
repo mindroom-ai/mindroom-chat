@@ -1493,6 +1493,11 @@
         "nativeIosPushIsNotConfiguredByTheDeploymentAdd": "এই ডিপ্লয়মেন্টে নেটিভ iOS পুশ কনফিগার করা নেই। `config.json`-এ `push.ios` সেটিংস যোগ করুন।",
         "permissionDenied": "বিজ্ঞপ্তি অনুমতি অস্বীকার করা হয়. iOS সেটিংসে {{appName}}-এর জন্য বিজ্ঞপ্তিগুলি সক্ষম করুন৷",
         "unavailable": "অনুপলব্ধ"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}}-এর জন্য আপনার প্রতিষ্ঠানের সাইন-ইন প্রয়োজন।",
+        "continue": "চালিয়ে যান",
+        "signInFailed": "সাইন-ইন শেষ হয়নি। আবার চেষ্টা করুন।"
       }
     },
     "notifications": {

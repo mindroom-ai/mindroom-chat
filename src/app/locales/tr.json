@@ -2801,6 +2801,11 @@
         "enable": "Etkinleştir",
         "iosPushNotifications": "iOS anlık bildirimleri",
         "permissionDenied": "Bildirim izni reddedildi. iOS Ayarları'nda {{appName}} için bildirimleri etkinleştirin."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} için kuruluşunuz üzerinden oturum açmanız gerekiyor.",
+        "continue": "Devam",
+        "signInFailed": "Oturum açma tamamlanmadı. Tekrar deneyin."
       }
     },
     "notifications": {

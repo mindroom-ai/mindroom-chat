@@ -2801,6 +2801,11 @@
         "enable": "Enable",
         "iosPushNotifications": "iOS Push Notifications",
         "permissionDenied": "Notification permission is denied. Enable notifications for {{appName}} in iOS Settings."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} requires your organization's sign-in.",
+        "continue": "Continue",
+        "signInFailed": "Sign-in didn't finish. Try again."
       }
     },
     "notifications": {
