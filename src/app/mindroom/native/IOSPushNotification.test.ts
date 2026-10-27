@@ -85,13 +85,13 @@ describe('IOSPushNotification', () => {
     const { IOSPushNotification } = await import('./IOSPushNotification');
     nativeState.native = true;
     nativeState.pushAllowed = false;
+    let renderer: ReturnType<typeof create> | undefined;
     try {
-      const renderer = create(React.createElement(IOSPushNotification));
+      renderer = create(React.createElement(IOSPushNotification));
 
       expect(renderer.toJSON()).toBeNull();
-
-      act(() => renderer.unmount());
     } finally {
+      act(() => renderer?.unmount());
       nativeState.native = false;
       nativeState.pushAllowed = true;
     }

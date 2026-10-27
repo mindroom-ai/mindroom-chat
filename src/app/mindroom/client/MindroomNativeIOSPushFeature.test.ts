@@ -101,16 +101,20 @@ describe('MindroomNativeIOSPushFeature', () => {
     renderer.unmount();
   });
 
-  it('removes the pusher instead of registering when the server turns push off', async () => {
+  it('only removes the pusher when the server turns push off', async () => {
     state.signInRequired = false;
     state.pushAllowed = false;
+    vi.mocked(disableIOSPushPusher).mockRejectedValueOnce(new TypeError('Load failed'));
     const renderer = await act(async () =>
       create(React.createElement(MindroomNativeIOSPushFeature))
     );
+    // A token from a registration started earlier, for instance by another account.
+    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
 
-    expect(registerIOSPush).not.toHaveBeenCalled();
     expect(disableIOSPushPusher).toHaveBeenCalledWith(state.mx, expect.anything(), 's1');
-    expect(unregisterIOSPush).toHaveBeenCalled();
+    expect(registerIOSPush).not.toHaveBeenCalled();
+    expect(upsertIOSPushPusher).not.toHaveBeenCalled();
+    expect(unregisterIOSPush).not.toHaveBeenCalled();
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
     renderer.unmount();
   });

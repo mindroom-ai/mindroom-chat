@@ -214,6 +214,14 @@ export function MindroomNativeIOSPushFeature() {
     let registrationErrorHandle: PluginListenerHandle | undefined;
 
     const setupNativePush = async () => {
+      if (!pushAllowed) {
+        // Only this account's pusher goes: APNs stays on for the device's other accounts,
+        // and no registration listener can set a pusher again. A failed removal is
+        // retried on the next run and leaves the user's own setting alone.
+        await disableIOSPushPusher(mx, pushConfig, sessionId).catch(() => undefined);
+        return;
+      }
+
       const registrationListener = await PushNotifications.addListener('registration', (token) => {
         // A token can arrive after logout has stopped the client.
         if (disposed || !mx.clientRunning) return;
@@ -245,7 +253,7 @@ export function MindroomNativeIOSPushFeature() {
       }
       registrationErrorHandle = registrationErrorListener;
 
-      if (!nativePushNotifications || !pushAllowed) {
+      if (!nativePushNotifications) {
         await disableIOSPushPusher(mx, pushConfig, sessionId);
         await unregisterIOSPush().catch(() => undefined);
         return;
