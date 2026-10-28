@@ -23,6 +23,7 @@ import {
   openNativeSsoBrowser,
   signInWithNativeApple,
 } from '../../mindroom/auth/authUi';
+import { hasCloudflareAccess } from '../../mindroom/native/cloudflareAccess';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -64,7 +65,9 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
             request: createMatrixFetchFn(),
           });
         } else {
-          await openNativeSsoBrowser(url);
+          // The SSO redirect of a server behind Access also logs in to Access, which fails in
+          // Safari's shared cookies, so it runs in an ephemeral session too.
+          await openNativeSsoBrowser(url, hasCloudflareAccess(baseUrl));
         }
       } catch (error) {
         console.error('[SSO] Failed to open native browser', error);

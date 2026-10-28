@@ -51,6 +51,11 @@ vi.mock('../../mindroom/matrix/matrixClientFactory', () => ({
   createMatrixFetchFn: vi.fn(),
 }));
 
+const accessState = vi.hoisted(() => ({ behindAccess: false }));
+vi.mock('../../mindroom/native/cloudflareAccess', () => ({
+  hasCloudflareAccess: () => accessState.behindAccess,
+}));
+
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: vi.fn(),
 }));
@@ -124,6 +129,39 @@ describe('SSOLogin', () => {
       url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
       presentationStyle: 'fullscreen',
     });
+  });
+
+  it.each([
+    [false, 'shares Safari cookies'],
+    [true, 'keeps its own cookies behind Cloudflare Access'],
+  ])('runs the iOS SSO session (behind Access: %s) so that it %s', async (behindAccess) => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    authenticate.mockResolvedValue({});
+    accessState.behindAccess = behindAccess;
+
+    try {
+      const renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+      await act(async () => {
+        await findButtonByText(renderer, 'Continue with SSO')?.props.onClick({
+          preventDefault: vi.fn(),
+        });
+      });
+
+      expect(authenticate).toHaveBeenCalledWith({
+        callbackScheme: 'mindroom',
+        ephemeral: behindAccess,
+        url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      });
+    } finally {
+      accessState.behindAccess = false;
+    }
   });
 
   it('opens SSO inside the in-app browser on native Android', async () => {

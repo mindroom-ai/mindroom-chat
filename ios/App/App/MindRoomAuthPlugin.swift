@@ -32,6 +32,7 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
         }
 
         let callbackScheme = call.getString("callbackScheme")
+        let ephemeral = call.getBool("ephemeral") ?? false
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -61,7 +62,7 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
             }
 
             session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = ephemeral
             self.authSession = session
 
             if !session.start() {
