@@ -5,6 +5,7 @@ import { SSOAction } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { createMatrixClient, createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
+import { hasCloudflareAccess } from '../../mindroom/native/cloudflareAccess';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
@@ -53,7 +54,7 @@ vi.mock('../../mindroom/matrix/matrixClientFactory', () => ({
 
 const accessState = vi.hoisted(() => ({ behindAccess: false }));
 vi.mock('../../mindroom/native/cloudflareAccess', () => ({
-  hasCloudflareAccess: () => accessState.behindAccess,
+  hasCloudflareAccess: vi.fn(() => accessState.behindAccess),
 }));
 
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
@@ -133,7 +134,7 @@ describe('SSOLogin', () => {
 
   it.each([
     [false, 'shares Safari cookies'],
-    [true, 'keeps its own cookies behind Cloudflare Access'],
+    [true, 'starts without Safari cookies behind Cloudflare Access'],
   ])('runs the iOS SSO session (behind Access: %s) so that it %s', async (behindAccess) => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
@@ -154,6 +155,7 @@ describe('SSOLogin', () => {
         });
       });
 
+      expect(hasCloudflareAccess).toHaveBeenCalledWith('https://mindroom.chat');
       expect(authenticate).toHaveBeenCalledWith({
         callbackScheme: 'mindroom',
         ephemeral: behindAccess,

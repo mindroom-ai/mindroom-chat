@@ -62,7 +62,7 @@ const tokenExpiresAt = (token: string): number | undefined => {
   }
 };
 
-// A token stays valid at Access until it expires.
+// The app uses a token until it expires; Access may revoke it sooner.
 const isUsable = (token: string, now: number): boolean => {
   const expiresAt = tokenExpiresAt(token);
   return expiresAt !== undefined && expiresAt > now;
