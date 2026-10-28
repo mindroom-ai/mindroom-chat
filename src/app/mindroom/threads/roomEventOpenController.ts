@@ -311,7 +311,9 @@ export const useRoomEventOpenController = ({
           isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive })
         ) {
           const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, evtId);
-          if (!alive()) return;
+          // A route that moved on to another event opens that one; a route that dropped its
+          // event still needs the room timeline this open emptied.
+          if (!alive() || (routeEventIdRef.current && routeEventIdRef.current !== evtId)) return;
           if (threadRootId && routeEventIdRef.current === evtId) {
             navigateRoomThread(room.roomId, threadRootId, evtId, { replace: true });
             return;
