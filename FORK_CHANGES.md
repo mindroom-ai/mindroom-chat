@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Build the iOS app for Mac Catalyst (2026-10-28)
+
+- Why: first step of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) (Tasks 1 and 2). Gate G1 asks whether Capacitor 8 and its pods build for Mac Catalyst at all.
+- Change, build settings: the App target sets `SUPPORTS_MACCATALYST = YES` and `DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO`, so the Mac app keeps `chat.mindroom.app`. Only Mac builds get `ENABLE_HARDENED_RUNTIME` and the new `App-macOS.entitlements`, through `[sdk=macosx*]`. That file holds `com.apple.developer.aps-environment` = `production`, `applinks:chat.mindroom.chat`, Sign in with Apple, and the microphone and camera entitlements that the hardened runtime needs for voice and calls. iOS signing and `App.entitlements` are unchanged.
+- Change, shell: on Mac, `MindRoomBridgeViewController.webViewConfiguration(for:)` sets the desktop content mode, so the page gets a Mac Safari user agent instead of the iPhone one from `capacitor.config.ts`. `SceneDelegate` sets a 400×500 minimum window size under `#if targetEnvironment(macCatalyst)`.
+- Change, build: `scripts/build-macos-app.sh` runs `build:ios` and `cap sync ios`, then archives an unsigned Mac Catalyst build into `build/macos/` (now git-ignored). The new `build-macos-pr.yml` runs it on pull requests that touch `ios/`, `capacitor.config.ts`, `package-lock.json` or the script.
+- Fix, shared helper: `scripts/ios-xcode-project.mjs` matched setting names as substrings. Once the project had `DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO`, `PRODUCT_BUNDLE_IDENTIFIER` read `NO`, which would have failed `appstore:preflight` in Xcode Cloud. Names now match only whole.
+- Tests: `macCatalystBuildConfig.test.ts` checks the build settings in both configurations, the unchanged iOS bundle ID and entitlements, and the exact Mac entitlements. Its bundle ID case failed until the helper fix. `macCatalystShell.test.ts` checks the desktop content mode on Mac only and the minimum window size. Both failed before their changes.
+- Risks: nothing has been compiled yet; this host is Linux, and the new workflow is the first compile. The iOS archive should not change, but check the next Xcode Cloud build, and that App Store Connect still offers the iPad app on Apple silicon Macs.
+- Next: G1 result from `build-macos-pr`. Then Task 3 (signed, notarized DMG per release), which waits on G2: the account owner sets up the Developer ID profile and the secrets.
+
 ### Plan a Mac app that installs with Homebrew (2026-10-28, design)
 
 - Why: the owner wants MindRoom Chat installable on Mac with `brew install --cask`, as a separate app from MindRoom.app (the menu bar app that runs agents), and integrated with it. The App Store build runs only on Apple silicon Macs, and neither a cask nor `mas` can install it.

@@ -1,4 +1,5 @@
 import Capacitor
+import WebKit
 
 @objc(MindRoomBridgeViewController)
 class MindRoomBridgeViewController: CAPBridgeViewController {
@@ -20,6 +21,16 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         plugins["StatusBar"] = statusBar
         descriptor.pluginConfigurations = plugins
         return descriptor
+    }
+
+    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let configuration = super.webViewConfiguration(for: instanceConfiguration)
+        // On Mac the page gets a Mac Safari user agent and desktop layout, not the
+        // iPhone content mode that capacitor.config.ts sets for iOS.
+        if ProcessInfo.processInfo.isMacCatalystApp {
+            configuration.defaultWebpagePreferences.preferredContentMode = .desktop
+        }
+        return configuration
     }
 
     override func capacitorDidLoad() {
