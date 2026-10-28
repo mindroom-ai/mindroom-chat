@@ -15,11 +15,11 @@
 
 ### Plan a Mac app that installs with Homebrew (2026-10-28, design)
 
-- Why: the owner wants MindRoom Chat installable on Mac with `brew install --cask`, as a separate app from MindRoom.app (the menu bar app that runs agents), and integrated with it. The App Store build runs only on Apple silicon Macs, and neither a cask nor `mas` can install it.
-- Decision: a Mac Catalyst build of `ios/App` under the iOS bundle ID `chat.mindroom.app`, shipped as a Developer ID signed, notarized DMG on each chat release, with a `mindroom-chat` cask in `mindroom-ai/homebrew-tap`. Homebrew handles updates. MindRoom.app opens the chat app and hands it `/connect` pairing links. Design: [docs/superpowers/specs/2026-10-28-macos-chat-app-design.md](docs/superpowers/specs/2026-10-28-macos-chat-app-design.md).
-- Found: MindRoom.app's "Pair Hosted MindRoom..." runs `mindroom connect --pair-code` with a code chat no longer shows. Since #335 the runtime prints a `/connect?code=` link that chat approves.
+- Why: the owner wants MindRoom Chat installable on Mac with `brew install --cask`, as a separate app from MindRoom.app (the macOS app that runs agents), and integrated with it. The App Store build runs only on Apple silicon Macs, and neither a cask nor `mas` can install it.
+- Decision: a Mac Catalyst build of `ios/App` under the iOS bundle ID `chat.mindroom.app`, shipped as a Developer ID signed, notarized DMG on each chat release, with a `mindroom-chat` cask in `mindroom-ai/homebrew-tap`. Homebrew handles updates. MindRoom.app is unchanged for now: it already shows chat in its Chat section (mindroom #2371), and handing chat to the new app is an open owner decision. Design: [docs/superpowers/specs/2026-10-28-macos-chat-app-design.md](docs/superpowers/specs/2026-10-28-macos-chat-app-design.md).
+- Correction: an earlier draft said MindRoom.app's pairing step was out of date. That came from the stale local mindroom checkout. On mindroom `origin/main` (#2373, #2412), MindRoom.app already opens the `/connect?code=` approval page in its Chat section.
 - Risks: Capacitor does not officially support Catalyst. Developer ID profile support for Push, Associated Domains and Sign in with Apple is unconfirmed. Nothing has been built yet; this host is Linux.
-- Next: [plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) Task 1, then gate G1 (unsigned Catalyst compile on `macos-latest`, which needs a pushed draft PR). G2 (Apple account capabilities) and G3 (a real Mac) need the owner. Sub-project 2 (MindRoom.app integration) gets its own plan in the mindroom repository.
+- Next: [plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) Task 1, then gate G1 (unsigned Catalyst compile on `macos-latest`, which needs a pushed draft PR). G2 (Apple account capabilities) and G3 (a real Mac) need the owner. Sub-project 2 (an optional MindRoom.app hand-off) waits on an owner decision; see the spec's Integration section.
 
 ### Show Local MindRoom only to accounts that can pair (2026-10-28)
 

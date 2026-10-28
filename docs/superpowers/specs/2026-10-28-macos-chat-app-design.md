@@ -5,7 +5,7 @@
 Said:
 
 - MindRoom Chat should be a Mac app that installs with Homebrew, beside the App Store app.
-- It stays a separate app from MindRoom.app, the menu bar app that runs agents.
+- It stays a separate app from MindRoom.app, the macOS app that runs agents.
 - MindRoom.app should integrate with it.
 
 Assumed:
@@ -19,11 +19,14 @@ Assumed:
 - The App Store build runs on Apple silicon Macs only and cannot be installed by a cask or by `mas` (mas-cli/mas#321).
 - `ios/App` is a Capacitor 8 project with about 1,200 lines of Swift: `MindRoomAuthPlugin` (`ASWebAuthenticationSession`, Sign in with Apple), `MindRoomFileSavePlugin`, diagnostics and `MindRoomBridgeViewController`.
   The Podfile holds only first-party Capacitor pods.
-- MindRoom.app (`mindroom/macos/`) ships a Developer ID signed, notarized DMG from `release.yml` on `macos-latest`, updates through Sparkle, and has a cask in `mindroom-ai/homebrew-tap`, bumped by `update-mindroom-cask.yml` on a `repository_dispatch`.
+- MindRoom.app (`mindroom/macos/` on mindroom `origin/main`) is a window with a menu bar companion, for macOS 14 or later on Apple silicon.
+  Its **Chat** section (mindroom #2371) loads `https://chat.mindroom.chat`, or a configured HTTPS chat website, in a WKWebView with its own persistent session.
+  Sign-in providers that need a browser use **Open in Browser**.
+  The section bridges no web notifications.
+  The app ships a Developer ID signed, notarized DMG from `release.yml` on `macos-latest`, updates through Sparkle, and has a cask in `mindroom-ai/homebrew-tap`, bumped by `update-mindroom-cask.yml` on a `repository_dispatch`.
 - Chat releases come from `auto-mindroom-release.yml` on every push to `dev` (tags such as `v4.12.6-mindroom.268`).
-- Pairing a local MindRoom runs from the runtime's side since #335.
-  The runtime prints `https://chat.mindroom.chat/connect?code=ABCD-EFGH`, and chat approves it ([iOS pairing links](../../ios-pairing-links.md)).
-  MindRoom.app still offers "Pair Hosted MindRoom...", which runs `mindroom connect --pair-code` with a code that chat no longer shows.
+- Pairing local agents starts on the machine (chat #335, mindroom #2373 and #2412).
+  MindRoom.app's **Connect Account** runs `mindroom connect`, reads the printed `https://chat.mindroom.chat/connect?code=ABCD-EFGH` line, and opens it in its Chat section, where the user approves it ([iOS pairing links](../../ios-pairing-links.md)).
 
 ## Decisions
 
@@ -41,17 +44,19 @@ Assumed:
    The repository is public, so macOS runners cost nothing.
 4. **Updates: `brew upgrade` only.**
    Sparkle is AppKit and does not link into a Catalyst app.
-5. **MindRoom.app stays a separate app** that opens the chat app and hands it pairing links (see Integration).
+5. **MindRoom.app keeps its Chat section for now.**
+   The separate app adds what that section lacks: push notifications, native SSO and Cloudflare Access, file saving, Intel Macs and macOS 13.
+   Whether MindRoom.app later hands chat to the installed app is an open owner decision (see Integration).
 
 ## Sub-projects
 
-| #   | Repo                        | Content                                                                                            | Order                     |
-| --- | --------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
-| 1   | mindroom-chat, homebrew-tap | Catalyst build, Mac-specific behavior, release job, `mindroom-chat` cask                           | First; gated by the spike |
-| 2   | mindroom                    | MindRoom.app opens the chat app, switches to link pairing, and its cask depends on `mindroom-chat` | After 1 ships a cask      |
+| #   | Repo                        | Content                                                                  | Order                                         |
+| --- | --------------------------- | ------------------------------------------------------------------------ | --------------------------------------------- |
+| 1   | mindroom-chat, homebrew-tap | Catalyst build, Mac-specific behavior, release job, `mindroom-chat` cask | First; gated by the spike                     |
+| 2   | mindroom                    | Optional hand-off from MindRoom.app to the chat app (see Integration)    | After 1 ships, once the owner picks an option |
 
-This spec details sub-project 1 and fixes the contract that sub-project 2 depends on.
-Sub-project 2 gets its own plan in the mindroom repository.
+This spec details sub-project 1.
+Sub-project 2 needs an owner decision first, then gets its own plan in the mindroom repository.
 
 ## Sub-project 1: the chat app
 
@@ -131,24 +136,27 @@ Both workflows share the concurrency group `update-casks`, so their pushes to th
 - `ios-pairing-links.md` notes that the Mac app shares the association.
 - The Runbook records each phase.
 
-## Integration contract with MindRoom.app
+## Integration with MindRoom.app
 
-- MindRoom.app finds the chat app with `NSWorkspace.shared.urlForApplication(withBundleIdentifier: "chat.mindroom.app")`.
-  The shared bundle ID means the App Store iPad app on Apple silicon also matches.
-- "Open chat.mindroom.chat" becomes "Open MindRoom Chat": it opens the app if found, otherwise the website in the browser.
-- Pairing moves to the runtime-first flow from #335.
-  MindRoom.app starts pairing through the runtime, takes the printed `https://chat.mindroom.chat/connect?code=…` link, and opens it with the chat app (`NSWorkspace.open(_:withApplicationAt:configuration:)`), otherwise in the browser.
-  The user compares the code and approves in chat, as today.
-  Sub-project 2 confirms which CLI command starts that flow without a terminal, and that a Catalyst app receives an `https` URL opened this way.
-  If it does not, the fallback is a `mindroom://connect?code=` route in the chat's existing `mindroom` URL handler, limited to `/connect`.
+The two apps overlap today: MindRoom.app's Chat section and MindRoom Chat both show chat, each with its own sign-in.
+Sub-project 1 does not change MindRoom.app.
+
+Options for sub-project 2, decided after sub-project 1 ships:
+
+| Option                           | MindRoom.app change                                                                                                                                                                                                                          | Trade-off                                                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A. Keep both (recommended first) | None                                                                                                                                                                                                                                         | A Mac with both apps signs in twice; the Chat section still has no notifications                                                                                                     |
+| B. Hand off when installed       | When `NSWorkspace.shared.urlForApplication(withBundleIdentifier: "chat.mindroom.app")` finds the app, the Chat section offers **Open in MindRoom Chat** beside **Open in Browser**, and **Connect Account** can open the approval link there | Needs proof that a Catalyst app receives an `https` URL opened with `NSWorkspace.open(_:withApplicationAt:configuration:)`; the shared bundle ID also matches the App Store iPad app |
+| C. Replace the Chat section      | Remove the embedded chat and always open the app or the browser; the `mindroom` cask gains `depends_on cask: "mindroom-ai/tap/mindroom-chat"`                                                                                                | Pairing approval leaves MindRoom.app, so B's hand-off must work first                                                                                                                |
+
+Every option keeps these rules:
+
 - 🔒 MindRoom.app registers no URL scheme, and never `mindroom://`, which is chat's SSO callback scheme.
-  Pairing always starts on the machine and is approved in signed-in chat, so no external link can trigger pairing.
-- The `mindroom` cask gains `depends_on cask: "mindroom-ai/tap/mindroom-chat"`, so installing the full MindRoom also installs chat.
-  The stale "Pair Hosted MindRoom..." item and its docs are replaced.
+- Pairing keeps starting on the machine and being approved in signed-in chat.
 
 ## Testing
 
-- Contract (Vitest, following `iosSceneLifecycle.test.ts`, which parses the project with Capacitor's `xcode` and `plist` packages): Catalyst build settings, the Mac entitlements file, and the Swift Mac hooks.
+- Contract (Vitest): Catalyst build settings, read with `scripts/ios-xcode-project.mjs` as `appstore:preflight` does; the Mac entitlements file, read with Capacitor's `plist`; and the Swift Mac hooks.
 - Tap: Python `unittest` for `--cask` mapping.
 - CI: an unsigned Catalyst compile job on pull requests that touch `ios/` or `capacitor.config.ts`.
 - Tap CI: the existing `brew style`, `brew audit --online` and `brew install --dry-run` steps, run for `mindroom-chat`.
@@ -158,6 +166,6 @@ Both workflows share the concurrency group `update-casks`, so their pushes to th
 
 - Sparkle or any in-app updater.
 - A Mac App Store Catalyst submission.
-- Putting chat inside MindRoom.app.
+- Changes to MindRoom.app (sub-project 2).
 - Windows and Linux builds.
 - A chat menu bar item.

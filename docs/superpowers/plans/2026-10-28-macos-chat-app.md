@@ -225,5 +225,5 @@
   10. the app menu's name.
 - [ ] **Step 2: Check alongside the App Store app.** With the iPad app also installed, record which app the `/connect` link opens. Confirm that `brew uninstall --zap` leaves the iPad app's container alone.
 - [ ] **Step 3: Set the cask's `zap trash:`** to the paths actually created under `~/Library` (WebKit, Caches, HTTPStorages, Preferences, Saved Application State for `chat.mindroom.app`).
-- [ ] **Step 4: Update the README.** Mac row: "`brew install --cask mindroom-ai/tap/mindroom-chat` (any Mac with macOS 13.3+), the App Store app on Apple silicon Macs, or the MindRoom macOS app, which also runs your agents". Add the Mac note to `ios-pairing-links.md`. Close the Runbook entry with the Next step: the sub-project 2 plan in the mindroom repository.
+- [ ] **Step 4: Update the README.** Mac row: "`brew install --cask mindroom-ai/tap/mindroom-chat` (any Mac with macOS 13.3+), the App Store app on Apple silicon Macs, or the MindRoom macOS app, which also runs your agents". Add the Mac note to `ios-pairing-links.md`. Close the Runbook entry with the Next step: the owner's choice among the spec's MindRoom.app integration options.
 - [ ] **Step 5: Validate and commit.** Message: `docs: install MindRoom Chat on Mac with Homebrew`.
