@@ -304,7 +304,10 @@ describe('RoomTimeline', () => {
         );
       });
 
-      it('keeps a newer route when an earlier unloaded event resolves late', async () => {
+      it.each([
+        ['moves on to another event', '$later-message'],
+        ['drops its event', undefined],
+      ])('drops a late thread lookup when the route %s', async (_case, nextEventId) => {
         const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
@@ -316,14 +319,15 @@ describe('RoomTimeline', () => {
           rootEvent: threadRoot,
           length: 2,
         } as never);
+        let resolveFetch: (event: unknown) => void = () => undefined;
+        const pendingFetch = new Promise((resolve) => {
+          resolveFetch = resolve;
+        });
+        matrixClientMock.fetchRoomEvent.mockImplementation(async (_roomId, eventId) =>
+          eventId === '$unloaded-reply' ? pendingFetch : {}
+        );
         matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) =>
           eventId === laterMessage.getId() ? laterTimeline : null
-        );
-        let resolveFetch: (event: unknown) => void = () => undefined;
-        matrixClientMock.fetchRoomEvent.mockReturnValue(
-          new Promise((resolve) => {
-            resolveFetch = resolve;
-          })
         );
         const getItemKeys = () => {
           const options = roomTimelineVirtualizerState.lastOptions;
@@ -347,17 +351,13 @@ describe('RoomTimeline', () => {
           renderer?.update(
             React.createElement(ControlledRoomTimeline, {
               room,
-              eventId: laterMessage.getId(),
+              eventId: nextEventId,
               initialViewMode: 'compact',
             })
           );
           await flushAsyncWork();
         });
-        expect(matrixClientMock.fetchRoomEvent).toHaveBeenCalledWith(
-          room.roomId,
-          '$unloaded-reply'
-        );
-        const laterItemKeys = getItemKeys();
+        const itemKeys = getItemKeys();
 
         await act(async () => {
           resolveFetch({
@@ -366,9 +366,9 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        // The late answer neither redirects nor resets the newer route's timeline.
+        // The late answer neither redirects nor replaces the newer route's timeline.
         expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-        expect(getItemKeys()).toEqual(laterItemKeys);
+        expect(getItemKeys()).toEqual(itemKeys);
       });
 
       it('keeps synthetic room-focus permalinks in compact room view', async () => {

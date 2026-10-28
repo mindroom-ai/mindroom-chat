@@ -51,6 +51,8 @@ export type OpenRoomEventHandler = (
   onScroll?: (scrolled: boolean) => void
 ) => Promise<void>;
 
+export type OpenRoomEventRoute = (eventId: string, isCurrentRoute: () => boolean) => Promise<void>;
+
 export const useRoomEventOpenController = ({
   alive,
   cancelThreadBottomSettle,
@@ -68,7 +70,6 @@ export const useRoomEventOpenController = ({
   room,
   roomOverviewOrderActive,
   roomThreadListThreads,
-  routeEventId,
   prefetchDepth,
   prefetchDepthRef,
   scheduledStatusMap,
@@ -114,7 +115,6 @@ export const useRoomEventOpenController = ({
   room: Room;
   roomOverviewOrderActive: boolean;
   roomThreadListThreads: Thread[];
-  routeEventId?: string;
   prefetchDepth: number;
   prefetchDepthRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
@@ -140,16 +140,9 @@ export const useRoomEventOpenController = ({
   threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
 }): {
   handleOpenEvent: OpenRoomEventHandler;
-  redirectRoomEventDeepLink: (eventId: string) => boolean;
+  openRoomEventRoute: OpenRoomEventRoute;
 } => {
   const threadJumpGenerationRef = useRef(0);
-  const routeEventIdRef = useRef(routeEventId);
-  routeEventIdRef.current = routeEventId;
-  // Read again after the lookup below: the view can change while it runs.
-  const threadRedirectActiveRef = useRef(false);
-  threadRedirectActiveRef.current =
-    effectiveViewMode !== 'classic' &&
-    isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive });
 
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
@@ -304,57 +297,36 @@ export const useRoomEventOpenController = ({
         threadSummaryInfoMap,
       ]
     ),
-    useCallback(
-      async (err: Error | null, evtId: string) => {
-        if (!alive()) return;
-        // Only the route's own event (a push, inbox Open, a permalink) moves into its
-        // thread, and only while the route still asks for it.
-        if (!err && evtId === routeEventIdRef.current && threadRedirectActiveRef.current) {
-          const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, evtId);
-          // A route that moved on to another event opens that one; a route that dropped its
-          // event still needs the room timeline this open emptied.
-          if (!alive() || (routeEventIdRef.current && routeEventIdRef.current !== evtId)) return;
-          if (
-            threadRootId &&
-            routeEventIdRef.current === evtId &&
-            threadRedirectActiveRef.current
-          ) {
-            navigateRoomThread(room.roomId, threadRootId, evtId, { replace: true });
-            return;
-          }
-        }
-        const filterOpts = recalibrateFilterOptsRef.current;
-        setTimeline(
-          getInitialTimeline(room, prefetchDepth, {
-            threadId,
-            ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
-            showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
-            hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
-            hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
-            showThreadRepliesInRoom:
-              filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
-          })
-        );
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-      },
-      [
-        alive,
-        effectiveViewMode,
-        hideMembershipEvents,
-        hideNickAvatarEvents,
-        ignoredUsersSet,
-        mx,
-        navigateRoomThread,
-        recalibrateFilterOptsRef,
-        room,
-        prefetchDepth,
-        scrollToBottomRef,
-        setTimeline,
-        showHiddenEvents,
-        threadId,
-      ]
-    )
+    useCallback(() => {
+      if (!alive()) return;
+      const filterOpts = recalibrateFilterOptsRef.current;
+      setTimeline(
+        getInitialTimeline(room, prefetchDepth, {
+          threadId,
+          ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
+          showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
+          hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
+          hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
+          showThreadRepliesInRoom:
+            filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
+        })
+      );
+      scrollToBottomRef.current.count += 1;
+      scrollToBottomRef.current.smooth = false;
+    }, [
+      alive,
+      effectiveViewMode,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+      ignoredUsersSet,
+      recalibrateFilterOptsRef,
+      room,
+      prefetchDepth,
+      scrollToBottomRef,
+      setTimeline,
+      showHiddenEvents,
+      threadId,
+    ])
   );
 
   const handleOpenEvent = useCallback<OpenRoomEventHandler>(
@@ -505,15 +477,50 @@ export const useRoomEventOpenController = ({
     ]
   );
 
-  return { handleOpenEvent, redirectRoomEventDeepLink };
+  // The SDK loads no room timeline at a thread reply, so a route to a reply that is not
+  // loaded asks the server for its thread before anything replaces the room timeline;
+  // an answer for a route that has since changed is dropped.
+  const openRoomEventRoute = useCallback<OpenRoomEventRoute>(
+    async (targetEventId, isCurrentRoute) => {
+      if (redirectRoomEventDeepLink(targetEventId)) return;
+
+      if (
+        effectiveViewMode !== 'classic' &&
+        isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive }) &&
+        !room.findEventById(targetEventId)
+      ) {
+        const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, targetEventId);
+        if (!alive() || !isCurrentRoute()) return;
+        if (threadRootId) {
+          navigateRoomThread(room.roomId, threadRootId, targetEventId, { replace: true });
+          return;
+        }
+      }
+
+      await handleOpenEvent(targetEventId);
+    },
+    [
+      alive,
+      effectiveViewMode,
+      focusEventInRoom,
+      handleOpenEvent,
+      mx,
+      navigateRoomThread,
+      redirectRoomEventDeepLink,
+      room,
+      roomOverviewOrderActive,
+      threadId,
+    ]
+  );
+
+  return { handleOpenEvent, openRoomEventRoute };
 };
 
 export const useRoomEventRouteOpenController = ({
   effectiveViewMode,
   eventId,
   focusEventInRoom,
-  handleOpenEvent,
-  redirectRoomEventDeepLink,
+  openRoomEventRoute,
   roomId,
   roomOverviewOrderActive,
   threadId,
@@ -521,18 +528,17 @@ export const useRoomEventRouteOpenController = ({
   effectiveViewMode: RoomViewMode;
   eventId?: string;
   focusEventInRoom?: boolean;
-  handleOpenEvent: OpenRoomEventHandler;
-  redirectRoomEventDeepLink: (eventId: string) => boolean;
+  openRoomEventRoute: OpenRoomEventRoute;
   roomId: string;
   roomOverviewOrderActive: boolean;
   threadId?: string;
 }) => {
-  const handleOpenEventRef = useRef(handleOpenEvent);
+  const openRoomEventRouteRef = useRef(openRoomEventRoute);
   const handledRoomEventRouteRef = useRef<string>();
 
   useEffect(() => {
-    handleOpenEventRef.current = handleOpenEvent;
-  }, [handleOpenEvent]);
+    openRoomEventRouteRef.current = openRoomEventRoute;
+  }, [openRoomEventRoute]);
 
   useEffect(() => {
     if (!eventId) {
@@ -555,18 +561,9 @@ export const useRoomEventRouteOpenController = ({
 
     handledRoomEventRouteRef.current = routeKey;
 
-    if (redirectRoomEventDeepLink(eventId)) {
-      return;
-    }
-
-    void handleOpenEventRef.current(eventId);
-  }, [
-    effectiveViewMode,
-    eventId,
-    focusEventInRoom,
-    redirectRoomEventDeepLink,
-    roomId,
-    roomOverviewOrderActive,
-    threadId,
-  ]);
+    void openRoomEventRouteRef.current(
+      eventId,
+      () => handledRoomEventRouteRef.current === routeKey
+    );
+  }, [effectiveViewMode, eventId, focusEventInRoom, roomId, roomOverviewOrderActive, threadId]);
 };

@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useMemo, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { Direction, type EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { useAlive } from '../../hooks/useAlive';
@@ -25,7 +18,7 @@ export const useEventTimelineLoader = (
   mx: MatrixClient,
   room: Room,
   onLoad: (eventId: string, linkedTimelines: EventTimeline[], evtAbsIndex: number) => void,
-  onError: (err: Error | null, eventId: string) => void
+  onError: (err: Error | null) => void
 ) => {
   const loadEventTimeline = useCallback(
     async (eventId: string): Promise<EventTimeline[] | undefined> => {
@@ -33,14 +26,14 @@ export const useEventTimelineLoader = (
         mx.getEventTimeline(room.getUnfilteredTimelineSet(), eventId)
       );
       if (!replyEvtTimeline) {
-        onError(err ?? null, eventId);
+        onError(err ?? null);
         return undefined;
       }
       const linkedTimelines = getLinkedTimelines(replyEvtTimeline);
       const absIndex = getEventIdAbsoluteIndex(linkedTimelines, replyEvtTimeline, eventId);
 
       if (absIndex === undefined) {
-        onError(err ?? null, eventId);
+        onError(err ?? null);
         return undefined;
       }
 

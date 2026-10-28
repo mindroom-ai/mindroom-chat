@@ -111,8 +111,7 @@ export const isRoomEventThreadRedirectActive = ({
   roomOverviewOrderActive: boolean;
 }): boolean => !focusEventInRoom && !threadId && roomOverviewOrderActive;
 
-// The SDK loads no room timeline at a thread reply (`getEventTimeline` returns null), so a
-// reply that is not loaded is placed in its thread by its relation on the server.
+// The thread an event is in, from the cleartext relation of the server's copy.
 export const fetchRoomEventThreadRootId = async (
   mx: Pick<MatrixClient, 'fetchRoomEvent'>,
   roomId: string,
