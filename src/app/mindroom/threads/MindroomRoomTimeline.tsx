@@ -1426,6 +1426,7 @@ export function RoomTimeline({
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
     roomThreadListThreads,
+    routeEventId: eventId,
     prefetchDepth,
     prefetchDepthRef,
     cancelThreadBottomSettle,

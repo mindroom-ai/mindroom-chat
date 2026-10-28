@@ -12,8 +12,10 @@ import {
   isTimelineAtLiveEndMock,
   makeEvent,
   makeRoom,
+  matrixClientMock,
   navigateRoomThreadMock,
   roomTimelineVirtualizerState,
+  roomThreadListThreadsMock,
   roomThreadOverviewType,
   scrollType,
   setThreadAwareTimelineRefreshHook,
@@ -259,6 +261,44 @@ describe('RoomTimeline', () => {
           room.roomId,
           threadRoot.getId(),
           undefined,
+          { replace: true }
+        );
+      });
+
+      it('redirects a permalink to a thread reply the client has not loaded into its thread', async () => {
+        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+        const room = makeRoom({ liveEvents: [threadRoot] });
+        // An active thread keeps the compact list from emptying while the event loads.
+        roomThreadListThreadsMock.push({
+          id: threadRoot.getId(),
+          rootEvent: threadRoot,
+          length: 2,
+        } as never);
+        matrixClientMock.fetchRoomEvent.mockResolvedValue({
+          content: { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot.getId() } },
+        });
+
+        await act(async () => {
+          create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              eventId: '$unloaded-reply',
+              initialViewMode: 'compact',
+            })
+          );
+          await flushAsyncWork();
+        });
+
+        expect(matrixClientMock.fetchRoomEvent).toHaveBeenCalledWith(
+          room.roomId,
+          '$unloaded-reply'
+        );
+        expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+          room.roomId,
+          threadRoot.getId(),
+          '$unloaded-reply',
           { replace: true }
         );
       });

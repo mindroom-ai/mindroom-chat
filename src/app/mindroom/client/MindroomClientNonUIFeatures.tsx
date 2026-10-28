@@ -1,5 +1,5 @@
 import { useAtomValue } from 'jotai';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -9,6 +9,8 @@ import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useClientStartupContext } from '../../pages/client/ClientStartupContext';
 import { getInboxInvitesPath } from '../../pages/pathUtils';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
@@ -295,6 +297,59 @@ export function MindroomNativeIOSPushFeature() {
   return null;
 }
 
+type IOSPushOpenTarget = { roomId: string; eventId?: string };
+
+// Sygnal puts the notified event's room_id and event_id at the top of the APNs payload.
+const getIOSPushOpenTarget = (data: unknown): IOSPushOpenTarget | undefined => {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const { room_id: roomId, event_id: eventId } = data as Record<string, unknown>;
+  if (typeof roomId !== 'string' || roomId.length === 0) return undefined;
+  return { roomId, eventId: typeof eventId === 'string' && eventId ? eventId : undefined };
+};
+
+// A tapped push opens its event; the room route moves an event in a thread into that thread.
+export function MindroomNativeIOSPushOpenFeature() {
+  const mx = useMatrixClient();
+  const { navigateRoom } = useRoomNavigate();
+  const { hasCompletedInitialSync } = useClientStartupContext();
+  const [target, setTarget] = useState<IOSPushOpenTarget>();
+
+  useEffect(() => {
+    if (!isNativeIOSPlatform()) return undefined;
+
+    let disposed = false;
+    let actionHandle: PluginListenerHandle | undefined;
+    // The plugin keeps a tap that launched the app until this listener is added.
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      const nextTarget = getIOSPushOpenTarget(action.notification.data);
+      if (nextTarget) setTarget(nextTarget);
+    })
+      .then((listener) => {
+        if (disposed) {
+          listener.remove().catch(() => undefined);
+          return;
+        }
+        actionHandle = listener;
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      actionHandle?.remove().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Rooms are all known only after the first sync. A room this account is not in
+    // belongs to another account's push, so the app stays where it is.
+    if (!target || !hasCompletedInitialSync) return;
+    setTarget(undefined);
+    if (mx.getRoom(target.roomId)) navigateRoom(target.roomId, target.eventId);
+  }, [hasCompletedInitialSync, mx, navigateRoom, target]);
+
+  return null;
+}
+
 export function MindroomClientNonUIFeatures() {
   useModelControllerLifetime();
   return (
@@ -304,6 +359,7 @@ export function MindroomClientNonUIFeatures() {
       <MindroomFaviconUpdater />
       <MindroomInviteNotifications />
       <MindroomNativeIOSPushFeature />
+      <MindroomNativeIOSPushOpenFeature />
       <BugReportAutoJoinFeature />
     </>
   );

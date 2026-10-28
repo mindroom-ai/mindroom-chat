@@ -1,4 +1,12 @@
-import { EventTimeline, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  EventTimeline,
+  MatrixClient,
+  MatrixEvent,
+  RelationType,
+  Room,
+  Thread,
+} from 'matrix-js-sdk';
+import to from 'await-to-js';
 
 export const getTimelineEventById = (
   linkedTimelines: EventTimeline[],
@@ -93,6 +101,30 @@ export const getRoomEventThreadOpenTarget = ({
   };
 };
 
+export const isRoomEventThreadRedirectActive = ({
+  focusEventInRoom,
+  threadId,
+  roomOverviewOrderActive,
+}: {
+  focusEventInRoom?: boolean;
+  threadId?: string;
+  roomOverviewOrderActive: boolean;
+}): boolean => !focusEventInRoom && !threadId && roomOverviewOrderActive;
+
+// The SDK loads no room timeline at a thread reply (`getEventTimeline` returns null), so a
+// reply that is not loaded is placed in its thread by its relation on the server.
+export const fetchRoomEventThreadRootId = async (
+  mx: Pick<MatrixClient, 'fetchRoomEvent'>,
+  roomId: string,
+  eventId: string
+): Promise<string | undefined> => {
+  const [, event] = await to(mx.fetchRoomEvent(roomId, eventId));
+  const relation = event?.content?.['m.relates_to'];
+  return relation?.rel_type === RelationType.Thread && typeof relation.event_id === 'string'
+    ? relation.event_id
+    : undefined;
+};
+
 export const resolveRoomEventThreadRedirect = ({
   eventId,
   room,
@@ -115,7 +147,7 @@ export const resolveRoomEventThreadRedirect = ({
       eventId?: string;
     }
   | undefined => {
-  if (focusEventInRoom || threadId || !roomOverviewOrderActive) {
+  if (!isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive })) {
     return undefined;
   }
 

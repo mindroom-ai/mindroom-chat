@@ -27,7 +27,11 @@ import {
   getUnreadTargetAnchor,
 } from './timelineScrollUtils';
 import { useEventTimelineLoader } from './timelinePaginationController';
-import { resolveRoomEventThreadRedirect } from './roomDeepLink';
+import {
+  fetchRoomEventThreadRootId,
+  isRoomEventThreadRedirectActive,
+  resolveRoomEventThreadRedirect,
+} from './roomDeepLink';
 import { getRoomEventFocusTarget } from './threadRoomFocus';
 import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from './threadUtils';
 import type { ThreadTargetCommands } from './session/threadSessionTypes';
@@ -64,6 +68,7 @@ export const useRoomEventOpenController = ({
   room,
   roomOverviewOrderActive,
   roomThreadListThreads,
+  routeEventId,
   prefetchDepth,
   prefetchDepthRef,
   scheduledStatusMap,
@@ -109,6 +114,7 @@ export const useRoomEventOpenController = ({
   room: Room;
   roomOverviewOrderActive: boolean;
   roomThreadListThreads: Thread[];
+  routeEventId?: string;
   prefetchDepth: number;
   prefetchDepthRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
@@ -137,6 +143,8 @@ export const useRoomEventOpenController = ({
   redirectRoomEventDeepLink: (eventId: string) => boolean;
 } => {
   const threadJumpGenerationRef = useRef(0);
+  const routeEventIdRef = useRef(routeEventId);
+  routeEventIdRef.current = routeEventId;
 
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
@@ -291,36 +299,58 @@ export const useRoomEventOpenController = ({
         threadSummaryInfoMap,
       ]
     ),
-    useCallback(() => {
-      if (!alive()) return;
-      const filterOpts = recalibrateFilterOptsRef.current;
-      setTimeline(
-        getInitialTimeline(room, prefetchDepth, {
-          threadId,
-          ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
-          showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
-          hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
-          hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
-          showThreadRepliesInRoom:
-            filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
-        })
-      );
-      scrollToBottomRef.current.count += 1;
-      scrollToBottomRef.current.smooth = false;
-    }, [
-      alive,
-      effectiveViewMode,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      ignoredUsersSet,
-      recalibrateFilterOptsRef,
-      room,
-      prefetchDepth,
-      scrollToBottomRef,
-      setTimeline,
-      showHiddenEvents,
-      threadId,
-    ])
+    useCallback(
+      async (err: Error | null, evtId: string) => {
+        if (!alive()) return;
+        // Only the route's own event (a push, inbox Open, a permalink) moves into its
+        // thread, and only while the route still asks for it.
+        if (
+          !err &&
+          evtId === routeEventIdRef.current &&
+          effectiveViewMode !== 'classic' &&
+          isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive })
+        ) {
+          const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, evtId);
+          if (!alive()) return;
+          if (threadRootId && routeEventIdRef.current === evtId) {
+            navigateRoomThread(room.roomId, threadRootId, evtId, { replace: true });
+            return;
+          }
+        }
+        const filterOpts = recalibrateFilterOptsRef.current;
+        setTimeline(
+          getInitialTimeline(room, prefetchDepth, {
+            threadId,
+            ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
+            showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
+            hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
+            hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
+            showThreadRepliesInRoom:
+              filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
+          })
+        );
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+      },
+      [
+        alive,
+        effectiveViewMode,
+        focusEventInRoom,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
+        ignoredUsersSet,
+        mx,
+        navigateRoomThread,
+        recalibrateFilterOptsRef,
+        room,
+        roomOverviewOrderActive,
+        prefetchDepth,
+        scrollToBottomRef,
+        setTimeline,
+        showHiddenEvents,
+        threadId,
+      ]
+    )
   );
 
   const handleOpenEvent = useCallback<OpenRoomEventHandler>(
