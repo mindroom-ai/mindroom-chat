@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Plan a Mac app that installs with Homebrew (2026-10-28, design)
+
+- Why: the owner wants MindRoom Chat installable on Mac with `brew install --cask`, as a separate app from MindRoom.app (the menu bar app that runs agents), and integrated with it. The App Store build runs only on Apple silicon Macs, and neither a cask nor `mas` can install it.
+- Decision: a Mac Catalyst build of `ios/App` under the iOS bundle ID `chat.mindroom.app`, shipped as a Developer ID signed, notarized DMG on each chat release, with a `mindroom-chat` cask in `mindroom-ai/homebrew-tap`. Homebrew handles updates. MindRoom.app opens the chat app and hands it `/connect` pairing links. Design: [docs/superpowers/specs/2026-10-28-macos-chat-app-design.md](docs/superpowers/specs/2026-10-28-macos-chat-app-design.md).
+- Found: MindRoom.app's "Pair Hosted MindRoom..." runs `mindroom connect --pair-code` with a code chat no longer shows. Since #335 the runtime prints a `/connect?code=` link that chat approves.
+- Risks: Capacitor does not officially support Catalyst. Developer ID profile support for Push, Associated Domains and Sign in with Apple is unconfirmed. Nothing has been built yet; this host is Linux.
+- Next: implementation plan; then Phase 0 spike gates (unsigned Catalyst compile on `macos-latest`, Apple account capability check, run on a real Mac).
+
 ### Open the notified thread when an iOS push is tapped (2026-10-27)
 
 - Why: the owner reported that tapping a push on iOS does not open the thread the message arrived in. The app had no `pushNotificationActionPerformed` listener, so a tap only brought the app forward wherever it was.
