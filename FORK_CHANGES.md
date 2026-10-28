@@ -8,7 +8,7 @@
 - Decision: a Mac Catalyst build of `ios/App` under the iOS bundle ID `chat.mindroom.app`, shipped as a Developer ID signed, notarized DMG on each chat release, with a `mindroom-chat` cask in `mindroom-ai/homebrew-tap`. Homebrew handles updates. MindRoom.app opens the chat app and hands it `/connect` pairing links. Design: [docs/superpowers/specs/2026-10-28-macos-chat-app-design.md](docs/superpowers/specs/2026-10-28-macos-chat-app-design.md).
 - Found: MindRoom.app's "Pair Hosted MindRoom..." runs `mindroom connect --pair-code` with a code chat no longer shows. Since #335 the runtime prints a `/connect?code=` link that chat approves.
 - Risks: Capacitor does not officially support Catalyst. Developer ID profile support for Push, Associated Domains and Sign in with Apple is unconfirmed. Nothing has been built yet; this host is Linux.
-- Next: implementation plan; then Phase 0 spike gates (unsigned Catalyst compile on `macos-latest`, Apple account capability check, run on a real Mac).
+- Next: [plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) Task 1, then gate G1 (unsigned Catalyst compile on `macos-latest`, which needs a pushed draft PR). G2 (Apple account capabilities) and G3 (a real Mac) need the owner. Sub-project 2 (MindRoom.app integration) gets its own plan in the mindroom repository.
 
 ### Open the notified thread when an iOS push is tapped (2026-10-27)
 

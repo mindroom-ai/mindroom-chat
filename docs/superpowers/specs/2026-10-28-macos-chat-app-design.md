@@ -66,27 +66,41 @@ Sub-project 2 gets its own plan in the mindroom repository.
 
 ### Mac-specific behavior
 
-- On Catalyst, `Capacitor.getPlatform()` returns `ios`, so every `isNativeIOS()` path (8 files) and every `getPlatform()` check (17 call sites) also runs on Mac.
-- `MindRoomBridgeViewController` detects `ProcessInfo.processInfo.isMacCatalystApp` and:
-  - sets `preferredContentMode` to `.desktop`, so the page sees a Mac Safari user agent rather than an iPhone one;
-  - adds the user-agent token `MindRoomMac`.
-- `nativeSso.ts` adds `isNativeMac()` next to `isNativeIOS()`, reading that token.
-  Each existing caller is audited and kept or excluded on Mac:
-  - kept: native SSO, Cloudflare Access, push, file save;
-  - expected no-ops: keyboard resize, status bar, haptics;
-  - to check: touch-only gestures and the iOS web-platform checks.
-- `SceneDelegate` sets a minimum window size under `#if targetEnvironment(macCatalyst)`.
+- On Catalyst, `Capacitor.getPlatform()` returns `ios`, so every `isNativeIOS()` path also runs on Mac.
+  The audit kept all of them:
+  - native sign-in (`SSOLogin.tsx`, `authUi.ts`, `cloudflareAccess.ts`), push (`iosPush.ts`), file save (`nativeFileSave.ts`) and diagnostics (`index.tsx`, `About.tsx`) all use APIs that Catalyst provides;
+  - thread exits without history back (`threadNavigation.ts`) suit a window with no Back button;
+  - status bar, keyboard resize and haptics do nothing on Mac;
+  - edge swipes need touch events, which a trackpad does not send.
+
+  So the web code gets no Mac branch and no `isNativeMac()`.
+
+- `MindRoomBridgeViewController.webViewConfiguration(for:)` sets `preferredContentMode` to `.desktop` when `ProcessInfo.processInfo.isMacCatalystApp`.
+  The page then sees a Mac Safari user agent, so user-agent checks for iPhone and iPad (`isIOSWebPlatform`, the command palette shortcut label, voice errors) take their Mac paths.
+- `SceneDelegate` sets a minimum window size of 400×500 under `#if targetEnvironment(macCatalyst)`.
   Default Catalyst menus and title bar are kept.
+- The Mac build signs with its own `App-macOS.entitlements` (`CODE_SIGN_ENTITLEMENTS[sdk=macosx*]`):
+  - `com.apple.developer.aps-environment` = `production`;
+  - `com.apple.developer.associated-domains` = `applinks:chat.mindroom.chat`;
+  - `com.apple.developer.applesignin` = `Default`;
+  - `com.apple.security.device.audio-input` and `com.apple.security.device.camera`, which the hardened runtime that notarization requires needs for voice and calls.
+
+  `ENABLE_HARDENED_RUNTIME[sdk=macosx*] = YES`.
+  The app is not sandboxed.
 
 ### Release job
 
-A `macos_app` job is added to `auto-mindroom-release.yml`, with `needs: release` and `runs-on: macos-latest`. It:
+One script, `scripts/build-macos-app.sh`, builds the app for both the pull-request compile check and the release.
+It runs `npm run build:ios` and `npx cap sync ios` (which runs `pod install`), then archives for Mac Catalyst.
+Without `--sign` it archives unsigned.
+With `--sign` it exports with `method: developer-id`, notarizes with `notarytool`, staples, and builds `build/macos/MindRoom-Chat.dmg` with `hdiutil`.
 
-1. runs `npm ci`, `npm run build:ios`, `npx cap sync ios` and `pod install`;
-2. archives for Mac Catalyst and exports with `method: developer-id`, using the Developer ID certificate and provisioning profile;
-3. notarizes with `notarytool`, staples, and builds `MindRoom-Chat.dmg` with `hdiutil`;
-4. uploads the DMG to the release with `gh release upload`;
-5. sends `repository_dispatch` type `mindroom-chat-release` to `mindroom-ai/homebrew-tap`.
+A `macos_app` job is added to `auto-mindroom-release.yml`, with `needs: release`, `if: needs.release.outputs.release_created == 'true'` (as the Android job does) and `runs-on: macos-latest`. It:
+
+1. runs `npm ci`;
+2. runs `scripts/build-macos-app.sh --sign`;
+3. uploads the DMG to the release with `gh release upload`;
+4. sends `repository_dispatch` type `mindroom-chat-release` to `mindroom-ai/homebrew-tap`.
 
 New repository secrets:
 
@@ -96,12 +110,18 @@ New repository secrets:
 
 Today this repository has none of them.
 
-`CFBundleShortVersionString` comes from the release tag's base version, as the iOS archive does.
+Versions come from the release job's outputs: `MARKETING_VERSION` = `base_version` (`4.12.6`) and `CURRENT_PROJECT_VERSION` = `release_iteration` (`268`).
+The cask version is the tag without its `v` (`4.12.6-mindroom.268`).
 
 ### Cask
 
+The target's `PRODUCT_NAME` is `MindRoom.chat`, so Xcode builds `MindRoom.chat.app`.
+The script renames it to `MindRoom Chat.app` in the DMG; renaming the folder does not break the signature, and iOS is untouched.
+
 `Casks/mindroom-chat.rb`: `url` points at `.../mindroom-chat/releases/download/v#{version}/MindRoom-Chat.dmg`, with `app "MindRoom Chat.app"`, `depends_on macos: :ventura` (casks cannot name 13.3, the minimum that the iOS 16.4 deployment target implies for Catalyst), a `github_latest` livecheck, and `zap` entries for `~/Library/WebKit/chat.mindroom.app`, `~/Library/Caches/chat.mindroom.app` and `~/Library/Preferences/chat.mindroom.app.plist` (paths confirmed in G3).
-The tap's update script and workflow take the cask name, repository and asset, so one script serves both casks.
+`update_mindroom_cask.py` takes `--cask mindroom|mindroom-chat`, each mapped to its repository, asset and cask file; `mindroom` stays the default.
+A second workflow, `update-mindroom-chat-cask.yml`, runs it for `mindroom-chat` on a daily schedule and on `mindroom-chat-release`.
+Both workflows share the concurrency group `update-casks`, so their pushes to the tap never race.
 
 ### Docs
 
@@ -126,7 +146,8 @@ The tap's update script and workflow take the cask name, repository and asset, s
 
 ## Testing
 
-- Unit: `isNativeMac()` detection, and each caller whose Mac branch changes.
+- Contract (Vitest, following `iosSceneLifecycle.test.ts`, which parses the project with Capacitor's `xcode` and `plist` packages): Catalyst build settings, the Mac entitlements file, and the Swift Mac hooks.
+- Tap: Python `unittest` for `--cask` mapping.
 - CI: an unsigned Catalyst compile job on pull requests that touch `ios/` or `capacitor.config.ts`.
 - Tap CI: the existing `brew style`, `brew audit --online` and `brew install --dry-run` steps, run for `mindroom-chat`.
 - Manual Mac checklist (G3 plus): push arrives with the app closed, a `/connect` link opens the app, Cmd+C/V in the composer, window resizing, and `brew uninstall --zap`.
