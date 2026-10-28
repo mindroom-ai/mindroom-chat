@@ -33,7 +33,8 @@ describe('Mac Catalyst build of the App target', () => {
       readFileSync(resolve('ios/App/App/App-macOS.entitlements'), 'utf8')
     );
     expect(entitlements).toEqual({
-      'com.apple.developer.aps-environment': 'production',
+      // development for Debug and production for Release, as App.entitlements does.
+      'com.apple.developer.aps-environment': '$(APS_ENVIRONMENT)',
       'com.apple.developer.associated-domains': ['applinks:chat.mindroom.chat'],
       'com.apple.developer.applesignin': ['Default'],
       // The hardened runtime blocks the microphone and camera without these.

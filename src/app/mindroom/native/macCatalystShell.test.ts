@@ -16,10 +16,12 @@ describe('Mac Catalyst shell', () => {
       'MindRoomBridgeViewController must override webViewConfiguration'
     ).toBeDefined();
     expect(configuration).toMatch(/super\.webViewConfiguration\(for:/);
-    // The page then sees a Mac Safari user agent instead of an iPhone one.
+    // Compile-time check: `isMacCatalystApp` is also true for the App Store iPad
+    // app on Apple silicon Macs, which must keep the mobile content mode.
     expect(configuration).toMatch(
-      /if ProcessInfo\.processInfo\.isMacCatalystApp \{\s*\w+\.defaultWebpagePreferences\.preferredContentMode = \.desktop/
+      /#if targetEnvironment\(macCatalyst\)\s*\w+\.defaultWebpagePreferences\.preferredContentMode = \.desktop\s*#endif/
     );
+    expect(configuration).not.toMatch(/ProcessInfo\.processInfo\.isMacCatalystApp/);
     // iPhone and iPad keep the configured mobile content mode.
     expect(capacitorConfigSource).toMatch(/preferredContentMode: 'mobile'/);
   });

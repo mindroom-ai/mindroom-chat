@@ -10,7 +10,7 @@
 `scripts/build-macos-app.sh` archives it, unsigned for pull requests and signed, notarized and packed into a DMG for releases.
 `auto-mindroom-release.yml` uploads the DMG, and `mindroom-ai/homebrew-tap` bumps a `mindroom-chat` cask.
 
-**Tech Stack:** Capacitor 8 (iOS), Xcode with Mac Catalyst, CocoaPods, GitHub Actions `macos-latest`, `notarytool`, `hdiutil`, Homebrew casks, Vitest, Python `unittest`.
+**Tech Stack:** Capacitor 8 (iOS), Xcode with Mac Catalyst, CocoaPods, GitHub Actions `macos-15` with Xcode 26.2, `notarytool`, `hdiutil`, Homebrew casks, Vitest, Python `unittest`.
 
 **Spec:** [docs/superpowers/specs/2026-10-28-macos-chat-app-design.md](../specs/2026-10-28-macos-chat-app-design.md)
 
@@ -22,13 +22,13 @@
 - Build output goes to `build/macos/`; the release asset is named `MindRoom-Chat.dmg`; the app is `MindRoom Chat.app` inside the DMG.
 - Versions: `MARKETING_VERSION` = release `base_version`; `CURRENT_PROJECT_VERSION` = release `release_iteration`.
 - No in-app updater, no Mac App Store upload, no web-code Mac branch.
-- Each task updates the `FORK_CHANGES.md` Runbook entry "Plan a Mac app that installs with Homebrew", and runs `npm run typecheck`, `npm run build` and `npm run lint` before committing.
+- Each task adds or updates a `FORK_CHANGES.md` Runbook entry, and runs `npm run typecheck`, `npm run build` and `npm run lint` before committing.
 
 ## Review Focus
 
 1. **Xcode Cloud iOS archive after enabling Catalyst:** the App Store build must still archive for iOS only, and App Store Connect must still offer it on Apple silicon Macs. Owned by Task 1, through the contract test that iOS settings are unchanged, plus a check of the next Xcode Cloud build.
 2. **Mac with the App Store iPad app also installed:** two apps share one bundle ID. Universal links and `NSWorkspace` lookups may pick either, and neither app's data may be touched. Task 5 checks this by hand and documents it.
-3. **Push with the app quit:** APNs delivers to a Developer ID build only if the profile carries `com.apple.developer.aps-environment` = `production`. Task 3 verifies with `codesign -d --entitlements`; Task 5 sends a real push.
+3. **Push with the app quit:** APNs delivers to a Developer ID build only if the profile carries `com.apple.developer.aps-environment` = `production`, which Release gets from `$(APS_ENVIRONMENT)`. Task 3 verifies with `codesign -d --entitlements`; Task 5 sends a real push.
 4. **Release job failure after the GitHub release exists:** the tap's daily cron then finds a release without `MindRoom-Chat.dmg` and must fail loudly, not write a bad cask. The Task 4 test pins it.
 5. **Microphone and camera under the hardened runtime:** without `com.apple.security.device.audio-input` and `com.apple.security.device.camera`, voice and calls fail silently. Task 1's test pins the entitlements; Task 5 makes a call.
 
@@ -46,9 +46,9 @@
 
 **Interfaces:**
 
-- Produces: `scripts/build-macos-app.sh [--sign]`. Without flags: `npm run build:ios`, `npx cap sync ios`, then `xcodebuild archive -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -archivePath build/macos/MindRoomChat.xcarchive CODE_SIGNING_ALLOWED=NO`. It forwards `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the environment when set, and exits non-zero on any failure (`set -euo pipefail`).
+- Produces: `scripts/build-macos-app.sh [--sign]`. Without flags: `npm run build:ios`, `npx cap sync ios`, then `xcodebuild archive -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -archivePath build/macos/MindRoomChat.xcarchive CODE_SIGNING_ALLOWED=NO`. It exits non-zero on any failure (`set -euo pipefail`).
 
-- [ ] **Step 1: Write the failing test** `macCatalystBuildConfig.test.ts`, parsing the project and plists with Capacitor's `xcode` and `plist` packages as `iosSceneLifecycle.test.ts` does. For every build configuration of the `App` native target:
+- [ ] **Step 1: Write the failing test** `macCatalystBuildConfig.test.ts`, reading build settings with `scripts/ios-xcode-project.mjs` (as `appstore:preflight` does) and the entitlements with Capacitor's `plist`. For every build configuration of the `App` native target:
 
   - `SUPPORTS_MACCATALYST` is `YES`;
   - `DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER` is `NO`;
@@ -61,7 +61,7 @@
 
   ```ts
   {
-    'com.apple.developer.aps-environment': 'production',
+    'com.apple.developer.aps-environment': '$(APS_ENVIRONMENT)',
     'com.apple.developer.associated-domains': ['applinks:chat.mindroom.chat'],
     'com.apple.developer.applesignin': ['Default'],
     'com.apple.security.device.audio-input': true,
@@ -71,7 +71,7 @@
 
 - [ ] **Step 2: Run it.** `npx vitest run src/app/mindroom/native/macCatalystBuildConfig.test.ts`. Expected: FAIL on `SUPPORTS_MACCATALYST`.
 - [ ] **Step 3: Add the four build settings** to both App configurations, and create the entitlements file with exactly those keys.
-- [ ] **Step 4: Write the build script and `build-macos-pr.yml`.** The workflow runs on `pull_request` for paths `ios/**`, `capacitor.config.ts`, `package-lock.json`, `scripts/build-macos-app.sh` and the workflow itself. It uses `runs-on: macos-latest`, `actions/setup-node` with `node-version-file: '.node-version'`, `npm ci`, then `scripts/build-macos-app.sh`. Pin actions by SHA, as `auto-mindroom-release.yml` does.
+- [ ] **Step 4: Write the build script and `build-macos-pr.yml`.** The workflow runs on `pull_request` for paths `ios/**`, `capacitor.config.ts`, `patches/@capacitor+*.patch`, `package.json`, `package-lock.json`, `.node-version`, `scripts/build-macos-app.sh` and the workflow itself. It uses `runs-on: macos-15`, `sudo xcode-select -s /Applications/Xcode_26.2.app`, `actions/setup-node` with `node-version-file: '.node-version'`, `npm ci`, then `scripts/build-macos-app.sh`. Pin actions by SHA, as `auto-mindroom-release.yml` does.
 - [ ] **Step 5: Run the test again, then the validations.** The test passes; `npm run typecheck`, `npm run build` and `npm run lint` pass.
 - [ ] **Step 6: Commit.** Message: `build(macos): build the iOS app for Mac Catalyst`.
 - [ ] **Step 7: Gate G1.** ⚠️ Needs the owner's go-ahead to push a draft PR. Expected: `build-macos-pr` is green and the log shows `** ARCHIVE SUCCEEDED **`.
@@ -88,10 +88,10 @@
 
 **Interfaces:**
 
-- Produces: `override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration` on `MindRoomBridgeViewController`. It calls `super`, and when `ProcessInfo.processInfo.isMacCatalystApp`, sets `defaultWebpagePreferences.preferredContentMode = .desktop`.
+- Produces: `override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration` on `MindRoomBridgeViewController`. It calls `super`, and under `#if targetEnvironment(macCatalyst)` sets `defaultWebpagePreferences.preferredContentMode = .desktop`. `isMacCatalystApp` would also match the App Store iPad app on Apple silicon Macs.
 
 - [ ] **Step 1: Write the failing source-contract test** (the pattern used by `nativeFileSaveIOSContract.test.ts`):
-  - the bridge controller overrides `webViewConfiguration(for` and sets `preferredContentMode = .desktop` inside an `isMacCatalystApp` check;
+  - the bridge controller overrides `webViewConfiguration(for` and sets `preferredContentMode = .desktop` inside `#if targetEnvironment(macCatalyst)`, with no `ProcessInfo.processInfo.isMacCatalystApp`;
   - `SceneDelegate.swift` contains `#if targetEnvironment(macCatalyst)` and `sizeRestrictions?.minimumSize = CGSize(width: 400, height: 500)`;
   - `capacitor.config.ts` still sets `preferredContentMode: 'mobile'` for iOS.
 - [ ] **Step 2: Run it.** `npx vitest run src/app/mindroom/native/macCatalystShell.test.ts`. Expected: FAIL.
@@ -112,7 +112,7 @@
 **Interfaces:**
 
 - Consumes: `scripts/build-macos-app.sh` from Task 1.
-- Produces: `--sign` reads these environment variables:
+- Produces: the script forwards `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` to `xcodebuild` when set. `--sign` reads these environment variables:
 
   - `CODESIGN_IDENTITY`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`, named as in mindroom's `release.yml`;
   - `MACOS_PROVISIONING_PROFILE_PATH`.
@@ -151,10 +151,12 @@
   6. stage it as `MindRoom Chat.app` with the `/Applications` symlink, then `hdiutil create -volname "MindRoom Chat" -format UDZO`;
   7. notarize and staple the DMG too.
 
+  The `Capacitor` and `CapacitorCordova` pods have resource-bundle targets that need signing settings in a signed Catalyst build.
+
   Run the test. Expected: PASS.
 
 - [ ] **Step 4: Add the `macos_app` job:**
-  - `needs: release`, `if: ${{ needs.release.outputs.release_created == 'true' }}`, `runs-on: macos-latest`, `permissions: contents: write`;
+  - `needs: release`, `if: ${{ needs.release.outputs.release_created == 'true' }}`, `runs-on: macos-15`, `permissions: contents: write`, with Xcode 26.2 selected;
   - steps: checkout, setup-node, `npm ci`, `apple-actions/import-codesign-certs` with the `MACOS_CODESIGN_*` secrets, write the profile from `MACOS_PROVISIONING_PROFILE_BASE64`;
   - run the script with `MARKETING_VERSION=${{ needs.release.outputs.base_version }}` and `CURRENT_PROJECT_VERSION=${{ needs.release.outputs.release_iteration }}`;
   - `gh release upload "$RELEASE_TAG" build/macos/MindRoom-Chat.dmg --clobber`;
@@ -222,7 +224,11 @@
   7. a `https://chat.mindroom.chat/connect?code=…` link clicked in Notes opens the app;
   8. Cmd+C/V in the composer;
   9. a window resized to its minimum;
-  10. the app menu's name.
+  10. the app menu's name and the Dock icon (the `AppIcon` set has no Mac sizes);
+  11. text size: Catalyst runs in "Scale Interface to Match iPad" (77%); decide whether to switch to "Optimize for Mac";
+  12. the microphone-blocked error, which still says "in iPhone settings";
+  13. a push while the app is in front (the push plugin's `.alert` option is deprecated on Catalyst);
+  14. the same install on an Intel Mac.
 - [ ] **Step 2: Check alongside the App Store app.** With the iPad app also installed, record which app the `/connect` link opens. Confirm that `brew uninstall --zap` leaves the iPad app's container alone.
 - [ ] **Step 3: Set the cask's `zap trash:`** to the paths actually created under `~/Library` (WebKit, Caches, HTTPStorages, Preferences, Saved Application State for `chat.mindroom.app`).
 - [ ] **Step 4: Update the README.** Mac row: "`brew install --cask mindroom-ai/tap/mindroom-chat` (any Mac with macOS 13.3+), the App Store app on Apple silicon Macs, or the MindRoom macOS app, which also runs your agents". Add the Mac note to `ios-pairing-links.md`. Close the Runbook entry with the Next step: the owner's choice among the spec's MindRoom.app integration options.

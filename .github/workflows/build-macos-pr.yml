@@ -5,7 +5,10 @@ on:
     paths:
       - 'ios/**'
       - 'capacitor.config.ts'
+      - 'patches/@capacitor+*.patch'
+      - 'package.json'
       - 'package-lock.json'
+      - '.node-version'
       - 'scripts/build-macos-app.sh'
       - '.github/workflows/build-macos-pr.yml'
 

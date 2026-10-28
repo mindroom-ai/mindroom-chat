@@ -62,7 +62,7 @@ Sub-project 2 needs an owner decision first, then gets its own plan in the mindr
 
 ### Phase 0: spike gates
 
-- **G1, compile:** an unsigned Catalyst archive (`-destination 'generic/platform=macOS,variant=Mac Catalyst'`, `CODE_SIGNING_ALLOWED=NO`) builds on a `macos-latest` runner with every pod.
+- **G1, compile:** an unsigned Catalyst archive (`-destination 'generic/platform=macOS,variant=Mac Catalyst'`, `CODE_SIGNING_ALLOWED=NO`) builds on a `macos-15` runner with Xcode 26.2, as `ios-routing.yml` uses, with every pod.
   If a pod fails, patch it with `patch-package` (already used for npm patches).
   If that also fails, stop and write a WKWebView-shell spec instead.
 - **G2, Apple account:** an Account Holder or Admin confirms that a Developer ID provisioning profile for `chat.mindroom.app` with Mac Catalyst can carry Push Notifications, Associated Domains and Sign in with Apple.
@@ -81,13 +81,21 @@ Sub-project 2 needs an owner decision first, then gets its own plan in the mindr
 
   So the web code gets no Mac branch and no `isNativeMac()`.
 
-- `MindRoomBridgeViewController.webViewConfiguration(for:)` sets `preferredContentMode` to `.desktop` when `ProcessInfo.processInfo.isMacCatalystApp`.
-  The page then sees a Mac Safari user agent, so user-agent checks for iPhone and iPad (`isIOSWebPlatform`, the command palette shortcut label, voice errors) take their Mac paths.
+- `MindRoomBridgeViewController.webViewConfiguration(for:)` sets `preferredContentMode` to `.desktop` under `#if targetEnvironment(macCatalyst)`.
+  It is a compile-time check because `ProcessInfo.processInfo.isMacCatalystApp` is also true for the App Store iPad app on Apple silicon Macs, which keeps the mobile content mode.
+  The page then sees a Mac user agent:
+
+  - `mobileOrTablet()` is false, so the composer and emoji picker focus as on desktop;
+  - the `isMacOS()` paths run (search, General settings, the toolbar);
+  - `isIOSWebKitDevice()` is false.
+
+  The microphone error still says "in iPhone settings", because `microphoneAccess.ts` checks `Capacitor.getPlatform()`; this is a known Mac gap for Task 5.
+
 - `SceneDelegate` sets a minimum window size of 400×500 under `#if targetEnvironment(macCatalyst)`.
   Default Catalyst menus and title bar are kept.
 - The Mac build signs with its own `App-macOS.entitlements` (`CODE_SIGN_ENTITLEMENTS[sdk=macosx*]`):
 
-  - `com.apple.developer.aps-environment` = `production`;
+  - `com.apple.developer.aps-environment` = `$(APS_ENVIRONMENT)`, which is `development` for Debug and `production` for Release, as in `App.entitlements`;
   - `com.apple.developer.associated-domains` = `applinks:chat.mindroom.chat`;
   - `com.apple.developer.applesignin` = `Default`;
   - `com.apple.security.device.audio-input` and `com.apple.security.device.camera`, which the hardened runtime that notarization requires needs for voice and calls.
@@ -102,7 +110,7 @@ It runs `npm run build:ios` and `npx cap sync ios` (which runs `pod install`), t
 Without `--sign` it archives unsigned.
 With `--sign` it exports with `method: developer-id`, notarizes with `notarytool`, staples, and builds `build/macos/MindRoom-Chat.dmg` with `hdiutil`.
 
-A `macos_app` job is added to `auto-mindroom-release.yml`, with `needs: release`, `if: needs.release.outputs.release_created == 'true'` (as the Android job does) and `runs-on: macos-latest`. It:
+A `macos_app` job is added to `auto-mindroom-release.yml`, with `needs: release`, `if: needs.release.outputs.release_created == 'true'` (as the Android job does), and `runs-on: macos-15` with Xcode 26.2. It:
 
 1. runs `npm ci`;
 2. runs `scripts/build-macos-app.sh --sign`;
@@ -158,7 +166,7 @@ Every option keeps these rules:
 
 - Contract (Vitest): Catalyst build settings, read with `scripts/ios-xcode-project.mjs` as `appstore:preflight` does; the Mac entitlements file, read with Capacitor's `plist`; and the Swift Mac hooks.
 - Tap: Python `unittest` for `--cask` mapping.
-- CI: an unsigned Catalyst compile job on pull requests that touch `ios/` or `capacitor.config.ts`.
+- CI: an unsigned Catalyst compile job on pull requests that touch `ios/`, `capacitor.config.ts`, Capacitor patches, `package.json`, `package-lock.json` or `.node-version`.
 - Tap CI: the existing `brew style`, `brew audit --online` and `brew install --dry-run` steps, run for `mindroom-chat`.
 - Manual Mac checklist (G3 plus): push arrives with the app closed, a `/connect` link opens the app, Cmd+C/V in the composer, window resizing, and `brew uninstall --zap`.
 

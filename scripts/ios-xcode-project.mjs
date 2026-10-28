@@ -2,7 +2,7 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Match a whole setting name, so PRODUCT_BUNDLE_IDENTIFIER does not match the
 // end of DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER.
-const settingNamePattern = (settingName) => `(?<![\\w"])${escapeRegExp(settingName)}`;
+const settingNamePattern = (settingName) => `(?<!\\w)${escapeRegExp(settingName)}`;
 
 const getSection = (xcodeProject, sectionName) => {
   const begin = `/* Begin ${sectionName} section */`;
