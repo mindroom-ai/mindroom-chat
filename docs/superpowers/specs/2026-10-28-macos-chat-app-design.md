@@ -87,7 +87,7 @@ Sub-project 2 needs an owner decision first, then gets its own plan in the mindr
 
   - `mobileOrTablet()` is false, so the composer and emoji picker focus as on desktop;
   - the `isMacOS()` paths run (search, General settings, the toolbar);
-  - `isIOSWebKitDevice()` is false.
+  - `isIOSWebKitDevice()` should be false, but it also returns true for `MacIntel` with `navigator.maxTouchPoints > 0`, which nobody has measured on Catalyst (Task 5 checks).
 
   The microphone error still says "in iPhone settings", because `microphoneAccess.ts` checks `Capacitor.getPlatform()`; this is a known Mac gap for Task 5.
 

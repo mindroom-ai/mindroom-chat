@@ -71,10 +71,10 @@
 
 - [ ] **Step 2: Run it.** `npx vitest run src/app/mindroom/native/macCatalystBuildConfig.test.ts`. Expected: FAIL on `SUPPORTS_MACCATALYST`.
 - [ ] **Step 3: Add the four build settings** to both App configurations, and create the entitlements file with exactly those keys.
-- [ ] **Step 4: Write the build script and `build-macos-pr.yml`.** The workflow runs on `pull_request` for paths `ios/**`, `capacitor.config.ts`, `patches/@capacitor+*.patch`, `package.json`, `package-lock.json`, `.node-version`, `scripts/build-macos-app.sh` and the workflow itself. It uses `runs-on: macos-15`, `sudo xcode-select -s /Applications/Xcode_26.2.app`, `actions/setup-node` with `node-version-file: '.node-version'`, `npm ci`, then `scripts/build-macos-app.sh`. Pin actions by SHA, as `auto-mindroom-release.yml` does.
+- [ ] **Step 4: Write the build script and `build-macos-pr.yml`.** The workflow runs on `pull_request` for paths `ios/**`, `capacitor.config.ts`, `patches/@capacitor+*.patch`, `package.json`, `package-lock.json`, `.node-version`, `scripts/build-macos-app.sh` and the workflow itself. It uses `runs-on: macos-15`, `sudo xcode-select -s /Applications/Xcode_26.2.app`, `actions/setup-node` with `node-version-file: '.node-version'`, `npm ci`, then `scripts/build-macos-app.sh`. Pin actions by the SHAs `ios-routing.yml` uses.
 - [ ] **Step 5: Run the test again, then the validations.** The test passes; `npm run typecheck`, `npm run build` and `npm run lint` pass.
 - [ ] **Step 6: Commit.** Message: `build(macos): build the iOS app for Mac Catalyst`.
-- [ ] **Step 7: Gate G1.** ⚠️ Needs the owner's go-ahead to push a draft PR. Expected: `build-macos-pr` is green and the log shows `** ARCHIVE SUCCEEDED **`.
+- [ ] **Step 7: Gate G1.** ⚠️ Needs the owner's go-ahead to push a PR, opened ready for review as AGENTS.md requires. Expected: `build-macos-pr` is green and the log shows `** ARCHIVE SUCCEEDED **`.
       If a pod fails to compile, patch it with `patch-package` and repeat.
       If it still fails, stop the plan and report: the spec's fallback is a WKWebView shell.
 
@@ -228,7 +228,8 @@
   11. text size: Catalyst runs in "Scale Interface to Match iPad" (77%); decide whether to switch to "Optimize for Mac";
   12. the microphone-blocked error, which still says "in iPhone settings";
   13. a push while the app is in front (the push plugin's `.alert` option is deprecated on Catalyst);
-  14. the same install on an Intel Mac.
+  14. `navigator.maxTouchPoints` in the app's Web Inspector: `isIOSWebKitDevice()` treats `MacIntel` with touch points as iOS;
+  15. the same install on an Intel Mac.
 - [ ] **Step 2: Check alongside the App Store app.** With the iPad app also installed, record which app the `/connect` link opens. Confirm that `brew uninstall --zap` leaves the iPad app's container alone.
 - [ ] **Step 3: Set the cask's `zap trash:`** to the paths actually created under `~/Library` (WebKit, Caches, HTTPStorages, Preferences, Saved Application State for `chat.mindroom.app`).
 - [ ] **Step 4: Update the README.** Mac row: "`brew install --cask mindroom-ai/tap/mindroom-chat` (any Mac with macOS 13.3+), the App Store app on Apple silicon Macs, or the MindRoom macOS app, which also runs your agents". Add the Mac note to `ios-pairing-links.md`. Close the Runbook entry with the Next step: the owner's choice among the spec's MindRoom.app integration options.
