@@ -158,7 +158,8 @@ describe('cloudflareAccess', () => {
 
     await signInToCloudflareAccess(BASE_URL);
 
-    expect(authenticateInNativeBrowser).toHaveBeenCalledWith(HANDOFF_URL, 'mindroom');
+    // Safari's shared cookies break the Access login, so the sign-in starts without them.
+    expect(authenticateInNativeBrowser).toHaveBeenCalledWith(HANDOFF_URL, 'mindroom', true);
     expect(getCloudflareAccessToken('https://hs.example/_matrix/client/v3/sync')).toBe(validToken);
     expect(
       getCloudflareAccessToken('https://other.example/_matrix/client/v3/sync')

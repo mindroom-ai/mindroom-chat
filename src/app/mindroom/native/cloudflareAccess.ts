@@ -62,8 +62,7 @@ const tokenExpiresAt = (token: string): number | undefined => {
   }
 };
 
-// Safari keeps the same Access session until it expires, so the sign-in page hands back
-// the same token until then: treat it as valid up to its expiry.
+// The app uses a token until it expires; Access may revoke it sooner.
 const isUsable = (token: string, now: number): boolean => {
   const expiresAt = tokenExpiresAt(token);
   return expiresAt !== undefined && expiresAt > now;
@@ -150,7 +149,9 @@ export const signInToCloudflareAccess = async (baseUrl: string): Promise<void> =
   const record = readRecord(baseUrl);
   if (!origin || !record) throw new Error('This server does not use Cloudflare Access.');
 
-  const callbackUrl = await authenticateInNativeBrowser(record.handoffUrl, CALLBACK_SCHEME);
+  // Safari's cross-site tracking protection breaks the Access login in a session that
+  // shares its cookies, so the sign-in runs in an ephemeral one.
+  const callbackUrl = await authenticateInNativeBrowser(record.handoffUrl, CALLBACK_SCHEME, true);
   const token = callbackUrl ? parseCloudflareAccessCallback(callbackUrl) : undefined;
   if (!token) throw new Error('Cloudflare Access sign-in returned no valid token.');
   writeRecord(origin, { ...record, token });

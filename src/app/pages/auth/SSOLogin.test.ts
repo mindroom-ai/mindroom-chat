@@ -5,6 +5,7 @@ import { SSOAction } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { createMatrixClient, createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
+import { hasCloudflareAccess } from '../../mindroom/native/cloudflareAccess';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
@@ -49,6 +50,11 @@ vi.mock('@capacitor/browser', () => ({
 vi.mock('../../mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
   createMatrixFetchFn: vi.fn(),
+}));
+
+const accessState = vi.hoisted(() => ({ behindAccess: false }));
+vi.mock('../../mindroom/native/cloudflareAccess', () => ({
+  hasCloudflareAccess: vi.fn(() => accessState.behindAccess),
 }));
 
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
@@ -124,6 +130,40 @@ describe('SSOLogin', () => {
       url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
       presentationStyle: 'fullscreen',
     });
+  });
+
+  it.each([
+    [false, 'shares Safari cookies'],
+    [true, 'starts without Safari cookies behind Cloudflare Access'],
+  ])('runs the iOS SSO session (behind Access: %s) so that it %s', async (behindAccess) => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    authenticate.mockResolvedValue({});
+    accessState.behindAccess = behindAccess;
+
+    try {
+      const renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+      await act(async () => {
+        await findButtonByText(renderer, 'Continue with SSO')?.props.onClick({
+          preventDefault: vi.fn(),
+        });
+      });
+
+      expect(hasCloudflareAccess).toHaveBeenCalledWith('https://mindroom.chat');
+      expect(authenticate).toHaveBeenCalledWith({
+        callbackScheme: 'mindroom',
+        ephemeral: behindAccess,
+        url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      });
+    } finally {
+      accessState.behindAccess = false;
+    }
   });
 
   it('opens SSO inside the in-app browser on native Android', async () => {

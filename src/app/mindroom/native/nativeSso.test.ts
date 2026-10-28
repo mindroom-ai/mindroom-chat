@@ -216,6 +216,7 @@ describe('nativeSso', () => {
     expect(registerPlugin).toHaveBeenCalledWith('MindRoomAuth');
     expect(authenticate).toHaveBeenCalledWith({
       callbackScheme: 'mindroom',
+      ephemeral: false,
       url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
     });
     expect(replaceState).toHaveBeenCalledWith(null, '', '/login/mindroom.chat?loginToken=abc123');
