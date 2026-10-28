@@ -340,11 +340,13 @@ export function MindroomNativeIOSPushOpenFeature() {
   }, []);
 
   useEffect(() => {
-    // Rooms are all known only after the first sync. A room this account is not in
-    // belongs to another account's push, so the app stays where it is.
+    // Rooms are all known only after the first sync. A room this account has not joined
+    // belongs to another account's push, or was left, so the app stays where it is.
     if (!target || !hasCompletedInitialSync) return;
     setTarget(undefined);
-    if (mx.getRoom(target.roomId)) navigateRoom(target.roomId, target.eventId);
+    if (mx.getRoom(target.roomId)?.getMyMembership() === Membership.Join) {
+      navigateRoom(target.roomId, target.eventId);
+    }
   }, [hasCompletedInitialSync, mx, navigateRoom, target]);
 
   return null;

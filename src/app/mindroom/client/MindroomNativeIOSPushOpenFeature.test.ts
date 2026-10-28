@@ -10,7 +10,13 @@ const state = vi.hoisted(() => ({
   hasCompletedInitialSync: true,
   onAction: undefined as ActionListener | undefined,
   navigateRoom: vi.fn(),
-  mx: { getRoom: (roomId: string) => (roomId === '!joined:example' ? {} : null) },
+  mx: {
+    getRoom: (roomId: string) => {
+      if (roomId === '!joined:example') return { getMyMembership: () => 'join' };
+      if (roomId === '!left:example') return { getMyMembership: () => 'leave' };
+      return null;
+    },
+  },
 }));
 
 vi.mock('@capacitor/push-notifications', () => ({
@@ -56,11 +62,12 @@ describe('MindroomNativeIOSPushOpenFeature', () => {
     renderer.unmount();
   });
 
-  it("leaves another account's push and a push without a room alone", async () => {
+  it("leaves another account's push, a left room and a push without a room alone", async () => {
     const renderer = await act(async () =>
       create(React.createElement(MindroomNativeIOSPushOpenFeature))
     );
     await tap({ aps: {}, room_id: '!elsewhere:example', event_id: '$event' });
+    await tap({ aps: {}, room_id: '!left:example', event_id: '$event' });
     await tap({ aps: {} });
 
     expect(state.navigateRoom).not.toHaveBeenCalled();

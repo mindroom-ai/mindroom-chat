@@ -120,7 +120,9 @@ export const fetchRoomEventThreadRootId = async (
 ): Promise<string | undefined> => {
   const [, event] = await to(mx.fetchRoomEvent(roomId, eventId));
   const relation = event?.content?.['m.relates_to'];
-  return relation?.rel_type === RelationType.Thread && typeof relation.event_id === 'string'
+  return relation?.rel_type === RelationType.Thread &&
+    typeof relation.event_id === 'string' &&
+    relation.event_id !== eventId
     ? relation.event_id
     : undefined;
 };

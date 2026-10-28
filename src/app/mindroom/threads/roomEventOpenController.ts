@@ -145,6 +145,11 @@ export const useRoomEventOpenController = ({
   const threadJumpGenerationRef = useRef(0);
   const routeEventIdRef = useRef(routeEventId);
   routeEventIdRef.current = routeEventId;
+  // Read again after the lookup below: the view can change while it runs.
+  const threadRedirectActiveRef = useRef(false);
+  threadRedirectActiveRef.current =
+    effectiveViewMode !== 'classic' &&
+    isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive });
 
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
@@ -304,17 +309,16 @@ export const useRoomEventOpenController = ({
         if (!alive()) return;
         // Only the route's own event (a push, inbox Open, a permalink) moves into its
         // thread, and only while the route still asks for it.
-        if (
-          !err &&
-          evtId === routeEventIdRef.current &&
-          effectiveViewMode !== 'classic' &&
-          isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive })
-        ) {
+        if (!err && evtId === routeEventIdRef.current && threadRedirectActiveRef.current) {
           const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, evtId);
           // A route that moved on to another event opens that one; a route that dropped its
           // event still needs the room timeline this open emptied.
           if (!alive() || (routeEventIdRef.current && routeEventIdRef.current !== evtId)) return;
-          if (threadRootId && routeEventIdRef.current === evtId) {
+          if (
+            threadRootId &&
+            routeEventIdRef.current === evtId &&
+            threadRedirectActiveRef.current
+          ) {
             navigateRoomThread(room.roomId, threadRootId, evtId, { replace: true });
             return;
           }
@@ -337,7 +341,6 @@ export const useRoomEventOpenController = ({
       [
         alive,
         effectiveViewMode,
-        focusEventInRoom,
         hideMembershipEvents,
         hideNickAvatarEvents,
         ignoredUsersSet,
@@ -345,7 +348,6 @@ export const useRoomEventOpenController = ({
         navigateRoomThread,
         recalibrateFilterOptsRef,
         room,
-        roomOverviewOrderActive,
         prefetchDepth,
         scrollToBottomRef,
         setTimeline,
