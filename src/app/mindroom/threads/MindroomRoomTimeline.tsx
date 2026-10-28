@@ -1410,7 +1410,7 @@ export function RoomTimeline({
     ]
   );
 
-  const { handleOpenEvent, redirectRoomEventDeepLink } = useRoomEventOpenController({
+  const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
     effectiveViewMode,
     focusEventInRoom,
@@ -1640,8 +1640,7 @@ export function RoomTimeline({
     effectiveViewMode,
     eventId,
     focusEventInRoom,
-    handleOpenEvent,
-    redirectRoomEventDeepLink,
+    openRoomEventRoute,
     roomId: room.roomId,
     roomOverviewOrderActive,
     threadId,
