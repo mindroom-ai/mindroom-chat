@@ -304,10 +304,15 @@ describe('RoomTimeline', () => {
         );
       });
 
+      const threadAnswer = {
+        content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$thread-root' } },
+      };
       it.each([
-        ['moves on to another event', '$later-message'],
-        ['drops its event', undefined],
-      ])('drops a late thread lookup when the route %s', async (_case, nextEventId) => {
+        ['moves on to another event', ['$later-message'], threadAnswer],
+        ['drops its event', [undefined], threadAnswer],
+        // The open that came back already handled the event; the first answer must not redo it.
+        ['drops its event and comes back', [undefined, '$unloaded-reply'], {}],
+      ])('drops a late lookup when the route %s', async (_case, nextEventIds, lateAnswer) => {
         const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
@@ -319,12 +324,12 @@ describe('RoomTimeline', () => {
           rootEvent: threadRoot,
           length: 2,
         } as never);
+        // Only the first lookup is held back; a later one for the same event answers at once.
         let resolveFetch: (event: unknown) => void = () => undefined;
-        const pendingFetch = new Promise((resolve) => {
-          resolveFetch = resolve;
-        });
-        matrixClientMock.fetchRoomEvent.mockImplementation(async (_roomId, eventId) =>
-          eventId === '$unloaded-reply' ? pendingFetch : {}
+        matrixClientMock.fetchRoomEvent.mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          })
         );
         matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) =>
           eventId === laterMessage.getId() ? laterTimeline : null
@@ -347,27 +352,29 @@ describe('RoomTimeline', () => {
           );
           await flushAsyncWork();
         });
-        await act(async () => {
-          renderer?.update(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              eventId: nextEventId,
-              initialViewMode: 'compact',
-            })
-          );
-          await flushAsyncWork();
-        });
-        const itemKeys = getItemKeys();
-
-        await act(async () => {
-          resolveFetch({
-            content: { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot.getId() } },
+        for (const nextEventId of nextEventIds) {
+          await act(async () => {
+            renderer?.update(
+              React.createElement(ControlledRoomTimeline, {
+                room,
+                eventId: nextEventId,
+                initialViewMode: 'compact',
+              })
+            );
+            await flushAsyncWork();
           });
+        }
+        const itemKeys = getItemKeys();
+        const loadCount = matrixClientMock.getEventTimeline.mock.calls.length;
+
+        await act(async () => {
+          resolveFetch(lateAnswer);
           await flushAsyncWork();
         });
 
-        // The late answer neither redirects nor replaces the newer route's timeline.
+        // The late answer neither redirects, nor loads, nor replaces the newer route's timeline.
         expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+        expect(matrixClientMock.getEventTimeline).toHaveBeenCalledTimes(loadCount);
         expect(getItemKeys()).toEqual(itemKeys);
       });
 

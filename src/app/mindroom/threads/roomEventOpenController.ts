@@ -534,7 +534,8 @@ export const useRoomEventRouteOpenController = ({
   threadId?: string;
 }) => {
   const openRoomEventRouteRef = useRef(openRoomEventRoute);
-  const handledRoomEventRouteRef = useRef<string>();
+  // One object per open, so a route that leaves and comes back starts a new open.
+  const handledRoomEventRouteRef = useRef<{ key: string }>();
 
   useEffect(() => {
     openRoomEventRouteRef.current = openRoomEventRoute;
@@ -555,15 +556,16 @@ export const useRoomEventRouteOpenController = ({
       roomOverviewOrderActive ? '1' : '0',
     ].join('|');
 
-    if (handledRoomEventRouteRef.current === routeKey) {
+    if (handledRoomEventRouteRef.current?.key === routeKey) {
       return;
     }
 
-    handledRoomEventRouteRef.current = routeKey;
+    const routeOpen = { key: routeKey };
+    handledRoomEventRouteRef.current = routeOpen;
 
     void openRoomEventRouteRef.current(
       eventId,
-      () => handledRoomEventRouteRef.current === routeKey
+      () => handledRoomEventRouteRef.current === routeOpen
     );
   }, [effectiveViewMode, eventId, focusEventInRoom, roomId, roomOverviewOrderActive, threadId]);
 };
