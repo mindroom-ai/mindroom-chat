@@ -68,6 +68,7 @@ Sub-project 2 gets its own plan in the mindroom repository.
 
 - On Catalyst, `Capacitor.getPlatform()` returns `ios`, so every `isNativeIOS()` path also runs on Mac.
   The audit kept all of them:
+
   - native sign-in (`SSOLogin.tsx`, `authUi.ts`, `cloudflareAccess.ts`), push (`iosPush.ts`), file save (`nativeFileSave.ts`) and diagnostics (`index.tsx`, `About.tsx`) all use APIs that Catalyst provides;
   - thread exits without history back (`threadNavigation.ts`) suit a window with no Back button;
   - status bar, keyboard resize and haptics do nothing on Mac;
@@ -80,6 +81,7 @@ Sub-project 2 gets its own plan in the mindroom repository.
 - `SceneDelegate` sets a minimum window size of 400×500 under `#if targetEnvironment(macCatalyst)`.
   Default Catalyst menus and title bar are kept.
 - The Mac build signs with its own `App-macOS.entitlements` (`CODE_SIGN_ENTITLEMENTS[sdk=macosx*]`):
+
   - `com.apple.developer.aps-environment` = `production`;
   - `com.apple.developer.associated-domains` = `applinks:chat.mindroom.chat`;
   - `com.apple.developer.applesignin` = `Default`;

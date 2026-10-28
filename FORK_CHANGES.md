@@ -21,6 +21,15 @@
 - Risks: Capacitor does not officially support Catalyst. Developer ID profile support for Push, Associated Domains and Sign in with Apple is unconfirmed. Nothing has been built yet; this host is Linux.
 - Next: [plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) Task 1, then gate G1 (unsigned Catalyst compile on `macos-latest`, which needs a pushed draft PR). G2 (Apple account capabilities) and G3 (a real Mac) need the owner. Sub-project 2 (MindRoom.app integration) gets its own plan in the mindroom repository.
 
+### Show Local MindRoom only to accounts that can pair (2026-10-28)
+
+- Why: the owner reported that an account on another homeserver, such as one behind Cloudflare Access, still gets the Local MindRoom sidebar button. Pairing and linked installations go through the provisioning service (`sidebar.mindRoomProvisioningUrl`, `https://mindroom.chat` in `config.mindroom.json`), which only accounts on its own homeserver can authenticate to, so the page offered such an account nothing it could use.
+- Change: `useShowLocalMindroom` (`local-mindroom/useShowLocalMindroom.ts`) keeps `sidebar.showMindRoom` and also asks `resolveMindroomProvisioningRequest` whether the active account can authenticate, the rule the welcome prompt, the Local MindRoom page and `/connect` already use. The sidebar button and the Settings menu entry both read it, so an account on another homeserver sees neither, and opening Settings at Local MindRoom falls back to General. Without a provisioning URL every homeserver provisions its own accounts, as before.
+- Also hidden: hosted tenant accounts (`*.matrix.mindroom.chat`) are on another origin than `https://mindroom.chat`, so they lose the button too. They could not pair before either: the page showed them the pair-code form but not their linked installations, and `/connect` leaves their account out of the accounts that can approve a code.
+- Not included: `/connect?code=` links still work for any stored account on the provisioning homeserver, whichever account is active. With another homeserver active, the in-app pair-code form is gone even if a mindroom.chat account is stored; switch to that account or open the `/connect` link.
+- Tests: `SidebarNav.test.ts` checks the button shows for an account on the provisioning homeserver, not for one elsewhere, and shows with no provisioning URL (fails without the change). `e2e/live/settings-header-glass.spec.ts` no longer opens Local MindRoom: its localhost homeserver is not the app-origin provisioning URL the e2e config sets, so the entry is hidden there.
+- Next: none.
+
 ### Open the notified thread when an iOS push is tapped (2026-10-27)
 
 - Why: the owner reported that tapping a push on iOS does not open the thread the message arrived in. The app had no `pushNotificationActionPerformed` listener, so a tap only brought the app forward wherever it was.

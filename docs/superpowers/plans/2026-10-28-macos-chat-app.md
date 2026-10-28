@@ -49,6 +49,7 @@
 - Produces: `scripts/build-macos-app.sh [--sign]`. Without flags: `npm run build:ios`, `npx cap sync ios`, then `xcodebuild archive -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=macOS,variant=Mac Catalyst' -archivePath build/macos/MindRoomChat.xcarchive CODE_SIGNING_ALLOWED=NO`. It forwards `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the environment when set, and exits non-zero on any failure (`set -euo pipefail`).
 
 - [ ] **Step 1: Write the failing test** `macCatalystBuildConfig.test.ts`, parsing the project and plists with Capacitor's `xcode` and `plist` packages as `iosSceneLifecycle.test.ts` does. For every build configuration of the `App` native target:
+
   - `SUPPORTS_MACCATALYST` is `YES`;
   - `DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER` is `NO`;
   - `"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]"` (the parser keeps the quotes) is `App/App-macOS.entitlements`;
@@ -112,12 +113,14 @@
 
 - Consumes: `scripts/build-macos-app.sh` from Task 1.
 - Produces: `--sign` reads these environment variables:
+
   - `CODESIGN_IDENTITY`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`, named as in mindroom's `release.yml`;
   - `MACOS_PROVISIONING_PROFILE_PATH`.
 
   It writes `build/macos/MindRoom-Chat.dmg`, containing `MindRoom Chat.app` renamed from the exported `MindRoom.chat.app`, plus an `/Applications` symlink.
 
 - [ ] **Step 1: Owner prerequisites (G2).** ⚠️ Account Holder or Admin only; automation must not change capabilities. Record the outcome in `ios-pairing-links.md`.
+
   1. Enable Mac Catalyst for the App ID `chat.mindroom.app`.
   2. Create a **Developer ID** provisioning profile named `MindRoom Chat Developer ID` for that App ID with Push Notifications, Associated Domains and Sign in with Apple.
   3. Add the repository secrets listed in the spec. `MACOS_PROVISIONING_PROFILE_BASE64` is the base64 of that profile.
@@ -139,6 +142,7 @@
   Run it. Expected: FAIL (file missing).
 
 - [ ] **Step 3: Implement `--sign`** in this order:
+
   1. install the profile into `~/Library/MobileDevice/Provisioning Profiles/`;
   2. archive with `CODE_SIGN_STYLE=Manual`, `CODE_SIGN_IDENTITY="$CODESIGN_IDENTITY"` and `PROVISIONING_PROFILE_SPECIFIER="MindRoom Chat Developer ID"`;
   3. `xcodebuild -exportArchive -exportOptionsPlist ios/App/macos-export-options.plist -exportPath build/macos/export`;
@@ -176,12 +180,14 @@
 **Interfaces:**
 
 - Produces: `CASKS: dict[str, tuple[str, str, Path]]` with:
+
   - `"mindroom": ("mindroom-ai/mindroom", "MindRoom.dmg", ROOT / "Casks" / "mindroom.rb")`;
   - `"mindroom-chat": ("mindroom-ai/mindroom-chat", "MindRoom-Chat.dmg", ROOT / "Casks" / "mindroom-chat.rb")`.
 
   `latest_release(repo: str, asset_name: str) -> tuple[str, str]`; `main()` takes `--cask` (choices from `CASKS`, default `mindroom`).
 
 - [ ] **Step 1: Write the failing tests:**
+
   - `test_chat_cask_uses_chat_repo_and_asset`: `--cask mindroom-chat` with a mocked `api_json` returning tag `v4.12.6-mindroom.268` and asset `MindRoom-Chat.dmg` updates `mindroom-chat.rb` to `version "4.12.6-mindroom.268"`;
   - `test_chat_release_without_dmg_raises`: a latest release without `MindRoom-Chat.dmg` raises `RuntimeError` matching `has no MindRoom-Chat.dmg asset`, and leaves the cask file byte-identical;
   - `test_default_cask_is_mindroom`.
