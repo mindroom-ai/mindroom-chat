@@ -86,14 +86,19 @@
   The title bar is “MindRoom Chat”; the application menu still reads “MindRoom.chat” (existing bundle name, not changed here).
   The installed Developer ID app subsequently shows a signed-in account with synced rooms and threads; this does not identify which sign-in provider completed.
   Opened the development room through Cmd+K, sent a harmless no-tools smoke test, observed the responding/typing state, and received the requested five-line agent reply.
-  This verifies sync, thread navigation, sending and final reply rendering; intermediate streamed text edits were not separately captured.
+  A second no-tools request also renders a longer prose reply; these checks verify sync, thread navigation, sending and final reply rendering, while intermediate streamed text edits were not separately captured.
   Command-C/Command-V round-trip an unsent test draft after clearing it; the composer is left empty.
   Attached a non-private 66-byte fixture in that test thread, downloaded through the native Save dialog under a new name, and verified the saved bytes equal the uploaded bytes.
+  A test `/connect?code=` hyperlink opened from a newly created private Notes fixture routes to this Developer ID app's “Connect Local MindRoom” screen with the exact invalid test code, without opening a browser tab.
+  The running executable remains `/Applications/MindRoom Chat.app/Contents/MacOS/MindRoom.chat`, and the pre-existing App Store app is not launched.
+  No pairing was submitted; “Back to chat” returns to the original room.
   The View menu exposes toolbar/sidebar/full-screen actions but no “Scale Interface to Match iPad” or “Optimize for Mac” toggle.
   Restoring the window through its native zoom action works; the automation's corner-drag attempt returns `Accessibility error: AXError.noValue`, so the 400×500 minimum is not measured.
   New Library paths after sign-in, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`, `~/Library/HTTPStorages/chat.mindroom.app`, and `~/Library/HTTPStorages/chat.mindroom.app.binarycookies`.
   Exclude the pre-existing App Store container and Application Scripts paths from the cask's zap list; shared-ID routing and uninstall isolation are still unverified.
-- G3 remaining checks: hosted password sign-in is unavailable; fresh SSO/Apple authentication remains blocked at Apple's password entry; intermediate streamed edits, voice call and microphone/camera prompts, push quit and foreground, Notes `/connect` link, measured minimum size, Dock icon, microphone wording, Web Inspector `navigator.maxTouchPoints`, Intel Mac and routing beside the App Store iPad app are not verified.
+- G3 remaining checks: hosted password sign-in is unavailable; fresh SSO/Apple authentication remains blocked at Apple's password entry; intermediate streamed edits, voice call and microphone/camera prompts, push quit and foreground, measured minimum size, Dock icon, microphone wording, Web Inspector `navigator.maxTouchPoints` and Intel Mac are not verified.
+  The Notes handoff selects the Developer ID app while both apps are installed; other shared-ID routing cases and uninstall isolation remain unverified.
+  The installed release has neither `ios.webContentsDebuggingEnabled` nor `CAPACITOR_DEBUG` enabled; Capacitor defaults release inspection off, so touch points have not been evaluated through Web Inspector.
   Scaling toggles are absent from this build's View menu; the App Store iPad app's scaling preference has not been changed.
   No app data has been deleted and no uninstall/zap has been run.
 - Next: finish the remaining G3 checks where account/device access permits, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
