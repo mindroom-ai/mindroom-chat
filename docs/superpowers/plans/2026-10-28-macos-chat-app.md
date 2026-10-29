@@ -22,7 +22,7 @@
 - Build output goes to `build/macos/`; the release asset is named `MindRoom-Chat.dmg`; the app is `MindRoom Chat.app` inside the DMG.
 - Versions: `MARKETING_VERSION` = release `base_version`; `CURRENT_PROJECT_VERSION` = release `release_iteration`.
 - No in-app updater, no Mac App Store upload, no web-code Mac branch.
-- Each task adds or updates a `FORK_CHANGES.md` Runbook entry, and runs `npm run typecheck`, `npm run build` and `npm run lint` before committing.
+- Each task adds or updates a `FORK_CHANGES.md` Runbook entry, and runs `npm run typecheck`, `npm run build`, `npm run lint` and `npm test` (as AGENTS.md requires) before committing.
 
 ## Review Focus
 
@@ -157,11 +157,12 @@
 
 - [ ] **Step 4: Add the `macos_app` job:**
   - `needs: release`, `if: ${{ needs.release.outputs.release_created == 'true' }}`, `runs-on: macos-15`, `permissions: contents: write`, with Xcode 26.2 selected;
+  - recovery: `release_created` is `false` once the tag exists, so a release whose Mac job failed never gets another run from a push. Add a `workflow_dispatch` input `release_tag` that runs the same job for an existing release, and use `--clobber` so a rerun replaces a partial upload;
   - steps: checkout, setup-node, `npm ci`, `apple-actions/import-codesign-certs` with the `MACOS_CODESIGN_*` secrets, write the profile from `MACOS_PROVISIONING_PROFILE_BASE64`;
-  - run the script with `MARKETING_VERSION=${{ needs.release.outputs.base_version }}` and `CURRENT_PROJECT_VERSION=${{ needs.release.outputs.release_iteration }}`;
+  - run the script with an explicit `env`: `CODESIGN_IDENTITY` from the certificate import step's output (as mindroom's `release.yml` finds it), `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` from secrets, `MACOS_PROVISIONING_PROFILE_PATH` set to the file the previous step wrote, `MARKETING_VERSION=${{ needs.release.outputs.base_version }}` and `CURRENT_PROJECT_VERSION=${{ needs.release.outputs.release_iteration }}`;
   - `gh release upload "$RELEASE_TAG" build/macos/MindRoom-Chat.dmg --clobber`;
-  - mint a token with `actions/create-github-app-token` (`app-id: ${{ vars.RELEASE_BOT_APP_ID }}`, `private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}`, `repositories: homebrew-tap`);
-  - `gh api repos/mindroom-ai/homebrew-tap/dispatches -f event_type=mindroom-chat-release -f "client_payload[tag_name]=$RELEASE_TAG" -f "client_payload[asset_url]=https://github.com/mindroom-ai/mindroom-chat/releases/download/$RELEASE_TAG/MindRoom-Chat.dmg"`. Copy mindroom's `update_homebrew_tap` job shape.
+  - mint a token with `actions/create-github-app-token` (`app-id: ${{ vars.RELEASE_BOT_APP_ID }}`, `private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}`, `owner: mindroom-ai`, `repositories: homebrew-tap`);
+  - with `GH_TOKEN` set to that step's `token` output (the repository token cannot dispatch to the tap), `gh api repos/mindroom-ai/homebrew-tap/dispatches -f event_type=mindroom-chat-release -f "client_payload[tag_name]=$RELEASE_TAG" -f "client_payload[asset_url]=https://github.com/mindroom-ai/mindroom-chat/releases/download/$RELEASE_TAG/MindRoom-Chat.dmg"`. Copy mindroom's `update_homebrew_tap` job shape.
 - [ ] **Step 5: Validate, commit, then verify on a release.** Message: `ci(macos): publish a notarized Mac DMG with each release`.
       After merging and the next release:
   - `codesign -dv --verbose=4` shows `Authority=Developer ID Application` and `flags=0x10000(runtime)`;

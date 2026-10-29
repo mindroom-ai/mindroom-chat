@@ -115,7 +115,9 @@ A `macos_app` job is added to `auto-mindroom-release.yml`, with `needs: release`
 1. runs `npm ci`;
 2. runs `scripts/build-macos-app.sh --sign`;
 3. uploads the DMG to the release with `gh release upload`;
-4. sends `repository_dispatch` type `mindroom-chat-release` to `mindroom-ai/homebrew-tap`.
+4. sends `repository_dispatch` type `mindroom-chat-release` to `mindroom-ai/homebrew-tap`, authenticated with the release bot's app token.
+
+A `workflow_dispatch` with a `release_tag` input reruns the job for an existing release, since a push never reruns it once the tag exists.
 
 New repository secrets:
 
