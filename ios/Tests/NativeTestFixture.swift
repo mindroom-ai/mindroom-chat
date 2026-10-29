@@ -24,19 +24,6 @@ private func waitForNativeDocument(
         XCTContext.runActivity(named: "Native fixture readiness timeout") { activity in
             activity.add(XCTAttachment(string: diagnostic))
         }
-        let documentState: String
-        do {
-            documentState = String(describing: try await webView.evaluateJavaScript("""
-                JSON.stringify({readyState: document.readyState, bootID: window.routingBootId,
-                    randomUUID: typeof crypto.randomUUID})
-                """))
-        } catch {
-            documentState = "JavaScript evaluation failed: \(error)"
-        }
-        print(documentState)
-        XCTContext.runActivity(named: "Native fixture document state") { activity in
-            activity.add(XCTAttachment(string: documentState))
-        }
     }
     return nil
 }
