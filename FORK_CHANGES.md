@@ -14,7 +14,10 @@
   Resource-bundle Pod targets disable signing only for macOS SDKs; iOS settings remain unchanged.
   Mac icon slots now cover 16, 32, 128, 256 and 512 points at 1× and 2×, generated from the existing icon.
 - Release: `macos_app` waits for a newly created release; a `workflow_dispatch` with `release_tag` rebuilds an existing tag without creating a release or publishing Android.
-  The job checks out that tag, derives its marketing/build versions, imports signing material with an explicit signing environment, uploads with `--clobber`, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
+  The job requires the release's original target to be a full commit SHA, verifies the tag still resolves to that commit, and checks out the SHA before importing signing material.
+  It derives marketing/build versions, imports signing material with an explicit signing environment, uploads with `--clobber`, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
+  Recovery runs use a separate workflow concurrency group, with per-tag Mac job serialization, so they cannot displace queued automatic releases.
+  Only the latest release dispatches a tap update; rebuilding an older DMG must not downgrade the cask.
   The workflow passes actionlint 1.7.12.
 - G2 account evidence: Push Notifications, Associated Domains and Sign in with Apple are already enabled on the App ID, which supports macOS.
   Apple's “Mac Catalyst (Existing Apps Only)” checkbox is for legacy generated bundle IDs; the shared bundle ID needs no capability change ([Apple guide](https://developer.apple.com/help/account/capabilities/create-a-mac-version-of-an-ipad-app)).
@@ -36,7 +39,7 @@
 - Validation so far: export-options and Mac-icon contracts failed before their changes and pass after; executable shell tests cover unsigned signing/version behavior, a missing signing secret, ordered export/notarization/stapling/DMG staging, and failure before DMG creation.
   A regression test also catches macOS Bash 3.2 dropping the archive invocation when optional version arguments are absent.
   Typecheck/build pass; lint reports 0 errors and the existing 18 warnings.
-  Final full suite: all 7,413 tests pass under the declared Node 24.13.1.
+  Final full suite after PR-review fixes: all 7,418 tests pass under the declared Node 24.13.1.
   One run concurrent with builds transiently failed the deep-trace ring-cap and pinned-canvases ordering cases; both passed alone, then the full suite passed.
   Baseline under host Node 26.11.1: 7,395 passed, 8 failed before changes (`computerServiceSettings.test.ts` unavailable storage; six `deepTraceFailure.test.ts` cross-tab opt-out remove/clear cases; `MindroomComputerSettings.test.tsx` failed persistence).
 - Local signing evidence: archive and export both succeeded on this Mac.
@@ -51,6 +54,10 @@
 - Review: independent read-only reviewer found that simply dropping the native Apple entitlement left Catalyst's Apple button calling the unsupported native API, with no fallback.
   Fixed through the compile-time Catalyst browser-session branch above; two behavioral button tests (with and without Cloudflare Access) failed before the fix and pass after, and the Swift contract pins native iOS to its original branch.
   Other reviewed release, profile and icon changes had no blocking findings.
+  PR review confirmed the moved-tag, pending-release displacement and old-release tap downgrade risks; executable workflow tests fail before the source/latest guards and pass after them.
+  CodeRabbit's permission-scope finding is addressed by explicitly requesting only `contents: write` for the tap token.
+  The profile-directory concern does not reproduce: the new profile was downloaded by Brave, never by Xcode account sync; signed archive/export succeeded with its temporary legacy-directory installation, and neither Xcode profile directory contains that UUID afterward.
+  Stock macOS `/usr/bin/base64 --decode` successfully decodes a fixture; the GNU-only option claim does not reproduce, but the job now uses explicit `/usr/bin/base64 -D` to make its macOS decoder unambiguous.
 - CI credentials: owner explicitly approved all eight secret names plus `RELEASE_BOT_APP_ID` before writes.
   All names are now present in `mindroom-ai/mindroom-chat`; no values were logged.
   The release bot private key was verified against the App and a temporary installation token was restricted to `mindroom-ai/homebrew-tap` with contents write, then immediately revoked without dispatching.
@@ -63,6 +70,9 @@
 - G3 observed: installed the final DMG's `MindRoom Chat.app` into `/Applications`, preserving `/Applications/MindRoom.chat.app`.
   It launched directly without a Gatekeeper block and reached hosted sign-in; the running executable is `/Applications/MindRoom Chat.app/Contents/MacOS/MindRoom.chat`.
   A clean sign-in screenshot (no private account) is attached to the PR.
+  Apple browser sign-in reached the production Tuwunel callback, then failed at the server's Apple token exchange with `{"errcode":"M_UNKNOWN","error":"Request error: HTTP status client error (400 Bad Request) for url (https://appleid.apple.com/auth/token)"}`.
+  Production logs confirm the error at `2026-10-29T04:18:51.871142Z`; the generic HTTP-status handling discards Apple's structured error, so this alone does not establish expired credentials or a client-ID mismatch.
+  Inspecting the server's Apple client-secret metadata requires the owner's hidden sudo input; no credential value is printed or changed.
   The title bar is “MindRoom Chat”; the application menu still reads “MindRoom.chat” (existing bundle name, not changed here).
   New Library paths after launch, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, and `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`.
   No `HTTPStorages` path was observed at this point.
@@ -70,7 +80,8 @@
 - G3 checks pending owner interaction: password sign-in; SSO; Apple browser SSO (native sheet unavailable as above); sync/thread/streaming reply; save file; voice call and microphone/camera prompts; push quit and foreground; Notes `/connect` link; Cmd+C/V; minimum size; Dock icon; iPad scaling versus Optimize for Mac; microphone wording; Web Inspector `navigator.maxTouchPoints`; Intel Mac; routing beside the App Store iPad app; actual DMG-created data paths.
   No app data has been deleted and no uninstall/zap has been run.
 - Next: owner G3 checks, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
-  Open one ready-for-review PR against `dev` and address completed AI reviews.
+  Ready-for-review PR: [#523](https://github.com/mindroom-ai/mindroom-chat/pull/523); first CodeRabbit and free Qodo reviews are addressed as above.
+  Sourcery cannot review because its quota is exhausted; paid Qodo is blocked by inactive billing.
   Do not merge this PR or homebrew-tap #4, or create tags/releases manually.
 
 ### Build the iOS app for Mac Catalyst (2026-10-28)

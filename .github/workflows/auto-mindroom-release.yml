@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: auto-mindroom-release-dev
+  group: auto-mindroom-release-${{ github.event_name == 'workflow_dispatch' && format('mac-{0}', inputs.release_tag) || 'dev' }}
   cancel-in-progress: false
 
 jobs:
@@ -213,6 +213,9 @@ jobs:
     if: ${{ always() && !cancelled() && (needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')) }}
     runs-on: macos-15
     timeout-minutes: 60
+    concurrency:
+      group: macos-release-${{ inputs.release_tag || needs.release.outputs.release_tag }}
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -230,11 +233,21 @@ jobs:
           fi
           echo "base_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
           echo "release_iteration=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
-          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null
+          source_sha=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish)
+          if [[ ! "$source_sha" =~ ^[a-f0-9]{40}$ ]]; then
+            echo 'Release target must be an immutable commit SHA.' >&2
+            exit 1
+          fi
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)
+          if [[ "$tag_sha" != "$source_sha" ]]; then
+            echo 'Release tag does not match its original target commit.' >&2
+            exit 1
+          fi
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
       - name: Checkout release source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ steps.version.outputs.source_sha }}
           persist-credentials: false
       - name: Setup node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -272,7 +285,7 @@ jobs:
           umask 077
           profile_dir=$(mktemp -d "$RUNNER_TEMP/mindroom-chat-signing.XXXXXX")
           echo "directory=$profile_dir" >> "$GITHUB_OUTPUT"
-          printf '%s' "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$profile_dir/profile.provisionprofile"
+          printf '%s' "$MACOS_PROVISIONING_PROFILE_BASE64" | /usr/bin/base64 -D > "$profile_dir/profile.provisionprofile"
           test -s "$profile_dir/profile.provisionprofile"
       - name: Build signed and notarized DMG
         env:
@@ -290,7 +303,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$RELEASE_TAG" build/macos/MindRoom-Chat.dmg --repo "$GITHUB_REPOSITORY" --clobber
+      - name: Check latest release for tap update
+        id: tap_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest_tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [[ "$RELEASE_TAG" == "$latest_tag" ]]; then
+            echo 'is_latest=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'is_latest=false' >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping tap dispatch for older release $RELEASE_TAG; latest is $latest_tag."
+          fi
       - name: Mint Homebrew tap token
+        if: ${{ steps.tap_release.outputs.is_latest == 'true' }}
         id: release-bot
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -298,7 +325,9 @@ jobs:
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
           owner: mindroom-ai
           repositories: homebrew-tap
+          permission-contents: write
       - name: Dispatch tap update
+        if: ${{ steps.tap_release.outputs.is_latest == 'true' }}
         env:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
         run: |
