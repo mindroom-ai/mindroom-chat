@@ -74,14 +74,29 @@
   A clean sign-in screenshot (no private account) is attached to the PR.
   Apple browser sign-in reached the production Tuwunel callback, then failed at the server's Apple token exchange with `{"errcode":"M_UNKNOWN","error":"Request error: HTTP status client error (400 Bad Request) for url (https://appleid.apple.com/auth/token)"}`.
   Production logs confirm the error at `2026-10-29T04:18:51.871142Z`; the generic HTTP-status handling discards Apple's structured error, so this alone does not establish expired credentials or a client-ID mismatch.
-  Inspecting the server's Apple client-secret metadata requires the owner's hidden sudo input; no credential value is printed or changed.
+  Private metadata inspection then confirmed the deployed Apple web client JWT expired on `2026-08-26 07:17:43 UTC`; its issuer, audience and Services ID match the existing provider.
+  With owner authorization, a replacement Sign in with Apple key was registered for the same primary App ID, and a replacement JWT was installed without changing the provider, permissions or callback.
+  Infrastructure [dotfiles PR #124](https://github.com/basnijholt/dotfiles/pull/124) is merged, with an owner-encrypted recovery key, encrypted JWT and tested renewal helper; the replacement expires `2027-04-27 05:43:55 UTC`.
+  Comin rejects GitHub's squash signature (`Commit 863c934d011d59360d8db2401d18dfd606233e03 is not signed while it should be`), as it already did for the previous main tip.
+  Applied the credential from the merged PR through a build of the deployed revision with only that ciphertext changed: software, kernel, initrd, etc and systemd paths match; the activation diff changes only the system path and Apple ciphertext path.
+  Dry activation and switch succeed, the system profile now preserves the new credential across reboot, its ownership/mode remain `tuwunel`/`0400`, and all seven production services stay active with Tuwunel's PID unchanged.
+  The signature requirement remains enabled; future automatic deployment needs an accepted SSH-signed main tip.
+  Fresh Apple browser authentication remains unverified: the new probe reaches Apple's existing-account password page, but the available browser automation cannot fill the password from 1Password.
+  A dummy invalid-code probe returns `invalid_grant` for both old and new credentials and is explicitly not counted as an end-to-end authentication result.
   The title bar is “MindRoom Chat”; the application menu still reads “MindRoom.chat” (existing bundle name, not changed here).
-  New Library paths after launch, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, and `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`.
-  No `HTTPStorages` path was observed at this point.
+  The installed Developer ID app subsequently shows a signed-in account with synced rooms and threads; this does not identify which sign-in provider completed.
+  Opened the development room through Cmd+K, sent a harmless no-tools smoke test, observed the responding/typing state, and received the requested five-line agent reply.
+  This verifies sync, thread navigation, sending and final reply rendering; intermediate streamed text edits were not separately captured.
+  Command-C/Command-V round-trip an unsent test draft after clearing it; the composer is left empty.
+  Attached a non-private 66-byte fixture in that test thread, downloaded through the native Save dialog under a new name, and verified the saved bytes equal the uploaded bytes.
+  The View menu exposes toolbar/sidebar/full-screen actions but no “Scale Interface to Match iPad” or “Optimize for Mac” toggle.
+  Restoring the window through its native zoom action works; the automation's corner-drag attempt returns `Accessibility error: AXError.noValue`, so the 400×500 minimum is not measured.
+  New Library paths after sign-in, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`, `~/Library/HTTPStorages/chat.mindroom.app`, and `~/Library/HTTPStorages/chat.mindroom.app.binarycookies`.
   Exclude the pre-existing App Store container and Application Scripts paths from the cask's zap list; shared-ID routing and uninstall isolation are still unverified.
-- G3 checks pending owner interaction: password sign-in; SSO; Apple browser SSO (native sheet unavailable as above); sync/thread/streaming reply; save file; voice call and microphone/camera prompts; push quit and foreground; Notes `/connect` link; Cmd+C/V; minimum size; Dock icon; iPad scaling versus Optimize for Mac; microphone wording; Web Inspector `navigator.maxTouchPoints`; Intel Mac; routing beside the App Store iPad app; actual DMG-created data paths.
+- G3 remaining checks: hosted password sign-in is unavailable; fresh SSO/Apple authentication remains blocked at Apple's password entry; intermediate streamed edits, voice call and microphone/camera prompts, push quit and foreground, Notes `/connect` link, measured minimum size, Dock icon, microphone wording, Web Inspector `navigator.maxTouchPoints`, Intel Mac and routing beside the App Store iPad app are not verified.
+  Scaling toggles are absent from this build's View menu; the App Store iPad app's scaling preference has not been changed.
   No app data has been deleted and no uninstall/zap has been run.
-- Next: owner G3 checks, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
+- Next: finish the remaining G3 checks where account/device access permits, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
   Ready-for-review PR: [#523](https://github.com/mindroom-ai/mindroom-chat/pull/523); first CodeRabbit and free Qodo reviews are addressed as above.
   Sourcery cannot review because its quota is exhausted; paid Qodo is blocked by inactive billing.
   Do not merge this PR or homebrew-tap #4, or create tags/releases manually.
