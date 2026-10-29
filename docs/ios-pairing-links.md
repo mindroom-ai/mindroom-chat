@@ -95,11 +95,12 @@ The resulting `mindroom://auth` callback returns to the app's login route.
 iOS retains its native Apple authorization sheet, including the App Store iPad build on Apple silicon Macs.
 The hardened-runtime microphone and camera permissions remain and need no provisioning-profile grant.
 See the Runbook for profile metadata, local signing results and the real-Mac checklist.
-The encrypted profile backup and restoration instructions live in [`ios/App/signing/`](../ios/App/signing/README.md).
 
 After an automatic release, **Actions → Create MindRoom Release → Run workflow → release_tag** can retry only the Mac publication for an existing release whose source includes the signing script.
-It verifies that the tag still points to the release's original commit, checks out that commit, and replaces `MindRoom-Chat.dmg`.
+It verifies that the tag still points to the release's original commit, checks out that commit, and uploads `MindRoom-Chat.dmg`.
+A published DMG is never replaced, so its bytes and the cask checksum stay fixed; to rebuild one, delete that release asset first.
 Only the latest release dispatches the tap update; an older-release recovery must not downgrade the cask.
+If only the tap dispatch failed, the tap's daily schedule or its manual **Update MindRoom Chat cask** run picks up the latest release.
 No manual tag or release creation is needed.
 
 The signing certificate created for this setup expires on February 1, 2027, earlier than the profile's 2044 expiry.

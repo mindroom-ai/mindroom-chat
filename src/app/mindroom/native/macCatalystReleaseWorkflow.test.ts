@@ -24,11 +24,11 @@ const runStep = (name: string, overrides: Record<string, string> = {}) => {
   fixtures.push(root);
   mkdirSync(join(root, 'bin'));
   mkdirSync(join(root, 'build/macos'), { recursive: true });
-  writeFileSync(join(root, 'build/macos/MindRoom-Chat.dmg'), 'replacement');
+  writeFileSync(join(root, 'build/macos/MindRoom-Chat.dmg'), 'built');
   writeFileSync(
     join(root, 'assets.json'),
     JSON.stringify(
-      overrides.TEST_NO_ORIGINAL ? [] : [{ id: 1, name: 'MindRoom-Chat.dmg', content: 'original' }]
+      overrides.TEST_PUBLISHED ? [{ name: 'MindRoom-Chat.dmg', content: 'published' }] : []
     )
   );
   writeFileSync(
@@ -38,38 +38,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(args) + '\\n');
-const stateFile = process.env.TEST_ASSETS;
-let assets = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-const save = () => fs.writeFileSync(stateFile, JSON.stringify(assets));
+const assets = JSON.parse(fs.readFileSync(process.env.TEST_ASSETS, 'utf8'));
 if (args[0] === 'release' && args[1] === 'upload') {
   const name = path.basename(args[3]);
-  if (args.includes('--clobber')) { assets = assets.filter(a => a.name !== name); save(); }
-  if (process.env.TEST_FAIL_UPLOAD) process.exit(9);
-  assets.push({ id: 2, name, content: fs.readFileSync(args[3], 'utf8') }); save();
-} else if (args[0] === 'api' && args[1].endsWith('/releases/tags/v4.12.6-mindroom.523')) {
-  console.log(7);
-} else if (args[0] === 'api' && args[1].endsWith('/releases/7/assets')) {
-  const query = args[args.indexOf('--jq') + 1];
-  const name = query.split('"')[1];
-  console.log(assets.filter(a => a.name === name).map(a => a.id).join('\\n'));
-} else if (args[0] === 'api' && args[1].includes('/releases/assets/')) {
-  const id = Number(args[1].split('/').pop());
-  const asset = assets.find(a => a.id === id);
-  if (args.includes('DELETE')) { assets = assets.filter(a => a.id !== id); save(); }
-  else if (args.includes('PATCH')) {
-    const name = args.find(a => a.startsWith('name=')).slice(5);
-    if (name === 'MindRoom-Chat.dmg' && id === 2 && process.env.TEST_FAIL_PROMOTE) process.exit(9);
-    if (assets.some(a => a.id !== id && a.name === name)) process.exit(10);
-    asset.name = name; save();
-    if (process.env.TEST_LOST_BACKUP_RESPONSE && id === 1 && name !== 'MindRoom-Chat.dmg') process.exit(9);
-    if (process.env.TEST_LOST_PROMOTE_RESPONSE && id === 2) process.exit(9);
-  } else {
-    if (process.env.TEST_FAIL_RECOVERY_READ && id === 1) process.exit(9);
-    console.log(asset?.name ?? '');
-  }
-}
-if (args.includes('targetCommitish')) console.log(process.env.TEST_RELEASE_SHA);
-else if (args[0] === 'api' && args[1].includes('/commits/')) console.log(process.env.TEST_TAG_SHA);
+  // Like GitHub, refuse a second asset with the same name.
+  if (assets.some((asset) => asset.name === name)) process.exit(1);
+  assets.push({ name, content: fs.readFileSync(args[3], 'utf8') });
+  fs.writeFileSync(process.env.TEST_ASSETS, JSON.stringify(assets));
+} else if (args.includes('targetCommitish')) console.log(process.env.TEST_RELEASE_SHA);
+else if (args.includes('assets')) {
+  console.log(assets.filter((asset) => asset.name === 'MindRoom-Chat.dmg').length);
+} else if (args[0] === 'api' && args[1].includes('/commits/')) console.log(process.env.TEST_TAG_SHA);
 else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
 `,
     { mode: 0o755 }
@@ -77,7 +56,7 @@ else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
   const output = join(root, 'output');
   writeFileSync(output, '');
   const result = spawnSync(
-    '/bin/bash',
+    process.platform === 'darwin' ? '/bin/bash' : 'bash',
     ['-e', '-c', steps.find((step) => step.name === name)!.run!],
     {
       encoding: 'utf8',
@@ -101,7 +80,6 @@ else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
     ...result,
     output: readFileSync(output, 'utf8'),
     assets: JSON.parse(readFileSync(join(root, 'assets.json'), 'utf8')) as {
-      id: number;
       name: string;
       content: string;
     }[],
@@ -139,6 +117,13 @@ describe('Mac release recovery', () => {
     expect(result.output).not.toContain('source_sha=');
   });
 
+  it('refuses to rebuild a release that already has its DMG', () => {
+    const result = runStep('Resolve existing release and version', { TEST_PUBLISHED: '1' });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('already has MindRoom-Chat.dmg');
+    expect(result.output).not.toContain('source_sha=');
+  });
+
   it('dispatches the tap update for the current release', () => {
     expect(runStep('Check latest release for tap update').output).toContain('is_latest=true');
     const result = runStep('Dispatch tap update');
@@ -163,50 +148,11 @@ describe('Mac release recovery', () => {
   });
 });
 
-describe('Mac release asset replacement', () => {
-  it('publishes the first asset without requiring a previous DMG', () => {
-    const result = runStep('Upload DMG to release', { TEST_NO_ORIGINAL: '1' });
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.assets).toEqual([{ id: 2, name: 'MindRoom-Chat.dmg', content: 'replacement' }]);
-  });
-
-  it('restores the existing name if the backup rename response is lost', () => {
-    const result = runStep('Upload DMG to release', { TEST_LOST_BACKUP_RESPONSE: '1' });
-    expect(result.status).not.toBe(0);
-    expect(result.assets).toContainEqual({ id: 1, name: 'MindRoom-Chat.dmg', content: 'original' });
-  });
-
-  it('reports the preserved backup if both rename response and recovery read fail', () => {
-    const result = runStep('Upload DMG to release', {
-      TEST_LOST_BACKUP_RESPONSE: '1',
-      TEST_FAIL_RECOVERY_READ: '1',
-    });
-    expect(result.status).not.toBe(0);
-    expect(result.assets.find((asset) => asset.id === 1)?.content).toBe('original');
-    expect(result.stdout).toContain('Recover asset 1');
-  });
-
-  it('keeps the existing download when the replacement upload fails', () => {
-    const result = runStep('Upload DMG to release', { TEST_FAIL_UPLOAD: '1' });
-    expect(result.status).not.toBe(0);
-    expect(result.assets).toContainEqual({ id: 1, name: 'MindRoom-Chat.dmg', content: 'original' });
-  });
-
-  it('restores the existing download when staged promotion fails', () => {
-    const result = runStep('Upload DMG to release', { TEST_FAIL_PROMOTE: '1' });
-    expect(result.status).not.toBe(0);
-    expect(result.assets).toContainEqual({ id: 1, name: 'MindRoom-Chat.dmg', content: 'original' });
-  });
-
-  it('publishes the complete replacement before deleting the previous asset', () => {
+describe('Mac release upload', () => {
+  it('publishes the DMG without replacing an existing asset', () => {
     const result = runStep('Upload DMG to release');
     expect(result.status, result.stderr).toBe(0);
-    expect(result.assets).toEqual([{ id: 2, name: 'MindRoom-Chat.dmg', content: 'replacement' }]);
-  });
-
-  it('reconciles a successful promotion whose API response was lost', () => {
-    const result = runStep('Upload DMG to release', { TEST_LOST_PROMOTE_RESPONSE: '1' });
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.assets).toEqual([{ id: 2, name: 'MindRoom-Chat.dmg', content: 'replacement' }]);
+    expect(result.assets).toEqual([{ name: 'MindRoom-Chat.dmg', content: 'built' }]);
+    expect(result.commands.flat()).not.toContain('--clobber');
   });
 });
