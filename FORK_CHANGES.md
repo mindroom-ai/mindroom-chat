@@ -34,7 +34,8 @@
 - CI credentials: the owner approved the eight secret names and `RELEASE_BOT_APP_ID`; all are set. The certificate export holds only the selected Developer ID identity. A test installation token for the release bot was limited to `homebrew-tap` contents and revoked without dispatching.
 - PR review (#523): a published DMG is never replaced (CodeRabbit found that `--clobber` deleted it before the replacement uploaded); the declined suggestions and their reasons are on the PR.
 - Remaining G3 checks: fresh Apple browser sign-in (blocked at Apple's password page), intermediate streamed edits, voice calls with microphone and camera prompts, push while quit and foregrounded, measured minimum window size, Dock icon, Web Inspector `navigator.maxTouchPoints`, Intel Macs, other shared-ID routing cases and uninstall isolation.
-- Next: the remaining G3 checks where access permits; after merge, the first automatic release publishes the DMG. Then merge homebrew-tap #4 and add `brew install --cask mindroom-ai/tap/mindroom-chat` to the README. No manual tags or releases.
+- First release: the signed job for `v4.12.6-mindroom.271` was cancelled twice without a hosted `macos-26` runner (not retried, since a newer release followed). `v4.12.6-mindroom.272` published a notarized `MindRoom-Chat.dmg` (41 MB) from CI and dispatched the tap. homebrew-tap #4 is merged; its update run wrote version `4.12.6-mindroom.272` and sha256 `cfdba972…e56d` (matching the published DMG), passed `brew style`, `brew audit --cask --online` and `brew install --cask --dry-run`, and pushed. The README now lists `brew install --cask mindroom-ai/tap/mindroom-chat`.
+- Next: the remaining G3 checks where access permits, including a real `brew install` and launch on a Mac. No manual tags or releases.
 
 ### Build the iOS app for Mac Catalyst (2026-10-28)
 
