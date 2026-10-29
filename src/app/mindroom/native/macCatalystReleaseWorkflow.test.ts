@@ -92,6 +92,7 @@ describe('Mac release recovery', () => {
   it('requires an immutable release target', () => {
     const result = runStep('Resolve existing release and version', { TEST_RELEASE_SHA: 'dev' });
     expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('immutable commit SHA');
     expect(result.output).not.toContain('source_sha=');
   });
 

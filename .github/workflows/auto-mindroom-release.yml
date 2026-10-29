@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to rebuild the Mac DMG, e.g. v4.12.6-mindroom.523'
+        description: 'Existing release tag missing its Mac DMG, e.g. v4.12.6-mindroom.523'
         required: true
         type: string
   push:

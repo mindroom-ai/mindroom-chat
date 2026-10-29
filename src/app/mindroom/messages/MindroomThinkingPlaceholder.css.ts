@@ -150,8 +150,8 @@ export const Mark = style({
 });
 
 export const Core = style({
-  // Animate an HTML layer containing static SVG artwork. Animating the SVG
-  // <use> itself forces layout and repaint throughout each core movement.
+  // Animate the HTML layer around the core image, not the artwork itself, so
+  // each core movement stays a compositor transform.
   position: 'absolute',
   inset: 0,
   // Center of the cube's bounds in the shared 720-unit viewBox.
