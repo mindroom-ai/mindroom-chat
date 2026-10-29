@@ -242,7 +242,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        globPatterns: ['**/*.{js,wasm,css,html}'],
+        globPatterns: ['**/*.{js,wasm,css,html}', 'assets/thinking-mark-*.svg'],
         globIgnores: [
           'public/element-call/**',
           'runtime-config.js',
@@ -284,12 +284,6 @@ export default defineConfig({
     copyPublicDir: false,
     rollupOptions: {
       plugins: [inject({ Buffer: ['buffer', 'Buffer'] })],
-      output: {
-        // Keep the raw artwork out of the main chunk so both stay below the PWA cache limit.
-        manualChunks(id) {
-          if (id.endsWith('/thinking-mark.svg?raw')) return 'thinking-mark';
-        },
-      },
     },
   },
 });

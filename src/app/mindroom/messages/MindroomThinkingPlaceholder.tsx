@@ -4,6 +4,8 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import * as css from './MindroomThinkingPlaceholder.css';
 import { resolveMindroomThinkingPlaceholderMessages } from './thinkingPlaceholder';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from './thinkingPlaceholder';
+import thinkingBase from './thinking-mark-base.svg';
+import thinkingCore from './thinking-mark-core.svg';
 
 const ROTATION_INTERVAL_MS = 3600;
 
@@ -42,15 +44,9 @@ export function MindroomThinkingPlaceholder() {
       <span className={css.Indicator} aria-hidden="true">
         <span className={css.Aura} />
         <span className={css.Rotor}>
-          <svg className={css.Mark} viewBox="152 112 720 720" focusable="false">
-            <use href="#mindroom-thinking-outer-frame" />
-            <use href="#mindroom-thinking-left-rooms" />
-            <use href="#mindroom-thinking-right-rooms" />
-          </svg>
+          <img className={css.Mark} src={thinkingBase} alt="" draggable={false} />
           <span className={css.Core}>
-            <svg className={css.Mark} viewBox="152 112 720 720" focusable="false">
-              <use href="#mindroom-thinking-central-cube" />
-            </svg>
+            <img className={css.Mark} src={thinkingCore} alt="" draggable={false} />
           </span>
         </span>
       </span>

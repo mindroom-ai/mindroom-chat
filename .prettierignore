@@ -9,3 +9,5 @@ src/app/mindroom/threads/__tests__/traces/
 
 # Preserve the generated MindRoom artwork from its source export.
 src/app/mindroom/messages/thinking-mark.svg
+src/app/mindroom/messages/thinking-mark-base.svg
+src/app/mindroom/messages/thinking-mark-core.svg

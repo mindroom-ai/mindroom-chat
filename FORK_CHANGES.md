@@ -2,6 +2,43 @@
 
 ## Runbook
 
+### Investigate Mac runtime latency (2026-10-29, in progress)
+
+- Owner reports the installed Mac app feels very slow.
+  The installed Developer ID app runs ARM64 Release code; samples show JavaScript JIT/DFG active, no idle busy loop, and low system memory pressure.
+  The public Matrix versions endpoint answers in about 0.465 seconds; authenticated sync latency has not been measured.
+- Real-thread opening plus accessibility observation takes about 1.9 seconds for a short thread and 4.6 seconds for a long thread; these are automation-inclusive timings, not isolated UI latency.
+  Renderer samples show substantial native WebKit word-boundary traversal through `getPlatformEditorState` and `Position::previous`.
+  A separate scroll sample with accessibility reads deferred also contains this work; the exact selection owner and causal workaround remain under investigation.
+- Automation limitation: pressing the composer through accessibility triggers an Apple `AXPMacPlatformElement._synthesizeMouseClick` array assertion (`EXC_BREAKPOINT` / `SIGTRAP`), crashing the renderer.
+  This is not evidence of an ordinary user-click crash; use pointer coordinates for further composer interactions.
+  Recovery replays the earlier invalid pairing test link; returned to chat without submitting that code.
+- An isolated Catalyst WKWebView probe uses synthetic content, no account and no network.
+  Initial runs show approximately half-second frame gaps, but sequential cases changed geometry and warmed state, so those comparisons do not establish a fix.
+  Repeated controls now recreate the large DOM and keep geometry fixed before testing caret and containment variants.
+  The controls do not establish a containment fix; no containment or editor workaround is applied.
+- Metadata-only diagnostics in a temporary signed copy isolate a globally mounted hidden thinking SVG with 24,121 descendants.
+  It inflates the loaded thread from about 1,537 to 25,661 elements, including when no responding marker is present.
+  Two DOM-budget regressions fail before the fix in WebKit (24,123 idle / 24,157 responding fixture nodes), and an image-layer unit regression fails before the component change.
+- The same artwork now lives in two complete external SVG images, one base and one independently animated core.
+  The HTML animation wrappers, timing, original square bounds, transforms, gradients, masks and accessible responding label stay unchanged.
+  The app no longer mounts SVG definitions globally; `scripts/generate-thinking-mark-images.py` deterministically produces each reference-closed layer from the canonical SVG (`--check` detects stale generated assets).
+  Both images are included in the PWA precache and Capacitor frontend output.
+  Independent read-only review verifies preserved artwork, exact layer groups and no missing references; no blocking findings.
+- Native A/B uses the same signed temporary bundle, session, view and deterministic unsent click/type/delete/scroll sequence, with accessibility reads deferred until afterward.
+  The original copy has 25,661 elements; the fixed copy has 1,537 (94% fewer).
+  Native word-boundary traversal appears in 14 ten-millisecond samples in the original interaction trace and one in the fixed trace; these are aggregate sampled costs, not latency percentiles.
+  The fixed input sequence completes in 914 ms including automation commands; original takes 1,053 ms and its delayed caret reset leaves the one-character draft, which is then explicitly cleared.
+  Neither sequence sends a message.
+  Startup still has a roughly 2.6-second frame gap versus 2.7–2.9 seconds in original controls; startup is not established as fixed.
+  Early native sampling attributes remaining startup work to JavaScript/event-loop and IndexedDB activity rather than the removed SVG subtree, without resolving a specific JavaScript caller.
+  Only the temporary diagnostic app is changed so far; the installed notarized app is preserved.
+- Validation: generator consistency, typecheck, web/Capacitor frontend builds, lint (0 errors / 18 existing warnings), and all 7,419 unit tests pass under Node 24.13.1.
+  The thinking-marker suite passes 24 cases across Chromium, Firefox and WebKit, with three explicit unsupported tracing/forced-colors skips.
+  Its DOM-budget, decoded-image, animation, reduced-motion, sizing, accessibility, RTL, repaint-budget and painted-glass/gold-core assertions pass, including the core-turn phase.
+  WebKit reports CSS-scaled SVG image intrinsic dimensions, so the decode check requires a positive width rather than incorrectly requiring 720 pixels.
+  The full browser scheduler is running separately against a fresh loopback-only Docker Matrix fixture; worker-computer integration is unavailable without its external backend fixture.
+
 ### Ship a Developer ID Mac Catalyst DMG (2026-10-28, in progress)
 
 - Scope: Tasks 3 and 5 of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md), based on `origin/dev` at `2f411811`.
