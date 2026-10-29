@@ -377,12 +377,17 @@ describe('nativeSso', () => {
     });
 
     await signInWithNativeApple({
+      ssoUrl: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
       baseUrl: 'https://mindroom.chat/',
       providerId: 'chat.mindroom.matrix.apple',
       redirectUrl: 'mindroom://auth/login/mindroom.chat',
     });
 
-    expect(signInWithApple).toHaveBeenCalledWith({});
+    expect(signInWithApple).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      callbackScheme: 'mindroom',
+      ephemeral: false,
+    });
     expect(fetch).toHaveBeenCalledWith(
       'https://mindroom.chat/_matrix/client/unstable/org.mindroom.login/apple',
       {
@@ -422,6 +427,7 @@ describe('nativeSso', () => {
 
     await expect(
       signInWithNativeApple({
+        ssoUrl: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
         baseUrl: 'https://mindroom.chat',
         providerId: 'chat.mindroom.matrix.apple',
         redirectUrl: 'mindroom://auth/login/mindroom.chat',

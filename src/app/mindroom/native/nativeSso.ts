@@ -12,7 +12,11 @@ type MindRoomAuthPlugin = {
     callbackScheme: string;
     ephemeral: boolean;
   }): Promise<{ url?: string }>;
-  signInWithApple(options?: Record<string, never>): Promise<NativeAppleCredential>;
+  signInWithApple(options: {
+    url: string;
+    callbackScheme: string;
+    ephemeral: boolean;
+  }): Promise<NativeAppleCredential>;
 };
 type NativeAppUrlPlugin = {
   addListener(
@@ -25,6 +29,7 @@ type NativeAppUrlPlugin = {
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
 
 type NativeAppleCredential = {
+  url?: string;
   authorizationCode?: string;
   email?: string;
   familyName?: string;
@@ -41,6 +46,8 @@ type NativeAppleLoginResponse = {
 
 type NativeAppleLoginOptions = {
   baseUrl: string;
+  ssoUrl: string;
+  ephemeral?: boolean;
   providerId?: string;
   redirectUrl: string;
   request?: typeof fetch;
@@ -225,6 +232,8 @@ export const openNativeSsoBrowser = async (url: string, ephemeral = false): Prom
 
 export const signInWithNativeApple = async ({
   baseUrl,
+  ssoUrl,
+  ephemeral = false,
   providerId,
   redirectUrl,
   request = fetch,
@@ -233,7 +242,19 @@ export const signInWithNativeApple = async ({
     throw new Error('Native Apple sign-in is unavailable');
   }
 
-  const credential = await getMindRoomAuthPlugin().signInWithApple({});
+  const credential = await getMindRoomAuthPlugin().signInWithApple({
+    url: ssoUrl,
+    callbackScheme: NATIVE_SSO_SCHEME,
+    ephemeral,
+  });
+  // The native shell chooses browser SSO when its signing profile cannot
+  // authorize Apple's native API. Keep platform decisions out of web code.
+  if (credential.url) {
+    if (!routeNativeSsoCallback(credential.url)) {
+      throw new Error('Apple browser sign-in returned an unsupported callback');
+    }
+    return;
+  }
 
   if (!credential.identityToken) {
     throw new Error('Native Apple sign-in did not return an identity token');

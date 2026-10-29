@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -56,7 +57,7 @@ describe('resolveMindroomThinkingPlaceholderMessages', () => {
 });
 
 describe('MindroomThinkingPlaceholder', () => {
-  it('keeps the SVG artwork decorative inside the responding status', () => {
+  it('keeps the artwork in decorative image layers outside the host document', () => {
     const renderer = renderPlaceholder(['Working']);
 
     const status = renderer.root.findByProps({ role: 'status' });
@@ -64,9 +65,13 @@ describe('MindroomThinkingPlaceholder', () => {
 
     expect(status.props['aria-label']).toBe('AI is responding');
     expect(indicator.props['aria-hidden']).toBe('true');
-    const artwork = indicator.findAllByType('svg');
+    const artwork = indicator.findAllByType('img');
     expect(artwork).toHaveLength(2);
-    artwork.forEach((svg) => expect(svg.props.focusable).toBe('false'));
+    artwork.forEach((image) => {
+      expect(image.props.alt).toBe('');
+      expect(image.props.draggable).toBe(false);
+    });
+    expect(status.findAllByType('svg')).toHaveLength(0);
     expect(JSON.stringify(renderer.toJSON())).toContain('Working');
 
     renderer.unmount();
@@ -116,5 +121,14 @@ describe('thinking mark artwork', () => {
     const frame = thinkingMark.match(/<path id="structural-frame"[^>]*>/)?.[0] ?? '';
     expect(frame).toContain('fill-rule="evenodd"');
     expect(frame.match(/ Z/g)).toHaveLength(2);
+  });
+
+  it('keeps the generated image layers in sync with the canonical artwork', () => {
+    const result = spawnSync(
+      'python3',
+      ['-I', 'scripts/generate-thinking-mark-images.py', '--check'],
+      { encoding: 'utf8' }
+    );
+    expect(result.status, result.stderr || String(result.error)).toBe(0);
   });
 });

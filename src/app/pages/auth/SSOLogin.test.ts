@@ -295,7 +295,11 @@ describe('SSOLogin', () => {
     });
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
-    expect(signInWithApple).toHaveBeenCalledWith({});
+    expect(signInWithApple).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      callbackScheme: 'mindroom',
+      ephemeral: false,
+    });
     expect(matrixFetch).toHaveBeenCalledWith(
       'https://mindroom.chat/_matrix/client/unstable/org.mindroom.login/apple',
       expect.objectContaining({ method: 'POST' })
@@ -307,4 +311,51 @@ describe('SSOLogin', () => {
       '/login/mindroom.chat?loginToken=matrix-login-token'
     );
   });
+  it.each([false, true])(
+    'routes an Apple browser callback when native Apple is unavailable (Access: %s)',
+    async (behindAccess) => {
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+      vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+      signInWithApple.mockResolvedValue({
+        url: 'mindroom://auth/login/mindroom.chat?loginToken=browser-token',
+      });
+      const matrixFetch = vi.fn();
+      vi.mocked(createMatrixFetchFn).mockReturnValue(matrixFetch);
+      const replaceState = vi.fn();
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { history: { replaceState }, dispatchEvent: vi.fn(), setTimeout: vi.fn() },
+      });
+      accessState.behindAccess = behindAccess;
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const renderer = create(
+          React.createElement(SSOLogin, {
+            providers: [{ id: 'chat.mindroom.matrix.apple', name: 'Apple', brand: 'apple' }],
+            redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          })
+        );
+        await act(async () => {
+          await findButtonByText(renderer, 'Sign in with Apple')?.props.onClick({
+            preventDefault: vi.fn(),
+          });
+        });
+        expect(replaceState).toHaveBeenCalledWith(
+          null,
+          '',
+          '/login/mindroom.chat?loginToken=browser-token'
+        );
+        expect(signInWithApple).toHaveBeenCalledWith({
+          url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+          callbackScheme: 'mindroom',
+          ephemeral: behindAccess,
+        });
+        expect(matrixFetch).not.toHaveBeenCalled();
+      } finally {
+        accessState.behindAccess = false;
+        consoleError.mockRestore();
+      }
+    }
+  );
 });
