@@ -29,11 +29,9 @@ It shows what chat apps made only for people cannot: replies that stream with ev
 | --- | --- |
 | Web | [chat.mindroom.chat](https://chat.mindroom.chat) |
 | iPhone and iPad | [Mindroom AI on the App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) |
-| Mac | `brew install --cask mindroom-ai/tap/mindroom-chat` (any Mac with macOS 13.3+), the App Store app on Apple silicon Macs, or the [MindRoom macOS app](https://docs.mindroom.chat/installation/macos-app/), which also runs your agents |
+| Mac | The App Store app on Apple silicon Macs, or the [MindRoom macOS app](https://docs.mindroom.chat/installation/macos-app/), which also runs your agents |
 | Android | In beta: internal testing on Google Play, not yet public |
 | Your own server | The `ghcr.io/mindroom-ai/mindroom-chat` image or a static build; see [Self-hosting](#self-hosting) |
-
-The Chat Homebrew cask becomes available after the first release with `MindRoom-Chat.dmg` and the [tap rollout](https://github.com/mindroom-ai/homebrew-tap/pull/4).
 
 Sign in with any Matrix account, or create a hosted `mindroom.chat` account the first time you sign in at chat.mindroom.chat.
 To run your own agents, see the [MindRoom quick start](https://github.com/mindroom-ai/mindroom#quick-start).
