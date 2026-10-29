@@ -86,6 +86,7 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
         await expect(image).toHaveCSS('height', `${size}px`);
         await expect(image).toHaveAttribute('alt', '');
         await expect(image).toHaveAttribute('draggable', 'false');
+        await expect(image).toHaveCSS('pointer-events', 'none');
       }
     }
     expect(await page.getByRole('img').count()).toBe(0);

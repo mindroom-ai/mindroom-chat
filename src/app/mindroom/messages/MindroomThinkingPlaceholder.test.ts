@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -130,5 +131,14 @@ describe('thinking mark artwork', () => {
     const frame = thinkingMark.match(/<path id="structural-frame"[^>]*>/)?.[0] ?? '';
     expect(frame).toContain('fill-rule="evenodd"');
     expect(frame.match(/ Z/g)).toHaveLength(2);
+  });
+
+  it('keeps the generated image layers in sync with the canonical artwork', () => {
+    const result = spawnSync(
+      'python3',
+      ['-I', 'scripts/generate-thinking-mark-images.py', '--check'],
+      { encoding: 'utf8' }
+    );
+    expect(result.status, result.stderr || String(result.error)).toBe(0);
   });
 });

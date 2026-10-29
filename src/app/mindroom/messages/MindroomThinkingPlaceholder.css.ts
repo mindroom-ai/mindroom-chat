@@ -119,6 +119,8 @@ export const Indicator = style({
   height: '2em',
   perspective: '7em',
   isolation: 'isolate',
+  // Keep the decorative image layers out of image drag, callout and context menus.
+  pointerEvents: 'none',
 });
 
 export const Aura = style({
