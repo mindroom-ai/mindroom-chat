@@ -41,8 +41,8 @@ xcodebuild test \
   -destination "platform=iOS Simulator,id=$device_id" \
   -parallel-testing-enabled NO \
   -test-timeouts-enabled YES \
-  -default-test-execution-time-allowance 60 \
-  -maximum-test-execution-time-allowance 120 \
+  -default-test-execution-time-allowance 120 \
+  -maximum-test-execution-time-allowance 240 \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_name" \
   CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log

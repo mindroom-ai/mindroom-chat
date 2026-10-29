@@ -60,6 +60,12 @@
   Stock macOS `/usr/bin/base64 --decode` successfully decodes a fixture; the GNU-only option claim does not reproduce, but the job now uses explicit `/usr/bin/base64 -D` to make its macOS decoder unambiguous.
   The read-only source/latest checks also passed against the live latest release, resolving `v4.12.6-mindroom.270` to `2f411811eda425df5656fc820ad130c879370a3b`.
   CodeRabbit's follow-up is rate-limited; its completed first review's finding is fixed.
+- Native CI startup: after an all-green code head, two documentation-only runs failed waiting for initial startup under the fixture's 15-second and UI's 20-second budgets.
+  In the second failure, WebKit processes each took about 46 seconds to launch; the initial fixture eventually became ready about 68 seconds after the first test began, and the same helper then passed.
+  Initial app launches now get 90 seconds; controlled navigation keeps 15 seconds and diagnostics refresh keeps 20 seconds, with matching bounded XCTest allowances and timeout attachments.
+  No production source, security assertion, startup-before-navigation guard or session-retention check changes.
+  Independent review approves; a fresh local iOS 26.5 simulator passes all 26 native checks and the diagnostics lifecycle UI test.
+  Typecheck/build and all 7,418 Node 24 tests pass again; lint stays at 0 errors and 18 existing warnings.
 - CI credentials: owner explicitly approved all eight secret names plus `RELEASE_BOT_APP_ID` before writes.
   All names are now present in `mindroom-ai/mindroom-chat`; no values were logged.
   The release bot private key was verified against the App and a temporary installation token was restricted to `mindroom-ai/homebrew-tap` with contents write, then immediately revoked without dispatching.
