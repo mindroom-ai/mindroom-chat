@@ -40,10 +40,7 @@ const args = process.argv.slice(2);
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(args) + '\\n');
 const assets = JSON.parse(fs.readFileSync(process.env.TEST_ASSETS, 'utf8'));
 if (args[0] === 'release' && args[1] === 'upload') {
-  const name = path.basename(args[3]);
-  // Like GitHub, refuse a second asset with the same name.
-  if (assets.some((asset) => asset.name === name)) process.exit(1);
-  assets.push({ name, content: fs.readFileSync(args[3], 'utf8') });
+  assets.push({ name: path.basename(args[3]), content: fs.readFileSync(args[3], 'utf8') });
   fs.writeFileSync(process.env.TEST_ASSETS, JSON.stringify(assets));
 } else if (args.includes('targetCommitish')) console.log(process.env.TEST_RELEASE_SHA);
 else if (args.includes('assets')) {
@@ -149,7 +146,7 @@ describe('Mac release recovery', () => {
 });
 
 describe('Mac release upload', () => {
-  it('publishes the DMG without replacing an existing asset', () => {
+  it('publishes the DMG without --clobber, so it can never replace one', () => {
     const result = runStep('Upload DMG to release');
     expect(result.status, result.stderr).toBe(0);
     expect(result.assets).toEqual([{ name: 'MindRoom-Chat.dmg', content: 'built' }]);
