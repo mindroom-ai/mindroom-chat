@@ -47,4 +47,11 @@ resize 76 "Icon-App-76x76@1x~ipad.png"
 resize 152 "Icon-App-76x76@2x~ipad.png"
 resize 167 "Icon-App-83.5x83.5@2x~ipad.png"
 
-echo "Generated iOS AppIcon assets in $ICON_DIR"
+# Mac Catalyst
+for size in 16 32 128 256 512; do
+  for scale in 1 2; do
+    resize "$((size * scale))" "Icon-Mac-${size}x${size}@${scale}x.png"
+  done
+done
+
+echo "Generated iOS and Mac AppIcon assets in $ICON_DIR"

@@ -59,6 +59,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
         ) {
           await signInWithNativeApple({
             baseUrl,
+            ssoUrl: url,
+            ephemeral: hasCloudflareAccess(baseUrl),
             providerId: provider.id,
             redirectUrl,
             // Carries the Cloudflare Access token of a server behind Access.

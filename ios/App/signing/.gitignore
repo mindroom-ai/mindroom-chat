@@ -1,0 +1,6 @@
+*.p12
+*.pfx
+*.pem
+*.key
+*.provisionprofile
+*.mobileprovision

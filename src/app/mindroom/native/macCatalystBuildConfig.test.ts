@@ -28,7 +28,45 @@ describe('Mac Catalyst build of the App target', () => {
     expect(appSetting('CODE_SIGN_ENTITLEMENTS')).toBe('App/App.entitlements');
   });
 
-  it('grants the Mac build push, pairing links, Sign in with Apple, microphone and camera', () => {
+  it('exports with the Developer ID profile for the shared bundle ID', () => {
+    expect(
+      plist.parse(readFileSync(resolve('ios/App/macos-export-options.plist'), 'utf8'))
+    ).toEqual({
+      method: 'developer-id',
+      teamID: 'DNA6966LGZ',
+      signingStyle: 'manual',
+      signingCertificate: 'Developer ID Application',
+      provisioningProfiles: { 'chat.mindroom.app': 'MindRoom Chat Developer ID' },
+    });
+  });
+
+  it('supplies every Mac icon size without changing the iOS icon slots', () => {
+    const iconPath = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
+    const { images } = JSON.parse(readFileSync(resolve(iconPath, 'Contents.json'), 'utf8'));
+    const macImages = images.filter((image: { idiom: string }) => image.idiom === 'mac');
+    expect(
+      macImages.map(({ size, scale }: { size: string; scale: string }) => [size, scale])
+    ).toEqual([
+      ['16x16', '1x'],
+      ['16x16', '2x'],
+      ['32x32', '1x'],
+      ['32x32', '2x'],
+      ['128x128', '1x'],
+      ['128x128', '2x'],
+      ['256x256', '1x'],
+      ['256x256', '2x'],
+      ['512x512', '1x'],
+      ['512x512', '2x'],
+    ]);
+    for (const image of macImages) {
+      const png = readFileSync(resolve(iconPath, image.filename));
+      const pixels = parseInt(image.size, 10) * parseInt(image.scale, 10);
+      expect(png.readUInt32BE(16)).toBe(pixels);
+      expect(png.readUInt32BE(20)).toBe(pixels);
+    }
+  });
+
+  it('grants supported Developer ID capabilities and hardened-runtime microphone and camera', () => {
     const entitlements = plist.parse(
       readFileSync(resolve('ios/App/App/App-macOS.entitlements'), 'utf8')
     );
@@ -36,7 +74,6 @@ describe('Mac Catalyst build of the App target', () => {
       // development for Debug and production for Release, as App.entitlements does.
       'com.apple.developer.aps-environment': '$(APS_ENVIRONMENT)',
       'com.apple.developer.associated-domains': ['applinks:chat.mindroom.chat'],
-      'com.apple.developer.applesignin': ['Default'],
       // The hardened runtime blocks the microphone and camera without these.
       'com.apple.security.device.audio-input': true,
       'com.apple.security.device.camera': true,

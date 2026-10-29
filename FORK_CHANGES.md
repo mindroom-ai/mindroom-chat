@@ -2,6 +2,77 @@
 
 ## Runbook
 
+### Ship a Developer ID Mac Catalyst DMG (2026-10-28, in progress)
+
+- Scope: Tasks 3 and 5 of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md), based on `origin/dev` at `2f411811`.
+- Signing: `macos-export-options.plist` selects Developer ID, manual signing, team `DNA6966LGZ`, and profile `MindRoom Chat Developer ID` for `chat.mindroom.app`.
+  `build-macos-app.sh --sign` installs that profile temporarily, archives, exports, notarizes and staples the app, then makes and notarizes/staples `MindRoom-Chat.dmg` with `MindRoom Chat.app` and an `/Applications` symlink.
+  The DMG also receives a Developer ID signature before notarization.
+  Notarization credentials are removed from the environment before running npm, CocoaPods or Xcode so build phases cannot log them.
+  The default path remains unsigned; both paths forward optional `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
+  The app alone reads `MINDROOM_MACOS_PROVISIONING_PROFILE_SPECIFIER` through its Mac-only setting: applying the profile globally would also apply it to the Pods.
+  Resource-bundle Pod targets disable signing only for macOS SDKs; iOS settings remain unchanged.
+  Mac icon slots now cover 16, 32, 128, 256 and 512 points at 1× and 2×, generated from the existing icon.
+- Release: `macos_app` waits for a newly created release; a `workflow_dispatch` with `release_tag` rebuilds an existing tag without creating a release or publishing Android.
+  The job checks out that tag, derives its marketing/build versions, imports signing material with an explicit signing environment, uploads with `--clobber`, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
+  The workflow passes actionlint 1.7.12.
+- G2 account evidence: Push Notifications, Associated Domains and Sign in with Apple are already enabled on the App ID, which supports macOS.
+  Apple's “Mac Catalyst (Existing Apps Only)” checkbox is for legacy generated bundle IDs; the shared bundle ID needs no capability change ([Apple guide](https://developer.apple.com/help/account/capabilities/create-a-mac-version-of-an-ipad-app)).
+  The original Developer ID certificates had no private key here.
+  With owner authorization, Xcode created a new local `Developer ID Application: Bas Nijholt (DNA6966LGZ)` identity, and the Mac Catalyst Developer ID profile was regenerated to include it.
+  Decoded profile: team `DNA6966LGZ`, App ID `DNA6966LGZ.chat.mindroom.app`, platform `OSX`, expiry `2044-10-24 03:53:34 UTC`, UUID `f401d8d1-1559-467d-90a7-c671b44428e7`.
+  Its signing certificate matches the local identity; the portal's download-until date is the certificate's `2027-02-01`, distinct from the profile expiry.
+  Profile keys: `application-identifier`, `aps-environment`, `com.apple.application-identifier`, `com.apple.developer.aps-environment`, `com.apple.developer.associated-domains`, `com.apple.developer.team-identifier`, `get-task-allow`, and `keychain-access-groups`.
+  Push is `production`; associated domains permits `*`, covering `applinks:chat.mindroom.chat`.
+- G2 feature loss: despite the portal listing Sign in with Apple, the actual Developer ID profile omits `com.apple.developer.applesignin`.
+  Per the plan's fallback, the Mac entitlement and its contract expectation are removed; iOS keeps it.
+  The native Apple authorization sheet is not supported by this Developer ID build.
+  The Catalyst native shell now uses its existing browser authentication session for the Apple provider and returns the SSO callback to the app; iPhone/iPad (including the App Store iPad app on Mac) keep native Apple authorization.
+  Web code handles the returned credential or browser callback without detecting Mac.
+  Browser Apple SSO still needs an interactive account check; hosted `mindroom.chat` does not offer password login, so this fallback is essential there.
+  Microphone and camera stay in the Mac entitlements: these hardened-runtime permissions do not require provisioning-profile grants.
+- Encrypted backup: only `ios/App/signing/encrypted/MindRoom-Chat-Developer-ID.provisionprofile.age` and public recipients are committed, encrypted to the owner's existing SSH recipient.
+  No plaintext profile, private key, password or certificate export belongs in this repo.
+- Validation so far: export-options and Mac-icon contracts failed before their changes and pass after; executable shell tests cover unsigned signing/version behavior, a missing signing secret, ordered export/notarization/stapling/DMG staging, and failure before DMG creation.
+  A regression test also catches macOS Bash 3.2 dropping the archive invocation when optional version arguments are absent.
+  Typecheck/build pass; lint reports 0 errors and the existing 18 warnings.
+  Final full suite: all 7,413 tests pass under the declared Node 24.13.1.
+  One run concurrent with builds transiently failed the deep-trace ring-cap and pinned-canvases ordering cases; both passed alone, then the full suite passed.
+  Baseline under host Node 26.11.1: 7,395 passed, 8 failed before changes (`computerServiceSettings.test.ts` unavailable storage; six `deepTraceFailure.test.ts` cross-tab opt-out remove/clear cases; `MindroomComputerSettings.test.tsx` failed persistence).
+- Local signing evidence: archive and export both succeeded on this Mac.
+  `codesign -dv --verbose=4` on the archive shows `Authority=Developer ID Application: Bas Nijholt (DNA6966LGZ)` and `flags=0x10000(runtime)`.
+  Its signed entitlements contain production `aps-environment` and `com.apple.developer.aps-environment`, `applinks:chat.mindroom.chat`, microphone and camera, the shared App ID/team identifiers, and `get-task-allow=false`.
+  The first end-to-end run notarized and stapled both app and DMG successfully.
+  Its DMG lacked a signature: `codesign` reported `code object is not signed at all` and `spctl -a -vv -t install` returned `rejected` / `source=no usable signature`, although `stapler validate` succeeded.
+  Added an explicit Developer ID DMG signature before notarization and verified the command sequence with a failing-then-passing shell regression test.
+  Final signed run exited 0: `spctl -a -vv -t install build/macos/MindRoom-Chat.dmg` reports `accepted`, `source=Notarized Developer ID`, and the expected Developer ID origin.
+  Both app and DMG pass `stapler validate`; the installed app passes `codesign --verify --deep --strict`.
+  The first live build had no notarization-credential assignments in its log; the strengthened shell test also proves build tools receive none.
+- Review: independent read-only reviewer found that simply dropping the native Apple entitlement left Catalyst's Apple button calling the unsupported native API, with no fallback.
+  Fixed through the compile-time Catalyst browser-session branch above; two behavioral button tests (with and without Cloudflare Access) failed before the fix and pass after, and the Swift contract pins native iOS to its original branch.
+  Other reviewed release, profile and icon changes had no blocking findings.
+- CI credentials: owner explicitly approved all eight secret names plus `RELEASE_BOT_APP_ID` before writes.
+  All names are now present in `mindroom-ai/mindroom-chat`; no values were logged.
+  The release bot private key was verified against the App and a temporary installation token was restricted to `mindroom-ai/homebrew-tap` with contents write, then immediately revoked without dispatching.
+  The password-protected certificate export contains only the selected Developer ID identity, exported through Security.framework because `security export` cannot select an identity and would also export unrelated keys.
+  Plaintext signing material stays in a temporary directory outside the repo and is removed by the setup command.
+- G3 host: Apple silicon (`arm64`), macOS 27.0.1 (26A434), Xcode 27.1 (27A9275); CI selects Xcode 26.2.
+  Before installation, `/Applications/MindRoom.chat.app` exists, and Library discovery finds `~/Library/Application Scripts/chat.mindroom.app` and `~/Library/Containers/chat.mindroom.app`.
+  These pre-existing paths belong to an existing installation, not evidence of paths created by this DMG; do not zap them.
+  Discovery also reports `find: /Users/basnijholt/Library/NGL: Permission denied`.
+- G3 observed: installed the final DMG's `MindRoom Chat.app` into `/Applications`, preserving `/Applications/MindRoom.chat.app`.
+  It launched directly without a Gatekeeper block and reached hosted sign-in; the running executable is `/Applications/MindRoom Chat.app/Contents/MacOS/MindRoom.chat`.
+  A clean sign-in screenshot (no private account) is attached to the PR.
+  The title bar is “MindRoom Chat”; the application menu still reads “MindRoom.chat” (existing bundle name, not changed here).
+  New Library paths after launch, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, and `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`.
+  No `HTTPStorages` path was observed at this point.
+  Exclude the pre-existing App Store container and Application Scripts paths from the cask's zap list; shared-ID routing and uninstall isolation are still unverified.
+- G3 checks pending owner interaction: password sign-in; SSO; Apple browser SSO (native sheet unavailable as above); sync/thread/streaming reply; save file; voice call and microphone/camera prompts; push quit and foreground; Notes `/connect` link; Cmd+C/V; minimum size; Dock icon; iPad scaling versus Optimize for Mac; microphone wording; Web Inspector `navigator.maxTouchPoints`; Intel Mac; routing beside the App Store iPad app; actual DMG-created data paths.
+  No app data has been deleted and no uninstall/zap has been run.
+- Next: owner G3 checks, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
+  Open one ready-for-review PR against `dev` and address completed AI reviews.
+  Do not merge this PR or homebrew-tap #4, or create tags/releases manually.
+
 ### Build the iOS app for Mac Catalyst (2026-10-28)
 
 - Why: first step of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md) (Tasks 1 and 2). Gate G1 asks whether Capacitor 8 and its pods build for Mac Catalyst at all.

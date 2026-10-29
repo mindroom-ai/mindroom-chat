@@ -31,4 +31,13 @@ describe('Mac Catalyst shell', () => {
       /#if targetEnvironment\(macCatalyst\)\s*windowScene\.sizeRestrictions\?\.minimumSize = CGSize\(width: 400, height: 500\)\s*#endif/
     );
   });
+  it('uses browser Apple SSO on Catalyst and keeps native authorization for iOS', () => {
+    const authSource = readSource('../../../../ios/App/App/MindRoomAuthPlugin.swift');
+    const appleMethod = authSource.match(
+      /@objc func signInWithApple[\s\S]*?(?= {4}public func presentationAnchor)/
+    )?.[0];
+    expect(appleMethod).toMatch(
+      /#if targetEnvironment\(macCatalyst\)\s*authenticate\(call\)\s*#else[\s\S]*ASAuthorizationAppleIDProvider[\s\S]*#endif/
+    );
+  });
 });
