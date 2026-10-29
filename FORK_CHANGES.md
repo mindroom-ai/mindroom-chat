@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Show the whole logo on the sign-in and Connect screens (2026-10-29)
+
+- Why: the owner reported that the logo in the auth card header was cut by a circular mask.
+- Change: `AuthLogo` (used by `AuthLayout` and the Local MindRoom `ConnectPage`) no longer sets `borderRadius: '50%'`, so the 26-pixel logo shows uncropped. No other logo render site rounds the image.
+- Next: none.
+
 ### Keep the thinking artwork out of the app DOM (2026-10-29)
 
 - Why: the owner reported that the installed Mac app feels very slow. Renderer samples showed WebKit word-boundary traversal (`getPlatformEditorState`, `Position::previous`) on caret moves, and a metadata-only probe found `MindroomThinkingDefinitions` mounting the thinking artwork as a hidden SVG with 24,121 descendants on every page, even with no responding marker. It grew a loaded thread from 1,537 to 25,661 elements.
