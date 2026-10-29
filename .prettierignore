@@ -11,3 +11,6 @@ src/app/mindroom/threads/__tests__/traces/
 src/app/mindroom/messages/thinking-mark.svg
 src/app/mindroom/messages/thinking-mark-base.svg
 src/app/mindroom/messages/thinking-mark-core.svg
+
+# Xcode owns asset catalog formatting and rewrites it on every edit.
+ios/App/App/Assets.xcassets/**/Contents.json

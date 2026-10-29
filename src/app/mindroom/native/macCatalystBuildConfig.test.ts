@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { getSingleAppTargetBuildSettingValue } from '../../../../scripts/ios-xcode-project.mjs';
 
@@ -12,6 +13,16 @@ const xcodeProject = readFileSync(resolve('ios/App/App.xcodeproj/project.pbxproj
 // Xcode quotes values that contain characters such as `-`.
 const appSetting = (name: string) =>
   getSingleAppTargetBuildSettingValue(xcodeProject, name).replace(/^"|"$/g, '');
+// Every PNG filter type stores the first pixel of the first row unchanged.
+const firstPixelAlpha = (png: Buffer) => {
+  const data: Buffer[] = [];
+  for (let offset = 8; offset < png.length; offset += png.readUInt32BE(offset) + 12) {
+    if (png.toString('latin1', offset + 4, offset + 8) === 'IDAT') {
+      data.push(png.subarray(offset + 8, offset + 8 + png.readUInt32BE(offset)));
+    }
+  }
+  return inflateSync(Buffer.concat(data))[4];
+};
 
 describe('Mac Catalyst build of the App target', () => {
   it('builds for Mac Catalyst under the iOS bundle ID', () => {
@@ -40,7 +51,7 @@ describe('Mac Catalyst build of the App target', () => {
     });
   });
 
-  it('supplies every Mac icon size without changing the iOS icon slots', () => {
+  it('supplies every Mac icon size in the macOS shape without changing the iOS icon slots', () => {
     const iconPath = resolve('ios/App/App/Assets.xcassets/AppIcon.appiconset');
     const { images } = JSON.parse(readFileSync(resolve(iconPath, 'Contents.json'), 'utf8'));
     const macImages = images.filter((image: { idiom: string }) => image.idiom === 'mac');
@@ -63,6 +74,9 @@ describe('Mac Catalyst build of the App target', () => {
       const pixels = parseInt(image.size, 10) * parseInt(image.scale, 10);
       expect(png.readUInt32BE(16)).toBe(pixels);
       expect(png.readUInt32BE(20)).toBe(pixels);
+      // macOS draws app icons unmasked, so the rounded shape needs transparent corners.
+      expect([png[24], png[25]], `${image.filename} must be 8-bit RGBA`).toEqual([8, 6]);
+      expect(firstPixelAlpha(png), `${image.filename} must have a transparent corner`).toBe(0);
     }
   });
 
