@@ -6,19 +6,20 @@ ruby scripts/ios-routing-test-project.rb
 cd .claude/evidence/ios-routing
 pod install
 
+# Use the runtime of the selected Xcode's SDK: images also carry newer runtimes,
+# which stall in data migration on boot under an older Xcode.
+sdk_version=$(xcrun --sdk iphonesimulator --show-sdk-version)
 device_id=$(xcrun simctl list devices available --json | node --input-type=commonjs -e '
+  const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-" + process.argv[1].replace(/\./g, "-");
   let input = "";
   process.stdin.on("data", chunk => input += chunk);
   process.stdin.on("end", () => {
-    const devices = Object.entries(JSON.parse(input).devices)
-      .filter(([runtime]) => runtime.includes("iOS"))
-      .sort(([a], [b]) => b.localeCompare(a, undefined, { numeric: true }))
-      .flatMap(([, devices]) => devices);
+    const devices = JSON.parse(input).devices[runtime] ?? [];
     const phone = devices.find(device => device.name.startsWith("iPhone"));
-    if (!phone) throw new Error("No available iPhone simulator");
+    if (!phone) throw new Error(`No available iPhone simulator for ${runtime}`);
     process.stdout.write(phone.udid);
   });
-')
+' "$sdk_version")
 
 # Finish simulator startup explicitly; Xcode can otherwise stall before XCTest
 # starts on a fresh CI runner. Keep a failed boot visible and bounded.
