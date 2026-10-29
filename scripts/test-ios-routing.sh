@@ -33,6 +33,8 @@ process.exit(result.status ?? 1);
 NODE
 
 # Keep every run, including the failing baseline, as an inspectable result bundle.
+# The longest check can use 90s startup + 15s navigation + 10s server + 10s fetch.
+# Leave room for XCTest overhead while retaining the hard 240s maximum.
 result_name="Routing-$(date -u +%Y%m%dT%H%M%SZ).xcresult"
 xcodebuild test \
   -workspace Routing.xcworkspace \
@@ -41,7 +43,7 @@ xcodebuild test \
   -destination "platform=iOS Simulator,id=$device_id" \
   -parallel-testing-enabled NO \
   -test-timeouts-enabled YES \
-  -default-test-execution-time-allowance 120 \
+  -default-test-execution-time-allowance 180 \
   -maximum-test-execution-time-allowance 240 \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_name" \
