@@ -211,7 +211,7 @@ jobs:
     needs: release
     # Recovery dispatches skip release creation and Android publishing.
     if: ${{ !cancelled() && (needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')) }}
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     concurrency:
       group: macos-release-${{ inputs.release_tag || needs.release.outputs.release_tag }}
