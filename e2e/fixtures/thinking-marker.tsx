@@ -12,7 +12,6 @@ import { MindroomThinkingPlaceholder } from '../../src/app/mindroom/messages/Min
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
 const label = params.get('label') ?? 'Thinking...';
-const idle = params.has('idle');
 document.documentElement.className = `${configClass} ${varsClass} ${dark ? darkTheme : lightTheme}`;
 document.documentElement.dir = params.has('rtl') ? 'rtl' : 'ltr';
 
@@ -27,16 +26,12 @@ createRoot(document.getElementById('root')!).render(
         lineHeight: 1.5,
       }}
     >
-      {!idle && (
-        <>
-          <p style={{ fontSize: 16 }}>
-            <MindroomThinkingPlaceholder />
-          </p>
-          <p style={{ fontSize: 14 }}>
-            <MindroomThinkingPlaceholder />
-          </p>
-        </>
-      )}
+      <p style={{ fontSize: 16 }}>
+        <MindroomThinkingPlaceholder />
+      </p>
+      <p style={{ fontSize: 14 }}>
+        <MindroomThinkingPlaceholder />
+      </p>
     </main>
   </ClientConfigProvider>
 );

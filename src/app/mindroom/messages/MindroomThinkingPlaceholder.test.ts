@@ -57,21 +57,7 @@ describe('resolveMindroomThinkingPlaceholderMessages', () => {
 });
 
 describe('MindroomThinkingPlaceholder', () => {
-  it('keeps complex artwork outside the host document in decorative image layers', () => {
-    const renderer = renderPlaceholder(['Working']);
-    const status = renderer.root.findByProps({ role: 'status' });
-    const images = status.findAllByType('img');
-
-    expect(images).toHaveLength(2);
-    images.forEach((image) => {
-      expect(image.props.alt).toBe('');
-      expect(image.props.draggable).toBe(false);
-    });
-    expect(status.findAllByType('svg')).toHaveLength(0);
-    renderer.unmount();
-  });
-
-  it('keeps the SVG artwork decorative inside the responding status', () => {
+  it('keeps the artwork in decorative image layers outside the host document', () => {
     const renderer = renderPlaceholder(['Working']);
 
     const status = renderer.root.findByProps({ role: 'status' });
@@ -81,7 +67,11 @@ describe('MindroomThinkingPlaceholder', () => {
     expect(indicator.props['aria-hidden']).toBe('true');
     const artwork = indicator.findAllByType('img');
     expect(artwork).toHaveLength(2);
-    artwork.forEach((image) => expect(image.props.alt).toBe(''));
+    artwork.forEach((image) => {
+      expect(image.props.alt).toBe('');
+      expect(image.props.draggable).toBe(false);
+    });
+    expect(status.findAllByType('svg')).toHaveLength(0);
     expect(JSON.stringify(renderer.toJSON())).toContain('Working');
 
     renderer.unmount();

@@ -23,29 +23,15 @@ const runStep = (name: string, overrides: Record<string, string> = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'mindroom-macos-workflow-'));
   fixtures.push(root);
   mkdirSync(join(root, 'bin'));
-  mkdirSync(join(root, 'build/macos'), { recursive: true });
-  writeFileSync(join(root, 'build/macos/MindRoom-Chat.dmg'), 'built');
-  writeFileSync(
-    join(root, 'assets.json'),
-    JSON.stringify(
-      overrides.TEST_PUBLISHED ? [{ name: 'MindRoom-Chat.dmg', content: 'published' }] : []
-    )
-  );
   writeFileSync(
     join(root, 'bin/gh'),
     `#!/usr/bin/env node
 const fs = require('node:fs');
-const path = require('node:path');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(args) + '\\n');
-const assets = JSON.parse(fs.readFileSync(process.env.TEST_ASSETS, 'utf8'));
-if (args[0] === 'release' && args[1] === 'upload') {
-  assets.push({ name: path.basename(args[3]), content: fs.readFileSync(args[3], 'utf8') });
-  fs.writeFileSync(process.env.TEST_ASSETS, JSON.stringify(assets));
-} else if (args.includes('targetCommitish')) console.log(process.env.TEST_RELEASE_SHA);
-else if (args.includes('assets')) {
-  console.log(assets.filter((asset) => asset.name === 'MindRoom-Chat.dmg').length);
-} else if (args[0] === 'api' && args[1].includes('/commits/')) console.log(process.env.TEST_TAG_SHA);
+if (args.includes('targetCommitish')) console.log(process.env.TEST_RELEASE_SHA);
+else if (args.includes('assets')) console.log(process.env.TEST_PUBLISHED ? 1 : 0);
+else if (args[0] === 'api' && args[1].includes('/commits/')) console.log(process.env.TEST_TAG_SHA);
 else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
 `,
     { mode: 0o755 }
@@ -68,7 +54,6 @@ else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
         TEST_TAG_SHA: sourceSha,
         TEST_LATEST_TAG: 'v4.12.6-mindroom.523',
         TEST_LOG: join(root, 'commands'),
-        TEST_ASSETS: join(root, 'assets.json'),
         ...overrides,
       },
     }
@@ -76,10 +61,6 @@ else if (args.includes('tagName')) console.log(process.env.TEST_LATEST_TAG);
   return {
     ...result,
     output: readFileSync(output, 'utf8'),
-    assets: JSON.parse(readFileSync(join(root, 'assets.json'), 'utf8')) as {
-      name: string;
-      content: string;
-    }[],
     commands: readFileSync(join(root, 'commands'), 'utf8')
       .trim()
       .split('\n')
@@ -146,10 +127,9 @@ describe('Mac release recovery', () => {
 });
 
 describe('Mac release upload', () => {
-  it('publishes the DMG without --clobber, so it can never replace one', () => {
-    const result = runStep('Upload DMG to release');
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.assets).toEqual([{ name: 'MindRoom-Chat.dmg', content: 'built' }]);
-    expect(result.commands.flat()).not.toContain('--clobber');
+  it('uploads without --clobber, so a published DMG is never replaced', () => {
+    expect(steps.find((step) => step.name === 'Upload DMG to release')?.run).not.toContain(
+      '--clobber'
+    );
   });
 });

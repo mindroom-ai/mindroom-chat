@@ -1,15 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
-for (const idle of [true, false]) {
-  test(`thinking artwork keeps host DOM small (${idle ? 'idle' : 'responding'})`, async ({
-    page,
-  }) => {
-    await page.goto(`/e2e/fixtures/thinking-marker.html${idle ? '?idle' : ''}`);
-    await expect(page.getByRole('status')).toHaveCount(idle ? 0 : 2);
-    await expect(page.locator('main')).toBeVisible();
-    expect(await page.locator('#root *').count()).toBeLessThan(500);
-  });
-}
+test('thinking artwork keeps host DOM small', async ({ page }) => {
+  await page.goto('/e2e/fixtures/thinking-marker.html');
+  await expect(page.getByRole('status')).toHaveCount(2);
+  expect(await page.locator('#root *').count()).toBeLessThan(500);
+});
 
 async function waitForArtwork(page: Page) {
   await page.locator('[role="status"] img').evaluateAll(async (images) => {

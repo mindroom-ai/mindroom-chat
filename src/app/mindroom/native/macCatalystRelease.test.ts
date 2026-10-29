@@ -50,7 +50,6 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
     'xcrun',
     'hdiutil',
     'codesign',
-    'spctl',
   ].forEach((command) => writeFileSync(join(root, 'bin', command), stub, { mode: 0o755 }));
   const env = {
     ...process.env,
