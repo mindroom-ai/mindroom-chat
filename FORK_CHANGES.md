@@ -58,6 +58,8 @@
   CodeRabbit's permission-scope finding is addressed by explicitly requesting only `contents: write` for the tap token.
   The profile-directory concern does not reproduce: the new profile was downloaded by Brave, never by Xcode account sync; signed archive/export succeeded with its temporary legacy-directory installation, and neither Xcode profile directory contains that UUID afterward.
   Stock macOS `/usr/bin/base64 --decode` successfully decodes a fixture; the GNU-only option claim does not reproduce, but the job now uses explicit `/usr/bin/base64 -D` to make its macOS decoder unambiguous.
+  The read-only source/latest checks also passed against the live latest release, resolving `v4.12.6-mindroom.270` to `2f411811eda425df5656fc820ad130c879370a3b`.
+  CodeRabbit's follow-up is rate-limited; its completed first review's finding is fixed.
 - CI credentials: owner explicitly approved all eight secret names plus `RELEASE_BOT_APP_ID` before writes.
   All names are now present in `mindroom-ai/mindroom-chat`; no values were logged.
   The release bot private key was verified against the App and a temporary installation token was restricted to `mindroom-ai/homebrew-tap` with contents write, then immediately revoked without dispatching.

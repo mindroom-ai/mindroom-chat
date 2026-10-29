@@ -98,5 +98,9 @@ See the Runbook for profile metadata, local signing results and the real-Mac che
 The encrypted profile backup and restoration instructions live in [`ios/App/signing/`](../ios/App/signing/README.md).
 
 After an automatic release, **Actions → Create MindRoom Release → Run workflow → release_tag** can retry only the Mac publication for an existing release whose source includes the signing script.
-It rebuilds the tag's source, replaces `MindRoom-Chat.dmg`, and dispatches the tap update.
+It verifies that the tag still points to the release's original commit, checks out that commit, and replaces `MindRoom-Chat.dmg`.
+Only the latest release dispatches the tap update; an older-release recovery must not downgrade the cask.
 No manual tag or release creation is needed.
+
+The signing certificate created for this setup expires on February 1, 2027, earlier than the profile's 2044 expiry.
+Before then, renew the Developer ID identity, regenerate the profile with that certificate, and replace the certificate/password and profile repository secrets through the same hidden-input setup.
