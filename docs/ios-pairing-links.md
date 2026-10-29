@@ -98,7 +98,7 @@ See the Runbook for profile metadata, local signing results and the real-Mac che
 
 After an automatic release, **Actions → Create MindRoom Release → Run workflow → release_tag** can retry only the Mac publication for an existing release whose source includes the signing script.
 It verifies that the tag still points to the release's original commit, checks out that commit, and uploads `MindRoom-Chat.dmg`.
-A published DMG is never replaced, so its bytes and the cask checksum stay fixed; to rebuild one, delete that release asset first.
+A published DMG is never replaced, so its bytes and the cask checksum stay fixed; ship changes in a new release.
 Only the latest release dispatches the tap update; an older-release recovery must not downgrade the cask.
 If only the tap dispatch failed, the tap's daily schedule or its manual **Update MindRoom Chat cask** run picks up the latest release.
 No manual tag or release creation is needed.

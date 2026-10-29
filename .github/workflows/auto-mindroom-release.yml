@@ -210,7 +210,7 @@ jobs:
     name: Publish notarized Mac Catalyst DMG
     needs: release
     # Recovery dispatches skip release creation and Android publishing.
-    if: ${{ always() && !cancelled() && (needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')) }}
+    if: ${{ !cancelled() && (needs.release.outputs.release_created == 'true' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')) }}
     runs-on: macos-15
     timeout-minutes: 60
     concurrency:
@@ -247,7 +247,7 @@ jobs:
           published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '[.assets[] | select(.name == "MindRoom-Chat.dmg")] | length')
           if [[ "$published" != 0 ]]; then
-            echo "$RELEASE_TAG already has MindRoom-Chat.dmg; delete that asset first to rebuild it." >&2
+            echo "$RELEASE_TAG already has MindRoom-Chat.dmg, which is never replaced; ship changes in a new release." >&2
             exit 1
           fi
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
