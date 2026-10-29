@@ -32,12 +32,19 @@
   Neither sequence sends a message.
   Startup still has a roughly 2.6-second frame gap versus 2.7–2.9 seconds in original controls; startup is not established as fixed.
   Early native sampling attributes remaining startup work to JavaScript/event-loop and IndexedDB activity rather than the removed SVG subtree, without resolving a specific JavaScript caller.
-  Only the temporary diagnostic app is changed so far; the installed notarized app is preserved.
+  A clean fixed copy is installed at `/Applications/MindRoom Chat.app`, signed with the same Developer ID identity and hardened-runtime flags; strict/deep codesign verification passes and the existing session restores with an empty composer.
+  The temporary metadata probe is absent from that installed copy.
+  The previous notarized app is preserved at `~/Library/Application Support/MindRoomBuildBackups/2026-10-29/MindRoom Chat.app`.
+  The changed frontend has not received fresh notarization; the earlier notarization evidence below covers the previous build.
 - Validation: generator consistency, typecheck, web/Capacitor frontend builds, lint (0 errors / 18 existing warnings), and all 7,419 unit tests pass under Node 24.13.1.
   The thinking-marker suite passes 24 cases across Chromium, Firefox and WebKit, with three explicit unsupported tracing/forced-colors skips.
   Its DOM-budget, decoded-image, animation, reduced-motion, sizing, accessibility, RTL, repaint-budget and painted-glass/gold-core assertions pass, including the core-turn phase.
   WebKit reports CSS-scaled SVG image intrinsic dimensions, so the decode check requires a positive width rather than incorrectly requiring 720 pixels.
-  The full browser scheduler is running separately against a fresh loopback-only Docker Matrix fixture; worker-computer integration is unavailable without its external backend fixture.
+  The full browser scheduler runs all 178 spec/project jobs: 168 pass, nine fail and one is blocked (469 cases pass, 17 fail, 20 skip; worker-computer needs its external backend fixture).
+  Eight failing jobs reproduce on unchanged `1dd34ca9`: canvas updates, background jobs, pin persistence, gap-fill counters, landscape chip alignment and clipboard behavior across three engines.
+  The remaining compact-menu focus failure occurs after the optimistic Pin label changes but before saving finishes; Escape is intentionally ignored while busy.
+  Its fixture now waits for the Pin/Unpin action to be enabled before Escape, retaining the focus assertion and all production guards.
+  A unit run under competing browser workloads transiently fails the canvas kept-input timing test; it passes alone, then the full quiet Node 24 run passes all 7,426 tests.
 
 ### Ship a Developer ID Mac Catalyst DMG (2026-10-28, in progress)
 
@@ -52,7 +59,7 @@
   Mac icon slots now cover 16, 32, 128, 256 and 512 points at 1× and 2×, generated from the existing icon.
 - Release: `macos_app` waits for a newly created release; a `workflow_dispatch` with `release_tag` rebuilds an existing tag without creating a release or publishing Android.
   The job requires the release's original target to be a full commit SHA, verifies the tag still resolves to that commit, and checks out the SHA before importing signing material.
-  It derives marketing/build versions, imports signing material with an explicit signing environment, uploads with `--clobber`, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
+  It derives marketing/build versions, imports signing material with an explicit signing environment, uploads under a unique staging name with `--clobber`, promotes the complete asset with the previous asset retained for rollback, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
   Recovery runs use a separate workflow concurrency group, with per-tag Mac job serialization, so they cannot displace queued automatic releases.
   Only the latest release dispatches a tap update; rebuilding an older DMG must not downgrade the cask.
   The workflow passes actionlint 1.7.12.
@@ -88,6 +95,11 @@
   Final signed run exited 0: `spctl -a -vv -t install build/macos/MindRoom-Chat.dmg` reports `accepted`, `source=Notarized Developer ID`, and the expected Developer ID origin.
   Both app and DMG pass `stapler validate`; the installed app passes `codesign --verify --deep --strict`.
   The first live build had no notarization-credential assignments in its log; the strengthened shell test also proves build tools receive none.
+- Release retry review: direct `gh release upload --clobber` can delete the published DMG before a failed replacement upload.
+  The step now uploads a unique staging asset first, renames the previous asset to a backup, promotes the fully uploaded replacement, and only then deletes the previous asset.
+  Exit/interruption cleanup restores the previous canonical name on a failed promotion, reconciles lost PATCH responses, and gives asset-ID recovery instructions if API state cannot be read.
+  Seven executable replacement cases cover first publication, upload failure, promotion rollback, both lost-response paths, successful replacement, and failed recovery reads; the destructive-upload regression fails before the fix and passes after.
+  GitHub has no atomic asset-name swap: the short rename window and rollback under hard runner termination remain best-effort, with the previous bytes retained until promotion succeeds.
 - Review: independent read-only reviewer found that simply dropping the native Apple entitlement left Catalyst's Apple button calling the unsupported native API, with no fallback.
   Fixed through the compile-time Catalyst browser-session branch above; two behavioral button tests (with and without Cloudflare Access) failed before the fix and pass after, and the Swift contract pins native iOS to its original branch.
   Other reviewed release, profile and icon changes had no blocking findings.
@@ -99,7 +111,8 @@
   CodeRabbit's follow-up is rate-limited; its completed first review's finding is fixed.
 - Native CI startup: after an all-green code head, two documentation-only runs failed waiting for initial startup under the fixture's 15-second and UI's 20-second budgets.
   In the second failure, WebKit processes each took about 46 seconds to launch; the initial fixture eventually became ready about 68 seconds after the first test began, and the same helper then passed.
-  Initial app launches now get 90 seconds; controlled navigation keeps 15 seconds and diagnostics refresh keeps 20 seconds, with matching bounded XCTest allowances and timeout attachments.
+  Initial app launches now get 90 seconds; controlled navigation keeps 15 seconds and diagnostics refresh keeps 20 seconds, with bounded XCTest allowances and timeout attachments.
+  CodeRabbit's follow-up identifies an origin check whose combined startup/navigation/server/fetch budgets total 125 seconds; its default XCTest allowance is now 180 seconds with the existing 240-second hard maximum.
   No production source, security assertion, startup-before-navigation guard or session-retention check changes.
   Independent review approves; a fresh local iOS 26.5 simulator passes all 26 native checks and the diagnostics lifecycle UI test.
   Typecheck/build and all 7,418 Node 24 tests pass again; lint stays at 0 errors and 18 existing warnings.

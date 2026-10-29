@@ -302,7 +302,57 @@ jobs:
       - name: Upload DMG to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" build/macos/MindRoom-Chat.dmg --repo "$GITHUB_REPOSITORY" --clobber
+        run: |
+          set -euo pipefail
+          asset_name=MindRoom-Chat.dmg
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .id)
+          assets_api="repos/$GITHUB_REPOSITORY/releases/$release_id/assets"
+          asset_api="repos/$GITHUB_REPOSITORY/releases/assets"
+          old_id=$(gh api "$assets_api" --paginate --jq ".[] | select(.name == \"$asset_name\") | .id")
+          staged_id=''
+          upload_dir=$(mktemp -d)
+          staging_name="MindRoom-Chat.staging.$(basename "$upload_dir").dmg"
+          backup_name="${staging_name%.dmg}.previous.dmg"
+          cleanup() {
+            status=$?
+            trap - EXIT INT TERM
+            # Retain the original bytes until promotion is confirmed. A failed
+            # PATCH response can mean the rename did succeed, so reconcile IDs.
+            if [[ "$status" != 0 && -n "$old_id" ]]; then
+              old_name=$(gh api "$asset_api/$old_id" --jq .name) || old_name=''
+              staged_name=''
+              if [[ -n "$staged_id" ]]; then
+                staged_name=$(gh api "$asset_api/$staged_id" --jq .name) || staged_name=''
+              fi
+              if [[ "$old_name" == "$backup_name" && "$staged_name" != "$asset_name" ]]; then
+                gh api "$asset_api/$old_id" --method PATCH -f "name=$asset_name" > /dev/null ||
+                  echo "::error::Restore asset $old_id from $backup_name to $asset_name."
+              elif [[ -z "$old_name" ]]; then
+                echo "::error::Cannot read previous asset state. Recover asset $old_id ($backup_name) as $asset_name if its published name is missing."
+              fi
+            fi
+            rm -rf "$upload_dir"
+            exit "$status"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          cp "build/macos/$asset_name" "$upload_dir/$staging_name"
+          # --clobber only touches this unique staging name, never the live DMG.
+          gh release upload "$RELEASE_TAG" "$upload_dir/$staging_name" --repo "$GITHUB_REPOSITORY" --clobber
+          staged_id=$(gh api "$assets_api" --paginate --jq ".[] | select(.name == \"$staging_name\") | .id")
+          test -n "$staged_id"
+          if [[ -n "$old_id" ]]; then
+            gh api "$asset_api/$old_id" --method PATCH -f "name=$backup_name" > /dev/null
+          fi
+          if ! gh api "$asset_api/$staged_id" --method PATCH -f "name=$asset_name" > /dev/null; then
+            # A lost response after a successful promotion is safe to continue.
+            test "$(gh api "$asset_api/$staged_id" --jq .name)" = "$asset_name"
+          fi
+          if [[ -n "$old_id" ]]; then
+            gh api "$asset_api/$old_id" --method DELETE ||
+              echo "::warning::Published replacement; previous asset $old_id remains as $backup_name."
+          fi
       - name: Check latest release for tap update
         id: tap_release
         env:
