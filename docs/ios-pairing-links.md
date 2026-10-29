@@ -87,7 +87,7 @@ An Account Holder or Admin owns these portal steps:
 5. Run `scripts/build-macos-app.sh --sign` with `CODESIGN_IDENTITY`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` and `MACOS_PROVISIONING_PROFILE_PATH` in the environment.
    Read secret values with hidden `read -s` input in the same shell that uses them; never put them in shell history or commit them.
    Optional `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` override the archive's versions.
-6. Verify Developer ID, the hardened runtime and expected entitlements with `codesign`, then verify the notarized DMG with `spctl -a -vv -t install build/macos/MindRoom-Chat.dmg`.
+6. Verify Developer ID, the hardened runtime and expected entitlements with `codesign`, then verify the notarized DMG with `spctl -a -vv -t open --context context:primary-signature build/macos/MindRoom-Chat.dmg`.
 
 Account check on 2026-10-28: the regenerated Mac Catalyst profile allows production push and Associated Domains but omits `com.apple.developer.applesignin`, although the portal lists that capability.
 The Developer ID build therefore omits that entitlement and opens the Apple provider through its browser authentication session.
