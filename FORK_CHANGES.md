@@ -2,165 +2,31 @@
 
 ## Runbook
 
-### Investigate Mac runtime latency (2026-10-29, in progress)
+### Keep the thinking artwork out of the app DOM (2026-10-29)
 
-- Owner reports the installed Mac app feels very slow.
-  The installed Developer ID app runs ARM64 Release code; samples show JavaScript JIT/DFG active, no idle busy loop, and low system memory pressure.
-  The public Matrix versions endpoint answers in about 0.465 seconds; authenticated sync latency has not been measured.
-- Real-thread opening plus accessibility observation takes about 1.9 seconds for a short thread and 4.6 seconds for a long thread; these are automation-inclusive timings, not isolated UI latency.
-  Renderer samples show substantial native WebKit word-boundary traversal through `getPlatformEditorState` and `Position::previous`.
-  A separate scroll sample with accessibility reads deferred also contains this work; the exact selection owner and causal workaround remain under investigation.
-- Automation limitation: pressing the composer through accessibility triggers an Apple `AXPMacPlatformElement._synthesizeMouseClick` array assertion (`EXC_BREAKPOINT` / `SIGTRAP`), crashing the renderer.
-  This is not evidence of an ordinary user-click crash; use pointer coordinates for further composer interactions.
-  Recovery replays the earlier invalid pairing test link; returned to chat without submitting that code.
-- An isolated Catalyst WKWebView probe uses synthetic content, no account and no network.
-  Initial runs show approximately half-second frame gaps, but sequential cases changed geometry and warmed state, so those comparisons do not establish a fix.
-  Repeated controls now recreate the large DOM and keep geometry fixed before testing caret and containment variants.
-  The controls do not establish a containment fix; no containment or editor workaround is applied.
-- Metadata-only diagnostics in a temporary signed copy isolate a globally mounted hidden thinking SVG with 24,121 descendants.
-  It inflates the loaded thread from about 1,537 to 25,661 elements, including when no responding marker is present.
-  Two DOM-budget regressions fail before the fix in WebKit (24,123 idle / 24,157 responding fixture nodes), and an image-layer unit regression fails before the component change.
-- The same artwork now lives in two complete external SVG images, one base and one independently animated core.
-  The HTML animation wrappers, timing, original square bounds, transforms, gradients, masks and accessible responding label stay unchanged.
-  The app no longer mounts SVG definitions globally; `scripts/generate-thinking-mark-images.py` deterministically produces each reference-closed layer from the canonical SVG (`--check` detects stale generated assets).
-  Both images are included in the PWA precache and Capacitor frontend output.
-  Independent read-only review verifies preserved artwork, exact layer groups and no missing references; no blocking findings.
-- Native A/B uses the same signed temporary bundle, session, view and deterministic unsent click/type/delete/scroll sequence, with accessibility reads deferred until afterward.
-  The original copy has 25,661 elements; the fixed copy has 1,537 (94% fewer).
-  Native word-boundary traversal appears in 14 ten-millisecond samples in the original interaction trace and one in the fixed trace; these are aggregate sampled costs, not latency percentiles.
-  The fixed input sequence completes in 914 ms including automation commands; original takes 1,053 ms and its delayed caret reset leaves the one-character draft, which is then explicitly cleared.
-  Neither sequence sends a message.
-  Startup still has a roughly 2.6-second frame gap versus 2.7–2.9 seconds in original controls; startup is not established as fixed.
-  Early native sampling attributes remaining startup work to JavaScript/event-loop and IndexedDB activity rather than the removed SVG subtree, without resolving a specific JavaScript caller.
-  A clean fixed copy is installed at `/Applications/MindRoom Chat.app`, signed with the same Developer ID identity and hardened-runtime flags; strict/deep codesign verification passes and the existing session restores with an empty composer.
-  The temporary metadata probe is absent from that installed copy.
-  The previous notarized app is preserved at `~/Library/Application Support/MindRoomBuildBackups/2026-10-29/MindRoom Chat.app`.
-  The changed frontend has not received fresh notarization; the earlier notarization evidence below covers the previous build.
-- Validation: generator consistency, typecheck, web/Capacitor frontend builds, lint (0 errors / 18 existing warnings), and all 7,419 unit tests pass under Node 24.13.1.
-  The thinking-marker suite passes 24 cases across Chromium, Firefox and WebKit, with three explicit unsupported tracing/forced-colors skips.
-  Its DOM-budget, decoded-image, animation, reduced-motion, sizing, accessibility, RTL, repaint-budget and painted-glass/gold-core assertions pass, including the core-turn phase.
-  WebKit reports CSS-scaled SVG image intrinsic dimensions, so the decode check requires a positive width rather than incorrectly requiring 720 pixels.
-  The full browser scheduler runs all 178 spec/project jobs: 168 pass, nine fail and one is blocked (469 cases pass, 17 fail, 20 skip; worker-computer needs its external backend fixture).
-  Eight failing jobs reproduce on unchanged `1dd34ca9`: canvas updates, background jobs, pin persistence, gap-fill counters, landscape chip alignment and clipboard behavior across three engines.
-  The remaining compact-menu focus failure occurs after the optimistic Pin label changes but before saving finishes; Escape is intentionally ignored while busy.
-  Its fixture now waits for the Pin/Unpin action to be enabled before Escape, retaining the focus assertion and all production guards.
-  A unit run under competing browser workloads transiently fails the canvas kept-input timing test; it passes alone, then the full quiet Node 24 run passes all 7,426 tests.
+- Why: the owner reported that the installed Mac app feels very slow. Renderer samples showed WebKit word-boundary traversal (`getPlatformEditorState`, `Position::previous`) on caret moves, and a metadata-only probe found `MindroomThinkingDefinitions` mounting the thinking artwork as a hidden SVG with 24,121 descendants on every page, even with no responding marker. It grew a loaded thread from 1,537 to 25,661 elements.
+- Change: the artwork now ships as two complete SVG images, a base layer and the independently animated core, shown with `<img>` inside the existing HTML animation wrappers. Timing, square bounds, transforms, gradients, masks and the "AI is responding" label are unchanged; the app no longer mounts the definitions. `scripts/generate-thinking-mark-images.py` derives both layers from the canonical `thinking-mark.svg` with every referenced definition; `--check` fails on stale layers. Both images are in the PWA precache and the Capacitor build. The indicator sets `pointer-events: none`, so the images get no drag, iOS callout or Mac image context menu.
+- Measured (Developer ID build, same session and unsent click/type/delete/scroll sequence): 25,661 elements before, 1,537 after (94% fewer); sampled word-boundary traversal fell from 14 ten-millisecond samples to 1. These are aggregate samples, not latency percentiles. A roughly 2.6-second startup frame gap remains (2.7–2.9 s before), so startup is not fixed; early samples point at JavaScript and IndexedDB work, not the removed subtree.
+- Tests: the WebKit DOM-budget specs (idle and responding fixture) failed before the change with 24,123 and 24,157 nodes; `MindroomThinkingPlaceholder.test.ts` checks the two decorative image layers and runs the generator's `--check`; `e2e/thinking-marker.spec.ts` checks decoded images, both animation phases, painted glass and gold, reduced motion, sizing, `pointer-events`, accessibility, RTL and repaint budgets across Chromium, Firefox and WebKit. WebKit reports CSS-scaled intrinsic sizes for SVG images, so the decode check requires a positive width, not 720 pixels. `compact-thread-menu.spec.ts` now waits for the Pin/Unpin action to finish saving before Escape, which the menu ignores while busy.
+- Risks: the measured build has no fresh notarization; the first release notarizes it.
+- Next: none for the artwork; startup latency needs its own investigation.
 
 ### Ship a Developer ID Mac Catalyst DMG (2026-10-28, in progress)
 
-- Scope: Tasks 3 and 5 of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md), based on `origin/dev` at `2f411811`.
-- Signing: `macos-export-options.plist` selects Developer ID, manual signing, team `DNA6966LGZ`, and profile `MindRoom Chat Developer ID` for `chat.mindroom.app`.
-  `build-macos-app.sh --sign` installs that profile temporarily, archives, exports, notarizes and staples the app, then makes and notarizes/staples `MindRoom-Chat.dmg` with `MindRoom Chat.app` and an `/Applications` symlink.
-  The DMG also receives a Developer ID signature before notarization.
-  Notarization credentials are removed from the environment before running npm, CocoaPods or Xcode so build phases cannot log them.
-  The default path remains unsigned; both paths forward optional `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
-  The app alone reads `MINDROOM_MACOS_PROVISIONING_PROFILE_SPECIFIER` through its Mac-only setting: applying the profile globally would also apply it to the Pods.
-  Resource-bundle Pod targets disable signing only for macOS SDKs; iOS settings remain unchanged.
-  Mac icon slots now cover 16, 32, 128, 256 and 512 points at 1× and 2×, generated from the existing icon.
-- Release: `macos_app` waits for a newly created release; a `workflow_dispatch` with `release_tag` rebuilds an existing tag without creating a release or publishing Android.
-  The job requires the release's original target to be a full commit SHA, verifies the tag still resolves to that commit, and checks out the SHA before importing signing material.
-  It derives marketing/build versions, imports signing material with an explicit signing environment, uploads under a unique staging name with `--clobber`, promotes the complete asset with the previous asset retained for rollback, and dispatches `mindroom-chat-release` to the tap using a token scoped to `homebrew-tap`.
-  Recovery runs use a separate workflow concurrency group, with per-tag Mac job serialization, so they cannot displace queued automatic releases.
-  Only the latest release dispatches a tap update; rebuilding an older DMG must not downgrade the cask.
-  The workflow passes actionlint 1.7.12.
-- G2 account evidence: Push Notifications, Associated Domains and Sign in with Apple are already enabled on the App ID, which supports macOS.
-  Apple's “Mac Catalyst (Existing Apps Only)” checkbox is for legacy generated bundle IDs; the shared bundle ID needs no capability change ([Apple guide](https://developer.apple.com/help/account/capabilities/create-a-mac-version-of-an-ipad-app)).
-  The original Developer ID certificates had no private key here.
-  With owner authorization, Xcode created a new local `Developer ID Application: Bas Nijholt (DNA6966LGZ)` identity, and the Mac Catalyst Developer ID profile was regenerated to include it.
-  Decoded profile: team `DNA6966LGZ`, App ID `DNA6966LGZ.chat.mindroom.app`, platform `OSX`, expiry `2044-10-24 03:53:34 UTC`, UUID `f401d8d1-1559-467d-90a7-c671b44428e7`.
-  Its signing certificate matches the local identity; the portal's download-until date is the certificate's `2027-02-01`, distinct from the profile expiry.
-  Profile keys: `application-identifier`, `aps-environment`, `com.apple.application-identifier`, `com.apple.developer.aps-environment`, `com.apple.developer.associated-domains`, `com.apple.developer.team-identifier`, `get-task-allow`, and `keychain-access-groups`.
-  Push is `production`; associated domains permits `*`, covering `applinks:chat.mindroom.chat`.
-- G2 feature loss: despite the portal listing Sign in with Apple, the actual Developer ID profile omits `com.apple.developer.applesignin`.
-  Per the plan's fallback, the Mac entitlement and its contract expectation are removed; iOS keeps it.
-  The native Apple authorization sheet is not supported by this Developer ID build.
-  The Catalyst native shell now uses its existing browser authentication session for the Apple provider and returns the SSO callback to the app; iPhone/iPad (including the App Store iPad app on Mac) keep native Apple authorization.
-  Web code handles the returned credential or browser callback without detecting Mac.
-  Browser Apple SSO still needs an interactive account check; hosted `mindroom.chat` does not offer password login, so this fallback is essential there.
-  Microphone and camera stay in the Mac entitlements: these hardened-runtime permissions do not require provisioning-profile grants.
-- Encrypted backup: only `ios/App/signing/encrypted/MindRoom-Chat-Developer-ID.provisionprofile.age` and public recipients are committed, encrypted to the owner's existing SSH recipient.
-  No plaintext profile, private key, password or certificate export belongs in this repo.
-- Validation so far: export-options and Mac-icon contracts failed before their changes and pass after; executable shell tests cover unsigned signing/version behavior, a missing signing secret, ordered export/notarization/stapling/DMG staging, and failure before DMG creation.
-  A regression test also catches macOS Bash 3.2 dropping the archive invocation when optional version arguments are absent.
-  Typecheck/build pass; lint reports 0 errors and the existing 18 warnings.
-  Final full suite after PR-review fixes: all 7,418 tests pass under the declared Node 24.13.1.
-  One run concurrent with builds transiently failed the deep-trace ring-cap and pinned-canvases ordering cases; both passed alone, then the full suite passed.
-  Baseline under host Node 26.11.1: 7,395 passed, 8 failed before changes (`computerServiceSettings.test.ts` unavailable storage; six `deepTraceFailure.test.ts` cross-tab opt-out remove/clear cases; `MindroomComputerSettings.test.tsx` failed persistence).
-- Local signing evidence: archive and export both succeeded on this Mac.
-  `codesign -dv --verbose=4` on the archive shows `Authority=Developer ID Application: Bas Nijholt (DNA6966LGZ)` and `flags=0x10000(runtime)`.
-  Its signed entitlements contain production `aps-environment` and `com.apple.developer.aps-environment`, `applinks:chat.mindroom.chat`, microphone and camera, the shared App ID/team identifiers, and `get-task-allow=false`.
-  The first end-to-end run notarized and stapled both app and DMG successfully.
-  Its DMG lacked a signature: `codesign` reported `code object is not signed at all` and `spctl -a -vv -t install` returned `rejected` / `source=no usable signature`, although `stapler validate` succeeded.
-  Added an explicit Developer ID DMG signature before notarization and verified the command sequence with a failing-then-passing shell regression test.
-  Final signed run exited 0: `spctl -a -vv -t install build/macos/MindRoom-Chat.dmg` reports `accepted`, `source=Notarized Developer ID`, and the expected Developer ID origin.
-  Both app and DMG pass `stapler validate`; the installed app passes `codesign --verify --deep --strict`.
-  The first live build had no notarization-credential assignments in its log; the strengthened shell test also proves build tools receive none.
-- Release retry review: direct `gh release upload --clobber` can delete the published DMG before a failed replacement upload.
-  The step now uploads a unique staging asset first, renames the previous asset to a backup, promotes the fully uploaded replacement, and only then deletes the previous asset.
-  Exit/interruption cleanup restores the previous canonical name on a failed promotion, reconciles lost PATCH responses, and gives asset-ID recovery instructions if API state cannot be read.
-  Seven executable replacement cases cover first publication, upload failure, promotion rollback, both lost-response paths, successful replacement, and failed recovery reads; the destructive-upload regression fails before the fix and passes after.
-  GitHub has no atomic asset-name swap: the short rename window and rollback under hard runner termination remain best-effort, with the previous bytes retained until promotion succeeds.
-- Review: independent read-only reviewer found that simply dropping the native Apple entitlement left Catalyst's Apple button calling the unsupported native API, with no fallback.
-  Fixed through the compile-time Catalyst browser-session branch above; two behavioral button tests (with and without Cloudflare Access) failed before the fix and pass after, and the Swift contract pins native iOS to its original branch.
-  Other reviewed release, profile and icon changes had no blocking findings.
-  PR review confirmed the moved-tag, pending-release displacement and old-release tap downgrade risks; executable workflow tests fail before the source/latest guards and pass after them.
-  CodeRabbit's permission-scope finding is addressed by explicitly requesting only `contents: write` for the tap token.
-  The profile-directory concern does not reproduce: the new profile was downloaded by Brave, never by Xcode account sync; signed archive/export succeeded with its temporary legacy-directory installation, and neither Xcode profile directory contains that UUID afterward.
-  Stock macOS `/usr/bin/base64 --decode` successfully decodes a fixture; the GNU-only option claim does not reproduce, but the job now uses explicit `/usr/bin/base64 -D` to make its macOS decoder unambiguous.
-  The read-only source/latest checks also passed against the live latest release, resolving `v4.12.6-mindroom.270` to `2f411811eda425df5656fc820ad130c879370a3b`.
-  CodeRabbit's follow-up is rate-limited; its completed first review's finding is fixed.
-- Native CI startup: after an all-green code head, two documentation-only runs failed waiting for initial startup under the fixture's 15-second and UI's 20-second budgets.
-  In the second failure, WebKit processes each took about 46 seconds to launch; the initial fixture eventually became ready about 68 seconds after the first test began, and the same helper then passed.
-  Initial app launches now get 90 seconds; controlled navigation keeps 15 seconds and diagnostics refresh keeps 20 seconds, with bounded XCTest allowances and timeout attachments.
-  CodeRabbit's follow-up identifies an origin check whose combined startup/navigation/server/fetch budgets total 125 seconds; its default XCTest allowance is now 180 seconds with the existing 240-second hard maximum.
-  No production source, security assertion, startup-before-navigation guard or session-retention check changes.
-  Independent review approves; a fresh local iOS 26.5 simulator passes all 26 native checks and the diagnostics lifecycle UI test.
-  Typecheck/build and all 7,418 Node 24 tests pass again; lint stays at 0 errors and 18 existing warnings.
-- CI credentials: owner explicitly approved all eight secret names plus `RELEASE_BOT_APP_ID` before writes.
-  All names are now present in `mindroom-ai/mindroom-chat`; no values were logged.
-  The release bot private key was verified against the App and a temporary installation token was restricted to `mindroom-ai/homebrew-tap` with contents write, then immediately revoked without dispatching.
-  The password-protected certificate export contains only the selected Developer ID identity, exported through Security.framework because `security export` cannot select an identity and would also export unrelated keys.
-  Plaintext signing material stays in a temporary directory outside the repo and is removed by the setup command.
-- G3 host: Apple silicon (`arm64`), macOS 27.0.1 (26A434), Xcode 27.1 (27A9275); CI selects Xcode 26.2.
-  Before installation, `/Applications/MindRoom.chat.app` exists, and Library discovery finds `~/Library/Application Scripts/chat.mindroom.app` and `~/Library/Containers/chat.mindroom.app`.
-  These pre-existing paths belong to an existing installation, not evidence of paths created by this DMG; do not zap them.
-  Discovery also reports `find: /Users/basnijholt/Library/NGL: Permission denied`.
-- G3 observed: installed the final DMG's `MindRoom Chat.app` into `/Applications`, preserving `/Applications/MindRoom.chat.app`.
-  It launched directly without a Gatekeeper block and reached hosted sign-in; the running executable is `/Applications/MindRoom Chat.app/Contents/MacOS/MindRoom.chat`.
-  A clean sign-in screenshot (no private account) is attached to the PR.
-  Apple browser sign-in reached the production Tuwunel callback, then failed at the server's Apple token exchange with `{"errcode":"M_UNKNOWN","error":"Request error: HTTP status client error (400 Bad Request) for url (https://appleid.apple.com/auth/token)"}`.
-  Production logs confirm the error at `2026-10-29T04:18:51.871142Z`; the generic HTTP-status handling discards Apple's structured error, so this alone does not establish expired credentials or a client-ID mismatch.
-  Private metadata inspection then confirmed the deployed Apple web client JWT expired on `2026-08-26 07:17:43 UTC`; its issuer, audience and Services ID match the existing provider.
-  With owner authorization, a replacement Sign in with Apple key was registered for the same primary App ID, and a replacement JWT was installed without changing the provider, permissions or callback.
-  Infrastructure [dotfiles PR #124](https://github.com/basnijholt/dotfiles/pull/124) is merged, with an owner-encrypted recovery key, encrypted JWT and tested renewal helper; the replacement expires `2027-04-27 05:43:55 UTC`.
-  Comin rejects GitHub's squash signature (`Commit 863c934d011d59360d8db2401d18dfd606233e03 is not signed while it should be`), as it already did for the previous main tip.
-  Applied the credential from the merged PR through a build of the deployed revision with only that ciphertext changed: software, kernel, initrd, etc and systemd paths match; the activation diff changes only the system path and Apple ciphertext path.
-  Dry activation and switch succeed, the system profile now preserves the new credential across reboot, its ownership/mode remain `tuwunel`/`0400`, and all seven production services stay active with Tuwunel's PID unchanged.
-  The signature requirement remains enabled; future automatic deployment needs an accepted SSH-signed main tip.
-  Fresh Apple browser authentication remains unverified: the new probe reaches Apple's existing-account password page, but the available browser automation cannot fill the password from 1Password.
-  A dummy invalid-code probe returns `invalid_grant` for both old and new credentials and is explicitly not counted as an end-to-end authentication result.
-  The title bar is “MindRoom Chat”; the application menu still reads “MindRoom.chat” (existing bundle name, not changed here).
-  The installed Developer ID app subsequently shows a signed-in account with synced rooms and threads; this does not identify which sign-in provider completed.
-  Opened the development room through Cmd+K, sent a harmless no-tools smoke test, observed the responding/typing state, and received the requested five-line agent reply.
-  A second no-tools request also renders a longer prose reply; these checks verify sync, thread navigation, sending and final reply rendering, while intermediate streamed text edits were not separately captured.
-  Command-C/Command-V round-trip an unsent test draft after clearing it; the composer is left empty.
-  Attached a non-private 66-byte fixture in that test thread, downloaded through the native Save dialog under a new name, and verified the saved bytes equal the uploaded bytes.
-  A test `/connect?code=` hyperlink opened from a newly created private Notes fixture routes to this Developer ID app's “Connect Local MindRoom” screen with the exact invalid test code, without opening a browser tab.
-  The running executable remains `/Applications/MindRoom Chat.app/Contents/MacOS/MindRoom.chat`, and the pre-existing App Store app is not launched.
-  No pairing was submitted; “Back to chat” returns to the original room.
-  The View menu exposes toolbar/sidebar/full-screen actions but no “Scale Interface to Match iPad” or “Optimize for Mac” toggle.
-  Restoring the window through its native zoom action works; the automation's corner-drag attempt returns `Accessibility error: AXError.noValue`, so the 400×500 minimum is not measured.
-  New Library paths after sign-in, suitable as observed zap candidates: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`, `~/Library/HTTPStorages/chat.mindroom.app`, and `~/Library/HTTPStorages/chat.mindroom.app.binarycookies`.
-  Exclude the pre-existing App Store container and Application Scripts paths from the cask's zap list; shared-ID routing and uninstall isolation are still unverified.
-- G3 remaining checks: hosted password sign-in is unavailable; fresh SSO/Apple authentication remains blocked at Apple's password entry; intermediate streamed edits, voice call and microphone/camera prompts, push quit and foreground, measured minimum size, Dock icon, microphone wording, Web Inspector `navigator.maxTouchPoints` and Intel Mac are not verified.
-  The Notes handoff selects the Developer ID app while both apps are installed; other shared-ID routing cases and uninstall isolation remain unverified.
-  The installed release has neither `ios.webContentsDebuggingEnabled` nor `CAPACITOR_DEBUG` enabled; Capacitor defaults release inspection off, so touch points have not been evaluated through Web Inspector.
-  Scaling toggles are absent from this build's View menu; the App Store iPad app's scaling preference has not been changed.
-  No app data has been deleted and no uninstall/zap has been run.
-- Next: finish the remaining G3 checks where account/device access permits, first automatic release publication after merge, and the tap rollout only once that release has `MindRoom-Chat.dmg`.
-  Ready-for-review PR: [#523](https://github.com/mindroom-ai/mindroom-chat/pull/523); first CodeRabbit and free Qodo reviews are addressed as above.
-  Sourcery cannot review because its quota is exhausted; paid Qodo is blocked by inactive billing.
-  Do not merge this PR or homebrew-tap #4, or create tags/releases manually.
+- Scope: Tasks 3 and 5 of the [Mac app plan](docs/superpowers/plans/2026-10-28-macos-chat-app.md).
+- Signing: `macos-export-options.plist` selects Developer ID, manual signing, team `DNA6966LGZ` and profile `MindRoom Chat Developer ID` for `chat.mindroom.app`. `build-macos-app.sh --sign` installs the profile temporarily, archives, exports, notarizes and staples the app, then builds `MindRoom-Chat.dmg` (`MindRoom Chat.app` plus an `/Applications` symlink), signs it with Developer ID, and notarizes and staples it. Notarization credentials leave the environment before npm, CocoaPods or Xcode run. Without `--sign` the build stays unsigned; both paths forward optional `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. Only the App target reads `MINDROOM_MACOS_PROVISIONING_PROFILE_SPECIFIER` (a global profile would also apply to the Pods), and resource-bundle Pods skip signing for macOS SDKs only.
+- Icons: macOS draws app icons unmasked, so `generate-ios-icons.sh` builds the Mac slots (16–512 points at 1× and 2×) from the iOS master as an 824-pixel rounded square on a transparent 1024-pixel canvas. `Contents.json` keeps Xcode's formatting, and `.prettierignore` leaves asset catalogs to Xcode.
+- Release: `macos_app` runs after a newly created release; `workflow_dispatch` with `release_tag` retries only the Mac publication of an existing release, without creating a release or publishing Android. The job requires the release target to be a full commit SHA that the tag still resolves to, checks out that SHA before importing signing material, and refuses a release that already has `MindRoom-Chat.dmg`: a published DMG is never replaced, so its bytes and the cask checksum stay fixed. To rebuild one, delete the asset first. Only the latest release dispatches `mindroom-chat-release` to the tap, with a token scoped to `homebrew-tap` contents; the tap's daily schedule also picks up the latest release if a dispatch fails. Recovery runs use their own concurrency group and per-tag Mac serialization, so they cannot displace queued automatic releases.
+- G2 account: the App ID has Push Notifications, Associated Domains and Sign in with Apple. Xcode created a new `Developer ID Application: Bas Nijholt (DNA6966LGZ)` identity (owner-authorized), and the Mac Catalyst Developer ID profile was regenerated with it: platform `OSX`, production push, associated domains `*`, profile expiry 2044-10-24, certificate expiry 2027-02-01.
+- G2 feature loss: the actual Developer ID profile omits `com.apple.developer.applesignin` although the portal lists the capability. The Mac entitlement is removed; iOS keeps it. On Catalyst, `signInWithApple` runs the existing browser authentication session (`#if targetEnvironment(macCatalyst)`) and the web code routes the returned `mindroom://auth` callback; iPhone and iPad, including the App Store iPad app on Mac, keep native Apple authorization. Hosted `mindroom.chat` has no password login, so this fallback matters. Microphone and camera stay: hardened-runtime permissions need no profile grant.
+- Local signing evidence: the final run exits 0; `spctl -a -vv -t install` accepts the DMG as `Notarized Developer ID`, both app and DMG pass `stapler validate`, and the installed app passes `codesign --verify --deep --strict` with the hardened runtime and the expected entitlements. The first run's unsigned DMG was rejected (`source=no usable signature`), which added the DMG signature and its regression test. The local archive and export found the profile in the legacy `~/Library/MobileDevice/Provisioning Profiles` directory with Xcode 27.1, the only place it was installed.
+- G3 observed on an Apple silicon Mac (macOS 27): the DMG app launches without a Gatekeeper block next to the App Store app, syncs rooms and threads, sends and renders agent replies, round-trips the clipboard, saves an attachment through the native Save dialog byte for byte, and opens a Notes `/connect?code=` link in its Connect Local MindRoom screen (invalid test code, nothing submitted). Apple browser sign-in first failed at the server's token exchange because the deployed Apple web client JWT had expired; it was renewed in [dotfiles PR #124](https://github.com/basnijholt/dotfiles/pull/124). The application menu still reads "MindRoom.chat" (existing bundle name).
+- Zap candidates seen after sign-in: `~/Library/Caches/chat.mindroom.app`, `~/Library/WebKit/chat.mindroom.app`, `~/Library/Preferences/chat.mindroom.app.plist`, `~/Library/Saved Application State/chat.mindroom.app~iosmac.savedState`, `~/Library/HTTPStorages/chat.mindroom.app` and `~/Library/HTTPStorages/chat.mindroom.app.binarycookies`. Leave out `~/Library/Containers/chat.mindroom.app` and `~/Library/Application Scripts/chat.mindroom.app`: they belong to the App Store app.
+- Native CI startup: fresh simulators took about 46 seconds to launch WebKit processes, past the 15- and 20-second budgets. Initial app launches now get 90 seconds; navigation keeps 15 and diagnostics refresh 20, with timeout attachments. The routing script's default XCTest allowance is 180 seconds (240 maximum) to fit the longest check.
+- CI credentials: the owner approved the eight secret names and `RELEASE_BOT_APP_ID`; all are set. The certificate export holds only the selected Developer ID identity. A test installation token for the release bot was limited to `homebrew-tap` contents and revoked without dispatching.
+- PR review (#523): CodeRabbit's finding that `gh release upload --clobber` deletes the published DMG before its replacement uploads led first to a staged rename with rollback; review then replaced that with the never-replace rule above, which removes the rename window; two tests (refusal and plain upload) replace seven rollback cases. Also from review: macOS-shaped icons; Xcode formatting for `Contents.json`; the generator's `--check` in `npm test`; `pointer-events: none` on the thinking indicator; the workflow test runs `bash` from `PATH` off macOS; `Podfile.lock` changes only its Podfile checksum (the spec checksums had changed with no version change); the README gets its Homebrew row with the tap rollout, not before; the encrypted provisioning-profile backup is dropped, since the portal can download the profile again and it holds no private key. Declined: job-level concurrency to shorten the release lock, because GitHub does not order job-level queues within five minutes and the release iteration counter could then give an older commit the newer tag; an environment for the signing secrets, since the owner is the only writer and the Android secrets are repository-level too (revisit with new collaborators); installing the profile in Xcode 16's directory too, since the legacy directory worked with a newer Xcode.
+- Remaining G3 checks: fresh Apple browser sign-in (blocked at Apple's password page), intermediate streamed edits, voice calls with microphone and camera prompts, push while quit and foregrounded, measured minimum window size, Dock icon, Web Inspector `navigator.maxTouchPoints`, Intel Macs, other shared-ID routing cases and uninstall isolation.
+- Next: the remaining G3 checks where access permits; after merge, the first automatic release publishes the DMG. Then merge homebrew-tap #4 and add `brew install --cask mindroom-ai/tap/mindroom-chat` to the README. No manual tags or releases.
 
 ### Build the iOS app for Mac Catalyst (2026-10-28)
 
