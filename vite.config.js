@@ -31,6 +31,10 @@ const getBuildVersion = () => {
 };
 
 const buildVersion = getBuildVersion();
+
+// The first browser versions with native top-level await, which noVNC and pdfjs use.
+// The app already needs Safari 15.4 for structuredClone and Array.prototype.at.
+const browserTarget = ['chrome89', 'edge89', 'firefox89', 'safari15'];
 const releaseVersion = readReleaseVersion(process.env, path.resolve());
 
 function appVersionManifest() {
@@ -259,6 +263,7 @@ export default defineConfig({
     // re-optimizes dependencies and reloads every open page.
     include: ['workbox-precaching', 'workbox-routing', '@vanilla-extract/recipes/createRuntimeFn'],
     esbuildOptions: {
+      target: browserTarget,
       define: {
         global: 'globalThis',
       },
@@ -272,9 +277,7 @@ export default defineConfig({
     },
   },
   build: {
-    // Vite's default list, raised just enough for native top-level await (noVNC uses it).
-    // The app already needs Safari 15.4 for structuredClone and Array.prototype.at.
-    target: ['chrome89', 'edge89', 'firefox89', 'safari15'],
+    target: browserTarget,
     outDir: 'dist',
     sourcemap: true,
     copyPublicDir: false,
