@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Load the main bundle without the top-level-await wrapper (2026-10-29)
+
+- Why: the thinking-artwork entry below left a roughly 2.6-second startup frame gap on the Mac app, with early samples pointing at JavaScript and IndexedDB work. A warm-start profile of the production build (Chromium 155, 100 rooms, `--disable-webgl`, a fresh tab per start, median of 5) put 531 of 993 ms in loading and evaluating the 5.48 MB main chunk, as one 328 ms task. `vite-plugin-top-level-await` wrapped that whole chunk in an async function (`let __tla = (async () => {…})()`) and broke its sourcemap (97 sources, 2.5 MB).
+- Change: the plugin is gone, and `build.target` is Vite's default list raised just enough for native top-level await (`chrome89`, `edge89`, `firefox89`, `safari15`). noVNC's `core/util/browser.js` uses top-level await; the old target fails the build with "Top-level await is not available in the configured target environment". No supported browser is dropped: the app already calls `structuredClone` and `Array.prototype.at` unguarded, which need Safari 15.4, Chrome 98 and Firefox 94, and the iOS (16.4) and Mac Catalyst WebKit are newer still.
+- Measured: a fresh Chromium process per load of the sign-in page (no session, `--disable-webgl`, 7 interleaved runs, medians; the base build is `0dbcd28b`, two CSS lines from `dev`). Script time fell from 437 to 269 ms and the longest task from 366 to 198 ms; at 4× CPU throttling, from 1634 to 1028 ms and from 1966 to 1217 ms. The out-of-tree warm-start run with the 100-room session (plugin removed, `es2022` target, 7 interleaved runs) showed renderer main-thread CPU down 17% unthrottled (900 to 750 ms) and 14% at 4×; the target change alone did not move CPU. The main chunk's sourcemap again covers its sources (18.5 MB).
+- Tests: the production build passes. The lazy `ComputerScreen` (noVNC) and `pdf` chunks, now with native top-level await, import without errors in Chromium 155 and Playwright WebKit 26. `npm run typecheck` and `npm run lint` pass; full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test).
+- Not changed: every other warm-start cost measured below 10%. `mindroom-cache/meta` gets one read per joined room each time matrix-js-sdk reports PREPARED, twice per start; batching them would save about 9 ms unthrottled. The rest sit inside matrix-js-sdk (cached-sync processing, 34 thread-root fetches per start) or the room list (`toLocaleString` per unread badge, about 15 ms unthrottled with 100 rooms).
+- Risks: the JavaScriptCore gain is unmeasured.
+- Next: measure the Mac app's startup frame gap on the first release with this change.
+
 ### Show the whole logo on the sign-in and Connect screens (2026-10-29)
 
 - Why: the owner reported that the logo in the auth card header was cut by a circular mask.
