@@ -41,9 +41,11 @@ vi.mock('./MindroomPasteAttachmentContent', () => ({ MindroomPasteAttachmentCont
 vi.mock('./MindroomThinkingPlaceholder', () => ({
   MindroomThinkingPlaceholder: () => React.createElement('span', null, 'Thinking placeholder'),
 }));
+// The long-text renderer renders the preview content it gets, as before its sidecar loads.
 vi.mock('./MindroomLongTextText', () => ({
   MindroomLongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  MindroomLongTextText: () => null,
+  MindroomLongTextText: ({ content, renderBody }: any) =>
+    renderBody(content, { body: content.body, customBody: content.formatted_body }, 'ready'),
 }));
 vi.mock('./ApprovalArgumentFields.css', () => ({}));
 vi.mock('./MindroomHtmlBlocks.css', () => ({
@@ -145,6 +147,25 @@ describe('MindroomReasoning', () => {
     expect(text(root)).toBe(
       'ThinkingChecking the cachePartial answerPreparing isolated worker... 3s elapsed.'
     );
+  });
+
+  it('keeps live reasoning over a covering checkpoint on a long-text reply', () => {
+    const root = render({
+      msgtype: 'm.text',
+      body: '* Long partial answer',
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'Long partial answer',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.live_checkpoint': { sid: '1761858000123-0a1b2c3d', seq: 4 },
+      },
+      'io.mindroom.live_reasoning': 'Checking the cache',
+    });
+
+    expect(text(header(root))).toBe('Thinking');
+    expect(text(root)).toBe('ThinkingChecking the cacheLong partial answer');
   });
 
   it('keeps multi-paragraph reasoning in one column', () => {
