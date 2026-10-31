@@ -162,7 +162,10 @@ describe('MindroomThinkingPlaceholder', () => {
     });
     expect(labelTexts(renderer)).toEqual(['Working (0.1s)', 'Working (0.1s)']);
 
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
     vi.useRealTimers();
   });
 
@@ -179,9 +182,14 @@ describe('MindroomThinkingPlaceholder', () => {
       vi.advanceTimersByTime(1_000);
     });
 
-    // One timer per tenth, not one per millisecond.
-    expect(setTimeoutSpy.mock.calls.length).toBeLessThanOrEqual(10);
+    const delays = setTimeoutSpy.mock.calls.map(([, delay]) => delay);
     setTimeoutSpy.mockRestore();
+    // About one wait per tenth, each under two tenths, not a delay past the limit.
+    expect(delays.length).toBeGreaterThanOrEqual(5);
+    delays.forEach((delay) => {
+      expect(delay).toBeGreaterThanOrEqual(100);
+      expect(delay).toBeLessThan(200);
+    });
     expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
 
     act(() => {
