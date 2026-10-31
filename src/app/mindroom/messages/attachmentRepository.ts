@@ -107,8 +107,9 @@ const fetchRawAttachment = async (
   signal: AbortSignal
 ): Promise<RawAttachment> => {
   // This request sends the access token itself, so unlike media URLs the browser loads, it does
-  // not need the service worker to use the authenticated endpoints. A token refresh clears the
-  // SDK's copy of /versions; if fetching it again fails, the versions the client last cached decide.
+  // not need the service worker to use the authenticated endpoints. Before startup seeds the SDK with
+  // the cached /versions, or after the SDK's own request failed, getVersions asks the homeserver
+  // again; if that fails, the versions the client last cached decide.
   const authenticated = await mx
     .getVersions()
     .then(supportsAuthenticatedMedia)

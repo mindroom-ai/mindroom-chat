@@ -10,7 +10,7 @@
   A page can stay uncontrolled for up to 40 seconds after an SSO login (see "Retry avatars when their URL changes"), for the whole session when the deployment disables the worker, and on the development server in headless Chromium, where the reported reply was seen.
   Every other timeline and interactive download through the attachment repository failed the same way: images, video, audio and files, thumbnails, canvas pages and approval arguments.
 - Fix: `fetchRawAttachment` in `attachmentRepository.ts` chooses the authenticated endpoint whenever the homeserver supports it (`mx.getVersions()`), as the offline prefetch already did.
-  A token refresh clears the SDK's copy of `/versions`; if fetching it again fails, the spec versions the client last cached decide.
+  Before startup seeds the SDK with the cached `/versions`, or after the SDK's own request failed, `getVersions` asks the homeserver again; if that fails, the spec versions the client last cached decide.
   The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
   Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
   `CallWidgetDriver.downloadFile`, which always asks for the authenticated endpoint, now sends the access token itself too; without it, a call widget's file download failed with 401 until the worker took control.
