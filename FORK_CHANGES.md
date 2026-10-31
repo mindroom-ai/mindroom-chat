@@ -14,11 +14,12 @@
   The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
   Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
   `CallWidgetDriver.downloadFile`, which always asks for the authenticated endpoint, now sends the access token itself too; without it, a call widget's file download failed with 401 until the worker took control.
-  `authenticatedMediaRequestInit` adds no header to a URL that already carries `access_token` in its query, as on native platforms, since Synapse refuses a request that sends both.
+  `authenticatedMediaRequestInit` adds no header to a URL that already carries `access_token` in its query, as in the iOS and Mac apps (`capacitor://`), since Synapse refuses a request that sends both; the settings avatar fetch uses it too.
 - Tests: `attachmentRepository.test.ts` "hydrates a long text from authenticated media without a service worker" fails without the change (it keeps the preview).
   "uses the cached server versions when /versions fails" covers the fallback.
   `CallWidgetDriver.test.ts` "sends the access token with the authenticated media request" fails without the header.
   "downloads from the legacy endpoint without the access token when authenticated media is unsupported" pins the other branch.
+  `mediaUrl.test.ts` "adds no header to a URL that already carries the access token" fails without the query check, and the two `MindroomLongTextText.test.ts` legacy-download tests check that `mxcUrlToHttp` is called with `false`.
   `createLegacyMediaClient` in `attachmentFixtures.ts` gives tests a homeserver without authenticated media, so their downloads stay one request each; "keeps authenticated transport separate from a pending unauthenticated download" is gone with the argument.
   Live against a local Tuwunel and the MindRoom runtime's 97 KB synthetic reply in an encrypted room, with the service worker disabled: the `dev` build fetched each sidecar from the legacy URL (403) and kept the preview with its marker, and this build fetched `/_matrix/client/v1/media/download/` (200) and showed the whole reply (23,129 against 99,930 characters of page text).
   `npm run typecheck` and `npm run lint` pass.
