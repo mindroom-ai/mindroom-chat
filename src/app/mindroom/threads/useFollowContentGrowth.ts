@@ -5,8 +5,8 @@ import type { LiveReplyStore } from '../live/liveReplyStore';
 /**
  * Keeps a reader who was at the bottom there while a reply streaming live frames grows the
  * scroll content without a timeline event to pin it.
- * Only growth after a frame applied in the room follows: a block the reader expands near the
- * bottom unfolds in place.
+ * Only growth after a frame applied anywhere in the room follows, so a block the reader expands
+ * near the bottom unfolds in place unless a reply in the room is streaming at that moment.
  * The reader counts as at the bottom by their last scroll, before the growth: a measurement
  * correction can move the scroll position along with the growth, so the position after it
  * cannot tell a pinned reader from one a little above the bottom.
