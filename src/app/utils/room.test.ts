@@ -5,6 +5,7 @@ import {
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
+  isRoom,
   roomHaveUnread,
   trimReplyFromBody,
 } from './room';
@@ -634,5 +635,33 @@ describe('trimReplyFromBody', () => {
     expect(trimReplyFromBody(unclosedLine)).toBe(unclosedLine);
     expect(trimReplyFromBody(unclosedLines)).toBe(unclosedLines);
     expect(performance.now() - start).toBeLessThan(100);
+  });
+});
+
+describe('isRoom', () => {
+  /** A room whose m.room.create event has the given `type`, or none for an ordinary room. */
+  const roomOfType = (type?: string) => ({
+    getLiveTimeline: () => ({
+      getState: () => ({
+        getStateEvents: (eventType: string) =>
+          eventType === 'm.room.create' ? { getContent: () => ({ type }) } : null,
+      }),
+    }),
+  });
+
+  it('counts a room without a type', () => {
+    expect(isRoom(roomOfType() as never)).toBe(true);
+  });
+
+  it('counts a voice room', () => {
+    expect(isRoom(roomOfType('org.matrix.msc3417.call') as never)).toBe(true);
+  });
+
+  it('does not count a space', () => {
+    expect(isRoom(roomOfType('m.space') as never)).toBe(false);
+  });
+
+  it('does not count the server emoji room, so it stays out of room lists', () => {
+    expect(isRoom(roomOfType('io.mindroom.emoji') as never)).toBe(false);
   });
 });
