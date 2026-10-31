@@ -7,7 +7,8 @@ import { bindLiveReplyFrames } from './bindLiveReplyFrames';
 import { LiveReplyStore } from './liveReplyStore';
 
 const ROOM = '!room:example';
-const AGENT = '@agent:example';
+const AGENT = '@mindroom_agent:example';
+const VIEWER = '@alice:example';
 const SID = '1761858000123-0a1b2c3d';
 
 const snapshotFrame = {
@@ -51,6 +52,7 @@ const createClient = ({ encrypted }: { encrypted: boolean }) => {
     },
   };
   const mx = Object.assign(emitter, {
+    getUserId: () => VIEWER,
     getRoom: vi.fn((roomId: string) =>
       roomId === ROOM ? { hasEncryptionStateEvent: () => encrypted } : null
     ),
@@ -120,6 +122,16 @@ describe('bindLiveReplyFrames', () => {
       new MatrixEvent({ type: 'm.typing', content: snapshotFrame, sender: AGENT, room_id: ROOM })
     );
     receive(snapshotFrame, { roomId: '!unknown:example' });
+    await settle();
+
+    expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('ignores frames from senders that are not MindRoom agents of the viewer', async () => {
+    const { ingest, receive } = bind({ encrypted: false });
+
+    receive(snapshotFrame, { sender: '@mallory:example' });
+    receive(snapshotFrame, { sender: '@mindroom_agent:elsewhere.example' });
     await settle();
 
     expect(ingest).not.toHaveBeenCalled();

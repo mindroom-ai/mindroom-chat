@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ClientEvent, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import { LIVE_FRAME_EVENT_TYPE, parseLiveFrame } from './liveFrame';
 import { getLiveReplyStore, type LiveReplyStore } from './liveReplyStore';
 
@@ -12,7 +13,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * Feeds the client's `io.mindroom.live` frames into its live reply store until the returned
  * function runs. Room and sender come from the sync section that delivered a frame, never from
- * its content. One queue keeps frames in arrival order across asynchronous decryption.
+ * its content, and only MindRoom's own accounts may send frames.
+ * One queue keeps frames in arrival order across asynchronous decryption.
  */
 export const bindLiveReplyFrames = (
   mx: MatrixClient,
@@ -48,6 +50,7 @@ export const bindLiveReplyFrames = (
     const sender = event.getSender();
     const room = roomId ? mx.getRoom(roomId) : null;
     if (!roomId || !sender || !room) return;
+    if (!isMindroomAgentUserIdForViewer(sender, mx.getUserId() ?? undefined)) return;
     const content = event.getContent();
     const encrypted = room.hasEncryptionStateEvent();
     // An encrypted room accepts only encrypted frames.
