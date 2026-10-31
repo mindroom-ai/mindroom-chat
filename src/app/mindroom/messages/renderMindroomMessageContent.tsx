@@ -323,7 +323,9 @@ export const renderMindroomMessageContent = ({
         <MText
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
-          renderBody={() => withReasoning(content, <MindroomThinkingPlaceholder />)}
+          renderBody={() =>
+            withReasoning(content, <MindroomThinkingPlaceholder startedAt={mEvent?.getTs()} />)
+          }
           renderAfterBody={renderMessageExtras(content)}
         />
       );

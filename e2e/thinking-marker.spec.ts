@@ -96,36 +96,39 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
   }
 });
 
-test('thinking motion does not continuously repaint the artwork or text', async ({
-  page,
-  browserName,
-}) => {
-  test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
-  await page.goto('/e2e/fixtures/thinking-marker.html');
-  await expect(page.getByRole('status')).toHaveCount(2);
-  await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(1000);
-  const cdp = await page.context().newCDPSession(page);
-  let paintCount = 0;
-  cdp.on('Tracing.dataCollected', ({ value }) => {
-    paintCount += value.filter(
-      (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
-    ).length;
+for (const { title, query, maxPaints } of [
+  { title: 'the artwork or text', query: '', maxPaints: 60 },
+  // Each tenth repaints both text layers of the two labels, about 2 × 2 × 95 paints.
+  { title: 'more than the counters', query: '?elapsed=0', maxPaints: 550 },
+]) {
+  test(`thinking motion does not continuously repaint ${title}`, async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
+    await page.goto(`/e2e/fixtures/thinking-marker.html${query}`);
+    await expect(page.getByRole('status')).toHaveCount(2);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1000);
+    const cdp = await page.context().newCDPSession(page);
+    let paintCount = 0;
+    cdp.on('Tracing.dataCollected', ({ value }) => {
+      paintCount += value.filter(
+        (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
+      ).length;
+    });
+    await cdp.send('Tracing.start', {
+      categories: 'devtools.timeline',
+      transferMode: 'ReportEvents',
+    });
+    // Cover a complete flip / glowing-core / flip cycle.
+    await page.waitForTimeout(9500);
+    const complete = new Promise<void>((resolve) => {
+      cdp.once('Tracing.tracingComplete', resolve);
+    });
+    await cdp.send('Tracing.end');
+    await complete;
+    await cdp.detach();
+    expect(paintCount).toBeLessThan(maxPaints);
   });
-  await cdp.send('Tracing.start', {
-    categories: 'devtools.timeline',
-    transferMode: 'ReportEvents',
-  });
-  // Cover a complete flip / glowing-core / flip cycle.
-  await page.waitForTimeout(9500);
-  const complete = new Promise<void>((resolve) => {
-    cdp.once('Tracing.tracingComplete', resolve);
-  });
-  await cdp.send('Tracing.end');
-  await complete;
-  await cdp.detach();
-  expect(paintCount).toBeLessThan(60);
-});
+}
 
 for (const { label, query } of [
   { label: 'Thinking…', query: '?dark' },
@@ -183,6 +186,47 @@ for (const { label, query } of [
     ).toBe(true);
   });
 }
+
+test('the label counts tenths of seconds in both aligned text layers', async ({ page }) => {
+  // The paused page clock holds the count through page load; 10.0s widens the RTL label.
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1_000);
+  await page.goto('/e2e/fixtures/thinking-marker.html?rtl&elapsed=9900');
+  await page.evaluate(() => document.fonts.ready);
+  const status = page.getByRole('status').first();
+  // The logo and the label, with no separate counter element.
+  await expect(status.locator(':scope > span')).toHaveCount(2);
+  const text = status.locator(':scope > span').last();
+  const base = text.locator(':scope > span').first();
+  const layers = () =>
+    text.evaluate((host) => {
+      const baseLayer = host.firstElementChild!;
+      const highlight = host.lastElementChild!.firstElementChild!.firstElementChild!;
+      const a = baseLayer.getBoundingClientRect();
+      const b = highlight.getBoundingClientRect();
+      return {
+        text: [baseLayer.textContent, highlight.textContent],
+        offsetX: b.x - a.x,
+        offsetY: b.y - a.y,
+        widthDifference: b.width - a.width,
+        heightDifference: b.height - a.height,
+        width: a.width,
+      };
+    });
+  await expect(base).toHaveText('Thinking… (9.9s)');
+  const before = await layers();
+  await page.clock.runFor(100);
+  await expect(base).toHaveText('Thinking… (10.0s)');
+  const after = await layers();
+  for (const frame of [before, after]) {
+    expect(frame.text[1]).toBe(frame.text[0]);
+    expect(Math.abs(frame.offsetX)).toBeLessThan(0.1);
+    expect(Math.abs(frame.offsetY)).toBeLessThan(0.1);
+    expect(Math.abs(frame.widthDifference)).toBeLessThan(0.1);
+    expect(Math.abs(frame.heightDifference)).toBeLessThan(0.1);
+  }
+  expect(after.width).toBeGreaterThan(before.width);
+});
 
 test('forced colors retain readable text without a shimmer overlay', async ({
   page,
