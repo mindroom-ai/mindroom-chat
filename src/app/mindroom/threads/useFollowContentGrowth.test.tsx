@@ -71,7 +71,7 @@ describe('useFollowContentGrowth', () => {
     );
   };
 
-  it('keeps a reader at the bottom there while the content grows', () => {
+  it('keeps a reader who was at the bottom there while the content grows', () => {
     grow(120);
 
     expect(scroller.scrollTop).toBe(720);
