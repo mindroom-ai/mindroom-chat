@@ -691,6 +691,42 @@ describe('useMindroomToolTraceMarkerParserOptions', () => {
     expect(rows[1].findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
+  it('shows the last lines of a running call output under the collapsed tool calls', () => {
+    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const output = Array.from({ length: 10 }, (_, i) => `step ${i + 1}`).join('\n');
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: output }],
+      },
+    });
+
+    const text = collectTextContent(renderer.toJSON());
+    expect(text).toMatch(toolCountLabel(1));
+    expect(text).toContain('step 5');
+    expect(text).toContain('step 10');
+    expect(text).not.toContain('step 4');
+  });
+
+  it('drops a call output once the call completed', () => {
+    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_completed',
+            tool_name: 'run_shell_command',
+            result_preview: 'built',
+            progress: 'step 1',
+          },
+        ],
+      },
+    });
+
+    expect(collectTextContent(renderer.toJSON())).not.toContain('step 1');
+  });
+
   it('expands marker-only tool refs with the marker tool name', () => {
     const markerHtml = '<p>🔧 <code>run_shell_command</code> [1]</p>';
     const renderer = renderTreeWithToolTrace(markerHtml, { formatted_body: markerHtml });

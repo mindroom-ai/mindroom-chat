@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Show a running tool call's latest output (2026-10-31)
+
+- Why: a long tool call, such as a shell command running tests, showed only "Running 1 tool call" with a spinner until it finished. The MindRoom runtime now adds the latest output a running call reported to that call's entry in live reply frames, as an optional `progress` string capped at its last 1000 characters, and drops it when the call completes; durable edits never carry it.
+- Change: `buildToolRefRenderData` reads `progress` for a pending call. `MindroomToolRefGroupBlock` shows the last six lines of the latest running call's output under the tool calls' line, through a new `preview` slot on `ThreadActivity` that shows whether or not the panel is open. A completed call shows its result as before.
+- Tests: `react-custom-html-parser.test.ts` "shows the last lines of a running call output under the collapsed tool calls" fails without the change; "drops a call output once the call completed" pins that a completed call shows none. The shared `live-frames-v1.json` gains the runtime's three `progress` cases.
+
 ### Count the seconds a reply has been thinking (2026-10-31)
 
 - Why: the owner asked for a counter on the thinking placeholder's shimmering text, with one decimal, from the time the reply arrived: "Text here (1.2s)". A first version drew the counter as a muted, regular-weight span beside the label; the owner found it unbalanced and asked for it to be part of the label.
