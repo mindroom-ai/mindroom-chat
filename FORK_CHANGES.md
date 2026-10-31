@@ -10,12 +10,15 @@
   A page can stay uncontrolled for up to 40 seconds after an SSO login (see "Retry avatars when their URL changes"), for the whole session when the deployment disables the worker, and on the development server in headless Chromium, where the reported reply was seen.
   Every other download through the attachment repository failed the same way: encrypted images, video, audio and files, thumbnails, canvas pages and approval arguments.
 - Fix: `fetchRawAttachment` in `attachmentRepository.ts` chooses the authenticated endpoint whenever the homeserver supports it (`mx.getVersions()`), as the offline prefetch already did.
+  When `/versions` fails, as after a token refresh cleared the SDK's copy, the spec versions the client last cached decide.
   The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
   Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
 - Tests: `attachmentRepository.test.ts` "hydrates a long text from authenticated media without a service worker" fails without the change (it keeps the preview).
+  "uses the cached server versions when /versions fails" covers the fallback.
   `createLegacyMediaClient` in `attachmentFixtures.ts` gives tests a homeserver without authenticated media, so their downloads stay one request each; "keeps authenticated transport separate from a pending unauthenticated download" is gone with the argument.
   Live against a local Tuwunel and the MindRoom runtime's 97 KB synthetic reply in an encrypted room, with the service worker disabled: the `dev` build fetched each sidecar from the legacy URL (403) and kept the preview with its marker, and this build fetched `/_matrix/client/v1/media/download/` (200) and showed the whole reply (23,129 against 99,930 characters of page text).
-  `npm run typecheck` and `npm run lint` pass. Full `npm test` on a host at load average 55 failed the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test) and timed out 8 `RoomTimeline`, `RoomView` and `Message` tests, whose files all pass when run alone.
+  `npm run typecheck` and `npm run lint` pass.
+  Full `npm test` on a host at load average 55 failed the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test) and timed out 8 `RoomTimeline`, `RoomView` and `Message` tests, whose files all pass when run alone.
 - Next: none.
 
 ### Load the main bundle without the top-level-await wrapper (2026-10-29)

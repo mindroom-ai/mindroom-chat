@@ -1,5 +1,6 @@
 import type { MatrixEvent, MatrixClient } from 'matrix-js-sdk';
 import type { IEncryptedFile } from '../../../types/matrix/common';
+import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
 import { createSessionId } from '../../state/sessions';
 import { validMediaRequest } from '../../../swMediaAuth';
 import { decryptFile, mxcUrlToHttp } from '../../utils/matrix';
@@ -107,11 +108,16 @@ const fetchRawAttachment = async (
   signal: AbortSignal
 ): Promise<RawAttachment> => {
   // This request sends the access token itself, so unlike media URLs the browser loads, it does
-  // not need the service worker to use the authenticated endpoints.
+  // not need the service worker to use the authenticated endpoints. When /versions fails, as after a
+  // token refresh cleared the SDK's copy, the versions the client last cached decide.
   const authenticated = await mx
     .getVersions()
     .then(supportsAuthenticatedMedia)
-    .catch(() => false);
+    .catch(() => {
+      const userId = mx.getUserId();
+      const cached = userId ? readCachedSpecVersions(mx.baseUrl, userId) : undefined;
+      return cached ? supportsAuthenticatedMedia(cached) : false;
+    });
   const url = mxcUrlToHttp(mx, source.mxcUri, authenticated);
   if (!url) throw new Error('Unable to resolve sidecar URL');
   const token = authenticated ? mx.getAccessToken() : undefined;

@@ -7,6 +7,7 @@ import {
   createLegacyMediaClient,
   saveAttachmentOwner,
 } from '../threads/__tests__/attachmentFixtures';
+import { writeCachedSpecVersions } from '../../state/cachedSpecVersions';
 import { createSessionId } from '../../state/sessions';
 import type { IEncryptedFile } from '../../../types/matrix/common';
 import {
@@ -296,6 +297,36 @@ describe('persistent attachment repository', () => {
       return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
     });
     vi.stubGlobal('fetch', fetchMock);
+    const alice = createClient({
+      baseUrl: BASE_URL,
+      userId: '@alice:matrix.example.org',
+      accessToken: 'test-token',
+    });
+
+    const content = await hydrateCachedMindroomLongText(alice, SOURCE);
+
+    expect(content.body).toBe('Complete response from the sidecar');
+  });
+
+  it('uses the cached server versions when /versions fails', async () => {
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      if (String(url).includes('/_matrix/client/versions')) {
+        return new Response('Bad gateway', { status: 502 });
+      }
+      if (!String(url).includes('/_matrix/client/v1/media/download/')) {
+        return new Response('Unauthenticated media is disabled.', { status: 403 });
+      }
+      expect(init?.headers).toEqual({ Authorization: 'Bearer test-token' });
+      return Response.json({ body: 'Complete response from the sidecar', msgtype: 'm.text' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    });
+    writeCachedSpecVersions(BASE_URL, '@alice:matrix.example.org', { versions: ['v1.11'] });
     const alice = createClient({
       baseUrl: BASE_URL,
       userId: '@alice:matrix.example.org',
