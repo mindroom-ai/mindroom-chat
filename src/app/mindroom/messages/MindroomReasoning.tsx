@@ -38,6 +38,35 @@ type MindroomReasoningProps = {
   linkifyOpts: Opts;
 };
 
+type MindroomReasoningTextProps = {
+  text: string;
+  htmlReactParserOptions: HTMLReactParserOptions;
+  linkifyOpts: Opts;
+};
+
+/**
+ * The reasoning as Markdown. It mounts only while its block is expanded, so collapsed final
+ * reasoning loads no renderer.
+ */
+function MindroomReasoningText({
+  text,
+  htmlReactParserOptions,
+  linkifyOpts,
+}: MindroomReasoningTextProps) {
+  const html = useLiveMarkdownReady() ? renderLiveMarkdown(text) : undefined;
+  return (
+    // The block body lays its children out in a row, so the paragraphs need one wrapper.
+    <div>
+      <RenderBody
+        body={text}
+        customBody={html}
+        htmlReactParserOptions={htmlReactParserOptions}
+        linkifyOpts={linkifyOpts}
+      />
+    </div>
+  );
+}
+
 /** Model reasoning: open while it streams, then collapsed with how long the model thought. */
 function MindroomReasoning({
   reasoning,
@@ -45,7 +74,6 @@ function MindroomReasoning({
   linkifyOpts,
 }: MindroomReasoningProps) {
   const { t } = useTranslation();
-  const html = useLiveMarkdownReady() ? renderLiveMarkdown(reasoning.text) : undefined;
   const { durationMs } = reasoning;
   const live = durationMs === undefined;
   return (
@@ -62,15 +90,11 @@ function MindroomReasoning({
       }
       defaultExpanded={live}
     >
-      {/* The block body lays its children out in a row, so the paragraphs need one wrapper. */}
-      <div>
-        <RenderBody
-          body={reasoning.text}
-          customBody={html}
-          htmlReactParserOptions={htmlReactParserOptions}
-          linkifyOpts={linkifyOpts}
-        />
-      </div>
+      <MindroomReasoningText
+        text={reasoning.text}
+        htmlReactParserOptions={htmlReactParserOptions}
+        linkifyOpts={linkifyOpts}
+      />
     </MindroomCollapsibleBlock>
   );
 }

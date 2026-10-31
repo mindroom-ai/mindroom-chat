@@ -1,11 +1,21 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
-import { loadLiveMarkdown } from '../live/liveMarkdown';
+import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { renderMindroomMessageContent } from './renderMindroomMessageContent';
+
+// The real renderer, watched for when it is requested.
+vi.mock('../live/liveMarkdown', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../live/liveMarkdown')>();
+  return {
+    ...actual,
+    renderLiveMarkdown: vi.fn(actual.renderLiveMarkdown),
+    useLiveMarkdownReady: vi.fn(actual.useLiveMarkdownReady),
+  };
+});
 
 // The real RenderBody under an MText that renders the body, then what comes after it.
 vi.mock('../../components/message', async () => {
@@ -123,6 +133,24 @@ describe('MindroomReasoning', () => {
     expect(text(root.findByType('strong'))).toBe('two');
   });
 
+  it('requests the Markdown renderer for final reasoning only once it is expanded', () => {
+    vi.mocked(renderLiveMarkdown).mockClear();
+    vi.mocked(useLiveMarkdownReady).mockClear();
+    const root = render({
+      msgtype: 'm.text',
+      body: 'Answer',
+      'io.mindroom.reasoning': { text: 'Compared **two** caches', duration_ms: 2600 },
+    });
+
+    expect(useLiveMarkdownReady).not.toHaveBeenCalled();
+    expect(renderLiveMarkdown).not.toHaveBeenCalled();
+
+    act(() => header(root).props.onClick());
+
+    expect(useLiveMarkdownReady).toHaveBeenCalled();
+    expect(renderLiveMarkdown).toHaveBeenCalledWith('Compared **two** caches');
+  });
+
   it('rounds a short reasoning time up to one second', () => {
     const root = render({
       msgtype: 'm.text',
@@ -180,8 +208,10 @@ describe('MindroomReasoning', () => {
       (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
     );
     // One host element holds the paragraphs, so the row layout of the block body cannot split them.
+    const [reasoningText] = blockBody.children as ReactTestInstance[];
     expect(blockBody.children).toHaveLength(1);
-    expect((blockBody.children[0] as { type: unknown }).type).toBe('div');
+    expect(reasoningText.children).toHaveLength(1);
+    expect((reasoningText.children[0] as ReactTestInstance).type).toBe('div');
     expect(text(blockBody)).toBe('First thought.Second thought.');
   });
 
