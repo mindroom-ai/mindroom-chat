@@ -38,7 +38,11 @@ export const authenticatedMediaRequestInit = (
   url: string
 ): RequestInit | undefined => {
   const token = mx.getAccessToken();
-  return token && validMediaRequest(url, mx.getHomeserverUrl())
+  // A URL that already carries the token in its query, as on native platforms, must not also carry
+  // it in a header: Synapse refuses a request that sends both.
+  return token &&
+    validMediaRequest(url, mx.getHomeserverUrl()) &&
+    !new URL(url).searchParams.has('access_token')
     ? { headers: { Authorization: `Bearer ${token}` } }
     : undefined;
 };

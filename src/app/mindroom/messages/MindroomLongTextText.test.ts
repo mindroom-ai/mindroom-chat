@@ -375,9 +375,13 @@ const toolCountLabel = (count: number, flags = '') => {
   );
 };
 
+const reportVersions = (versions: string[]) =>
+  Object.assign(hookMocks.mx, { getVersions: async () => ({ versions, unstable_features: {} }) });
+
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    reportVersions(['v1.11']);
     matrixMocks.mxcUrlToHttp.mockReturnValue(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
@@ -389,6 +393,8 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
   it('downloads unencrypted sidecar content through shared transport', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    // A homeserver without authenticated media gets the legacy URL.
+    reportVersions([]);
     matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
         type: 'application/json',
@@ -397,6 +403,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
     const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
 
+    expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', false);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
@@ -445,6 +452,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
   it('downloads sidecar blob for unencrypted content', async () => {
     const downloadMindroomLongTextSidecarBlob = await getDownloadMindroomLongTextSidecarBlob();
+    reportVersions([]);
     const blob = new Blob(['raw-content'], { type: 'application/json' });
     matrixMocks.networkBody.mockResolvedValue(blob);
 
@@ -454,6 +462,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       true
     );
 
+    expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', false);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
