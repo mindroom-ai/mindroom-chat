@@ -13,13 +13,17 @@ const AGENT = '@agent:example';
 const SID = '1761858000123-0a1b2c3d';
 
 const tool = { type: 'tool_call_started', tool_name: 'web_search' };
-const snapshot = (seq: number, md = 'Live **text**'): LiveFrame => ({
+const snapshot = (
+  seq: number,
+  md = 'Live **text**',
+  reasoning = 'Weighing options'
+): LiveFrame => ({
   reply: REPLY,
   sid: SID,
   seq,
   snapshot: {
     md,
-    reasoning: 'Weighing options',
+    reasoning,
     tools: [tool],
     status: 'streaming',
     activity: 'Preparing isolated worker... 3s elapsed.',
@@ -58,7 +62,8 @@ function Harness({
   event: MatrixEvent;
   content: IContent;
 }) {
-  return <pre>{JSON.stringify(useLiveReplyContent(mx, event, content))}</pre>;
+  const { content: shown, live } = useLiveReplyContent(mx, event, content);
+  return <pre data-live={live}>{JSON.stringify(shown)}</pre>;
 }
 
 describe('useLiveReplyContent', () => {
@@ -89,11 +94,13 @@ describe('useLiveReplyContent', () => {
       renderer = create(<Harness mx={mx} event={event} content={content} />);
     });
   };
-  const shown = (): Record<string, unknown> => {
+  const rendered = () => {
     const tree = renderer?.toJSON();
     if (!tree || Array.isArray(tree)) throw new Error('Nothing rendered');
-    return JSON.parse(tree.children?.[0] as string);
+    return tree;
   };
+  const shown = (): Record<string, unknown> => JSON.parse(rendered().children?.[0] as string);
+  const live = () => rendered().props['data-live'];
 
   it('shows the live state of a fresh entry from the reply sender while the reply streams', () => {
     ingest(snapshot(0));
@@ -110,6 +117,7 @@ describe('useLiveReplyContent', () => {
       'io.mindroom.live_reasoning': 'Weighing options',
       'com.mindroom.message_extras': { sections: [] },
     });
+    expect(live()).toBe(true);
   });
 
   it('shows the thinking placeholder while the live Markdown is empty', () => {
@@ -143,6 +151,7 @@ describe('useLiveReplyContent', () => {
       render(durable(status));
 
       expect(shown().body).toBe('Durable');
+      expect(live()).toBe(false);
       expect(store().get(ROOM, REPLY)).toBeUndefined();
     }
   );
@@ -157,9 +166,30 @@ describe('useLiveReplyContent', () => {
     );
 
     expect(shown().body).toBe('Durable');
+    expect(live()).toBe(true);
 
     ingest(snapshot(6, 'Frame six'));
     expect(shown().body).toBe('Frame six');
+  });
+
+  it('keeps only the live reasoning over a durable checkpoint that covers the entry', () => {
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+    });
+    ingest(snapshot(4, 'Frame four'));
+    render(checkpointed);
+
+    expect(shown()).toEqual({ ...checkpointed, 'io.mindroom.live_reasoning': 'Weighing options' });
+  });
+
+  it('shows a covering durable checkpoint as it is when the entry has no reasoning', () => {
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+    });
+    ingest(snapshot(4, 'Frame four', ''));
+    render(checkpointed);
+
+    expect(shown()).toEqual(checkpointed);
   });
 
   it('keeps the overlay over an older checkpoint', () => {

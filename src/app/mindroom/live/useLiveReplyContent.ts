@@ -72,15 +72,22 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
 
 const noSubscription = () => () => undefined;
 
+export type LiveReplyContent = {
+  content: IContent;
+  /** Live frames apply to the reply: they show over it or wait for a frame past its checkpoint. */
+  live: boolean;
+};
+
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
+ * A covering checkpoint keeps the live reasoning, which progress edits never carry.
  */
 export const useLiveReplyContent = (
   mx: MatrixClient,
   event: MatrixEvent | undefined,
   content: IContent
-): IContent => {
+): LiveReplyContent => {
   const store = getLiveReplyStore(mx);
   const roomId = event?.getRoomId();
   const replyId = event?.getId();
@@ -101,8 +108,11 @@ export const useLiveReplyContent = (
   }, [entry, replyId, roomId, store, verdict]);
 
   const docs = verdict === 'show' ? entry?.docs : undefined;
-  return useMemo(
-    () => (docs ? getLiveContent(content, docs, markdownReady) : content),
-    [content, docs, markdownReady]
-  );
+  const waitReasoning = verdict === 'wait' ? entry?.docs.reasoning : undefined;
+  const liveContent = useMemo(() => {
+    if (docs) return getLiveContent(content, docs, markdownReady);
+    if (waitReasoning) return { ...content, [LIVE_REASONING_KEY]: waitReasoning };
+    return content;
+  }, [content, docs, markdownReady, waitReasoning]);
+  return { content: liveContent, live: verdict === 'show' || verdict === 'wait' };
 };
