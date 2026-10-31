@@ -32,6 +32,17 @@ const rebaseMediaUrlToHomeserverPath = (mx: MatrixClient, mediaUrl: string): str
   }
 };
 
+/** Options that send the access token with the client's own request to a media URL on its homeserver. */
+export const authenticatedMediaRequestInit = (
+  mx: MatrixClient,
+  url: string
+): RequestInit | undefined => {
+  const token = mx.getAccessToken();
+  return token && validMediaRequest(url, mx.getHomeserverUrl())
+    ? { headers: { Authorization: `Bearer ${token}` } }
+    : undefined;
+};
+
 export const mxcUrlToHttp = (
   mx: MatrixClient,
   mxcUrl: string,

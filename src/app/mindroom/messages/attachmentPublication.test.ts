@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   createLegacyMediaClient,
@@ -258,7 +258,7 @@ it('retries failed capability lookup on a later explicit download', async () => 
   const { createRoomOfflineController } = await import('../engine/roomOffline');
   const { createBackfillScheduler } = await import('../engine/backfillScheduler');
   const { saveRoomEventsToCacheCommitted } = await import('../threads/cacheStore');
-  const mx = createLegacyMediaClient({ baseUrl, userId, accessToken: 'test-token' });
+  const mx = createClient({ baseUrl, userId, accessToken: 'test-token' });
   const room = {
     roomId,
     findEventById: () => undefined,

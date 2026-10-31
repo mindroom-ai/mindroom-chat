@@ -308,6 +308,24 @@ describe('persistent attachment repository', () => {
     expect(content.body).toBe('Complete response from the sidecar');
   });
 
+  it('downloads from the legacy endpoint without the access token when authenticated media is unsupported', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string | URL, _init?: RequestInit) => new Response('bytes')
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createLegacyMediaClient({
+      baseUrl: BASE_URL,
+      userId: '@alice:matrix.example.org',
+      accessToken: 'test-token',
+    });
+
+    await downloadCachedAttachment(alice, { mxcUri: 'mxc://matrix.example.org/legacy' });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/_matrix/media/v3/download/');
+    expect(init?.headers).toBeUndefined();
+  });
+
   it('uses the cached server versions when /versions fails', async () => {
     const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
       if (String(url).includes('/_matrix/client/versions')) {

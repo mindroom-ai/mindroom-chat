@@ -1,10 +1,9 @@
 import type { MatrixEvent, MatrixClient } from 'matrix-js-sdk';
 import type { IEncryptedFile } from '../../../types/matrix/common';
-import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
+import { readClientCachedSpecVersions } from '../../state/cachedSpecVersions';
 import { createSessionId } from '../../state/sessions';
-import { validMediaRequest } from '../../../swMediaAuth';
 import { decryptFile, mxcUrlToHttp } from '../../utils/matrix';
-import { supportsAuthenticatedMedia } from '../../utils/mediaUrl';
+import { authenticatedMediaRequestInit, supportsAuthenticatedMedia } from '../../utils/mediaUrl';
 import {
   captureCacheStoreWriteLease,
   getCachedAttachmentMetadata,
@@ -114,17 +113,12 @@ const fetchRawAttachment = async (
     .getVersions()
     .then(supportsAuthenticatedMedia)
     .catch(() => {
-      const userId = mx.getUserId();
-      const cached = userId ? readCachedSpecVersions(mx.baseUrl, userId) : undefined;
+      const cached = readClientCachedSpecVersions(mx);
       return cached ? supportsAuthenticatedMedia(cached) : false;
     });
   const url = mxcUrlToHttp(mx, source.mxcUri, authenticated);
   if (!url) throw new Error('Unable to resolve sidecar URL');
-  const token = authenticated ? mx.getAccessToken() : undefined;
-  const requestInit =
-    token && validMediaRequest(url, mx.getHomeserverUrl())
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : undefined;
+  const requestInit = authenticated ? authenticatedMediaRequestInit(mx, url) : undefined;
   const response = await fetch(url, { ...requestInit, method: 'GET', signal });
   if (!response.ok) throw new Error(`Unable to download media (${response.status})`);
   const reader = response.body?.getReader();
