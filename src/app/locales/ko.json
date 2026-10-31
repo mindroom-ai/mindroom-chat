@@ -2638,6 +2638,10 @@
         "aiIsResponding": "AI가 응답 중입니다",
         "thinking": "생각하는 중…"
       },
+      "mindroomReasoning": {
+        "thinking": "생각 중",
+        "thoughtFor_other": "{{count}}초 동안 생각함"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 스레드 요약"
       },

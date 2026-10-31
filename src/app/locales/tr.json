@@ -2644,6 +2644,11 @@
         "aiIsResponding": "Yapay zekâ yanıtlıyor",
         "thinking": "Düşünüyor…"
       },
+      "mindroomReasoning": {
+        "thinking": "Düşünüyor",
+        "thoughtFor_one": "{{count}} sn düşündü",
+        "thoughtFor_other": "{{count}} sn düşündü"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Yapay zekâ konu özeti"
       },

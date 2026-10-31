@@ -2644,6 +2644,11 @@
         "aiIsResponding": "AI is responding",
         "thinking": "Thinking…"
       },
+      "mindroomReasoning": {
+        "thinking": "Thinking",
+        "thoughtFor_one": "Thought for {{count}} s",
+        "thoughtFor_other": "Thought for {{count}} s"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI thread summary"
       },
