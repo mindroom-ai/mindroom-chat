@@ -35,14 +35,12 @@ function ThinkingElapsed({ startedAt }: { startedAt: number }) {
   React.useEffect(() => {
     let timeoutId: ReturnType<typeof globalThis.setTimeout>;
     // Wake at each next tenth, so a late timer never shows one tenth twice and skips the next.
-    // A server clock ahead of the viewer's holds the count at zero until it catches up.
+    // A server clock ahead of the viewer's holds the count at zero until it catches up; the
+    // remainder is then negative, so each wait stays under two tenths, however far ahead.
     const tick = () => {
       const elapsedMs = Date.now() - startedAt;
       setTenths(getElapsedTenths(elapsedMs));
-      timeoutId = globalThis.setTimeout(
-        tick,
-        elapsedMs < 0 ? -elapsedMs : TENTH_MS - (elapsedMs % TENTH_MS)
-      );
+      timeoutId = globalThis.setTimeout(tick, TENTH_MS - (elapsedMs % TENTH_MS));
     };
     tick();
 

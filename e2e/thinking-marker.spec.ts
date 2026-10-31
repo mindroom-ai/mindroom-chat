@@ -190,17 +190,21 @@ for (const { label, query } of [
 test('a counter after the label counts tenths of seconds without moving the label', async ({
   page,
 }) => {
-  // RTL puts the counter left of the label; passing 10 seconds widens it.
-  await page.goto('/e2e/fixtures/thinking-marker.html?rtl&elapsed=9000');
+  // The paused page clock holds the count through page load; RTL puts the counter left of the
+  // label, and 10.0s widens it.
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1_000);
+  await page.goto('/e2e/fixtures/thinking-marker.html?rtl&elapsed=9900');
   await page.evaluate(() => document.fonts.ready);
   const status = page.getByRole('status').first();
   const label = status.locator(':scope > span').nth(1);
   const counter = status.locator(':scope > span').last();
   await expect(counter).toHaveAttribute('aria-hidden', 'true');
-  await expect(counter).toHaveText(/^\(9\.\ds\)$/);
+  await expect(counter).toHaveText('(9.9s)');
   const labelBox = (await label.boundingBox())!;
   const narrowCounterWidth = (await counter.boundingBox())!.width;
-  await expect(counter).toHaveText(/^\(1\d\.\ds\)$/);
+  await page.clock.runFor(100);
+  await expect(counter).toHaveText('(10.0s)');
   expect(await label.boundingBox()).toEqual(labelBox);
   const counterBox = (await counter.boundingBox())!;
   expect(counterBox.width).toBeGreaterThan(narrowCounterWidth);

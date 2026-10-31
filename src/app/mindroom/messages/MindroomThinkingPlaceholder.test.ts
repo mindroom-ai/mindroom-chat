@@ -164,6 +164,34 @@ describe('MindroomThinkingPlaceholder', () => {
     vi.useRealTimers();
   });
 
+  it('waits for a timestamp far ahead in short timers', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      // Past the 24.8-day timer limit, where a longer delay fires at once.
+      renderer = renderPlaceholder(['Working'], 10_000 + 30 * 24 * 60 * 60 * 1000);
+    });
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    // One timer per tenth, not one per millisecond.
+    expect(setTimeoutSpy.mock.calls.length).toBeLessThanOrEqual(10);
+    setTimeoutSpy.mockRestore();
+    expect(renderer?.root.findByProps({ className: 'Elapsed' }).children).toEqual([
+      '(',
+      '0.0s',
+      ')',
+    ]);
+
+    act(() => {
+      renderer?.unmount();
+    });
+    vi.useRealTimers();
+  });
+
   it('shows no counter without a reply timestamp', () => {
     const renderer = renderPlaceholder(['Working']);
 
