@@ -95,10 +95,16 @@ export const Panel = style({
   overflow: 'hidden',
 });
 
-// The latest output of a running call, under its activity line whether or not the panel is open.
+// The latest output of a running call, under its activity line whether or not the panel is open. At most six
+// rendered lines show, the newest at the bottom, however long a wrapped line is.
 export const Output = style([
   DefaultReset,
   {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    maxHeight: '9em',
+    overflow: 'hidden',
     margin: `${config.space.S100} 0 0`,
     paddingInlineStart: config.space.S300,
     borderInlineStart: `${config.borderWidth.B600} solid ${color.SurfaceVariant.ContainerLine}`,
