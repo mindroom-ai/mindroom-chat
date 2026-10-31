@@ -14,3 +14,6 @@ src/app/mindroom/messages/thinking-mark-core.svg
 
 # Xcode owns asset catalog formatting and rewrites it on every edit.
 ios/App/App/Assets.xcassets/**/Contents.json
+
+# Shared with the MindRoom runtime, which pins the same files byte for byte.
+src/app/mindroom/live/__fixtures__/
