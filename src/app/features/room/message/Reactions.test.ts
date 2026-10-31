@@ -48,21 +48,23 @@ vi.mock('../../../components/message', () => ({
   Reaction: ({
     reaction,
     count,
+    label,
     onClick,
     ...props
   }: {
     reaction: string;
     count: number;
+    label?: string;
     onClick?: () => void;
   }) => {
-    reactionRenderSpy({ reaction, count, props });
+    reactionRenderSpy({ reaction, count, label, props });
     return React.createElement(
       'button',
       {
         type: 'button',
         onClick,
       },
-      `${reaction} ${count}`
+      `${reaction} ${label ?? count}`
     );
   },
 }));
@@ -254,7 +256,49 @@ describe('Reactions', () => {
     );
   });
 
-  it('keeps the stop chip while the target message is still streaming', () => {
+  it.each([
+    ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop'],
+    ["counts a person's stop reaction", '@bas:mindroom.chat', undefined],
+  ])('%s while the target message is still streaming', (_, sender, label) => {
+    const relations = new MockRelations([
+      [
+        '🛑',
+        new Set([
+          {
+            getSender: () => sender,
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+    const targetEvent = {
+      getSender: () => '@agent:mindroom.chat',
+      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
+    } as MatrixEvent;
+    const onReactionToggle = vi.fn();
+
+    const renderer = render(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$event',
+        targetEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle,
+      })
+    );
+
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ reaction: '🛑', count: 1, label })
+    );
+    act(() => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations);
+  });
+
+  it('drops the stop chip once the target finishes streaming in place', () => {
     const relations = new MockRelations([
       [
         '🛑',
@@ -267,23 +311,26 @@ describe('Reactions', () => {
         ]),
       ],
     ]);
+    let content: Record<string, unknown> = { 'io.mindroom.stream_status': 'streaming' };
     const targetEvent = {
-      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
+      getSender: () => '@agent:mindroom.chat',
+      getContent: () => content,
     } as MatrixEvent;
+    const props = {
+      room: {} as never,
+      mEventId: '$event',
+      targetEvent,
+      canSendReaction: true,
+      relations: relations as never,
+      onReactionToggle: vi.fn(),
+    };
+    const renderer = render(React.createElement(Reactions, props));
+    expect(renderer.root.findAllByType('button')).toHaveLength(1);
 
-    render(
-      React.createElement(Reactions, {
-        room: {} as never,
-        mEventId: '$event',
-        targetEvent,
-        canSendReaction: true,
-        relations: relations as never,
-        onReactionToggle: vi.fn(),
-      })
-    );
-
-    expect(reactionRenderSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ reaction: '🛑', count: 1 })
-    );
+    content = { 'io.mindroom.stream_status': 'completed' };
+    act(() => {
+      renderer.update(React.createElement(Reactions, props));
+    });
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
   });
 });

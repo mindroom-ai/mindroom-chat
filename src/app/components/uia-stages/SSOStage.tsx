@@ -81,13 +81,13 @@ export function SSOStage({
         )}
 
         {ssoWindow ? (
-          <Button variant="Primary" onClick={handleSubmit}>
+          <Button variant="Primary" onClick={handleSubmit} fill="Soft" outlined radii="300">
             <Text as="span" size="B400">
               {t('sharedUi.sSOStage.continue')}
             </Text>
           </Button>
         ) : (
-          <Button variant="Primary" onClick={handleContinue}>
+          <Button variant="Primary" onClick={handleContinue} fill="Soft" outlined radii="300">
             <Text as="span" size="B400">
               {t('sharedUi.sSOStage.continueWithSso')}
             </Text>

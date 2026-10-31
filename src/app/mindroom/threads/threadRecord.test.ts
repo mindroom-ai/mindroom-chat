@@ -85,7 +85,6 @@ describe('buildThreadRecord', () => {
         room,
         threadRootId: '$root',
         currentUserId: '@me:server',
-        readUpToTs: null,
       });
     expect(build()).toMatchObject({
       presentation: { messageCount: 1, latestReplyPreviewText: 'Reply' },
@@ -261,7 +260,6 @@ describe('buildThreadRecord', () => {
         cronDescription: 'At 09:00',
       },
       currentUserId: '@me:server',
-      readUpToTs: null,
       threadResolution: {
         isResolved: true,
         tags: {
@@ -354,7 +352,6 @@ describe('buildThreadRecord', () => {
       threadRootId: '$root',
       threadRootEvent: rootEvent,
       currentUserId: '@me:server',
-      readUpToTs: rootEvent.getTs(),
     });
 
     expect(record.status.isUnread).toBe(false);

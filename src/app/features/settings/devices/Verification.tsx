@@ -227,8 +227,10 @@ export function VerifyOtherDeviceTile({ crypto, deviceId }: VerifyOtherDeviceTil
           variant="Warning"
           radii="300"
           onClick={requestVerification}
-          before={requesting && <Spinner size="100" variant="Warning" fill="Solid" />}
+          before={requesting && <Spinner size="100" variant="Warning" fill="Soft" />}
           disabled={requesting}
+          outlined
+          fill="Soft"
         >
           <Text as="span" size="B300">
             {t('featureUi.settings.devices.verification.verify')}
@@ -258,7 +260,7 @@ export function EnableVerification({ visible }: EnableVerificationProps) {
   return (
     <>
       {visible && (
-        <Button size="300" radii="300" onClick={() => setOpen(true)}>
+        <Button size="300" fill="Soft" outlined radii="300" onClick={() => setOpen(true)}>
           <Text as="span" size="B300">
             {t('featureUi.settings.devices.verification.enable')}
           </Text>

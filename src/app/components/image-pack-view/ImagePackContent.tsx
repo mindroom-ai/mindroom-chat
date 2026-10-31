@@ -274,8 +274,10 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
                   variant="Success"
                   radii="300"
                   disabled={!canApplyChanges || applying}
-                  before={applying && <Spinner variant="Success" fill="Solid" size="100" />}
+                  before={applying && <Spinner variant="Success" fill="Soft" size="100" />}
                   onClick={applyChanges}
+                  outlined
+                  fill="Soft"
                 >
                   <Text size="B300">{t('sharedUi.imagePackContent.applyChanges')}</Text>
                 </Button>

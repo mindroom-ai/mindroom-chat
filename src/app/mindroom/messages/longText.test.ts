@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildMindroomLongTextPreview,
   clearMindroomLongTextHydrationCache,
   getMindroomLongTextSource,
   hasMindroomLongTextMetadata,
@@ -19,6 +20,36 @@ const expectDefined = <T>(value: T | undefined): T => {
   }
   return value;
 };
+
+describe('buildMindroomLongTextPreview', () => {
+  it('previews the start of the text and keeps the routing', () => {
+    const relation = { rel_type: 'm.thread', event_id: '$thread' };
+    const mentions = { user_ids: ['@mindroom_writer:example.org'] };
+
+    const preview = buildMindroomLongTextPreview({
+      msgtype: 'm.text',
+      body: 'x'.repeat(50_000),
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>x</p>',
+      'm.mentions': mentions,
+      'm.relates_to': relation,
+    });
+
+    expect(preview).toEqual({
+      body: `${'x'.repeat(2000)}\n\n[Message continues in attached file]`,
+      'm.mentions': mentions,
+      'm.relates_to': relation,
+    });
+  });
+
+  it('cuts the preview between characters', () => {
+    // An emoji is two UTF-16 units; the 2000-unit cut would split the last one in half.
+    const preview = buildMindroomLongTextPreview({ body: `${'x'.repeat(1999)}${'😀'.repeat(10)}` });
+
+    expect(preview.body).toBe(`${'x'.repeat(1999)}\n\n[Message continues in attached file]`);
+    expect(Object.keys(preview)).toEqual(['body']);
+  });
+});
 
 describe('getMindroomLongTextSource', () => {
   it('ignores regular file events without long_text metadata', () => {

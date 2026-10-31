@@ -129,6 +129,8 @@ import { useCompactRootEditBackfillController } from './compactRootEditBackfillC
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
 import { useThreadPagination } from './session/useThreadPagination';
 import { useThreadPrependViewport } from './useThreadPrependViewport';
+import { useFollowContentGrowth } from './useFollowContentGrowth';
+import { getLiveReplyStore } from '../live/liveReplyStore';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
 import { useRoomCachedBackState } from './useRoomCachedBackState';
@@ -156,6 +158,10 @@ import {
   useThreadApprovalRowMeasurements,
 } from './useThreadApprovalTimeline';
 import { useThreadSummaryTimeline } from './useThreadSummaryTimeline';
+import {
+  ThreadConversationCostProvider,
+  useThreadConversationCostSummary,
+} from './useThreadConversationCost';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -515,7 +521,6 @@ export function RoomTimeline({
     threadSummaryInfoMap,
     scheduledStatusMap,
     availableRoomTags,
-    readUpToTs,
     roomThreadListThreads,
     refreshRoomThreadList,
     effectiveThreadFilterState,
@@ -639,6 +644,19 @@ export function RoomTimeline({
     routeId: eventId,
     focusId: focusItem?.eventId,
   });
+  const threadConversationCost = useThreadConversationCostSummary(
+    threadId ? threadEvents : undefined,
+    {
+      history: {
+        sdkLoaded: !!threadInitialSdkLoaded,
+        canPaginateBack: canPaginateThreadBack,
+        hasMoreCachedBack: threadHasMoreCachedBack,
+      },
+      getContent: getThreadEventContent,
+      ignoredUserIds: ignoredUsersSet,
+      viewerId: mx.getUserId() ?? undefined,
+    }
+  );
   // Thread rows that stay in the virtualizer's index space but render nothing.
   const hiddenThreadEventIds = useMemo(
     () =>
@@ -1394,7 +1412,7 @@ export function RoomTimeline({
     ]
   );
 
-  const { handleOpenEvent, redirectRoomEventDeepLink } = useRoomEventOpenController({
+  const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
     effectiveViewMode,
     focusEventInRoom,
@@ -1406,7 +1424,6 @@ export function RoomTimeline({
     navigateRoomThread,
     overviewThreadRootIds,
     threadTargets,
-    readUpToTs,
     readUptoEventIdRef,
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
@@ -1600,6 +1617,15 @@ export function RoomTimeline({
     }, [getScrollElement, isViewportAtBottomNow, roomInputRef, roomFooterRef]),
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
+  // Live reply frames grow a message without the timeline event that pins the bottom.
+  useFollowContentGrowth(
+    getScrollElement,
+    scrollContentRef,
+    isViewportAtBottomNow,
+    atLiveEndRef,
+    getLiveReplyStore(mx),
+    room.roomId
+  );
 
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
@@ -1625,8 +1651,7 @@ export function RoomTimeline({
     effectiveViewMode,
     eventId,
     focusEventInRoom,
-    handleOpenEvent,
-    redirectRoomEventDeepLink,
+    openRoomEventRoute,
     roomId: room.roomId,
     roomOverviewOrderActive,
     threadId,
@@ -2180,7 +2205,7 @@ export function RoomTimeline({
     );
   };
 
-  return messageFeature.wrapExpansion(
+  const timelineView = messageFeature.wrapExpansion(
     <Box ref={overlayRootRef} grow="Yes" direction="Column" style={{ position: 'relative' }}>
       {shouldShowRoomThreadOverviewControls && (
         <div ref={overviewRef} className={overlay.Overview}>
@@ -2483,5 +2508,10 @@ export function RoomTimeline({
         )}
       </Box>
     </Box>
+  );
+  return (
+    <ThreadConversationCostProvider value={threadConversationCost}>
+      {timelineView}
+    </ThreadConversationCostProvider>
   );
 }

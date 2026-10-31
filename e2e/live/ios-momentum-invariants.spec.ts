@@ -2,6 +2,7 @@ import { devices, expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { positionThreadForPrepend } from '../helpers/rideRecorder';
 
 /**
  * iOS momentum invariants for the virtualized thread timeline, in a real
@@ -1022,6 +1023,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // 2026-07-07). The evaluate reads its start count immediately; the
     // unroute lands while the drive is arming.
 
+    await positionThreadForPrepend(page);
     const reportPromise = page.evaluate(async () => {
       const w = window as Window & {
         __appScrollWrites?: { kind: string; value: number; t: number }[];
@@ -1123,27 +1125,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       const writes = w.__appScrollWrites!;
       const writesBefore = writes.length;
 
-      // Teleport into the auto-paginate trigger zone near the top of the
-      // partial window (driver-tagged; the flick realism matters only for
-      // the measured stream that follows). Deep enough that the gentle
-      // flicks below cannot slam into the absolute top before the prepend
-      // lands — a clamped scroller at offset 0 measures edge artifacts,
-      // not the commit under test. NO gesture yet: the auto-paginate
-      // trigger keys on user scroll intent, and the commit must land
-      // inside the SAMPLED stream below, not in this settle window.
-      w.__driverDepth! += 1;
-      scroller.scrollTop = 1800;
-      w.__driverDepth! -= 1;
-      // Let the teleport's mount wave settle OUTSIDE the sampled stream:
-      // landing mid-row in never-measured territory makes a straddling
-      // row correct its estimate on first measurement, which reflows in
-      // place by design (a different surface from the prepend commit this
-      // test pins — jump-to-message owns that geometry).
-      const settleUntil = performance.now() + 600;
-      while (performance.now() < settleUntil) {
-        // eslint-disable-next-line no-await-in-loop
-        await raf();
-      }
+      // Native wheel positioning already settled the loaded edge before sampling.
       sampleJump(0);
 
       // Flick + REALISTIC pause cycles. Pauses exceed the 150ms scroll

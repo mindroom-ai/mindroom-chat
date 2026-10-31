@@ -87,11 +87,12 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
             <Button
               size="300"
               variant="Primary"
-              fill="Solid"
+              fill="Soft"
               radii="300"
               disabled={!canEnable}
               onClick={() => setPrompt(true)}
-              before={enabling && <Spinner size="100" variant="Primary" fill="Solid" />}
+              before={enabling && <Spinner size="100" variant="Primary" fill="Soft" />}
+              outlined
             >
               <Text size="B300">{t('featureUi.commonSettings.general.roomEncryption.enable')}</Text>
             </Button>
@@ -138,7 +139,14 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
                         'featureUi.commonSettings.general.roomEncryption.areYouSureOnceEnabledEncryptionCannot'
                       )}
                     </Text>
-                    <Button type="submit" variant="Primary" onClick={handleEnable}>
+                    <Button
+                      type="submit"
+                      variant="Primary"
+                      onClick={handleEnable}
+                      fill="Soft"
+                      outlined
+                      radii="300"
+                    >
                       <Text size="B400">
                         {t('featureUi.commonSettings.general.roomEncryption.enableE2eEncryption')}
                       </Text>

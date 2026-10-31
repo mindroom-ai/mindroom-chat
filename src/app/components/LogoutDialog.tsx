@@ -81,11 +81,21 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(
               variant="Critical"
               onClick={logout}
               disabled={ongoingLogout}
-              before={ongoingLogout && <Spinner variant="Critical" fill="Solid" size="200" />}
+              before={ongoingLogout && <Spinner variant="Critical" fill="Soft" size="200" />}
+              outlined
+              radii="300"
+              fill="Soft"
             >
               <Text size="B400">{t('sharedUi.logoutDialog.logout')}</Text>
             </Button>
-            <Button variant="Secondary" fill="Soft" onClick={handleClose} disabled={ongoingLogout}>
+            <Button
+              variant="Secondary"
+              fill="Soft"
+              onClick={handleClose}
+              disabled={ongoingLogout}
+              outlined
+              radii="300"
+            >
               <Text size="B400">{t('sharedUi.logoutDialog.cancel')}</Text>
             </Button>
           </Box>

@@ -150,7 +150,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
                 <Button
                   type="submit"
                   disabled={!validUserId || inviting}
-                  before={inviting && <Spinner size="200" variant="Primary" fill="Solid" />}
+                  before={inviting && <Spinner size="200" variant="Primary" fill="Soft" />}
+                  outlined
+                  radii="300"
+                  fill="Soft"
                 >
                   <Text size="B400">{t('sharedUi.inviteUserPrompt.invite')}</Text>
                 </Button>

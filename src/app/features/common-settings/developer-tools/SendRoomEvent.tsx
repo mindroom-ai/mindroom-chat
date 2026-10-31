@@ -162,7 +162,9 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
                 radii="300"
                 type="submit"
                 disabled={submitting}
-                before={submitting && <Spinner variant="Primary" fill="Solid" size="300" />}
+                before={submitting && <Spinner variant="Primary" fill="Soft" size="300" />}
+                outlined
+                fill="Soft"
               >
                 <Text size="B400">
                   {t('featureUi.commonSettings.developerTools.sendRoomEvent.send')}

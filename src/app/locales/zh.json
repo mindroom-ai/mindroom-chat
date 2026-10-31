@@ -146,6 +146,14 @@
         "httpNotice": "HTTP 不会加密您的登录信息或计算机流量。请仅在可信任的局域网上使用。",
         "saveFailed": "无法在此设备上保存计算机服务。",
         "saved": "计算机服务已保存。"
+      },
+      "connections": {
+        "sectionTitle": "连接",
+        "title": "已连接的账户",
+        "description": "在您的 MindRoom 服务器上连接智能体使用的账户，例如 Google 或 GitHub。",
+        "open": "打开连接",
+        "noBackend": "请在“计算机”中设置您的 MindRoom 服务器，以使用连接。",
+        "blocked": "浏览器拦截了连接窗口。请允许此网站的弹出窗口，然后重试。"
       }
     }
   },
@@ -1126,6 +1134,7 @@
       "spam": "垃圾邀请",
       "noInvites": "没有邀请",
       "declineAll": "全部拒绝",
+      "acceptAll": "全部接受",
       "reportAll": "全部举报",
       "blockAll": "全部屏蔽",
       "noSpamInvites": "没有垃圾邀请",
@@ -2327,11 +2336,15 @@
         "list_schedules": "列出所有计划任务。",
         "cancel_schedule": "按 ID 取消一个计划或所有计划。",
         "edit_schedule": "更新现有计划任务。",
+        "jobs": "列出此处正在运行的后台任务。",
+        "cancel_job": "按 ID 取消一个后台任务，或取消此处的全部任务。",
         "config": "管理 MindRoom 配置（仅限管理员）。",
         "desktop": "管理您的桌面目标。",
+        "mode": "将单个智能体在标准工具和仅 Bash 界面之间切换。",
         "model": "显示或切换当前讨论串中使用的模型。",
         "room_model": "显示房间模型默认值或切换它（设置/重置需要房间管理员）。",
         "thread_mode": "显示或切换当前房间使用的讨论串模式（仅限房间管理员）。",
+        "auto_approve": "在一段时间内无需批准即可运行您在此讨论串中的工具调用，或显示或结束该时段。",
         "encrypt": "查看或启用当前房间的端到端加密。",
         "e2ee": "显示当前房间的加密诊断。",
         "hi": "显示欢迎信息。"
@@ -2600,26 +2613,11 @@
         "moreOptions": "更多选项"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "请求上下文窗口",
-        "aiRunMetadata": "AI运行元数据",
         "close": "关闭",
-        "status": "状态",
-        "model": "模型",
-        "tokens": "词元",
-        "runCache": "运行缓存",
-        "requestContext": "请求上下文",
-        "requestCache": "请求缓存",
-        "tools": "工具",
-        "ttft": "TTFT",
-        "run": "运行",
-        "session": "会话",
-        "openAiRunMetadata": "查看 AI 运行元数据",
-        "tokenUsage": "词元用量",
         "downloadingOriginal": "正在下载原版...",
         "retryDownloadOriginal": "重试下载原件",
         "downloadOriginal": "下载原版",
-        "segmentTokenCount_one": "{{label}}：{{formattedCount}} 个词元",
-        "segmentTokenCount_other": "{{label}}：{{formattedCount}} 个词元"
+        "replyDetails": "回复详情"
       },
       "mindroomMessageExtras": {
         "messageExtras": "消息附加信息"
@@ -2644,6 +2642,10 @@
         "aiIsResponding": "AI正在响应",
         "thinking": "正在思考…"
       },
+      "mindroomReasoning": {
+        "thinking": "思考中",
+        "thoughtFor_other": "思考了 {{count}} 秒"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 讨论串摘要"
       },
@@ -2666,6 +2668,10 @@
       },
       "streamingIndicator": {
         "aiIsResponding": "AI正在响应"
+      },
+      "stopButton": {
+        "label": "停止",
+        "tooltip": "停止此回复"
       },
       "threadApprovalControls": {
         "close": "关闭",
@@ -2747,28 +2753,37 @@
         "retry": "重试",
         "delete": "删除"
       },
-      "aiRunDisplay": {
-        "inputTokens": "输入 {{formattedCount}}",
-        "outputTokens": "输出 {{formattedCount}}",
-        "totalTokens": "总计 {{formattedCount}}",
-        "readTokens": "读取 {{formattedCount}}",
-        "writeTokens": "写入 {{formattedCount}}",
-        "notReadTokens": "未读取 {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）",
-        "contextBarTitle_other": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）",
-        "contextBarTitleWithSuffix_one": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）；{{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}：{{formattedCount}} 个词元（占上下文窗口的 {{percentage}}%）；{{suffix}}",
-        "reportedCacheRead_one": "报告的缓存读取：{{formattedCount}} 个词元",
-        "reportedCacheRead_other": "报告的缓存读取：{{formattedCount}} 个词元",
-        "cacheWrite_one": "缓存写入：{{formattedCount}} 个词元",
-        "cacheWrite_other": "缓存写入：{{formattedCount}} 个词元",
-        "cacheRead": "缓存读取",
-        "newInput": "新输入",
-        "reserve": "预留"
-      },
       "mindroomModelBadge": {
         "model": "模型：{{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "词元",
+        "cost": "费用",
+        "conversationSoFar": "目前对话",
+        "failed": "失败",
+        "stopped": "已停止",
+        "thisReply": "本条回复",
+        "input": "输入",
+        "fromCache": "来自缓存",
+        "output": "输出",
+        "contextWindow": "上下文窗口",
+        "contextWindowUsage": "{{input}} / {{window}} · {{percentage}}",
+        "timeToFirstToken": "首个词元",
+        "technicalDetails": "技术详情",
+        "configuredModel": "配置的模型",
+        "runId": "运行 ID",
+        "sessionId": "会话 ID",
+        "newInput": "新输入",
+        "replyCount_one": "{{count}} 条回复",
+        "replyCount_other": "{{count}} 条回复",
+        "loadedReplyCount_one": "已加载 {{count}} 条回复",
+        "loadedReplyCount_other": "已加载 {{count}} 条回复",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "此对话中每条回复的费用",
+        "costHistoryBar": "第 {{index}} 条回复：{{cost}}",
+        "costHistoryPosition": "本条回复 · 第 {{index}} / {{count}} 条",
+        "toolCallCount_one": "{{count}} 次工具调用",
+        "toolCallCount_other": "{{count}} 次工具调用"
       }
     },
     "native": {
@@ -2782,6 +2797,11 @@
         "enable": "启用",
         "iosPushNotifications": "iOS 推送通知",
         "permissionDenied": "通知权限已被拒绝。请在 iOS“设置”中为 {{appName}} 启用通知。"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} 需要通过你所在的组织登录。",
+        "continue": "继续",
+        "signInFailed": "登录未完成。请重试。"
       }
     },
     "notifications": {
@@ -3046,15 +3066,32 @@
     "backgroundJobs": {
       "running": "运行中：{{tool}}",
       "awaitingApproval": "等待批准：{{tool}}",
+      "waiting": "等待批准",
       "stoppingJob": "正在停止：{{tool}}",
       "jobCount": "{{count}} 个后台任务",
       "subagent": "{{tool}}（子代理）",
       "stopAll": "全部停止",
       "stopping": "正在停止…",
-      "cancel": "取消 {{tool}}",
-      "cancelFailed": "无法取消 {{tool}}，请重试。",
+      "stop": "停止",
+      "stopJob": "停止 {{tool}}",
+      "stopFailed": "无法停止 {{tool}}，请重试。",
       "stopAllFailed": "无法停止后台任务，请重试。",
       "inRoom": "后台任务运行中"
+    },
+    "autoApprove": {
+      "label": "自动批准",
+      "labelOne": "自动批准：{{name}}",
+      "labelMany": "自动批准：{{name}} +{{count}}",
+      "title": "自动批准",
+      "intro": "在此话题中，这些人请求的工具调用无需审批卡片即可运行。",
+      "you": "你",
+      "until": "至 {{time}}",
+      "ownUntil": "至 {{time}}。发送 !auto_approve off 可提前结束。"
+    },
+    "notices": {
+      "dismiss": "关闭通知",
+      "showMore": "显示更多",
+      "showLess": "收起"
     }
   },
   "roomSchedules": {

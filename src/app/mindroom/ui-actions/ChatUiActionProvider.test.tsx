@@ -27,6 +27,8 @@ vi.mock('folds', () => ({
     <span role={role}>{children}</span>
   ),
   Box: ({ children }: React.PropsWithChildren) => <div>{children}</div>,
+  Icon: () => null,
+  Icons: {},
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

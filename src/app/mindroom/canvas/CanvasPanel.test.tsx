@@ -42,10 +42,16 @@ vi.mock('folds', () => ({
     fill: _fill,
     variant: _variant,
     size: _size,
+    outlined: _outlined,
+    radii: _radii,
     ...props
-  }: React.ComponentProps<'button'> & { fill?: string; variant?: string; size?: string }) => (
-    <button {...props}>{children}</button>
-  ),
+  }: React.ComponentProps<'button'> & {
+    fill?: string;
+    variant?: string;
+    size?: string;
+    outlined?: boolean;
+    radii?: string;
+  }) => <button {...props}>{children}</button>,
   Chip: ({
     children,
     as: _as,
@@ -342,14 +348,25 @@ describe('CanvasPanel', () => {
     });
     render();
     await post(submit('Basic', { plan: 'basic' }));
+    // How to change an answer is said only once the page tries to change it.
+    expect(container.textContent).not.toContain('discard this one first');
     await arm();
+    // The same answer again (a double click) changes nothing the user needs to hear about.
+    await post(submit('Basic', { plan: 'basic' }));
+    expect(container.textContent).not.toContain('discard this one first');
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
     await post(submit('Everything', { plan: 'everything' }));
     expect(container.textContent).toContain('Send to Planner: Basic');
+    expect(container.textContent).toContain('To change your answer, discard this one first.');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
     await act(async () => button('[data-canvas-discard]').click());
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
     await post(submit('Pro plan'));
+    expect(container.textContent).not.toContain('discard this one first');
     expect(button('[data-canvas-send]').disabled).toBe(true);
     await clickSend();
     expect(sendMessage).not.toHaveBeenCalled();

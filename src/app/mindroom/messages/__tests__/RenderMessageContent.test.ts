@@ -130,9 +130,7 @@ vi.mock('../MindroomToolApprovalCard', () => ({
   },
 }));
 
-vi.mock('../../../plugins/react-custom-html-parser', () => ({
-  withMindroomToolTraceMarkerParserOptions: (options: unknown) => options,
-}));
+vi.mock('../../../plugins/react-custom-html-parser', () => ({}));
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
@@ -213,6 +211,34 @@ describe('RenderMessageContent', () => {
 
       expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
         expect.objectContaining({ edited, content })
+      );
+      renderer.unmount();
+    }
+  );
+
+  it.each([
+    [false, undefined],
+    [true, expect.any(Function)],
+  ])(
+    'passes a URL preview renderer on only with urlPreview on (urlPreview: %s)',
+    async (urlPreview, preview) => {
+      const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+      renderMindroomMessageContentMock.mockReset();
+      renderMindroomMessageContentMock.mockReturnValue(null);
+      const renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Sender',
+          msgType: 'm.text',
+          ts: 0,
+          urlPreview,
+          getContent: (() => ({ msgtype: 'm.text', body: 'https://example.org' })) as <T>() => T,
+          htmlReactParserOptions: {} as never,
+          linkifyOpts: {} as never,
+        })
+      );
+
+      expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ renderUrlsPreview: preview })
       );
       renderer.unmount();
     }

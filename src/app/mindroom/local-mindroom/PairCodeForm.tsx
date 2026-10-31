@@ -48,7 +48,7 @@ export function PairCodeForm({ defaultValue = '', onSubmit, inputId }: PairCodeF
             radii="300"
           />
         </Box>
-        <Button type="submit" size="400" variant="Primary" radii="300">
+        <Button type="submit" size="400" variant="Primary" radii="300" fill="Soft" outlined>
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.continue')}</Text>
         </Button>
       </Box>

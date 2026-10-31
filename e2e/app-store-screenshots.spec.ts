@@ -265,6 +265,24 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await openFixtureRoom(page, fixtureRoomId);
       await applySceneTheme(page, sceneById('personal-workspace'));
       await expectFixtureRoomOverview(page);
+      const threadAgents = [
+        [WEEK_THREAD_TITLE, 'Atlas'],
+        [DINNER_THREAD_TITLE, 'Pantry'],
+        [HOME_AUTOMATION_THREAD_TITLE, 'Hearth'],
+        [TRIP_THREAD_TITLE, 'Atlas'],
+        [REMINDER_THREAD_TITLE, 'Hearth'],
+      ];
+      // Warm every thread so older cards include their replying agent, too.
+      for (const [title] of threadAgents) {
+        await getThreadEntry(page, title).click();
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
+        await returnToFixtureRoomOverview(page);
+      }
+      for (const [title, agent] of threadAgents) {
+        await expect(
+          getThreadEntry(page, title).getByRole('img', { name: agent, exact: true })
+        ).toBeVisible();
+      }
       await expect(getThreadEntry(page, WEEK_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/Atlas:.*Your week, together/)).toBeVisible();
       await captureScene(page, device, sceneById('personal-workspace'), capturedDigests);
@@ -289,9 +307,12 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await expect(toolCallsButton).toBeVisible({ timeout: 30_000 });
       await expandCollapsedMessages(page);
       await toolCallsButton.click();
-      await expect(page.getByText('Tool #1: call_service')).toBeVisible({
+      await expect(page.getByText('light.turn_off · all lights', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
+      await expect(
+        page.getByRole('button', { name: 'All lights are off.', exact: true })
+      ).toBeVisible();
       await expect(page.getByText('All set. Have a lovely evening!')).toBeVisible();
       await captureScene(page, device, sceneById('campground-monitor'), capturedDigests);
 

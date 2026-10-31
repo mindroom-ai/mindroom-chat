@@ -53,16 +53,18 @@ export function PrescreenControls({ canJoin }: PrescreenControlsProps) {
       <Box grow="Yes" direction="Column">
         <Button
           variant={disabled ? 'Secondary' : 'Success'}
-          fill={disabled ? 'Soft' : 'Solid'}
+          fill="Soft"
           onClick={() => startCall(room, { microphone, video, sound })}
           disabled={disabled || joining}
           before={
             joining ? (
-              <Spinner variant="Success" fill="Solid" size="200" />
+              <Spinner variant="Success" fill="Soft" size="200" />
             ) : (
               <Icon src={Icons.Phone} size="200" filled />
             )
           }
+          outlined
+          radii="300"
         >
           <Text size="B400">{t('featureUi.call.prescreenControls.join')}</Text>
         </Button>

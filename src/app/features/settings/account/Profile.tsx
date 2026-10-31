@@ -196,7 +196,13 @@ function ProfileAvatar({ profile, userId }: ProfileProps) {
                     {t('featureUi.settings.account.profile.areYouSureYouWantToRemove')}
                   </Text>
                 </Box>
-                <Button variant="Critical" onClick={handleRemoveAvatar}>
+                <Button
+                  variant="Critical"
+                  onClick={handleRemoveAvatar}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
                   <Text size="B400">{t('featureUi.settings.account.profile.remove')}</Text>
                 </Button>
               </Box>
@@ -292,13 +298,13 @@ function ProfileDisplayName({ profile, userId }: ProfileProps) {
           <Button
             size="400"
             variant={hasChanges ? 'Success' : 'Secondary'}
-            fill={hasChanges ? 'Solid' : 'Soft'}
+            fill="Soft"
             outlined
             radii="300"
             disabled={!hasChanges || changingDisplayName}
             type="submit"
           >
-            {changingDisplayName && <Spinner variant="Success" fill="Solid" size="300" />}
+            {changingDisplayName && <Spinner variant="Success" fill="Soft" size="300" />}
             <Text size="B400">{t('featureUi.settings.account.profile.save')}</Text>
           </Button>
         </Box>

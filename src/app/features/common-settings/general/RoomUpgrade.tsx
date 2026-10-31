@@ -151,7 +151,10 @@ function RoomUpgradeDialog({ requestClose }: { requestClose: () => void }) {
                 onClick={handleUpgradeRoom}
                 variant="Secondary"
                 disabled={upgrading}
-                before={upgrading && <Spinner size="200" variant="Secondary" fill="Solid" />}
+                before={upgrading && <Spinner size="200" variant="Secondary" fill="Soft" />}
+                outlined
+                radii="300"
+                fill="Soft"
               >
                 <Text size="B400">
                   {room.isSpaceRoom()
@@ -260,9 +263,10 @@ export function RoomUpgrade({ permissions, requestClose }: RoomUpgradeProps) {
               <Button
                 size="300"
                 variant="Success"
-                fill="Solid"
+                fill="Soft"
                 radii="300"
                 onClick={handleOpenRoom}
+                outlined
               >
                 <Text size="B300">
                   {room.isSpaceRoom()
@@ -274,10 +278,11 @@ export function RoomUpgrade({ permissions, requestClose }: RoomUpgradeProps) {
               <Button
                 size="300"
                 variant="Secondary"
-                fill="Solid"
+                fill="Soft"
                 radii="300"
                 disabled={!canUpgrade}
                 onClick={() => setPrompt(true)}
+                outlined
               >
                 <Text size="B300">{t('featureUi.commonSettings.general.roomUpgrade.upgrade')}</Text>
               </Button>

@@ -75,13 +75,13 @@ describe('thread receipt unread state with SDK models', () => {
   it.each([false, true])(
     'clears a summary-only thread when marked read (private: %s)',
     async (privateReceipt) => {
-      const { mx, room, thread, requests } = await setupRoom();
+      const { mx, thread, requests } = await setupRoom();
       expect(thread.events.some((event) => event.getId() === '$reply')).toBe(false);
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+      expect(getThreadUnread(thread, USER_ID)).toBe(true);
 
       await markThreadAsRead(mx, ROOM_ID, '$root', privateReceipt);
 
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+      expect(getThreadUnread(thread, USER_ID)).toBe(false);
       expect(requests).toHaveBeenCalledWith(
         'POST',
         `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${
@@ -96,12 +96,12 @@ describe('thread receipt unread state with SDK models', () => {
   it.each([false, true])(
     'clears a summary-only thread when the whole room is marked read (private: %s)',
     async (privateReceipt) => {
-      const { mx, room, thread } = await setupRoom();
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+      const { mx, thread } = await setupRoom();
+      expect(getThreadUnread(thread, USER_ID)).toBe(true);
 
       await markRoomAndThreadsAsRead(mx, ROOM_ID, privateReceipt);
 
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+      expect(getThreadUnread(thread, USER_ID)).toBe(false);
     }
   );
 
@@ -116,23 +116,35 @@ describe('thread receipt unread state with SDK models', () => {
   });
 
   it('preserves unread thread replies when only the main timeline is read', async () => {
-    const { mx, room, thread } = await setupRoom();
+    const { mx, thread } = await setupRoom();
 
     await markMainTimelineAsRead(mx, ROOM_ID, false);
 
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
+  it('reads thread replies with an unthreaded receipt, not a main one on a newer event', async () => {
+    const { mx, room, thread } = await setupRoom();
+    room.getUnfilteredTimelineSet().addLiveEvent(message('$card', 4000), { addToState: false });
+
+    await markMainTimelineAsRead(mx, ROOM_ID, false);
+    expect(room.getEventReadUpTo(USER_ID)).toBe('$card');
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+
+    await markRoomAndThreadsAsRead(mx, ROOM_ID, false);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
   });
 
   it('keeps a later reply unread after whole-room marking and history hydration', async () => {
-    const { mx, room, thread } = await setupRoom();
+    const { mx, thread } = await setupRoom();
     await markRoomAndThreadsAsRead(mx, ROOM_ID, false);
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
 
     thread.addEvent(message('$reply', 3000, '$root'), false, false);
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
     thread.addEvent(message('$later', 4000, '$root'), false, false);
 
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 
   it.each([ReceiptType.Read, ReceiptType.ReadPrivate])(
@@ -147,7 +159,7 @@ describe('thread receipt unread state with SDK models', () => {
         })
       );
 
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+      expect(getThreadUnread(thread, USER_ID)).toBe(false);
     }
   );
 
@@ -164,7 +176,7 @@ describe('thread receipt unread state with SDK models', () => {
         })
       );
 
-      expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+      expect(getThreadUnread(thread, USER_ID)).toBe(false);
       requests.mockClear();
       await markThreadAsRead(mx, ROOM_ID, '$root', receiptType === ReceiptType.ReadPrivate);
       expect(requests).not.toHaveBeenCalled();
@@ -187,6 +199,6 @@ describe('thread receipt unread state with SDK models', () => {
       })
     );
 
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 });

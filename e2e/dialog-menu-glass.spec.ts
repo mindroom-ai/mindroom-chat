@@ -166,7 +166,10 @@ for (const theme of ['silver', 'dark']) {
     }
 
     await page.setViewportSize({ width: 390, height: 480 });
-    await page.getByRole('button', { name: 'Open filters' }).click();
+    const openFilters = page.getByRole('button', { name: 'Open filters' });
+    // macOS WebKit does not focus a clicked button, so Escape could not return focus to it.
+    await openFilters.focus();
+    await openFilters.press('Enter');
     const title = page.locator('header').filter({ hasText: 'Filters' });
     const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
     await scroll.evaluate((element) => {
@@ -183,6 +186,21 @@ for (const theme of ['silver', 'dark']) {
     await invite.focus();
     const inviteHeader = page.locator('header').filter({ hasText: 'Invite people' });
     const inviteScroll = await expectFloatingNavHeader(inviteHeader, { inheritsPanelTint: true });
+    // The list covers the dialog's own controls, so it is tinted nearly opaque,
+    // and the option Enter picks is filled while the other rows stay clear.
+    const inviteList = page.getByRole('listbox', { name: 'People' });
+    expect(
+      await inviteList.evaluate((element) => {
+        const alpha = getComputedStyle(element).backgroundColor.match(/[/,]\s*([\d.]+)\)$/);
+        return alpha ? Number(alpha[1]) : 1;
+      })
+    ).toBeGreaterThanOrEqual(0.9);
+    const optionFill = (name: string) =>
+      inviteList
+        .getByRole('option', { name, exact: true })
+        .evaluate((element) => getComputedStyle(element).backgroundColor);
+    expect(await optionFill('Studio guest 1')).not.toBe('rgba(0, 0, 0, 0)');
+    expect(await optionFill('Studio guest 2')).toBe('rgba(0, 0, 0, 0)');
     const inviteTrack = (await inviteScroll.getByRole('scrollbar').boundingBox())!;
     await page.mouse.click(
       inviteTrack.x + inviteTrack.width / 2,

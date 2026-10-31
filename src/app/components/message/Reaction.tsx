@@ -14,9 +14,11 @@ export const Reaction = as<
     mx: MatrixClient;
     count: number;
     reaction: string;
+    /** Shown instead of the count. */
+    label?: string;
     useAuthentication?: boolean;
   }
->(({ className, mx, count, reaction, useAuthentication, ...props }, ref) => (
+>(({ className, mx, count, reaction, label, useAuthentication, ...props }, ref) => (
   <Box
     as="button"
     className={classNames(css.Reaction, className)}
@@ -40,7 +42,7 @@ export const Reaction = as<
       )}
     </Text>
     <Text as="span" size="T300">
-      {count}
+      {label ?? count}
     </Text>
   </Box>
 ));

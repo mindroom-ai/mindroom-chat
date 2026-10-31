@@ -233,6 +233,7 @@ export function About({ requestClose }: AboutProps) {
                     size="300"
                     radii="300"
                     before={<Icon src={Icons.Code} size="100" filled />}
+                    outlined
                   >
                     <Text size="B300">{t('featureUi.settings.about.sourceCode')}</Text>
                   </Button>
@@ -246,6 +247,7 @@ export function About({ requestClose }: AboutProps) {
                     size="300"
                     radii="300"
                     before={<Icon src={Icons.Heart} size="100" filled />}
+                    outlined
                   >
                     <Text size="B300">{t('featureUi.settings.about.support')}</Text>
                   </Button>

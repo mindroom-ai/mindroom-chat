@@ -715,7 +715,7 @@ function CustomDateFormat({ value, onChange }: CustomDateFormatProps) {
         <Button
           size="400"
           variant={hasChanges ? 'Success' : 'Secondary'}
-          fill={hasChanges ? 'Solid' : 'Soft'}
+          fill="Soft"
           outlined
           radii="300"
           disabled={!hasChanges}

@@ -111,18 +111,18 @@ const MAIN_TIMELINE_RECEIPT_THREAD_ID = 'main';
 
 type OwnReceiptTargets = {
   threadRootIds: string[];
-  hasRoomLevelReceipt: boolean;
+  hasUnthreadedReceipt: boolean;
 };
 
 /**
- * Thread unread state derives only from the current user's receipts
- * (see getThreadUnread), so receipts from other users never change an
- * index entry. Own receipts with a concrete thread_id affect only that
- * thread; own unthreaded or main-timeline receipts move the room-level
- * read-up-to fallback and can affect any thread in the room.
+ * Thread unread state derives only from the current user's thread and
+ * unthreaded receipts (see getThreadUnread), so receipts from other users
+ * and main-timeline receipts never change an index entry. Own receipts with
+ * a thread_id affect only that thread; own unthreaded receipts can affect
+ * any thread in the room.
  */
 const getOwnReceiptTargets = (event: MatrixEvent, userId: string): OwnReceiptTargets => {
-  const targets: OwnReceiptTargets = { threadRootIds: [], hasRoomLevelReceipt: false };
+  const targets: OwnReceiptTargets = { threadRootIds: [], hasUnthreadedReceipt: false };
   const content = event.getContent?.();
   if (!content || typeof content !== 'object' || Array.isArray(content)) return targets;
 
@@ -142,12 +142,13 @@ const getOwnReceiptTargets = (event: MatrixEvent, userId: string): OwnReceiptTar
         ownReceipt && typeof ownReceipt === 'object' && !Array.isArray(ownReceipt)
           ? (ownReceipt as { thread_id?: unknown }).thread_id
           : undefined;
-      if (typeof threadId === 'string' && threadId !== MAIN_TIMELINE_RECEIPT_THREAD_ID) {
+      if (threadId === MAIN_TIMELINE_RECEIPT_THREAD_ID) return;
+      if (typeof threadId === 'string') {
         threadRootIds.add(threadId);
         return;
       }
 
-      targets.hasRoomLevelReceipt = true;
+      targets.hasUnthreadedReceipt = true;
     });
   });
 
@@ -396,8 +397,8 @@ export const useCrossRoomThreadIndex = () => {
         const currentUserId = userIdRef.current;
         if (!currentUserId) return;
 
-        const { threadRootIds, hasRoomLevelReceipt } = getOwnReceiptTargets(event, currentUserId);
-        if (hasRoomLevelReceipt) {
+        const { threadRootIds, hasUnthreadedReceipt } = getOwnReceiptTargets(event, currentUserId);
+        if (hasUnthreadedReceipt) {
           enqueueRoomThreads(room);
           return;
         }

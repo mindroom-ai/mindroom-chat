@@ -459,16 +459,20 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     })}
                   </Text>
                   <Button
-                    variant="Critical"
+                    variant="Primary"
                     onClick={() =>
                       setClientBootstrapSession(toClientBootstrapSession(activeSession))
                     }
+                    fill="Soft"
+                    outlined
+                    radii="300"
                   >
                     <Text as="span" size="B400">
                       {t('sharedUi.clientRoot.retry')}
                     </Text>
                   </Button>
                   <Button
+                    variant="Secondary"
                     fill="Soft"
                     onClick={() => {
                       // Works without a client (initClient itself failed —
@@ -476,6 +480,8 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                       // come from the stored session registry.
                       clearAllCacheAndReload(clientState.mx).catch(() => undefined);
                     }}
+                    outlined
+                    radii="300"
                   >
                     <Text as="span" size="B400">
                       {t('sharedUi.clientRoot.clearCacheAndReload')}
@@ -489,6 +495,8 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                         () => undefined
                       );
                     }}
+                    outlined
+                    radii="300"
                   >
                     <Text as="span" size="B400">
                       {t('sharedUi.clientRoot.removeAccount')}

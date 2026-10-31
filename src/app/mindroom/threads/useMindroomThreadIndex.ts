@@ -105,7 +105,6 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
   threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   availableRoomTags: string[];
-  readUpToTs: number | undefined;
   roomThreadListThreads: Thread[];
   refreshRoomThreadList: () => Promise<void>;
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
@@ -478,15 +477,6 @@ export const useMindroomThreadIndex = ({
     roomThreadListFullyLoaded,
     threadReplyCountMap,
   ]);
-  const readUpToTs = useMemo(() => {
-    // Receipts mutate on the room object, so the overview refresh tick is intentional.
-    void overviewRefreshCounter;
-    if (threadId || !currentUserId) return undefined;
-    const readUpToId = room.getEventReadUpTo(currentUserId);
-    if (!readUpToId) return undefined;
-    const readUpToEvent = room.findEventById(readUpToId);
-    return readUpToEvent?.getTs();
-  }, [threadId, room, currentUserId, overviewRefreshCounter]);
   const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
 
   const compactThreadRootBodyMap = useMemo(() => {
@@ -541,7 +531,6 @@ export const useMindroomThreadIndex = ({
       fallbackParticipantMap: threadParticipantMap,
       threadResolutionMap,
       currentUserId,
-      readUpToTs,
       scheduledStatusMap,
     });
   }, [
@@ -560,7 +549,6 @@ export const useMindroomThreadIndex = ({
     threadParticipantMap,
     threadResolutionMap,
     currentUserId,
-    readUpToTs,
     scheduledStatusMap,
     overviewRefreshCounter,
   ]);
@@ -658,7 +646,6 @@ export const useMindroomThreadIndex = ({
     threadSummaryInfoMap,
     scheduledStatusMap,
     availableRoomTags,
-    readUpToTs,
     roomThreadListThreads,
     refreshRoomThreadList,
     applyThreadOverviewRelationEvents,

@@ -41,6 +41,7 @@ function ArchivedRoom({ room, onOpen }: { room: Room; onOpen: (roomId: string) =
           variant="Secondary"
           fill="Soft"
           aria-label={t('archivedRooms.restoreNamed', { room: name })}
+          outlined
         >
           {busy && <Spinner size="100" />}
           <Text size="B300">{t('archivedRooms.restore')}</Text>

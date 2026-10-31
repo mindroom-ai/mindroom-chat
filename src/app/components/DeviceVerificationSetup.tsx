@@ -194,7 +194,10 @@ function SetupVerification({ onComplete }: SetupVerificationProps) {
       <Button
         type="submit"
         disabled={loading}
-        before={loading && <Spinner size="200" variant="Primary" fill="Solid" />}
+        before={loading && <Spinner size="200" variant="Primary" fill="Soft" />}
+        outlined
+        radii="300"
+        fill="Soft"
       >
         <Text size="B400">{t('sharedUi.deviceVerificationSetup.continue')}</Text>
       </Button>
@@ -282,10 +285,10 @@ function RecoveryKeyDisplay({ recoveryKey }: RecoveryKeyDisplayProps) {
         </Box>
       </Box>
       <Box direction="Column" gap="200">
-        <Button onClick={handleCopy}>
+        <Button onClick={handleCopy} fill="Soft" outlined radii="300">
           <Text size="B400">{t('sharedUi.deviceVerificationSetup.copy')}</Text>
         </Button>
-        <Button onClick={handleDownload} fill="Soft">
+        <Button onClick={handleDownload} fill="Soft" outlined radii="300">
           <Text size="B400">{t('sharedUi.deviceVerificationSetup.download')}</Text>
         </Button>
       </Box>
@@ -383,7 +386,13 @@ export const DeviceVerificationReset = forwardRef<HTMLDivElement, DeviceVerifica
                 />
               </Text>
             </Box>
-            <Button variant="Critical" onClick={() => setReset(true)}>
+            <Button
+              variant="Critical"
+              onClick={() => setReset(true)}
+              fill="Soft"
+              outlined
+              radii="300"
+            >
               <Text size="B400">{t('sharedUi.deviceVerificationSetup.reset')}</Text>
             </Button>
           </Box>

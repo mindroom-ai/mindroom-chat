@@ -138,6 +138,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                     fill="Soft"
                     radii="300"
                     before={<PowerColorBadge color={tagColor} />}
+                    outlined
                   >
                     <Text size="B300">
                       {t('featureUi.commonSettings.permissions.powersEditor.pick')}
@@ -243,6 +244,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                         fill="Soft"
                         radii="300"
                         before={<Icon size="50" src={Icons.SmilePlus} />}
+                        outlined
                       >
                         <Text size="B300">
                           {t('featureUi.commonSettings.permissions.powersEditor.pick')}
@@ -276,6 +278,8 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
           variant="Success"
           radii="300"
           disabled={uploadingIcon}
+          fill="Soft"
+          outlined
         >
           <Text size="B300">{t('featureUi.commonSettings.permissions.powersEditor.save')}</Text>
         </Button>
@@ -286,6 +290,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
           fill="Soft"
           radii="300"
           onClick={onClose}
+          outlined
         >
           <Text size="B300">{t('featureUi.commonSettings.permissions.powersEditor.cancel')}</Text>
         </Button>
@@ -606,9 +611,11 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                       radii="300"
                       disabled={applyingChanges}
                       before={
-                        applyingChanges && <Spinner variant="Success" fill="Solid" size="100" />
+                        applyingChanges && <Spinner variant="Success" fill="Soft" size="100" />
                       }
                       onClick={handleApplyChanges}
+                      outlined
+                      fill="Soft"
                     >
                       <Text size="B300">
                         {t('featureUi.commonSettings.permissions.powersEditor.applyChanges')}

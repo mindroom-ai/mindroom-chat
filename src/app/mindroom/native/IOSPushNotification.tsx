@@ -21,6 +21,7 @@ import {
   unregisterIOSPush,
 } from './iosPush';
 import { useIOSPushEnabled } from './useIOSPushEnabled';
+import { cloudflareAccessAllowsPush } from './cloudflareAccess';
 
 export function IOSPushNotification() {
   const { t } = useTranslation();
@@ -82,7 +83,8 @@ export function IOSPushNotification() {
     )
   );
 
-  if (!isNativeIOSPlatform()) return null;
+  // A server that turns push off in its Cloudflare Access advert gets no push setting.
+  if (!isNativeIOSPlatform() || !cloudflareAccessAllowsPush(mx.getHomeserverUrl())) return null;
 
   const handleToggle = (enabled: boolean) => {
     togglePush(enabled)
@@ -151,7 +153,7 @@ export function IOSPushNotification() {
   } else if (iosPushConfig) {
     if (permission === 'prompt' && !nativePushNotifications) {
       control = (
-        <Button size="300" radii="300" onClick={() => handleToggle(true)}>
+        <Button size="300" radii="300" onClick={() => handleToggle(true)} fill="Soft" outlined>
           <Text size="B300">{t('mindroomUi.native.iOSPushNotification.enable')}</Text>
         </Button>
       );

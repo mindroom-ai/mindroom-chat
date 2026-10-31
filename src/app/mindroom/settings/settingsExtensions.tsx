@@ -6,12 +6,14 @@ import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';
 
 import { MindroomInterfaceSettings as InterfaceSettings } from './MindroomInterfaceSettings';
 import { MindroomComputerSettings } from './MindroomComputerSettings';
+import { MindroomConnectionsSettings } from './MindroomConnectionsSettings';
 
 export function MindroomInterfaceSettings({ className }: { className?: string }) {
   return (
     <>
       <InterfaceSettings className={className} />
       <MindroomComputerSettings className={className} />
+      <MindroomConnectionsSettings className={className} />
     </>
   );
 }

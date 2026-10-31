@@ -146,6 +146,14 @@
         "httpNotice": "HTTP はサインイン情報やコンピューターの通信を暗号化しません。信頼できるローカルネットワークでのみ使用してください。",
         "saveFailed": "このデバイスにコンピューターサービスを保存できませんでした。",
         "saved": "コンピューターサービスを保存しました。"
+      },
+      "connections": {
+        "sectionTitle": "接続",
+        "title": "接続済みアカウント",
+        "description": "GoogleやGitHubなど、エージェントが使うアカウントをMindRoomサーバーで接続します。",
+        "open": "接続を開く",
+        "noBackend": "接続を使うには、「コンピューター」でMindRoomサーバーを設定してください。",
+        "blocked": "ブラウザーが接続ウィンドウをブロックしました。このサイトのポップアップを許可して、もう一度お試しください。"
       }
     }
   },
@@ -1126,6 +1134,7 @@
       "spam": "スパム",
       "noInvites": "招待はありません",
       "declineAll": "すべて拒否する",
+      "acceptAll": "すべて承諾する",
       "reportAll": "すべて報告",
       "blockAll": "すべてブロック",
       "noSpamInvites": "スパム招待なし",
@@ -2327,11 +2336,15 @@
         "list_schedules": "スケジュールされたタスクをすべてリストします。",
         "cancel_schedule": "ID ごとに 1 つのスケジュールをキャンセルするか、すべてのスケジュールをキャンセルします。",
         "edit_schedule": "既存のスケジュールタスクを更新します。",
+        "jobs": "ここで実行中のバックグラウンドジョブを一覧表示します。",
+        "cancel_job": "ID を指定してバックグラウンドジョブを 1 つ、またはここにあるすべてをキャンセルします。",
         "config": "MindRoom 構成を管理します (管理者のみ)。",
         "desktop": "デスクトップターゲットを管理します。",
+        "mode": "1 つのエージェントを標準ツールと Bash のみのインターフェースの間で切り替えます。",
         "model": "現在のスレッドで使用されているモデルを表示または切り替えます。",
         "room_model": "ルームモデルのデフォルトを表示するか、切り替えます（設定/リセットにはルーム管理者が必要です）。",
         "thread_mode": "現在のルームで使用されているスレッド モードを表示または切り替えます (ルーム管理者のみ)。",
+        "auto_approve": "このスレッドでの自分のツール呼び出しを一定時間承認なしで実行するか、その期間を表示または終了します。",
         "encrypt": "現在のルームのエンドツーエンド暗号化を確認または有効にします。",
         "e2ee": "現在のルームの暗号化診断を表示します。",
         "hi": "ウェルカム情報を表示します。"
@@ -2600,26 +2613,11 @@
         "moreOptions": "その他のオプション"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "リクエストコンテキストウィンドウ",
-        "aiRunMetadata": "AI 実行メタデータ",
         "close": "閉じる",
-        "status": "状態",
-        "model": "モデル",
-        "tokens": "トークン",
-        "runCache": "キャッシュの実行",
-        "requestContext": "リクエストコンテキスト",
-        "requestCache": "キャッシュのリクエスト",
-        "tools": "ツール",
-        "ttft": "TTFT",
-        "run": "実行",
-        "session": "セッション",
-        "openAiRunMetadata": "AI 実行メタデータを開く",
-        "tokenUsage": "トークン使用量",
         "downloadingOriginal": "オリジナルをダウンロード中...",
         "retryDownloadOriginal": "オリジナルのダウンロードを再試行",
         "downloadOriginal": "オリジナルをダウンロード",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} トークン",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} トークン"
+        "replyDetails": "返信の詳細"
       },
       "mindroomMessageExtras": {
         "messageExtras": "メッセージの詳細"
@@ -2644,6 +2642,10 @@
         "aiIsResponding": "AI が応答中です",
         "thinking": "考えています…"
       },
+      "mindroomReasoning": {
+        "thinking": "考え中",
+        "thoughtFor_other": "{{count}} 秒間考えました"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI によるスレッド要約"
       },
@@ -2666,6 +2668,10 @@
       },
       "streamingIndicator": {
         "aiIsResponding": "AI が応答中です"
+      },
+      "stopButton": {
+        "label": "停止",
+        "tooltip": "この応答を停止"
       },
       "threadApprovalControls": {
         "close": "閉じる",
@@ -2747,28 +2753,37 @@
         "retry": "再試行",
         "delete": "削除"
       },
-      "aiRunDisplay": {
-        "inputTokens": "入力 {{formattedCount}}",
-        "outputTokens": "出力 {{formattedCount}}",
-        "totalTokens": "合計 {{formattedCount}}",
-        "readTokens": "読み取り {{formattedCount}}",
-        "writeTokens": "書き込み {{formattedCount}}",
-        "notReadTokens": "未読み取り {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）; {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} トークン（コンテキストウィンドウの {{percentage}}%）; {{suffix}}",
-        "reportedCacheRead_one": "報告されたキャッシュ読み取り: {{formattedCount}} トークン",
-        "reportedCacheRead_other": "報告されたキャッシュ読み取り: {{formattedCount}} トークン",
-        "cacheWrite_one": "キャッシュ書き込み: {{formattedCount}} トークン",
-        "cacheWrite_other": "キャッシュ書き込み: {{formattedCount}} トークン",
-        "cacheRead": "キャッシュ読み取り",
-        "newInput": "新しい入力",
-        "reserve": "予約分"
-      },
       "mindroomModelBadge": {
         "model": "モデル: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "トークン",
+        "cost": "コスト",
+        "conversationSoFar": "これまでの会話",
+        "failed": "失敗",
+        "stopped": "停止",
+        "thisReply": "この返信",
+        "input": "入力",
+        "fromCache": "キャッシュから",
+        "output": "出力",
+        "contextWindow": "コンテキストウィンドウ",
+        "contextWindowUsage": "{{window}} 中 {{input}} · {{percentage}}",
+        "timeToFirstToken": "最初のトークン",
+        "technicalDetails": "技術的な詳細",
+        "configuredModel": "設定済みモデル",
+        "runId": "実行 ID",
+        "sessionId": "セッション ID",
+        "newInput": "新しい入力",
+        "replyCount_one": "{{count}} 件の返信",
+        "replyCount_other": "{{count}} 件の返信",
+        "loadedReplyCount_one": "読み込み済みの返信 {{count}} 件",
+        "loadedReplyCount_other": "読み込み済みの返信 {{count}} 件",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "この会話の各返信のコスト",
+        "costHistoryBar": "返信 {{index}}: {{cost}}",
+        "costHistoryPosition": "この返信 · {{count}} 件中 {{index}} 件目",
+        "toolCallCount_one": "ツール呼び出し {{count}} 回",
+        "toolCallCount_other": "ツール呼び出し {{count}} 回"
       }
     },
     "native": {
@@ -2782,6 +2797,11 @@
         "enable": "有効にする",
         "iosPushNotifications": "iOS プッシュ通知",
         "permissionDenied": "通知が許可されていません。iOS の「設定」で {{appName}} の通知を有効にしてください。"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} には組織のサインインが必要です。",
+        "continue": "続行",
+        "signInFailed": "サインインが完了しませんでした。もう一度お試しください。"
       }
     },
     "notifications": {
@@ -3046,15 +3066,32 @@
     "backgroundJobs": {
       "running": "実行中: {{tool}}",
       "awaitingApproval": "承認待ち: {{tool}}",
+      "waiting": "承認待ち",
       "stoppingJob": "停止中: {{tool}}",
       "jobCount": "バックグラウンドジョブ {{count}} 件",
       "subagent": "{{tool}}（サブエージェント）",
       "stopAll": "すべて停止",
       "stopping": "停止中…",
-      "cancel": "{{tool}} をキャンセル",
-      "cancelFailed": "{{tool}} をキャンセルできませんでした。もう一度お試しください。",
+      "stop": "停止",
+      "stopJob": "{{tool}} を停止",
+      "stopFailed": "{{tool}} を停止できませんでした。もう一度お試しください。",
       "stopAllFailed": "バックグラウンドジョブを停止できませんでした。もう一度お試しください。",
       "inRoom": "バックグラウンドジョブを実行中"
+    },
+    "autoApprove": {
+      "label": "自動承認",
+      "labelOne": "自動承認: {{name}}",
+      "labelMany": "自動承認: {{name}} +{{count}}",
+      "title": "自動承認",
+      "intro": "このスレッドでは、これらの人が依頼したツール呼び出しは承認カードなしで実行されます。",
+      "you": "あなた",
+      "until": "{{time}} まで",
+      "ownUntil": "{{time}} まで。終了するには !auto_approve off を送信してください。"
+    },
+    "notices": {
+      "dismiss": "お知らせを閉じる",
+      "showMore": "もっと見る",
+      "showLess": "表示を減らす"
     }
   },
   "roomSchedules": {

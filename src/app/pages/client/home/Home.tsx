@@ -162,6 +162,9 @@ function HomeEmpty() {
                   variant="Secondary"
                   size="300"
                   data-home-room-action="create"
+                  fill="Soft"
+                  outlined
+                  radii="300"
                 >
                   <Text size="B300" truncate>
                     {t('nav.createRoom')}
@@ -173,6 +176,8 @@ function HomeEmpty() {
                   fill="Soft"
                   size="300"
                   data-home-room-action="join"
+                  outlined
+                  radii="300"
                 >
                   <Text size="B300" truncate>
                     {t('nav.joinWithAddress')}
@@ -183,6 +188,8 @@ function HomeEmpty() {
                   variant="Secondary"
                   fill="Soft"
                   size="300"
+                  outlined
+                  radii="300"
                 >
                   <Text size="B300" truncate>
                     {t('nav.exploreCommunityRooms')}

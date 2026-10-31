@@ -92,10 +92,11 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
                 <Button
                   size="300"
                   variant="Primary"
-                  fill="Solid"
+                  fill="Soft"
                   radii="300"
                   before={<Icon size="50" src={Icons.Message} filled />}
                   onClick={handleMessage}
+                  outlined
                 >
                   <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
                 </Button>

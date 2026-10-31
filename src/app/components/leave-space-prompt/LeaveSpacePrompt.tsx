@@ -92,13 +92,16 @@ export function LeaveSpacePrompt({ roomId, onDone, onCancel }: LeaveSpacePromptP
                 onClick={handleLeave}
                 before={
                   leaveState.status === AsyncStatus.Loading ? (
-                    <Spinner fill="Solid" variant="Critical" size="200" />
+                    <Spinner fill="Soft" variant="Critical" size="200" />
                   ) : undefined
                 }
                 aria-disabled={
                   leaveState.status === AsyncStatus.Loading ||
                   leaveState.status === AsyncStatus.Success
                 }
+                outlined
+                radii="300"
+                fill="Soft"
               >
                 <Text size="B400">
                   {leaveState.status === AsyncStatus.Loading

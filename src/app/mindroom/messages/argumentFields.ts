@@ -150,15 +150,15 @@ export const mergeArgumentFields = (values: unknown): ArgumentFields => {
   if (!first) return { raw: '' };
   const labeled = parsed.filter((item): item is { fields: ArgumentField[] } => 'fields' in item);
   if (parsed.length === 1 || labeled.length !== parsed.length) return first;
+  // Every call's keys, so a field only a later call carries is shown too.
+  const keys = new Set(labeled.flatMap((item) => item.fields.map((field) => field.key)));
   return {
-    fields: labeled[0].fields.map(({ key, value }) => {
-      const texts = labeled.map((item) => {
-        const match = item.fields.find((field) => field.key === key);
-        return match ? valueText(match.value) : '';
-      });
+    fields: [...keys].map((key) => {
+      const matches = labeled.map((item) => item.fields.find((field) => field.key === key));
+      const texts = matches.map((match) => (match ? valueText(match.value) : ''));
       const distinct = [...new Set(texts)];
-      return distinct.length === 1
-        ? { key, value }
+      return distinct.length === 1 && matches[0]
+        ? matches[0]
         : { key, value: { kind: 'text', text: distinct.filter(Boolean).join(' · ') } };
     }),
   };

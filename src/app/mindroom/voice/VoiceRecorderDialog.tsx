@@ -229,10 +229,22 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                     </Text>
                   </Box>
                   <Box justifyContent="End" gap="200">
-                    <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(true)}>
+                    <Button
+                      variant="Secondary"
+                      onClick={() => setDiscardConfirmationOpen(true)}
+                      fill="Soft"
+                      outlined
+                      radii="300"
+                    >
                       {t('mindroomUi.voice.voiceRecorderDialog.discard')}
                     </Button>
-                    <Button variant="Primary" onClick={onRetryRequest}>
+                    <Button
+                      variant="Primary"
+                      onClick={onRetryRequest}
+                      fill="Soft"
+                      outlined
+                      radii="300"
+                    >
                       {t('mindroomUi.voice.voiceRecorderDialog.retry')}
                     </Button>
                   </Box>
@@ -256,10 +268,22 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                 )}
               </Text>
               <Box justifyContent="End" gap="200">
-                <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(false)}>
+                <Button
+                  variant="Secondary"
+                  onClick={() => setDiscardConfirmationOpen(false)}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
                   {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
                 </Button>
-                <Button variant="Critical" onClick={confirmDiscardAndClose}>
+                <Button
+                  variant="Critical"
+                  onClick={confirmDiscardAndClose}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
                   {t('mindroomUi.voice.voiceRecorderDialog.discard')}
                 </Button>
               </Box>
@@ -275,7 +299,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceRecordingError')}</Text>
               <Text size="T300">{displayErrorMessage}</Text>
               <Box justifyContent="End" gap="200">
-                <Button variant="Primary" onClick={dismissError}>
+                <Button variant="Primary" onClick={dismissError} fill="Soft" outlined radii="300">
                   {t('mindroomUi.voice.voiceRecorderDialog.ok')}
                 </Button>
               </Box>

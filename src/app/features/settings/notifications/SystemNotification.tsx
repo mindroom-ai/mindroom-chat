@@ -140,7 +140,13 @@ export function SystemNotification() {
           }
           after={
             notifPermission === 'prompt' ? (
-              <Button size="300" radii="300" onClick={requestNotificationPermission}>
+              <Button
+                size="300"
+                fill="Soft"
+                outlined
+                radii="300"
+                onClick={requestNotificationPermission}
+              >
                 <Text size="B300">
                   {t('featureUi.settings.notifications.systemNotification.enable')}
                 </Text>

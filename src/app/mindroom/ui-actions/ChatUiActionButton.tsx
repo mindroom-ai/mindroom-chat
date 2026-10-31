@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { type MatrixEvent } from 'matrix-js-sdk';
-import { Box, Button, Text } from 'folds';
+import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { ChatUiActionContext } from './ChatUiActionProvider';
 
@@ -11,24 +11,28 @@ export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
   const action = actions?.read(event);
   if (!action || !actions) return null;
   const unavailable = actions.unavailable(action);
-  const label =
+  const [icon, label] =
     action.action === 'show_computer'
-      ? t('mindroomUi.uiActions.viewComputer', { defaultValue: 'View computer' })
+      ? [Icons.Monitor, t('mindroomUi.uiActions.viewComputer', { defaultValue: 'View computer' })]
       : action.action === 'open_settings'
-      ? t('commandPalette.actions.openSettings', { defaultValue: 'Open Settings' })
+      ? [Icons.Setting, t('commandPalette.actions.openSettings', { defaultValue: 'Open Settings' })]
       : action.action === 'show_canvas'
-      ? t('mindroomUi.uiActions.openCanvas', { defaultValue: 'Open canvas' })
-      : t('mindroomUi.uiActions.openMembers', { defaultValue: 'Open Members' });
+      ? [Icons.Category, t('mindroomUi.uiActions.openCanvas', { defaultValue: 'Open canvas' })]
+      : [Icons.User, t('mindroomUi.uiActions.openMembers', { defaultValue: 'Open Members' })];
 
   return (
     <Box direction="Column" alignItems="Start" gap="100">
       <Button
         size="300"
-        variant="Secondary"
+        variant="Primary"
+        fill="Soft"
+        outlined
+        radii="300"
         disabled={!!unavailable}
         onClick={() => actions.activate(event)}
+        before={<Icon size="100" src={icon} />}
       >
-        <Text size="T300">{label}</Text>
+        <Text size="B300">{label}</Text>
       </Button>
       {unavailable && <Text size="T200">{unavailable}</Text>}
     </Box>

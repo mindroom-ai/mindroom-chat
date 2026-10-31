@@ -146,6 +146,14 @@
         "httpNotice": "HTTP, oturum açma bilgilerinizi veya bilgisayar trafiğini şifrelemez. Yalnızca güvenilir bir yerel ağda kullanın.",
         "saveFailed": "Bilgisayar hizmeti bu cihazda kaydedilemedi.",
         "saved": "Bilgisayar hizmeti kaydedildi."
+      },
+      "connections": {
+        "sectionTitle": "Bağlantılar",
+        "title": "Bağlı hesaplar",
+        "description": "Ajanlarınızın kullandığı Google veya GitHub gibi hesapları MindRoom sunucunuza bağlayın.",
+        "open": "Bağlantıları aç",
+        "noBackend": "Bağlantıları kullanmak için MindRoom sunucunuzu “Bilgisayarlar” bölümünden ayarlayın.",
+        "blocked": "Tarayıcınız Bağlantılar penceresini engelledi. Bu site için açılır pencerelere izin verin ve tekrar deneyin."
       }
     }
   },
@@ -1126,6 +1134,7 @@
       "spam": "Spam",
       "noInvites": "Davet yok",
       "declineAll": "Tümünü geri çevir",
+      "acceptAll": "Tümünü kabul et",
       "reportAll": "Tümünü bildir",
       "blockAll": "Tümünü engelle",
       "noSpamInvites": "Spam davet yok",
@@ -2327,11 +2336,15 @@
         "list_schedules": "Tüm zamanlanmış görevleri listeleyin.",
         "cancel_schedule": "Kimliğine göre bir zamanlamayı veya tüm zamanlamaları iptal edin.",
         "edit_schedule": "Mevcut bir zamanlanmış görevi güncelleyin.",
+        "jobs": "Burada çalışan arka plan işlerini listeleyin.",
+        "cancel_job": "Bir arka plan işini kimliğe göre veya buradakilerin tümünü iptal edin.",
         "config": "MindRoom yapılandırmasını yönetin (yalnızca yöneticiler).",
         "desktop": "Masaüstü hedefinizi yönetin.",
+        "mode": "Bir ajanın arayüzünü standart araçlar ile yalnızca Bash arasında değiştirin.",
         "model": "Geçerli konuda kullanılan modeli gösterin veya değiştirin.",
         "room_model": "Odanın varsayılan modelini gösterin veya değiştirin (ayarlama/sıfırlama için oda yöneticisi gerekir).",
         "thread_mode": "Geçerli odada kullanılan konu modunu gösterin veya değiştirin (yalnızca oda yöneticileri).",
+        "auto_approve": "Bu konudaki araç çağrılarınızı bir süre onay olmadan çalıştırın veya bu süreyi gösterin ya da sonlandırın.",
         "encrypt": "Geçerli odanın uçtan uca şifrelemesini inceleyin veya etkinleştirin.",
         "e2ee": "Geçerli odanın şifreleme tanılamasını gösterin.",
         "hi": "Karşılama bilgilerini gösterin."
@@ -2606,26 +2619,11 @@
         "moreOptions": "Diğer seçenekler"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "İstek bağlam penceresi",
-        "aiRunMetadata": "Yapay zekâ çalıştırma üst verileri",
         "close": "Kapat",
-        "status": "Durum",
-        "model": "Model",
-        "tokens": "Tokenler",
-        "runCache": "Çalıştırma önbelleği",
-        "requestContext": "İstek bağlamı",
-        "requestCache": "İstek önbelleği",
-        "tools": "Araçlar",
-        "ttft": "İlk token süresi",
-        "run": "Çalıştırma",
-        "session": "Oturum",
-        "openAiRunMetadata": "Yapay zekâ çalıştırma üst verilerini aç",
-        "tokenUsage": "Token kullanımı",
         "downloadingOriginal": "Özgün dosya indiriliyor...",
         "retryDownloadOriginal": "Özgün dosya indirmesini tekrar dene",
         "downloadOriginal": "Özgün dosyayı indir",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} token"
+        "replyDetails": "Yanıt ayrıntıları"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Mesaj ekleri"
@@ -2650,6 +2648,11 @@
         "aiIsResponding": "Yapay zekâ yanıtlıyor",
         "thinking": "Düşünüyor…"
       },
+      "mindroomReasoning": {
+        "thinking": "Düşünüyor",
+        "thoughtFor_one": "{{count}} sn düşündü",
+        "thoughtFor_other": "{{count}} sn düşündü"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Yapay zekâ konu özeti"
       },
@@ -2672,6 +2675,10 @@
       },
       "streamingIndicator": {
         "aiIsResponding": "Yapay zekâ yanıtlıyor"
+      },
+      "stopButton": {
+        "label": "Durdur",
+        "tooltip": "Bu yanıtı durdur"
       },
       "threadApprovalControls": {
         "close": "Kapat",
@@ -2759,28 +2766,37 @@
         "retry": "Tekrar dene",
         "delete": "Sil"
       },
-      "aiRunDisplay": {
-        "inputTokens": "girdi {{formattedCount}}",
-        "outputTokens": "çıktı {{formattedCount}}",
-        "totalTokens": "toplam {{formattedCount}}",
-        "readTokens": "okuma {{formattedCount}}",
-        "writeTokens": "yazma {{formattedCount}}",
-        "notReadTokens": "okunmayan {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} (%{{percentage}})",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} token (pencerenin %{{percentage}} kadarı); {{suffix}}",
-        "reportedCacheRead_one": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "reportedCacheRead_other": "bildirilen önbellek okuması: {{formattedCount}} token",
-        "cacheWrite_one": "önbellek yazması: {{formattedCount}} token",
-        "cacheWrite_other": "önbellek yazması: {{formattedCount}} token",
-        "cacheRead": "Önbellek okuması",
-        "newInput": "Yeni girdi",
-        "reserve": "Ayrılan"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokenler",
+        "cost": "Maliyet",
+        "conversationSoFar": "Şu ana kadarki konuşma",
+        "failed": "Başarısız",
+        "stopped": "Durduruldu",
+        "thisReply": "Bu yanıt",
+        "input": "Girdi",
+        "fromCache": "Önbellekten",
+        "output": "Çıktı",
+        "contextWindow": "Bağlam penceresi",
+        "contextWindowUsage": "{{window}} içinden {{input}} · {{percentage}}",
+        "timeToFirstToken": "İlk token",
+        "technicalDetails": "Teknik ayrıntılar",
+        "configuredModel": "Yapılandırılmış model",
+        "runId": "Çalıştırma kimliği",
+        "sessionId": "Oturum kimliği",
+        "newInput": "Yeni girdi",
+        "replyCount_one": "{{count}} yanıt",
+        "replyCount_other": "{{count}} yanıt",
+        "loadedReplyCount_one": "yüklenen {{count}} yanıt",
+        "loadedReplyCount_other": "yüklenen {{count}} yanıt",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Bu konuşmadaki her yanıtın maliyeti",
+        "costHistoryBar": "Yanıt {{index}}: {{cost}}",
+        "costHistoryPosition": "Bu yanıt · {{count}} yanıttan {{index}}.",
+        "toolCallCount_one": "{{count}} araç çağrısı",
+        "toolCallCount_other": "{{count}} araç çağrısı"
       }
     },
     "native": {
@@ -2794,6 +2810,11 @@
         "enable": "Etkinleştir",
         "iosPushNotifications": "iOS anlık bildirimleri",
         "permissionDenied": "Bildirim izni reddedildi. iOS Ayarları'nda {{appName}} için bildirimleri etkinleştirin."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} için kuruluşunuz üzerinden oturum açmanız gerekiyor.",
+        "continue": "Devam",
+        "signInFailed": "Oturum açma tamamlanmadı. Tekrar deneyin."
       }
     },
     "notifications": {
@@ -3058,15 +3079,32 @@
     "backgroundJobs": {
       "running": "Çalışıyor: {{tool}}",
       "awaitingApproval": "Onay bekliyor: {{tool}}",
+      "waiting": "Onay bekliyor",
       "stoppingJob": "Durduruluyor: {{tool}}",
       "jobCount": "{{count}} arka plan işi",
       "subagent": "{{tool}} (alt ajan)",
       "stopAll": "Tümünü durdur",
       "stopping": "Durduruluyor…",
-      "cancel": "{{tool}} iptal et",
-      "cancelFailed": "{{tool}} iptal edilemedi. Tekrar deneyin.",
+      "stop": "Durdur",
+      "stopJob": "{{tool}} durdur",
+      "stopFailed": "{{tool}} durdurulamadı. Tekrar deneyin.",
       "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"
+    },
+    "autoApprove": {
+      "label": "Otomatik onay",
+      "labelOne": "Otomatik onay: {{name}}",
+      "labelMany": "Otomatik onay: {{name}} +{{count}}",
+      "title": "Otomatik onay",
+      "intro": "Bu ileti dizisinde bu kişilerin istediği araç çağrıları onay kartı olmadan çalışır.",
+      "you": "Siz",
+      "until": "{{time}} saatine kadar",
+      "ownUntil": "{{time}} saatine kadar. Bitirmek için !auto_approve off gönderin."
+    },
+    "notices": {
+      "dismiss": "Bildirimi kapat",
+      "showMore": "Daha fazla göster",
+      "showLess": "Daha az göster"
     }
   },
   "roomSchedules": {

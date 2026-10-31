@@ -75,7 +75,8 @@ test('agent requests open the active conversation and leave passive history butt
   await context.route(`${computerApi}/**`, (route) => {
     if (route.request().method() === 'POST') sessions.push(route.request().postDataJSON());
     // Exercise real authenticated viewer creation without depending on a running worker/VNC.
-    return route.fulfill({ status: 503, json: { detail: 'Local fixture computer unavailable' } });
+    // A nonretryable error settles immediately instead of exercising the startup retry window.
+    return route.fulfill({ status: 400, json: { detail: 'Local fixture computer unavailable' } });
   });
   await alignUiActionSync(context, page, homeserver!);
   await context.route('**/config.json', async (route) => {

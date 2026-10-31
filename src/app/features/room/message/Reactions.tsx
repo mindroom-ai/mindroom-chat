@@ -1,4 +1,5 @@
-import React, { MouseEventHandler, useCallback, useState } from 'react';
+import React, { MouseEventHandler, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Overlay,
@@ -17,7 +18,8 @@ import FocusTrap from 'focus-trap-react';
 import { Modal } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
-import { getRenderableAnnotationsByKey } from '../../../mindroom/messages/stopReaction';
+import { isAgentStopButton, isStaleStopReactionKey } from '../../../mindroom/messages/stopReaction';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -54,15 +56,13 @@ export const Reactions = as<'div', ReactionsProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const [viewer, setViewer] = useState<boolean | string>(false);
     const myUserId = mx.getUserId();
     const targetAllowsReactionToggle = canSendReaction && isConfirmedMatrixEventId(mEventId);
-    const reactions = useRelations(
-      relations,
-      useCallback((rel) => getRenderableAnnotationsByKey(rel, targetEvent), [targetEvent])
-    );
+    const reactions = useRelations(relations, getActiveAnnotationsByKey);
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {
       evt.stopPropagation();
@@ -83,8 +83,11 @@ export const Reactions = as<'div', ReactionsProps>(
         {reactions.map(([key, events]) => {
           const rEvents = Array.from(events);
           if (rEvents.length === 0 || typeof key !== 'string') return null;
+          // Per render, not in the selector: the final stream edit updates targetEvent in place.
+          if (isStaleStopReactionKey(key, targetEvent)) return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();
+          const stopButton = isAgentStopButton(key, rEvents, targetEvent);
 
           return (
             <TooltipProvider
@@ -93,7 +96,11 @@ export const Reactions = as<'div', ReactionsProps>(
               tooltip={
                 <Tooltip style={{ maxWidth: toRem(200) }}>
                   <Text className={css.ReactionsTooltipText} size="T300">
-                    <ReactionTooltipMsg room={room} reaction={key} events={rEvents} />
+                    {stopButton ? (
+                      t('mindroomUi.messages.stopButton.tooltip')
+                    ) : (
+                      <ReactionTooltipMsg room={room} reaction={key} events={rEvents} />
+                    )}
                   </Text>
                 </Tooltip>
               }
@@ -107,6 +114,7 @@ export const Reactions = as<'div', ReactionsProps>(
                   mx={mx}
                   reaction={key}
                   count={events.size}
+                  label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
                   onClick={
                     targetAllowsReactionToggle
                       ? () => onReactionToggle(mEventId, key, undefined, relations)

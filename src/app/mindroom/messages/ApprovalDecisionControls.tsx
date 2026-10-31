@@ -64,7 +64,7 @@ export function ApprovalDecisionControls({
               <Button
                 size="300"
                 variant="Primary"
-                fill="Solid"
+                fill="Soft"
                 disabled={disabled}
                 onClick={() => {
                   if (!canSend) return;
@@ -75,6 +75,8 @@ export function ApprovalDecisionControls({
                       : { status: 'approved' }
                   );
                 }}
+                outlined
+                radii="300"
               >
                 <Text size="B300">
                   {scheduledScopes.length > 0
@@ -97,6 +99,8 @@ export function ApprovalDecisionControls({
                   setDenying(true);
                 }
               }}
+              outlined
+              radii="300"
             >
               <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.deny')}</Text>
             </Button>
@@ -115,6 +119,7 @@ export function ApprovalDecisionControls({
                     if (canSend)
                       void submit(record, { status: 'approved', scheduledScope: 'any_arguments' });
                   }}
+                  radii="300"
                 >
                   <Text size="B300">
                     {t('mindroomUi.messages.approvalDecisionControls.approveAnyArguments')}
@@ -165,7 +170,15 @@ export function ApprovalDecisionControls({
             onChange={(event) => setReason(event.currentTarget.value)}
           />
           <div className={css.Actions}>
-            <Button type="submit" size="300" variant="Critical" fill="Solid" disabled={disabled}>
+            <Button
+              type="submit"
+              size="300"
+              variant="Critical"
+              fill="Soft"
+              disabled={disabled}
+              outlined
+              radii="300"
+            >
               <Text size="B300">
                 {index === undefined
                   ? t('mindroomUi.messages.approvalDecisionControls.confirmDeny')
@@ -185,6 +198,7 @@ export function ApprovalDecisionControls({
                 setDenying(false);
                 setReason('');
               }}
+              radii="300"
             >
               <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
             </Button>

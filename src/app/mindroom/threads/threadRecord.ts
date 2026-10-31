@@ -8,11 +8,7 @@ import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import {
-  getEffectiveThreadReadUpToTs,
-  getLatestVisibleReply,
-  getThreadUnread,
-} from './roomThreadList';
+import { getThreadUnread } from './roomThreadList';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
@@ -53,7 +49,6 @@ type BuildThreadRecordOptions = {
   fallbackParticipantIds?: string[];
   threadResolution?: ThreadResolutionLike;
   currentUserId?: string;
-  readUpToTs?: number | null;
   scheduledStatus?: ThreadScheduledStatus;
   cacheCoverage?: ThreadCacheCoverage;
   absoluteIndex?: number;
@@ -75,7 +70,6 @@ type BuildThreadRecordMapOptions = {
   fallbackParticipantMap?: ReadonlyMap<string, string[]>;
   threadResolutionMap?: ReadonlyMap<string, ThreadResolutionLike>;
   currentUserId?: string;
-  readUpToTs?: number | null;
   scheduledStatusMap?: ReadonlyMap<string, ThreadScheduledStatus>;
   cacheCoverageMap?: ReadonlyMap<string, ThreadCacheCoverage>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
@@ -191,23 +185,6 @@ const getThreadResolverUserId = (
   return typeof userId === 'string' && userId.trim().length > 0 ? userId.trim() : undefined;
 };
 
-const getThreadUnreadFromReadUpToTs = (
-  thread: ReturnType<Room['getThread']>,
-  currentUserId: string | undefined,
-  readUpToTs: number | null | undefined,
-  replyEvents: MatrixEvent[]
-): boolean | undefined => {
-  if (readUpToTs === undefined || !thread || !currentUserId) return undefined;
-  const effectiveReadUpToTs = getEffectiveThreadReadUpToTs(thread, currentUserId, readUpToTs);
-
-  const latestReply = getLatestVisibleReply(thread, replyEvents);
-  if (!latestReply) return false;
-  if (latestReply.getSender() === currentUserId) return false;
-  if (effectiveReadUpToTs === null) return true;
-  if (effectiveReadUpToTs === undefined) return true;
-  return latestReply.getTs() > effectiveReadUpToTs;
-};
-
 const buildDefaultThreadCacheCoverage = (
   thread: ReturnType<Room['getThread']>,
   expectedReplyCount: number | undefined
@@ -249,7 +226,6 @@ export const buildThreadRecord = ({
   fallbackParticipantIds,
   threadResolution,
   currentUserId,
-  readUpToTs,
   scheduledStatus = EMPTY_THREAD_SCHEDULED_STATUS,
   cacheCoverage,
   absoluteIndex,
@@ -318,9 +294,7 @@ export const buildThreadRecord = ({
       fallbackLastActivityTs ?? 0,
       getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
-  const isUnread =
-    getThreadUnreadFromReadUpToTs(thread, currentUserId, readUpToTs, visibleReplyEvents) ??
-    (thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false);
+  const isUnread = thread && currentUserId ? getThreadUnread(thread, currentUserId) : false;
   const isResolved = threadResolution?.isResolved ?? false;
   const isStreaming = getThreadStreamingState(room, threadRootId);
   const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
@@ -384,7 +358,6 @@ export const buildThreadRecordMap = ({
   fallbackParticipantMap,
   threadResolutionMap,
   currentUserId,
-  readUpToTs,
   scheduledStatusMap,
   cacheCoverageMap,
   absoluteIndexMap,
@@ -410,7 +383,6 @@ export const buildThreadRecordMap = ({
         fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
         threadResolution: threadResolutionMap?.get(threadRootId),
         currentUserId,
-        readUpToTs,
         scheduledStatus: scheduledStatusMap?.get(threadRootId),
         cacheCoverage: cacheCoverageMap?.get(threadRootId),
         absoluteIndex: absoluteIndexMap?.get(threadRootId),

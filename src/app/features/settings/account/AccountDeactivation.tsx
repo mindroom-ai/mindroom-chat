@@ -115,6 +115,8 @@ export function AccountDeactivation() {
                 radii="300"
                 onClick={() => setOpen(true)}
                 disabled={busy}
+                fill="Soft"
+                outlined
               >
                 <Text size="B300">
                   {t('featureUi.settings.account.accountDeactivation.deleteDeactivate')}
@@ -244,7 +246,10 @@ export function AccountDeactivation() {
                     variant="Critical"
                     onClick={() => deactivateAccount()}
                     disabled={busy}
-                    before={busy && <Spinner variant="Critical" fill="Solid" size="200" />}
+                    before={busy && <Spinner variant="Critical" fill="Soft" size="200" />}
+                    outlined
+                    radii="300"
+                    fill="Soft"
                   >
                     <Text size="B400">
                       {t('featureUi.settings.account.accountDeactivation.deleteDeactivate')}
@@ -257,13 +262,21 @@ export function AccountDeactivation() {
                       outlined
                       onClick={openProviderDeactivation}
                       disabled={busy}
+                      radii="300"
                     >
                       <Text size="B400">
                         {t('featureUi.settings.account.accountDeactivation.openProviderPortal')}
                       </Text>
                     </Button>
                   )}
-                  <Button variant="Secondary" fill="Soft" onClick={handleClose} disabled={busy}>
+                  <Button
+                    variant="Secondary"
+                    fill="Soft"
+                    onClick={handleClose}
+                    disabled={busy}
+                    outlined
+                    radii="300"
+                  >
                     <Text size="B400">
                       {t('featureUi.settings.account.accountDeactivation.cancel')}
                     </Text>

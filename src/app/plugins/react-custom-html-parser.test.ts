@@ -19,7 +19,7 @@ import {
   getReactCustomHtmlParser,
   renderTextWithLatex,
 } from './react-custom-html-parser';
-import { withMindroomToolTraceMarkerParserOptions } from '../mindroom/messages/MindroomHtmlBlocks';
+import { markerParserOptions } from '../test-utils/markerParserOptions';
 import { ToolCallMessageContext } from '../mindroom/messages/toolCallStatus';
 import backendToolMarkerBodies from '../mindroom/messages/__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedMindroomToolRefs } from '../mindroom/messages/toolRefDom';
@@ -172,7 +172,7 @@ const createBaseOpts = (): HTMLReactParserOptions => {
 };
 
 const renderWithToolTrace = (html: string, content: Record<string, unknown>) => {
-  const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), content);
+  const opts = markerParserOptions(createBaseOpts(), content);
   const parsed = parse(html, opts);
   return renderToStaticMarkup(React.createElement(React.Fragment, null, parsed));
 };
@@ -181,7 +181,7 @@ const renderTreeWithToolTrace = (
   html: string,
   content: Record<string, unknown>
 ): ReactTestRenderer => {
-  const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), content);
+  const opts = markerParserOptions(createBaseOpts(), content);
   const parsed = parse(html, opts);
   let renderer: ReactTestRenderer | undefined;
   act(() => {
@@ -530,7 +530,7 @@ describe('tool call status from approval cards', () => {
   const renderInMessage = (eventId: string) => {
     const html =
       '<p>🔧 <code>send_email</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
-    const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), {
+    const opts = markerParserOptions(createBaseOpts(), {
       formatted_body: html,
       'io.mindroom.tool_trace': {
         version: 2,
@@ -577,7 +577,7 @@ describe('tool call status from approval cards', () => {
   });
 });
 
-describe('withMindroomToolTraceMarkerParserOptions', () => {
+describe('useMindroomToolTraceMarkerParserOptions', () => {
   it.each(['', '\n  '])(
     'preserves custom rendering after tool groups separated by %j',
     (separator) => {
@@ -589,7 +589,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
         linkifyOpts: LINKIFY_OPTS,
       });
-      const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+      const opts = markerParserOptions(baseOpts, { formatted_body: html });
       const markup = renderToStaticMarkup(
         React.createElement(React.Fragment, null, parse(html, opts))
       );
@@ -612,7 +612,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
       linkifyOpts: LINKIFY_OPTS,
     });
-    const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+    const opts = markerParserOptions(baseOpts, { formatted_body: html });
     const markup = renderToStaticMarkup(
       React.createElement(React.Fragment, null, parse(html, opts))
     );
@@ -798,7 +798,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     const count = 3_000;
     const markers = Array.from({ length: count }, (_, index) => `🔧 <code>t</code> [${index + 1}]`);
     const html = `<p>${markers.join('<br>')}<br>Done</p>`;
-    const opts = withMindroomToolTraceMarkerParserOptions(createBaseOpts(), {
+    const opts = markerParserOptions(createBaseOpts(), {
       formatted_body: html,
     });
 
@@ -1153,7 +1153,7 @@ describe('copy stripping matches the app renderer', () => {
     const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
       linkifyOpts: LINKIFY_OPTS,
     });
-    const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, {
+    const opts = markerParserOptions(baseOpts, {
       body,
       formatted_body: renderedHtml,
     });

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { Box, Button, Icon, IconButton, Icons, type IconSrc, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
   buildCanvasDocument,
@@ -27,6 +27,7 @@ import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
 import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
 import { IconTooltip } from '../tooltip/IconTooltip';
+import { ExpandIcon, ShrinkIcon } from '../sidebar/panelIcons';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
 export const CANVAS_SEND_ARM_DELAY_MS = 500;
@@ -66,31 +67,16 @@ export type CanvasPanelProps = {
   onSelectVersion?: (current: number) => void;
 };
 
-const ExpandIcon: IconSrc = () => (
-  <path
-    d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-);
-const ShrinkIcon: IconSrc = () => (
-  <path
-    d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-);
-
 type Staged = {
   submission: CanvasSubmission;
   armed: boolean;
+  /** The page submitted again while this answer waited; only then does the user need to hear how to change it. */
+  resubmitted?: true;
 };
+
+// Submissions arrive as canonical JSON (`readCanvasSubmission`), so equal answers stringify equally.
+const sameAnswer = (a: CanvasSubmission, b: CanvasSubmission): boolean =>
+  a.label === b.label && JSON.stringify(a.data) === JSON.stringify(b.data);
 
 /** The last answer this panel sent: its SDK local echo, which also drives the timeline. */
 type SentAnswer = { echo: MatrixEvent; label: string };
@@ -309,7 +295,12 @@ export function CanvasPanel({
       touched.current = true;
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
-      setStaged((current) => current ?? { submission, armed: false });
+      setStaged((current) => {
+        if (!current) return { submission, armed: false };
+        return current.resubmitted || sameAnswer(current.submission, submission)
+          ? current
+          : { ...current, resubmitted: true };
+      });
     };
     window.addEventListener('blur', handleBlur);
     window.addEventListener('message', handleMessage);
@@ -568,6 +559,9 @@ export function CanvasPanel({
             size="300"
             variant="Secondary"
             onClick={() => setDisplayed({ ...canvas, colorScheme, theme })}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
           </Button>
@@ -582,6 +576,9 @@ export function CanvasPanel({
             variant="Secondary"
             disabled={versionLocked}
             onClick={() => selectVersion(versions.total)}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.showLatest')}</Text>
           </Button>
@@ -619,6 +616,9 @@ export function CanvasPanel({
                     disabled={reportOpen}
                     onClick={handleReport}
                     data-canvas-report
+                    fill="Soft"
+                    outlined
+                    radii="300"
                   >
                     <Text size="B300" truncate>
                       {t('mindroomUi.canvas.tellAgent', { agent: agentName })}
@@ -643,7 +643,14 @@ export function CanvasPanel({
               : t('mindroomUi.canvas.loadFailed')}
           </Text>
           {displayed.status === 'failed' && onRetry && (
-            <Button size="300" variant="Secondary" onClick={onRetry}>
+            <Button
+              size="300"
+              variant="Secondary"
+              onClick={onRetry}
+              fill="Soft"
+              outlined
+              radii="300"
+            >
               <Text size="B300">{t('mindroomUi.canvas.retry')}</Text>
             </Button>
           )}
@@ -659,6 +666,9 @@ export function CanvasPanel({
             variant="Secondary"
             data-canvas-reload
             onClick={() => setReloads((count) => count + 1)}
+            fill="Soft"
+            outlined
+            radii="300"
           >
             <Text size="B300">{t('mindroomUi.canvas.reload')}</Text>
           </Button>
@@ -685,9 +695,11 @@ export function CanvasPanel({
               {t('mindroomUi.canvas.sendTo', { agent: agentName })}{' '}
               <b>{staged.submission.label ?? t('mindroomUi.canvas.unlabeled')}</b>
             </Text>
-            <Text size="T200" priority="300">
-              {t('mindroomUi.canvas.changeAnswer')}
-            </Text>
+            {staged.resubmitted && (
+              <Text size="T200" priority="300">
+                {t('mindroomUi.canvas.changeAnswer')}
+              </Text>
+            )}
             <details>
               <summary>
                 <Text as="span" size="T200">
@@ -703,6 +715,9 @@ export function CanvasPanel({
                 disabled={!staged.armed || busy}
                 onClick={handleSend}
                 data-canvas-send
+                fill="Soft"
+                outlined
+                radii="300"
               >
                 <Text size="B300">{t('mindroomUi.canvas.send')}</Text>
               </Button>

@@ -2,7 +2,7 @@
 
 [fastlane](https://fastlane.tools) automates the App Store release flow.
 It complements the existing pipeline: a push to `dev` lets `auto-mindroom-release.yml` create a release tag, and the current Xcode Cloud workflow independently watches `dev` and builds and uploads that branch through `ios/App/ci_scripts`.
-Fastlane validates the uploaded build and local release assets, uploads version metadata and screenshots, preserves review access, selects the exact build, and submits it for review with manual release after approval.
+Fastlane validates the uploaded build and local release assets, uploads version metadata and screenshots, preserves review access, selects the exact build, and submits it for review with automatic release after approval.
 
 What fastlane owns in this repo:
 
@@ -95,7 +95,7 @@ The lane performs these checks before submission:
 - The requested version is newer than the live version and does not replace a different editable version.
 - The exact App Store Connect build exists, is valid, is unexpired, is ready, and has export compliance resolved.
 - Review contact fields, review notes, and saved demo credentials are present.
-- The submitted version reaches `WAITING_FOR_REVIEW` or `IN_REVIEW` and remains configured for manual release after approval.
+- The submitted version reaches `WAITING_FOR_REVIEW` or `IN_REVIEW` and remains configured for automatic release after approval.
 
 The lane intentionally does not build or upload a new binary.
 The reviewed binary must be the already processed Xcode Cloud build from the intended `dev` commit.
@@ -131,8 +131,9 @@ The same applies to the marketing URL.
 The primary category is intentionally not stored under `fastlane/metadata`.
 Category is stable app-level information already owned by App Store Connect, and attempting to reapply it can make Apple reject the metadata upload as a duplicate category selection.
 
-Safety defaults in `ios/App/fastlane/Deliverfile` keep standalone uploads from submitting for review or enabling automatic release.
-Only the guarded `release` lane overrides the submission default, and it keeps automatic release disabled.
+The owner requires all iOS releases to publish automatically after Apple approves them.
+`ios/App/fastlane/Deliverfile` enables automatic release while keeping standalone uploads from submitting for review.
+Only the guarded `release` lane overrides the submission default, and it verifies Apple retained automatic release after approval.
 Reviewer demo credentials remain stored only in App Store Connect.
 Metadata upload can cause Apple to clear the demo-account-required flag, so both `upload_metadata` and `release` restore that flag when saved credentials are present.
 The `release` lane refuses to submit when those credentials or the review contact information are missing.

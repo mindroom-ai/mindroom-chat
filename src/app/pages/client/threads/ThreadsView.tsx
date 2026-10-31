@@ -63,7 +63,12 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
       <Box className={css.Empty} direction="Column" gap="300">
         <Icon src={Icons.Filter} size="600" />
         <Text size="H4">{t('sharedUi.threadsView.noThreadsMatchYourFilters')}</Text>
-        <Button onClick={() => setFilters(DEFAULT_CROSS_ROOM_THREAD_FILTERS)}>
+        <Button
+          onClick={() => setFilters(DEFAULT_CROSS_ROOM_THREAD_FILTERS)}
+          fill="Soft"
+          outlined
+          radii="300"
+        >
           <Text size="B300">{t('sharedUi.threadsView.clearFilters')}</Text>
         </Button>
       </Box>

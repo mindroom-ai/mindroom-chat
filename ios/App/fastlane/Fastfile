@@ -65,7 +65,7 @@ platform :ios do
     )
   end
 
-  desc "Validate and submit an existing Xcode Cloud build to App Store review with manual release"
+  desc "Validate and submit an existing Xcode Cloud build to App Store review with automatic release after approval"
   lane :release do |options|
     app_version = (options[:app_version] || ENV["APP_STORE_VERSION"]).to_s.strip
     build_number = (options[:build_number] || ENV["APP_STORE_BUILD_NUMBER"]).to_s.strip
@@ -102,7 +102,7 @@ platform :ios do
         skip_screenshots: true,
         skip_binary_upload: true,
         submit_for_review: false,
-        automatic_release: false,
+        automatic_release: true,
         precheck_include_in_app_purchases: false,
         force: true,
       )
@@ -122,7 +122,7 @@ platform :ios do
       skip_binary_upload: true,
       overwrite_screenshots: true,
       submit_for_review: false,
-      automatic_release: false,
+      automatic_release: true,
       precheck_include_in_app_purchases: false,
       force: true,
     )
@@ -135,7 +135,7 @@ platform :ios do
       skip_screenshots: true,
       skip_binary_upload: true,
       submit_for_review: true,
-      automatic_release: false,
+      automatic_release: true,
       precheck_include_in_app_purchases: false,
       force: true,
     )
@@ -315,12 +315,12 @@ platform :ios do
     unless version&.version_string == app_version && accepted_states.include?(submission&.state)
       UI.user_error!("App Store Connect did not confirm #{app_version} as submitted for review.")
     end
-    unless version.release_type == Spaceship::ConnectAPI::AppStoreVersion::ReleaseType::MANUAL
-      UI.user_error!("App Store version #{app_version} is not configured for manual release.")
+    unless version.release_type == Spaceship::ConnectAPI::AppStoreVersion::ReleaseType::AFTER_APPROVAL
+      UI.user_error!("App Store version #{app_version} is not configured for automatic release after approval.")
     end
 
     UI.success(
-      "App Store version #{app_version} is #{submission.state} with manual release after approval."
+      "App Store version #{app_version} is #{submission.state} with automatic release after approval."
     )
   end
 end

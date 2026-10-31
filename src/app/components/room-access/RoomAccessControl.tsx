@@ -320,13 +320,18 @@ function RoomAccessSession({
                       fill="Soft"
                       onClick={closeKnock}
                       disabled={loading}
+                      outlined
+                      radii="300"
                     >
                       <Text size="B400">{t('sharedUi.roomAccessControl.cancel')}</Text>
                     </Button>
                     <Button
                       type="submit"
                       disabled={loading}
-                      before={loading && <Spinner size="200" variant="Primary" fill="Solid" />}
+                      before={loading && <Spinner size="200" variant="Primary" fill="Soft" />}
+                      outlined
+                      radii="300"
+                      fill="Soft"
                     >
                       <Text size="B400">
                         {loading

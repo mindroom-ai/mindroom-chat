@@ -201,7 +201,7 @@ export function ImageTileEdit({
             <UsageSwitcher usage={unsavedUsage} onChange={setUnsavedUsages} canEdit />
           </Box>
           <Box grow="Yes" />
-          <Button type="submit" variant="Success" size="300" radii="300">
+          <Button type="submit" variant="Success" size="300" radii="300" fill="Soft" outlined>
             <Text size="B300">{t('sharedUi.imageTile.save')}</Text>
           </Button>
           <Button
@@ -211,6 +211,7 @@ export function ImageTileEdit({
             size="300"
             radii="300"
             onClick={() => onCancel(defaultShortcode)}
+            outlined
           >
             <Text size="B300">{t('sharedUi.imageTile.cancel')}</Text>
           </Button>

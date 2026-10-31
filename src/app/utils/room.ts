@@ -33,6 +33,7 @@ import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEven
 import { mxcUrlToHttp } from './mediaUrl';
 import {
   copyMindroomResolvedEditMetadata,
+  getMindroomLongTextSource,
   logMindroomEditDebug,
 } from '../mindroom/messages/editResolution';
 import { countCacheProbe } from '../mindroom/threads/cacheProbe';
@@ -260,16 +261,15 @@ export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
     return false;
   }
 
-  let sawVisibleMainEvent = false;
+  // Only a message counts as unread, whether or not the read position is loaded.
   for (let i = liveEvents.length - 1; i >= 0; i -= 1) {
     const event = liveEvents[i];
     if (!event) return false;
     if (event.getId() === readUpToId) return false;
     if (isHiddenRoomActivity(room, event)) continue;
-    sawVisibleMainEvent = true;
     if (isNotificationEvent(event)) return true;
   }
-  return sawVisibleMainEvent;
+  return false;
 };
 
 export const getUnreadInfo = (room: Room): UnreadInfo => {
@@ -638,7 +638,9 @@ export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent) => {
     mEvent.getType() === MessageEvent.RoomMessage &&
     (content.msgtype === MsgType.Text ||
       content.msgtype === MsgType.Emote ||
-      content.msgtype === MsgType.Notice)
+      content.msgtype === MsgType.Notice ||
+      // A message too long for one event is sent as a long-text file and edited like text.
+      (content.msgtype === MsgType.File && getMindroomLongTextSource(content) !== undefined))
   );
 };
 

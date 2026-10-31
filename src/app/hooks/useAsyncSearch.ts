@@ -104,6 +104,34 @@ export const orderSearchItems = <TSearchItem extends object | string | number>(
   return orderedItems;
 };
 
+// searchNow runs during render, so it reads at most this many items (a few ms); the async search reads the rest.
+export const SEARCH_NOW_SCAN_LIMIT = 5000;
+
+/**
+ * What `useAsyncSearch` finds for `query`, computed at once: the first `limit` matches, ordered.
+ * `scannedAll` is false when it stopped before the end of the list, at `limit` matches or
+ * `SEARCH_NOW_SCAN_LIMIT` items.
+ */
+export const searchNow = <TSearchItem extends object | string | number>(
+  list: TSearchItem[],
+  query: string,
+  getItemStr: SearchItemStrGetter<TSearchItem>,
+  options?: UseAsyncSearchOptions
+): { items: TSearchItem[]; scannedAll: boolean } => {
+  const normalizedQuery = normalize(query, options?.normalizeOptions);
+  const limit = options?.limit ?? Infinity;
+  const end = Math.min(list.length, SEARCH_NOW_SCAN_LIMIT);
+  const matches: TSearchItem[] = [];
+  let i = 0;
+  for (; i < end && matches.length < limit; i += 1) {
+    if (performMatch(getItemStr(list[i], normalizedQuery), normalizedQuery, options)) {
+      matches.push(list[i]);
+    }
+  }
+  const items = orderSearchItems(normalizedQuery, matches, getItemStr, options);
+  return { items, scannedAll: i === list.length };
+};
+
 export const useAsyncSearch = <TSearchItem extends object | string | number>(
   list: TSearchItem[],
   getItemStr: SearchItemStrGetter<TSearchItem>,

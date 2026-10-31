@@ -73,6 +73,14 @@
         "saveFailed": "Could not save the computer service on this device.",
         "saved": "Computer service saved."
       },
+      "connections": {
+        "sectionTitle": "Connections",
+        "title": "Connected accounts",
+        "description": "Connect the accounts your agents use, such as Google or GitHub, on your MindRoom server.",
+        "open": "Open Connections",
+        "noBackend": "Set your MindRoom server under Computers to use Connections.",
+        "blocked": "Your browser blocked the Connections window. Allow pop-ups for this site and try again."
+      },
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",
@@ -1130,6 +1138,7 @@
       "spam": "Spam",
       "noInvites": "No Invites",
       "declineAll": "Decline All",
+      "acceptAll": "Accept All",
       "reportAll": "Report All",
       "blockAll": "Block All",
       "noSpamInvites": "No Spam Invites",
@@ -2327,11 +2336,15 @@
         "list_schedules": "List all scheduled tasks.",
         "cancel_schedule": "Cancel one schedule by id or all schedules.",
         "edit_schedule": "Update an existing schedule task.",
+        "jobs": "List the background jobs running here.",
+        "cancel_job": "Cancel one background job by id or all of them here.",
         "config": "Manage MindRoom configuration (admin only).",
         "desktop": "Manage your Desktop target.",
+        "mode": "Switch one agent between standard tools and a Bash-only interface.",
         "model": "Show or switch the model used in the current thread.",
         "room_model": "Show the room model default or switch it (set/reset require a room admin).",
         "thread_mode": "Show or switch the thread mode used in the current room (room admin only).",
+        "auto_approve": "Run your tool calls in this thread without approval for a while, or show or end that window.",
         "encrypt": "Review or enable end-to-end encryption for the current room.",
         "e2ee": "Show encryption diagnostics for the current room.",
         "hi": "Show welcome information."
@@ -2606,26 +2619,11 @@
         "moreOptions": "More Options"
       },
       "mindroomMessageControls": {
-        "requestContextWindow": "Request context window",
-        "aiRunMetadata": "AI Run Metadata",
         "close": "Close",
-        "status": "Status",
-        "model": "Model",
-        "tokens": "Tokens",
-        "runCache": "Run Cache",
-        "requestContext": "Request Context",
-        "requestCache": "Request Cache",
-        "tools": "Tools",
-        "ttft": "TTFT",
-        "run": "Run",
-        "session": "Session",
-        "openAiRunMetadata": "Open AI run metadata",
-        "tokenUsage": "Token usage",
         "downloadingOriginal": "Downloading Original...",
         "retryDownloadOriginal": "Retry Download Original",
         "downloadOriginal": "Download Original",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} token",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} tokens"
+        "replyDetails": "Reply details"
       },
       "mindroomMessageExtras": {
         "messageExtras": "Message extras"
@@ -2650,6 +2648,11 @@
         "aiIsResponding": "AI is responding",
         "thinking": "Thinking…"
       },
+      "mindroomReasoning": {
+        "thinking": "Thinking",
+        "thoughtFor_one": "Thought for {{count}} s",
+        "thoughtFor_other": "Thought for {{count}} s"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI thread summary"
       },
@@ -2672,6 +2675,10 @@
       },
       "streamingIndicator": {
         "aiIsResponding": "AI is responding"
+      },
+      "stopButton": {
+        "label": "Stop",
+        "tooltip": "Stop this reply"
       },
       "threadApprovalControls": {
         "callCount_one": "{{count}} call",
@@ -2759,28 +2766,37 @@
         "retry": "Retry",
         "delete": "Delete"
       },
-      "aiRunDisplay": {
-        "inputTokens": "in {{formattedCount}}",
-        "outputTokens": "out {{formattedCount}}",
-        "totalTokens": "total {{formattedCount}}",
-        "readTokens": "read {{formattedCount}}",
-        "writeTokens": "write {{formattedCount}}",
-        "notReadTokens": "not read {{formattedCount}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} token ({{percentage}}% of window)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% of window)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} token ({{percentage}}% of window); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} tokens ({{percentage}}% of window); {{suffix}}",
-        "reportedCacheRead_one": "reported cache read: {{formattedCount}} token",
-        "reportedCacheRead_other": "reported cache read: {{formattedCount}} tokens",
-        "cacheWrite_one": "cache write: {{formattedCount}} token",
-        "cacheWrite_other": "cache write: {{formattedCount}} tokens",
-        "cacheRead": "Cache read",
-        "newInput": "New input",
-        "reserve": "Reserve"
-      },
       "mindroomModelBadge": {
         "model": "Model: {{model}}"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "Tokens",
+        "cost": "Cost",
+        "conversationSoFar": "Conversation so far",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "thisReply": "This reply",
+        "input": "Input",
+        "fromCache": "From cache",
+        "output": "Output",
+        "contextWindow": "Context window",
+        "contextWindowUsage": "{{input}} of {{window}} · {{percentage}}",
+        "timeToFirstToken": "First token",
+        "technicalDetails": "Technical details",
+        "configuredModel": "Configured model",
+        "runId": "Run ID",
+        "sessionId": "Session ID",
+        "newInput": "New input",
+        "replyCount_one": "{{count}} reply",
+        "replyCount_other": "{{count}} replies",
+        "loadedReplyCount_one": "{{count}} loaded reply",
+        "loadedReplyCount_other": "{{count}} loaded replies",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "Cost of each reply in this conversation",
+        "costHistoryBar": "Reply {{index}}: {{cost}}",
+        "costHistoryPosition": "This reply · {{index}} of {{count}}",
+        "toolCallCount_one": "{{count}} tool call",
+        "toolCallCount_other": "{{count}} tool calls"
       }
     },
     "native": {
@@ -2794,6 +2810,11 @@
         "enable": "Enable",
         "iosPushNotifications": "iOS Push Notifications",
         "permissionDenied": "Notification permission is denied. Enable notifications for {{appName}} in iOS Settings."
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} requires your organization's sign-in.",
+        "continue": "Continue",
+        "signInFailed": "Sign-in didn't finish. Try again."
       }
     },
     "notifications": {
@@ -3058,15 +3079,32 @@
     "backgroundJobs": {
       "running": "Running: {{tool}}",
       "awaitingApproval": "Waiting for approval: {{tool}}",
+      "waiting": "Waiting for approval",
       "stoppingJob": "Stopping: {{tool}}",
       "jobCount": "{{count}} background jobs",
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Stop all",
       "stopping": "Stopping…",
-      "cancel": "Cancel {{tool}}",
-      "cancelFailed": "Could not cancel {{tool}}. Try again.",
+      "stop": "Stop",
+      "stopJob": "Stop {{tool}}",
+      "stopFailed": "Could not stop {{tool}}. Try again.",
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"
+    },
+    "autoApprove": {
+      "label": "Auto-approve",
+      "labelOne": "Auto-approve: {{name}}",
+      "labelMany": "Auto-approve: {{name}} +{{count}}",
+      "title": "Auto-approve",
+      "intro": "In this thread, tool calls these people request run without approval cards.",
+      "you": "You",
+      "until": "Until {{time}}",
+      "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
+    },
+    "notices": {
+      "dismiss": "Dismiss notice",
+      "showMore": "Show more",
+      "showLess": "Show less"
     }
   },
   "roomSchedules": {

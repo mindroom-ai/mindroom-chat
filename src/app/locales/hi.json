@@ -1015,6 +1015,8 @@
     },
     "commands": {
       "descriptions": {
+        "auto_approve": "कुछ समय के लिए इस थ्रेड में अपने टूल कॉल बिना अनुमोदन के चलाएँ, या वह अवधि दिखाएँ या समाप्त करें।",
+        "cancel_job": "ID से एक बैकग्राउंड कार्य या यहाँ के सभी कार्य रद्द करें।",
         "cancel_schedule": "ID से एक निर्धारित कार्य रद्द करें या सभी निर्धारित कार्य रद्द करें।",
         "config": "MindRoom कॉन्फ़िगरेशन प्रबंधित करें (केवल व्यवस्थापक)।",
         "desktop": "अपना डेस्कटॉप लक्ष्य प्रबंधित करें.",
@@ -1023,7 +1025,9 @@
         "encrypt": "वर्तमान रूम के लिए एंड-टू-एंड एन्क्रिप्शन की समीक्षा करें या सक्षम करें।",
         "help": "उपलब्ध क्षमताओं या किसी विशिष्ट विषय के बारे में सहायता प्राप्त करें।",
         "hi": "स्वागत संबंधी जानकारी दिखाएँ।",
+        "jobs": "यहाँ चल रहे बैकग्राउंड कार्यों की सूची दिखाएँ।",
         "list_schedules": "सभी निर्धारित कार्यों की सूची बनाएं.",
+        "mode": "किसी एक एजेंट को मानक टूल और केवल Bash इंटरफ़ेस के बीच बदलें।",
         "model": "वर्तमान थ्रेड में प्रयुक्त मॉडल दिखाएँ या स्विच करें।",
         "reload-plugins": "कॉन्फ़िगर किए गए प्लगइन्स को पुनः लोड करें (केवल व्यवस्थापक)।",
         "room_model": "रूम का डिफ़ॉल्ट मॉडल देखें या बदलें (सेट/रीसेट करने के लिए रूम व्यवस्थापक होना आवश्यक है)।",
@@ -1144,26 +1148,6 @@
       }
     },
     "messages": {
-      "aiRunDisplay": {
-        "cacheRead": "कैश से पढ़े गए",
-        "cacheWrite_one": "कैश में लिखे गए: {{formattedCount}} टोकन",
-        "cacheWrite_other": "कैश में लिखे गए: {{formattedCount}} टोकन",
-        "contextBarTitle_one": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%)",
-        "contextBarTitle_other": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%)",
-        "contextBarTitleWithSuffix_one": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%); {{suffix}}",
-        "contextBarTitleWithSuffix_other": "{{label}}: {{formattedCount}} टोकन (विंडो का {{percentage}}%); {{suffix}}",
-        "contextUsage": "{{input}} / {{window}} ({{percentage}}%)",
-        "inputTokens": "इनपुट {{formattedCount}}",
-        "newInput": "नया इनपुट",
-        "notReadTokens": "नहीं पढ़े गए {{formattedCount}}",
-        "outputTokens": "आउटपुट {{formattedCount}}",
-        "readTokens": "पढ़े गए {{formattedCount}}",
-        "reportedCacheRead_one": "रिपोर्ट की गई कैश रीड: {{formattedCount}} टोकन",
-        "reportedCacheRead_other": "रिपोर्ट की गई कैश रीड: {{formattedCount}} टोकन",
-        "reserve": "आरक्षित",
-        "totalTokens": "कुल {{formattedCount}}",
-        "writeTokens": "लिखे गए {{formattedCount}}"
-      },
       "approvalArguments": {
         "arguments": "आर्ग्युमेंट",
         "loadFailed": "पूरे आर्ग्युमेंट लोड नहीं हो सके।",
@@ -1327,26 +1311,11 @@
         "replyInThread": "थ्रेड में उत्तर दें"
       },
       "mindroomMessageControls": {
-        "aiRunMetadata": "एआई रन मेटाडेटा",
         "close": "बंद करें",
         "downloadingOriginal": "मूल डाउनलोड हो रहा है...",
         "downloadOriginal": "मूल डाउनलोड करें",
-        "model": "मॉडल",
-        "openAiRunMetadata": "एआई रन मेटाडेटा खोलें",
-        "requestCache": "अनुरोध कैश",
-        "requestContext": "अनुरोध का संदर्भ",
-        "requestContextWindow": "अनुरोध की कॉन्टेक्स्ट विंडो",
         "retryDownloadOriginal": "मूल फ़ाइल फिर से डाउनलोड करें",
-        "run": "रन",
-        "runCache": "रन कैश",
-        "segmentTokenCount_one": "{{label}}: {{formattedCount}} टोकन",
-        "segmentTokenCount_other": "{{label}}: {{formattedCount}} टोकन",
-        "session": "सत्र",
-        "status": "स्थिति",
-        "tokens": "टोकन",
-        "tokenUsage": "टोकन का उपयोग",
-        "tools": "टूल",
-        "ttft": "पहले टोकन तक का समय"
+        "replyDetails": "जवाब का विवरण"
       },
       "mindroomMessageExtras": {
         "messageExtras": "संदेश की अतिरिक्त जानकारी"
@@ -1373,6 +1342,11 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "एआई जवाब दे रहा है",
         "thinking": "सोच रहा है…"
+      },
+      "mindroomReasoning": {
+        "thinking": "सोच रहा है",
+        "thoughtFor_one": "{{count}} सेकंड तक सोचा",
+        "thoughtFor_other": "{{count}} सेकंड तक सोचा"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "एआई थ्रेड सारांश"
@@ -1402,6 +1376,10 @@
       },
       "streamingIndicator": {
         "aiIsResponding": "एआई जवाब दे रहा है"
+      },
+      "stopButton": {
+        "label": "रोकें",
+        "tooltip": "यह जवाब रोकें"
       },
       "threadApprovalControls": {
         "activePermissionCount_one": "{{count}} सक्रिय अनुमति",
@@ -1478,6 +1456,35 @@
         "waitingForApproval": "स्वीकृति की प्रतीक्षा",
         "waitingForYou": "आपकी प्रतीक्षा",
         "you": "आप"
+      },
+      "mindroomReplyDetails": {
+        "tokens": "टोकन",
+        "cost": "लागत",
+        "conversationSoFar": "अब तक की बातचीत",
+        "failed": "विफल",
+        "stopped": "रोका गया",
+        "thisReply": "यह जवाब",
+        "input": "इनपुट",
+        "fromCache": "कैश से",
+        "output": "आउटपुट",
+        "contextWindow": "संदर्भ विंडो",
+        "contextWindowUsage": "{{window}} में से {{input}} · {{percentage}}",
+        "timeToFirstToken": "पहला टोकन",
+        "technicalDetails": "तकनीकी विवरण",
+        "configuredModel": "कॉन्फ़िगर किया गया मॉडल",
+        "runId": "रन ID",
+        "sessionId": "सत्र ID",
+        "newInput": "नया इनपुट",
+        "replyCount_one": "{{count}} जवाब",
+        "replyCount_other": "{{count}} जवाब",
+        "loadedReplyCount_one": "{{count}} लोड किया गया जवाब",
+        "loadedReplyCount_other": "{{count}} लोड किए गए जवाब",
+        "atLeastCost": "≥ {{cost}}",
+        "costHistory": "इस बातचीत में हर जवाब की लागत",
+        "costHistoryBar": "जवाब {{index}}: {{cost}}",
+        "costHistoryPosition": "यह जवाब · {{count}} में से {{index}}",
+        "toolCallCount_one": "{{count}} टूल कॉल",
+        "toolCallCount_other": "{{count}} टूल कॉल"
       }
     },
     "native": {
@@ -1491,6 +1498,11 @@
         "nativeIosPushIsNotConfiguredByTheDeploymentAdd": "इस डिप्लॉयमेंट में नेटिव iOS पुश कॉन्फ़िगर नहीं है। `config.json` में `push.ios` सेटिंग्स जोड़ें।",
         "permissionDenied": "अधिसूचना की अनुमति अस्वीकार कर दी गई है. iOS सेटिंग्स में {{appName}} के लिए सूचनाएं सक्षम करें।",
         "unavailable": "अनुपलब्ध"
+      },
+      "cloudflareAccess": {
+        "signInRequired": "{{value1}} के लिए आपके संगठन का साइन-इन ज़रूरी है।",
+        "continue": "जारी रखें",
+        "signInFailed": "साइन-इन पूरा नहीं हुआ। फिर से कोशिश करें।"
       }
     },
     "notifications": {
@@ -1792,15 +1804,32 @@
     "backgroundJobs": {
       "running": "चल रहा है: {{tool}}",
       "awaitingApproval": "स्वीकृति की प्रतीक्षा: {{tool}}",
+      "waiting": "स्वीकृति की प्रतीक्षा",
       "stoppingJob": "रोका जा रहा है: {{tool}}",
       "jobCount": "{{count}} बैकग्राउंड कार्य",
       "subagent": "{{tool}} (सब-एजेंट)",
       "stopAll": "सब रोकें",
       "stopping": "रोका जा रहा है…",
-      "cancel": "{{tool}} रद्द करें",
-      "cancelFailed": "{{tool}} रद्द नहीं हो सका। फिर से कोशिश करें।",
+      "stop": "रोकें",
+      "stopJob": "{{tool}} रोकें",
+      "stopFailed": "{{tool}} रोका नहीं जा सका। फिर से कोशिश करें।",
       "stopAllFailed": "बैकग्राउंड कार्य रोके नहीं जा सके। फिर से कोशिश करें।",
       "inRoom": "बैकग्राउंड कार्य चल रहे हैं"
+    },
+    "autoApprove": {
+      "label": "स्वतः अनुमोदन",
+      "labelOne": "स्वतः अनुमोदन: {{name}}",
+      "labelMany": "स्वतः अनुमोदन: {{name}} +{{count}}",
+      "title": "स्वतः अनुमोदन",
+      "intro": "इस थ्रेड में, इन लोगों के अनुरोध किए गए टूल कॉल बिना मंज़ूरी कार्ड के चलते हैं।",
+      "you": "आप",
+      "until": "{{time}} तक",
+      "ownUntil": "{{time}} तक। इसे खत्म करने के लिए !auto_approve off भेजें।"
+    },
+    "notices": {
+      "dismiss": "सूचना ख़ारिज करें",
+      "showMore": "और दिखाएँ",
+      "showLess": "कम दिखाएँ"
     }
   },
   "nav": {
@@ -1957,6 +1986,14 @@
         "httpNotice": "HTTP आपके साइन-इन या कंप्यूटर के ट्रैफ़िक को एन्क्रिप्ट नहीं करता। इसे केवल विश्वसनीय स्थानीय नेटवर्क पर उपयोग करें।",
         "saveFailed": "इस डिवाइस पर कंप्यूटर सेवा सहेजी नहीं जा सकी।",
         "saved": "कंप्यूटर सेवा सहेजी गई।"
+      },
+      "connections": {
+        "sectionTitle": "कनेक्शन",
+        "title": "कनेक्ट किए गए खाते",
+        "description": "आपके एजेंट जिन खातों का उपयोग करते हैं, जैसे Google या GitHub, उन्हें अपने MindRoom सर्वर पर कनेक्ट करें।",
+        "open": "कनेक्शन खोलें",
+        "noBackend": "कनेक्शन का उपयोग करने के लिए “कंप्यूटर” में अपना MindRoom सर्वर सेट करें।",
+        "blocked": "आपके ब्राउज़र ने कनेक्शन विंडो को ब्लॉक कर दिया। इस साइट के लिए पॉप-अप की अनुमति दें और फिर से कोशिश करें।"
       }
     },
     "logout": "लॉग आउट",
@@ -2323,6 +2360,7 @@
       "blockAll": "सभी को ब्लॉक करें",
       "decline": "अस्वीकार करें",
       "declineAll": "सभी को अस्वीकार करें",
+      "acceptAll": "सभी को स्वीकार करें",
       "directMessage": "सीधा संदेश",
       "encrypted": "एन्क्रिप्टेड",
       "filter": "फ़िल्टर",

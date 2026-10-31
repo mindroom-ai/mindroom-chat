@@ -19,14 +19,13 @@ import {
 const headerGeometry = (header: Locator) =>
   header.evaluate((element) => {
     const style = getComputedStyle(element);
-    const shellStyle = getComputedStyle(element.parentElement!);
     const rect = element.getBoundingClientRect();
     const trailing = element.lastElementChild;
     const trailingRect = trailing?.getBoundingClientRect();
     return {
       padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
       height: rect.height,
-      radius: shellStyle.borderTopLeftRadius,
+      radius: style.borderTopLeftRadius,
       trailingIcon: trailing?.tagName.toLowerCase() === 'svg',
       trailingGap: trailingRect ? rect.right - trailingRect.right : null,
     };
@@ -151,8 +150,8 @@ for (const viewport of [
         window.dispatchEvent(new PopStateEvent('popstate'));
       }, `${roomPath}?threadId=${encodeURIComponent(rootId)}`);
 
-      const tool = page.getByRole('button', { name: '1 tool call', exact: true });
-      const approval = page.locator('summary').filter({ hasText: /^1 tool approval/ });
+      const tool = page.getByRole('button', { name: /^Ran 1 tool call/ });
+      const approval = page.getByRole('button', { name: /^You approved save_note/ });
       await expect(tool).toBeVisible();
       await expect(approval).toBeVisible();
       await tool.scrollIntoViewIfNeeded();
@@ -185,7 +184,7 @@ for (const viewport of [
       const history = approval.locator('..');
       await approval.focus();
       await page.keyboard.press('Enter');
-      await expect(history).toHaveAttribute('open', '');
+      await expect(approval).toHaveAttribute('aria-expanded', 'true');
       const receipt = history.locator('details[aria-label="Resolved tool approval request"]');
       await expect(receipt).toBeVisible();
       await receipt.locator('summary').first().click();
@@ -194,14 +193,17 @@ for (const viewport of [
       await page.screenshot({ path: testInfo.outputPath('expanded-approval-receipt.png') });
       await approval.focus();
       await page.keyboard.press('Space');
-      await expect(history).not.toHaveAttribute('open');
+      await expect(approval).toHaveAttribute('aria-expanded', 'false');
       await expect(approval).toBeFocused();
 
       const review = page
         .getByRole('region', { name: 'Thread approvals' })
         .getByRole('button', { name: /^Review/ });
       await review.click();
-      const dialog = page.getByRole('dialog', { name: 'Review tool calls', exact: true });
+      const dialog = page.getByRole('dialog', {
+        name: 'assistant wants to do 4 things',
+        exact: true,
+      });
       await expect(dialog).toBeVisible();
       const tintAlpha = await dialog.evaluate((element) => {
         const canvas = document.createElement('canvas');
@@ -213,9 +215,10 @@ for (const viewport of [
         return context.getImageData(0, 0, 1, 1).data[3] / 255;
       });
       expect
-        .soft(tintAlpha, 'dark dialog tint lets the dimmed conversation show through')
-        .toBeLessThan(0.5);
+        .soft(tintAlpha, 'dark approval review uses the shared 90% dense tint')
+        .toBeCloseTo(0.9, 2);
       await page.screenshot({ path: testInfo.outputPath('approval-dialog.png') });
+      await dialog.getByRole('button', { name: 'Show 4 calls', exact: true }).click();
       await page.setViewportSize({ ...viewport, height: 480 });
       const title = dialog.locator('header');
       const dialogScroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
