@@ -1622,6 +1622,7 @@ export function RoomTimeline({
     getScrollElement,
     scrollContentRef,
     isViewportAtBottomNow,
+    atLiveEndRef,
     getLiveReplyStore(mx),
     room.roomId
   );

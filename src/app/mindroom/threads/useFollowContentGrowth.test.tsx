@@ -34,6 +34,7 @@ describe('useFollowContentGrowth', () => {
   let scroller: ReturnType<typeof createScroller>;
   let liveReplies: LiveReplyStore;
   let seq: number;
+  const atLiveEndRef = { current: true };
 
   beforeEach(() => {
     vi.stubGlobal(
@@ -51,6 +52,7 @@ describe('useFollowContentGrowth', () => {
     scroller = createScroller();
     liveReplies = new LiveReplyStore();
     seq = 0;
+    atLiveEndRef.current = true;
     const getScrollElement = () => scroller as unknown as HTMLElement;
     // The timeline's live reading of its viewport bottom.
     const isViewportAtBottomNow = () => isScrollNearBottom(scroller);
@@ -60,6 +62,7 @@ describe('useFollowContentGrowth', () => {
         getScrollElement,
         contentRef,
         isViewportAtBottomNow,
+        atLiveEndRef,
         liveReplies,
         ROOM
       );
@@ -138,6 +141,15 @@ describe('useFollowContentGrowth', () => {
 
   it('leaves a reader at the bottom where they are when content grows without a live frame', () => {
     grow(300, { frame: false });
+
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(600);
+  });
+
+  it('leaves a reader at the bottom of older history where they are while newer events load', () => {
+    atLiveEndRef.current = false;
+
+    grow(300);
 
     expect(scroller.scrollTo).not.toHaveBeenCalled();
     expect(scroller.scrollTop).toBe(600);

@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from 'react';
+import { type MutableRefObject, type RefObject, useEffect } from 'react';
 import { scrollToBottom } from '../../utils/dom';
 import type { LiveReplyStore } from '../live/liveReplyStore';
 
@@ -10,11 +10,14 @@ import type { LiveReplyStore } from '../live/liveReplyStore';
  * The reader counts as at the bottom by their last scroll, before the growth: a measurement
  * correction can move the scroll position along with the growth, so the position after it
  * cannot tell a pinned reader from one a little above the bottom.
+ * Only a timeline at its live end follows: at the bottom of older history, the growth is newer
+ * events loading, and following it would page the reader through history they have not read.
  */
 export const useFollowContentGrowth = (
   getScrollElement: () => HTMLElement | null,
   contentRef: RefObject<HTMLElement>,
   isViewportAtBottomNow: () => boolean,
+  atLiveEndRef: MutableRefObject<boolean>,
   liveReplies: LiveReplyStore,
   roomId: string
 ): void => {
@@ -35,7 +38,7 @@ export const useFollowContentGrowth = (
       const framed = liveReplies.frameCount(roomId) !== frames;
       height = entry.contentRect.height;
       frames = liveReplies.frameCount(roomId);
-      if (grew && framed && pinned) scrollToBottom(scrollElement);
+      if (grew && framed && pinned && atLiveEndRef.current) scrollToBottom(scrollElement);
     });
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     observer.observe(content);
@@ -43,5 +46,5 @@ export const useFollowContentGrowth = (
       observer.disconnect();
       scrollElement.removeEventListener('scroll', onScroll);
     };
-  }, [contentRef, getScrollElement, isViewportAtBottomNow, liveReplies, roomId]);
+  }, [atLiveEndRef, contentRef, getScrollElement, isViewportAtBottomNow, liveReplies, roomId]);
 };
