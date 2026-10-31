@@ -1,0 +1,98 @@
+import React from 'react';
+import { Provider, createStore } from 'jotai';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { act, create } from 'react-test-renderer';
+import { describe, expect, it } from 'vitest';
+import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { allRoomsAtom } from '../../state/room-list/roomList';
+import { findServerEmojiRoom, useServerEmojiRoom } from './useServerEmojiRoom';
+
+const ROOM_ID = '!emoji:example.com';
+const ALIAS = '#emoji:example.com';
+
+/** What `getCanonicalAliasRoomId` and the membership check read from a room. */
+const fakeRoom = (membership: string): Room =>
+  ({
+    roomId: ROOM_ID,
+    getCanonicalAlias: () => ALIAS,
+    getMyMembership: () => membership,
+    getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => null }) }),
+  } as unknown as Room);
+
+const fakeClient = (rooms: Room[]): MatrixClient =>
+  ({
+    getRooms: () => rooms,
+    getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
+  } as unknown as MatrixClient);
+
+describe('findServerEmojiRoom', () => {
+  it('returns the joined room for a room ID', () => {
+    const room = fakeRoom('join');
+    expect(findServerEmojiRoom(fakeClient([room]), ROOM_ID)).toBe(room);
+  });
+
+  it('returns the joined room whose canonical alias matches an alias', () => {
+    const room = fakeRoom('join');
+    expect(findServerEmojiRoom(fakeClient([room]), ALIAS)).toBe(room);
+  });
+
+  it.each(['leave', 'invite'])('ignores a room with membership %s', (membership) => {
+    const client = fakeClient([fakeRoom(membership)]);
+    expect(findServerEmojiRoom(client, ROOM_ID)).toBeUndefined();
+    expect(findServerEmojiRoom(client, ALIAS)).toBeUndefined();
+  });
+
+  it('returns nothing for a room the client does not know', () => {
+    const client = fakeClient([]);
+    expect(findServerEmojiRoom(client, ROOM_ID)).toBeUndefined();
+    expect(findServerEmojiRoom(client, ALIAS)).toBeUndefined();
+  });
+
+  it('returns nothing without an address', () => {
+    expect(findServerEmojiRoom(fakeClient([fakeRoom('join')]), undefined)).toBeUndefined();
+  });
+});
+
+describe('useServerEmojiRoom', () => {
+  it('finds the room when it enters the joined room list', async () => {
+    const rooms: Room[] = [];
+    const store = createStore();
+    let found: Room | undefined;
+    const Probe = () => {
+      found = useServerEmojiRoom();
+      return null;
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: fakeClient(rooms) },
+          React.createElement(
+            AutoDiscoveryInfoProvider,
+            {
+              value: {
+                'm.homeserver': { base_url: 'https://example.com' },
+                'io.mindroom.emoji': { room: ALIAS },
+              },
+            },
+            React.createElement(Provider, { store }, React.createElement(Probe))
+          )
+        )
+      );
+    });
+    expect(found).toBeUndefined();
+
+    // The client holds the room before the list does, as after a join.
+    const room = fakeRoom('join');
+    rooms.push(room);
+    await act(async () => {
+      store.set(allRoomsAtom, { type: 'PUT', roomId: ROOM_ID });
+    });
+
+    expect(found).toBe(room);
+    act(() => renderer.unmount());
+  });
+});
