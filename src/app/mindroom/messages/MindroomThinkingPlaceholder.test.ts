@@ -22,9 +22,10 @@ vi.mock('./MindroomThinkingPlaceholder.css', () => ({
   TextSweep: 'TextSweep',
   TextCounter: 'TextCounter',
   TextHighlight: 'TextHighlight',
+  Elapsed: 'Elapsed',
 }));
 
-const renderPlaceholder = (messages?: string[]) =>
+const renderPlaceholder = (messages?: string[], startedAt?: number) =>
   create(
     React.createElement(
       ClientConfigProvider,
@@ -35,7 +36,7 @@ const renderPlaceholder = (messages?: string[]) =>
           },
         },
       },
-      React.createElement(MindroomThinkingPlaceholder)
+      React.createElement(MindroomThinkingPlaceholder, { startedAt })
     )
   );
 
@@ -102,6 +103,73 @@ describe('MindroomThinkingPlaceholder', () => {
 
     renderer?.unmount();
     vi.useRealTimers();
+  });
+
+  it('counts the seconds since the reply arrived in tenths', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      renderer = renderPlaceholder(['Working'], 10_000 - 1_290);
+    });
+    const elapsed = () => renderer?.root.findByProps({ className: 'Elapsed' });
+
+    expect(elapsed()?.props['aria-hidden']).toBe('true');
+    expect(elapsed()?.children).toEqual(['(', '1.2s', ')']);
+
+    act(() => {
+      vi.advanceTimersByTime(9);
+    });
+    expect(elapsed()?.children).toEqual(['(', '1.2s', ')']);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(elapsed()?.children).toEqual(['(', '1.3s', ')']);
+
+    act(() => {
+      vi.advanceTimersByTime(8_700);
+    });
+    expect(elapsed()?.children).toEqual(['(', '10.0s', ')']);
+
+    act(() => {
+      renderer?.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('starts at zero when the reply timestamp is ahead of the local clock', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      renderer = renderPlaceholder(['Working'], 12_000);
+    });
+    const elapsed = () => renderer?.root.findByProps({ className: 'Elapsed' }).children;
+
+    expect(elapsed()).toEqual(['(', '0.0s', ')']);
+
+    act(() => {
+      vi.advanceTimersByTime(2_099);
+    });
+    expect(elapsed()).toEqual(['(', '0.0s', ')']);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(elapsed()).toEqual(['(', '0.1s', ')']);
+
+    renderer?.unmount();
+    vi.useRealTimers();
+  });
+
+  it('shows no counter without a reply timestamp', () => {
+    const renderer = renderPlaceholder(['Working']);
+
+    expect(renderer.root.findAllByProps({ className: 'Elapsed' })).toHaveLength(0);
+
+    renderer.unmount();
   });
 
   it('renders the built-in messages when config is empty', () => {

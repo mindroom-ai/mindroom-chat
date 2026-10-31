@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Count the seconds a reply has been thinking (2026-10-31)
+
+- Why: the owner asked for a counter beside the thinking placeholder's shimmering text, with one decimal, from the time the reply arrived: "Text here (1.2s)".
+- Change: `MindroomThinkingPlaceholder` takes `startedAt`, and `renderMindroomMessageContent` passes the reply's `origin_server_ts` (`mEvent.getTs()`). A small `ThinkingElapsed` component after the label shows `(1.2s)`, floored to tenths, formatted with `Intl.NumberFormat` in the app language (`useAppLanguageCode`, narrow `second` unit, so `1,2 Sek.` in German); no locale strings were added. Each timeout wakes at the next tenth of the elapsed time, so a late timer never shows one value twice and skips the next. The counter is muted, regular weight and `tabular-nums`, outside the shimmer layers and `aria-hidden`, so each tick re-renders and repaints only the counter and the `role="status"` region announces nothing. A server clock ahead of the viewer's holds the count at `0.0s` until it catches up. Without `startedAt` (the e2e fixture by default) no counter renders.
+- Decision: not `mEvent.localTimestamp`. It corrects clock skew with `unsigned.age`, but MindRoom's thread cache stores raw events with the age they arrived with, so a reloaded thread would restart the count near zero.
+- Tests: `MindroomThinkingPlaceholder.test.ts` covers the first value, the tick at the next tenth, `10.0s`, a timestamp ahead of the local clock, no timers after unmount, and no counter without a timestamp. `e2e/thinking-marker.spec.ts` (fixture `?elapsed=<ms>`) checks in RTL that the counter passes 10 s and widens left of the label, centered on it, without moving the label, and gives the two-counter fixture its own paint budget.
+- Validation: `npm run typecheck`, `npm run build` and `npm run lint` (warnings only, none in touched files) pass; the thinking-marker e2e passes in Chromium (cold and warm Vite cache) and in Firefox and WebKit in the Playwright image. Full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test) and one `SettingsModalRenderer` case that passes alone. Screenshots in light, dark and RTL with a wrapped label checked by eye.
+- Measured: a Chromium paint trace of the two-placeholder fixture over 9.5 s counted 12 paints without counters and 199 with them, one small paint per counter per tenth; the counter variant's budget is 250.
+- Risks: a placeholder left `streaming` by a dead run keeps counting, for example `(3,600.0s)` after an hour.
+- Next: none.
+
 ### Stream replies from live reply frames and show model reasoning (2026-10-30)
 
 - Why: MindRoom issue #3438 moves streaming from frequent full-content `m.replace` edits to small ephemeral `io.mindroom.live` frames relayed by the homeserver (MSC2477 subset with a MindRoom opt-in), with durable checkpoint edits every 5 s and the terminal edit. Chat applies the frames so replies stream smoothly while every other client converges on the same durable message.

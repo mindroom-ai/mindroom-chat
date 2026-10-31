@@ -96,36 +96,39 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
   }
 });
 
-test('thinking motion does not continuously repaint the artwork or text', async ({
-  page,
-  browserName,
-}) => {
-  test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
-  await page.goto('/e2e/fixtures/thinking-marker.html');
-  await expect(page.getByRole('status')).toHaveCount(2);
-  await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(1000);
-  const cdp = await page.context().newCDPSession(page);
-  let paintCount = 0;
-  cdp.on('Tracing.dataCollected', ({ value }) => {
-    paintCount += value.filter(
-      (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
-    ).length;
+for (const { title, query, maxPaints } of [
+  { title: 'the artwork or text', query: '', maxPaints: 60 },
+  // Each of the two counters paints about once per tenth; the shimmer layers stay as above.
+  { title: 'more than the counters', query: '?elapsed=0', maxPaints: 60 + 2 * 95 },
+]) {
+  test(`thinking motion does not continuously repaint ${title}`, async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
+    await page.goto(`/e2e/fixtures/thinking-marker.html${query}`);
+    await expect(page.getByRole('status')).toHaveCount(2);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1000);
+    const cdp = await page.context().newCDPSession(page);
+    let paintCount = 0;
+    cdp.on('Tracing.dataCollected', ({ value }) => {
+      paintCount += value.filter(
+        (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
+      ).length;
+    });
+    await cdp.send('Tracing.start', {
+      categories: 'devtools.timeline',
+      transferMode: 'ReportEvents',
+    });
+    // Cover a complete flip / glowing-core / flip cycle.
+    await page.waitForTimeout(9500);
+    const complete = new Promise<void>((resolve) => {
+      cdp.once('Tracing.tracingComplete', resolve);
+    });
+    await cdp.send('Tracing.end');
+    await complete;
+    await cdp.detach();
+    expect(paintCount).toBeLessThan(maxPaints);
   });
-  await cdp.send('Tracing.start', {
-    categories: 'devtools.timeline',
-    transferMode: 'ReportEvents',
-  });
-  // Cover a complete flip / glowing-core / flip cycle.
-  await page.waitForTimeout(9500);
-  const complete = new Promise<void>((resolve) => {
-    cdp.once('Tracing.tracingComplete', resolve);
-  });
-  await cdp.send('Tracing.end');
-  await complete;
-  await cdp.detach();
-  expect(paintCount).toBeLessThan(60);
-});
+}
 
 for (const { label, query } of [
   { label: 'Thinking…', query: '?dark' },
@@ -183,6 +186,29 @@ for (const { label, query } of [
     ).toBe(true);
   });
 }
+
+test('a counter after the label counts tenths of seconds without moving the label', async ({
+  page,
+}) => {
+  // RTL puts the counter left of the label; passing 10 seconds widens it.
+  await page.goto('/e2e/fixtures/thinking-marker.html?rtl&elapsed=9000');
+  await page.evaluate(() => document.fonts.ready);
+  const status = page.getByRole('status').first();
+  const label = status.locator(':scope > span').nth(1);
+  const counter = status.locator(':scope > span').last();
+  await expect(counter).toHaveAttribute('aria-hidden', 'true');
+  await expect(counter).toHaveText(/^\(9\.\ds\)$/);
+  const labelBox = (await label.boundingBox())!;
+  const narrowCounterWidth = (await counter.boundingBox())!.width;
+  await expect(counter).toHaveText(/^\(1\d\.\ds\)$/);
+  expect(await label.boundingBox()).toEqual(labelBox);
+  const counterBox = (await counter.boundingBox())!;
+  expect(counterBox.width).toBeGreaterThan(narrowCounterWidth);
+  expect(counterBox.x + counterBox.width).toBeLessThanOrEqual(labelBox.x);
+  expect(
+    Math.abs(counterBox.y + counterBox.height / 2 - (labelBox.y + labelBox.height / 2))
+  ).toBeLessThan(1);
+});
 
 test('forced colors retain readable text without a shimmer overlay', async ({
   page,

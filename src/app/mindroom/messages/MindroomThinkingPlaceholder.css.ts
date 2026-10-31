@@ -229,3 +229,10 @@ export const TextHighlight = style({
   marginRight: '3em',
   color: color.Surface.OnContainer,
 });
+
+export const Elapsed = style({
+  flex: '0 0 auto',
+  fontWeight: 400,
+  fontVariantNumeric: 'tabular-nums',
+  opacity: config.opacity.P400,
+});

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import * as css from './MindroomThinkingPlaceholder.css';
 import { resolveMindroomThinkingPlaceholderMessages } from './thinkingPlaceholder';
@@ -8,8 +9,59 @@ import thinkingBase from './thinking-mark-base.svg';
 import thinkingCore from './thinking-mark-core.svg';
 
 const ROTATION_INTERVAL_MS = 3600;
+const TENTH_MS = 100;
 
-export function MindroomThinkingPlaceholder() {
+const getElapsedTenths = (elapsedMs: number) => Math.max(0, Math.floor(elapsedMs / TENTH_MS));
+
+/**
+ * Seconds since the reply arrived, in tenths. Its own component, outside the shimmer layers,
+ * so each tick re-renders and repaints only this text.
+ */
+function ThinkingElapsed({ startedAt }: { startedAt: number }) {
+  const language = useAppLanguageCode();
+  const [tenths, setTenths] = React.useState(() => getElapsedTenths(Date.now() - startedAt));
+  const formatter = React.useMemo(
+    () =>
+      new Intl.NumberFormat(language, {
+        style: 'unit',
+        unit: 'second',
+        unitDisplay: 'narrow',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+    [language]
+  );
+
+  React.useEffect(() => {
+    let timeoutId: ReturnType<typeof globalThis.setTimeout>;
+    // Wake at each next tenth, so a late timer never shows one tenth twice and skips the next.
+    // A server clock ahead of the viewer's holds the count at zero until it catches up.
+    const tick = () => {
+      const elapsedMs = Date.now() - startedAt;
+      setTenths(getElapsedTenths(elapsedMs));
+      timeoutId = globalThis.setTimeout(
+        tick,
+        elapsedMs < 0 ? -elapsedMs : TENTH_MS - (elapsedMs % TENTH_MS)
+      );
+    };
+    tick();
+
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [startedAt]);
+
+  return (
+    <span className={css.Elapsed} aria-hidden="true">
+      ({formatter.format(tenths / 10)})
+    </span>
+  );
+}
+
+type MindroomThinkingPlaceholderProps = {
+  /** When the reply arrived, in milliseconds since the epoch; shows a counter from it. */
+  startedAt?: number;
+};
+
+export function MindroomThinkingPlaceholder({ startedAt }: MindroomThinkingPlaceholderProps) {
   const { t } = useTranslation();
   const clientConfig = useClientConfig();
   const messages = React.useMemo(
@@ -58,6 +110,7 @@ export function MindroomThinkingPlaceholder() {
           </span>
         </span>
       </span>
+      {startedAt !== undefined && <ThinkingElapsed startedAt={startedAt} />}
     </span>
   );
 }
