@@ -58,12 +58,15 @@ export class LiveReplyStore {
 
   private readonly listeners = new Map<string, Set<() => void>>();
 
+  private readonly roomFrames = new Map<string, number>();
+
   public ingest(roomId: string, sender: string, frame: LiveFrame, receivedAt: number): void {
     const key = entryKey(roomId, frame.reply);
     const entry = this.entries.get(key);
     const next = nextEntry(entry, sender, frame, receivedAt);
     if (!next) return;
     this.entries.set(key, next);
+    if (!next.stale) this.roomFrames.set(roomId, this.frameCount(roomId) + 1);
     if (next.lastFrameAt !== entry?.lastFrameAt) {
       clearTimeout(this.expiries.get(key));
       this.expiries.set(
@@ -72,6 +75,11 @@ export class LiveReplyStore {
       );
     }
     this.notify(key);
+  }
+
+  /** How many frames have applied in the room, so a reader can tell whether one applied since. */
+  public frameCount(roomId: string): number {
+    return this.roomFrames.get(roomId) ?? 0;
   }
 
   public get(roomId: string, replyId: string): LiveReplyEntry | undefined {

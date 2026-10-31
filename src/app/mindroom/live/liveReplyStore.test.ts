@@ -147,6 +147,18 @@ describe('LiveReplyStore', () => {
     expect(store.get(ROOM, REPLY)).toBeUndefined();
   });
 
+  it('counts the frames that apply in each room', () => {
+    store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000);
+    store.ingest(ROOM, AGENT, append(1, 'Hello', '!'), 1100);
+    store.ingest(ROOM, AGENT, append(1, 'Hello', '!'), 1200);
+    store.ingest(ROOM, AGENT, append(3, 'Hello!', '?'), 1300);
+    store.ingest('!other:example', AGENT, snapshot(0, 'Other'), 1000);
+
+    expect(store.frameCount(ROOM)).toBe(2);
+    expect(store.frameCount('!other:example')).toBe(1);
+    expect(store.frameCount('!quiet:example')).toBe(0);
+  });
+
   it('expires an entry after its last frame and tells subscribers', () => {
     const listener = vi.fn();
     store.subscribe(ROOM, REPLY, listener);

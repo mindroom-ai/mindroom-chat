@@ -1,10 +1,13 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LiveReplyStore } from '../live/liveReplyStore';
 import { isScrollNearBottom } from './timelineScrollUtils';
 import { useFollowContentGrowth } from './useFollowContentGrowth';
 
 type ResizeCallback = (entries: ResizeObserverEntry[]) => void;
+
+const ROOM = '!room:example';
 
 const createScroller = () => {
   const scrollListeners = new Set<() => void>();
@@ -29,6 +32,8 @@ describe('useFollowContentGrowth', () => {
   let renderer: ReactTestRenderer | undefined;
   const content = {} as HTMLElement;
   let scroller: ReturnType<typeof createScroller>;
+  let liveReplies: LiveReplyStore;
+  let seq: number;
 
   beforeEach(() => {
     vi.stubGlobal(
@@ -44,12 +49,20 @@ describe('useFollowContentGrowth', () => {
       }
     );
     scroller = createScroller();
+    liveReplies = new LiveReplyStore();
+    seq = 0;
     const getScrollElement = () => scroller as unknown as HTMLElement;
     // The timeline's live reading of its viewport bottom.
     const isViewportAtBottomNow = () => isScrollNearBottom(scroller);
     const contentRef = { current: content };
     function Harness() {
-      useFollowContentGrowth(getScrollElement, contentRef, isViewportAtBottomNow);
+      useFollowContentGrowth(
+        getScrollElement,
+        contentRef,
+        isViewportAtBottomNow,
+        liveReplies,
+        ROOM
+      );
       return null;
     }
     act(() => {
@@ -60,10 +73,33 @@ describe('useFollowContentGrowth', () => {
 
   afterEach(() => {
     act(() => renderer?.unmount());
+    liveReplies.clear();
     vi.unstubAllGlobals();
   });
 
-  const grow = (px: number, { correction = 0 } = {}) => {
+  const applyFrame = (roomId = ROOM) => {
+    liveReplies.ingest(
+      roomId,
+      '@agent:example',
+      {
+        reply: '$reply',
+        sid: '1761858000123-0a1b2c3d',
+        seq,
+        snapshot: {
+          md: 'x'.repeat(seq + 1),
+          reasoning: '',
+          tools: [],
+          status: 'streaming',
+          activity: '',
+        },
+      },
+      Date.now()
+    );
+    seq += 1;
+  };
+
+  const grow = (px: number, { correction = 0, frame = true } = {}) => {
+    if (frame) applyFrame();
     scroller.scrollHeight += px;
     scroller.scrollTop += correction;
     act(() =>
@@ -96,6 +132,20 @@ describe('useFollowContentGrowth', () => {
     scroller.scroll();
 
     grow(300, { correction: 300 });
+
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('leaves a reader at the bottom where they are when content grows without a live frame', () => {
+    grow(300, { frame: false });
+
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(600);
+  });
+
+  it('does not follow growth after a live frame in another room', () => {
+    applyFrame('!other:example');
+    grow(300, { frame: false });
 
     expect(scroller.scrollTo).not.toHaveBeenCalled();
   });
