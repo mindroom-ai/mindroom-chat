@@ -2726,6 +2726,13 @@
         "aiIsResponding": "ИИ отвечает",
         "thinking": "Размышляет…"
       },
+      "mindroomReasoning": {
+        "thinking": "Думает",
+        "thoughtFor_one": "Думал {{count}} с",
+        "thoughtFor_few": "Думал {{count}} с",
+        "thoughtFor_many": "Думал {{count}} с",
+        "thoughtFor_other": "Думал {{count}} с"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Сводка ветки от ИИ"
       },

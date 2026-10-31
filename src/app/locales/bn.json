@@ -1343,6 +1343,11 @@
         "aiIsResponding": "এআই সাড়া দিচ্ছে",
         "thinking": "ভাবছে…"
       },
+      "mindroomReasoning": {
+        "thinking": "ভাবছে",
+        "thoughtFor_one": "{{count}} সেকেন্ড ভেবেছে",
+        "thoughtFor_other": "{{count}} সেকেন্ড ভেবেছে"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "এআই থ্রেড সারাংশ"
       },

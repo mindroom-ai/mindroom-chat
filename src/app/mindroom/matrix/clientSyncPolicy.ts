@@ -39,6 +39,10 @@ const createStartupSyncFilter = (mx: MatrixClient): Filter => {
       state: {
         lazy_load_members: true,
       },
+      // Custom ephemeral types reach only clients that opt into them.
+      ephemeral: {
+        types: ['m.typing', 'm.receipt', 'io.mindroom.live'],
+      },
     },
   });
 

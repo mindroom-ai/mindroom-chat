@@ -2644,6 +2644,11 @@
         "aiIsResponding": "KI antwortet",
         "thinking": "Denkt nach…"
       },
+      "mindroomReasoning": {
+        "thinking": "Denkt nach",
+        "thoughtFor_one": "{{count}} s nachgedacht",
+        "thoughtFor_other": "{{count}} s nachgedacht"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "KI-Thread-Zusammenfassung"
       },

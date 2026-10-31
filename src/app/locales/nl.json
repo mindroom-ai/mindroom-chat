@@ -2644,6 +2644,11 @@
         "aiIsResponding": "AI antwoordt",
         "thinking": "Denken…"
       },
+      "mindroomReasoning": {
+        "thinking": "Denkt na",
+        "thoughtFor_one": "{{count}} s nagedacht",
+        "thoughtFor_other": "{{count}} s nagedacht"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI-threadsamenvatting"
       },

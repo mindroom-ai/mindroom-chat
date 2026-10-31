@@ -1471,7 +1471,7 @@ index 871875d..496dbcf 100644
          if (recursionSupport === ServerSupport.Unsupported) {
              return Promise.all(
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
-index 217e159..3462ca3 100644
+index 217e159..c5bc3dd 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 @@ -31,7 +31,7 @@ import { OutgoingRequestProcessor } from "./OutgoingRequestProcessor.js";
@@ -1552,8 +1552,44 @@ index 217e159..3462ca3 100644
                  // Only accept the key bundle if we joined the room less than 24 hours ago.
                  if (!pendingDetails) {
                    _this60.logger.debug("Not yet accepting key bundle for room where we are not awaiting a bundle: ".concat(roomId));
+@@ -2128,6 +2144,13 @@ export class RustCrypto extends TypedEventEmitter {
+     })();
+   }
+ }
++// MindRoom: MindRoom Chat decrypts live reply frames, which are ephemeral and never retried, as
++// synthetic events whose ids start with `$io.mindroom.live.`. A frame without its key is dropped,
++// so it must neither wait in the pending-key list nor queue a key-backup download.
++var isMindroomLiveFrameEvent = event => {
++  var _event$getId;
++  return ((_event$getId = event.getId()) === null || _event$getId === void 0 ? void 0 : _event$getId.startsWith("$io.mindroom.live.")) === true;
++};
+ class EventDecryptor {
+   constructor(logger, olmMachine, perSessionBackupDownloader) {
+     this.logger = logger;
+@@ -2147,7 +2170,9 @@ class EventDecryptor {
+       // then, if the key turns up while decryption is in progress (and
+       // decryption fails), we will schedule a retry.
+       // (fixes https://github.com/vector-im/element-web/issues/5001)
+-      _this76.addEventToPendingList(event);
++      if (!isMindroomLiveFrameEvent(event)) {
++        _this76.addEventToPendingList(event);
++      }
+       var trustRequirement;
+       switch (isolationMode.kind) {
+         case DeviceIsolationModeKind.AllDevicesIsolationMode:
+@@ -2199,7 +2224,9 @@ class EventDecryptor {
+ 
+     // If the error looks like it might be recoverable from backup, queue up a request to try that.
+     if (err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey || err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex) {
+-      this.perSessionBackupDownloader.onDecryptionKeyMissingError(event.getRoomId(), content.session_id);
++      if (!isMindroomLiveFrameEvent(event)) {
++        this.perSessionBackupDownloader.onDecryptionKeyMissingError(event.getRoomId(), content.session_id);
++      }
+ 
+       // If the server is telling us our membership at the time the event
+       // was sent, and it isn't "join", we use a different error code.
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
-index fa3b8f0..48b7a85 100644
+index fa3b8f0..a0a5f11 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 @@ -72,7 +72,7 @@ import {
@@ -1638,6 +1674,41 @@ index fa3b8f0..48b7a85 100644
                          // Only accept the key bundle if we joined the room less than 24 hours ago.
                          if (!pendingDetails) {
                              this.logger.debug(
+@@ -2270,6 +2292,12 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+     }
+ }
+ 
++// MindRoom: MindRoom Chat decrypts live reply frames, which are ephemeral and never retried, as
++// synthetic events whose ids start with `$io.mindroom.live.`. A frame without its key is dropped,
++// so it must neither wait in the pending-key list nor queue a key-backup download.
++const isMindroomLiveFrameEvent = (event: MatrixEvent): boolean =>
++    event.getId()?.startsWith("$io.mindroom.live.") === true;
++
+ class EventDecryptor {
+     /**
+      * Events which we couldn't decrypt due to unknown sessions / indexes.
+@@ -2294,7 +2322,9 @@ class EventDecryptor {
+         // then, if the key turns up while decryption is in progress (and
+         // decryption fails), we will schedule a retry.
+         // (fixes https://github.com/vector-im/element-web/issues/5001)
+-        this.addEventToPendingList(event);
++        if (!isMindroomLiveFrameEvent(event)) {
++            this.addEventToPendingList(event);
++        }
+ 
+         let trustRequirement;
+ 
+@@ -2356,7 +2386,9 @@ class EventDecryptor {
+             err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey ||
+             err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex
+         ) {
+-            this.perSessionBackupDownloader.onDecryptionKeyMissingError(event.getRoomId()!, content.session_id!);
++            if (!isMindroomLiveFrameEvent(event)) {
++                this.perSessionBackupDownloader.onDecryptionKeyMissingError(event.getRoomId()!, content.session_id!);
++            }
+ 
+             // If the server is telling us our membership at the time the event
+             // was sent, and it isn't "join", we use a different error code.
 diff --git a/node_modules/matrix-js-sdk/src/@types/requests.ts b/node_modules/matrix-js-sdk/src/@types/requests.ts
 --- a/node_modules/matrix-js-sdk/src/@types/requests.ts
 +++ b/node_modules/matrix-js-sdk/src/@types/requests.ts
@@ -2223,7 +2294,7 @@ index 2dd8c1f..540c1ab 100644
       * Process data returned from a sync response and propagate it
       * into the model objects
 diff --git a/node_modules/matrix-js-sdk/lib/sync.js b/node_modules/matrix-js-sdk/lib/sync.js
-index 2741877..559b77b 100644
+index 2741877..35e1885 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.js
 +++ b/node_modules/matrix-js-sdk/lib/sync.js
 @@ -30,7 +30,7 @@ limitations under the License.
@@ -2409,14 +2480,25 @@ index 2741877..559b77b 100644
          processToDeviceMessages(receivedToDeviceMessages, client);
        } else {
          // no more to-device events: we can stop polling with a short timeout.
-@@ -1812,4 +1860,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
+@@ -1138,7 +1186,9 @@ export class SyncApi {
+           // room::decryptCriticalEvent is in charge of decrypting all the events
+           // required for a client to function properly
+           var timelineEvents = _this9.mapSyncEventsFormat(joinObj.timeline, room, false);
+-          var ephemeralEvents = _this9.mapSyncEventsFormat(joinObj.ephemeral);
++          // MindRoom: give ephemeral events their room, so custom types such as live reply frames
++          // know which room they belong to.
++          var ephemeralEvents = _this9.mapSyncEventsFormat(joinObj.ephemeral, room);
+           var accountDataEvents = _this9.mapSyncEventsFormat(joinObj.account_data);
+           var stickyEvents = _this9.mapSyncEventsFormat(joinObj.msc4354_sticky);
+ 
+@@ -1812,4 +1862,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
      client.emit(ClientEvent.ReceivedToDeviceMessage, processedEvent);
    });
  }
 -//# sourceMappingURL=sync.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/src/sync.ts b/node_modules/matrix-js-sdk/src/sync.ts
-index e731161..f463d1a 100644
+index e731161..4dadd8f 100644
 --- a/node_modules/matrix-js-sdk/src/sync.ts
 +++ b/node_modules/matrix-js-sdk/src/sync.ts
 @@ -26,7 +26,7 @@ limitations under the License.
@@ -2612,6 +2694,17 @@ index e731161..f463d1a 100644
              processToDeviceMessages(receivedToDeviceMessages, client);
          } else {
              // no more to-device events: we can stop polling with a short timeout.
+@@ -1268,7 +1316,9 @@ export class SyncApi {
+                 // room::decryptCriticalEvent is in charge of decrypting all the events
+                 // required for a client to function properly
+                 const timelineEvents = this.mapSyncEventsFormat(joinObj.timeline, room, false);
+-                const ephemeralEvents = this.mapSyncEventsFormat(joinObj.ephemeral);
++                // MindRoom: give ephemeral events their room, so custom types such as live reply frames
++                // know which room they belong to.
++                const ephemeralEvents = this.mapSyncEventsFormat(joinObj.ephemeral, room);
+                 const accountDataEvents = this.mapSyncEventsFormat(joinObj.account_data);
+                 const stickyEvents = this.mapSyncEventsFormat(joinObj.msc4354_sticky);
+ 
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts b/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
 index cf0686a..32a3d9b 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
