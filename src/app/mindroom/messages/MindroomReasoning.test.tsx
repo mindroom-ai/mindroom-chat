@@ -147,6 +147,23 @@ describe('MindroomReasoning', () => {
     );
   });
 
+  it('keeps multi-paragraph reasoning in one column', () => {
+    const root = render({
+      msgtype: 'm.text',
+      body: 'Partial answer',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_reasoning': 'First thought.\n\nSecond thought.',
+    });
+
+    const [blockBody] = root.findAll(
+      (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
+    );
+    // One host element holds the paragraphs, so the row layout of the block body cannot split them.
+    expect(blockBody.children).toHaveLength(1);
+    expect((blockBody.children[0] as { type: unknown }).type).toBe('div');
+    expect(text(blockBody)).toBe('First thought.Second thought.');
+  });
+
   it('shows live reasoning and activity around the thinking placeholder', () => {
     const root = render({
       msgtype: 'm.text',

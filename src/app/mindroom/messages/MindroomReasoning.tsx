@@ -62,12 +62,15 @@ function MindroomReasoning({
       }
       defaultExpanded={live}
     >
-      <RenderBody
-        body={reasoning.text}
-        customBody={html}
-        htmlReactParserOptions={htmlReactParserOptions}
-        linkifyOpts={linkifyOpts}
-      />
+      {/* The block body lays its children out in a row, so the paragraphs need one wrapper. */}
+      <div>
+        <RenderBody
+          body={reasoning.text}
+          customBody={html}
+          htmlReactParserOptions={htmlReactParserOptions}
+          linkifyOpts={linkifyOpts}
+        />
+      </div>
     </MindroomCollapsibleBlock>
   );
 }
