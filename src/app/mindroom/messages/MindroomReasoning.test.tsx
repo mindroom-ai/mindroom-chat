@@ -115,6 +115,11 @@ describe('MindroomReasoning', () => {
   const header = (root: ReturnType<typeof render>) =>
     root.find((node) => node.type === 'button' && node.props.className === 'BlockHeader');
 
+  const blockBody = (root: ReturnType<typeof render>) =>
+    root.find(
+      (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
+    );
+
   it('shows final reasoning collapsed with its duration, and expands it on click', () => {
     const root = render({
       msgtype: 'm.text',
@@ -232,15 +237,34 @@ describe('MindroomReasoning', () => {
       'io.mindroom.live_reasoning': 'First thought.\n\nSecond thought.',
     });
 
-    const [blockBody] = root.findAll(
-      (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
-    );
+    const body = blockBody(root);
     // One host element holds the paragraphs, so the row layout of the block body cannot split them.
-    const [reasoningText] = blockBody.children as ReactTestInstance[];
-    expect(blockBody.children).toHaveLength(1);
+    const [reasoningText] = body.children as ReactTestInstance[];
+    expect(body.children).toHaveLength(1);
     expect(reasoningText.children).toHaveLength(1);
     expect((reasoningText.children[0] as ReactTestInstance).type).toBe('div');
-    expect(text(blockBody)).toBe('First thought.Second thought.');
+    expect(text(body)).toBe('First thought.Second thought.');
+  });
+
+  it('keeps newlines only for reasoning the Markdown renderer has not rendered', () => {
+    const reasoningWrapper = (root: ReturnType<typeof render>) => {
+      const [reasoningText] = blockBody(root).children as ReactTestInstance[];
+      return reasoningText.children[0] as ReactTestInstance;
+    };
+    // The thinking placeholder has no HTML body, so the message body around it keeps newlines.
+    const content = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_reasoning': 'Line one\nline two',
+    };
+
+    expect(reasoningWrapper(render(content)).props.style).toEqual({ whiteSpace: 'normal' });
+
+    act(() => renderer?.unmount());
+    vi.mocked(useLiveMarkdownReady).mockReturnValueOnce(false);
+
+    expect(reasoningWrapper(render(content)).props.style).toEqual({ whiteSpace: 'pre-wrap' });
   });
 
   it('shows live reasoning and activity around the thinking placeholder', () => {

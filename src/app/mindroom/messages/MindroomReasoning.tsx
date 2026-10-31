@@ -57,8 +57,10 @@ function MindroomReasoningText({
   // Live frames rerender the reply while the answer streams under unchanged reasoning.
   const html = useMemo(() => (ready ? renderLiveMarkdown(text) : undefined), [ready, text]);
   return (
-    // The block body lays its children out in a row, so the paragraphs need one wrapper.
-    <div>
+    // The block body lays its children out in a row, so the paragraphs need one wrapper. A body
+    // without HTML, such as the thinking placeholder, keeps newlines, which would double the line
+    // breaks of rendered Markdown; plain reasoning before the renderer loads keeps its newlines.
+    <div style={{ whiteSpace: html === undefined ? 'pre-wrap' : 'normal' }}>
       <RenderBody
         body={text}
         customBody={html}
