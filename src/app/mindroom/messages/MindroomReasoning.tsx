@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import React, { useMemo, type ReactNode } from 'react';
 import { Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -53,7 +53,9 @@ function MindroomReasoningText({
   htmlReactParserOptions,
   linkifyOpts,
 }: MindroomReasoningTextProps) {
-  const html = useLiveMarkdownReady() ? renderLiveMarkdown(text) : undefined;
+  const ready = useLiveMarkdownReady();
+  // Live frames rerender the reply while the answer streams under unchanged reasoning.
+  const html = useMemo(() => (ready ? renderLiveMarkdown(text) : undefined), [ready, text]);
   return (
     // The block body lays its children out in a row, so the paragraphs need one wrapper.
     <div>

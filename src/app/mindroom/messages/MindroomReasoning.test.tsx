@@ -151,6 +151,34 @@ describe('MindroomReasoning', () => {
     expect(renderLiveMarkdown).toHaveBeenCalledWith('Compared **two** caches');
   });
 
+  it('renders unchanged live reasoning once while the answer streams', () => {
+    vi.mocked(renderLiveMarkdown).mockClear();
+    const element = (body: string) => (
+      <ClientConfigProvider value={{}}>
+        {renderMindroomMessageContent({
+          displayName: 'Agent',
+          msgType: 'm.text',
+          content: {
+            msgtype: 'm.text',
+            body,
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.live_reasoning': 'Checking the cache',
+          },
+          htmlReactParserOptions,
+          linkifyOpts: {},
+        })}
+      </ClientConfigProvider>
+    );
+    act(() => {
+      renderer = create(element('Partial'));
+    });
+
+    act(() => renderer?.update(element('Partial answer')));
+
+    expect(text(renderer?.root)).toBe('ThinkingChecking the cachePartial answer');
+    expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
+  });
+
   it('rounds a short reasoning time up to one second', () => {
     const root = render({
       msgtype: 'm.text',
