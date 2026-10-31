@@ -40,6 +40,7 @@ import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
+import { useBindLiveReplyFrames } from '../live/bindLiveReplyFrames';
 
 const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
 const LogoHighlightSVG = MINDROOM_FAVICON_SRC;
@@ -354,6 +355,7 @@ export function MindroomNativeIOSPushOpenFeature() {
 
 export function MindroomClientNonUIFeatures() {
   useModelControllerLifetime();
+  useBindLiveReplyFrames(useMatrixClient());
   return (
     <>
       <CrossRoomThreadIndexFeature />
