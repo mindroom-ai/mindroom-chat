@@ -129,6 +129,8 @@ import { useCompactRootEditBackfillController } from './compactRootEditBackfillC
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
 import { useThreadPagination } from './session/useThreadPagination';
 import { useThreadPrependViewport } from './useThreadPrependViewport';
+import { useFollowContentGrowth } from './useFollowContentGrowth';
+import { getLiveReplyStore } from '../live/liveReplyStore';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
 import { useRoomCachedBackState } from './useRoomCachedBackState';
@@ -1614,6 +1616,15 @@ export function RoomTimeline({
       };
     }, [getScrollElement, isViewportAtBottomNow, roomInputRef, roomFooterRef]),
     useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
+  );
+  // Live reply frames grow a message without the timeline event that pins the bottom.
+  useFollowContentGrowth(
+    getScrollElement,
+    scrollContentRef,
+    isViewportAtBottomNow,
+    atLiveEndRef,
+    getLiveReplyStore(mx),
+    room.roomId
   );
 
   const { handleMarkAsRead } = useTimelineReadReceiptController({

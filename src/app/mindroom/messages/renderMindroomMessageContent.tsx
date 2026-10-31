@@ -19,6 +19,8 @@ import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
 import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
+import { withMindroomReasoning } from './MindroomReasoning';
+import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { MindroomTranscribingPlaceholder } from './MindroomTranscribingPlaceholder';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
@@ -160,6 +162,9 @@ export const renderMindroomMessageContent = ({
     };
   };
 
+  const withReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
+    withMindroomReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
+
   const renderBody =
     (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
       const { body, customBody: providedCustomBody } = props;
@@ -173,7 +178,8 @@ export const renderMindroomMessageContent = ({
           ? renderableContent.formatted_body
           : undefined);
 
-      return (
+      return withReasoning(
+        renderableContent,
         <MindroomRenderBody
           {...props}
           customBody={customBody}
@@ -184,6 +190,26 @@ export const renderMindroomMessageContent = ({
         />
       );
     };
+
+  const renderLongTextBody: ComponentProps<typeof MindroomLongTextText>['renderBody'] = (
+    resolvedContent,
+    props,
+    metadataStatus
+  ) =>
+    withReasoning(
+      // The live reasoning rides on the outer content, not on the preview or the sidecar.
+      content[LIVE_REASONING_KEY] === undefined
+        ? resolvedContent
+        : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
+      <MindroomRenderBody
+        {...props}
+        highlightRegex={highlightRegex}
+        htmlReactParserOptions={htmlReactParserOptions}
+        markerContent={resolvedContent}
+        metadataStatus={metadataStatus}
+        linkifyOpts={linkifyOpts}
+      />
+    );
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
@@ -297,7 +323,7 @@ export const renderMindroomMessageContent = ({
         <MText
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
-          renderBody={() => <MindroomThinkingPlaceholder />}
+          renderBody={() => withReasoning(content, <MindroomThinkingPlaceholder />)}
           renderAfterBody={renderMessageExtras(content)}
         />
       );
@@ -315,16 +341,7 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props, metadataStatus) => (
-            <MindroomRenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={htmlReactParserOptions}
-              markerContent={resolvedContent}
-              metadataStatus={metadataStatus}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
+          renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
@@ -391,16 +408,7 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props, metadataStatus) => (
-            <MindroomRenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={htmlReactParserOptions}
-              markerContent={resolvedContent}
-              metadataStatus={metadataStatus}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
+          renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
@@ -465,16 +473,7 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props, metadataStatus) => (
-            <MindroomRenderBody
-              {...props}
-              highlightRegex={highlightRegex}
-              htmlReactParserOptions={htmlReactParserOptions}
-              markerContent={resolvedContent}
-              metadataStatus={metadataStatus}
-              linkifyOpts={linkifyOpts}
-            />
-          )}
+          renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
