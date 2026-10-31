@@ -89,12 +89,18 @@ export const isSpace = (room: Room | null): boolean => {
   return event.getContent().type === RoomType.Space;
 };
 
+/** The room that holds a homeserver's shared emoji packs, which no room list or picker shows. */
+export const isMindroomEmojiRoom = (room: Room | null): boolean => {
+  if (!room) return false;
+  const event = getStateEvent(room, StateEvent.RoomCreate);
+  return event?.getContent().type === RoomType.MindroomEmoji;
+};
+
 export const isRoom = (room: Room | null): boolean => {
   if (!room) return false;
   const event = getStateEvent(room, StateEvent.RoomCreate);
   if (!event) return true;
-  const { type } = event.getContent();
-  return type !== RoomType.Space && type !== RoomType.MindroomEmoji;
+  return event.getContent().type !== RoomType.Space && !isMindroomEmojiRoom(room);
 };
 
 export const isUnsupportedRoom = (room: Room | null): boolean => {

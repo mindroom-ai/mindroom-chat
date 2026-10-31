@@ -5,6 +5,7 @@ import {
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
+  isMindroomEmojiRoom,
   isRoom,
   roomHaveUnread,
   trimReplyFromBody,
@@ -638,17 +639,17 @@ describe('trimReplyFromBody', () => {
   });
 });
 
-describe('isRoom', () => {
-  /** A room whose m.room.create event has the given `type`, or none for an ordinary room. */
-  const roomOfType = (type?: string) => ({
-    getLiveTimeline: () => ({
-      getState: () => ({
-        getStateEvents: (eventType: string) =>
-          eventType === 'm.room.create' ? { getContent: () => ({ type }) } : null,
-      }),
+/** A room whose m.room.create event has the given `type`, or none for an ordinary room. */
+const roomOfType = (type?: string) => ({
+  getLiveTimeline: () => ({
+    getState: () => ({
+      getStateEvents: (eventType: string) =>
+        eventType === 'm.room.create' ? { getContent: () => ({ type }) } : null,
     }),
-  });
+  }),
+});
 
+describe('isRoom', () => {
   it('counts a room without a type', () => {
     expect(isRoom(roomOfType() as never)).toBe(true);
   });
@@ -663,5 +664,22 @@ describe('isRoom', () => {
 
   it('does not count the server emoji room, so it stays out of room lists', () => {
     expect(isRoom(roomOfType('io.mindroom.emoji') as never)).toBe(false);
+  });
+});
+
+describe('isMindroomEmojiRoom', () => {
+  it('matches the server emoji room', () => {
+    expect(isMindroomEmojiRoom(roomOfType('io.mindroom.emoji') as never)).toBe(true);
+  });
+
+  it('does not match an ordinary room, a voice room or a space', () => {
+    expect(isMindroomEmojiRoom(roomOfType() as never)).toBe(false);
+    expect(isMindroomEmojiRoom(roomOfType('org.matrix.msc3417.call') as never)).toBe(false);
+    expect(isMindroomEmojiRoom(roomOfType('m.space') as never)).toBe(false);
+  });
+
+  // Pickers list joined room IDs, and `mx.getRoom` may have no room for one; `isRoom` would drop it.
+  it('does not match a room the client does not have', () => {
+    expect(isMindroomEmojiRoom(null)).toBe(false);
   });
 });
