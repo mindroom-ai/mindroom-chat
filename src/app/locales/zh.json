@@ -2638,6 +2638,10 @@
         "aiIsResponding": "AI正在响应",
         "thinking": "正在思考…"
       },
+      "mindroomReasoning": {
+        "thinking": "思考中",
+        "thoughtFor_other": "思考了 {{count}} 秒"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 讨论串摘要"
       },

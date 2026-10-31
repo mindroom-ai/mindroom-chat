@@ -2685,6 +2685,12 @@
         "aiIsResponding": "L’IA sta rispondendo",
         "thinking": "Elaborazione…"
       },
+      "mindroomReasoning": {
+        "thinking": "Sta pensando",
+        "thoughtFor_one": "Ha pensato per {{count}} s",
+        "thoughtFor_many": "Ha pensato per {{count}} s",
+        "thoughtFor_other": "Ha pensato per {{count}} s"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Riepilogo IA del thread"
       },

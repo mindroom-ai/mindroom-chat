@@ -1343,6 +1343,11 @@
         "aiIsResponding": "एआई जवाब दे रहा है",
         "thinking": "सोच रहा है…"
       },
+      "mindroomReasoning": {
+        "thinking": "सोच रहा है",
+        "thoughtFor_one": "{{count}} सेकंड तक सोचा",
+        "thoughtFor_other": "{{count}} सेकंड तक सोचा"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "एआई थ्रेड सारांश"
       },

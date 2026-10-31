@@ -28,6 +28,8 @@ import {
   shouldForceCollapsibleMessageOverflow,
 } from '../threadCollapsibleMessages';
 import { getMindroomRoomTimelineApprovalContentIfSupported } from '../roomTimelineMessageExtensions';
+import { useLiveReplyContent } from '../../live/useLiveReplyContent';
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import type { TimelineMessageData, TimelineMessageKind, TimelineMessageRow } from './types';
 import type { useTimelineMessageExpansion } from './useTimelineMessageExpansion';
 
@@ -48,6 +50,13 @@ type TimelineMessageBodyProps = {
   threadSummaryTimeline: TimelineMessageData['threadSummaryTimeline'];
   messageContent?: ReturnType<typeof resolveTimelineMessageContent>;
 };
+
+/** Message content with the reply's live frames over it while they are newer than its edits. */
+function LiveReplyMessageContent(props: ComponentProps<typeof RenderMessageContent>) {
+  const { mEvent, getContent } = props;
+  const content = useLiveReplyContent(useMatrixClient(), mEvent, getContent());
+  return <RenderMessageContent {...props} getContent={(() => content) as GetContentCallback} />;
+}
 
 // Resolve edits on every timeline render; Matrix events are mutable.
 export const resolveTimelineMessageContent = (
@@ -144,7 +153,7 @@ export function TimelineMessageBody({
         );
       const expansion = getExpansion(eventId, content, isMindroomAgentUserId(senderId));
       const renderMessage = (loadFullContent = true) => (
-        <RenderMessageContent
+        <LiveReplyMessageContent
           {...common}
           eventId={eventId}
           msgType={msgType ?? ''}

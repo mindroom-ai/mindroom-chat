@@ -2638,6 +2638,10 @@
         "aiIsResponding": "AI が応答中です",
         "thinking": "考えています…"
       },
+      "mindroomReasoning": {
+        "thinking": "考え中",
+        "thoughtFor_other": "{{count}} 秒間考えました"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI によるスレッド要約"
       },
