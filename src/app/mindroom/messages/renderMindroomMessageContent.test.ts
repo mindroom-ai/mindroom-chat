@@ -211,7 +211,13 @@ describe('renderMindroomMessageContent', () => {
       'io.mindroom.stream_status': 'pending',
     };
     const renderer = await renderNode({
-      mEvent: new MatrixEvent({ type: 'm.room.message', origin_server_ts: 1_234, content }),
+      // With an age, `localTimestamp` differs from `origin_server_ts`.
+      mEvent: new MatrixEvent({
+        type: 'm.room.message',
+        origin_server_ts: 1_234,
+        unsigned: { age: 500 },
+        content,
+      }),
       msgType: 'm.text',
       content,
     });
