@@ -98,8 +98,8 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
 
 for (const { title, query, maxPaints } of [
   { title: 'the artwork or text', query: '', maxPaints: 60 },
-  // Each of the two counters paints about once per tenth; the shimmer layers stay as above.
-  { title: 'more than the counters', query: '?elapsed=0', maxPaints: 60 + 2 * 95 },
+  // Each tenth repaints both text layers of the two labels, about 2 × 2 × 95 paints.
+  { title: 'more than the counters', query: '?elapsed=0', maxPaints: 550 },
 ]) {
   test(`thinking motion does not continuously repaint ${title}`, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
@@ -187,31 +187,45 @@ for (const { label, query } of [
   });
 }
 
-test('a counter after the label counts tenths of seconds without moving the label', async ({
-  page,
-}) => {
-  // The paused page clock holds the count through page load; RTL puts the counter left of the
-  // label, and 10.0s widens it.
+test('the label counts tenths of seconds in both aligned text layers', async ({ page }) => {
+  // The paused page clock holds the count through page load; 10.0s widens the RTL label.
   await page.clock.install({ time: 0 });
   await page.clock.pauseAt(1_000);
   await page.goto('/e2e/fixtures/thinking-marker.html?rtl&elapsed=9900');
   await page.evaluate(() => document.fonts.ready);
   const status = page.getByRole('status').first();
-  const label = status.locator(':scope > span').nth(1);
-  const counter = status.locator(':scope > span').last();
-  await expect(counter).toHaveAttribute('aria-hidden', 'true');
-  await expect(counter).toHaveText('(9.9s)');
-  const labelBox = (await label.boundingBox())!;
-  const narrowCounterWidth = (await counter.boundingBox())!.width;
+  // The logo and the label, with no separate counter element.
+  await expect(status.locator(':scope > span')).toHaveCount(2);
+  const text = status.locator(':scope > span').last();
+  const base = text.locator(':scope > span').first();
+  const layers = () =>
+    text.evaluate((host) => {
+      const baseLayer = host.firstElementChild!;
+      const highlight = host.lastElementChild!.firstElementChild!.firstElementChild!;
+      const a = baseLayer.getBoundingClientRect();
+      const b = highlight.getBoundingClientRect();
+      return {
+        text: [baseLayer.textContent, highlight.textContent],
+        offsetX: b.x - a.x,
+        offsetY: b.y - a.y,
+        widthDifference: b.width - a.width,
+        heightDifference: b.height - a.height,
+        width: a.width,
+      };
+    });
+  await expect(base).toHaveText('Thinking… (9.9s)');
+  const before = await layers();
   await page.clock.runFor(100);
-  await expect(counter).toHaveText('(10.0s)');
-  expect(await label.boundingBox()).toEqual(labelBox);
-  const counterBox = (await counter.boundingBox())!;
-  expect(counterBox.width).toBeGreaterThan(narrowCounterWidth);
-  expect(counterBox.x + counterBox.width).toBeLessThanOrEqual(labelBox.x);
-  expect(
-    Math.abs(counterBox.y + counterBox.height / 2 - (labelBox.y + labelBox.height / 2))
-  ).toBeLessThan(1);
+  await expect(base).toHaveText('Thinking… (10.0s)');
+  const after = await layers();
+  for (const frame of [before, after]) {
+    expect(frame.text[1]).toBe(frame.text[0]);
+    expect(Math.abs(frame.offsetX)).toBeLessThan(0.1);
+    expect(Math.abs(frame.offsetY)).toBeLessThan(0.1);
+    expect(Math.abs(frame.widthDifference)).toBeLessThan(0.1);
+    expect(Math.abs(frame.heightDifference)).toBeLessThan(0.1);
+  }
+  expect(after.width).toBeGreaterThan(before.width);
 });
 
 test('forced colors retain readable text without a shimmer overlay', async ({

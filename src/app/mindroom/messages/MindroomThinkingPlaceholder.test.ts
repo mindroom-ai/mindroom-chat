@@ -22,7 +22,6 @@ vi.mock('./MindroomThinkingPlaceholder.css', () => ({
   TextSweep: 'TextSweep',
   TextCounter: 'TextCounter',
   TextHighlight: 'TextHighlight',
-  Elapsed: 'Elapsed',
 }));
 
 const renderPlaceholder = (messages?: string[], startedAt?: number) =>
@@ -38,6 +37,12 @@ const renderPlaceholder = (messages?: string[], startedAt?: number) =>
       },
       React.createElement(MindroomThinkingPlaceholder, { startedAt })
     )
+  );
+
+/** The label in the base text and in the shimmer's highlight copy. */
+const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) =>
+  ['TextBase', 'TextHighlight'].map((className) =>
+    renderer?.root.findByProps({ className }).children.join('')
   );
 
 describe('resolveMindroomThinkingPlaceholderMessages', () => {
@@ -112,25 +117,24 @@ describe('MindroomThinkingPlaceholder', () => {
     act(() => {
       renderer = renderPlaceholder(['Working'], 10_000 - 1_290);
     });
-    const elapsed = () => renderer?.root.findByProps({ className: 'Elapsed' });
 
-    expect(elapsed()?.props['aria-hidden']).toBe('true');
-    expect(elapsed()?.children).toEqual(['(', '1.2s', ')']);
+    expect(renderer?.root.findByProps({ className: 'Text' }).props['aria-hidden']).toBe('true');
+    expect(labelTexts(renderer)).toEqual(['Working (1.2s)', 'Working (1.2s)']);
 
     act(() => {
       vi.advanceTimersByTime(9);
     });
-    expect(elapsed()?.children).toEqual(['(', '1.2s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (1.2s)', 'Working (1.2s)']);
 
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(elapsed()?.children).toEqual(['(', '1.3s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (1.3s)', 'Working (1.3s)']);
 
     act(() => {
       vi.advanceTimersByTime(8_700);
     });
-    expect(elapsed()?.children).toEqual(['(', '10.0s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (10.0s)', 'Working (10.0s)']);
 
     act(() => {
       renderer?.unmount();
@@ -146,19 +150,17 @@ describe('MindroomThinkingPlaceholder', () => {
     act(() => {
       renderer = renderPlaceholder(['Working'], 12_000);
     });
-    const elapsed = () => renderer?.root.findByProps({ className: 'Elapsed' }).children;
-
-    expect(elapsed()).toEqual(['(', '0.0s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
 
     act(() => {
       vi.advanceTimersByTime(2_099);
     });
-    expect(elapsed()).toEqual(['(', '0.0s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
 
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(elapsed()).toEqual(['(', '0.1s', ')']);
+    expect(labelTexts(renderer)).toEqual(['Working (0.1s)', 'Working (0.1s)']);
 
     renderer?.unmount();
     vi.useRealTimers();
@@ -180,11 +182,7 @@ describe('MindroomThinkingPlaceholder', () => {
     // One timer per tenth, not one per millisecond.
     expect(setTimeoutSpy.mock.calls.length).toBeLessThanOrEqual(10);
     setTimeoutSpy.mockRestore();
-    expect(renderer?.root.findByProps({ className: 'Elapsed' }).children).toEqual([
-      '(',
-      '0.0s',
-      ')',
-    ]);
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
 
     act(() => {
       renderer?.unmount();
@@ -195,7 +193,7 @@ describe('MindroomThinkingPlaceholder', () => {
   it('shows no counter without a reply timestamp', () => {
     const renderer = renderPlaceholder(['Working']);
 
-    expect(renderer.root.findAllByProps({ className: 'Elapsed' })).toHaveLength(0);
+    expect(labelTexts(renderer)).toEqual(['Working', 'Working']);
 
     renderer.unmount();
   });

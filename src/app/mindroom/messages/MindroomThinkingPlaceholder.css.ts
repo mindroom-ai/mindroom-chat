@@ -163,6 +163,7 @@ export const Core = style({
 
 export const Text = style({
   display: 'inline-block',
+  fontVariantNumeric: 'tabular-nums',
   position: 'relative',
   overflow: 'hidden',
   minWidth: 0,
@@ -228,11 +229,4 @@ export const TextHighlight = style({
   marginLeft: '3em',
   marginRight: '3em',
   color: color.Surface.OnContainer,
-});
-
-export const Elapsed = style({
-  flex: '0 0 auto',
-  fontWeight: 400,
-  fontVariantNumeric: 'tabular-nums',
-  opacity: config.opacity.P400,
 });

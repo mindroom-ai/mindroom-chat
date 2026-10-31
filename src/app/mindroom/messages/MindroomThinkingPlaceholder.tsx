@@ -14,12 +14,14 @@ const TENTH_MS = 100;
 const getElapsedTenths = (elapsedMs: number) => Math.max(0, Math.floor(elapsedMs / TENTH_MS));
 
 /**
- * Seconds since the reply arrived, in tenths. Its own component, outside the shimmer layers,
- * so each tick re-renders and repaints only this text.
+ * Seconds since the reply arrived, in tenths, or undefined without a timestamp. The label
+ * carries it, so it shares the label's weight, gradient and shimmer.
  */
-function ThinkingElapsed({ startedAt }: { startedAt: number }) {
+function useThinkingElapsed(startedAt: number | undefined): string | undefined {
   const language = useAppLanguageCode();
-  const [tenths, setTenths] = React.useState(() => getElapsedTenths(Date.now() - startedAt));
+  const [tenths, setTenths] = React.useState(() =>
+    startedAt === undefined ? 0 : getElapsedTenths(Date.now() - startedAt)
+  );
   const formatter = React.useMemo(
     () =>
       new Intl.NumberFormat(language, {
@@ -33,6 +35,7 @@ function ThinkingElapsed({ startedAt }: { startedAt: number }) {
   );
 
   React.useEffect(() => {
+    if (startedAt === undefined) return undefined;
     let timeoutId: ReturnType<typeof globalThis.setTimeout>;
     // Wake at each next tenth, so a late timer never shows one tenth twice and skips the next.
     // A server clock ahead of the viewer's holds the count at zero until it catches up; the
@@ -47,11 +50,7 @@ function ThinkingElapsed({ startedAt }: { startedAt: number }) {
     return () => globalThis.clearTimeout(timeoutId);
   }, [startedAt]);
 
-  return (
-    <span className={css.Elapsed} aria-hidden="true">
-      ({formatter.format(tenths / 10)})
-    </span>
-  );
+  return startedAt === undefined ? undefined : formatter.format(tenths / 10);
 }
 
 type MindroomThinkingPlaceholderProps = {
@@ -84,6 +83,8 @@ export function MindroomThinkingPlaceholder({ startedAt }: MindroomThinkingPlace
     configuredMessage === MINDROOM_THINKING_PLACEHOLDER_BODY
       ? t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking')
       : configuredMessage;
+  const elapsed = useThinkingElapsed(startedAt);
+  const text = elapsed === undefined ? message : `${message} (${elapsed})`;
 
   return (
     <span
@@ -101,14 +102,13 @@ export function MindroomThinkingPlaceholder({ startedAt }: MindroomThinkingPlace
         </span>
       </span>
       <span className={css.Text} aria-hidden="true">
-        <span className={css.TextBase}>{message}</span>
+        <span className={css.TextBase}>{text}</span>
         <span className={css.TextSweep} aria-hidden="true">
           <span className={css.TextCounter}>
-            <span className={css.TextHighlight}>{message}</span>
+            <span className={css.TextHighlight}>{text}</span>
           </span>
         </span>
       </span>
-      {startedAt !== undefined && <ThinkingElapsed startedAt={startedAt} />}
     </span>
   );
 }
