@@ -3,7 +3,7 @@ import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/li
 import { Filter } from 'matrix-js-sdk/lib/filter';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
-import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
+import { readClientCachedSpecVersions } from '../../state/cachedSpecVersions';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
@@ -54,8 +54,7 @@ const createStartupSyncFilter = (mx: MatrixClient): Filter => {
 };
 
 export const startClient = async (mx: MatrixClient) => {
-  const userId = mx.getUserId();
-  const cached = userId ? readCachedSpecVersions(mx.baseUrl, userId) : undefined;
+  const cached = readClientCachedSpecVersions(mx);
   if (cached) {
     const cachedServerVersions = cached as IServerVersions;
     // SDK getVersions() returns serverVersionsPromise without rebuilding canSupport;
