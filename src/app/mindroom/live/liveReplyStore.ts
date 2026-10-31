@@ -24,8 +24,8 @@ const fitsCap = ({ md, reasoning, activity }: LiveDocs): boolean =>
   activity.length <= LIVE_DOCUMENT_CAP;
 
 /**
- * The next entry for a frame, `entry` itself when the frame only marks it stale,
- * or undefined when the frame changes nothing.
+ * The entry after a frame: a new entry when the frame applies, a stale copy of `entry` when it
+ * does not, or undefined when the frame changes nothing.
  */
 const nextEntry = (
   entry: LiveReplyEntry | undefined,
