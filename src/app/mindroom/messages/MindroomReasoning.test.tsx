@@ -65,6 +65,12 @@ vi.mock('./MindroomHtmlBlocks.css', () => ({
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
 }));
+vi.mock('./MindroomReasoning.css', () => ({
+  Reasoning: 'Reasoning',
+  Toggle: 'ReasoningToggle',
+  Label: 'ReasoningLabel',
+  Body: 'ReasoningBody',
+}));
 vi.mock('./PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
 vi.mock('./MindroomTranscribingPlaceholder.css', () => ({}));
 vi.mock('./MindroomMessageExtras.css.ts', () => ({}));
@@ -113,12 +119,10 @@ describe('MindroomReasoning', () => {
   };
 
   const header = (root: ReturnType<typeof render>) =>
-    root.find((node) => node.type === 'button' && node.props.className === 'BlockHeader');
+    root.find((node) => node.type === 'button' && node.props.className === 'ReasoningToggle');
 
   const blockBody = (root: ReturnType<typeof render>) =>
-    root.find(
-      (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
-    );
+    root.find((node) => typeof node.type === 'string' && node.props.className === 'ReasoningBody');
 
   it('shows final reasoning collapsed with its duration, and expands it on click', () => {
     const root = render({
@@ -238,7 +242,7 @@ describe('MindroomReasoning', () => {
     });
 
     const body = blockBody(root);
-    // One host element holds the paragraphs, so the row layout of the block body cannot split them.
+    // One host element holds the paragraphs and sets how they keep newlines.
     const [reasoningText] = body.children as ReactTestInstance[];
     expect(body.children).toHaveLength(1);
     expect(reasoningText.children).toHaveLength(1);
@@ -295,7 +299,7 @@ describe('MindroomReasoning', () => {
   it('shows nothing extra without reasoning or activity', () => {
     const root = render({ msgtype: 'm.text', body: 'Plain' });
 
-    expect(root.findAll((node) => node.props.className === 'BlockHeader')).toHaveLength(0);
+    expect(root.findAll((node) => node.props.className === 'ReasoningToggle')).toHaveLength(0);
     expect(text(root)).toBe('Plain');
   });
 });
