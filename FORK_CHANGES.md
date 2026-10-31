@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Configure the sign-in footer's "Powered by" links (2026-10-31)
+
+- Why: the owner asked to make the sign-in page's "Powered by MindRoom Chat, Matrix, Cinny" line configurable. Its three links were hardcoded in `AuthFooter`.
+- Change: `config.json` `auth.poweredBy` takes the same `{ label, url }[]` list as `welcome.poweredBy`, beside the other footer links (`auth.supportUrl`, `privacyPolicyUrl`, `termsUrl`). Absent keeps MindRoom Chat, Matrix, and Cinny (now `MINDROOM_AUTH_BRANDING.poweredBy`, which replaces the footer-only `chatSourceUrl`); `[]` hides the line and keeps the Support, Privacy, and Terms links. `Intl.ListFormat` (conjunction, app language) formats the labels themselves, so the locale supplies separators and the final "and", including Spanish "e" before "Inkscape"; English now reads "MindRoom Chat, Matrix, and Cinny". Each element part becomes the next link (list patterns keep item order), and each link has `dir="auto"` so a label stays isolated inside Arabic text. `sharedUi.authFooter.poweredBy` becomes `Powered by <links />` in all 17 locales, copied from each locale's `sharedUi.welcomePage.poweredBy` except Portuguese, which keeps "Com tecnologia de"; its `Matrix`/`Cinny` literal-token check is gone. README's notable options mention the credits.
+- Decision: a separate `auth.poweredBy`, not reusing `welcome.poweredBy`. `config.mindroom.json` lists four welcome credits, so sharing the list would have changed the sign-in footer on mindroom.chat, and the two pages may want different credits.
+- Tests: `AuthFooter.test.tsx` renders the default list, a configured two-link list ("Acme and Matrix"), an empty list that hides the line but keeps Support, and a Spanish three-link list ("Acme, Matrix e Inkscape"), which fails if the footer ignores the app language or formats placeholders instead of labels.
+- Review: an independent subagent found nothing blocking; its low-severity findings (Spanish conjunction, Arabic isolation, English-only test, Portuguese "de") are fixed above.
+- Validation: `npm run typecheck`, `npm run build`, and `npm run lint` (warnings only, none in touched files) pass. Full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test).
+- Next: none.
+
 ### Count the seconds a reply has been thinking (2026-10-31)
 
 - Why: the owner asked for a counter on the thinking placeholder's shimmering text, with one decimal, from the time the reply arrived: "Text here (1.2s)". A first version drew the counter as a muted, regular-weight span beside the label; the owner found it unbalanced and asked for it to be part of the label.

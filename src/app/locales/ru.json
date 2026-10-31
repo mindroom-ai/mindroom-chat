@@ -1260,7 +1260,7 @@
       "support": "Поддержка",
       "privacy": "Конфиденциальность",
       "terms": "Условия",
-      "poweredBy": "На базе <app>{{appName}}</app>, <matrix>Matrix</matrix> и <cinny>Cinny</cinny>"
+      "poweredBy": "На базе <links />"
     },
     "router": {
       "join": "Войти",

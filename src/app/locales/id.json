@@ -1242,7 +1242,7 @@
       "support": "Dukungan",
       "privacy": "Privasi",
       "terms": "Ketentuan",
-      "poweredBy": "Didukung oleh <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Didukung oleh <links />"
     },
     "router": {
       "join": "Bergabung",

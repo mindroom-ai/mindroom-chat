@@ -1253,7 +1253,7 @@
       "support": "Ayuda",
       "privacy": "Privacidad",
       "terms": "Términos",
-      "poweredBy": "Con tecnología de <app>{{appName}}</app>, <matrix>Matrix</matrix> y <cinny>Cinny</cinny>"
+      "poweredBy": "Con tecnología de <links />"
     },
     "router": {
       "join": "Unirse",
