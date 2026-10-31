@@ -198,6 +198,10 @@ const TOOL_OUTPUT_LINES = 6;
 const asToolTraceText = (value: unknown): string | undefined =>
   typeof value === 'string' ? value.trim() || undefined : undefined;
 
+// Output keeps its first line's indentation, as in YAML or a tree listing.
+const asToolOutput = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value.trimEnd() || undefined : undefined;
+
 const buildToolRefRenderData = (
   toolRef: MindroomToolRefParseResult,
   eventRaw?: MindroomToolTraceEvent,
@@ -231,7 +235,7 @@ const buildToolRefRenderData = (
       toolName: traceToolName,
       argsPreview,
       resultInline: false,
-      progress: asToolTraceText(eventRaw?.progress),
+      progress: asToolOutput(eventRaw?.progress),
     };
   }
 
@@ -332,9 +336,8 @@ function MindroomToolRefGroupBlock({
     approvals
   );
   const summary = summarizeToolCalls(parsedTools, states);
-  const output = loadedTools
-    .filter((tool, index) => states[index] === 'running' && tool.progress)
-    .at(-1)?.progress;
+  const running = loadedTools.filter((tool, index) => states[index] === 'running');
+  const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
@@ -356,10 +359,15 @@ function MindroomToolRefGroupBlock({
       }
       detail={summary.names}
       preview={
-        output && (
-          <pre className={activityCss.Output}>
-            {output.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-          </pre>
+        outputTool?.progress && (
+          <>
+            {running.length > 1 && (
+              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
+            )}
+            <pre className={activityCss.Output}>
+              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
+            </pre>
+          </>
         )
       }
     >

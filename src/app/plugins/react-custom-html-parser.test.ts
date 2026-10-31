@@ -708,6 +708,50 @@ describe('useMindroomToolTraceMarkerParserOptions', () => {
     expect(text).not.toContain('step 4');
   });
 
+  it('keeps the indentation of a running call output first line', () => {
+    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_started',
+            tool_name: 'run_shell_command',
+            progress: '  root:\n    child: 1\n',
+          },
+        ],
+      },
+    });
+
+    const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
+    expect(output.children.join('')).toBe('  root:\n    child: 1');
+  });
+
+  it('names the call whose output shows only while several calls run', () => {
+    const html =
+      '<p>🔧 <code>run_shell_command</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
+    const started = (args: string, progress?: string) => ({
+      type: 'tool_call_started',
+      tool_name: 'run_shell_command',
+      args_preview: args,
+      progress,
+    });
+    const labels = (events: object[]) =>
+      renderTreeWithToolTrace(html, { 'io.mindroom.tool_trace': { version: 2, events } })
+        .root.findAll((node) => node.props.className === 'activity-output-label')
+        .map((node) => node.children.join(''));
+
+    expect(labels([started('pytest'), started('npm run build', 'compiling')])).toEqual([
+      'run_shell_command(npm run build)',
+    ]);
+    expect(
+      labels([
+        { type: 'tool_call_completed', tool_name: 'run_shell_command', result_preview: 'ok' },
+        started('npm run build', 'compiling'),
+      ])
+    ).toEqual([]);
+  });
+
   it('drops a call output once the call completed', () => {
     const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
     const renderer = renderTreeWithToolTrace(html, {

@@ -29,6 +29,7 @@ vi.mock('./app/mindroom/messages/ThreadActivity.css', () => ({
   Chevron: 'activity-chevron',
   Panel: 'activity-panel',
   Output: 'activity-output',
+  OutputLabel: 'activity-output-label',
   Row: 'activity-row',
   RowBody: 'activity-row-body',
   RowName: 'activity-row-name',

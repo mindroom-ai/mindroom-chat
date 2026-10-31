@@ -119,6 +119,17 @@ export const Output = style([
 ]);
 
 // Rows in the panel are separated by quiet dividers, not nested boxes.
+export const OutputLabel = style({
+  margin: `${config.space.S100} 0 0`,
+  overflow: 'hidden',
+  color: color.Surface.OnContainer,
+  fontFamily: 'var(--font-mono)',
+  fontSize: toRem(12),
+  opacity: config.opacity.P400,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
 export const Row = style({
   display: 'grid',
   gridTemplateColumns: `${toRem(22)} minmax(0, 1fr)`,
