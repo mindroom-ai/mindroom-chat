@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Accept a Cloudflare Access token only from the server the sign-in started for (2026-10-30)
+
+- Why: the advert's handoff page may redirect anywhere, including to another homeserver's handoff page, and the callback did not say which server issued the token.
+  A server whose handoff page forwarded to another organization's handoff page received that organization's Access token: the app stored it under the first server's origin and sent it there as `cf-access-token`.
+- Change: the handoff page now names its own origin in the callback, `mindroom://cloudflare-access#origin=https://<homeserver>&token=<CF_Authorization cookie>`.
+  `parseCloudflareAccessCallback` takes the origin the sign-in started for and refuses a callback whose `origin` is missing or names another one, so the sign-in fails and stores no token.
+  The origin must be fixed in the server's config, never taken from the request.
+  MindRoom's `docs/ios.md` snippet carries it.
+- Rollout: a server must add `origin` before users get a release with this change, or their Access sign-in fails with "Cloudflare Access sign-in returned no valid token."
+  Earlier releases ignore the extra parameter.
+- Tests: `cloudflareAccess.test.ts` (a callback without an origin or with another one is refused; a sign-in whose handoff page leads to another server's stores nothing), and the callbacks in `CloudflareAccessGate.test.tsx` carry the origin.
+- Next: none.
+
 ### Load the main bundle without the top-level-await wrapper (2026-10-29)
 
 - Why: the thinking-artwork entry below left a roughly 2.6-second startup frame gap on the Mac app, with early samples pointing at JavaScript and IndexedDB work. A warm-start profile of the production build (Chromium 155, 100 rooms, `--disable-webgl`, a fresh tab per start, median of 5) put 531 of 993 ms in loading and evaluating the 5.48 MB main chunk, as one 328 ms task. `vite-plugin-top-level-await` wrapped that whole chunk in an async function (`let __tla = (async () => {…})()`) and broke its sourcemap (97 sources, 2.5 MB).
@@ -115,7 +128,7 @@
 - Why: a homeserver behind Cloudflare Access answers the iOS app with a redirect to the Access login, because the app's web view (`capacitor://localhost`) never holds the Access cookie. Login, `/sync` and every other Matrix call fail. Access accepts its app token in a `cf-access-token` header instead of the cookie.
 - Server contract (opt-in, nothing changes for other servers):
   - `GET /.well-known/mindroom/cloudflare-access`, public, `Access-Control-Allow-Origin: *`: `{"handoff_url": "https://<homeserver>/<path>"}`. The handoff URL must be HTTPS on the homeserver's origin. `"push": false` turns push off for the server.
-  - The handoff page sits behind Access and redirects to `mindroom://cloudflare-access#token=<CF_Authorization cookie>`.
+  - The handoff page sits behind Access and redirects to `mindroom://cloudflare-access#origin=<its own origin>&token=<CF_Authorization cookie>`, with the origin fixed in the server's config (see the 2026-10-30 entry).
   - Access lets CORS preflights through to the origin, and the homeserver allows the `cf-access-token` request header (mindroom-tuwunel). The origin must not answer `OPTIONS` with private content. `<img>` cannot send headers, so the Matrix-authenticated media paths `/_matrix/client/v1/media` and `/_matrix/media/v3/upload` (SDK uploads use XHR) bypass Access, as does `/_matrix/client/versions`, which the app checks with a plain request before the Access gate.
 - Change:
   - `src/app/mindroom/native/cloudflareAccess.ts`: per-origin record `{handoffUrl, push, token}` in localStorage. Discovery stores it, and clears it on a 404 or a complete answer without a valid advert; a failed request, a server error or a broken-off body keeps it. On a device, a cross-origin 404 without CORS headers is such a failed request, so a record outlives an advert's removal. Sign-in opens the handoff page with `MindRoomAuth.authenticate` and accepts only a `mindroom://cloudflare-access` callback carrying a JWT whose `exp` has not passed. The session is ephemeral (`authenticate({ephemeral: true})`, `prefersEphemeralWebBrowserSession`): with Safari's shared cookies, its cross-site tracking protection made the team-domain login end on Cloudflare's "Invalid session" page (reproduced on a device; it worked with the protection off, in a Private tab and after deleting Safari's website data, until it recurred). iOS with the plugin only.
