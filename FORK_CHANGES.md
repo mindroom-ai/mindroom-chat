@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Show a long reply's whole text before the service worker controls the page (2026-10-31)
+
+- Problem: a MindRoom reply too large for one event arrives as a preview whose sidecar file holds the whole message, and Chat kept showing only the preview, ending in "[Message continues in attached file]".
+  Chat fetches the sidecar itself and sends the access token in a header, but it chose the media endpoint with `useMediaAuthentication`, which stays false until the service worker controls the page.
+  Without that control it requested the legacy `/_matrix/media/v3/download/` URL, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.`, and the reply kept its preview until the worker took control.
+  A page can stay uncontrolled for up to 40 seconds after an SSO login (see "Retry avatars when their URL changes"), for the whole session when the deployment disables the worker, and on the development server in headless Chromium, where the reported reply was seen.
+  Every other download through the attachment repository failed the same way: encrypted images, video, audio and files, thumbnails, canvas pages and approval arguments.
+- Fix: `fetchRawAttachment` in `attachmentRepository.ts` chooses the authenticated endpoint whenever the homeserver supports it (`mx.getVersions()`), as the offline prefetch already did.
+  The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
+  Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
+- Tests: `attachmentRepository.test.ts` "hydrates a long text from authenticated media without a service worker" fails without the change (it keeps the preview).
+  `createLegacyMediaClient` in `attachmentFixtures.ts` gives tests a homeserver without authenticated media, so their downloads stay one request each; "keeps authenticated transport separate from a pending unauthenticated download" is gone with the argument.
+  Live against a local Tuwunel and the MindRoom runtime's 97 KB synthetic reply in an encrypted room, with the service worker disabled: the `dev` build fetched each sidecar from the legacy URL (403) and kept the preview with its marker, and this build fetched `/_matrix/client/v1/media/download/` (200) and showed the whole reply (23,129 against 99,930 characters of page text).
+  `npm run typecheck` and `npm run lint` pass. Full `npm test` on a host at load average 55 failed the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test) and timed out 8 `RoomTimeline`, `RoomView` and `Message` tests, whose files all pass when run alone.
+- Next: none.
+
 ### Load the main bundle without the top-level-await wrapper (2026-10-29)
 
 - Why: the thinking-artwork entry below left a roughly 2.6-second startup frame gap on the Mac app, with early samples pointing at JavaScript and IndexedDB work. A warm-start profile of the production build (Chromium 155, 100 rooms, `--disable-webgl`, a fresh tab per start, median of 5) put 531 of 993 ms in loading and evaluating the 5.48 MB main chunk, as one 328 ms task. `vite-plugin-top-level-await` wrapped that whole chunk in an async function (`let __tla = (async () => {…})()`) and broke its sourcemap (97 sources, 2.5 MB).

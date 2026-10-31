@@ -22,6 +22,7 @@ const hookMocks = vi.hoisted(() => ({
     getAccessToken: vi.fn(() => undefined),
     getHomeserverUrl: vi.fn(() => 'https://example.org'),
     getSafeUserId: vi.fn(() => '@alice:example.org'),
+    getVersions: async () => ({ versions: ['v1.11'], unstable_features: {} }),
   },
 }));
 
@@ -170,9 +171,6 @@ vi.mock('./messageStateSuffix', () => ({
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
-}));
-vi.mock('../../hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
 }));
 
 const getDownloadMindroomLongTextSidecarText = async () =>
@@ -397,7 +395,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       })
     );
 
-    const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), false);
+    const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
 
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
@@ -420,8 +418,9 @@ describe('downloadMindroomLongTextSidecarText', () => {
       })
     );
 
-    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
+    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
 
+    expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', true);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
       headers: { Authorization: 'Bearer access-token' },
     });
@@ -439,7 +438,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       new Blob(['{"msgtype":"m.text","body":"body"}'], { type: 'application/json' })
     );
 
-    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
+    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
 
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl);
   });
@@ -452,7 +451,6 @@ describe('downloadMindroomLongTextSidecarText', () => {
     const downloadedBlob = await downloadMindroomLongTextSidecarBlob(
       mockMx,
       createLongTextSource(),
-      false,
       true
     );
 
@@ -498,8 +496,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
         },
         mxcUri: 'mxc://server/encrypted',
         encryptedFile,
-      }),
-      true
+      })
     );
 
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {

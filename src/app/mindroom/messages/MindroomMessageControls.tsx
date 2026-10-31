@@ -20,7 +20,6 @@ import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives
 import { PageScroll } from '../../components/page';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { stopPropagation } from '../../utils/keyboard';
 import { assignElementRef } from '../../utils/react';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
@@ -232,7 +231,6 @@ export const MindroomDownloadOriginalMenuItem = as<
 >(({ source, onClose, ...props }, ref) => {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
   const downloadedFileRef = useRef<{ identity: string; blob: Blob }>();
   const downloadInProgressRef = useRef(false);
 
@@ -241,12 +239,12 @@ export const MindroomDownloadOriginalMenuItem = as<
       const identity = getMindroomLongTextSourceIdentity(source);
       let blob = downloadedFileRef.current?.identity === identity && downloadedFileRef.current.blob;
       if (!blob) {
-        blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication, true);
+        blob = await downloadMindroomLongTextSidecarBlob(mx, source, true);
         downloadedFileRef.current = { identity, blob };
       }
       const saved = await saveFile(blob, getMindroomLongTextDownloadName(source));
       if (saved) onClose?.();
-    }, [mx, source, useAuthentication, onClose])
+    }, [mx, source, onClose])
   );
   const handleDownload = () => {
     if (downloadState.status === AsyncStatus.Loading || downloadInProgressRef.current) return;

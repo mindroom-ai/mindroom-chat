@@ -1189,7 +1189,7 @@ it.each(['m.notice', 'm.emote'])(
         await persistAttachmentEvents(mx, [mEvent]);
         const tree = await renderNode({ msgType, content, mEvent });
         const node = tree.root.find((item) => !!item.props.longTextSource);
-        const hydrated = await hydrateCachedMindroomLongText(mx, node.props.longTextSource, false);
+        const hydrated = await hydrateCachedMindroomLongText(mx, node.props.longTextSource);
         expect(hydrated.body).toBe('complete body');
         tree.unmount();
       }
