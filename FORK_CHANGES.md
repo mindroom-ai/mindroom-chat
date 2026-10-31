@@ -13,6 +13,30 @@
 - Risks: a placeholder left `streaming` by a dead run keeps counting, for example `(3,600.0s)` after an hour.
 - Next: none.
 
+### Show a long reply's whole text before the service worker controls the page (2026-10-31)
+
+- Problem: a MindRoom reply too large for one event arrives as a preview whose sidecar file holds the whole message, and Chat kept showing only the preview, ending in "[Message continues in attached file]".
+  Chat fetches the sidecar itself and sends the access token in a header, but it chose the media endpoint with `useMediaAuthentication`, which stays false until the service worker controls the page.
+  Without that control it requested the legacy `/_matrix/media/v3/download/` URL, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.`, and the reply kept its preview until the worker took control.
+  A page can stay uncontrolled for up to 40 seconds after an SSO login (see "Retry avatars when their URL changes"), for the whole session when the deployment disables the worker, and on the development server in headless Chromium, where the reported reply was seen.
+  Every other timeline and interactive download through the attachment repository failed the same way: images, video, audio and files, thumbnails, canvas pages and approval arguments.
+- Fix: `fetchRawAttachment` in `attachmentRepository.ts` chooses the authenticated endpoint whenever the homeserver supports it (`mx.getVersions()`), as the offline prefetch already did.
+  Before startup seeds the SDK with the cached `/versions`, or after the SDK's own request failed, `getVersions` asks the homeserver again; if that fails, the spec versions the client last cached decide.
+  The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
+  Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
+  `CallWidgetDriver.downloadFile`, which always asks for the authenticated endpoint, now sends the access token itself too; without it, a call widget's file download failed with 401 until the worker took control.
+  `authenticatedMediaRequestInit` adds no header to a URL that already carries `access_token` in its query, as in the iOS and Mac apps (`capacitor://`), since Synapse refuses a request that sends both; the settings avatar fetch uses it too.
+- Tests: `attachmentRepository.test.ts` "hydrates a long text from authenticated media without a service worker" fails without the change (it keeps the preview).
+  "uses the cached server versions when /versions fails" covers the fallback.
+  `CallWidgetDriver.test.ts` "sends the access token with the authenticated media request" fails without the header.
+  "downloads from the legacy endpoint without the access token when authenticated media is unsupported" pins the other branch.
+  `mediaUrl.test.ts` "adds no header to a URL that already carries the access token" fails without the query check, and the two `MindroomLongTextText.test.ts` legacy-download tests check that `mxcUrlToHttp` is called with `false`.
+  `createLegacyMediaClient` in `attachmentFixtures.ts` gives tests a homeserver without authenticated media, so their downloads stay one request each; "keeps authenticated transport separate from a pending unauthenticated download" is gone with the argument.
+  Live against a local Tuwunel and the MindRoom runtime's 97 KB synthetic reply in an encrypted room, with the service worker disabled: the `dev` build fetched each sidecar from the legacy URL (403) and kept the preview with its marker, and this build fetched `/_matrix/client/v1/media/download/` (200) and showed the whole reply (23,129 against 99,930 characters of page text).
+  `npm run typecheck` and `npm run lint` pass.
+  Full `npm test` passes 7422 tests and fails only the 4 that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test).
+- Next: none.
+
 ### Stream replies from live reply frames and show model reasoning (2026-10-30)
 
 - Why: MindRoom issue #3438 moves streaming from frequent full-content `m.replace` edits to small ephemeral `io.mindroom.live` frames relayed by the homeserver (MSC2477 subset with a MindRoom opt-in), with durable checkpoint edits every 5 s and the terminal edit. Chat applies the frames so replies stream smoothly while every other client converges on the same durable message.
