@@ -8,13 +8,15 @@
   Chat fetches the sidecar itself and sends the access token in a header, but it chose the media endpoint with `useMediaAuthentication`, which stays false until the service worker controls the page.
   Without that control it requested the legacy `/_matrix/media/v3/download/` URL, which Tuwunel answers with `403 M_FORBIDDEN: Unauthenticated media is disabled.`, and the reply kept its preview until the worker took control.
   A page can stay uncontrolled for up to 40 seconds after an SSO login (see "Retry avatars when their URL changes"), for the whole session when the deployment disables the worker, and on the development server in headless Chromium, where the reported reply was seen.
-  Every other download through the attachment repository failed the same way: encrypted images, video, audio and files, thumbnails, canvas pages and approval arguments.
+  Every other timeline and interactive download through the attachment repository failed the same way: encrypted images, video, audio and files, thumbnails, canvas pages and approval arguments.
 - Fix: `fetchRawAttachment` in `attachmentRepository.ts` chooses the authenticated endpoint whenever the homeserver supports it (`mx.getVersions()`), as the offline prefetch already did.
-  When `/versions` fails, as after a token refresh cleared the SDK's copy, the spec versions the client last cached decide.
+  A token refresh clears the SDK's copy of `/versions`; if fetching it again fails, the spec versions the client last cached decide.
   The repository's download functions no longer take a `useAuthentication` argument, so callers no longer download again when the worker takes over, and the prefetch and the timeline share one request per file.
   Media URLs the browser loads directly, such as avatars, still use `useMediaAuthentication`, since only the worker can add the header to them.
+  `CallWidgetDriver.downloadFile`, which always asks for the authenticated endpoint, now sends the access token itself too; without it, a call widget's file download failed with 401 until the worker took control.
 - Tests: `attachmentRepository.test.ts` "hydrates a long text from authenticated media without a service worker" fails without the change (it keeps the preview).
   "uses the cached server versions when /versions fails" covers the fallback.
+  `CallWidgetDriver.test.ts` "sends the access token with the authenticated media request" fails without the header.
   `createLegacyMediaClient` in `attachmentFixtures.ts` gives tests a homeserver without authenticated media, so their downloads stay one request each; "keeps authenticated transport separate from a pending unauthenticated download" is gone with the argument.
   Live against a local Tuwunel and the MindRoom runtime's 97 KB synthetic reply in an encrypted room, with the service worker disabled: the `dev` build fetched each sidecar from the legacy URL (403) and kept the preview with its marker, and this build fetched `/_matrix/client/v1/media/download/` (200) and showed the whole reply (23,129 against 99,930 characters of page text).
   `npm run typecheck` and `npm run lint` pass.
