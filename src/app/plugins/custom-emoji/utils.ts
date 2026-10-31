@@ -110,3 +110,16 @@ export function addEmoticonToPackContent(
     shortcode: freeShortcode,
   };
 }
+
+// Matrix caps an event at 64 KiB with its envelope, so a pack's content stops well below that.
+export const MAX_PACK_CONTENT_BYTES = 60_000;
+
+export const packContentBytes = (content: PackContent): number =>
+  new TextEncoder().encode(JSON.stringify(content)).length;
+
+/** The state key of a new overflow pack: the smallest unused whole number from 2 up. */
+export const nextPackStateKey = (taken: string[]): string => {
+  let next = 2;
+  while (taken.includes(String(next))) next += 1;
+  return String(next);
+};

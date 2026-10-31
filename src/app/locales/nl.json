@@ -592,6 +592,7 @@
       "unknown": "Onbekend",
       "addCustomEmoji": "Eigen emoji toevoegen",
       "addCustomEmojiDescription": "Deze wordt opgeslagen in je persoonlijke pakket, zodat je hem in elke kamer kunt gebruiken.",
+      "addCustomEmojiServerDescription": "Iedereen op {{server}} kan hem in elke kamer gebruiken.",
       "addCustomEmojiFailed": "Kon de emoji niet toevoegen. Probeer het opnieuw.",
       "add": "Toevoegen"
     },

@@ -592,6 +592,7 @@
       "unknown": "未知",
       "addCustomEmoji": "添加自定义表情",
       "addCustomEmojiDescription": "它会保存到你的个人包，可在每个房间中使用。",
+      "addCustomEmojiServerDescription": "{{server}} 上的所有人都可以在每个房间中使用。",
       "addCustomEmojiFailed": "无法添加表情。请重试。",
       "add": "添加"
     },

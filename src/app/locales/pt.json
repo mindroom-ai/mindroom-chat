@@ -595,6 +595,7 @@
       "unknown": "Desconhecida",
       "addCustomEmoji": "Adicionar emoji personalizado",
       "addCustomEmojiDescription": "É guardado no seu pacote pessoal, para o poder usar em todas as salas.",
+      "addCustomEmojiServerDescription": "Todos em {{server}} podem usá-lo em todas as salas.",
       "addCustomEmojiFailed": "Não foi possível adicionar o emoji. Tente novamente.",
       "add": "Adicionar"
     },

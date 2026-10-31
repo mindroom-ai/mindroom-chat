@@ -592,6 +592,7 @@
       "unknown": "Bilinmiyor",
       "addCustomEmoji": "Özel emoji ekle",
       "addCustomEmojiDescription": "Kişisel paketinize kaydedilir, böylece her odada kullanabilirsiniz.",
+      "addCustomEmojiServerDescription": "{{server}} üzerindeki herkes bunu her odada kullanabilir.",
       "addCustomEmojiFailed": "Emoji eklenemedi. Tekrar deneyin.",
       "add": "Ekle"
     },

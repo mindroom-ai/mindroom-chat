@@ -2238,6 +2238,7 @@
       "unknownPack": "अज्ञात पैक",
       "addCustomEmoji": "कस्टम इमोजी जोड़ें",
       "addCustomEmojiDescription": "यह आपके व्यक्तिगत पैक में सहेजा जाता है, ताकि आप इसे हर रूम में इस्तेमाल कर सकें।",
+      "addCustomEmojiServerDescription": "{{server}} पर मौजूद हर कोई इसे हर रूम में इस्तेमाल कर सकता है।",
       "addCustomEmojiFailed": "इमोजी नहीं जोड़ा जा सका। फिर से कोशिश करें।",
       "add": "जोड़ें"
     },
