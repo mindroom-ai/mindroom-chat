@@ -39,6 +39,9 @@ const respond = (body: string, status = 200) =>
 
 const advert = (handoffUrl: string) => respond(JSON.stringify({ handoff_url: handoffUrl }));
 
+const callback = (token: string, origin = BASE_URL): string =>
+  `mindroom://cloudflare-access#origin=${origin}&token=${token}`;
+
 describe('cloudflareAccess', () => {
   beforeEach(() => {
     vi.mocked(isNativeIOS).mockReturnValue(true);
@@ -123,9 +126,7 @@ describe('cloudflareAccess', () => {
 
   it('keeps the token when discovery finds the same handoff url again', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
     await signInToCloudflareAccess(BASE_URL);
 
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
@@ -133,28 +134,26 @@ describe('cloudflareAccess', () => {
     expect(getCloudflareAccessToken(`${BASE_URL}/_matrix/client/v3/sync`)).toBe(validToken);
   });
 
-  it('reads the token from the callback fragment', () => {
-    expect(parseCloudflareAccessCallback(`mindroom://cloudflare-access#token=${validToken}`)).toBe(
-      validToken
-    );
+  it('reads the token from the callback fragment of the expected origin', () => {
+    expect(parseCloudflareAccessCallback(callback(validToken), BASE_URL)).toBe(validToken);
   });
 
   it.each([
-    ['another callback host', `mindroom://auth/login#token=${validToken}`],
-    ['another scheme', `https://cloudflare-access#token=${validToken}`],
-    ['no token', 'mindroom://cloudflare-access#state=1'],
-    ['a token that is not a JWT', 'mindroom://cloudflare-access#token=abc'],
-    ['a token without exp', `mindroom://cloudflare-access#token=${jwt('soon')}`],
-    ['an expired token', `mindroom://cloudflare-access#token=${jwt(NOW / 1000)}`],
+    ['another callback host', `mindroom://auth/login#origin=${BASE_URL}&token=${validToken}`],
+    ['another scheme', `https://cloudflare-access#origin=${BASE_URL}&token=${validToken}`],
+    ['no origin', `mindroom://cloudflare-access#token=${validToken}`],
+    ['another origin', callback(validToken, 'https://org.example')],
+    ['no token', `mindroom://cloudflare-access#origin=${BASE_URL}&state=1`],
+    ['a token that is not a JWT', callback('abc')],
+    ['a token without exp', callback(jwt('soon'))],
+    ['an expired token', callback(jwt(NOW / 1000))],
   ])('rejects a callback with %s', (_, url) => {
-    expect(parseCloudflareAccessCallback(url)).toBeUndefined();
+    expect(parseCloudflareAccessCallback(url, BASE_URL)).toBeUndefined();
   });
 
   it('signs in through the advertised handoff page and stores the token for that origin', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
 
     await signInToCloudflareAccess(BASE_URL);
 
@@ -164,6 +163,17 @@ describe('cloudflareAccess', () => {
     expect(
       getCloudflareAccessToken('https://other.example/_matrix/client/v3/sync')
     ).toBeUndefined();
+  });
+
+  it("stores nothing when the handoff page leads to another server's", async () => {
+    await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
+      callback(validToken, 'https://org.example')
+    );
+
+    await expect(signInToCloudflareAccess(BASE_URL)).rejects.toThrow();
+
+    expect(getCloudflareAccessToken(BASE_URL)).toBeUndefined();
   });
 
   it('stores nothing when the callback carries no valid token', async () => {
@@ -178,9 +188,7 @@ describe('cloudflareAccess', () => {
 
   it('stops returning the token once it expires', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
     await signInToCloudflareAccess(BASE_URL);
 
     expect(getCloudflareAccessToken(BASE_URL, NOW + 3599_000)).toBe(validToken);
@@ -189,9 +197,7 @@ describe('cloudflareAccess', () => {
 
   it('asks for the Access sign-in again only once the token has expired', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
 
     await renewExpiredCloudflareAccess(BASE_URL);
     await renewExpiredCloudflareAccess(BASE_URL);
@@ -213,9 +219,7 @@ describe('cloudflareAccess', () => {
 
   it('forgets the token but keeps the server marked as behind Access for its other accounts', async () => {
     await discoverCloudflareAccess(BASE_URL, advert(HANDOFF_URL));
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
     await signInToCloudflareAccess(BASE_URL);
 
     forgetCloudflareAccessToken(BASE_URL);
@@ -230,9 +234,7 @@ describe('cloudflareAccess', () => {
       BASE_URL,
       respond(JSON.stringify({ handoff_url: HANDOFF_URL, push: false }))
     );
-    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${validToken}`
-    );
+    vi.mocked(authenticateInNativeBrowser).mockResolvedValue(callback(validToken));
     await signInToCloudflareAccess(BASE_URL);
     forgetCloudflareAccessToken(BASE_URL);
     await signInToCloudflareAccess(BASE_URL);
