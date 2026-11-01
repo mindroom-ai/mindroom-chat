@@ -79,7 +79,7 @@ const useGroups = (
   const { t } = useTranslation();
   const mx = useMatrixClient();
 
-  const recentEmojis = useRecentEmoji(mx, 21);
+  const recentEmojis = useRecentEmoji(mx, 21, imagePacks);
   const labels = useEmojiGroupLabels();
 
   const emojiGroupItems = useMemo(() => {
@@ -466,6 +466,11 @@ export function EmojiBoard({
     }
     if (emojiInfo.type === EmojiType.CustomEmoji) {
       onCustomEmojiSelect?.(emojiInfo.data, emojiInfo.shortcode);
+      // Kept by its mxc URL in Element's recent list, which skips keys that are not Unicode emoji.
+      const isMxc = emojiInfo.data.startsWith('mxc://');
+      if (!evt.altKey && !evt.shiftKey && addToRecentEmoji && isMxc) {
+        addRecentEmoji(mx, emojiInfo.data);
+      }
     }
     if (emojiInfo.type === EmojiType.Sticker) {
       onStickerSelect?.(emojiInfo.data, emojiInfo.shortcode, emojiInfo.label);
@@ -480,6 +485,7 @@ export function EmojiBoard({
 
   const handleCustomEmojiAdd = (mxc: string, shortcode: string) => {
     onCustomEmojiSelect?.(mxc, shortcode);
+    if (addToRecentEmoji) addRecentEmoji(mx, mxc);
     requestClose();
   };
 
