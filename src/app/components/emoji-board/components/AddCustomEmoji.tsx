@@ -18,6 +18,7 @@ import {
   getUserImagePack,
   PackContent,
   PackImage,
+  packsHaveShortcode,
   ShortcodeTakenError,
 } from '../../../plugins/custom-emoji';
 import {
@@ -33,10 +34,10 @@ const toShortcode = (name: string): string => name.trim().replace(/[\s:]+/g, '-'
 
 /** Whether the target packs, as last synced, have an image under the shortcode. */
 const isShortcodeTaken = (mx: MatrixClient, serverPackRoom: Room | undefined, shortcode: string) =>
-  (serverPackRoom
-    ? getRoomImagePacks(serverPackRoom).filter((pack) => !pack.deleted)
-    : [getUserImagePack(mx)]
-  ).some((pack) => pack?.images.collection.has(shortcode));
+  packsHaveShortcode(
+    serverPackRoom ? getRoomImagePacks(serverPackRoom) : [getUserImagePack(mx)],
+    shortcode
+  );
 
 type AddCustomEmojiProps = {
   file: File;
@@ -60,7 +61,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const [addState, addEmoji] = useAsyncCallback(
     useCallback(async () => {
       // Check again: a sync since the last render may have brought the name in.
-      if (isShortcodeTaken(mx, serverPackRoom, shortcode)) throw new ShortcodeTakenError();
+      if (isShortcodeTaken(mx, serverPackRoom, shortcode)) throw new ShortcodeTakenError(shortcode);
       const img = await loadImageElement(previewUrl ?? '');
       const prepared = await prepareEmojiImage(file, img);
       const { content_uri: mxc } = await mx.uploadContent(prepared.file, {
@@ -83,14 +84,16 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   // Not while adding, as the new emoji can sync before its write returns.
   const taken = !adding && isShortcodeTaken(mx, serverPackRoom, shortcode);
   const addError = addState.status === AsyncStatus.Error ? addState.error : undefined;
+  // A taken-name error is about the name it was raised for; a new name clears it.
+  const takenError = addError instanceof ShortcodeTakenError;
   let errorText: string | undefined;
-  if (taken || addError instanceof ShortcodeTakenError) {
+  if (taken || (takenError && addError.shortcode === shortcode)) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiNameTaken');
   } else if (addError instanceof EmojiImageTooLargeError) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
       limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
     });
-  } else if (addState.status === AsyncStatus.Error) {
+  } else if (addState.status === AsyncStatus.Error && !takenError) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiFailed');
   }
 

@@ -312,7 +312,7 @@ describe('AddCustomEmoji', () => {
   it('says the name is taken when the server pack got it during the upload', async () => {
     server.useServerEmojiRoom.mockReturnValue(serverRoom);
     server.canAddServerEmoji.mockReturnValue(true);
-    server.addToServerPack.mockRejectedValue(new ShortcodeTakenError());
+    server.addToServerPack.mockRejectedValue(new ShortcodeTakenError('party-parrot'));
     mx.uploadContent.mockResolvedValue({ content_uri: 'mxc://example.org/new' });
     const { onAdd, submit } = renderForm();
 
@@ -320,5 +320,11 @@ describe('AddCustomEmoji', () => {
 
     expect(onAdd).not.toHaveBeenCalled();
     expect(textNodes(nameTaken)).not.toHaveLength(0);
+
+    // The error was about that name; a new one clears it without a generic error.
+    typeName('party-parrot-2');
+    expect(textNodes(nameTaken)).toHaveLength(0);
+    expect(textNodes("Couldn't add the emoji. Try again.")).toHaveLength(0);
+    expect(addButton().props.disabled).toBe(false);
   });
 });

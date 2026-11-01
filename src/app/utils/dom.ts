@@ -209,6 +209,8 @@ export const getThumbnail = (
       resolve(undefined);
       return;
     }
+    // Large photos shrunk to emoji size alias badly with the default low-quality smoothing.
+    context.imageSmoothingQuality = 'high';
     context.drawImage(img, 0, 0, width, height);
 
     canvas.toBlob((thumbnail) => {

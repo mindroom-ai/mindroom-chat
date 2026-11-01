@@ -13,6 +13,7 @@ import {
   PackContent,
   PackImage,
   PackMeta,
+  packsHaveShortcode,
   ShortcodeTakenError,
 } from '../../plugins/custom-emoji';
 import { getStateEvent } from '../../utils/room';
@@ -56,7 +57,7 @@ export const addToServerPack = async (
 ): Promise<void> => {
   const packs = getRoomImagePacks(room).filter((pack) => !pack.deleted);
   // A shortcode names one emoji across all the server packs.
-  if (packs.some((pack) => pack.images.collection.has(shortcode))) throw new ShortcodeTakenError();
+  if (packsHaveShortcode(packs, shortcode)) throw new ShortcodeTakenError(shortcode);
   // Candidate packs: live, in state-key order ('' first); none yet means ''.
   const keys = packs.flatMap((pack) => (pack.address ? [pack.address.stateKey] : [])).sort();
   if (keys.length === 0) keys.push('');

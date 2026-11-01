@@ -5,13 +5,13 @@
 ### Add and use custom emoji like Slack (2026-11-01)
 
 - Why: the owner wants adding and using custom emoji to feel like Slack.
-  Adding should not need care about the image's size, a taken name should say so instead of quietly becoming `party-parrot1`, and an emoji used once should be at hand in Recent and the quick reactions.
+  Adding should not need care about the image's size, a taken name should say so instead of quietly becoming `party-parrot1`, and custom emoji should show up in Recent and the quick reactions like Unicode ones do (both rank by use count).
 - Resize: `prepareEmojiImage` (`plugins/custom-emoji/prepareEmojiImage.ts`) draws a still image larger than 128 pixels at that size as a PNG (`fitWithin` keeps the aspect ratio and never enlarges) before `AddCustomEmoji` uploads it.
   A GIF is uploaded as it is, so it keeps animating; one over 256 KB is refused with "Animated GIFs must be under 256 KB." (`EmojiImageTooLargeError`) and nothing is uploaded.
 - Taken names: `addEmoticonToPackContent` throws `ShortcodeTakenError` instead of renaming, and `addToServerPack` throws it before any read or write when a live server pack has the name; the fresh read of the target pack still catches a name taken since the last sync.
   `AddCustomEmoji` checks the typed name against every live server pack, or the personal pack, while typing and again before uploading; a taken name shows "That name is taken. Pick another." with Add turned off, and a name taken during the write shows the same message.
   The emoji is selected under the typed name.
-- Recent and quick reactions: picking a custom emoji in the board, or adding one, records its `mxc://` URL in `io.element.recent_emoji` under the same conditions as a Unicode pick; Element skips keys that are not Unicode emoji.
+- Recent and quick reactions: picking a custom emoji in the board, or adding one, records its `mxc://` URL in `io.element.recent_emoji` under the same conditions as a Unicode pick; Element skips keys that are not Unicode emoji, though clients that trim the list before skipping (Element Web, older MindRoom Chat builds) show fewer recents when `mxc://` keys rank high.
   `getRecentEmojis(mx, limit, packs)` finds those keys among the packs' emoji images and leaves out what no pack has before applying the limit, so an emoji that is gone takes no slot.
   The board's Recent group, the empty-query `:` autocomplete list and `MessageQuickReactions` (now given the message's `imagePackRooms`) pass their packs; a quick reaction shows the emoji's image and reacts with its `mxc://` URL and shortcode.
 - New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmojiNameTaken` and `addCustomEmojiTooLarge`.

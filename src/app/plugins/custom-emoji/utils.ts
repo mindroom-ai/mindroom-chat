@@ -88,7 +88,18 @@ export function getUserImagePack(mx: MatrixClient): ImagePack | undefined {
 }
 
 /** The pack already has an image under the shortcode. */
-export class ShortcodeTakenError extends Error {}
+export class ShortcodeTakenError extends Error {
+  constructor(public readonly shortcode: string) {
+    super(`The shortcode ${shortcode} is taken.`);
+  }
+}
+
+/** Whether a live pack among `packs`, as last synced, has an image under the shortcode. */
+export const packsHaveShortcode = (
+  packs: Array<ImagePack | undefined>,
+  shortcode: string
+): boolean =>
+  packs.some((pack) => !!pack && !pack.deleted && pack.images.collection.has(shortcode));
 
 /** Adds an image to a pack as an emoji; throws `ShortcodeTakenError` when the shortcode is taken. */
 export function addEmoticonToPackContent(
@@ -97,7 +108,8 @@ export function addEmoticonToPackContent(
   image: PackImage
 ): PackContent {
   const images: PackImages = { ...content?.images };
-  if (Object.prototype.hasOwnProperty.call(images, shortcode)) throw new ShortcodeTakenError();
+  if (Object.prototype.hasOwnProperty.call(images, shortcode))
+    throw new ShortcodeTakenError(shortcode);
   const packUsage = new PackMetaReader(content?.pack ?? {}).usage;
   const emoticon = packUsage.includes(ImageUsage.Emoticon)
     ? image
