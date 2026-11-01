@@ -239,6 +239,25 @@ describe('addToServerPack', () => {
     expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
+  it('refuses a name in a pack another device restored since the last sync', async () => {
+    // Synced state still shows pack '2' deleted, but the server has it back with party-parrot in it.
+    const meta = { display_name: 'MindRoom' };
+    const { mx, client } = clientHolding({
+      '': { pack: meta, images: {} },
+      '2': { pack: meta, images: { 'party-parrot': { url: 'mxc://x/theirs' } } },
+    });
+
+    await expect(
+      addToServerPack(
+        client,
+        roomWithPacks({ '': { pack: meta, images: {} }, '2': {} }),
+        'party-parrot',
+        image
+      )
+    ).rejects.toBeInstanceOf(ShortcodeTakenError);
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+  });
+
   it('never writes to a deleted pack', async () => {
     const second = { pack: { display_name: 'Second' }, images: {} };
     // A deleted pack is an event with neither `pack` nor `images`.
