@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
-import { openConnectionsPortal } from './openConnections';
+import { openConnectionsPortal, submitConnectionsHandoff } from './openConnections';
 
 const BACKEND = 'https://backend.example.org';
 
@@ -360,5 +361,25 @@ describe('openConnectionsPortal', () => {
 
     expect(getOpenIdToken).toHaveBeenCalledTimes(1);
     expect(target.postMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('submitConnectionsHandoff', () => {
+  it('posts the token as a form to the backend hand-off, never in the URL', () => {
+    const submit = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+    submitConnectionsHandoff(`${BACKEND}/ignored/path`, makeToken(1));
+    const form = document.body.querySelector('form');
+    expect(form?.method).toBe('post');
+    expect(form?.action).toBe(`${BACKEND}/api/connections/session/handoff`);
+    const field = form?.querySelector('input');
+    expect(field?.type).toBe('hidden');
+    expect(field?.name).toBe('openid_token');
+    expect(JSON.parse(field?.value ?? '')).toEqual(makeToken(1));
+    expect(form?.action).not.toContain('openid-token');
+    expect(submit).toHaveBeenCalledOnce();
+    form?.remove();
+    submit.mockRestore();
   });
 });

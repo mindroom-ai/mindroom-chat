@@ -1,6 +1,7 @@
 import type { IOpenIDToken } from 'matrix-js-sdk';
 
 const PORTAL_PATH = '/connections/';
+const HANDOFF_PATH = '/api/connections/session/handoff';
 const PORTAL_WINDOW_NAME = 'mindroom-connections';
 const READY_MESSAGE_TYPE = 'mindroom:connections-ready';
 const OPENID_MESSAGE_TYPE = 'mindroom:connections-openid';
@@ -78,4 +79,26 @@ export function openConnectionsPortal({
   stopPreviousSession = stop;
 
   return 'opened';
+}
+
+/**
+ * Signs the browser in to the backend's Connections portal and opens it in this tab, by posting `openidToken` as a
+ * form: the browser sets the request's Origin, which the backend checks against the Chat origins it allows.
+ * The token travels in the request body, never in a URL.
+ */
+export function submitConnectionsHandoff(
+  backendUrl: string,
+  openidToken: IOpenIDToken,
+  doc: Document = document
+): void {
+  const form = doc.createElement('form');
+  form.method = 'POST';
+  form.action = new URL(HANDOFF_PATH, backendUrl).toString();
+  const field = doc.createElement('input');
+  field.type = 'hidden';
+  field.name = 'openid_token';
+  field.value = JSON.stringify(openidToken);
+  form.append(field);
+  doc.body.append(form);
+  form.submit();
 }
