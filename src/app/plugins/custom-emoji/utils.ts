@@ -3,7 +3,6 @@ import { ImagePack } from './ImagePack';
 import { EmoteRoomsContent, ImageUsage, PackContent, PackImage, PackImages } from './types';
 import { StateEvent } from '../../../types/matrix/room';
 import { getAccountData, getStateEvent, getStateEvents } from '../../utils/room';
-import { suffixRename } from '../../utils/common';
 import { AccountDataEvent } from '../../../types/matrix/accountData';
 import { PackMetaReader } from './PackMetaReader';
 import { PackAddress } from './PackAddress';
@@ -88,27 +87,35 @@ export function getUserImagePack(mx: MatrixClient): ImagePack | undefined {
   return userImagePack;
 }
 
-/**
- * Adds an image to a pack as an emoji, giving it a free shortcode.
- * Returns the new pack content and the shortcode the image got.
- */
+/** The pack already has an image under the shortcode. */
+export class ShortcodeTakenError extends Error {
+  constructor(public readonly shortcode: string) {
+    super(`The shortcode ${shortcode} is taken.`);
+  }
+}
+
+/** Whether a live pack among `packs`, as last synced, has an image under the shortcode. */
+export const packsHaveShortcode = (
+  packs: Array<ImagePack | undefined>,
+  shortcode: string
+): boolean =>
+  packs.some((pack) => !!pack && !pack.deleted && pack.images.collection.has(shortcode));
+
+/** Adds an image to a pack as an emoji; throws `ShortcodeTakenError` when the shortcode is taken. */
 export function addEmoticonToPackContent(
   content: PackContent | undefined,
   shortcode: string,
   image: PackImage
-): { content: PackContent; shortcode: string } {
+): PackContent {
   const images: PackImages = { ...content?.images };
-  const taken = (name: string) => Object.prototype.hasOwnProperty.call(images, name);
-  const freeShortcode = taken(shortcode) ? suffixRename(shortcode, taken) : shortcode;
+  if (Object.prototype.hasOwnProperty.call(images, shortcode))
+    throw new ShortcodeTakenError(shortcode);
   const packUsage = new PackMetaReader(content?.pack ?? {}).usage;
   const emoticon = packUsage.includes(ImageUsage.Emoticon)
     ? image
     : { ...image, usage: [ImageUsage.Emoticon] };
   // A computed key defines an own property even for `__proto__`; assigning one would not.
-  return {
-    content: { ...content, images: { ...images, [freeShortcode]: emoticon } },
-    shortcode: freeShortcode,
-  };
+  return { ...content, images: { ...images, [shortcode]: emoticon } };
 }
 
 // Matrix caps an event at 64 KiB with its envelope, so a pack's content stops well below that.

@@ -594,6 +594,8 @@
       "addCustomEmojiDescription": "它会保存到你的个人包，可在每个房间中使用。",
       "addCustomEmojiServerDescription": "{{server}} 上的所有人都可以在每个房间中使用。",
       "addCustomEmojiFailed": "无法添加表情。请重试。",
+      "addCustomEmojiNameTaken": "该名称已被占用。请换一个。",
+      "addCustomEmojiTooLarge": "动态 GIF 必须小于 {{limit}}。",
       "add": "添加"
     },
     "noStickerPacks": {

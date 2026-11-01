@@ -606,6 +606,8 @@
       "addCustomEmojiDescription": "يُحفظ في حزمتك الشخصية، لتستخدمه في كل غرفة.",
       "addCustomEmojiServerDescription": "يمكن لجميع المستخدمين على ⁨{{server}}⁩ استخدامه في كل غرفة.",
       "addCustomEmojiFailed": "تعذّرت إضافة الرمز التعبيري. حاول مرة أخرى.",
+      "addCustomEmojiNameTaken": "هذا الاسم مستخدم بالفعل. اختر اسمًا آخر.",
+      "addCustomEmojiTooLarge": "يجب أن يكون حجم صور GIF المتحركة أقل من ⁨{{limit}}⁩.",
       "add": "إضافة"
     },
     "noStickerPacks": {

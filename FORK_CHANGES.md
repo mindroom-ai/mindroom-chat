@@ -26,6 +26,25 @@
 - Tests: `cloudflareAccess.test.ts` (a callback without an origin or with another one is refused; a sign-in whose handoff page leads to another server's stores nothing), and the callbacks in `CloudflareAccessGate.test.tsx` carry the origin.
 - Next: none.
 
+### Add and use custom emoji like Slack (2026-11-01)
+
+- Why: the owner wants adding and using custom emoji to feel like Slack.
+  Adding should not need care about the image's size, a taken name should say so instead of quietly becoming `party-parrot1`, and custom emoji should show up in Recent and the quick reactions like Unicode ones do (both rank by use count).
+- Resize: `prepareEmojiImage` (`plugins/custom-emoji/prepareEmojiImage.ts`) draws a still image larger than 128 pixels at that size as a PNG (`fitWithin` keeps the aspect ratio and never enlarges) before `AddCustomEmoji` uploads it.
+  A GIF is uploaded as it is, so it keeps animating; one over 256 KB is refused with "Animated GIFs must be under 256 KB." (`EmojiImageTooLargeError`) and nothing is uploaded.
+  The GIF cap is checked as soon as the file is picked, with Add turned off. The Settings pack editor (bulk uploads, also for stickers) keeps uploading files as they are and numbering duplicate names; only the emoji board's Add applies these rules.
+- Taken names: `addEmoticonToPackContent` throws `ShortcodeTakenError` instead of renaming, and `addToServerPack` throws it before any read or write when a live server pack has the name; the fresh read of the target pack still catches a name taken since the last sync. It also reads every known pack from the server before writing, so a name another device added to any of them since the last sync is refused too.
+  `AddCustomEmoji` checks the typed name against every live server pack, or the personal pack, while typing and again before uploading; a taken name shows "That name is taken. Pick another." with Add turned off, and a name taken during the write shows the same message.
+  The emoji is selected under the typed name.
+- Recent and quick reactions: picking a custom emoji in the board, or adding one, records its `mxc://` URL in `io.element.recent_emoji` under the same conditions as a Unicode pick; Element skips keys that are not Unicode emoji, though clients that trim the list before skipping (Element Web, older MindRoom Chat builds) show fewer recents when `mxc://` keys rank high.
+  `getRecentEmojis(mx, limit, packs)` finds those keys among the packs' emoji images and leaves out what no pack has before applying the limit, so an emoji that is gone takes no slot.
+  The board's Recent group, the empty-query `:` autocomplete list and `MessageQuickReactions` (now given the message's `imagePackRooms`) pass their packs; a quick reaction shows the emoji's image and reacts with its `mxc://` URL and shortcode.
+- New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmojiNameTaken` and `addCustomEmojiTooLarge`.
+- Tests: `prepareEmojiImage.test.ts` (fit, a GIF kept or refused, a small image kept, a large one drawn at 128 pixels as a PNG), `utils.test.ts` and `addToServerPack.test.ts` (a taken name refused, also in another server pack and when taken on the server since the last sync), `AddCustomEmoji.test.tsx` (the taken message with Add off, the check before uploading, a name taken during the write, a GIF too large, the resized upload), `recent-emoji.test.ts`, `MessageReactionActions.test.tsx` and `EmojiBoard.test.tsx` (picks and adds recorded).
+  `e2e/server-emoji.spec.ts` also checks that the second user's quick reactions offer `party-parrot` after reacting with it; without the image pack rooms passed to the quick reactions it fails there.
+- Live check against a local Tuwunel stack: the e2e passes; screenshots of the taken-name form, the quick reactions and the picker's Recent group were checked by eye.
+- Next: none.
+
 ### Share custom emoji with everyone on the homeserver (2026-10-31)
 
 - Why: the owner asked for a proper custom emoji system that works across the server.
@@ -46,7 +65,7 @@
 - Adding: `AddCustomEmoji` writes to the server pack when the room is joined and the user's power level allows `im.ponies.room_emotes` (`canAddServerEmoji`), otherwise to the personal pack as before; its description says which, "Everyone on {{server}} can use it in every room." or the Personal Pack sentence.
   `AddCustomEmoji` uploads the image, then `addToServerPack` reads the target pack from the server right before writing (a 404 means empty), so an edit synced since is kept, and sends it with `sendStateEvent`.
   The target is the first live pack by state key (`""` first) whose content stays within 60,000 UTF-8 bytes (`MAX_PACK_CONTENT_BYTES`; an event holds 65,535 bytes with its envelope) with the new emoji; when none fits, a new pack opens at the smallest unused whole number from `2` (`nextPackStateKey`) and copies the first pack's `pack` metadata.
-  Deleted packs are skipped when picking the target (with no live pack the write goes to `""`, and a new overflow pack can take the state key of a deleted one), and a taken shortcode gets a number inside the target pack, as before.
+  Deleted packs are skipped when picking the target (with no live pack, `""` included as read from the server, the write goes to `""`; a new overflow pack takes a key no known pack uses), and a taken shortcode was numbered inside the target pack until the 2026-11-01 entry made it an error.
   A failed upload or write leaves the form open with its error; if the server still refuses the size, the previous pack event stays current.
 - Review fixes before merge: the join feature also mutes the room once per session (the room menu's Mute override rule), since nobody can see it to mute it and a pack event could carry mentions;
   a room named by its ID is ignored once tombstoned, like an alias match; and the overflow key is read from the server too, so a pack another device opened since the last sync is added to rather than overwritten.
@@ -61,7 +80,7 @@
 - Not done: other clients do not join the room or add to the pack by themselves.
   Two adds to one pack at the same moment can drop one (the last write wins), and whoever may add may also rename or remove any server emoji; an operator who needs control sets the level to `50`.
   A user who leaves the room in another client is joined again, once per session.
-  No "added by" attribution, no custom emoji in Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji), and no import of existing personal emoji.
+  No "added by" attribution and no import of existing personal emoji; custom emoji in Recent and the quick reactions came with the 2026-11-01 entry.
   A homeserver whose well-known cannot carry extra keys cannot publish the room.
 - New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmojiServerDescription`, and `featureUi.settings.emojisStickers.serverPack.title`, `description` and `permissions` (each catalog's own Permissions word, since the button opens that page).
 - Tests: `serverEmojiConfig.test.ts` (alias, room ID, malformed keys), `useServerEmojiRoom.test.ts` (ID or canonical alias, the joined room found past left, invited and tombstoned rooms with the same alias, follows the joined list), `ServerEmojiJoinFeature.test.tsx` (one join after the first sync; none for a joined room, a room the first sync brings in, or without the key; a key that arrives after mount joins a missing room once and never a joined one; a refused join logged and not retried), `room.test.ts` and `useHomeRooms.test.ts` (hidden from room lists and the search scope), `useImagePackRooms.test.tsx` (appended once, follows joins and leaves), `utils.test.ts` and `addToServerPack.test.ts` (the pack as the server has it, shortcode clashes, the exact 60,000-byte budget, overflow to the next free key, a deleted pack skipped, other errors rethrown, `canAddServerEmoji` at levels `0` and `50`), `AddCustomEmoji.test.tsx` (server pack when allowed, personal pack otherwise, the target the description names), `ServerPack.test.tsx` (the section, the first-pack fallback, Permissions only with the power level).
@@ -1169,10 +1188,10 @@
 - Change: the emoji board's Emoji tab has an "Add custom emoji" `+` button beside the search when its caller takes custom emoji (`onCustomEmojiSelect`: the reaction picker, the composer, the message editor, power-tag icons).
   It opens a file picker; `AddCustomEmoji` (`components/emoji-board/components/`) then shows the image and a shortcode taken from the file name (whitespace and colons become dashes); like the search, it takes focus only off phones and tablets.
   Add uploads the image, writes it to the personal pack (`im.ponies.user_emotes`), and selects it, so the reaction picker reacts with it right away and the composer inserts it.
-  The pack is read again just before the write, so pack edits synced during the upload are kept; a taken shortcode gets a number (`party-parrot1`), and in a sticker-only pack the image is marked as an emoji.
+  The pack is read again just before the write, so pack edits synced during the upload are kept; a taken shortcode got a number (`party-parrot1`) until the 2026-11-01 entry made it an error, and in a sticker-only pack the image is marked as an emoji.
   A failed upload or save leaves the form open with an error; closing the board mid-upload still saves the emoji but sends no reaction.
 - Shown in Simple Mode too; managing or deleting emoji still needs the Emojis & Stickers settings.
-  Not done: adding to room or space packs, and listing custom emoji among Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji).
+  Not done: adding to room or space packs; the server pack came with the 2026-10-31 entry, and custom emoji in Recent and the quick reactions with the 2026-11-01 entry.
 - New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmoji`, `addCustomEmojiDescription`, `addCustomEmojiFailed`, `add`; the form reuses `sharedUi.imageTile.shortcode` and `cancel`.
 - Tests: `addEmoticonToPackContent` (`plugins/custom-emoji/utils.test.ts`) covers a missing pack, a taken shortcode, a `__proto__` shortcode and a sticker-only pack; `AddCustomEmoji.test.tsx` covers the upload, the pack write and selection, and a failed upload.
 - Live check against a local Tuwunel stack: the picker's `+`, the form, and the reaction chip showing the uploaded image; the account data held both `party-parrot` and `party-parrot1` after two runs.

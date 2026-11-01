@@ -2245,6 +2245,8 @@
       "addCustomEmojiDescription": "यह आपके व्यक्तिगत पैक में सहेजा जाता है, ताकि आप इसे हर रूम में इस्तेमाल कर सकें।",
       "addCustomEmojiServerDescription": "{{server}} पर मौजूद हर कोई इसे हर रूम में इस्तेमाल कर सकता है।",
       "addCustomEmojiFailed": "इमोजी नहीं जोड़ा जा सका। फिर से कोशिश करें।",
+      "addCustomEmojiNameTaken": "यह नाम पहले से लिया जा चुका है। कोई दूसरा चुनें।",
+      "addCustomEmojiTooLarge": "ऐनिमेटेड GIF {{limit}} से छोटे होने चाहिए।",
       "add": "जोड़ें"
     },
     "emojiGroups": {

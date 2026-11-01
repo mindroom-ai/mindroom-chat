@@ -594,6 +594,8 @@
       "addCustomEmojiDescription": "It is saved to your Personal Pack, so you can use it in every room.",
       "addCustomEmojiServerDescription": "Everyone on {{server}} can use it in every room.",
       "addCustomEmojiFailed": "Couldn't add the emoji. Try again.",
+      "addCustomEmojiNameTaken": "That name is taken. Pick another.",
+      "addCustomEmojiTooLarge": "Animated GIFs must be under {{limit}}.",
       "add": "Add"
     },
     "noStickerPacks": {

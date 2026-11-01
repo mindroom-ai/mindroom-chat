@@ -265,6 +265,10 @@ vi.mock('../../../hooks/useRecentEmoji', () => ({
   useRecentEmoji: () => [],
 }));
 
+vi.mock('../../../hooks/useImagePacks', () => ({
+  useRelevantImagePacks: () => [],
+}));
+
 vi.mock('../../../components/event-readers', () => ({
   EventReaders: () => React.createElement('div', null, 'readers'),
 }));
