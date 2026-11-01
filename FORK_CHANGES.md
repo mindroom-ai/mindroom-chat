@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Render live Markdown in linear time (2026-11-01)
+
+- Why: `renderLiveMarkdown` draws `io.mindroom.live_reasoning`, which Chat reads from any sender's message and renders on mount, and two of its rules took quadratic time.
+  `stripTrailingWhitespace` used `/\s+$/`, which backtracks over a long whitespace run that is not at the end of a line: one 64,000-character line blocked rendering for about 6 seconds in V8.
+  The `$$` block rule scanned to the end of the document for every opener without a closing line: 9,200 `$$a` openers took about a second.
+- Change: `stripTrailingWhitespace` uses `trimEnd`, which removes the same characters.
+  `mathBlock` remembers, per render and per `endLine`, the first opener that found no closing line; later openers fail without scanning, because the lines they would scan hold no closing line either.
+  The rendered HTML is unchanged.
+- Tests: `liveMarkdown.test.ts` renders a 64,000-space line and 20,000 unclosed openers in under a second, and keeps an opener left unclosed in a quote apart from the math block after it; restoring the regex, dropping the early return, or keying the memo by anything but `endLine` fails one of them.
+- Next: none.
+
 ### Accept a Cloudflare Access token only from the server the sign-in started for (2026-10-30)
 
 - Why: the advert's handoff page may redirect anywhere, including to another homeserver's handoff page, and the callback did not say which server issued the token.
