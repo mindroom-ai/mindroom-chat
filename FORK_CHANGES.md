@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Accept a Cloudflare Access token only from the server the sign-in started for (2026-10-30)
+
+- Why: the advert's handoff page may redirect anywhere, including to another homeserver's handoff page, and the callback did not say which server issued the token.
+  A server whose handoff page forwarded to another organization's handoff page received that organization's Access token: the app stored it under the first server's origin and sent it there as `cf-access-token`.
+- Change: the handoff page now names its own origin in the callback, `mindroom://cloudflare-access#origin=https://<homeserver>&token=<CF_Authorization cookie>`.
+  `parseCloudflareAccessCallback` takes the origin the sign-in started for and refuses a callback whose `origin` is missing or names another one, so the sign-in fails and stores no token.
+  The origin must be fixed in the server's config, never taken from the request.
+  MindRoom's `docs/ios.md` snippet carries it.
+- Rollout: a server must add `origin` before users get a release with this change, or their Access sign-in fails with "Cloudflare Access sign-in returned no valid token."
+  Earlier releases ignore the extra parameter.
+- Tests: `cloudflareAccess.test.ts` (a callback without an origin or with another one is refused; a sign-in whose handoff page leads to another server's stores nothing), and the callbacks in `CloudflareAccessGate.test.tsx` carry the origin.
+- Next: none.
+
 ### Share custom emoji with everyone on the homeserver (2026-10-31)
 
 - Why: the owner asked for a proper custom emoji system that works across the server.
@@ -41,19 +54,6 @@
   Screenshots of the reaction picker with the server pack, the form's server sentence and the settings section, taken from the same stack, were checked by eye.
 - Companion mindroom PR (mindroom-ai/mindroom#3536): `scripts/utilities/create_server_emoji_room.py` creates the room, the `mindroom-client` chart value `serverEmoji.room` adds the key to the well-known, and `docs/custom-emoji.md` documents both.
   No deployment publishes the key until its operator creates the room and adds it.
-
-### Accept a Cloudflare Access token only from the server the sign-in started for (2026-10-30)
-
-- Why: the advert's handoff page may redirect anywhere, including to another homeserver's handoff page, and the callback did not say which server issued the token.
-  A server whose handoff page forwarded to another organization's handoff page received that organization's Access token: the app stored it under the first server's origin and sent it there as `cf-access-token`.
-- Change: the handoff page now names its own origin in the callback, `mindroom://cloudflare-access#origin=https://<homeserver>&token=<CF_Authorization cookie>`.
-  `parseCloudflareAccessCallback` takes the origin the sign-in started for and refuses a callback whose `origin` is missing or names another one, so the sign-in fails and stores no token.
-  The origin must be fixed in the server's config, never taken from the request.
-  MindRoom's `docs/ios.md` snippet carries it.
-- Rollout: a server must add `origin` before users get a release with this change, or their Access sign-in fails with "Cloudflare Access sign-in returned no valid token."
-  Earlier releases ignore the extra parameter.
-- Tests: `cloudflareAccess.test.ts` (a callback without an origin or with another one is refused; a sign-in whose handoff page leads to another server's stores nothing), and the callbacks in `CloudflareAccessGate.test.tsx` carry the origin.
-- Next: none.
 
 ### Keep a reply's worker warm-up line in one style (2026-11-01)
 
