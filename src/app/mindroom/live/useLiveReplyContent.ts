@@ -104,6 +104,30 @@ const withWarmupActivity = (content: IContent): IContent => {
   return shown;
 };
 
+/**
+ * The frames' output on the calls a covering checkpoint still shows running: progress edits never
+ * carry it, so it would vanish until the next frame while a quiet command keeps running.
+ */
+const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IContent => {
+  const trace = content[MINDROOM_TOOL_TRACE_KEY];
+  if (!isRecord(trace) || !Array.isArray(trace.events)) return content;
+  let changed = false;
+  const events = trace.events.map((event: unknown, index) => {
+    const live = tools[index];
+    if (
+      !isRecord(event) ||
+      event.type !== 'tool_call_started' ||
+      typeof live?.progress !== 'string' ||
+      live.tool_name !== event.tool_name
+    ) {
+      return event;
+    }
+    changed = true;
+    return { ...event, progress: live.progress };
+  });
+  return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
+};
+
 const noSubscription = () => () => undefined;
 
 export type LiveReplyContent = {
@@ -115,7 +139,8 @@ export type LiveReplyContent = {
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
- * A covering checkpoint keeps the live reasoning, which progress edits never carry.
+ * A covering checkpoint keeps the live reasoning and running calls' output, which progress edits
+ * never carry.
  */
 export const useLiveReplyContent = (
   mx: MatrixClient,
@@ -142,12 +167,13 @@ export const useLiveReplyContent = (
   }, [entry, replyId, roomId, store, verdict]);
 
   const docs = verdict === 'show' ? entry?.docs : undefined;
-  const waitReasoning = verdict === 'wait' ? entry?.docs.reasoning : undefined;
+  const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
   const liveContent = useMemo(() => {
     if (docs) return getLiveContent(content, docs, markdownReady);
     const durable = withWarmupActivity(content);
-    if (waitReasoning) return { ...durable, [LIVE_REASONING_KEY]: waitReasoning };
-    return durable;
-  }, [content, docs, markdownReady, waitReasoning]);
+    if (!waitDocs) return durable;
+    const covered = withRunningOutput(durable, waitDocs.tools);
+    return waitDocs.reasoning ? { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning } : covered;
+  }, [content, docs, markdownReady, waitDocs]);
   return { content: liveContent, live: verdict === 'show' || verdict === 'wait' };
 };

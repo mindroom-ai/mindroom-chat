@@ -185,6 +185,44 @@ describe('useLiveReplyContent', () => {
     expect(shown()).toEqual({ ...checkpointed, 'io.mindroom.live_reasoning': 'Weighing options' });
   });
 
+  it('keeps a running call output over a covering checkpoint while the call runs', () => {
+    const running = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [running] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: { ...frame.snapshot!, tools: [{ ...running, progress: 'step 3' }] },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({
+      version: 2,
+      events: [{ ...running, progress: 'step 3' }],
+    });
+  });
+
+  it('shows no output for a call the covering checkpoint shows completed', () => {
+    const completed = { type: 'tool_call_completed', tool_name: 'run_shell_command' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [completed] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: {
+        ...frame.snapshot!,
+        tools: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: 'step 3' }],
+      },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({ version: 2, events: [completed] });
+  });
+
   it('shows a covering durable checkpoint as it is when the entry has no reasoning', () => {
     const checkpointed = durable('streaming', {
       'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },

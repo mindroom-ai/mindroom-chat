@@ -4,6 +4,8 @@ export type MindroomToolTraceEvent = {
   args_preview?: unknown;
   result_preview?: unknown;
   truncated?: unknown;
+  // The latest output a running call reported; only live frames carry it.
+  progress?: unknown;
 };
 
 export type MindroomToolMetadataStatus = 'loading' | 'unavailable';
