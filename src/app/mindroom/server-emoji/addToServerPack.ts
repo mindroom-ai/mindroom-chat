@@ -71,8 +71,11 @@ export const addToServerPack = async (
   const synced = getRoomImagePacks(room);
   // A name the synced packs already show is refused without any request.
   if (packsHaveShortcode(synced, shortcode)) throw new ShortcodeTakenError(shortcode);
-  const keys = synced.flatMap((pack) => (pack.address ? [pack.address.stateKey] : [])).sort();
-  if (keys.length === 0) keys.push('');
+  // The first pack's key is always read too: the fallback below starts it, and another device may
+  // have created it since the last sync.
+  const keys = [
+    ...new Set(['', ...synced.flatMap((pack) => (pack.address ? [pack.address.stateKey] : []))]),
+  ].sort();
   const serverPacks = await Promise.all(keys.map((key) => fetchPackContent(mx, room.roomId, key)));
   if (serverPacks.some((content) => hasImage(content, shortcode))) {
     throw new ShortcodeTakenError(shortcode);
@@ -81,7 +84,7 @@ export const addToServerPack = async (
   const livePacks = keys.flatMap((key, index) =>
     isLivePack(serverPacks[index]) ? [{ key, content: serverPacks[index] }] : []
   );
-  // No live pack yet: start the first one.
+  // No live pack, not even '' as just read: start the first one.
   if (livePacks.length === 0) {
     const content = addEmoticonToPackContent({ pack: firstMeta }, shortcode, image);
     await mx.sendStateEvent(room.roomId, StateEvent.PoniesRoomEmotes as any, content, '');

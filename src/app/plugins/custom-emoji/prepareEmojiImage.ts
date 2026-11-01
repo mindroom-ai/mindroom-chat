@@ -16,7 +16,7 @@ export class EmojiImageTooLargeError extends Error {}
 
 /**
  * The file to upload as an emoji: a still image larger than 128 pixels is drawn at that size as a
- * PNG, so every member downloads a small file. GIFs are never redrawn, so they keep animating, and one over 256 KB is refused.
+ * PNG, so a large photo does not reach every member at full size. GIFs are never redrawn, so they keep animating, and one over 256 KB is refused.
  */
 export const prepareEmojiImage = async (
   file: File,

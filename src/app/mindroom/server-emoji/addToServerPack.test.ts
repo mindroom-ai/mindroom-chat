@@ -258,6 +258,23 @@ describe('addToServerPack', () => {
     expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
+  it('reads the first pack before starting it, so a pack another device created is kept', async () => {
+    // Synced state knows only a deleted pack '2'; meanwhile another device created '' with an emoji.
+    const meta = { display_name: 'MindRoom' };
+    const earlier = { url: 'mxc://example.org/earlier' };
+    const { mx, client } = clientHolding({ '': { pack: meta, images: { earlier } }, '2': {} });
+
+    await addToServerPack(client, roomWithPacks({ '2': {} }), 'later', image);
+
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      '!emoji',
+      EMOTES,
+      { pack: meta, images: { earlier, later: image } },
+      ''
+    );
+  });
+
   it('never writes to a deleted pack', async () => {
     const second = { pack: { display_name: 'Second' }, images: {} };
     // A deleted pack is an event with neither `pack` nor `images`.
