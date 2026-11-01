@@ -1,8 +1,9 @@
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { ImagePack } from './ImagePack';
-import { EmoteRoomsContent, ImageUsage } from './types';
+import { EmoteRoomsContent, ImageUsage, PackContent, PackImage, PackImages } from './types';
 import { StateEvent } from '../../../types/matrix/room';
 import { getAccountData, getStateEvent, getStateEvents } from '../../utils/room';
+import { suffixRename } from '../../utils/common';
 import { AccountDataEvent } from '../../../types/matrix/accountData';
 import { PackMetaReader } from './PackMetaReader';
 import { PackAddress } from './PackAddress';
@@ -85,4 +86,27 @@ export function getUserImagePack(mx: MatrixClient): ImagePack | undefined {
 
   const userImagePack = ImagePack.fromMatrixEvent(userId, packEvent);
   return userImagePack;
+}
+
+/**
+ * Adds an image to a pack as an emoji, giving it a free shortcode.
+ * Returns the new pack content and the shortcode the image got.
+ */
+export function addEmoticonToPackContent(
+  content: PackContent | undefined,
+  shortcode: string,
+  image: PackImage
+): { content: PackContent; shortcode: string } {
+  const images: PackImages = { ...content?.images };
+  const taken = (name: string) => Object.prototype.hasOwnProperty.call(images, name);
+  const freeShortcode = taken(shortcode) ? suffixRename(shortcode, taken) : shortcode;
+  const packUsage = new PackMetaReader(content?.pack ?? {}).usage;
+  const emoticon = packUsage.includes(ImageUsage.Emoticon)
+    ? image
+    : { ...image, usage: [ImageUsage.Emoticon] };
+  // A computed key defines an own property even for `__proto__`; assigning one would not.
+  return {
+    content: { ...content, images: { ...images, [freeShortcode]: emoticon } },
+    shortcode: freeShortcode,
+  };
 }

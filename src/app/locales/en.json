@@ -589,7 +589,11 @@
       "searchResults": "Search Results",
       "noResultsFound": "No Results found",
       "personalPack": "Personal Pack",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "addCustomEmoji": "Add custom emoji",
+      "addCustomEmojiDescription": "It is saved to your Personal Pack, so you can use it in every room.",
+      "addCustomEmojiFailed": "Couldn't add the emoji. Try again.",
+      "add": "Add"
     },
     "noStickerPacks": {
       "noStickerPacks": "No Sticker Packs!",

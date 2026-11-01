@@ -589,7 +589,11 @@
       "searchResults": "検索結果",
       "noResultsFound": "結果が見つかりませんでした",
       "personalPack": "パーソナルパック",
-      "unknown": "不明"
+      "unknown": "不明",
+      "addCustomEmoji": "カスタム絵文字を追加",
+      "addCustomEmojiDescription": "パーソナルパックに保存され、すべてのルームで使えます。",
+      "addCustomEmojiFailed": "絵文字を追加できませんでした。もう一度お試しください。",
+      "add": "追加"
     },
     "noStickerPacks": {
       "noStickerPacks": "ステッカーパックはありません！",

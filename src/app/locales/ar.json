@@ -601,7 +601,11 @@
       "searchResults": "نتائج البحث",
       "noResultsFound": "لم يتم العثور على نتائج",
       "personalPack": "الحزمة الشخصية",
-      "unknown": "غير معروف"
+      "unknown": "غير معروف",
+      "addCustomEmoji": "إضافة رمز تعبيري مخصص",
+      "addCustomEmojiDescription": "يُحفظ في حزمتك الشخصية، لتستخدمه في كل غرفة.",
+      "addCustomEmojiFailed": "تعذّرت إضافة الرمز التعبيري. حاول مرة أخرى.",
+      "add": "إضافة"
     },
     "noStickerPacks": {
       "noStickerPacks": "لا توجد حزم ملصقات!",

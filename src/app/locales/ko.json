@@ -589,7 +589,11 @@
       "searchResults": "검색 결과",
       "noResultsFound": "검색 결과 없음",
       "personalPack": "개인 팩",
-      "unknown": "알 수 없음"
+      "unknown": "알 수 없음",
+      "addCustomEmoji": "사용자 지정 이모지 추가",
+      "addCustomEmojiDescription": "개인 팩에 저장되어 모든 방에서 사용할 수 있습니다.",
+      "addCustomEmojiFailed": "이모지를 추가하지 못했습니다. 다시 시도하세요.",
+      "add": "추가"
     },
     "noStickerPacks": {
       "noStickerPacks": "스티커 팩이 없습니다!",

@@ -589,7 +589,11 @@
       "searchResults": "Zoekresultaten",
       "noResultsFound": "Geen resultaten gevonden",
       "personalPack": "Persoonlijk pakket",
-      "unknown": "Onbekend"
+      "unknown": "Onbekend",
+      "addCustomEmoji": "Eigen emoji toevoegen",
+      "addCustomEmojiDescription": "Deze wordt opgeslagen in je persoonlijke pakket, zodat je hem in elke kamer kunt gebruiken.",
+      "addCustomEmojiFailed": "Kon de emoji niet toevoegen. Probeer het opnieuw.",
+      "add": "Toevoegen"
     },
     "noStickerPacks": {
       "noStickerPacks": "Geen stickerpakketten!",

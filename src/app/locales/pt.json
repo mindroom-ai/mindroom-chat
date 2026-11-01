@@ -592,7 +592,11 @@
       "searchResults": "Resultados da pesquisa",
       "noResultsFound": "Nenhum resultado encontrado",
       "personalPack": "Pacote pessoal",
-      "unknown": "Desconhecida"
+      "unknown": "Desconhecida",
+      "addCustomEmoji": "Adicionar emoji personalizado",
+      "addCustomEmojiDescription": "É guardado no seu pacote pessoal, para o poder usar em todas as salas.",
+      "addCustomEmojiFailed": "Não foi possível adicionar o emoji. Tente novamente.",
+      "add": "Adicionar"
     },
     "noStickerPacks": {
       "noStickerPacks": "Sem pacotes de stickers!",
