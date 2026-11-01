@@ -128,8 +128,13 @@ export const getCloudflareAccessToken = (
   return token && isUsable(token, now) ? token : undefined;
 };
 
+/**
+ * Returns the token of a callback from `origin`'s handoff page. A handoff page can redirect to
+ * another server's, so the callback names the origin of the page that issued the token.
+ */
 export const parseCloudflareAccessCallback = (
   url: string,
+  origin: string,
   now: number = Date.now()
 ): string | undefined => {
   try {
@@ -137,7 +142,9 @@ export const parseCloudflareAccessCallback = (
     if (parsed.protocol !== `${CALLBACK_SCHEME}:` || parsed.host !== CALLBACK_HOST) {
       return undefined;
     }
-    const token = new URLSearchParams(parsed.hash.slice(1)).get('token');
+    const params = new URLSearchParams(parsed.hash.slice(1));
+    if (originOf(params.get('origin') ?? '') !== origin) return undefined;
+    const token = params.get('token');
     return token && isUsable(token, now) ? token : undefined;
   } catch {
     return undefined;
@@ -152,7 +159,7 @@ export const signInToCloudflareAccess = async (baseUrl: string): Promise<void> =
   // Safari's cross-site tracking protection breaks the Access login in a session that
   // shares its cookies, so the sign-in runs in an ephemeral one.
   const callbackUrl = await authenticateInNativeBrowser(record.handoffUrl, CALLBACK_SCHEME, true);
-  const token = callbackUrl ? parseCloudflareAccessCallback(callbackUrl) : undefined;
+  const token = callbackUrl ? parseCloudflareAccessCallback(callbackUrl, origin) : undefined;
   if (!token) throw new Error('Cloudflare Access sign-in returned no valid token.');
   writeRecord(origin, { ...record, token });
 };
