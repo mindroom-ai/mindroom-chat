@@ -16,7 +16,11 @@ export const findServerEmojiRoom = (
   if (!address) return undefined;
   if (!isRoomAlias(address)) {
     const room = mx.getRoom(address);
-    return room?.getMyMembership() === Membership.Join ? room : undefined;
+    // An upgraded room stays joined; its tombstone retires it, as for the alias match below.
+    return room?.getMyMembership() === Membership.Join &&
+      getStateEvent(room, StateEvent.RoomTombstone) === undefined
+      ? room
+      : undefined;
   }
   // Only a joined, current room may match: a room left after a replacement, or an invite whose
   // stripped state claims the alias, must not hide it.
