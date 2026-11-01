@@ -597,6 +597,7 @@
       "addCustomEmojiDescription": "É guardado no seu pacote pessoal, para o poder usar em todas as salas.",
       "addCustomEmojiServerDescription": "Todos em {{server}} podem usá-lo em todas as salas.",
       "addCustomEmojiFailed": "Não foi possível adicionar o emoji. Tente novamente.",
+      "addCustomEmojiTooLarge": "Os GIF animados têm de ter menos de {{limit}}.",
       "add": "Adicionar"
     },
     "noStickerPacks": {

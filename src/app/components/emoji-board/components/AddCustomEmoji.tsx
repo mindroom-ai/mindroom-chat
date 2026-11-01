@@ -6,12 +6,17 @@ import { useObjectURL } from '../../../hooks/useObjectURL';
 import { useAlive } from '../../../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { loadImageElement } from '../../../utils/dom';
-import { getImageInfo, getMxIdServer } from '../../../utils/matrix';
+import { getMxIdServer } from '../../../utils/matrix';
 import { getAccountData } from '../../../utils/room';
 import { getFileNameWithoutExt } from '../../../utils/mimeTypes';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { addEmoticonToPackContent, PackContent, PackImage } from '../../../plugins/custom-emoji';
+import {
+  EmojiImageTooLargeError,
+  MAX_ANIMATED_EMOJI_BYTES,
+  prepareEmojiImage,
+} from '../../../plugins/custom-emoji/prepareEmojiImage';
 import { addToServerPack, canAddServerEmoji } from '../../../mindroom/server-emoji/addToServerPack';
 import { useServerEmojiRoom } from '../../../mindroom/server-emoji/useServerEmojiRoom';
 import * as css from './styles.css';
@@ -40,11 +45,12 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const [addState, addEmoji] = useAsyncCallback(
     useCallback(async () => {
       const img = await loadImageElement(previewUrl ?? '');
-      const { content_uri: mxc } = await mx.uploadContent(file, {
-        name: file.name,
-        type: file.type,
+      const prepared = await prepareEmojiImage(file, img);
+      const { content_uri: mxc } = await mx.uploadContent(prepared.file, {
+        name: prepared.file.name,
+        type: prepared.file.type,
       });
-      const image: PackImage = { url: mxc, info: getImageInfo(img, file) };
+      const image: PackImage = { url: mxc, info: prepared.info };
       if (serverPackRoom) {
         return { mxc, shortcode: await addToServerPack(mx, serverPackRoom, shortcode, image) };
       }
@@ -104,7 +110,11 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
       </Box>
       {addState.status === AsyncStatus.Error && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {t('sharedUi.emojiBoard.addCustomEmojiFailed')}
+          {addState.error instanceof EmojiImageTooLargeError
+            ? t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
+                limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
+              })
+            : t('sharedUi.emojiBoard.addCustomEmojiFailed')}
         </Text>
       )}
       <Box justifyContent="End" gap="200">

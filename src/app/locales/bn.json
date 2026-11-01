@@ -2245,6 +2245,7 @@
       "addCustomEmojiDescription": "এটি আপনার ব্যক্তিগত প্যাকে সংরক্ষিত হয়, তাই প্রতিটি রুমে ব্যবহার করতে পারবেন।",
       "addCustomEmojiServerDescription": "{{server}} সার্ভারে থাকা সবাই প্রতিটি রুমে এটি ব্যবহার করতে পারেন।",
       "addCustomEmojiFailed": "ইমোজি যোগ করা যায়নি। আবার চেষ্টা করুন।",
+      "addCustomEmojiTooLarge": "অ্যানিমেটেড GIF-এর আকার {{limit}}-এর কম হতে হবে।",
       "add": "যোগ করুন"
     },
     "emojiGroups": {

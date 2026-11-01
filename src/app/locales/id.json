@@ -594,6 +594,7 @@
       "addCustomEmojiDescription": "Emoji disimpan di paket pribadi Anda, jadi bisa dipakai di setiap ruang.",
       "addCustomEmojiServerDescription": "Semua orang di {{server}} bisa memakainya di setiap ruang.",
       "addCustomEmojiFailed": "Gagal menambahkan emoji. Coba lagi.",
+      "addCustomEmojiTooLarge": "GIF animasi harus berukuran di bawah {{limit}}.",
       "add": "Tambah"
     },
     "noStickerPacks": {

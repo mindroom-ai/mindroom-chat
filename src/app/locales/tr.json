@@ -594,6 +594,7 @@
       "addCustomEmojiDescription": "Kişisel paketinize kaydedilir, böylece her odada kullanabilirsiniz.",
       "addCustomEmojiServerDescription": "{{server}} üzerindeki herkes bunu her odada kullanabilir.",
       "addCustomEmojiFailed": "Emoji eklenemedi. Tekrar deneyin.",
+      "addCustomEmojiTooLarge": "Hareketli GIF'ler {{limit}} boyutundan küçük olmalıdır.",
       "add": "Ekle"
     },
     "noStickerPacks": {

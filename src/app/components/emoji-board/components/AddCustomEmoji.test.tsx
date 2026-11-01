@@ -14,6 +14,10 @@ const server = vi.hoisted(() => ({
   canAddServerEmoji: vi.fn(),
   useServerEmojiRoom: vi.fn(),
 }));
+const dom = vi.hoisted(() => ({
+  getThumbnail: vi.fn(),
+  loadImageElement: vi.fn(),
+}));
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => mx,
@@ -28,9 +32,7 @@ vi.mock('../../../mindroom/server-emoji/addToServerPack', () => ({
 vi.mock('../../../hooks/useObjectURL', () => ({
   useObjectURL: () => 'blob:preview',
 }));
-vi.mock('../../../utils/dom', () => ({
-  loadImageElement: vi.fn(async () => ({ width: 32, height: 24 })),
-}));
+vi.mock('../../../utils/dom', () => dom);
 vi.mock('../../../utils/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('./styles.css', () => ({ AddCustomEmoji: 'form', AddCustomEmojiPreview: 'preview' }));
 
@@ -40,6 +42,8 @@ beforeEach(() => {
   // Without a server emoji room the form adds to the personal pack, as before.
   server.useServerEmojiRoom.mockReturnValue(undefined);
   server.canAddServerEmoji.mockReturnValue(false);
+  dom.loadImageElement.mockResolvedValue({ width: 32, height: 24 });
+  mx.getAccountData.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -48,9 +52,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const renderForm = () => {
+const renderForm = (file = new File(['gif'], 'party parrot.gif', { type: 'image/gif' })) => {
   const onAdd = vi.fn();
-  const file = new File(['gif'], 'party parrot.gif', { type: 'image/gif' });
   const form = () => <AddCustomEmoji file={file} onCancel={vi.fn()} onAdd={onAdd} />;
   act(() => {
     renderer = create(form());
@@ -189,5 +192,46 @@ describe('AddCustomEmoji', () => {
 
     expect(server.addToServerPack).toHaveBeenCalledTimes(1);
     expect(mx.setAccountData).not.toHaveBeenCalled();
+  });
+
+  it('refuses a GIF over 256 KB without uploading it', async () => {
+    const gif = new File([new Uint8Array(300 * 1024)], 'party parrot.gif', { type: 'image/gif' });
+    const { onAdd, submit } = renderForm(gif);
+
+    await submit();
+
+    expect(mx.uploadContent).not.toHaveBeenCalled();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(textNodes('Animated GIFs must be under 256 KB.')).not.toHaveLength(0);
+  });
+
+  it('uploads a large still image drawn at 128 pixels as a PNG', async () => {
+    const resized = new Blob(['resized'], { type: 'image/png' });
+    dom.loadImageElement.mockResolvedValue({ width: 512, height: 256 });
+    dom.getThumbnail.mockResolvedValue(resized);
+    mx.uploadContent.mockResolvedValue({ content_uri: 'mxc://example.org/new' });
+    mx.setAccountData.mockResolvedValue({});
+    const { onAdd, submit } = renderForm(
+      new File(['jpeg'], 'party parrot.jpg', { type: 'image/jpeg' })
+    );
+
+    await submit();
+
+    const [uploaded, options] = mx.uploadContent.mock.calls[0];
+    expect([uploaded.name, uploaded.type, uploaded.size]).toEqual([
+      'party parrot.png',
+      'image/png',
+      resized.size,
+    ]);
+    expect(options).toEqual({ name: 'party parrot.png', type: 'image/png' });
+    expect(mx.setAccountData).toHaveBeenCalledWith('im.ponies.user_emotes', {
+      images: {
+        'party-parrot': {
+          url: 'mxc://example.org/new',
+          info: { w: 128, h: 64, mimetype: 'image/png', size: resized.size },
+        },
+      },
+    });
+    expect(onAdd).toHaveBeenCalledWith('mxc://example.org/new', 'party-parrot');
   });
 });
