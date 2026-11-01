@@ -41,6 +41,21 @@ describe('live reply Markdown', () => {
     );
   });
 
+  it('keeps math openers left unclosed in a quote apart from the math block after it', () => {
+    expect(renderLiveMarkdown('> $$a\n\n$$b\nc$$')).toBe(
+      '<blockquote>\n<p>$$a</p>\n</blockquote>\n<div>$$\nb\nc\n$$</div>\n'
+    );
+  });
+
+  it('stays fast on a long whitespace run and on many unclosed math openers', () => {
+    const start = performance.now();
+    expect(renderLiveMarkdown(`${' '.repeat(64_000)}x\ny`)).toBe(
+      `<pre><code>${' '.repeat(63_996)}x\n</code></pre>\n<p>y</p>\n`
+    );
+    expect(renderLiveMarkdown('$$a\n\n'.repeat(20_000))).toBe('<p>$$a</p>\n'.repeat(20_000));
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   it('reads dollars next to digits and spaces as text, like currency', () => {
     expect(renderLiveMarkdown('Costs 5$ or $ 6 and $7')).toBe('<p>Costs 5$ or $ 6 and $7</p>\n');
     expect(renderLiveMarkdown('$a*b*c$ but *d*')).toBe('<p>$a*b*c$ but <em>d</em></p>\n');

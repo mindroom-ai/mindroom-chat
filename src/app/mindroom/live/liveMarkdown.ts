@@ -33,7 +33,8 @@ const escapeLikePython = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
 
-const stripTrailingWhitespace = (text: string): string => text.replace(/\s+$/, '');
+// `trimEnd` removes the same characters as `/\s+$/` in linear time; the regex backtracks quadratically.
+const stripTrailingWhitespace = (text: string): string => text.trimEnd();
 const stripLeadingSpaces = (text: string): string => text.replace(/^ +/, '');
 const splitLinesKeepingEnds = (text: string): string[] => text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
 
@@ -186,9 +187,17 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
   let lineText = src.slice(startPos, end);
   let closed = lineText.trim().length > 3 && closes(lineText);
   if (closed) end = closingEnd(end, lineText);
+  // An opener with no closing line before `endLine` means no later opener has one either, so each render
+  // scans to `endLine` once instead of once per unclosed opener.
+  state.env.mathUnclosedFrom ??= new Map<number, number>();
+  const unclosedFrom: Map<number, number> = state.env.mathUnclosedFrom;
+  if (!closed && startLine >= (unclosedFrom.get(endLine) ?? Infinity)) return false;
   while (!closed) {
     nextLine += 1;
-    if (nextLine >= endLine) return false;
+    if (nextLine >= endLine) {
+      unclosedFrom.set(endLine, startLine);
+      return false;
+    }
     end = state.eMarks[nextLine];
     lineText = src.slice(state.bMarks[nextLine] + state.tShift[nextLine], end);
     closed = closes(lineText);
