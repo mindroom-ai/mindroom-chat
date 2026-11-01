@@ -1242,7 +1242,7 @@
       "support": "Dukungan",
       "privacy": "Privasi",
       "terms": "Ketentuan",
-      "poweredBy": "Didukung oleh <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Didukung oleh <links />"
     },
     "router": {
       "join": "Bergabung",
@@ -2637,6 +2637,10 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "AI sedang merespons",
         "thinking": "Berpikir…"
+      },
+      "mindroomReasoning": {
+        "thinking": "Berpikir",
+        "thoughtFor_other": "Berpikir selama {{count}} dtk"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Ringkasan utas AI"

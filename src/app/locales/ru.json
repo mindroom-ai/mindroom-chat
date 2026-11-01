@@ -1260,7 +1260,7 @@
       "support": "Поддержка",
       "privacy": "Конфиденциальность",
       "terms": "Условия",
-      "poweredBy": "На базе <app>{{appName}}</app>, <matrix>Matrix</matrix> и <cinny>Cinny</cinny>"
+      "poweredBy": "На базе <links />"
     },
     "router": {
       "join": "Войти",
@@ -2725,6 +2725,13 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "ИИ отвечает",
         "thinking": "Размышляет…"
+      },
+      "mindroomReasoning": {
+        "thinking": "Думает",
+        "thoughtFor_one": "Думал {{count}} с",
+        "thoughtFor_few": "Думал {{count}} с",
+        "thoughtFor_many": "Думал {{count}} с",
+        "thoughtFor_other": "Думал {{count}} с"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Сводка ветки от ИИ"

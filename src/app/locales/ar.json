@@ -1274,7 +1274,7 @@
       "support": "الدعم",
       "privacy": "الخصوصية",
       "terms": "الشروط",
-      "poweredBy": "مشغّل بواسطة <app>⁨{{appName}}⁩</app> و<matrix>Matrix</matrix> و<cinny>Cinny</cinny>"
+      "poweredBy": "مشغّل بواسطة <links />"
     },
     "router": {
       "join": "انضمام",
@@ -2807,6 +2807,15 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "الذكاء الاصطناعي يرد",
         "thinking": "جارٍ التفكير…"
+      },
+      "mindroomReasoning": {
+        "thinking": "يفكّر",
+        "thoughtFor_zero": "فكّر لمدة ⁨{{count}}⁩ ث",
+        "thoughtFor_one": "فكّر لمدة ⁨{{count}}⁩ ث",
+        "thoughtFor_two": "فكّر لمدة ⁨{{count}}⁩ ث",
+        "thoughtFor_few": "فكّر لمدة ⁨{{count}}⁩ ث",
+        "thoughtFor_many": "فكّر لمدة ⁨{{count}}⁩ ث",
+        "thoughtFor_other": "فكّر لمدة ⁨{{count}}⁩ ث"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "ملخص سلسلة المحادثة بالذكاء الاصطناعي"

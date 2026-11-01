@@ -128,10 +128,6 @@ vi.mock('../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({}),
 }));
 
-vi.mock('../hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
-
 vi.mock('../mindroom/native/nativeFileSave', () => ({
   saveFile: saveFileMock,
 }));

@@ -1343,6 +1343,11 @@
         "aiIsResponding": "एआई जवाब दे रहा है",
         "thinking": "सोच रहा है…"
       },
+      "mindroomReasoning": {
+        "thinking": "सोच रहा है",
+        "thoughtFor_one": "{{count}} सेकंड तक सोचा",
+        "thoughtFor_other": "{{count}} सेकंड तक सोचा"
+      },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "एआई थ्रेड सारांश"
       },
@@ -2028,7 +2033,7 @@
       "retry": "पुन: प्रयास करें"
     },
     "authFooter": {
-      "poweredBy": "<app>{{appName}}</app>, <matrix>Matrix</matrix> और <cinny>Cinny</cinny> द्वारा संचालित",
+      "poweredBy": "<links /> द्वारा संचालित",
       "privacy": "गोपनीयता",
       "support": "सहायता",
       "terms": "शर्तें"

@@ -24,7 +24,7 @@ vi.mock('./MindroomThinkingPlaceholder.css', () => ({
   TextHighlight: 'TextHighlight',
 }));
 
-const renderPlaceholder = (messages?: string[]) =>
+const renderPlaceholder = (messages?: string[], startedAt?: number) =>
   create(
     React.createElement(
       ClientConfigProvider,
@@ -35,8 +35,14 @@ const renderPlaceholder = (messages?: string[]) =>
           },
         },
       },
-      React.createElement(MindroomThinkingPlaceholder)
+      React.createElement(MindroomThinkingPlaceholder, { startedAt })
     )
+  );
+
+/** The label in the base text and in the shimmer's highlight copy. */
+const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) =>
+  ['TextBase', 'TextHighlight'].map((className) =>
+    renderer?.root.findByProps({ className }).children.join('')
   );
 
 describe('resolveMindroomThinkingPlaceholderMessages', () => {
@@ -102,6 +108,102 @@ describe('MindroomThinkingPlaceholder', () => {
 
     renderer?.unmount();
     vi.useRealTimers();
+  });
+
+  it('counts the seconds since the reply arrived in tenths', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      renderer = renderPlaceholder(['Working'], 10_000 - 1_290);
+    });
+
+    expect(renderer?.root.findByProps({ className: 'Text' }).props['aria-hidden']).toBe('true');
+    expect(labelTexts(renderer)).toEqual(['Working (1.2s)', 'Working (1.2s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(9);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (1.2s)', 'Working (1.2s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (1.3s)', 'Working (1.3s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(8_700);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (10.0s)', 'Working (10.0s)']);
+
+    act(() => {
+      renderer?.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('starts at zero when the reply timestamp is ahead of the local clock', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      renderer = renderPlaceholder(['Working'], 12_000);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(2_099);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.1s)', 'Working (0.1s)']);
+
+    act(() => {
+      renderer?.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('waits for a timestamp far ahead in short timers', () => {
+    vi.useFakeTimers({ now: 10_000 });
+
+    let renderer: ReturnType<typeof renderPlaceholder> | undefined;
+    act(() => {
+      // Past the 24.8-day timer limit, where a longer delay fires at once.
+      renderer = renderPlaceholder(['Working'], 10_000 + 30 * 24 * 60 * 60 * 1000);
+    });
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    const delays = setTimeoutSpy.mock.calls.map(([, delay]) => delay);
+    setTimeoutSpy.mockRestore();
+    // About one wait per tenth, each under two tenths, not a delay past the limit.
+    expect(delays.length).toBeGreaterThanOrEqual(5);
+    delays.forEach((delay) => {
+      expect(delay).toBeGreaterThanOrEqual(100);
+      expect(delay).toBeLessThan(200);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      renderer?.unmount();
+    });
+    vi.useRealTimers();
+  });
+
+  it('shows no counter without a reply timestamp', () => {
+    const renderer = renderPlaceholder(['Working']);
+
+    expect(labelTexts(renderer)).toEqual(['Working', 'Working']);
+
+    renderer.unmount();
   });
 
   it('renders the built-in messages when config is empty', () => {

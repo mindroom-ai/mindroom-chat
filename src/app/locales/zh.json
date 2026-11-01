@@ -1242,7 +1242,7 @@
       "support": "支持",
       "privacy": "隐私",
       "terms": "条款",
-      "poweredBy": "由 <app>{{appName}}</app>、<matrix>Matrix</matrix>、<cinny>Cinny</cinny> 提供支持"
+      "poweredBy": "由 <links /> 提供支持"
     },
     "router": {
       "join": "加入",
@@ -2637,6 +2637,10 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "AI正在响应",
         "thinking": "正在思考…"
+      },
+      "mindroomReasoning": {
+        "thinking": "思考中",
+        "thoughtFor_other": "思考了 {{count}} 秒"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI 讨论串摘要"

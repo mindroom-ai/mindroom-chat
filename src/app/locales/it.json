@@ -1253,7 +1253,7 @@
       "support": "Assistenza",
       "privacy": "Privacy",
       "terms": "Termini",
-      "poweredBy": "Basato su <app>{{appName}}</app>, <matrix>Matrix</matrix> e <cinny>Cinny</cinny>"
+      "poweredBy": "Basato su <links />"
     },
     "router": {
       "join": "Entra",
@@ -2684,6 +2684,12 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "L’IA sta rispondendo",
         "thinking": "Elaborazione…"
+      },
+      "mindroomReasoning": {
+        "thinking": "Sta pensando",
+        "thoughtFor_one": "Ha pensato per {{count}} s",
+        "thoughtFor_many": "Ha pensato per {{count}} s",
+        "thoughtFor_other": "Ha pensato per {{count}} s"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "Riepilogo IA del thread"

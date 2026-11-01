@@ -163,6 +163,7 @@ export const Core = style({
 
 export const Text = style({
   display: 'inline-block',
+  fontVariantNumeric: 'tabular-nums',
   position: 'relative',
   overflow: 'hidden',
   minWidth: 0,

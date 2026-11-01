@@ -163,7 +163,7 @@ docker run -p 8080:80 -v "$PWD/my-config.json:/app/config.json:ro" ghcr.io/mindr
 Notable options:
 
 - homeserver defaults and allowed-server policy,
-- auth behavior (including `allowRegistration`, support/privacy/terms links),
+- auth behavior (including `allowRegistration`, support/privacy/terms links, and the `poweredBy` credits),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
 - canvases and their npm library loading via `mindroom.canvas.enabled` and `mindroom.canvas.libraries`,

@@ -1246,7 +1246,7 @@
       "support": "Support",
       "privacy": "Datenschutz",
       "terms": "Bedingungen",
-      "poweredBy": "Bereitgestellt von <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Bereitgestellt von <links />"
     },
     "router": {
       "join": "Beitreten",
@@ -2643,6 +2643,11 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "KI antwortet",
         "thinking": "Denkt nach…"
+      },
+      "mindroomReasoning": {
+        "thinking": "Denkt nach",
+        "thoughtFor_one": "{{count}} s nachgedacht",
+        "thoughtFor_other": "{{count}} s nachgedacht"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "KI-Thread-Zusammenfassung"

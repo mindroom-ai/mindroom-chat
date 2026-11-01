@@ -1242,7 +1242,7 @@
       "support": "サポート",
       "privacy": "プライバシー",
       "terms": "条項",
-      "poweredBy": "Powered by <app>{{appName}}</app>、<matrix>Matrix</matrix>、<cinny>Cinny</cinny>"
+      "poweredBy": "<links /> によって提供されます"
     },
     "router": {
       "join": "参加",
@@ -2637,6 +2637,10 @@
       "mindroomThinkingPlaceholder": {
         "aiIsResponding": "AI が応答中です",
         "thinking": "考えています…"
+      },
+      "mindroomReasoning": {
+        "thinking": "考え中",
+        "thoughtFor_other": "{{count}} 秒間考えました"
       },
       "mindroomThreadSummaryCard": {
         "aiThreadSummary": "AI によるスレッド要約"
