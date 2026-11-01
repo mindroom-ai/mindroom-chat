@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership, StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { isRoomAlias } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
@@ -36,15 +37,27 @@ export const findServerEmojiRoom = (
     );
 };
 
-/** The server emoji room once the user has joined it; follows the joined room list. */
+/** The server emoji room once the user has joined it; follows joins, leaves, upgrades and aliases. */
 export const useServerEmojiRoom = (): Room | undefined => {
   const mx = useMatrixClient();
   const address = useServerEmojiRoomAddress();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
+  // A tombstone or a moved alias changes which room matches without changing membership.
+  const [matchStateChanges, setMatchStateChanges] = useState(0);
+  useStateEventCallback(
+    mx,
+    useCallback((event) => {
+      const type = event.getType();
+      if (type === StateEvent.RoomTombstone || type === StateEvent.RoomCanonicalAlias) {
+        setMatchStateChanges((count) => count + 1);
+      }
+    }, [])
+  );
   return useMemo(
     () => findServerEmojiRoom(mx, address),
-    // The client holds the rooms; the joined room list signals that a join or leave changed them.
+    // The client holds the rooms; the joined room list and the match state changes signal that
+    // the answer may differ.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mx, address, joinedRoomIds]
+    [mx, address, joinedRoomIds, matchStateChanges]
   );
 };

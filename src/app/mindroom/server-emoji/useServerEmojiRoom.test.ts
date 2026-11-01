@@ -34,10 +34,16 @@ const fakeRoom = (
     }),
   } as unknown as Room);
 
+const stateListeners = new Set<(event: { getType: () => string }) => void>();
+
 const fakeClient = (rooms: Room[]): MatrixClient =>
   ({
     getRooms: () => rooms,
     getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
+    on: (_name: string, listener: (event: { getType: () => string }) => void) =>
+      stateListeners.add(listener),
+    removeListener: (_name: string, listener: (event: { getType: () => string }) => void) =>
+      stateListeners.delete(listener),
   } as unknown as MatrixClient);
 
 describe('findServerEmojiRoom', () => {
@@ -136,6 +142,56 @@ describe('useServerEmojiRoom', () => {
     });
 
     expect(found).toBe(room);
+    act(() => renderer.unmount());
+  });
+
+  it('drops the room when a tombstone arrives while it is in use', async () => {
+    // An operator upgrades the room while Chat is open: membership stays, only state changes.
+    let tombstoned = false;
+    const room = {
+      ...fakeRoom('join'),
+      getLiveTimeline: () => ({
+        getState: () => ({
+          getStateEvents: (type: string) => {
+            if (type === 'm.room.create') return { getContent: () => ({ 'm.federate': false }) };
+            return tombstoned && type === 'm.room.tombstone' ? {} : null;
+          },
+        }),
+      }),
+    } as unknown as Room;
+    let found: Room | undefined;
+    const Probe = () => {
+      found = useServerEmojiRoom();
+      return null;
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          MatrixClientProvider,
+          { value: fakeClient([room]) },
+          React.createElement(
+            AutoDiscoveryInfoProvider,
+            {
+              value: {
+                'm.homeserver': { base_url: 'https://example.com' },
+                'io.mindroom.emoji': { room: ALIAS },
+              },
+            },
+            React.createElement(Provider, { store: createStore() }, React.createElement(Probe))
+          )
+        )
+      );
+    });
+    expect(found).toBe(room);
+
+    tombstoned = true;
+    await act(async () => {
+      stateListeners.forEach((listener) => listener({ getType: () => 'm.room.tombstone' }));
+    });
+
+    expect(found).toBeUndefined();
     act(() => renderer.unmount());
   });
 });
