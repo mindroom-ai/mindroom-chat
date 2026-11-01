@@ -226,6 +226,15 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
       )
       .toEqual([emojiUrl]);
 
+    // The custom emoji is now among the secondary user's quick reactions in the message menu.
+    const row = secondaryPage.locator(`[data-message-id="${messageId}"]`);
+    await row.hover();
+    await row.getByRole('button', { name: 'More Options', exact: true }).click();
+    const quickReaction = secondaryPage.getByRole('button', { name: 'party-parrot', exact: true });
+    await expect(quickReaction).toBeVisible();
+    await expect(quickReaction.locator('img')).toHaveAttribute('alt', 'party-parrot');
+    await secondaryPage.keyboard.press('Escape');
+
     // Both users are in the emoji room, and neither sidebar lists it next to the shared room.
     for (const [page, session] of [
       [primaryPage, primary],
