@@ -35,9 +35,10 @@
   The page also shows the existing Connections card, which covers several backends, none, the native apps (no hand-off there), and a failed token request; no new strings.
   Leaving the page before the token arrives aborts the hand-off, so a slow homeserver never pulls the user out of a room later (review finding).
   Before submitting, the hand-off replaces this page's history entry with Chat's root (`useHref(ROOT_PATH)`), so Back from the portal opens Chat instead of handing off again (review finding).
+  `ClientLayout` never saves `/connections` as the session's last path, so Chat's root (Back from the portal, or opening Chat later) restores the route the user was on before, not the hand-off (review finding).
   An HTTPS Chat with an HTTP backend (such as `http://localhost:8765`) skips the hand-off: the browser sends `Origin: null` on that downgrade, which the backend refuses, while the card's pop-up handshake still works (`connectionsHandoffSupported`, review finding).
 - Refactor: `useOpenConnectionsPortal.ts` keeps the token getter (account-switch guard, binding check for discovered backends) in `useConnectionsOpenIdToken`, shared by `useOpenConnectionsPortal` and the new `useConnectionsHandoff`.
-- Tests: `openConnections.test.ts` (the form's method, action, and hidden token field; the token is not in the action), `ConnectionsPage.test.tsx` (one backend hands off once; several, none, and native leave it to the card; unmounting aborts the hand-off), `useOpenConnectionsPortal.test.tsx` (an aborted hand-off submits nothing when its token arrives).
+- Tests: `openConnections.test.ts` (the form's method, action, and hidden token field; the token is not in the action), `ConnectionsPage.test.tsx` (one backend hands off once; several, none, and native leave it to the card; unmounting aborts the hand-off), `useOpenConnectionsPortal.test.tsx` (an aborted hand-off submits nothing when its token arrives), `pages/client/ClientLayout.test.tsx` (the last path survives `/connections` and the root redirect restores it).
 - Deployments: a Chat whose web server redirected `/connections` elsewhere must stop doing so for this page to load.
 
 ### Open an agent's connect and reset links signed in (2026-10-31)
