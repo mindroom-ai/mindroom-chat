@@ -535,7 +535,11 @@ export function EmojiBoard({
         <EmojiBoardLayout header={<Text size="H5">{t('sharedUi.emojiBoard.addCustomEmoji')}</Text>}>
           <AddCustomEmoji
             file={newEmojiFile}
-            onCancel={() => setNewEmojiFile(undefined)}
+            onCancel={() => {
+              // The search field remounts empty, so drop the results it filtered before.
+              resetSearch();
+              setNewEmojiFile(undefined);
+            }}
             onAdd={handleCustomEmojiAdd}
           />
         </EmojiBoardLayout>
