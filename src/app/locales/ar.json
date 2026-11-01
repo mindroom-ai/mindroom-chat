@@ -2226,6 +2226,11 @@
           "defaultPack": "الحزمة الافتراضية",
           "view": "عرض",
           "unknown": "غير معروف"
+        },
+        "serverPack": {
+          "title": "الرموز التعبيرية للخادم",
+          "description": "يمكن لجميع المستخدمين على ⁨{{server}}⁩ استخدامها.",
+          "permissions": "الأذونات"
         }
       },
       "notifications": {

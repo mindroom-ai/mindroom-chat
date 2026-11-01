@@ -2142,6 +2142,11 @@
           "defaultPack": "Pacchetto predefinito",
           "view": "Visualizza",
           "unknown": "Sconosciuta"
+        },
+        "serverPack": {
+          "title": "Emoji del server",
+          "description": "Tutti su {{server}} possono usarle.",
+          "permissions": "Autorizzazioni"
         }
       },
       "notifications": {

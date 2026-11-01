@@ -2114,6 +2114,11 @@
           "defaultPack": "預設表情套件",
           "view": "檢視",
           "unknown": "未知"
+        },
+        "serverPack": {
+          "title": "伺服器表情符號",
+          "description": "{{server}} 上的所有人都可以使用。",
+          "permissions": "權限"
         }
       },
       "notifications": {

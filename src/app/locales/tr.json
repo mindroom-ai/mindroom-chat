@@ -2114,6 +2114,11 @@
           "defaultPack": "Varsayılan paket",
           "view": "Görüntüle",
           "unknown": "Bilinmiyor"
+        },
+        "serverPack": {
+          "title": "Sunucu emojileri",
+          "description": "{{server}} üzerindeki herkes bunları kullanabilir.",
+          "permissions": "İzinler"
         }
       },
       "notifications": {

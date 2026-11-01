@@ -2114,6 +2114,11 @@
           "defaultPack": "Default Pack",
           "view": "View",
           "unknown": "Unknown"
+        },
+        "serverPack": {
+          "title": "Server Emoji",
+          "description": "Everyone on {{server}} can use these.",
+          "permissions": "Permissions"
         }
       },
       "notifications": {

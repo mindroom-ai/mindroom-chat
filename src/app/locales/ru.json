@@ -2170,6 +2170,11 @@
           "defaultPack": "Набор по умолчанию",
           "view": "Просмотреть",
           "unknown": "Неизвестно"
+        },
+        "serverPack": {
+          "title": "Эмодзи сервера",
+          "description": "Все на сервере {{server}} могут их использовать.",
+          "permissions": "Разрешения"
         }
       },
       "notifications": {

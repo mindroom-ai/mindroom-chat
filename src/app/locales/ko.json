@@ -2114,6 +2114,11 @@
           "defaultPack": "기본 팩",
           "view": "보기",
           "unknown": "알 수 없음"
+        },
+        "serverPack": {
+          "title": "서버 이모지",
+          "description": "{{server}}의 모든 사용자가 사용할 수 있습니다.",
+          "permissions": "권한"
         }
       },
       "notifications": {

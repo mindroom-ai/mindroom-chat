@@ -863,6 +863,11 @@
           "defaultPack": "ডিফল্ট প্যাক",
           "unknown": "অজানা",
           "view": "দেখুন"
+        },
+        "serverPack": {
+          "title": "সার্ভার ইমোজি",
+          "description": "{{server}} সার্ভারে থাকা সবাই এগুলো ব্যবহার করতে পারেন।",
+          "permissions": "অনুমতি"
         }
       },
       "notifications": {

@@ -2114,6 +2114,11 @@
           "defaultPack": "Standaardpakket",
           "view": "Bekijken",
           "unknown": "Onbekend"
+        },
+        "serverPack": {
+          "title": "Serveremoji's",
+          "description": "Iedereen op {{server}} kan ze gebruiken.",
+          "permissions": "Bevoegdheden"
         }
       },
       "notifications": {

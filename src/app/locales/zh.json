@@ -2114,6 +2114,11 @@
           "defaultPack": "默认表情包",
           "view": "查看",
           "unknown": "未知"
+        },
+        "serverPack": {
+          "title": "服务器表情符号",
+          "description": "{{server}} 上的所有人都可以使用。",
+          "permissions": "权限"
         }
       },
       "notifications": {

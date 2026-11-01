@@ -2114,6 +2114,11 @@
           "defaultPack": "Paket bawaan",
           "view": "Lihat",
           "unknown": "Tidak diketahui"
+        },
+        "serverPack": {
+          "title": "Emoji server",
+          "description": "Semua orang di {{server}} bisa memakainya.",
+          "permissions": "Izin"
         }
       },
       "notifications": {

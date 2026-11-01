@@ -2114,6 +2114,11 @@
           "defaultPack": "デフォルトパック",
           "view": "表示",
           "unknown": "不明"
+        },
+        "serverPack": {
+          "title": "サーバー絵文字",
+          "description": "{{server}} のユーザー全員が使えます。",
+          "permissions": "権限"
         }
       },
       "notifications": {

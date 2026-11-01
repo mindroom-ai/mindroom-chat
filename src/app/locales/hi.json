@@ -863,6 +863,11 @@
           "defaultPack": "डिफ़ॉल्ट पैक",
           "unknown": "अज्ञात",
           "view": "देखें"
+        },
+        "serverPack": {
+          "title": "सर्वर इमोजी",
+          "description": "{{server}} पर मौजूद हर कोई इन्हें इस्तेमाल कर सकता है।",
+          "permissions": "अनुमतियां"
         }
       },
       "notifications": {
