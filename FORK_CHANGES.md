@@ -21,6 +21,7 @@
   Adding should not need care about the image's size, a taken name should say so instead of quietly becoming `party-parrot1`, and custom emoji should show up in Recent and the quick reactions like Unicode ones do (both rank by use count).
 - Resize: `prepareEmojiImage` (`plugins/custom-emoji/prepareEmojiImage.ts`) draws a still image larger than 128 pixels at that size as a PNG (`fitWithin` keeps the aspect ratio and never enlarges) before `AddCustomEmoji` uploads it.
   A GIF is uploaded as it is, so it keeps animating; one over 256 KB is refused with "Animated GIFs must be under 256 KB." (`EmojiImageTooLargeError`) and nothing is uploaded.
+  The GIF cap is checked as soon as the file is picked, with Add turned off. The Settings pack editor (bulk uploads, also for stickers) keeps uploading files as they are and numbering duplicate names; only the emoji board's Add applies these rules.
 - Taken names: `addEmoticonToPackContent` throws `ShortcodeTakenError` instead of renaming, and `addToServerPack` throws it before any read or write when a live server pack has the name; the fresh read of the target pack still catches a name taken since the last sync.
   `AddCustomEmoji` checks the typed name against every live server pack, or the personal pack, while typing and again before uploading; a taken name shows "That name is taken. Pick another." with Add turned off, and a name taken during the write shows the same message.
   The emoji is selected under the typed name.

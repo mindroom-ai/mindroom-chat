@@ -83,13 +83,15 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const adding = addState.status === AsyncStatus.Loading;
   // Not while adding, as the new emoji can sync before its write returns.
   const taken = !adding && isShortcodeTaken(mx, serverPackRoom, shortcode);
+  // A GIF is uploaded as it is, so one over the cap is refused as soon as it is picked.
+  const gifTooLarge = file.type === 'image/gif' && file.size > MAX_ANIMATED_EMOJI_BYTES;
   const addError = addState.status === AsyncStatus.Error ? addState.error : undefined;
   // A taken-name error is about the name it was raised for; a new name clears it.
   const takenError = addError instanceof ShortcodeTakenError;
   let errorText: string | undefined;
   if (taken || (takenError && addError.shortcode === shortcode)) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiNameTaken');
-  } else if (addError instanceof EmojiImageTooLargeError) {
+  } else if (gifTooLarge || addError instanceof EmojiImageTooLargeError) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
       limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
     });
@@ -101,7 +103,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
     evt.preventDefault();
     // The board can sit inside another form (power tags), which would also get this submit.
     evt.stopPropagation();
-    if (!shortcode || taken || adding) return;
+    if (!shortcode || taken || gifTooLarge || adding) return;
     addEmoji().then(
       (mxc) => {
         if (alive()) onAdd(mxc, shortcode);
@@ -164,7 +166,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
           variant="Primary"
           size="300"
           radii="300"
-          disabled={!shortcode || taken || adding}
+          disabled={!shortcode || taken || gifTooLarge || adding}
           before={adding && <Spinner variant="Primary" fill="Solid" size="100" />}
         >
           <Text size="B300">{t('sharedUi.emojiBoard.add')}</Text>

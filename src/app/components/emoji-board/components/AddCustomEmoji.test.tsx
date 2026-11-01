@@ -230,10 +230,12 @@ describe('AddCustomEmoji', () => {
     expect(mx.setAccountData).not.toHaveBeenCalled();
   });
 
-  it('refuses a GIF over 256 KB without uploading it', async () => {
+  it('refuses a GIF over 256 KB as soon as it is picked, without uploading it', async () => {
     const gif = new File([new Uint8Array(300 * 1024)], 'party parrot.gif', { type: 'image/gif' });
     const { onAdd, submit } = renderForm(gif);
 
+    expect(textNodes('Animated GIFs must be under 256 KB.')).not.toHaveLength(0);
+    expect(addButton().props.disabled).toBe(true);
     await submit();
 
     expect(mx.uploadContent).not.toHaveBeenCalled();
