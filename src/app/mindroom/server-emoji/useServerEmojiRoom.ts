@@ -22,15 +22,17 @@ export const findServerEmojiRoom = (
       ? room
       : undefined;
   }
-  // Only a joined, current room may match: a room left after a replacement, or an invite whose
-  // stripped state claims the alias, must not hide it.
+  // Only a joined, current, local-only room may match. A room left after a replacement, or an
+  // invite whose stripped state claims the alias, must not hide it, and another server can set any
+  // canonical alias in its own rooms; a room with m.federate false cannot come from elsewhere.
   return mx
     .getRooms()
     .find(
       (room) =>
         room.getMyMembership() === Membership.Join &&
         room.getCanonicalAlias() === address &&
-        getStateEvent(room, StateEvent.RoomTombstone) === undefined
+        getStateEvent(room, StateEvent.RoomTombstone) === undefined &&
+        getStateEvent(room, StateEvent.RoomCreate)?.getContent()['m.federate'] === false
     );
 };
 

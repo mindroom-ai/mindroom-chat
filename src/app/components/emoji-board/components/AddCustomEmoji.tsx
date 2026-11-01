@@ -142,6 +142,8 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
             radii="300"
             maxLength={100}
             required
+            // The save uses the name as submitted, so it cannot change while the upload runs.
+            disabled={adding}
             autoFocus={!mobileOrTablet()}
           />
         </Box>

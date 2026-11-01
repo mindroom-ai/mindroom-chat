@@ -11,15 +11,25 @@ import { findServerEmojiRoom, useServerEmojiRoom } from './useServerEmojiRoom';
 const ROOM_ID = '!emoji:example.com';
 const ALIAS = '#emoji:example.com';
 
-/** What the alias match and the membership check read from a room. */
-const fakeRoom = (membership: string, roomId = ROOM_ID, tombstoned = false): Room =>
+/** What the alias match and the membership check read from a room; local-only unless `federated`. */
+const fakeRoom = (
+  membership: string,
+  roomId = ROOM_ID,
+  tombstoned = false,
+  federated = false
+): Room =>
   ({
     roomId,
     getCanonicalAlias: () => ALIAS,
     getMyMembership: () => membership,
     getLiveTimeline: () => ({
       getState: () => ({
-        getStateEvents: (type: string) => (tombstoned && type === 'm.room.tombstone' ? {} : null),
+        getStateEvents: (type: string) => {
+          if (type === 'm.room.create') {
+            return { getContent: () => (federated ? {} : { 'm.federate': false }) };
+          }
+          return tombstoned && type === 'm.room.tombstone' ? {} : null;
+        },
       }),
     }),
   } as unknown as Room);
@@ -60,6 +70,14 @@ describe('findServerEmojiRoom', () => {
     const current = fakeRoom('join');
     expect(findServerEmojiRoom(fakeClient([replaced, current]), ALIAS)).toBe(current);
     expect(findServerEmojiRoom(fakeClient([replaced]), ALIAS)).toBeUndefined();
+  });
+
+  it('ignores a federated room that claims the alias', () => {
+    // Another server can set any canonical alias in its own room; only a local-only room can be ours.
+    const remote = fakeRoom('join', '!remote:evil.example', false, true);
+    const real = fakeRoom('join');
+    expect(findServerEmojiRoom(fakeClient([remote]), ALIAS)).toBeUndefined();
+    expect(findServerEmojiRoom(fakeClient([remote, real]), ALIAS)).toBe(real);
   });
 
   it('ignores a tombstoned room named by its room ID', () => {

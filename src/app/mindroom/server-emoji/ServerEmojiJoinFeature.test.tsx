@@ -20,11 +20,17 @@ const withoutKey = { 'm.homeserver': { base_url: 'https://example.com' } };
 
 type FakeRoom = ReturnType<typeof joinedRoom>;
 
+/** A joined, local-only room (`m.federate: false`) that carries the alias, as the script creates it. */
 const joinedRoom = () => ({
   roomId: ROOM_ID,
   getCanonicalAlias: () => ALIAS,
   getMyMembership: () => 'join',
-  getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => null }) }),
+  getLiveTimeline: () => ({
+    getState: () => ({
+      getStateEvents: (type: string) =>
+        type === 'm.room.create' ? { getContent: () => ({ 'm.federate': false }) } : null,
+    }),
+  }),
 });
 
 const fakeClient = (rooms: FakeRoom[] = [], pushRules: unknown = undefined) => ({

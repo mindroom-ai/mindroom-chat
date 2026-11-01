@@ -194,8 +194,8 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
     const secondaryDiagnostics = attachBrowserDiagnostics(secondaryPage);
     await loginWithPassword(secondaryPage, { homeserver, ...secondaryCredentials! });
     await expectLoggedInShellStable(secondaryPage);
-    // The join is asynchronous and the board reads its packs once when it opens, so the shared
-    // room opens, which reloads the app, only after the join.
+    // The join is asynchronous and opening the shared room reloads the app, so wait for the join
+    // first; the reloaded app then starts with the emoji room already joined.
     await expect
       .poll(async () => (await joinedRoomIds(homeserver, secondary)).includes(emojiRoomId), {
         timeout: 30_000,
