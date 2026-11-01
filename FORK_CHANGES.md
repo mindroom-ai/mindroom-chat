@@ -42,6 +42,8 @@
   The target is the first live pack by state key (`""` first) whose content stays within 60,000 UTF-8 bytes (`MAX_PACK_CONTENT_BYTES`; an event holds 65,535 bytes with its envelope) with the new emoji; when none fits, a new pack opens at the smallest unused whole number from `2` (`nextPackStateKey`) and copies the first pack's `pack` metadata.
   Deleted packs are skipped when picking the target (with no live pack the write goes to `""`, and a new overflow pack can take the state key of a deleted one); a shortcode any live server pack has is refused (entry above).
   A failed upload or write leaves the form open with its error; if the server still refuses the size, the previous pack event stays current.
+- Hardening: anyone allowed to edit a shared pack can publish any JSON, so `PackImageReader.fromPackImage` skips image entries that are not objects instead of throwing in every picker.
+  `useRoomsImagePacks` re-reads packs when its room IDs change (not only on a pack event), so the server room's packs show in a picker that was open when the room was joined; a new array of the same rooms keeps the same packs.
 - Settings: Settings → Emojis & Stickers has a Server Emoji section between the personal and global packs once the room is joined.
   Its packs open in the existing `ImagePackView`, which edits when the user has the power level (with no live pack, one tile offers the first, as `RoomImagePack` does); a Permissions button opens the room's settings on its permissions page for users who may change power levels.
   Simple Mode still hides Emojis & Stickers, as for personal emoji, so managing the server pack needs the full interface.
@@ -72,6 +74,44 @@
 - New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmoji`, `addCustomEmojiDescription`, `addCustomEmojiFailed`, `add`; the form reuses `sharedUi.imageTile.shortcode` and `cancel`.
 - Tests: `addEmoticonToPackContent` (`plugins/custom-emoji/utils.test.ts`) covers a missing pack, a taken shortcode, a `__proto__` shortcode and a sticker-only pack; `AddCustomEmoji.test.tsx` covers the upload, the pack write and selection, and a failed upload.
 - Live check against a local Tuwunel stack: the picker's `+`, the form, and the reaction chip showing the uploaded image; the account data held both `party-parrot` and `party-parrot1` after two runs, before taken names were refused.
+
+### Keep a reply's worker warm-up line in one style (2026-11-01)
+
+- Why: the owner saw a reply's "⏳ Preparing isolated worker for `shell.run_shell_command`… 35s elapsed." line switch every few seconds between small grey text with literal backticks and a full-size body paragraph with inline code.
+  The runtime sends the line two ways while a worker warms up.
+  Live frames carry it as `activity`, which `withMindroomReasoning` draws below the body in `T200` text.
+  Durable checkpoint edits, sent every update interval, append it to `body` and to `formatted_body` as one `<p>` per line, and record it in `io.mindroom.warmup_suffix`.
+  A checkpoint that covers the newest frame makes `useLiveReplyContent` show the durable content until the next frame, so the line changed look with every frame and checkpoint.
+- Change: `useLiveReplyContent` moves a durable reply's warm-up lines out of `body` and `formatted_body` into `io.mindroom.live_activity`, the key live frames fill, so both paths draw the same line.
+  It strips them only when the body ends in `\n\n<suffix>` and the HTML ends in one `<p>` per line with that line's text (compared without backticks, since tool names become `<code>`); any other content is left as it is.
+  It drops `m.new_content` from that copy, as live content does, because readers such as the thinking-placeholder check prefer it and it still holds the lines.
+  The activity line now draws backtick spans, the tool names, as inline code; a failure's error, from its line's first `: `, keeps its backticks as the runtime's HTML does (`CustomHtml.css` `Code`, re-exported as `ActivityCode` from `MindroomReasoning.css.ts` so the tests that mock that stylesheet keep working).
+- Not covered: a long-text reply whose hydrated sidecar holds the lines still shows them in its body, as before.
+- Tests: `useLiveReplyContent.test.tsx` (now jsdom, for `DOMParser`) moves one and two lines with no live entry and under a covering checkpoint, moves a failure line whose error the HTML escapes and which keeps backticks, keeps a lines-only reply recognizable as the thinking placeholder, and leaves content alone when the body does not end in the lines, the HTML lacks their paragraphs, the last paragraph is other text, there are fewer paragraphs than lines, there is no HTML, or a final edit kept an older edit's suffix key.
+  `MindroomReasoning.test.tsx` checks the tool names render as inline code and a failure's error keeps its backticks.
+- Review: an independent subagent found nothing blocking; its two low findings (an escaped failure line whose error has backticks stayed in the body; no test for an inherited suffix key) are fixed above. CodeRabbit's finding (error backticks drawn as code) is fixed too.
+- Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test). A throwaway fixture page rendered a live-frame reply and a checkpoint reply through `useLiveReplyContent` and `renderMindroomMessageContent`; before and after screenshots checked by eye.
+- Next: none.
+
+### Show a running tool call's latest output (2026-10-31)
+
+- Why: a long tool call, such as a shell command running tests, showed only "Running 1 tool call" with a spinner until it finished. The MindRoom runtime now adds the latest output a running call reported to that call's entry in live reply frames, as an optional `progress` string capped at its last 1000 characters, and drops it when the call completes; durable edits never carry it.
+- Change: `buildToolRefRenderData` reads `progress` for a pending call, dropping leading blank lines but keeping the first line's indentation. `MindroomToolRefGroupBlock` shows the last six lines of the latest running call's output under the tool calls' line, with a one-line label naming that call's command while several calls run, through a new `preview` slot on `ThreadActivity` that shows whether or not the panel is open; the box is at most six rendered lines tall with the newest output at the bottom, so a long wrapped line cannot grow it. A completed call shows its result as before. A durable checkpoint that covers the live entry keeps the frames' output on the calls it still shows running, since progress edits never carry it.
+- Tests: `react-custom-html-parser.test.ts` "shows the last lines of a running call output under the collapsed tool calls" fails without the change; "drops a call output once the call completed" pins that a completed call shows none; the indentation, leading-blank-line, and several-calls label tests each fail without their change. The shared `live-frames-v1.json` gains the runtime's three `progress` cases.
+
+### Open an agent's connect and reset links signed in (2026-10-31)
+
+- Why: on a deployment where people sign in only through Chat (Google sign-in, no dashboard access), clicking an agent's "connect Slack" or "reset Gmail" link landed on the backend's dashboard API key page, because the link needs a browser signed in as the person the agent gave it to.
+- Change: `AgentConnectLinkFeature` (`connections/AgentConnectLinks.tsx`, mounted in `MindroomClientNonUIFeatures`) listens for clicks in the capture phase.
+  A plain left click on a personal link, `/api/oauth/<provider>/authorize?connect_token=…` or `/api/oauth/<provider>/reset?reset_token=…` with `execution_scope=user` or `user_agent`, on one of the Computers backends (`useComputerApiUrls()`, the same list the Connections card offers) opens `<backend>/connections/?next=<link path>` through `openConnectionsPortal` instead.
+  Shared links need no sign-in and other OAuth links use the dashboard login, so they keep the browser's normal navigation; routing them through the portal broke them where portal sign-in is off (review finding).
+  The portal signs in with Chat's OpenID handshake as before, then opens the link, which now accepts that session for its own requester (mindroom-ai/mindroom PR "Let Chat sign-ins open an agent's connect and reset links").
+  Other links, other backends, middle and modified clicks, and the native apps are left to the browser; a blocked window leaves the click to the browser too.
+  If the portal's sign-in fails, it still opens the link, so the click ends where a plain click would have.
+- Refactor: the Connections card's token getter moved into `useOpenConnectionsPortal(discovered)` (`connections/useOpenConnectionsPortal.ts`), which the card and the link feature share, so both keep the account-switch guard and the binding check for discovered backends.
+- Tests: `AgentConnectLinks.test.tsx` (link matching, including shared, tokenless and mismatched-token links left alone; a clicked connect link opens the portal with its path and stops the browser; blocked windows, middle and modified clicks, other backends and paths, native apps and unmount leave it alone; the backend list is read at click time), `openConnections.test.ts` (`next` in the portal URL). `MindroomConnectionsSettings.test.tsx` passes unchanged.
+- Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npx vitest run` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test).
+- Next: links opened outside Chat, or in the native apps, still ask for the dashboard login.
 
 ### Show a reply's reasoning as a small text toggle (2026-10-31)
 

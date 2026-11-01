@@ -187,10 +187,20 @@ type MindroomToolBlockRenderData = {
   argsPreview?: string;
   result?: string;
   resultInline: boolean;
+  progress?: string;
 };
+
+// How many of a running call's last output lines show under its tool calls.
+const TOOL_OUTPUT_LINES = 6;
 
 const asToolTraceText = (value: unknown): string | undefined =>
   typeof value === 'string' ? value.trim() || undefined : undefined;
+
+// Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
+const asToolOutput = (value: unknown): string | undefined =>
+  typeof value === 'string'
+    ? value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd() || undefined
+    : undefined;
 
 const buildToolRefRenderData = (
   toolRef: MindroomToolRefParseResult,
@@ -225,6 +235,7 @@ const buildToolRefRenderData = (
       toolName: traceToolName,
       argsPreview,
       resultInline: false,
+      progress: asToolOutput(eventRaw?.progress),
     };
   }
 
@@ -325,6 +336,8 @@ function MindroomToolRefGroupBlock({
     approvals
   );
   const summary = summarizeToolCalls(parsedTools, states);
+  const running = loadedTools.filter((tool, index) => states[index] === 'running');
+  const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
@@ -345,6 +358,18 @@ function MindroomToolRefGroupBlock({
           : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
       }
       detail={summary.names}
+      preview={
+        outputTool?.progress && (
+          <>
+            {running.length > 1 && (
+              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
+            )}
+            <pre className={activityCss.Output}>
+              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
+            </pre>
+          </>
+        )
+      }
     >
       {loadedTools.map((parsedTool, index) => (
         <MindroomToolRefGroupItem
