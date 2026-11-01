@@ -27,11 +27,32 @@ const joinedRoom = () => ({
   getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => null }) }),
 });
 
-const fakeClient = (rooms: FakeRoom[] = []) => ({
+const fakeClient = (rooms: FakeRoom[] = [], pushRules: unknown = undefined) => ({
   getRooms: () => rooms,
   getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
   joinRoom: vi.fn(async (_address: string) => ({})),
+  getAccountData: (type: string) =>
+    type === 'm.push_rules' && pushRules ? { getContent: () => pushRules } : undefined,
+  on: vi.fn(),
+  removeListener: vi.fn(),
+  addPushRule: vi.fn(async () => ({})),
+  deletePushRule: vi.fn(async () => ({})),
 });
+
+/** Push rules in which the server emoji room is already muted, as the mute menu leaves them. */
+const mutedRules = {
+  global: {
+    override: [
+      {
+        rule_id: ROOM_ID,
+        enabled: true,
+        default: false,
+        actions: [],
+        conditions: [{ kind: 'event_match', key: 'room_id', pattern: ROOM_ID }],
+      },
+    ],
+  },
+};
 
 /** The feature in the providers the app gives it; `hasCompletedInitialSync` is the startup flag. */
 const featureFor =
@@ -168,5 +189,24 @@ describe('ServerEmojiJoinFeature', () => {
     await update(feature(true));
 
     expect(client.joinRoom).not.toHaveBeenCalled();
+  });
+  it('mutes the server emoji room once the user is in it, so nothing posted there notifies', async () => {
+    const client = fakeClient([joinedRoom()]);
+    const feature = featureFor(client, createStore(), withKey);
+    await render(feature());
+    await catchUp(feature);
+
+    expect(client.addPushRule).toHaveBeenCalledTimes(1);
+    expect(client.addPushRule).toHaveBeenCalledWith('global', 'override', ROOM_ID, {
+      conditions: [{ kind: 'event_match', key: 'room_id', pattern: ROOM_ID }],
+      actions: [],
+    });
+  });
+
+  it('leaves a server emoji room that is already muted alone', async () => {
+    const client = fakeClient([joinedRoom()], mutedRules);
+    await render(featureFor(client, createStore(), withKey)());
+
+    expect(client.addPushRule).not.toHaveBeenCalled();
   });
 });

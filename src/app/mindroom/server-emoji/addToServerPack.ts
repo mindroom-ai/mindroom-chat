@@ -76,10 +76,21 @@ export const addToServerPack = async (
     }
   }
 
-  await mx.sendStateEvent(
-    room.roomId,
-    StateEvent.PoniesRoomEmotes as any,
-    addEmoticonToPackContent({ pack: firstMeta }, shortcode, image),
-    nextPackStateKey(keys)
-  );
+  // The next free key in this client's view may already hold a pack another device opened since
+  // the last sync, so read it as well: add to it if it fits, otherwise try the key after it.
+  for (;;) {
+    const key = nextPackStateKey(keys);
+    const current = await fetchPackContent(mx, room.roomId, key);
+    const live = current?.pack !== undefined || current?.images !== undefined;
+    const content = addEmoticonToPackContent(
+      live ? current : { pack: firstMeta },
+      shortcode,
+      image
+    );
+    if (!live || packContentBytes(content) <= MAX_PACK_CONTENT_BYTES) {
+      await mx.sendStateEvent(room.roomId, StateEvent.PoniesRoomEmotes as any, content, key);
+      return;
+    }
+    keys.push(key);
+  }
 };

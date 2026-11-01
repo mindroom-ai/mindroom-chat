@@ -156,6 +156,35 @@ describe('addToServerPack', () => {
     );
   });
 
+  it('adds to an overflow pack another device opened that has not synced here yet', async () => {
+    // Pack '2' exists on the server, but this client's synced state only knows the full '' pack.
+    const meta = { display_name: 'MindRoom' };
+    const first = fullPack(meta);
+    const earlier = { pack: meta, images: { earlier: { url: 'mxc://example.org/earlier' } } };
+    const { mx, client } = clientHolding({ '': first, '2': earlier });
+
+    await addToServerPack(client, roomWithPacks({ '': first }), 'later', image);
+
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      '!emoji',
+      EMOTES,
+      { pack: meta, images: { earlier: { url: 'mxc://example.org/earlier' }, later: image } },
+      '2'
+    );
+  });
+
+  it('skips an unsynced overflow pack that is full too', async () => {
+    const first = fullPack({ display_name: 'MindRoom' });
+    const second = fullPack({ display_name: 'MindRoom' });
+    const { mx, client } = clientHolding({ '': first, '2': second });
+
+    await addToServerPack(client, roomWithPacks({ '': first }), 'later', image);
+
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(mx.sendStateEvent.mock.calls[0][3]).toBe('3');
+  });
+
   it('moves on to the next pack that has room', async () => {
     const first = fullPack({ display_name: 'MindRoom' });
     const second = { pack: { display_name: 'Second' }, images: { a: { url: 'mxc://x/a' } } };

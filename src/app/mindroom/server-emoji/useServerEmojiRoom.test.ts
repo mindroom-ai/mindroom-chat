@@ -62,6 +62,12 @@ describe('findServerEmojiRoom', () => {
     expect(findServerEmojiRoom(fakeClient([replaced]), ALIAS)).toBeUndefined();
   });
 
+  it('ignores a tombstoned room named by its room ID', () => {
+    // After an upgrade the old room stays joined; its packs must not keep being used or written.
+    const client = fakeClient([fakeRoom('join', ROOM_ID, true)]);
+    expect(findServerEmojiRoom(client, ROOM_ID)).toBeUndefined();
+  });
+
   it('returns nothing for a room the client does not know', () => {
     const client = fakeClient([]);
     expect(findServerEmojiRoom(client, ROOM_ID)).toBeUndefined();
