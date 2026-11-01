@@ -2,6 +2,42 @@
 
 ## Runbook
 
+### Share custom emoji with everyone on the homeserver (2026-10-31)
+
+- Why: the owner asked for a proper custom emoji system that works across the server.
+  An emoji added from the board (entry below) went to the adder's personal pack, so only they could use it; everyone else had to find the pack and enable it as a global pack.
+  Now someone adds an emoji once and everyone with an account on the same homeserver can use it right away, in the reaction picker, the composer's emoji board and `:` autocomplete, in every room including DMs, with no setup.
+  "Across the server" means the homeserver's own accounts, not federation; other Matrix clients still show the emoji in messages and reactions.
+- Contract: the homeserver's client well-known names the room, as `io.mindroom.bug_reports` names the report administrators: `"io.mindroom.emoji": { "room": "#emoji:example.org" }`, an alias or a room ID (`getServerEmojiRoomAddress`; a missing or malformed value means no server emoji, silently).
+  The room has `creation_content` `{"type": "io.mindroom.emoji", "m.federate": false}` (the type hides it from lists, the flag keeps remote users from editing the pack), preset `public_chat` so local users join without an invite, and its canonical alias set at creation, since Chat finds a joined room by it.
+  It holds MSC2545 packs, the first at state key `""` with `pack.display_name` and `pack.usage: ["emoticon"]`.
+  `events["im.ponies.room_emotes"]` in its power levels says who may add: `0` everyone (the default), `50` moderators; the same level edits and removes, because a pack is one state event.
+- Joining: `ServerEmojiJoinFeature` (`mindroom/server-emoji/`, mounted beside the bug-report auto-join) calls `mx.joinRoom(address)` after the first sync, at most once per session and address, and never when `useServerEmojiRoom()` already finds the room joined (by room ID or canonical alias).
+  A refused join (banned, or an alias that names nothing) logs `[server-emoji] could not join the server emoji room` and is not retried that session; Chat then behaves as without the key.
+- Hiding: `RoomType.MindroomEmoji` and `isMindroomEmojiRoom` take the room out of `isRoom()`, so Home, Direct and the space lists skip it; the Home message-search scope and the `#` room mention list do not go through `isRoom` and filter on `isMindroomEmojiRoom` themselves.
+- Showing: `useImagePackRooms` appends the server emoji room after the room and its parent spaces unless it is already one of them.
+  It is the only source of `imagePackRooms` (timeline reactions, the message editor, the composer, power tags), so the board, the reaction picker and `:` autocomplete list the server packs in every room with no change of their own; `useRelevantImagePacks` still lists a pack once when the user also enabled it globally.
+- Adding: `AddCustomEmoji` writes to the server pack when the room is joined and the user's power level allows `im.ponies.room_emotes` (`canAddServerEmoji`), otherwise to the personal pack as before; its description says which, "Everyone on {{server}} can use it in every room." or the Personal Pack sentence.
+  `addToServerPack` uploads, reads the target pack from the server right before writing (a 404 means empty) so an edit synced since is kept, and sends it with `sendStateEvent`.
+  The target is the first live pack by state key (`""` first) whose content stays within 60,000 UTF-8 bytes (`MAX_PACK_CONTENT_BYTES`; an event holds 65,535 bytes with its envelope) with the new emoji; when none fits, a new pack opens at the smallest unused whole number from `2` (`nextPackStateKey`) and copies the first pack's `pack` metadata.
+  A deleted pack is never written to, and a taken shortcode gets a number inside the target pack, as before.
+  A failed upload or write leaves the form open with its error; if the server still refuses the size, the previous pack event stays current.
+- Settings: Settings → Emojis & Stickers has a Server Emoji section between the personal and global packs once the room is joined.
+  Its packs open in the existing `ImagePackView`, which edits when the user has the power level (with no live pack, one tile offers the first, as `RoomImagePack` does); a Permissions button opens the room's settings on its permissions page for users who may change power levels.
+  Simple Mode still hides Emojis & Stickers, as for personal emoji, so managing the server pack needs the full interface.
+- Not done: other clients do not join the room or add to the pack by themselves.
+  Two adds to one pack at the same moment can drop one (the last write wins), and whoever may add may also rename or remove any server emoji; an operator who needs control sets the level to `50`.
+  A user who leaves the room in another client is joined again, once per session.
+  No "added by" attribution, no custom emoji in Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji), and no import of existing personal emoji.
+  A homeserver whose well-known cannot carry extra keys cannot publish the room.
+- New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmojiServerDescription`, and `featureUi.settings.emojisStickers.serverPack.title`, `description` and `permissions` (each catalog's own Permissions word, since the button opens that page).
+- Tests: `serverEmojiConfig.test.ts` (alias, room ID, malformed keys), `useServerEmojiRoom.test.ts` (ID or canonical alias, left and invited rooms ignored, follows the joined list), `ServerEmojiJoinFeature.test.tsx` (one join after the first sync; none for a joined room, a room the first sync brings in, or without the key; a refused join logged and not retried), `room.test.ts` and `useHomeRooms.test.ts` (hidden from room lists and the search scope), `useImagePackRooms.test.tsx` (appended once, follows joins and leaves), `utils.test.ts` and `addToServerPack.test.ts` (the pack as the server has it, shortcode clashes, the exact 60,000-byte budget, overflow to the next free key, never a deleted pack, other errors rethrown, `canAddServerEmoji` at levels `0` and `50`), `AddCustomEmoji.test.tsx` (server pack when allowed, personal pack otherwise, the target the description names), `ServerPack.test.tsx` (the section, the first-pack fallback, Permissions only with the power level).
+  `e2e/server-emoji.spec.ts` (two accounts and the key served through a routed well-known; skipped without `E2E_SECOND_USERNAME` and `E2E_SECOND_PASSWORD`): one user adds `party parrot.png` from the reaction picker and the pack read over REST holds it; a second user who did nothing finds `party-parrot` by search in the picker and reacts, with the pack's `mxc://` URL as the reaction key; both are in the emoji room and neither sidebar lists it, with the shared room's link as the control.
+- Live check against a local Tuwunel stack (`v1.9.4-mindroom.15`), Chromium in the Playwright image: the e2e passes, and fails at the form's server sentence when the well-known leaves the key out.
+  Screenshots of the reaction picker with the server pack, the form's server sentence and the settings section, taken from the same stack, were checked by eye.
+- Next: the operator side lives in the mindroom repo: a script that creates the room, the `mindroom-client` chart value `serverEmoji.room` that adds the key to the well-known, and a docs page.
+  No deployment publishes the key until its operator creates the room and adds it.
+
 ### Add a custom emoji from the emoji board (2026-10-14)
 
 - Why: the owner asked for custom emoji reactions.
