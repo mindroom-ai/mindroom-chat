@@ -198,9 +198,11 @@ const TOOL_OUTPUT_LINES = 6;
 const asToolTraceText = (value: unknown): string | undefined =>
   typeof value === 'string' ? value.trim() || undefined : undefined;
 
-// Output keeps its first line's indentation, as in YAML or a tree listing.
+// Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
 const asToolOutput = (value: unknown): string | undefined =>
-  typeof value === 'string' ? value.trimEnd() || undefined : undefined;
+  typeof value === 'string'
+    ? value.replace(/^(?:[ \t]*\n)+/, '').trimEnd() || undefined
+    : undefined;
 
 const buildToolRefRenderData = (
   toolRef: MindroomToolRefParseResult,

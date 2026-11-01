@@ -118,7 +118,6 @@ export const Output = style([
   },
 ]);
 
-// Rows in the panel are separated by quiet dividers, not nested boxes.
 export const OutputLabel = style({
   margin: `${config.space.S100} 0 0`,
   overflow: 'hidden',
@@ -130,6 +129,7 @@ export const OutputLabel = style({
   whiteSpace: 'nowrap',
 });
 
+// Rows in the panel are separated by quiet dividers, not nested boxes.
 export const Row = style({
   display: 'grid',
   gridTemplateColumns: `${toRem(22)} minmax(0, 1fr)`,

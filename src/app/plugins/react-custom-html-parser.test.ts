@@ -727,6 +727,25 @@ describe('useMindroomToolTraceMarkerParserOptions', () => {
     expect(output.children.join('')).toBe('  root:\n    child: 1');
   });
 
+  it('drops leading blank lines of a running call output', () => {
+    const html = '<p>🔧 <code>run_subagent</code> [1]</p>';
+    const renderer = renderTreeWithToolTrace(html, {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_started',
+            tool_name: 'run_subagent',
+            progress: '\n\nCalling write_report\n  writing',
+          },
+        ],
+      },
+    });
+
+    const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
+    expect(output.children.join('')).toBe('Calling write_report\n  writing');
+  });
+
   it('names the call whose output shows only while several calls run', () => {
     const html =
       '<p>🔧 <code>run_shell_command</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
