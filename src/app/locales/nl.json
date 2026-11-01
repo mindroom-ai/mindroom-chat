@@ -1251,7 +1251,7 @@
       "support": "Ondersteuning",
       "privacy": "Privacy",
       "terms": "Voorwaarden",
-      "poweredBy": "Mogelijk gemaakt door <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Mogelijk gemaakt door <links />"
     },
     "router": {
       "join": "Deelnemen",

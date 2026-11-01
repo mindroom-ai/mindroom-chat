@@ -1258,7 +1258,7 @@
       "support": "Assistenza",
       "privacy": "Privacy",
       "terms": "Termini",
-      "poweredBy": "Basato su <app>{{appName}}</app>, <matrix>Matrix</matrix> e <cinny>Cinny</cinny>"
+      "poweredBy": "Basato su <links />"
     },
     "router": {
       "join": "Entra",

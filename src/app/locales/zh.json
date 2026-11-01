@@ -1247,7 +1247,7 @@
       "support": "支持",
       "privacy": "隐私",
       "terms": "条款",
-      "poweredBy": "由 <app>{{appName}}</app>、<matrix>Matrix</matrix>、<cinny>Cinny</cinny> 提供支持"
+      "poweredBy": "由 <links /> 提供支持"
     },
     "router": {
       "join": "加入",

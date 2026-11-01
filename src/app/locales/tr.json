@@ -1247,7 +1247,7 @@
       "support": "Destek",
       "privacy": "Gizlilik",
       "terms": "Koşullar",
-      "poweredBy": "Altyapı: <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Altyapı: <links />"
     },
     "router": {
       "join": "Katıl",

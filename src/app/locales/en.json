@@ -1251,7 +1251,7 @@
       "support": "Support",
       "privacy": "Privacy",
       "terms": "Terms",
-      "poweredBy": "Powered by <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Powered by <links />"
     },
     "router": {
       "join": "Join",

@@ -2038,7 +2038,7 @@
       "retry": "আবার চেষ্টা করুন"
     },
     "authFooter": {
-      "poweredBy": "<app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny> দ্বারা চালিত",
+      "poweredBy": "<links /> দ্বারা চালিত",
       "privacy": "গোপনীয়তা",
       "support": "সহায়তা",
       "terms": "শর্তাবলী"
