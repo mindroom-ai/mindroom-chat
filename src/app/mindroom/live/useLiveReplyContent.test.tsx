@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
@@ -6,6 +8,7 @@ import type { LiveFrame } from './liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import { useLiveReplyContent } from './useLiveReplyContent';
+import { isMindroomThinkingPlaceholderBody } from '../messages/thinkingPlaceholder';
 
 const ROOM = '!room:example';
 const REPLY = '$reply';
@@ -182,6 +185,44 @@ describe('useLiveReplyContent', () => {
     expect(shown()).toEqual({ ...checkpointed, 'io.mindroom.live_reasoning': 'Weighing options' });
   });
 
+  it('keeps a running call output over a covering checkpoint while the call runs', () => {
+    const running = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [running] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: { ...frame.snapshot!, tools: [{ ...running, progress: 'step 3' }] },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({
+      version: 2,
+      events: [{ ...running, progress: 'step 3' }],
+    });
+  });
+
+  it('shows no output for a call the covering checkpoint shows completed', () => {
+    const completed = { type: 'tool_call_completed', tool_name: 'run_shell_command' };
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [completed] },
+    });
+    const frame = snapshot(4);
+    ingest({
+      ...frame,
+      snapshot: {
+        ...frame.snapshot!,
+        tools: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: 'step 3' }],
+      },
+    });
+    render(checkpointed);
+
+    expect(shown()['io.mindroom.tool_trace']).toEqual({ version: 2, events: [completed] });
+  });
+
   it('shows a covering durable checkpoint as it is when the entry has no reasoning', () => {
     const checkpointed = durable('streaming', {
       'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
@@ -190,6 +231,97 @@ describe('useLiveReplyContent', () => {
     render(checkpointed);
 
     expect(shown()).toEqual(checkpointed);
+  });
+
+  describe('a durable progress edit with worker warm-up lines', () => {
+    const LINE_ONE = '⏳ Preparing isolated worker for `shell.run_shell_command`... 35s elapsed.';
+    const LINE_TWO = '⏳ Preparing isolated worker for `python`... 2s elapsed.';
+    const lineHtml = (line: string) => line.replace(/`([^`]+)`/g, '<code>$1</code>');
+    const warmingUp = (lines: string[], extra: Record<string, unknown> = {}, text = 'Durable') =>
+      durable('streaming', {
+        body: `${text}\n\n${lines.join('\n')}`,
+        formatted_body: `<p>${text}</p>\n${lines
+          .map((line) => `<p>${lineHtml(line)}</p>`)
+          .join('')}`,
+        'io.mindroom.warmup_suffix': lines.join('\n'),
+        ...extra,
+      });
+
+    it.each([
+      ['one line', [LINE_ONE]],
+      ['two lines', [LINE_ONE, LINE_TWO]],
+    ])('shows %s below the body, as live frames do', (_name, lines) => {
+      render(warmingUp(lines));
+
+      expect(shown()).toMatchObject({
+        body: 'Durable',
+        formatted_body: '<p>Durable</p>\n',
+        'io.mindroom.live_activity': lines.join('\n'),
+      });
+      expect(shown()).not.toHaveProperty('m.new_content');
+    });
+
+    it('moves a failure line whose error the HTML escapes', () => {
+      const failure = '⚠️ Worker startup failed for `shell`: can\'t run `a < b & "c"`.';
+      const failureHtml =
+        '⚠️ Worker startup failed for <code>shell</code>: can&#x27;t run `a &lt; b &amp; &quot;c&quot;`.';
+      render(
+        durable('streaming', {
+          body: `Durable\n\n${failure}`,
+          formatted_body: `<p>Durable</p>\n<p>${failureHtml}</p>`,
+          'io.mindroom.warmup_suffix': failure,
+        })
+      );
+
+      expect(shown()).toMatchObject({ body: 'Durable', 'io.mindroom.live_activity': failure });
+    });
+
+    it('shows them below the body while its checkpoint covers the live entry', () => {
+      ingest(snapshot(4, 'Frame four'));
+      render(warmingUp([LINE_ONE], { 'io.mindroom.live_checkpoint': { sid: SID, seq: 4 } }));
+
+      expect(shown()).toMatchObject({
+        body: 'Durable',
+        'io.mindroom.live_activity': LINE_ONE,
+        'io.mindroom.live_reasoning': 'Weighing options',
+      });
+    });
+
+    it('keeps the thinking placeholder recognizable when the reply has no text yet', () => {
+      render(warmingUp([LINE_ONE], {}, 'Thinking...'));
+
+      expect(isMindroomThinkingPlaceholderBody(shown())).toBe(true);
+      expect(shown()['io.mindroom.live_activity']).toBe(LINE_ONE);
+    });
+
+    it.each([
+      ['a body that does not end in the suffix', { body: `${LINE_ONE}\n\nDurable` }],
+      ['HTML without the suffix paragraph', { formatted_body: '<p>Durable</p>' }],
+      ['HTML whose last paragraph is other text', { formatted_body: '<p>Durable</p><p>Other</p>' }],
+      [
+        'HTML with fewer paragraphs than lines',
+        {
+          body: `Durable\n\n${LINE_ONE}\n${LINE_TWO}`,
+          formatted_body: `<p>${lineHtml(LINE_ONE)}${lineHtml(LINE_TWO)}</p>`,
+          'io.mindroom.warmup_suffix': `${LINE_ONE}\n${LINE_TWO}`,
+        },
+      ],
+      ['no HTML', { formatted_body: undefined }],
+      // Resolved edits keep `io.mindroom.*` keys of older edits, so a final edit can carry one.
+      [
+        'a final edit that kept an older suffix',
+        {
+          body: 'Done',
+          formatted_body: '<p>Done</p>',
+          'io.mindroom.stream_status': 'completed',
+        },
+      ],
+    ])('leaves %s as it is', (_name, override) => {
+      const content = { ...warmingUp([LINE_ONE]), ...override };
+      render(content);
+
+      expect(shown()).toEqual(JSON.parse(JSON.stringify(content)));
+    });
   });
 
   it('keeps the overlay over an older checkpoint', () => {

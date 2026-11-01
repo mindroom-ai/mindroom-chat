@@ -4,15 +4,13 @@ import { Box, Button, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
-import { openConnectionsPortal } from '../connections/openConnections';
-import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
+import { useOpenConnectionsPortal } from '../connections/useOpenConnectionsPortal';
 
 export function MindroomConnectionsSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
   const { urls: backendUrls, discovered } = useComputerApiUrls();
+  const openPortal = useOpenConnectionsPortal(discovered);
   const [blocked, setBlocked] = useState(false);
 
   // The native shells have no pop-up window to hand a token to.
@@ -20,19 +18,7 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
 
   // The window must open inside the click itself, so nothing here awaits before the call.
   const open = (backendUrl: string) => {
-    const result = openConnectionsPortal({
-      backendUrl,
-      getOpenIdToken: async (audience) => {
-        // An account switch stops this client but not the portal session, so a stopped client never answers.
-        if (!mx.clientRunning) throw new Error('Matrix client stopped');
-        const token = await requestAudienceOpenIdToken(mx, audience, {
-          requireBinding: discovered,
-        });
-        if (!mx.clientRunning) throw new Error('Matrix client stopped');
-        return token;
-      },
-    });
-    setBlocked(result === 'blocked');
+    setBlocked(openPortal(backendUrl) === 'blocked');
   };
 
   return (
