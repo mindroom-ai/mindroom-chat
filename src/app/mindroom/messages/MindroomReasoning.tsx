@@ -134,6 +134,20 @@ function MindroomReasoning({
   );
 }
 
+/** Activity text with its backtick spans, the tool names, as inline code like the body shows them. */
+const renderActivity = (activity: string): ReactNode =>
+  activity.split(/`([^`\n]+)`/).map((part, index) =>
+    index % 2 ? (
+      // The parts of one activity text never reorder.
+      // eslint-disable-next-line react/no-array-index-key
+      <code key={index} className={css.ActivityCode}>
+        {part}
+      </code>
+    ) : (
+      part
+    )
+  );
+
 /**
  * The message body with the reply's reasoning above it and its live activity below it,
  * or the body itself when the content has neither.
@@ -160,7 +174,7 @@ export const withMindroomReasoning = (
       {body}
       {hasActivity && (
         <Text as="div" size="T200" priority="300" style={{ whiteSpace: 'pre-line' }}>
-          {activity}
+          {renderActivity(activity)}
         </Text>
       )}
     </>

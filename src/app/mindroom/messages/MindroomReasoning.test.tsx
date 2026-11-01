@@ -70,6 +70,7 @@ vi.mock('./MindroomReasoning.css', () => ({
   Toggle: 'ReasoningToggle',
   Label: 'ReasoningLabel',
   Body: 'ReasoningBody',
+  ActivityCode: 'Code',
 }));
 vi.mock('./PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
 vi.mock('./MindroomTranscribingPlaceholder.css', () => ({}));
@@ -257,6 +258,24 @@ describe('MindroomReasoning', () => {
     expect(header(root).props['aria-expanded']).toBe(true);
     expect(text(root)).toBe(
       'ThinkingChecking the cachePartial answerPreparing isolated worker... 3s elapsed.'
+    );
+  });
+
+  it('shows the tool names in live activity as inline code', () => {
+    const root = render({
+      msgtype: 'm.text',
+      body: 'Partial answer',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_activity':
+        '⏳ Preparing isolated worker for `shell.run_shell_command`, `python`... 35s elapsed.',
+    });
+
+    expect(root.findAllByType('code').map((node) => [node.props.className, text(node)])).toEqual([
+      ['Code', 'shell.run_shell_command'],
+      ['Code', 'python'],
+    ]);
+    expect(text(root)).toBe(
+      'Partial answer⏳ Preparing isolated worker for shell.run_shell_command, python... 35s elapsed.'
     );
   });
 

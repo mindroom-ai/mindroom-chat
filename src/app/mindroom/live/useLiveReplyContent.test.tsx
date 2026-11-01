@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
@@ -6,6 +8,7 @@ import type { LiveFrame } from './liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import { useLiveReplyContent } from './useLiveReplyContent';
+import { isMindroomThinkingPlaceholderBody } from '../messages/thinkingPlaceholder';
 
 const ROOM = '!room:example';
 const REPLY = '$reply';
@@ -190,6 +193,73 @@ describe('useLiveReplyContent', () => {
     render(checkpointed);
 
     expect(shown()).toEqual(checkpointed);
+  });
+
+  describe('a durable progress edit with worker warm-up lines', () => {
+    const LINE_ONE = '⏳ Preparing isolated worker for `shell.run_shell_command`... 35s elapsed.';
+    const LINE_TWO = '⏳ Preparing isolated worker for `python`... 2s elapsed.';
+    const lineHtml = (line: string) => line.replace(/`([^`]+)`/g, '<code>$1</code>');
+    const warmingUp = (lines: string[], extra: Record<string, unknown> = {}, text = 'Durable') =>
+      durable('streaming', {
+        body: `${text}\n\n${lines.join('\n')}`,
+        formatted_body: `<p>${text}</p>\n${lines
+          .map((line) => `<p>${lineHtml(line)}</p>`)
+          .join('')}`,
+        'io.mindroom.warmup_suffix': lines.join('\n'),
+        ...extra,
+      });
+
+    it.each([
+      ['one line', [LINE_ONE]],
+      ['two lines', [LINE_ONE, LINE_TWO]],
+    ])('shows %s below the body, as live frames do', (_name, lines) => {
+      render(warmingUp(lines));
+
+      expect(shown()).toMatchObject({
+        body: 'Durable',
+        formatted_body: '<p>Durable</p>\n',
+        'io.mindroom.live_activity': lines.join('\n'),
+      });
+      expect(shown()).not.toHaveProperty('m.new_content');
+    });
+
+    it('shows them below the body while its checkpoint covers the live entry', () => {
+      ingest(snapshot(4, 'Frame four'));
+      render(warmingUp([LINE_ONE], { 'io.mindroom.live_checkpoint': { sid: SID, seq: 4 } }));
+
+      expect(shown()).toMatchObject({
+        body: 'Durable',
+        'io.mindroom.live_activity': LINE_ONE,
+        'io.mindroom.live_reasoning': 'Weighing options',
+      });
+    });
+
+    it('keeps the thinking placeholder recognizable when the reply has no text yet', () => {
+      render(warmingUp([LINE_ONE], {}, 'Thinking...'));
+
+      expect(isMindroomThinkingPlaceholderBody(shown())).toBe(true);
+      expect(shown()['io.mindroom.live_activity']).toBe(LINE_ONE);
+    });
+
+    it.each([
+      ['a body that does not end in the suffix', { body: `${LINE_ONE}\n\nDurable` }],
+      ['HTML without the suffix paragraph', { formatted_body: '<p>Durable</p>' }],
+      ['HTML whose last paragraph is other text', { formatted_body: '<p>Durable</p><p>Other</p>' }],
+      [
+        'HTML with fewer paragraphs than lines',
+        {
+          body: `Durable\n\n${LINE_ONE}\n${LINE_TWO}`,
+          formatted_body: `<p>${lineHtml(LINE_ONE)}${lineHtml(LINE_TWO)}</p>`,
+          'io.mindroom.warmup_suffix': `${LINE_ONE}\n${LINE_TWO}`,
+        },
+      ],
+      ['no HTML', { formatted_body: undefined }],
+    ])('leaves %s as it is', (_name, override) => {
+      const content = { ...warmingUp([LINE_ONE]), ...override };
+      render(content);
+
+      expect(shown()).toEqual(JSON.parse(JSON.stringify(content)));
+    });
   });
 
   it('keeps the overlay over an older checkpoint', () => {

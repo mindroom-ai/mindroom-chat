@@ -9,11 +9,13 @@ import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from 
 
 /** On durable writes: the content is at least as new as every frame up to this `(sid, seq)`. */
 export const LIVE_CHECKPOINT_KEY = 'io.mindroom.live_checkpoint';
-/** Live content only: worker warm-up lines, shown below the body. */
+/** Worker warm-up lines, shown below the body: from live frames or a durable progress edit. */
 export const LIVE_ACTIVITY_KEY = 'io.mindroom.live_activity';
 /** Live content only: the model reasoning so far, shown above the body. */
 export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 
+/** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
+const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
 const LONG_TEXT_KEY = 'io.mindroom.long_text';
 const LIVE_DURABLE_STATUSES = new Set(['pending', 'streaming']);
 
@@ -70,6 +72,38 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   return live;
 };
 
+/**
+ * The durable reply with its warm-up lines moved out of the body to the activity line, where
+ * live frames put them, so the line keeps one look while frames and checkpoints alternate.
+ * Content whose body and HTML do not both end in those lines stays as it is.
+ */
+const withWarmupActivity = (content: IContent): IContent => {
+  const suffix = content[WARMUP_SUFFIX_KEY];
+  const { body } = content;
+  if (typeof suffix !== 'string' || !suffix || typeof body !== 'string') return content;
+  const separated = `\n\n${suffix}`;
+  const html = content.formatted_body;
+  if (!body.endsWith(separated) || typeof html !== 'string' || !html.endsWith('</p>')) {
+    return content;
+  }
+  // One `<p>` per line, whose text is the line without its code backticks.
+  const start = suffix
+    .split('\n')
+    .reduce((end) => (end > 0 ? html.lastIndexOf('<p>', end - 1) : -1), html.length);
+  if (start < 0) return content;
+  const text = new DOMParser().parseFromString(html.slice(start), 'text/html').body.textContent;
+  if (text !== suffix.replace(/[`\n]/g, '')) return content;
+  const shown: IContent = {
+    ...content,
+    body: body.slice(0, -separated.length),
+    formatted_body: html.slice(0, start),
+    [LIVE_ACTIVITY_KEY]: suffix,
+  };
+  // Readers prefer `m.new_content`, which still has the lines in its body.
+  delete shown['m.new_content'];
+  return shown;
+};
+
 const noSubscription = () => () => undefined;
 
 export type LiveReplyContent = {
@@ -111,8 +145,9 @@ export const useLiveReplyContent = (
   const waitReasoning = verdict === 'wait' ? entry?.docs.reasoning : undefined;
   const liveContent = useMemo(() => {
     if (docs) return getLiveContent(content, docs, markdownReady);
-    if (waitReasoning) return { ...content, [LIVE_REASONING_KEY]: waitReasoning };
-    return content;
+    const durable = withWarmupActivity(content);
+    if (waitReasoning) return { ...durable, [LIVE_REASONING_KEY]: waitReasoning };
+    return durable;
   }, [content, docs, markdownReady, waitReasoning]);
   return { content: liveContent, live: verdict === 'show' || verdict === 'wait' };
 };
