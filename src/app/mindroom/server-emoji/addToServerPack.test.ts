@@ -1,6 +1,7 @@
 import { MatrixError, MatrixEvent } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { ShortcodeTakenError } from '../../plugins/custom-emoji';
 import type { PackContent, PackImage } from '../../plugins/custom-emoji';
 import { addToServerPack, canAddServerEmoji } from './addToServerPack';
 
@@ -74,9 +75,7 @@ describe('addToServerPack', () => {
     // The synced copy lags behind the server's.
     const room = roomWithPacks({ '': { pack: { display_name: 'MindRoom' }, images: {} } });
 
-    await expect(addToServerPack(client, room, 'party-parrot', image)).resolves.toBe(
-      'party-parrot'
-    );
+    await addToServerPack(client, room, 'party-parrot', image);
 
     expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
     expect(mx.sendStateEvent).toHaveBeenCalledWith(
@@ -93,9 +92,7 @@ describe('addToServerPack', () => {
   it('starts the first pack when the room has none yet', async () => {
     const { mx, client } = clientHolding({});
 
-    await expect(addToServerPack(client, roomWith(), 'party-parrot', image)).resolves.toBe(
-      'party-parrot'
-    );
+    await addToServerPack(client, roomWith(), 'party-parrot', image);
 
     expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
     const [roomId, type, content, stateKey] = mx.sendStateEvent.mock.calls[0];
@@ -103,22 +100,29 @@ describe('addToServerPack', () => {
     expect(content.images?.['party-parrot'].url).toBe('mxc://example.org/new');
   });
 
-  it('renames a taken shortcode', async () => {
+  it('refuses a shortcode another pack has, before reading or writing', async () => {
+    const first = { images: {} };
+    const second = { images: { 'party-parrot': { url: 'mxc://x/old' } } };
+    const { mx, client } = clientHolding({ '': first, '2': second });
+
+    await expect(
+      addToServerPack(client, roomWithPacks({ '': first, '2': second }), 'party-parrot', image)
+    ).rejects.toBeInstanceOf(ShortcodeTakenError);
+
+    expect(mx.getStateEvent).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a shortcode the pack got on the server since the last sync', async () => {
     const { mx, client } = clientHolding({
       '': { images: { 'party-parrot': { url: 'mxc://x/old' } } },
     });
-    const room = roomWithPacks({ '': { images: { 'party-parrot': { url: 'mxc://x/old' } } } });
 
-    await expect(addToServerPack(client, room, 'party-parrot', image)).resolves.toBe(
-      'party-parrot1'
-    );
+    await expect(
+      addToServerPack(client, roomWithPacks({ '': { images: {} } }), 'party-parrot', image)
+    ).rejects.toBeInstanceOf(ShortcodeTakenError);
 
-    expect(mx.sendStateEvent).toHaveBeenCalledWith(
-      '!emoji',
-      EMOTES,
-      { images: { 'party-parrot': { url: 'mxc://x/old' }, 'party-parrot1': image } },
-      ''
-    );
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it("opens a new pack with the first pack's metadata when the packs are full", async () => {

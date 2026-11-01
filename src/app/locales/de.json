@@ -594,6 +594,7 @@
       "addCustomEmojiDescription": "Es wird in deinem persönlichen Paket gespeichert, damit du es in jedem Raum nutzen kannst.",
       "addCustomEmojiServerDescription": "Alle auf {{server}} können es in jedem Raum nutzen.",
       "addCustomEmojiFailed": "Das Emoji konnte nicht hinzugefügt werden. Versuche es erneut.",
+      "addCustomEmojiNameTaken": "Dieser Name ist schon vergeben. Wähle einen anderen.",
       "addCustomEmojiTooLarge": "Animierte GIFs müssen kleiner als {{limit}} sein.",
       "add": "Hinzufügen"
     },

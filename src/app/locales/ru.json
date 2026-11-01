@@ -600,6 +600,7 @@
       "addCustomEmojiDescription": "Он сохранится в вашем личном наборе, и его можно будет использовать в любой комнате.",
       "addCustomEmojiServerDescription": "Все на сервере {{server}} могут использовать его в любой комнате.",
       "addCustomEmojiFailed": "Не удалось добавить эмодзи. Попробуйте ещё раз.",
+      "addCustomEmojiNameTaken": "Это имя уже занято. Выберите другое.",
       "addCustomEmojiTooLarge": "Анимированные GIF должны быть меньше {{limit}}.",
       "add": "Добавить"
     },

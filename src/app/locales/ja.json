@@ -594,6 +594,7 @@
       "addCustomEmojiDescription": "パーソナルパックに保存され、すべてのルームで使えます。",
       "addCustomEmojiServerDescription": "{{server}} のユーザー全員が、すべてのルームで使えます。",
       "addCustomEmojiFailed": "絵文字を追加できませんでした。もう一度お試しください。",
+      "addCustomEmojiNameTaken": "その名前は使われています。別の名前を選んでください。",
       "addCustomEmojiTooLarge": "アニメーション GIF は {{limit}} 未満にしてください。",
       "add": "追加"
     },

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { addEmoticonToPackContent, nextPackStateKey, packContentBytes } from './utils';
+import {
+  addEmoticonToPackContent,
+  nextPackStateKey,
+  packContentBytes,
+  ShortcodeTakenError,
+} from './utils';
 import { ImageUsage } from './types';
 
 const image = { url: 'mxc://example.org/new', info: { w: 32, h: 32 } };
@@ -7,27 +12,34 @@ const image = { url: 'mxc://example.org/new', info: { w: 32, h: 32 } };
 describe('addEmoticonToPackContent', () => {
   it('starts a pack when the user has none', () => {
     expect(addEmoticonToPackContent(undefined, 'party', image)).toEqual({
-      content: { images: { party: image } },
-      shortcode: 'party',
+      images: { party: image },
     });
   });
 
-  it('keeps the pack meta and existing images, renaming a taken shortcode', () => {
+  it('keeps the pack meta and existing images', () => {
     const existing = { url: 'mxc://example.org/old' };
-    const result = addEmoticonToPackContent(
-      { pack: { display_name: 'Mine' }, images: { party: existing } },
+    const content = addEmoticonToPackContent(
+      { pack: { display_name: 'Mine' }, images: { old: existing } },
       'party',
       image
     );
 
-    expect(result).toEqual({
-      content: { pack: { display_name: 'Mine' }, images: { party: existing, party1: image } },
-      shortcode: 'party1',
+    expect(content).toEqual({
+      pack: { display_name: 'Mine' },
+      images: { old: existing, party: image },
     });
   });
 
+  it('refuses a taken shortcode, whatever the image is used as', () => {
+    const sticker = { url: 'mxc://example.org/old', usage: [ImageUsage.Sticker] };
+
+    expect(() => addEmoticonToPackContent({ images: { party: sticker } }, 'party', image)).toThrow(
+      ShortcodeTakenError
+    );
+  });
+
   it('saves a shortcode named like an Object.prototype key', () => {
-    const { content } = addEmoticonToPackContent(undefined, '__proto__', image);
+    const content = addEmoticonToPackContent(undefined, '__proto__', image);
 
     expect(JSON.stringify(content)).toBe(
       '{"images":{"__proto__":{"url":"mxc://example.org/new","info":{"w":32,"h":32}}}}'
@@ -35,13 +47,13 @@ describe('addEmoticonToPackContent', () => {
   });
 
   it('marks the image as an emoji in a sticker-only pack', () => {
-    const result = addEmoticonToPackContent(
+    const content = addEmoticonToPackContent(
       { pack: { usage: [ImageUsage.Sticker] } },
       'party',
       image
     );
 
-    expect(result.content.images?.party).toEqual({ ...image, usage: [ImageUsage.Emoticon] });
+    expect(content.images?.party).toEqual({ ...image, usage: [ImageUsage.Emoticon] });
   });
 });
 

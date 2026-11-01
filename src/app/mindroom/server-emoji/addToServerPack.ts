@@ -13,6 +13,7 @@ import {
   PackContent,
   PackImage,
   PackMeta,
+  ShortcodeTakenError,
 } from '../../plugins/custom-emoji';
 import { getStateEvent } from '../../utils/room';
 
@@ -45,39 +46,39 @@ const fetchPackContent = async (
 
 /**
  * Adds an image to the server emoji room's first pack with room for it, or to a new pack
- * when every pack is full, and returns the shortcode it got.
+ * when every pack is full. Throws `ShortcodeTakenError` when a server pack has the shortcode.
  */
 export const addToServerPack = async (
   mx: MatrixClient,
   room: Room,
   shortcode: string,
   image: PackImage
-): Promise<string> => {
+): Promise<void> => {
+  const packs = getRoomImagePacks(room).filter((pack) => !pack.deleted);
+  // A shortcode names one emoji across all the server packs.
+  if (packs.some((pack) => pack.images.collection.has(shortcode))) throw new ShortcodeTakenError();
   // Candidate packs: live, in state-key order ('' first); none yet means ''.
-  const keys = getRoomImagePacks(room)
-    .flatMap((pack) => (!pack.deleted && pack.address ? [pack.address.stateKey] : []))
-    .sort();
+  const keys = packs.flatMap((pack) => (pack.address ? [pack.address.stateKey] : [])).sort();
   if (keys.length === 0) keys.push('');
 
   let firstMeta: PackMeta | undefined;
   for (const key of keys) {
     // Read the pack from the server right before writing, so an edit made since the last sync
-    // is kept. One pack at a time: the next is only tried when this one is full.
+    // is kept, and a shortcode taken since throws. One pack at a time: the next is only tried
+    // when this one is full.
     const current = await fetchPackContent(mx, room.roomId, key);
     firstMeta ??= current?.pack;
-    const added = addEmoticonToPackContent(current, shortcode, image);
-    if (packContentBytes(added.content) <= MAX_PACK_CONTENT_BYTES) {
-      await mx.sendStateEvent(room.roomId, StateEvent.PoniesRoomEmotes as any, added.content, key);
-      return added.shortcode;
+    const content = addEmoticonToPackContent(current, shortcode, image);
+    if (packContentBytes(content) <= MAX_PACK_CONTENT_BYTES) {
+      await mx.sendStateEvent(room.roomId, StateEvent.PoniesRoomEmotes as any, content, key);
+      return;
     }
   }
 
-  const opened = addEmoticonToPackContent({ pack: firstMeta }, shortcode, image);
   await mx.sendStateEvent(
     room.roomId,
     StateEvent.PoniesRoomEmotes as any,
-    opened.content,
+    addEmoticonToPackContent({ pack: firstMeta }, shortcode, image),
     nextPackStateKey(keys)
   );
-  return opened.shortcode;
 };

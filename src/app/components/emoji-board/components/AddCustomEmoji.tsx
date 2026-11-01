@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ChangeEvent, FormEventHandler, useCallback, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, color } from 'folds';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useObjectURL } from '../../../hooks/useObjectURL';
 import { useAlive } from '../../../hooks/useAlive';
@@ -11,7 +12,14 @@ import { getAccountData } from '../../../utils/room';
 import { getFileNameWithoutExt } from '../../../utils/mimeTypes';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
-import { addEmoticonToPackContent, PackContent, PackImage } from '../../../plugins/custom-emoji';
+import {
+  addEmoticonToPackContent,
+  getRoomImagePacks,
+  getUserImagePack,
+  PackContent,
+  PackImage,
+  ShortcodeTakenError,
+} from '../../../plugins/custom-emoji';
 import {
   EmojiImageTooLargeError,
   MAX_ANIMATED_EMOJI_BYTES,
@@ -22,6 +30,13 @@ import { useServerEmojiRoom } from '../../../mindroom/server-emoji/useServerEmoj
 import * as css from './styles.css';
 
 const toShortcode = (name: string): string => name.trim().replace(/[\s:]+/g, '-');
+
+/** Whether the target packs, as last synced, have an image under the shortcode. */
+const isShortcodeTaken = (mx: MatrixClient, serverPackRoom: Room | undefined, shortcode: string) =>
+  (serverPackRoom
+    ? getRoomImagePacks(serverPackRoom).filter((pack) => !pack.deleted)
+    : [getUserImagePack(mx)]
+  ).some((pack) => pack?.images.collection.has(shortcode));
 
 type AddCustomEmojiProps = {
   file: File;
@@ -44,6 +59,8 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
 
   const [addState, addEmoji] = useAsyncCallback(
     useCallback(async () => {
+      // Check again: a sync since the last render may have brought the name in.
+      if (isShortcodeTaken(mx, serverPackRoom, shortcode)) throw new ShortcodeTakenError();
       const img = await loadImageElement(previewUrl ?? '');
       const prepared = await prepareEmojiImage(file, img);
       const { content_uri: mxc } = await mx.uploadContent(prepared.file, {
@@ -52,25 +69,39 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
       });
       const image: PackImage = { url: mxc, info: prepared.info };
       if (serverPackRoom) {
-        return { mxc, shortcode: await addToServerPack(mx, serverPackRoom, shortcode, image) };
+        await addToServerPack(mx, serverPackRoom, shortcode, image);
+        return mxc;
       }
       // Read the pack only now, so an edit made meanwhile is kept.
       const pack = getAccountData(mx, AccountDataEvent.PoniesUserEmotes)?.getContent<PackContent>();
-      const added = addEmoticonToPackContent(pack, shortcode, image);
-      await mx.setAccountData(AccountDataEvent.PoniesUserEmotes as any, added.content as any);
-      return { mxc, shortcode: added.shortcode };
+      const content = addEmoticonToPackContent(pack, shortcode, image);
+      await mx.setAccountData(AccountDataEvent.PoniesUserEmotes as any, content as any);
+      return mxc;
     }, [mx, file, previewUrl, shortcode, serverPackRoom])
   );
   const adding = addState.status === AsyncStatus.Loading;
+  // Not while adding, as the new emoji can sync before its write returns.
+  const taken = !adding && isShortcodeTaken(mx, serverPackRoom, shortcode);
+  const addError = addState.status === AsyncStatus.Error ? addState.error : undefined;
+  let errorText: string | undefined;
+  if (taken || addError instanceof ShortcodeTakenError) {
+    errorText = t('sharedUi.emojiBoard.addCustomEmojiNameTaken');
+  } else if (addError instanceof EmojiImageTooLargeError) {
+    errorText = t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
+      limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
+    });
+  } else if (addState.status === AsyncStatus.Error) {
+    errorText = t('sharedUi.emojiBoard.addCustomEmojiFailed');
+  }
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
     // The board can sit inside another form (power tags), which would also get this submit.
     evt.stopPropagation();
-    if (!shortcode || adding) return;
+    if (!shortcode || taken || adding) return;
     addEmoji().then(
-      (added) => {
-        if (alive()) onAdd(added.mxc, added.shortcode);
+      (mxc) => {
+        if (alive()) onAdd(mxc, shortcode);
       },
       () => undefined
     );
@@ -108,13 +139,9 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
           />
         </Box>
       </Box>
-      {addState.status === AsyncStatus.Error && (
+      {errorText && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {addState.error instanceof EmojiImageTooLargeError
-            ? t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
-                limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
-              })
-            : t('sharedUi.emojiBoard.addCustomEmojiFailed')}
+          {errorText}
         </Text>
       )}
       <Box justifyContent="End" gap="200">
@@ -134,7 +161,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
           variant="Primary"
           size="300"
           radii="300"
-          disabled={!shortcode || adding}
+          disabled={!shortcode || taken || adding}
           before={adding && <Spinner variant="Primary" fill="Solid" size="100" />}
         >
           <Text size="B300">{t('sharedUi.emojiBoard.add')}</Text>
