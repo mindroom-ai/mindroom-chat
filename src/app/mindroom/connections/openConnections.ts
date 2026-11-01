@@ -10,6 +10,8 @@ export type OpenConnectionsPortalOptions = {
   backendUrl: string;
   /** Requests a token bound to `audience`, the backend origin the portal window is answered at. */
   getOpenIdToken: (audience: string) => Promise<IOpenIDToken>;
+  /** An agent's connect or reset link, as a path on the backend, that the portal opens once signed in. */
+  next?: string;
   win?: Window;
   pollMs?: number;
 };
@@ -30,11 +32,14 @@ let stopPreviousSession: (() => void) | undefined;
 export function openConnectionsPortal({
   backendUrl,
   getOpenIdToken,
+  next,
   win = window,
   pollMs = DEFAULT_POLL_MS,
 }: OpenConnectionsPortalOptions): 'opened' | 'blocked' {
   const backendOrigin = new URL(backendUrl).origin;
-  const portalUrl = new URL(PORTAL_PATH, backendUrl).toString();
+  const portal = new URL(PORTAL_PATH, backendUrl);
+  if (next) portal.searchParams.set('next', next);
+  const portalUrl = portal.toString();
 
   // No `noopener`: the portal needs `window.opener` to ask for the token.
   const target = win.open(portalUrl, PORTAL_WINDOW_NAME);

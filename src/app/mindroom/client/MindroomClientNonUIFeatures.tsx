@@ -38,6 +38,7 @@ import {
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
+import { AgentConnectLinkFeature } from '../connections/AgentConnectLinks';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
 import { useBindLiveReplyFrames } from '../live/bindLiveReplyFrames';
@@ -365,6 +366,7 @@ export function MindroomClientNonUIFeatures() {
       <MindroomNativeIOSPushFeature />
       <MindroomNativeIOSPushOpenFeature />
       <BugReportAutoJoinFeature />
+      <AgentConnectLinkFeature />
     </>
   );
 }

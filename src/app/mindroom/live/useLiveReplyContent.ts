@@ -9,11 +9,13 @@ import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from 
 
 /** On durable writes: the content is at least as new as every frame up to this `(sid, seq)`. */
 export const LIVE_CHECKPOINT_KEY = 'io.mindroom.live_checkpoint';
-/** Live content only: worker warm-up lines, shown below the body. */
+/** Worker warm-up lines, shown below the body: from live frames or a durable progress edit. */
 export const LIVE_ACTIVITY_KEY = 'io.mindroom.live_activity';
 /** Live content only: the model reasoning so far, shown above the body. */
 export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 
+/** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
+const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
 const LONG_TEXT_KEY = 'io.mindroom.long_text';
 const LIVE_DURABLE_STATUSES = new Set(['pending', 'streaming']);
 
@@ -70,6 +72,62 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   return live;
 };
 
+/**
+ * The durable reply with its warm-up lines moved out of the body to the activity line, where
+ * live frames put them, so the line keeps one look while frames and checkpoints alternate.
+ * Content whose body and HTML do not both end in those lines stays as it is.
+ */
+const withWarmupActivity = (content: IContent): IContent => {
+  const suffix = content[WARMUP_SUFFIX_KEY];
+  const { body } = content;
+  if (typeof suffix !== 'string' || !suffix || typeof body !== 'string') return content;
+  const separated = `\n\n${suffix}`;
+  const html = content.formatted_body;
+  if (!body.endsWith(separated) || typeof html !== 'string' || !html.endsWith('</p>')) {
+    return content;
+  }
+  // One `<p>` per line, with the line's text; tool names lose their backticks to `<code>`.
+  const start = suffix
+    .split('\n')
+    .reduce((end) => (end > 0 ? html.lastIndexOf('<p>', end - 1) : -1), html.length);
+  if (start < 0) return content;
+  const text = new DOMParser().parseFromString(html.slice(start), 'text/html').body.textContent;
+  if (text?.replace(/`/g, '') !== suffix.replace(/[`\n]/g, '')) return content;
+  const shown: IContent = {
+    ...content,
+    body: body.slice(0, -separated.length),
+    formatted_body: html.slice(0, start),
+    [LIVE_ACTIVITY_KEY]: suffix,
+  };
+  // Readers prefer `m.new_content`, which still has the lines in its body.
+  delete shown['m.new_content'];
+  return shown;
+};
+
+/**
+ * The frames' output on the calls a covering checkpoint still shows running: progress edits never
+ * carry it, so it would vanish until the next frame while a quiet command keeps running.
+ */
+const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IContent => {
+  const trace = content[MINDROOM_TOOL_TRACE_KEY];
+  if (!isRecord(trace) || !Array.isArray(trace.events)) return content;
+  let changed = false;
+  const events = trace.events.map((event: unknown, index) => {
+    const live = tools[index];
+    if (
+      !isRecord(event) ||
+      event.type !== 'tool_call_started' ||
+      typeof live?.progress !== 'string' ||
+      live.tool_name !== event.tool_name
+    ) {
+      return event;
+    }
+    changed = true;
+    return { ...event, progress: live.progress };
+  });
+  return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
+};
+
 const noSubscription = () => () => undefined;
 
 export type LiveReplyContent = {
@@ -81,7 +139,8 @@ export type LiveReplyContent = {
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
- * A covering checkpoint keeps the live reasoning, which progress edits never carry.
+ * A covering checkpoint keeps the live reasoning and running calls' output, which progress edits
+ * never carry.
  */
 export const useLiveReplyContent = (
   mx: MatrixClient,
@@ -108,11 +167,13 @@ export const useLiveReplyContent = (
   }, [entry, replyId, roomId, store, verdict]);
 
   const docs = verdict === 'show' ? entry?.docs : undefined;
-  const waitReasoning = verdict === 'wait' ? entry?.docs.reasoning : undefined;
+  const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
   const liveContent = useMemo(() => {
     if (docs) return getLiveContent(content, docs, markdownReady);
-    if (waitReasoning) return { ...content, [LIVE_REASONING_KEY]: waitReasoning };
-    return content;
-  }, [content, docs, markdownReady, waitReasoning]);
+    const durable = withWarmupActivity(content);
+    if (!waitDocs) return durable;
+    const covered = withRunningOutput(durable, waitDocs.tools);
+    return waitDocs.reasoning ? { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning } : covered;
+  }, [content, docs, markdownReady, waitDocs]);
   return { content: liveContent, live: verdict === 'show' || verdict === 'wait' };
 };
