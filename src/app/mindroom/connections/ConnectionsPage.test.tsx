@@ -8,9 +8,10 @@ import { ConnectionsPage } from './ConnectionsPage';
 const mocks = vi.hoisted(() => ({
   urls: [] as string[],
   native: false,
-  handOff: vi.fn(async (_url: string, _signal: AbortSignal) => undefined),
+  handOff: vi.fn(async (_url: string, _signal: AbortSignal, _returnTo?: string) => undefined),
 }));
 
+vi.mock('react-router-dom', () => ({ useHref: (to: string) => `/base${to}` }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => mocks.native } }));
 vi.mock('../computer/useComputerApiUrl', () => ({
   useComputerApiUrls: () => ({ urls: mocks.urls, discovered: false }),
@@ -45,6 +46,7 @@ describe('ConnectionsPage', () => {
     expect(mocks.handOff).toHaveBeenCalledOnce();
     expect(mocks.handOff.mock.calls[0][0]).toBe('https://backend.example.org');
     expect(mocks.handOff.mock.calls[0][1].aborted).toBe(false);
+    expect(mocks.handOff.mock.calls[0][2]).toBe('/base/');
   });
 
   it('cancels the hand-off when the page goes away before the token arrives', async () => {

@@ -42,9 +42,9 @@ export const useOpenConnectionsPortal = (discovered: boolean) => {
 export const useConnectionsHandoff = (discovered: boolean) => {
   const getOpenIdToken = useConnectionsOpenIdToken(discovered);
   return useCallback(
-    async (backendUrl: string, signal: AbortSignal) => {
+    async (backendUrl: string, signal: AbortSignal, returnTo?: string) => {
       const token = await getOpenIdToken(new URL(backendUrl).origin);
-      if (!signal.aborted) submitConnectionsHandoff(backendUrl, token);
+      if (!signal.aborted) submitConnectionsHandoff(backendUrl, token, returnTo);
     },
     [getOpenIdToken]
   );

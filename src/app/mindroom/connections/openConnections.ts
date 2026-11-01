@@ -94,12 +94,15 @@ export const connectionsHandoffSupported = (
  * Signs the browser in to the backend's Connections portal and opens it in this tab, by posting `openidToken` as a
  * form: the browser sets the request's Origin, which the backend checks against the Chat origins it allows.
  * The token travels in the request body, never in a URL.
+ * `returnTo` replaces this page's history entry first, so Back from the portal lands there instead of here.
  */
 export function submitConnectionsHandoff(
   backendUrl: string,
   openidToken: IOpenIDToken,
-  doc: Document = document
+  returnTo?: string,
+  win: Window = window
 ): void {
+  const doc = win.document;
   const form = doc.createElement('form');
   form.method = 'POST';
   form.action = new URL(HANDOFF_PATH, backendUrl).toString();
@@ -109,5 +112,6 @@ export function submitConnectionsHandoff(
   field.value = JSON.stringify(openidToken);
   form.append(field);
   doc.body.append(form);
+  if (returnTo) win.history.replaceState(null, '', returnTo);
   form.submit();
 }

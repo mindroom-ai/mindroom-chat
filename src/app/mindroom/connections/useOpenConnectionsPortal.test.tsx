@@ -41,7 +41,7 @@ const handOffOnce = async (abortFirst: boolean) => {
     create(<Harness />);
   });
   const controller = new AbortController();
-  const pending = handOff!('https://backend.example.org', controller.signal);
+  const pending = handOff!('https://backend.example.org', controller.signal, '/');
   if (abortFirst) controller.abort();
   mocks.resolveToken!(TOKEN);
   await pending;
@@ -51,7 +51,7 @@ describe('useConnectionsHandoff', () => {
   it('submits the token once it arrives', async () => {
     mocks.submit.mockClear();
     await handOffOnce(false);
-    expect(mocks.submit).toHaveBeenCalledWith('https://backend.example.org', TOKEN);
+    expect(mocks.submit).toHaveBeenCalledWith('https://backend.example.org', TOKEN, '/');
   });
 
   it('submits nothing when aborted before the token arrives', async () => {

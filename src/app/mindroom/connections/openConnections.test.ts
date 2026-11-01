@@ -370,10 +370,14 @@ describe('openConnectionsPortal', () => {
 
 describe('submitConnectionsHandoff', () => {
   it('posts the token as a form to the backend hand-off, never in the URL', () => {
+    const order: string[] = [];
     const submit = vi
       .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-    submitConnectionsHandoff(`${BACKEND}/ignored/path`, makeToken(1));
+      .mockImplementation(() => order.push('submit'));
+    const replace = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => order.push('replace'));
+    submitConnectionsHandoff(`${BACKEND}/ignored/path`, makeToken(1), '/home/');
     const form = document.body.querySelector('form');
     expect(form?.method).toBe('post');
     expect(form?.action).toBe(`${BACKEND}/api/connections/session/handoff`);
@@ -382,9 +386,12 @@ describe('submitConnectionsHandoff', () => {
     expect(field?.name).toBe('openid_token');
     expect(JSON.parse(field?.value ?? '')).toEqual(makeToken(1));
     expect(form?.action).not.toContain('openid-token');
-    expect(submit).toHaveBeenCalledOnce();
+    // Back from the portal must land on `returnTo`, so the entry is replaced before the page leaves.
+    expect(replace).toHaveBeenCalledWith(null, '', '/home/');
+    expect(order).toEqual(['replace', 'submit']);
     form?.remove();
     submit.mockRestore();
+    replace.mockRestore();
   });
 });
 
