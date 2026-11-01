@@ -188,6 +188,52 @@ describe('MindroomReasoning', () => {
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
   });
 
+  it('collapses the reasoning once the reply finishes, even after it was toggled', () => {
+    const element = (content: Record<string, unknown>) => (
+      <ClientConfigProvider value={{}}>
+        {renderMindroomMessageContent({
+          displayName: 'Agent',
+          msgType: 'm.text',
+          content,
+          htmlReactParserOptions,
+          linkifyOpts: {},
+        })}
+      </ClientConfigProvider>
+    );
+    act(() => {
+      renderer = create(
+        element({
+          msgtype: 'm.text',
+          body: 'Partial',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.live_reasoning': 'Checking the cache',
+        })
+      );
+    });
+    if (!renderer) throw new Error('Nothing rendered');
+    expect(header(renderer.root).props['aria-expanded']).toBe(true);
+    // Collapsed and reopened by hand while it streams.
+    act(() => header(renderer!.root).props.onClick());
+    act(() => header(renderer!.root).props.onClick());
+
+    act(() =>
+      renderer?.update(
+        element({
+          msgtype: 'm.text',
+          body: 'Answer',
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.reasoning': { text: 'Checking the cache', duration_ms: 2000 },
+        })
+      )
+    );
+
+    expect(text(header(renderer.root))).toBe('Thought for 2 s');
+    expect(header(renderer.root).props['aria-expanded']).toBe(false);
+    expect(renderer.root.findAll((node) => node.props.className === 'ReasoningBody')).toHaveLength(
+      0
+    );
+  });
+
   it('rounds a short reasoning time up to one second', () => {
     const root = render({
       msgtype: 'm.text',

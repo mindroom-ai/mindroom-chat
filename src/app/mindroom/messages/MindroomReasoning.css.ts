@@ -22,7 +22,7 @@ export const Toggle = style([
     borderRadius: config.radii.R300,
     background: 'transparent',
     color: color.Surface.OnContainer,
-    opacity: config.opacity.P300,
+    opacity: config.opacity.P400,
     cursor: 'pointer',
     fontSize: config.fontSize.T200,
     lineHeight: config.lineHeight.T200,
