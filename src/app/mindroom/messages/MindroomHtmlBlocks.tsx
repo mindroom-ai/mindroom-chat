@@ -201,7 +201,7 @@ const asToolTraceText = (value: unknown): string | undefined =>
 // Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
 const asToolOutput = (value: unknown): string | undefined =>
   typeof value === 'string'
-    ? value.replace(/^(?:[ \t]*\n)+/, '').trimEnd() || undefined
+    ? value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd() || undefined
     : undefined;
 
 const buildToolRefRenderData = (

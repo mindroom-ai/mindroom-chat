@@ -736,7 +736,7 @@ describe('useMindroomToolTraceMarkerParserOptions', () => {
           {
             type: 'tool_call_started',
             tool_name: 'run_subagent',
-            progress: '\n\nCalling write_report\n  writing',
+            progress: '\r\n\nCalling write_report\n  writing',
           },
         ],
       },
