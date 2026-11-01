@@ -24,15 +24,25 @@ const CONNECT_PATH =
   '/api/oauth/slack/authorize?connect_token=t&agent_name=mind_alice&execution_scope=user';
 
 describe('agentLinkBackend', () => {
+  const app = (path: string) => `https://app.example.org${path}`;
   it.each([
-    [`https://app.example.org${CONNECT_PATH}`, 'https://app.example.org/'],
+    [app(CONNECT_PATH), 'https://app.example.org/'],
     [
-      'https://app.example.org/api/oauth/google_gmail/reset?reset_token=t',
+      app('/api/oauth/slack/authorize?connect_token=t&execution_scope=user_agent'),
+      'https://app.example.org/',
+    ],
+    [
+      app('/api/oauth/google_gmail/reset?agent_name=mind&execution_scope=user&reset_token=t'),
       'https://app.example.org/',
     ],
     [`https://other.example.org${CONNECT_PATH}`, undefined],
-    ['https://app.example.org/api/oauth/slack/callback?code=c', undefined],
-    ['https://app.example.org/connections/', undefined],
+    [app('/api/oauth/slack/authorize?connect_token=t&execution_scope=shared'), undefined],
+    [app('/api/oauth/google_gmail/reset?reset_token=t&execution_scope=shared'), undefined],
+    [app('/api/oauth/slack/authorize?agent_name=mind'), undefined],
+    [app('/api/oauth/slack/authorize?execution_scope=user'), undefined],
+    [app('/api/oauth/slack/reset?connect_token=t&execution_scope=user'), undefined],
+    [app('/api/oauth/slack/callback?code=c&execution_scope=user'), undefined],
+    [app('/connections/'), undefined],
     ['not a url', undefined],
   ])('maps %s to %s', (href, backend) => {
     expect(agentLinkBackend(href, ['https://app.example.org/'])).toBe(backend);
@@ -95,11 +105,15 @@ describe('AgentConnectLinkFeature', () => {
     expect(mocks.openPortal).not.toHaveBeenCalled();
   });
 
-  it('leaves links to other backends and other paths to the browser', () => {
+  it.each([
+    `https://other.example.org${CONNECT_PATH}`,
+    'https://app.example.org/connections/',
+    'https://app.example.org/api/oauth/slack/authorize?connect_token=t&execution_scope=shared',
+    'https://app.example.org/api/oauth/slack/reset?reset_token=t&execution_scope=shared',
+    'https://app.example.org/api/oauth/slack/authorize?agent_name=mind',
+  ])('leaves %s to the browser', (href) => {
     render();
-    anchor.href = `https://other.example.org${CONNECT_PATH}`;
-    expect(click().defaultPrevented).toBe(false);
-    anchor.href = 'https://app.example.org/connections/';
+    anchor.href = href;
     expect(click().defaultPrevented).toBe(false);
     expect(mocks.openPortal).not.toHaveBeenCalled();
   });

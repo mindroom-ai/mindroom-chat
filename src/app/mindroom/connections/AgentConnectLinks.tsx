@@ -4,10 +4,13 @@ import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useOpenConnectionsPortal } from './useOpenConnectionsPortal';
 
 const AGENT_LINK_PATH = /^\/api\/oauth\/[^/]+\/(authorize|reset)$/;
+const LINK_TOKEN = { authorize: 'connect_token', reset: 'reset_token' } as const;
+const PERSONAL_SCOPES = new Set(['user', 'user_agent']);
 
 /**
- * The backend from `backendUrls` that an agent's OAuth connect or reset link at `href` points at, or `undefined`.
+ * The backend from `backendUrls` that an agent's personal connect or reset link at `href` points at, or `undefined`.
  * Such a link works only in a browser signed in as the person the agent gave it to.
+ * Shared links need no sign-in and other OAuth links use the dashboard login, so they are not matched.
  */
 export function agentLinkBackend(href: string, backendUrls: string[]): string | undefined {
   let url: URL;
@@ -16,7 +19,9 @@ export function agentLinkBackend(href: string, backendUrls: string[]): string | 
   } catch {
     return undefined;
   }
-  if (!AGENT_LINK_PATH.test(url.pathname)) return undefined;
+  const action = AGENT_LINK_PATH.exec(url.pathname)?.[1] as keyof typeof LINK_TOKEN | undefined;
+  if (!action || !url.searchParams.get(LINK_TOKEN[action])) return undefined;
+  if (!PERSONAL_SCOPES.has(url.searchParams.get('execution_scope') ?? '')) return undefined;
   return backendUrls.find((backendUrl) => new URL(backendUrl).origin === url.origin);
 }
 
