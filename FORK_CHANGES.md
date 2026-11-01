@@ -24,6 +24,8 @@
   The target is the first live pack by state key (`""` first) whose content stays within 60,000 UTF-8 bytes (`MAX_PACK_CONTENT_BYTES`; an event holds 65,535 bytes with its envelope) with the new emoji; when none fits, a new pack opens at the smallest unused whole number from `2` (`nextPackStateKey`) and copies the first pack's `pack` metadata.
   Deleted packs are skipped when picking the target (with no live pack the write goes to `""`, and a new overflow pack can take the state key of a deleted one), and a taken shortcode gets a number inside the target pack, as before.
   A failed upload or write leaves the form open with its error; if the server still refuses the size, the previous pack event stays current.
+- Hardening: anyone allowed to edit a shared pack can publish any JSON, so `PackImageReader.fromPackImage` skips image entries that are not objects instead of throwing in every picker.
+  `useRoomsImagePacks` re-reads packs when its room IDs change (not only on a pack event), so the server room's packs show in a picker that was open when the room was joined; a new array of the same rooms keeps the same packs.
 - Settings: Settings → Emojis & Stickers has a Server Emoji section between the personal and global packs once the room is joined.
   Its packs open in the existing `ImagePackView`, which edits when the user has the power level (with no live pack, one tile offers the first, as `RoomImagePack` does); a Permissions button opens the room's settings on its permissions page for users who may change power levels.
   Simple Mode still hides Emojis & Stickers, as for personal emoji, so managing the server pack needs the full interface.
