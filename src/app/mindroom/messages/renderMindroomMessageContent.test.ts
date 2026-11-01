@@ -40,6 +40,7 @@ vi.mock('../../components/message', () => ({
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
 }));
 
+vi.mock('./MindroomReasoning.css', () => ({}));
 vi.mock('./MindroomHtmlBlocks', () => ({
   useMindroomToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
@@ -104,8 +105,12 @@ vi.mock('./PendingSendIndicator.css', () => ({
 }));
 
 vi.mock('./MindroomThinkingPlaceholder', () => ({
-  MindroomThinkingPlaceholder: () =>
-    React.createElement('span', { 'data-renderer': 'thinking-placeholder' }, 'Making progress'),
+  MindroomThinkingPlaceholder: ({ startedAt }: { startedAt?: number }) =>
+    React.createElement(
+      'span',
+      { 'data-renderer': 'thinking-placeholder', 'data-started-at': startedAt },
+      'Making progress'
+    ),
 }));
 
 vi.mock('./MindroomTranscribingPlaceholder.css', () => ({
@@ -200,16 +205,31 @@ describe('renderMindroomMessageContent', () => {
   });
 
   it('renders the animated MindRoom thinking placeholder for exact active Thinking... messages', async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+    };
     const renderer = await renderNode({
+      // With an age, `localTimestamp` differs from `origin_server_ts`.
+      mEvent: new MatrixEvent({
+        type: 'm.room.message',
+        origin_server_ts: 1_234,
+        unsigned: { age: 500 },
+        content,
+      }),
       msgType: 'm.text',
-      content: {
-        msgtype: 'm.text',
-        body: 'Thinking...',
-        'io.mindroom.stream_status': 'pending',
-      },
+      content,
     });
 
     const rendered = JSON.stringify(renderer.toJSON());
+    // The counter starts when the reply arrived.
+    expect(
+      renderer.root.findByProps({ 'data-renderer': 'thinking-placeholder' }).props[
+        'data-started-at'
+      ]
+    ).toBe(1_234);
 
     expect(rendered).toContain('thinking-placeholder');
     expect(rendered).toContain('Making progress');

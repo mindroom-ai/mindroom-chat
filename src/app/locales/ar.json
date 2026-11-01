@@ -1274,7 +1274,7 @@
       "support": "الدعم",
       "privacy": "الخصوصية",
       "terms": "الشروط",
-      "poweredBy": "مشغّل بواسطة <app>⁨{{appName}}⁩</app> و<matrix>Matrix</matrix> و<cinny>Cinny</cinny>"
+      "poweredBy": "مشغّل بواسطة <links />"
     },
     "router": {
       "join": "انضمام",

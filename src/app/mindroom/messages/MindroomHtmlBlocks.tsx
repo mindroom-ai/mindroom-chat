@@ -98,18 +98,16 @@ function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
   );
 }
 
-export function MindroomCollapsibleBlock({
+function MindroomCollapsibleBlock({
   icon,
   label,
-  defaultExpanded = false,
   children,
 }: {
   icon: IconSrc;
   label: string;
-  defaultExpanded?: boolean;
   children?: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(false);
   const glassRef = useGlassHighlight<HTMLDivElement>();
 
   return (

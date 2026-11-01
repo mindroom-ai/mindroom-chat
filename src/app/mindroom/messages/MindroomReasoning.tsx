@@ -1,12 +1,12 @@
-import React, { useMemo, type ReactNode } from 'react';
-import { Icons, Text } from 'folds';
+import React, { useMemo, useState, type ReactNode } from 'react';
+import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts } from 'linkifyjs';
 import { RenderBody } from '../../components/message';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
-import { MindroomCollapsibleBlock } from './MindroomHtmlBlocks';
+import * as css from './MindroomReasoning.css';
 
 /** On a reply's terminal edit: `{ text, duration_ms }` of the model reasoning it streamed. */
 export const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
@@ -57,9 +57,8 @@ function MindroomReasoningText({
   // Live frames rerender the reply while the answer streams under unchanged reasoning.
   const html = useMemo(() => (ready ? renderLiveMarkdown(text) : undefined), [ready, text]);
   return (
-    // The block body lays its children out in a row, so the paragraphs need one wrapper. A body
-    // without HTML, such as the thinking placeholder, keeps newlines, which would double the line
-    // breaks of rendered Markdown; plain reasoning before the renderer loads keeps its newlines.
+    // A body without HTML, such as the thinking placeholder, keeps newlines, which would double the
+    // line breaks of rendered Markdown; plain reasoning before the renderer loads keeps its newlines.
     <div style={{ whiteSpace: html === undefined ? 'pre-wrap' : 'normal' }}>
       <RenderBody
         body={text}
@@ -67,6 +66,39 @@ function MindroomReasoningText({
         htmlReactParserOptions={htmlReactParserOptions}
         linkifyOpts={linkifyOpts}
       />
+    </div>
+  );
+}
+
+/** A small text toggle over the reasoning, so it stays out of the way of the answer. */
+function MindroomReasoningDisclosure({
+  label,
+  defaultExpanded,
+  children,
+}: {
+  label: string;
+  defaultExpanded: boolean;
+  children: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return (
+    <div className={css.Reasoning}>
+      <button
+        type="button"
+        className={css.Toggle}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <Icon size="50" src={Icons.Bulb} aria-hidden />
+        <span className={css.Label}>{label}</span>
+        <Icon
+          data-directional
+          size="50"
+          src={expanded ? Icons.ChevronBottom : Icons.ChevronRight}
+          aria-hidden
+        />
+      </button>
+      {expanded && <div className={css.Body}>{children}</div>}
     </div>
   );
 }
@@ -81,10 +113,9 @@ function MindroomReasoning({
   const { durationMs } = reasoning;
   const live = durationMs === undefined;
   return (
-    <MindroomCollapsibleBlock
+    <MindroomReasoningDisclosure
       // The final reasoning starts collapsed, whatever the live block was.
       key={live ? 'live' : 'final'}
-      icon={Icons.Bulb}
       label={
         live
           ? t('mindroomUi.messages.mindroomReasoning.thinking')
@@ -99,7 +130,7 @@ function MindroomReasoning({
         htmlReactParserOptions={htmlReactParserOptions}
         linkifyOpts={linkifyOpts}
       />
-    </MindroomCollapsibleBlock>
+    </MindroomReasoningDisclosure>
   );
 }
 
