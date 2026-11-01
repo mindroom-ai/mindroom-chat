@@ -59,6 +59,8 @@
 - Review fixes before merge: the join feature also mutes the room once per session (the room menu's Mute override rule), since nobody can see it to mute it and a pack event could carry mentions;
   a room named by its ID is ignored once tombstoned, like an alias match; and the overflow key is read from the server too, so a pack another device opened since the last sync is added to rather than overwritten.
   An alias match must also be a local-only room (`m.federate: false`, as the creation script sets): another server can set any canonical alias in its own rooms, and such a room would otherwise inject its packs and receive users' uploads.
+  The room lookup re-runs on tombstone and canonical-alias events, and the Settings section is keyed by room, so an upgrade or a moved alias is followed while Chat is open.
+- Accepted: decisions use synced state plus fresh reads of the packs this client knows. A change another device makes within one sync window can still be missed (a name added to a pack this client has not seen yet, or the join right after an upgrade landing in the old room); the next sync or a reload settles it, and nothing already saved is overwritten.
 - Hardening: anyone allowed to edit a shared pack can publish any JSON, so `PackImageReader.fromPackImage` skips image entries that are not objects instead of throwing in every picker.
   `useRoomsImagePacks` re-reads packs when its room IDs change (not only on a pack event), so the server room's packs show in a picker that was open when the room was joined; a new array of the same rooms keeps the same packs.
 - Settings: Settings → Emojis & Stickers has a Server Emoji section between the personal and global packs once the room is joined.
