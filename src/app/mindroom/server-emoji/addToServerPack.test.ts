@@ -219,6 +219,26 @@ describe('addToServerPack', () => {
     await expect(writeKeyFor(padding + 1)).resolves.toBe('2');
   });
 
+  it('refuses a name another device added to a different pack since the last sync', async () => {
+    // Synced state shows no party-parrot anywhere, but the server's pack '2' already has one.
+    const meta = { display_name: 'MindRoom' };
+    const second = { pack: meta, images: { other: { url: 'mxc://example.org/other' } } };
+    const { mx, client } = clientHolding({
+      '': { pack: meta, images: {} },
+      '2': { pack: meta, images: { ...second.images, 'party-parrot': { url: 'mxc://x/theirs' } } },
+    });
+
+    await expect(
+      addToServerPack(
+        client,
+        roomWithPacks({ '': { pack: meta, images: {} }, '2': second }),
+        'party-parrot',
+        image
+      )
+    ).rejects.toBeInstanceOf(ShortcodeTakenError);
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+  });
+
   it('never writes to a deleted pack', async () => {
     const second = { pack: { display_name: 'Second' }, images: {} };
     // A deleted pack is an event with neither `pack` nor `images`.

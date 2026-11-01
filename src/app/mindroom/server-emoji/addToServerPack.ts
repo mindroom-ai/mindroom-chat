@@ -45,6 +45,12 @@ const fetchPackContent = async (
   }
 };
 
+/** Whether pack content as the server holds it has an image under the shortcode. */
+const hasImage = (content: PackContent | undefined, shortcode: string): boolean =>
+  typeof content?.images === 'object' &&
+  content.images !== null &&
+  Object.prototype.hasOwnProperty.call(content.images, shortcode);
+
 /**
  * Adds an image to the server emoji room's first pack with room for it, or to a new pack
  * when every pack is full. Throws `ShortcodeTakenError` when a server pack has the shortcode.
@@ -62,14 +68,15 @@ export const addToServerPack = async (
   const keys = packs.flatMap((pack) => (pack.address ? [pack.address.stateKey] : [])).sort();
   if (keys.length === 0) keys.push('');
 
-  let firstMeta: PackMeta | undefined;
-  for (const key of keys) {
-    // Read the pack from the server right before writing, so an edit made since the last sync
-    // is kept, and a shortcode taken since throws. One pack at a time: the next is only tried
-    // when this one is full.
-    const current = await fetchPackContent(mx, room.roomId, key);
-    firstMeta ??= current?.pack;
-    const content = addEmoticonToPackContent(current, shortcode, image);
+  // Read every known pack from the server right before writing, so an edit made since the last
+  // sync is kept and a name another device added to any of them since is refused.
+  const serverPacks = await Promise.all(keys.map((key) => fetchPackContent(mx, room.roomId, key)));
+  if (serverPacks.some((content) => hasImage(content, shortcode))) {
+    throw new ShortcodeTakenError(shortcode);
+  }
+  const firstMeta: PackMeta | undefined = serverPacks.find((content) => content?.pack)?.pack;
+  for (const [index, key] of keys.entries()) {
+    const content = addEmoticonToPackContent(serverPacks[index], shortcode, image);
     if (packContentBytes(content) <= MAX_PACK_CONTENT_BYTES) {
       await mx.sendStateEvent(room.roomId, StateEvent.PoniesRoomEmotes as any, content, key);
       return;
