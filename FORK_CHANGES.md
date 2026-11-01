@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Show a running tool call's latest output (2026-10-31)
+
+- Why: a long tool call, such as a shell command running tests, showed only "Running 1 tool call" with a spinner until it finished. The MindRoom runtime now adds the latest output a running call reported to that call's entry in live reply frames, as an optional `progress` string capped at its last 1000 characters, and drops it when the call completes; durable edits never carry it.
+- Change: `buildToolRefRenderData` reads `progress` for a pending call, dropping leading blank lines but keeping the first line's indentation. `MindroomToolRefGroupBlock` shows the last six lines of the latest running call's output under the tool calls' line, with a one-line label naming that call's command while several calls run, through a new `preview` slot on `ThreadActivity` that shows whether or not the panel is open; the box is at most six rendered lines tall with the newest output at the bottom, so a long wrapped line cannot grow it. A completed call shows its result as before. A durable checkpoint that covers the live entry keeps the frames' output on the calls it still shows running, since progress edits never carry it.
+- Tests: `react-custom-html-parser.test.ts` "shows the last lines of a running call output under the collapsed tool calls" fails without the change; "drops a call output once the call completed" pins that a completed call shows none; the indentation, leading-blank-line, and several-calls label tests each fail without their change. The shared `live-frames-v1.json` gains the runtime's three `progress` cases.
+
 ### Open an agent's connect and reset links signed in (2026-10-31)
 
 - Why: on a deployment where people sign in only through Chat (Google sign-in, no dashboard access), clicking an agent's "connect Slack" or "reset Gmail" link landed on the backend's dashboard API key page, because the link needs a browser signed in as the person the agent gave it to.
