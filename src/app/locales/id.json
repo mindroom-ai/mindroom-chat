@@ -592,6 +592,7 @@
       "unknown": "Tidak diketahui",
       "addCustomEmoji": "Tambahkan emoji kustom",
       "addCustomEmojiDescription": "Emoji disimpan di paket pribadi Anda, jadi bisa dipakai di setiap ruang.",
+      "addCustomEmojiServerDescription": "Semua orang di {{server}} bisa memakainya di setiap ruang.",
       "addCustomEmojiFailed": "Gagal menambahkan emoji. Coba lagi.",
       "add": "Tambah"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "Paket bawaan",
           "view": "Lihat",
           "unknown": "Tidak diketahui"
+        },
+        "serverPack": {
+          "title": "Emoji server",
+          "description": "Semua orang di {{server}} bisa memakainya.",
+          "permissions": "Izin"
         }
       },
       "notifications": {

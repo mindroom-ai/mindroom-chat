@@ -604,6 +604,7 @@
       "unknown": "غير معروف",
       "addCustomEmoji": "إضافة رمز تعبيري مخصص",
       "addCustomEmojiDescription": "يُحفظ في حزمتك الشخصية، لتستخدمه في كل غرفة.",
+      "addCustomEmojiServerDescription": "يمكن لجميع المستخدمين على ⁨{{server}}⁩ استخدامه في كل غرفة.",
       "addCustomEmojiFailed": "تعذّرت إضافة الرمز التعبيري. حاول مرة أخرى.",
       "add": "إضافة"
     },
@@ -2225,6 +2226,11 @@
           "defaultPack": "الحزمة الافتراضية",
           "view": "عرض",
           "unknown": "غير معروف"
+        },
+        "serverPack": {
+          "title": "الرموز التعبيرية للخادم",
+          "description": "يمكن لجميع المستخدمين على ⁨{{server}}⁩ استخدامها.",
+          "permissions": "الأذونات"
         }
       },
       "notifications": {

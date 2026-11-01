@@ -592,6 +592,7 @@
       "unknown": "不明",
       "addCustomEmoji": "カスタム絵文字を追加",
       "addCustomEmojiDescription": "パーソナルパックに保存され、すべてのルームで使えます。",
+      "addCustomEmojiServerDescription": "{{server}} のユーザー全員が、すべてのルームで使えます。",
       "addCustomEmojiFailed": "絵文字を追加できませんでした。もう一度お試しください。",
       "add": "追加"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "デフォルトパック",
           "view": "表示",
           "unknown": "不明"
+        },
+        "serverPack": {
+          "title": "サーバー絵文字",
+          "description": "{{server}} のユーザー全員が使えます。",
+          "permissions": "権限"
         }
       },
       "notifications": {

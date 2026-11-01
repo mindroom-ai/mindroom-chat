@@ -863,6 +863,11 @@
           "defaultPack": "ডিফল্ট প্যাক",
           "unknown": "অজানা",
           "view": "দেখুন"
+        },
+        "serverPack": {
+          "title": "সার্ভার ইমোজি",
+          "description": "{{server}} সার্ভারে থাকা সবাই এগুলো ব্যবহার করতে পারেন।",
+          "permissions": "অনুমতি"
         }
       },
       "notifications": {
@@ -2238,6 +2243,7 @@
       "unknownPack": "অজানা প্যাক",
       "addCustomEmoji": "কাস্টম ইমোজি যোগ করুন",
       "addCustomEmojiDescription": "এটি আপনার ব্যক্তিগত প্যাকে সংরক্ষিত হয়, তাই প্রতিটি রুমে ব্যবহার করতে পারবেন।",
+      "addCustomEmojiServerDescription": "{{server}} সার্ভারে থাকা সবাই প্রতিটি রুমে এটি ব্যবহার করতে পারেন।",
       "addCustomEmojiFailed": "ইমোজি যোগ করা যায়নি। আবার চেষ্টা করুন।",
       "add": "যোগ করুন"
     },

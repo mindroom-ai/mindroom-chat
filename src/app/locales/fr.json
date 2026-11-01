@@ -595,6 +595,7 @@
       "unknown": "Inconnue",
       "addCustomEmoji": "Ajouter un emoji personnalisé",
       "addCustomEmojiDescription": "Il est enregistré dans votre pack personnel, pour l’utiliser dans tous vos salons.",
+      "addCustomEmojiServerDescription": "Tout le monde sur {{server}} peut l’utiliser dans tous les salons.",
       "addCustomEmojiFailed": "Impossible d’ajouter l’emoji. Réessayez.",
       "add": "Ajouter"
     },
@@ -2141,6 +2142,11 @@
           "defaultPack": "Pack par défaut",
           "view": "Afficher",
           "unknown": "Inconnue"
+        },
+        "serverPack": {
+          "title": "Émojis du serveur",
+          "description": "Tout le monde sur {{server}} peut les utiliser.",
+          "permissions": "Autorisations"
         }
       },
       "notifications": {

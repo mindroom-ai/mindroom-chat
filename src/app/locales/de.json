@@ -592,6 +592,7 @@
       "unknown": "Unbekannt",
       "addCustomEmoji": "Eigenes Emoji hinzufügen",
       "addCustomEmojiDescription": "Es wird in deinem persönlichen Paket gespeichert, damit du es in jedem Raum nutzen kannst.",
+      "addCustomEmojiServerDescription": "Alle auf {{server}} können es in jedem Raum nutzen.",
       "addCustomEmojiFailed": "Das Emoji konnte nicht hinzugefügt werden. Versuche es erneut.",
       "add": "Hinzufügen"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "Standardpaket",
           "view": "Anzeigen",
           "unknown": "Unbekannt"
+        },
+        "serverPack": {
+          "title": "Server-Emojis",
+          "description": "Alle auf {{server}} können sie nutzen.",
+          "permissions": "Berechtigungen"
         }
       },
       "notifications": {

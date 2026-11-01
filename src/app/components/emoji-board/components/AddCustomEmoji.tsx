@@ -6,12 +6,14 @@ import { useObjectURL } from '../../../hooks/useObjectURL';
 import { useAlive } from '../../../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { loadImageElement } from '../../../utils/dom';
-import { getImageInfo } from '../../../utils/matrix';
+import { getImageInfo, getMxIdServer } from '../../../utils/matrix';
 import { getAccountData } from '../../../utils/room';
 import { getFileNameWithoutExt } from '../../../utils/mimeTypes';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
-import { addEmoticonToPackContent, PackContent } from '../../../plugins/custom-emoji';
+import { addEmoticonToPackContent, PackContent, PackImage } from '../../../plugins/custom-emoji';
+import { addToServerPack, canAddServerEmoji } from '../../../mindroom/server-emoji/addToServerPack';
+import { useServerEmojiRoom } from '../../../mindroom/server-emoji/useServerEmojiRoom';
 import * as css from './styles.css';
 
 const toShortcode = (name: string): string => name.trim().replace(/[\s:]+/g, '-');
@@ -22,12 +24,15 @@ type AddCustomEmojiProps = {
   onAdd: (mxc: string, shortcode: string) => void;
 };
 
-// Adds the picked image to the user's personal pack, which every room's
-// emoji board shows.
+// Adds the picked image to the server's shared pack when the user may, otherwise
+// to their personal pack; every room's emoji board shows both.
 export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
+  const serverRoom = useServerEmojiRoom();
+  // Decided once per render, so the description and the submit agree on the target.
+  const serverPackRoom = serverRoom && canAddServerEmoji(mx, serverRoom) ? serverRoom : undefined;
   const previewUrl = useObjectURL(file);
   const [name, setName] = useState(() => toShortcode(getFileNameWithoutExt(file.name)));
   const shortcode = toShortcode(name);
@@ -39,15 +44,16 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
         name: file.name,
         type: file.type,
       });
+      const image: PackImage = { url: mxc, info: getImageInfo(img, file) };
+      if (serverPackRoom) {
+        return { mxc, shortcode: await addToServerPack(mx, serverPackRoom, shortcode, image) };
+      }
       // Read the pack only now, so an edit made meanwhile is kept.
       const pack = getAccountData(mx, AccountDataEvent.PoniesUserEmotes)?.getContent<PackContent>();
-      const added = addEmoticonToPackContent(pack, shortcode, {
-        url: mxc,
-        info: getImageInfo(img, file),
-      });
+      const added = addEmoticonToPackContent(pack, shortcode, image);
       await mx.setAccountData(AccountDataEvent.PoniesUserEmotes as any, added.content as any);
       return { mxc, shortcode: added.shortcode };
-    }, [mx, file, previewUrl, shortcode])
+    }, [mx, file, previewUrl, shortcode, serverPackRoom])
   );
   const adding = addState.status === AsyncStatus.Loading;
 
@@ -74,7 +80,11 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
       onSubmit={handleSubmit}
     >
       <Text size="T300" priority="300">
-        {t('sharedUi.emojiBoard.addCustomEmojiDescription')}
+        {serverPackRoom
+          ? t('sharedUi.emojiBoard.addCustomEmojiServerDescription', {
+              server: getMxIdServer(mx.getSafeUserId()),
+            })
+          : t('sharedUi.emojiBoard.addCustomEmojiDescription')}
       </Text>
       <Box alignItems="Center" gap="300">
         <img className={css.AddCustomEmojiPreview} src={previewUrl} alt="" />

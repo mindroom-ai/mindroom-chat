@@ -592,6 +592,7 @@
       "unknown": "Bilinmiyor",
       "addCustomEmoji": "Özel emoji ekle",
       "addCustomEmojiDescription": "Kişisel paketinize kaydedilir, böylece her odada kullanabilirsiniz.",
+      "addCustomEmojiServerDescription": "{{server}} üzerindeki herkes bunu her odada kullanabilir.",
       "addCustomEmojiFailed": "Emoji eklenemedi. Tekrar deneyin.",
       "add": "Ekle"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "Varsayılan paket",
           "view": "Görüntüle",
           "unknown": "Bilinmiyor"
+        },
+        "serverPack": {
+          "title": "Sunucu emojileri",
+          "description": "{{server}} üzerindeki herkes bunları kullanabilir.",
+          "permissions": "İzinler"
         }
       },
       "notifications": {

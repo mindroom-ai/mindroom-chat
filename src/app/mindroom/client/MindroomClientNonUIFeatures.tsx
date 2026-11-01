@@ -41,6 +41,7 @@ import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { AgentConnectLinkFeature } from '../connections/AgentConnectLinks';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
+import { ServerEmojiJoinFeature } from '../server-emoji/ServerEmojiJoinFeature';
 import { useBindLiveReplyFrames } from '../live/bindLiveReplyFrames';
 
 const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
@@ -366,6 +367,7 @@ export function MindroomClientNonUIFeatures() {
       <MindroomNativeIOSPushFeature />
       <MindroomNativeIOSPushOpenFeature />
       <BugReportAutoJoinFeature />
+      <ServerEmojiJoinFeature />
       <AgentConnectLinkFeature />
     </>
   );

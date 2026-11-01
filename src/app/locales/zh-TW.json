@@ -592,6 +592,7 @@
       "unknown": "未知",
       "addCustomEmoji": "新增自訂表情符號",
       "addCustomEmojiDescription": "它會儲存到你的個人包，可在每個房間中使用。",
+      "addCustomEmojiServerDescription": "{{server}} 上的所有人都可以在每個房間中使用。",
       "addCustomEmojiFailed": "無法新增表情符號。請再試一次。",
       "add": "新增"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "預設表情套件",
           "view": "檢視",
           "unknown": "未知"
+        },
+        "serverPack": {
+          "title": "伺服器表情符號",
+          "description": "{{server}} 上的所有人都可以使用。",
+          "permissions": "權限"
         }
       },
       "notifications": {

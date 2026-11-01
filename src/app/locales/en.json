@@ -592,6 +592,7 @@
       "unknown": "Unknown",
       "addCustomEmoji": "Add custom emoji",
       "addCustomEmojiDescription": "It is saved to your Personal Pack, so you can use it in every room.",
+      "addCustomEmojiServerDescription": "Everyone on {{server}} can use it in every room.",
       "addCustomEmojiFailed": "Couldn't add the emoji. Try again.",
       "add": "Add"
     },
@@ -2113,6 +2114,11 @@
           "defaultPack": "Default Pack",
           "view": "View",
           "unknown": "Unknown"
+        },
+        "serverPack": {
+          "title": "Server Emoji",
+          "description": "Everyone on {{server}} can use these.",
+          "permissions": "Permissions"
         }
       },
       "notifications": {
