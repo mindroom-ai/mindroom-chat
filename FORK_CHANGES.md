@@ -12,11 +12,11 @@
 - Change: `useLiveReplyContent` moves a durable reply's warm-up lines out of `body` and `formatted_body` into `io.mindroom.live_activity`, the key live frames fill, so both paths draw the same line.
   It strips them only when the body ends in `\n\n<suffix>` and the HTML ends in one `<p>` per line with that line's text (compared without backticks, since tool names become `<code>`); any other content is left as it is.
   It drops `m.new_content` from that copy, as live content does, because readers such as the thinking-placeholder check prefer it and it still holds the lines.
-  The activity line now draws backtick spans, the tool names, as inline code (`CustomHtml.css` `Code`, re-exported as `ActivityCode` from `MindroomReasoning.css.ts` so the tests that mock that stylesheet keep working).
+  The activity line now draws backtick spans, the tool names, as inline code; a failure's error, from its line's first `: `, keeps its backticks as the runtime's HTML does (`CustomHtml.css` `Code`, re-exported as `ActivityCode` from `MindroomReasoning.css.ts` so the tests that mock that stylesheet keep working).
 - Not covered: a long-text reply whose hydrated sidecar holds the lines still shows them in its body, as before.
 - Tests: `useLiveReplyContent.test.tsx` (now jsdom, for `DOMParser`) moves one and two lines with no live entry and under a covering checkpoint, moves a failure line whose error the HTML escapes and which keeps backticks, keeps a lines-only reply recognizable as the thinking placeholder, and leaves content alone when the body does not end in the lines, the HTML lacks their paragraphs, the last paragraph is other text, there are fewer paragraphs than lines, there is no HTML, or a final edit kept an older edit's suffix key.
-  `MindroomReasoning.test.tsx` checks the tool names render as inline code.
-- Review: an independent subagent found nothing blocking; its two low findings (an escaped failure line whose error has backticks stayed in the body; no test for an inherited suffix key) are fixed above.
+  `MindroomReasoning.test.tsx` checks the tool names render as inline code and a failure's error keeps its backticks.
+- Review: an independent subagent found nothing blocking; its two low findings (an escaped failure line whose error has backticks stayed in the body; no test for an inherited suffix key) are fixed above. CodeRabbit's finding (error backticks drawn as code) is fixed too.
 - Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test). A throwaway fixture page rendered a live-frame reply and a checkpoint reply through `useLiveReplyContent` and `renderMindroomMessageContent`; before and after screenshots checked by eye.
 - Next: none.
 

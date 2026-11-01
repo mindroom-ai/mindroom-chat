@@ -279,6 +279,21 @@ describe('MindroomReasoning', () => {
     );
   });
 
+  it('keeps the backticks of a failure line error as sent', () => {
+    const root = render({
+      msgtype: 'm.text',
+      body: 'Partial answer',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_activity':
+        "⚠️ Worker startup failed for `shell`: can't run `a < b`.\n⏳ Preparing isolated worker for `python`...",
+    });
+
+    expect(root.findAllByType('code').map((node) => text(node))).toEqual(['shell', 'python']);
+    expect(text(root)).toBe(
+      "Partial answer⚠️ Worker startup failed for shell: can't run `a < b`.⏳ Preparing isolated worker for python..."
+    );
+  });
+
   it('keeps live reasoning over a covering checkpoint on a long-text reply', () => {
     const root = render({
       msgtype: 'm.text',

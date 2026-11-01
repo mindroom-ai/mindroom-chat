@@ -134,10 +134,13 @@ function MindroomReasoning({
   );
 }
 
-/** Activity text with its backtick spans, the tool names, as inline code like the body shows them. */
+/**
+ * Activity text with its tool names in backticks as inline code, like the body shows them.
+ * A failure's error, from its line's first `: `, keeps its backticks as sent.
+ */
 const renderActivity = (activity: string): ReactNode =>
-  activity.split(/`([^`\n]+)`/).map((part, index) =>
-    index % 2 ? (
+  activity.split(/`([^`\n]+)`|(: [^\n]*)/).map((part, index) =>
+    index % 3 === 1 && part !== undefined ? (
       // The parts of one activity text never reorder.
       // eslint-disable-next-line react/no-array-index-key
       <code key={index} className={css.ActivityCode}>
