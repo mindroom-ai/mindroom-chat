@@ -64,6 +64,22 @@ describe('openConnectionsPortal', () => {
     expect(fake.addEventListener).not.toHaveBeenCalled();
   });
 
+  it('asks the portal to open an agent link once signed in', () => {
+    const fake = makeWindow(makeTarget());
+
+    openConnectionsPortal({
+      backendUrl: BACKEND,
+      getOpenIdToken: vi.fn(),
+      next: '/api/oauth/slack/authorize?connect_token=t&agent_name=mind',
+      win: fake.win,
+    });
+
+    expect(fake.open).toHaveBeenCalledWith(
+      `${BACKEND}/connections/?next=%2Fapi%2Foauth%2Fslack%2Fauthorize%3Fconnect_token%3Dt%26agent_name%3Dmind`,
+      'mindroom-connections'
+    );
+  });
+
   it('opens the portal path on the backend origin', () => {
     const fake = makeWindow(makeTarget());
 

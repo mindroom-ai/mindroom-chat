@@ -8,6 +8,20 @@
 - Change: `buildToolRefRenderData` reads `progress` for a pending call, dropping leading blank lines but keeping the first line's indentation. `MindroomToolRefGroupBlock` shows the last six lines of the latest running call's output under the tool calls' line, with a one-line label naming that call's command while several calls run, through a new `preview` slot on `ThreadActivity` that shows whether or not the panel is open; the box is at most six rendered lines tall with the newest output at the bottom, so a long wrapped line cannot grow it. A completed call shows its result as before. A durable checkpoint that covers the live entry keeps the frames' output on the calls it still shows running, since progress edits never carry it.
 - Tests: `react-custom-html-parser.test.ts` "shows the last lines of a running call output under the collapsed tool calls" fails without the change; "drops a call output once the call completed" pins that a completed call shows none; the indentation, leading-blank-line, and several-calls label tests each fail without their change. The shared `live-frames-v1.json` gains the runtime's three `progress` cases.
 
+### Open an agent's connect and reset links signed in (2026-10-31)
+
+- Why: on a deployment where people sign in only through Chat (Google sign-in, no dashboard access), clicking an agent's "connect Slack" or "reset Gmail" link landed on the backend's dashboard API key page, because the link needs a browser signed in as the person the agent gave it to.
+- Change: `AgentConnectLinkFeature` (`connections/AgentConnectLinks.tsx`, mounted in `MindroomClientNonUIFeatures`) listens for clicks in the capture phase.
+  A plain left click on a personal link, `/api/oauth/<provider>/authorize?connect_token=…` or `/api/oauth/<provider>/reset?reset_token=…` with `execution_scope=user` or `user_agent`, on one of the Computers backends (`useComputerApiUrls()`, the same list the Connections card offers) opens `<backend>/connections/?next=<link path>` through `openConnectionsPortal` instead.
+  Shared links need no sign-in and other OAuth links use the dashboard login, so they keep the browser's normal navigation; routing them through the portal broke them where portal sign-in is off (review finding).
+  The portal signs in with Chat's OpenID handshake as before, then opens the link, which now accepts that session for its own requester (mindroom-ai/mindroom PR "Let Chat sign-ins open an agent's connect and reset links").
+  Other links, other backends, middle and modified clicks, and the native apps are left to the browser; a blocked window leaves the click to the browser too.
+  If the portal's sign-in fails, it still opens the link, so the click ends where a plain click would have.
+- Refactor: the Connections card's token getter moved into `useOpenConnectionsPortal(discovered)` (`connections/useOpenConnectionsPortal.ts`), which the card and the link feature share, so both keep the account-switch guard and the binding check for discovered backends.
+- Tests: `AgentConnectLinks.test.tsx` (link matching, including shared, tokenless and mismatched-token links left alone; a clicked connect link opens the portal with its path and stops the browser; blocked windows, middle and modified clicks, other backends and paths, native apps and unmount leave it alone; the backend list is read at click time), `openConnections.test.ts` (`next` in the portal URL). `MindroomConnectionsSettings.test.tsx` passes unchanged.
+- Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npx vitest run` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test).
+- Next: links opened outside Chat, or in the native apps, still ask for the dashboard login.
+
 ### Show a reply's reasoning as a small text toggle (2026-10-31)
 
 - Why: the owner found the reasoning block ("Thought for 15 s") too intrusive above every agent reply and asked for a smaller collapsible thing that is not in your face.
