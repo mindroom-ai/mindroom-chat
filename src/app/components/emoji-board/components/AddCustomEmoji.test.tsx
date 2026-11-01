@@ -322,6 +322,8 @@ describe('AddCustomEmoji', () => {
 
     expect(onAdd).not.toHaveBeenCalled();
     expect(textNodes(nameTaken)).not.toHaveLength(0);
+    // Until sync brings the other emoji in, Add must stay off, or each retry uploads again.
+    expect(addButton().props.disabled).toBe(true);
 
     // The error was about that name; a new one clears it without a generic error.
     typeName('party-parrot-2');

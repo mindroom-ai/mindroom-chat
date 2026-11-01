@@ -88,8 +88,10 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const addError = addState.status === AsyncStatus.Error ? addState.error : undefined;
   // A taken-name error is about the name it was raised for; a new name clears it.
   const takenError = addError instanceof ShortcodeTakenError;
+  // The server can report a name taken before sync brings it here, so that also keeps Add off.
+  const nameTaken = taken || (takenError && addError.shortcode === shortcode);
   let errorText: string | undefined;
-  if (taken || (takenError && addError.shortcode === shortcode)) {
+  if (nameTaken) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiNameTaken');
   } else if (gifTooLarge || addError instanceof EmojiImageTooLargeError) {
     errorText = t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
@@ -103,7 +105,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
     evt.preventDefault();
     // The board can sit inside another form (power tags), which would also get this submit.
     evt.stopPropagation();
-    if (!shortcode || taken || gifTooLarge || adding) return;
+    if (!shortcode || nameTaken || gifTooLarge || adding) return;
     addEmoji().then(
       (mxc) => {
         if (alive()) onAdd(mxc, shortcode);
@@ -166,7 +168,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
           variant="Primary"
           size="300"
           radii="300"
-          disabled={!shortcode || taken || gifTooLarge || adding}
+          disabled={!shortcode || nameTaken || gifTooLarge || adding}
           before={adding && <Spinner variant="Primary" fill="Solid" size="100" />}
         >
           <Text size="B300">{t('sharedUi.emojiBoard.add')}</Text>
