@@ -1,6 +1,11 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
-import { openConnectionsPortal } from './openConnections';
+import {
+  connectionsHandoffSupported,
+  openConnectionsPortal,
+  submitConnectionsHandoff,
+} from './openConnections';
 
 const BACKEND = 'https://backend.example.org';
 
@@ -360,5 +365,44 @@ describe('openConnectionsPortal', () => {
 
     expect(getOpenIdToken).toHaveBeenCalledTimes(1);
     expect(target.postMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('submitConnectionsHandoff', () => {
+  it('posts the token as a form to the backend hand-off, never in the URL', () => {
+    const order: string[] = [];
+    const submit = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => order.push('submit'));
+    const replace = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => order.push('replace'));
+    submitConnectionsHandoff(`${BACKEND}/ignored/path`, makeToken(1), '/home/');
+    const form = document.body.querySelector('form');
+    expect(form?.method).toBe('post');
+    expect(form?.action).toBe(`${BACKEND}/api/connections/session/handoff`);
+    const field = form?.querySelector('input');
+    expect(field?.type).toBe('hidden');
+    expect(field?.name).toBe('openid_token');
+    expect(JSON.parse(field?.value ?? '')).toEqual(makeToken(1));
+    expect(form?.action).not.toContain('openid-token');
+    // Back from the portal must land on `returnTo`, so the entry is replaced before the page leaves.
+    expect(replace).toHaveBeenCalledWith(null, '', '/home/');
+    expect(order).toEqual(['replace', 'submit']);
+    form?.remove();
+    submit.mockRestore();
+    replace.mockRestore();
+  });
+});
+
+describe('connectionsHandoffSupported', () => {
+  it.each([
+    ['https:', 'https://backend.example.org', true],
+    ['http:', 'http://localhost:8765', true],
+    ['http:', 'https://backend.example.org', true],
+    // The browser sends Origin: null on a post from HTTPS to HTTP, which the backend refuses.
+    ['https:', 'http://localhost:8765', false],
+  ])('from a %s page to %s: %s', (pageProtocol, backendUrl, supported) => {
+    expect(connectionsHandoffSupported(backendUrl, pageProtocol)).toBe(supported);
   });
 });

@@ -39,6 +39,21 @@
 - Change: `buildToolRefRenderData` reads `progress` for a pending call, dropping leading blank lines but keeping the first line's indentation. `MindroomToolRefGroupBlock` shows the last six lines of the latest running call's output under the tool calls' line, with a one-line label naming that call's command while several calls run, through a new `preview` slot on `ThreadActivity` that shows whether or not the panel is open; the box is at most six rendered lines tall with the newest output at the bottom, so a long wrapped line cannot grow it. A completed call shows its result as before. A durable checkpoint that covers the live entry keeps the frames' output on the calls it still shows running, since progress edits never carry it.
 - Tests: `react-custom-html-parser.test.ts` "shows the last lines of a running call output under the collapsed tool calls" fails without the change; "drops a call output once the call completed" pins that a completed call shows none; the indentation, leading-blank-line, and several-calls label tests each fail without their change. The shared `live-frames-v1.json` gains the runtime's three `progress` cases.
 
+### Open Connections at Chat's own `/connections` (2026-11-01)
+
+- Why: people wanted to type `<chat>/connections` and land on their Connections, not open Settings, General and click a button that opens a pop-up.
+- Change: route `CONNECTIONS_PATH` (`/connections`, inside the signed-in client layout, so a signed-out visit goes through login and back) renders `ConnectionsPage` (`connections/ConnectionsPage.tsx`).
+  With exactly one Computers backend (`useComputerApiUrls()`), it requests an OpenID token for that backend's origin and calls `submitConnectionsHandoff` (`connections/openConnections.ts`), which posts the token as a form field to `<backend>/api/connections/session/handoff` in this tab.
+  The browser sets that post's `Origin`, which the backend checks against the Chat origins it allows, then sets the portal session cookie and redirects to `/connections/` (mindroom-ai/mindroom PR "Let MindRoom Chat's /connections page sign the portal in without the Settings button"). The token never appears in a URL.
+  The page also shows the existing Connections card, which covers several backends, none, the native apps (no hand-off there), and a failed token request; no new strings.
+  Leaving the page before the token arrives aborts the hand-off, so a slow homeserver never pulls the user out of a room later (review finding).
+  Before submitting, the hand-off replaces this page's history entry with Chat's root (`useHref(ROOT_PATH)`), so Back from the portal opens Chat instead of handing off again (review finding).
+  `ClientLayout` never saves `/connections` as the session's last path, so Chat's root (Back from the portal, or opening Chat later) restores the route the user was on before, not the hand-off (review finding).
+  An HTTPS Chat with an HTTP backend (such as `http://localhost:8765`) skips the hand-off: the browser sends `Origin: null` on that downgrade, which the backend refuses, while the card's pop-up handshake still works (`connectionsHandoffSupported`, review finding).
+- Refactor: `useOpenConnectionsPortal.ts` keeps the token getter (account-switch guard, binding check for discovered backends) in `useConnectionsOpenIdToken`, shared by `useOpenConnectionsPortal` and the new `useConnectionsHandoff`.
+- Tests: `openConnections.test.ts` (the form's method, action, and hidden token field; the token is not in the action), `ConnectionsPage.test.tsx` (one backend hands off once; several, none, and native leave it to the card; unmounting aborts the hand-off), `useOpenConnectionsPortal.test.tsx` (an aborted hand-off submits nothing when its token arrives), `pages/client/ClientLayout.test.tsx` (the last path survives `/connections` and the root redirect restores it).
+- Deployments: a Chat whose web server redirected `/connections` elsewhere must stop doing so for this page to load.
+
 ### Open an agent's connect and reset links signed in (2026-10-31)
 
 - Why: on a deployment where people sign in only through Chat (Google sign-in, no dashboard access), clicking an agent's "connect Slack" or "reset Gmail" link landed on the backend's dashboard API key page, because the link needs a browser signed in as the person the agent gave it to.
