@@ -69,6 +69,7 @@ vi.mock('./ApprovalArgumentFields.css', () => ({
   Count: 'Count',
 }));
 
+vi.mock('./MindroomReasoning.css', () => ({}));
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',

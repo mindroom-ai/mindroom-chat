@@ -65,6 +65,12 @@ vi.mock('./MindroomHtmlBlocks.css', () => ({
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
 }));
+vi.mock('./MindroomReasoning.css', () => ({
+  Reasoning: 'Reasoning',
+  Toggle: 'ReasoningToggle',
+  Label: 'ReasoningLabel',
+  Body: 'ReasoningBody',
+}));
 vi.mock('./PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
 vi.mock('./MindroomTranscribingPlaceholder.css', () => ({}));
 vi.mock('./MindroomMessageExtras.css.ts', () => ({}));
@@ -113,12 +119,10 @@ describe('MindroomReasoning', () => {
   };
 
   const header = (root: ReturnType<typeof render>) =>
-    root.find((node) => node.type === 'button' && node.props.className === 'BlockHeader');
+    root.find((node) => node.type === 'button' && node.props.className === 'ReasoningToggle');
 
   const blockBody = (root: ReturnType<typeof render>) =>
-    root.find(
-      (node) => typeof node.type === 'string' && String(node.props.className).includes('BlockBody')
-    );
+    root.find((node) => typeof node.type === 'string' && node.props.className === 'ReasoningBody');
 
   it('shows final reasoning collapsed with its duration, and expands it on click', () => {
     const root = render({
@@ -184,6 +188,52 @@ describe('MindroomReasoning', () => {
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
   });
 
+  it('collapses the reasoning once the reply finishes, even after it was toggled', () => {
+    const element = (content: Record<string, unknown>) => (
+      <ClientConfigProvider value={{}}>
+        {renderMindroomMessageContent({
+          displayName: 'Agent',
+          msgType: 'm.text',
+          content,
+          htmlReactParserOptions,
+          linkifyOpts: {},
+        })}
+      </ClientConfigProvider>
+    );
+    act(() => {
+      renderer = create(
+        element({
+          msgtype: 'm.text',
+          body: 'Partial',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.live_reasoning': 'Checking the cache',
+        })
+      );
+    });
+    if (!renderer) throw new Error('Nothing rendered');
+    expect(header(renderer.root).props['aria-expanded']).toBe(true);
+    // Collapsed and reopened by hand while it streams.
+    act(() => header(renderer!.root).props.onClick());
+    act(() => header(renderer!.root).props.onClick());
+
+    act(() =>
+      renderer?.update(
+        element({
+          msgtype: 'm.text',
+          body: 'Answer',
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.reasoning': { text: 'Checking the cache', duration_ms: 2000 },
+        })
+      )
+    );
+
+    expect(text(header(renderer.root))).toBe('Thought for 2 s');
+    expect(header(renderer.root).props['aria-expanded']).toBe(false);
+    expect(renderer.root.findAll((node) => node.props.className === 'ReasoningBody')).toHaveLength(
+      0
+    );
+  });
+
   it('rounds a short reasoning time up to one second', () => {
     const root = render({
       msgtype: 'm.text',
@@ -238,7 +288,7 @@ describe('MindroomReasoning', () => {
     });
 
     const body = blockBody(root);
-    // One host element holds the paragraphs, so the row layout of the block body cannot split them.
+    // One host element holds the paragraphs and sets how they keep newlines.
     const [reasoningText] = body.children as ReactTestInstance[];
     expect(body.children).toHaveLength(1);
     expect(reasoningText.children).toHaveLength(1);
@@ -295,7 +345,7 @@ describe('MindroomReasoning', () => {
   it('shows nothing extra without reasoning or activity', () => {
     const root = render({ msgtype: 'm.text', body: 'Plain' });
 
-    expect(root.findAll((node) => node.props.className === 'BlockHeader')).toHaveLength(0);
+    expect(root.findAll((node) => node.props.className === 'ReasoningToggle')).toHaveLength(0);
     expect(text(root)).toBe('Plain');
   });
 });

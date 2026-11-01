@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Show a reply's reasoning as a small text toggle (2026-10-31)
+
+- Why: the owner found the reasoning block ("Thought for 15 s") too intrusive above every agent reply and asked for a smaller collapsible thing that is not in your face.
+- Change: `MindroomReasoning` no longer uses `MindroomCollapsibleBlock`, the full-width glass panel with a 36px header that tool calls and `<think>`/`<plan>` blocks keep. It renders its own disclosure from `MindroomReasoning.css.ts`: a content-width button with the bulb, the label and a chevron in `T200` text at `config.opacity.P400`, with no surface, border or background; hover, focus and the open state raise it to full opacity. Expanded reasoning shows below in `T300` text behind a 2px start-side rule, not in a panel. The collapsed chevron points to the inline end (`data-directional` flips it in RTL), the button is at least 24px tall for touch, and its focus ring is drawn inside the button so a folded long message does not clip it. Live reasoning still starts open and final reasoning collapsed (`key` per state). `MindroomCollapsibleBlock` is private to `MindroomHtmlBlocks.tsx` again and loses `defaultExpanded`, which only reasoning used.
+- Decision: the toggle fades with the folds `P400` opacity (0.9), not a fainter one; size and the missing panel keep it quiet. Message bodies are already faded (0.9, or 0.75 on notices), and 12px text at 0.6 or `P300` (0.75) fell below 4.5:1 contrast on light-theme notices, which streaming replies are; `P400` gives at least 4.9:1.
+- Tests: `MindroomReasoning.test.tsx` mocks the new stylesheet and finds the toggle and body by their new class names; behavior assertions are unchanged, and a new test checks that reasoning toggled while it streams still starts collapsed once the reply finishes (it fails without the `key`). `renderMindroomMessageContent.test.ts`, `renderMindroomMessageContent.parse.test.tsx` and `MindroomLongTextText.test.ts` mock the new stylesheet too, since vanilla-extract styles cannot load under Vitest.
+- Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npx vitest run` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test). A throwaway Playwright spec against a disposable Tuwunel took collapsed and expanded screenshots in light and dark, checked by eye. An independent review pass found the missing mocks, contrast, line height, RTL chevron, focus clipping and touch target issues fixed here.
+- Next: none. The same treatment for `<think>` HTML blocks or tool-call blocks is a separate ask.
+
 ### Configure the sign-in footer's "Powered by" links (2026-10-31)
 
 - Why: the owner asked to make the sign-in page's "Powered by MindRoom Chat, Matrix, Cinny" line configurable. Its three links were hardcoded in `AuthFooter`.
