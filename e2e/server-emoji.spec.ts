@@ -17,6 +17,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
   sendStateEvent,
+  type MatrixSession,
 } from './helpers/matrix';
 
 type PackContent = { images?: Record<string, { url: string }> };
@@ -46,6 +47,13 @@ const serveEmojiWellKnown = async (context: BrowserContext, homeserver: string, 
     })
   );
 };
+
+const joinedRoomIds = async (homeserver: string, session: MatrixSession) =>
+  (
+    await matrixFetch<{ joined_rooms: string[] }>(homeserver, '/joined_rooms', {
+      accessToken: session.accessToken,
+    })
+  ).joined_rooms;
 
 const openSharedRoom = async (page: Page, roomId: string, userId: string) => {
   // Classic view renders the message as a plain timeline row with the hover toolbar.
@@ -183,10 +191,19 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
     const secondaryDiagnostics = attachBrowserDiagnostics(secondaryPage);
     await loginWithPassword(secondaryPage, { homeserver, ...secondaryCredentials! });
     await expectLoggedInShellStable(secondaryPage);
+    // The join is asynchronous and the board reads its packs once when it opens, so the shared
+    // room opens, which reloads the app, only after the join.
+    await expect
+      .poll(async () => (await joinedRoomIds(homeserver, secondary)).includes(emojiRoomId), {
+        timeout: 30_000,
+      })
+      .toBe(true);
     await openSharedRoom(secondaryPage, sharedRoomId, secondary.userId);
     await openReactionPicker(secondaryPage, messageId);
     await secondaryPage.getByPlaceholder('Search or Text Reaction').fill('party-parrot');
-    await secondaryPage.getByRole('button', { name: 'party-parrot emoji' }).first().click();
+    const emojiButton = secondaryPage.getByRole('button', { name: 'party-parrot emoji' }).first();
+    await expect(emojiButton).toBeVisible();
+    await emojiButton.click();
 
     await expect
       .poll(
@@ -211,12 +228,7 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
       [primaryPage, primary],
       [secondaryPage, secondary],
     ] as const) {
-      const { joined_rooms: joinedRooms } = await matrixFetch<{ joined_rooms: string[] }>(
-        homeserver,
-        '/joined_rooms',
-        { accessToken: session.accessToken }
-      );
-      expect(joinedRooms).toContain(emojiRoomId);
+      expect(await joinedRoomIds(homeserver, session)).toContain(emojiRoomId);
       await expect(page.getByRole('link', { name: sharedRoomName, exact: true })).toBeVisible();
       await expect(page.getByRole('link', { name: emojiRoomName, exact: true })).toHaveCount(0);
     }
