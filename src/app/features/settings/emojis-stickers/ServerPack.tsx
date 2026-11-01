@@ -125,5 +125,6 @@ function ServerPackSection({ room, onViewPack }: ServerPackProps & { room: Room 
 export function ServerPack({ onViewPack }: ServerPackProps) {
   const room = useServerEmojiRoom();
   if (!room) return null;
-  return <ServerPackSection room={room} onViewPack={onViewPack} />;
+  // Keyed by room: its pack hooks read state once, so a new server emoji room needs a new section.
+  return <ServerPackSection key={room.roomId} room={room} onViewPack={onViewPack} />;
 }

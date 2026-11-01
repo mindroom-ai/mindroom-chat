@@ -139,6 +139,31 @@ describe('ServerPack', () => {
     expect(opened.address).toEqual({ roomId: '!emoji', stateKey: '' });
   });
 
+  it('shows the packs of the new room when the server emoji room changes while open', () => {
+    // Like the real hook, the packs are read once per mounted section.
+    hooks.useRoomImagePacks.mockImplementation((room: { roomId: string }) => {
+      const [packs] = React.useState(() => [
+        new ImagePack(
+          `$${room.roomId}`,
+          { pack: { display_name: room.roomId }, images: {} },
+          {
+            roomId: room.roomId,
+            stateKey: '',
+          }
+        ),
+      ]);
+      return packs;
+    });
+    const { onViewPack, rerender } = renderSection();
+
+    // The configured alias moved to another joined room.
+    hooks.useServerEmojiRoom.mockReturnValue({ roomId: '!emoji-new' });
+    rerender();
+    click(buttons('View')[0]);
+
+    expect(onViewPack.mock.calls[0][0].address).toEqual({ roomId: '!emoji-new', stateKey: '' });
+  });
+
   it('shows Permissions only to users who may change power levels', () => {
     const { rerender } = renderSection();
 
