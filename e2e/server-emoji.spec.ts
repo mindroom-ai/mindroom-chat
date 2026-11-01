@@ -22,6 +22,8 @@ import {
 
 type PackContent = { images?: Record<string, { url: string }> };
 
+type PowerLevels = { events?: Record<string, number>; events_default?: number };
+
 type Annotations = {
   chunk: Array<{ sender: string; content: { 'm.relates_to'?: { key?: string } } }>;
 };
@@ -92,8 +94,8 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
   ]);
 
   // The room an operator creates for a homeserver: typed, local, with an empty pack that
-  // everyone may add to. Its other power levels are read and kept, since an override at
-  // creation would replace the server's defaults.
+  // everyone may add to, and posting limited to moderators. Its other power levels are read
+  // and kept, since an override at creation would replace the server's defaults.
   const stamp = Date.now();
   const server = primary.userId.slice(primary.userId.indexOf(':') + 1);
   const emojiRoomAlias = `#emoji-${stamp}:${server}`;
@@ -120,7 +122,7 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
       }),
     }
   );
-  const powerLevels = await matrixFetch<{ events?: Record<string, number> }>(
+  const powerLevels = await matrixFetch<PowerLevels>(
     homeserver,
     `/rooms/${encodeURIComponent(emojiRoomId)}/state/m.room.power_levels/`,
     { accessToken: primary.accessToken }
@@ -128,6 +130,7 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
   await sendStateEvent(homeserver, primary.accessToken, emojiRoomId, 'm.room.power_levels', '', {
     ...powerLevels,
     events: { ...powerLevels.events, 'im.ponies.room_emotes': 0 },
+    events_default: Math.max(powerLevels.events_default ?? 0, 50),
   });
   const readPack = () =>
     matrixFetch<PackContent>(

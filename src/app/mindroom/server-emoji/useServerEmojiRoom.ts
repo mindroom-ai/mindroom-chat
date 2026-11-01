@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { Membership } from '../../../types/matrix/room';
+import { Membership, StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../state/room-list/roomList';
-import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
+import { isRoomAlias } from '../../utils/matrix';
+import { getStateEvent } from '../../utils/room';
 import { useServerEmojiRoomAddress } from './serverEmojiConfig';
 
 /** The joined room the address names, found by room ID or by canonical alias. */
@@ -13,9 +14,20 @@ export const findServerEmojiRoom = (
   address: string | undefined
 ): Room | undefined => {
   if (!address) return undefined;
-  const roomId = isRoomAlias(address) ? getCanonicalAliasRoomId(mx, address) : address;
-  const room = roomId ? mx.getRoom(roomId) : null;
-  return room?.getMyMembership() === Membership.Join ? room : undefined;
+  if (!isRoomAlias(address)) {
+    const room = mx.getRoom(address);
+    return room?.getMyMembership() === Membership.Join ? room : undefined;
+  }
+  // Only a joined, current room may match: a room left after a replacement, or an invite whose
+  // stripped state claims the alias, must not hide it.
+  return mx
+    .getRooms()
+    .find(
+      (room) =>
+        room.getMyMembership() === Membership.Join &&
+        room.getCanonicalAlias() === address &&
+        getStateEvent(room, StateEvent.RoomTombstone) === undefined
+    );
 };
 
 /** The server emoji room once the user has joined it; follows the joined room list. */

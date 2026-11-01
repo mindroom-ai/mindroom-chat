@@ -103,6 +103,27 @@ describe('ServerEmojiJoinFeature', () => {
     expect(client.joinRoom).not.toHaveBeenCalled();
   });
 
+  // AutoDiscovery first renders without the key, so in the app the key arrives after mount.
+  it('does not join a joined room when the key arrives after mount', async () => {
+    const client = fakeClient([joinedRoom()]);
+    const store = createStore();
+
+    await render(featureFor(client, store, withoutKey)());
+    await update(featureFor(client, store, withKey)());
+
+    expect(client.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('joins once when the key arrives after mount and the user is not in the room', async () => {
+    const client = fakeClient();
+    const store = createStore();
+
+    await render(featureFor(client, store, withoutKey)());
+    await update(featureFor(client, store, withKey)());
+
+    expect(client.joinRoom.mock.calls).toEqual([[ALIAS]]);
+  });
+
   it('logs a refused join and does not retry it in the same session', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const client = fakeClient();

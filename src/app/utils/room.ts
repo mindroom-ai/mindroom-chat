@@ -100,7 +100,8 @@ export const isRoom = (room: Room | null): boolean => {
   if (!room) return false;
   const event = getStateEvent(room, StateEvent.RoomCreate);
   if (!event) return true;
-  return event.getContent().type !== RoomType.Space && !isMindroomEmojiRoom(room);
+  const { type } = event.getContent();
+  return type !== RoomType.Space && type !== RoomType.MindroomEmoji;
 };
 
 export const isUnsupportedRoom = (room: Room | null): boolean => {

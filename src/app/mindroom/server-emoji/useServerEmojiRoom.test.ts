@@ -11,13 +11,17 @@ import { findServerEmojiRoom, useServerEmojiRoom } from './useServerEmojiRoom';
 const ROOM_ID = '!emoji:example.com';
 const ALIAS = '#emoji:example.com';
 
-/** What `getCanonicalAliasRoomId` and the membership check read from a room. */
-const fakeRoom = (membership: string): Room =>
+/** What the alias match and the membership check read from a room. */
+const fakeRoom = (membership: string, roomId = ROOM_ID, tombstoned = false): Room =>
   ({
-    roomId: ROOM_ID,
+    roomId,
     getCanonicalAlias: () => ALIAS,
     getMyMembership: () => membership,
-    getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => null }) }),
+    getLiveTimeline: () => ({
+      getState: () => ({
+        getStateEvents: (type: string) => (tombstoned && type === 'm.room.tombstone' ? {} : null),
+      }),
+    }),
   } as unknown as Room);
 
 const fakeClient = (rooms: Room[]): MatrixClient =>
@@ -41,6 +45,21 @@ describe('findServerEmojiRoom', () => {
     const client = fakeClient([fakeRoom(membership)]);
     expect(findServerEmojiRoom(client, ROOM_ID)).toBeUndefined();
     expect(findServerEmojiRoom(client, ALIAS)).toBeUndefined();
+  });
+
+  it('finds the joined room by alias past a left and an invited room that carry it', () => {
+    // An operator replaced the room, or an invite's stripped state claims the alias.
+    const left = fakeRoom('leave', '!old:example.com');
+    const invited = fakeRoom('invite', '!invited:example.com');
+    const joined = fakeRoom('join');
+    expect(findServerEmojiRoom(fakeClient([left, invited, joined]), ALIAS)).toBe(joined);
+  });
+
+  it('finds the current room by alias past a tombstoned room that carries it', () => {
+    const replaced = fakeRoom('join', '!old:example.com', true);
+    const current = fakeRoom('join');
+    expect(findServerEmojiRoom(fakeClient([replaced, current]), ALIAS)).toBe(current);
+    expect(findServerEmojiRoom(fakeClient([replaced]), ALIAS)).toBeUndefined();
   });
 
   it('returns nothing for a room the client does not know', () => {
