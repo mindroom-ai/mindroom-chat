@@ -35,12 +35,16 @@ export const useOpenConnectionsPortal = (discovered: boolean) => {
   );
 };
 
-/** Sign this tab in to a backend's Connections portal and open it there, without a pop-up window. */
+/**
+ * Sign this tab in to a backend's Connections portal and open it there, without a pop-up window.
+ * An abort before the token arrives submits nothing, so leaving the page never navigates away later.
+ */
 export const useConnectionsHandoff = (discovered: boolean) => {
   const getOpenIdToken = useConnectionsOpenIdToken(discovered);
   return useCallback(
-    async (backendUrl: string) => {
-      submitConnectionsHandoff(backendUrl, await getOpenIdToken(new URL(backendUrl).origin));
+    async (backendUrl: string, signal: AbortSignal) => {
+      const token = await getOpenIdToken(new URL(backendUrl).origin);
+      if (!signal.aborted) submitConnectionsHandoff(backendUrl, token);
     },
     [getOpenIdToken]
   );

@@ -7,7 +7,7 @@ import { ConnectionsPage } from './ConnectionsPage';
 const mocks = vi.hoisted(() => ({
   urls: [] as string[],
   native: false,
-  handOff: vi.fn(async () => undefined),
+  handOff: vi.fn(async (_url: string, _signal: AbortSignal) => undefined),
 }));
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => mocks.native } }));
@@ -24,9 +24,11 @@ vi.mock('../../components/page', () => ({
 }));
 
 const render = async () => {
+  let page: ReturnType<typeof create> | undefined;
   await act(async () => {
-    create(<ConnectionsPage />);
+    page = create(<ConnectionsPage />);
   });
+  return page!;
 };
 
 afterEach(() => {
@@ -40,7 +42,17 @@ describe('ConnectionsPage', () => {
     mocks.urls = ['https://backend.example.org'];
     await render();
     expect(mocks.handOff).toHaveBeenCalledOnce();
-    expect(mocks.handOff).toHaveBeenCalledWith('https://backend.example.org');
+    expect(mocks.handOff.mock.calls[0][0]).toBe('https://backend.example.org');
+    expect(mocks.handOff.mock.calls[0][1].aborted).toBe(false);
+  });
+
+  it('cancels the hand-off when the page goes away before the token arrives', async () => {
+    mocks.urls = ['https://backend.example.org'];
+    const page = await render();
+    await act(async () => {
+      page.unmount();
+    });
+    expect(mocks.handOff.mock.calls[0][1].aborted).toBe(true);
   });
 
   it.each([

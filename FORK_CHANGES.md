@@ -33,8 +33,9 @@
   With exactly one Computers backend (`useComputerApiUrls()`), it requests an OpenID token for that backend's origin and calls `submitConnectionsHandoff` (`connections/openConnections.ts`), which posts the token as a form field to `<backend>/api/connections/session/handoff` in this tab.
   The browser sets that post's `Origin`, which the backend checks against the Chat origins it allows, then sets the portal session cookie and redirects to `/connections/` (mindroom-ai/mindroom PR "Let MindRoom Chat's /connections page sign the portal in without the Settings button"). The token never appears in a URL.
   The page also shows the existing Connections card, which covers several backends, none, the native apps (no hand-off there), and a failed token request; no new strings.
+  Leaving the page before the token arrives aborts the hand-off, so a slow homeserver never pulls the user out of a room later (review finding).
 - Refactor: `useOpenConnectionsPortal.ts` keeps the token getter (account-switch guard, binding check for discovered backends) in `useConnectionsOpenIdToken`, shared by `useOpenConnectionsPortal` and the new `useConnectionsHandoff`.
-- Tests: `openConnections.test.ts` (the form's method, action, and hidden token field; the token is not in the action), `ConnectionsPage.test.tsx` (one backend hands off once; several, none, and native leave it to the card).
+- Tests: `openConnections.test.ts` (the form's method, action, and hidden token field; the token is not in the action), `ConnectionsPage.test.tsx` (one backend hands off once; several, none, and native leave it to the card; unmounting aborts the hand-off), `useOpenConnectionsPortal.test.tsx` (an aborted hand-off submits nothing when its token arrives).
 - Deployments: a Chat whose web server redirected `/connections` elsewhere must stop doing so for this page to load.
 
 ### Open an agent's connect and reset links signed in (2026-10-31)
