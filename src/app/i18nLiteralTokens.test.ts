@@ -41,7 +41,6 @@ const LITERAL_TOKENS: Readonly<Record<string, readonly string[]>> = {
     'GitHub',
   ],
   'sharedUi.register.ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere': ['SSO'],
-  'sharedUi.authFooter.poweredBy': ['Matrix', 'Cinny'],
   'sharedUi.ssoProviders.signUpApple': ['Apple'],
   'sharedUi.ssoProviders.signInApple': ['Apple'],
   'sharedUi.ssoProviders.continueGoogle': ['Google'],

@@ -1250,7 +1250,7 @@
       "support": "Support",
       "privacy": "Datenschutz",
       "terms": "Bedingungen",
-      "poweredBy": "Bereitgestellt von <app>{{appName}}</app>, <matrix>Matrix</matrix>, <cinny>Cinny</cinny>"
+      "poweredBy": "Bereitgestellt von <links />"
     },
     "router": {
       "join": "Beitreten",

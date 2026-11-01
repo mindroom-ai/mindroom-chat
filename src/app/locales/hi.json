@@ -2033,7 +2033,7 @@
       "retry": "पुन: प्रयास करें"
     },
     "authFooter": {
-      "poweredBy": "<app>{{appName}}</app>, <matrix>Matrix</matrix> और <cinny>Cinny</cinny> द्वारा संचालित",
+      "poweredBy": "<links /> द्वारा संचालित",
       "privacy": "गोपनीयता",
       "support": "सहायता",
       "terms": "शर्तें"

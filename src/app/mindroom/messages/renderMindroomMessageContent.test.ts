@@ -40,6 +40,7 @@ vi.mock('../../components/message', () => ({
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
 }));
 
+vi.mock('./MindroomReasoning.css', () => ({}));
 vi.mock('./MindroomHtmlBlocks', () => ({
   useMindroomToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
