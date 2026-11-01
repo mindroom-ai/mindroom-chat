@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Keep a reply's worker warm-up line in one style (2026-11-01)
+
+- Why: the owner saw a reply's "⏳ Preparing isolated worker for `shell.run_shell_command`… 35s elapsed." line switch every few seconds between small grey text with literal backticks and a full-size body paragraph with inline code.
+  The runtime sends the line two ways while a worker warms up.
+  Live frames carry it as `activity`, which `withMindroomReasoning` draws below the body in `T200` text.
+  Durable checkpoint edits, sent every update interval, append it to `body` and to `formatted_body` as one `<p>` per line, and record it in `io.mindroom.warmup_suffix`.
+  A checkpoint that covers the newest frame makes `useLiveReplyContent` show the durable content until the next frame, so the line changed look with every frame and checkpoint.
+- Change: `useLiveReplyContent` moves a durable reply's warm-up lines out of `body` and `formatted_body` into `io.mindroom.live_activity`, the key live frames fill, so both paths draw the same line.
+  It strips them only when the body ends in `\n\n<suffix>` and the HTML ends in one `<p>` per line with that line's text (compared without backticks, since tool names become `<code>`); any other content is left as it is.
+  It drops `m.new_content` from that copy, as live content does, because readers such as the thinking-placeholder check prefer it and it still holds the lines.
+  The activity line now draws backtick spans, the tool names, as inline code; a failure's error, from its line's first `: `, keeps its backticks as the runtime's HTML does (`CustomHtml.css` `Code`, re-exported as `ActivityCode` from `MindroomReasoning.css.ts` so the tests that mock that stylesheet keep working).
+- Not covered: a long-text reply whose hydrated sidecar holds the lines still shows them in its body, as before.
+- Tests: `useLiveReplyContent.test.tsx` (now jsdom, for `DOMParser`) moves one and two lines with no live entry and under a covering checkpoint, moves a failure line whose error the HTML escapes and which keeps backticks, keeps a lines-only reply recognizable as the thinking placeholder, and leaves content alone when the body does not end in the lines, the HTML lacks their paragraphs, the last paragraph is other text, there are fewer paragraphs than lines, there is no HTML, or a final edit kept an older edit's suffix key.
+  `MindroomReasoning.test.tsx` checks the tool names render as inline code and a failure's error keeps its backticks.
+- Review: an independent subagent found nothing blocking; its two low findings (an escaped failure line whose error has backticks stayed in the body; no test for an inherited suffix key) are fixed above. CodeRabbit's finding (error backticks drawn as code) is fixed too.
+- Validation: `npm run typecheck`, `npm run build`, eslint and prettier on touched files pass. Full `npm test` fails only the 4 tests that also fail on `dev` (`xcodeCloudPostClone` ×3, one caption send test). A throwaway fixture page rendered a live-frame reply and a checkpoint reply through `useLiveReplyContent` and `renderMindroomMessageContent`; before and after screenshots checked by eye.
+- Next: none.
+
 ### Show a running tool call's latest output (2026-10-31)
 
 - Why: a long tool call, such as a shell command running tests, showed only "Running 1 tool call" with a spinner until it finished. The MindRoom runtime now adds the latest output a running call reported to that call's entry in live reply frames, as an optional `progress` string capped at its last 1000 characters, and drops it when the call completes; durable edits never carry it.

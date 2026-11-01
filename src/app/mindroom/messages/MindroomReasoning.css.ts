@@ -1,6 +1,9 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
 
+// Tool names in the activity line look like inline code in the body.
+export { Code as ActivityCode } from '../../styles/CustomHtml.css';
+
 // Reasoning sits above most agent replies, so it stays a quiet line of text, not a panel.
 export const Reasoning = style({
   marginBottom: config.space.S100,
