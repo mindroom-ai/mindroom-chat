@@ -100,7 +100,7 @@ describe('CloudflareAccessLoginGate', () => {
   it('shows the login form once the organization sign-in returns a token', async () => {
     advertise();
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${token}`
+      `mindroom://cloudflare-access#origin=${BASE_URL}&token=${token}`
     );
     const text = await render();
 
@@ -118,7 +118,7 @@ describe('CloudflareAccessLoginGate', () => {
       'sig',
     ].join('.');
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${shortToken}`
+      `mindroom://cloudflare-access#origin=${BASE_URL}&token=${shortToken}`
     );
     const text = await render();
     await clickContinue();
@@ -151,7 +151,7 @@ describe('CloudflareAccessLoginGate', () => {
       'sig',
     ].join('.');
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${monthToken}`
+      `mindroom://cloudflare-access#origin=${BASE_URL}&token=${monthToken}`
     );
     const text = await render();
     await clickContinue();
@@ -172,7 +172,7 @@ describe('CloudflareAccessLoginGate', () => {
   it('checks the token again when the app returns to the foreground', async () => {
     advertise();
     vi.mocked(authenticateInNativeBrowser).mockResolvedValue(
-      `mindroom://cloudflare-access#token=${token}`
+      `mindroom://cloudflare-access#origin=${BASE_URL}&token=${token}`
     );
     const text = await render();
     await clickContinue();
