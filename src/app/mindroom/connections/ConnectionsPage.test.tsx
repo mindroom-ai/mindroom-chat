@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url": "https://chat.example.org/connections"}
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -59,6 +60,7 @@ describe('ConnectionsPage', () => {
     ['several servers', ['https://a.example.org', 'https://b.example.org'], false],
     ['no server', [], false],
     ['the native app', ['https://backend.example.org'], true],
+    ['an HTTP server behind HTTPS Chat', ['http://localhost:8765'], false],
   ])('leaves %s to the Settings card', async (_case, urls, native) => {
     mocks.urls = urls;
     mocks.native = native;

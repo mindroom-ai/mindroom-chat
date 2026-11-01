@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
-import { openConnectionsPortal, submitConnectionsHandoff } from './openConnections';
+import {
+  connectionsHandoffSupported,
+  openConnectionsPortal,
+  submitConnectionsHandoff,
+} from './openConnections';
 
 const BACKEND = 'https://backend.example.org';
 
@@ -381,5 +385,17 @@ describe('submitConnectionsHandoff', () => {
     expect(submit).toHaveBeenCalledOnce();
     form?.remove();
     submit.mockRestore();
+  });
+});
+
+describe('connectionsHandoffSupported', () => {
+  it.each([
+    ['https:', 'https://backend.example.org', true],
+    ['http:', 'http://localhost:8765', true],
+    ['http:', 'https://backend.example.org', true],
+    // The browser sends Origin: null on a post from HTTPS to HTTP, which the backend refuses.
+    ['https:', 'http://localhost:8765', false],
+  ])('from a %s page to %s: %s', (pageProtocol, backendUrl, supported) => {
+    expect(connectionsHandoffSupported(backendUrl, pageProtocol)).toBe(supported);
   });
 });

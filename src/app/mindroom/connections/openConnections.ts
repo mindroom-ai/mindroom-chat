@@ -82,6 +82,15 @@ export function openConnectionsPortal({
 }
 
 /**
+ * Whether this page can hand a token to `backendUrl` by form post: a post from an HTTPS page to an HTTP backend
+ * carries `Origin: null`, which the backend refuses, while the pop-up handshake still works there.
+ */
+export const connectionsHandoffSupported = (
+  backendUrl: string,
+  pageProtocol: string = window.location.protocol
+): boolean => !(pageProtocol === 'https:' && new URL(backendUrl).protocol === 'http:');
+
+/**
  * Signs the browser in to the backend's Connections portal and opens it in this tab, by posting `openidToken` as a
  * form: the browser sets the request's Origin, which the backend checks against the Chat origins it allows.
  * The token travels in the request body, never in a URL.

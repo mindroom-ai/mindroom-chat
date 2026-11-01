@@ -3,11 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { Page, PageContent } from '../../components/page';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { MindroomConnectionsSettings } from '../settings/MindroomConnectionsSettings';
+import { connectionsHandoffSupported } from './openConnections';
 import { useConnectionsHandoff } from './useOpenConnectionsPortal';
 
 /**
  * `/connections` in Chat: with one MindRoom server, sign in to its Connections portal and open it in this tab.
- * The Settings card stays on the page, for several servers, none, or a sign-in that failed.
+ * The Settings card stays on the page, for several servers, none, an HTTP server behind HTTPS Chat, or a failed sign-in.
  */
 export function ConnectionsPage() {
   const { urls, discovered } = useComputerApiUrls();
@@ -16,7 +17,9 @@ export function ConnectionsPage() {
 
   useEffect(() => {
     // The native shells keep the portal out of their web view.
-    if (!onlyBackend || Capacitor.isNativePlatform()) return undefined;
+    if (!onlyBackend || Capacitor.isNativePlatform() || !connectionsHandoffSupported(onlyBackend)) {
+      return undefined;
+    }
     const controller = new AbortController();
     // A failed token request leaves the card, whose button opens the portal in a window instead.
     handOff(onlyBackend, controller.signal).catch(() => undefined);
