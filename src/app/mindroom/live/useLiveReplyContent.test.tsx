@@ -223,6 +223,21 @@ describe('useLiveReplyContent', () => {
       expect(shown()).not.toHaveProperty('m.new_content');
     });
 
+    it('moves a failure line whose error the HTML escapes', () => {
+      const failure = '⚠️ Worker startup failed for `shell`: can\'t run `a < b & "c"`.';
+      const failureHtml =
+        '⚠️ Worker startup failed for <code>shell</code>: can&#x27;t run `a &lt; b &amp; &quot;c&quot;`.';
+      render(
+        durable('streaming', {
+          body: `Durable\n\n${failure}`,
+          formatted_body: `<p>Durable</p>\n<p>${failureHtml}</p>`,
+          'io.mindroom.warmup_suffix': failure,
+        })
+      );
+
+      expect(shown()).toMatchObject({ body: 'Durable', 'io.mindroom.live_activity': failure });
+    });
+
     it('shows them below the body while its checkpoint covers the live entry', () => {
       ingest(snapshot(4, 'Frame four'));
       render(warmingUp([LINE_ONE], { 'io.mindroom.live_checkpoint': { sid: SID, seq: 4 } }));
@@ -254,6 +269,15 @@ describe('useLiveReplyContent', () => {
         },
       ],
       ['no HTML', { formatted_body: undefined }],
+      // Resolved edits keep `io.mindroom.*` keys of older edits, so a final edit can carry one.
+      [
+        'a final edit that kept an older suffix',
+        {
+          body: 'Done',
+          formatted_body: '<p>Done</p>',
+          'io.mindroom.stream_status': 'completed',
+        },
+      ],
     ])('leaves %s as it is', (_name, override) => {
       const content = { ...warmingUp([LINE_ONE]), ...override };
       render(content);

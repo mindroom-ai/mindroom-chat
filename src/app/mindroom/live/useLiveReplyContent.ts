@@ -86,13 +86,13 @@ const withWarmupActivity = (content: IContent): IContent => {
   if (!body.endsWith(separated) || typeof html !== 'string' || !html.endsWith('</p>')) {
     return content;
   }
-  // One `<p>` per line, whose text is the line without its code backticks.
+  // One `<p>` per line, with the line's text; tool names lose their backticks to `<code>`.
   const start = suffix
     .split('\n')
     .reduce((end) => (end > 0 ? html.lastIndexOf('<p>', end - 1) : -1), html.length);
   if (start < 0) return content;
   const text = new DOMParser().parseFromString(html.slice(start), 'text/html').body.textContent;
-  if (text !== suffix.replace(/[`\n]/g, '')) return content;
+  if (text?.replace(/`/g, '') !== suffix.replace(/[`\n]/g, '')) return content;
   const shown: IContent = {
     ...content,
     body: body.slice(0, -separated.length),
