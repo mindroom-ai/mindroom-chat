@@ -37,7 +37,7 @@
   `e2e/server-emoji.spec.ts` (two accounts and the key served through a routed well-known; skipped without `E2E_SECOND_USERNAME` and `E2E_SECOND_PASSWORD`): one user adds `party parrot.png` from the reaction picker and the pack read over REST holds it; a second user who did nothing finds `party-parrot` by search in the picker and reacts, with the pack's `mxc://` URL as the reaction key; both are in the emoji room and neither sidebar lists it, with the shared room's link as the control.
 - Live check against a local Tuwunel stack (`v1.9.4-mindroom.15`), Chromium in the Playwright image: the e2e passes, and fails at the form's server sentence when the well-known leaves the key out.
   Screenshots of the reaction picker with the server pack, the form's server sentence and the settings section, taken from the same stack, were checked by eye.
-- Next: companion work is planned in the mindroom repo: a script that creates the room, the `mindroom-client` chart value `serverEmoji.room` that adds the key to the well-known, and a docs page.
+- Companion mindroom PR (mindroom-ai/mindroom#3536): `scripts/utilities/create_server_emoji_room.py` creates the room, the `mindroom-client` chart value `serverEmoji.room` adds the key to the well-known, and `docs/custom-emoji.md` documents both.
   No deployment publishes the key until its operator creates the room and adds it.
 
 ### Add a custom emoji from the emoji board (2026-10-14)
