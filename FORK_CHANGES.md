@@ -40,7 +40,7 @@
 - Adding: `AddCustomEmoji` writes to the server pack when the room is joined and the user's power level allows `im.ponies.room_emotes` (`canAddServerEmoji`), otherwise to the personal pack as before; its description says which, "Everyone on {{server}} can use it in every room." or the Personal Pack sentence.
   `AddCustomEmoji` uploads the image, then `addToServerPack` reads the target pack from the server right before writing (a 404 means empty), so an edit synced since is kept, and sends it with `sendStateEvent`.
   The target is the first live pack by state key (`""` first) whose content stays within 60,000 UTF-8 bytes (`MAX_PACK_CONTENT_BYTES`; an event holds 65,535 bytes with its envelope) with the new emoji; when none fits, a new pack opens at the smallest unused whole number from `2` (`nextPackStateKey`) and copies the first pack's `pack` metadata.
-  Deleted packs are skipped when picking the target (with no live pack the write goes to `""`, and a new overflow pack can take the state key of a deleted one); a shortcode any live server pack has is refused (entry above).
+  Deleted packs are skipped when picking the target (with no live pack the write goes to `""`, and a new overflow pack can take the state key of a deleted one), and a taken shortcode gets a number inside the target pack, as before.
   A failed upload or write leaves the form open with its error; if the server still refuses the size, the previous pack event stays current.
 - Hardening: anyone allowed to edit a shared pack can publish any JSON, so `PackImageReader.fromPackImage` skips image entries that are not objects instead of throwing in every picker.
   `useRoomsImagePacks` re-reads packs when its room IDs change (not only on a pack event), so the server room's packs show in a picker that was open when the room was joined; a new array of the same rooms keeps the same packs.
@@ -50,7 +50,7 @@
 - Not done: other clients do not join the room or add to the pack by themselves.
   Two adds to one pack at the same moment can drop one (the last write wins), and whoever may add may also rename or remove any server emoji; an operator who needs control sets the level to `50`.
   A user who leaves the room in another client is joined again, once per session.
-  No "added by" attribution and no import of existing personal emoji; custom emoji in Recent and the quick reactions came later (entry above).
+  No "added by" attribution, no custom emoji in Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji), and no import of existing personal emoji.
   A homeserver whose well-known cannot carry extra keys cannot publish the room.
 - New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmojiServerDescription`, and `featureUi.settings.emojisStickers.serverPack.title`, `description` and `permissions` (each catalog's own Permissions word, since the button opens that page).
 - Tests: `serverEmojiConfig.test.ts` (alias, room ID, malformed keys), `useServerEmojiRoom.test.ts` (ID or canonical alias, the joined room found past left, invited and tombstoned rooms with the same alias, follows the joined list), `ServerEmojiJoinFeature.test.tsx` (one join after the first sync; none for a joined room, a room the first sync brings in, or without the key; a key that arrives after mount joins a missing room once and never a joined one; a refused join logged and not retried), `room.test.ts` and `useHomeRooms.test.ts` (hidden from room lists and the search scope), `useImagePackRooms.test.tsx` (appended once, follows joins and leaves), `utils.test.ts` and `addToServerPack.test.ts` (the pack as the server has it, shortcode clashes, the exact 60,000-byte budget, overflow to the next free key, a deleted pack skipped, other errors rethrown, `canAddServerEmoji` at levels `0` and `50`), `AddCustomEmoji.test.tsx` (server pack when allowed, personal pack otherwise, the target the description names), `ServerPack.test.tsx` (the section, the first-pack fallback, Permissions only with the power level).
@@ -60,20 +60,18 @@
 - Companion mindroom PR (mindroom-ai/mindroom#3536): `scripts/utilities/create_server_emoji_room.py` creates the room, the `mindroom-client` chart value `serverEmoji.room` adds the key to the well-known, and `docs/custom-emoji.md` documents both.
   No deployment publishes the key until its operator creates the room and adds it.
 
-### Add a custom emoji from the emoji board (2026-10-14)
+### Accept a Cloudflare Access token only from the server the sign-in started for (2026-10-30)
 
-- Why: the owner asked for custom emoji reactions.
-  Reacting with a custom emoji already worked (the board lists image packs and sends the `mxc://` URL as the reaction key with its shortcode), but adding one took Settings → Emojis & Stickers → Default Pack → View → Select → Apply, and Simple Mode hides that page.
-- Change: the emoji board's Emoji tab has an "Add custom emoji" `+` button beside the search when its caller takes custom emoji (`onCustomEmojiSelect`: the reaction picker, the composer, the message editor, power-tag icons).
-  It opens a file picker; `AddCustomEmoji` (`components/emoji-board/components/`) then shows the image and a shortcode taken from the file name (whitespace and colons become dashes); like the search, it takes focus only off phones and tablets.
-  Add uploads the image, writes it to the personal pack (`im.ponies.user_emotes`), and selects it, so the reaction picker reacts with it right away and the composer inserts it.
-  The pack is read again just before the write, so pack edits synced during the upload are kept; a taken shortcode is refused with "That name is taken. Pick another." (it got a number, `party-parrot1`, until "Add and use custom emoji like Slack"), and in a sticker-only pack the image is marked as an emoji.
-  A failed upload or save leaves the form open with an error; closing the board mid-upload still saves the emoji but sends no reaction.
-- Shown in Simple Mode too; managing or deleting emoji still needs the Emojis & Stickers settings.
-  Not done: adding to room or space packs; custom emoji in Recent and the quick reactions came with "Add and use custom emoji like Slack".
-- New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmoji`, `addCustomEmojiDescription`, `addCustomEmojiFailed`, `add`; the form reuses `sharedUi.imageTile.shortcode` and `cancel`.
-- Tests: `addEmoticonToPackContent` (`plugins/custom-emoji/utils.test.ts`) covers a missing pack, a taken shortcode, a `__proto__` shortcode and a sticker-only pack; `AddCustomEmoji.test.tsx` covers the upload, the pack write and selection, and a failed upload.
-- Live check against a local Tuwunel stack: the picker's `+`, the form, and the reaction chip showing the uploaded image; the account data held both `party-parrot` and `party-parrot1` after two runs, before taken names were refused.
+- Why: the advert's handoff page may redirect anywhere, including to another homeserver's handoff page, and the callback did not say which server issued the token.
+  A server whose handoff page forwarded to another organization's handoff page received that organization's Access token: the app stored it under the first server's origin and sent it there as `cf-access-token`.
+- Change: the handoff page now names its own origin in the callback, `mindroom://cloudflare-access#origin=https://<homeserver>&token=<CF_Authorization cookie>`.
+  `parseCloudflareAccessCallback` takes the origin the sign-in started for and refuses a callback whose `origin` is missing or names another one, so the sign-in fails and stores no token.
+  The origin must be fixed in the server's config, never taken from the request.
+  MindRoom's `docs/ios.md` snippet carries it.
+- Rollout: a server must add `origin` before users get a release with this change, or their Access sign-in fails with "Cloudflare Access sign-in returned no valid token."
+  Earlier releases ignore the extra parameter.
+- Tests: `cloudflareAccess.test.ts` (a callback without an origin or with another one is refused; a sign-in whose handoff page leads to another server's stores nothing), and the callbacks in `CloudflareAccessGate.test.tsx` carry the origin.
+- Next: none.
 
 ### Keep a reply's worker warm-up line in one style (2026-11-01)
 
@@ -292,7 +290,7 @@
 - Why: a homeserver behind Cloudflare Access answers the iOS app with a redirect to the Access login, because the app's web view (`capacitor://localhost`) never holds the Access cookie. Login, `/sync` and every other Matrix call fail. Access accepts its app token in a `cf-access-token` header instead of the cookie.
 - Server contract (opt-in, nothing changes for other servers):
   - `GET /.well-known/mindroom/cloudflare-access`, public, `Access-Control-Allow-Origin: *`: `{"handoff_url": "https://<homeserver>/<path>"}`. The handoff URL must be HTTPS on the homeserver's origin. `"push": false` turns push off for the server.
-  - The handoff page sits behind Access and redirects to `mindroom://cloudflare-access#token=<CF_Authorization cookie>`.
+  - The handoff page sits behind Access and redirects to `mindroom://cloudflare-access#origin=<its own origin>&token=<CF_Authorization cookie>`, with the origin fixed in the server's config (see the 2026-10-30 entry).
   - Access lets CORS preflights through to the origin, and the homeserver allows the `cf-access-token` request header (mindroom-tuwunel). The origin must not answer `OPTIONS` with private content. `<img>` cannot send headers, so the Matrix-authenticated media paths `/_matrix/client/v1/media` and `/_matrix/media/v3/upload` (SDK uploads use XHR) bypass Access, as does `/_matrix/client/versions`, which the app checks with a plain request before the Access gate.
 - Change:
   - `src/app/mindroom/native/cloudflareAccess.ts`: per-origin record `{handoffUrl, push, token}` in localStorage. Discovery stores it, and clears it on a 404 or a complete answer without a valid advert; a failed request, a server error or a broken-off body keeps it. On a device, a cross-origin 404 without CORS headers is such a failed request, so a record outlives an advert's removal. Sign-in opens the handoff page with `MindRoomAuth.authenticate` and accepts only a `mindroom://cloudflare-access` callback carrying a JWT whose `exp` has not passed. The session is ephemeral (`authenticate({ephemeral: true})`, `prefersEphemeralWebBrowserSession`): with Safari's shared cookies, its cross-site tracking protection made the team-domain login end on Cloudflare's "Invalid session" page (reproduced on a device; it worked with the protection off, in a Private tab and after deleting Safari's website data, until it recurred). iOS with the plugin only.
@@ -1150,6 +1148,21 @@
   Qodo (PR #467), declined: gating previews by sender (the sender writes both strings; previews have no sender), and reading the title through `replacingEvent()` as the button does (the timeline's `getEditedEvent` already rejects other senders' edits, and `replacingEvent()` misses an edit that lands on another copy of the event).
 - Validation: `npm run typecheck`, eslint and Prettier on changed files, the affected unit suites, and `e2e/agent-canvas.spec.ts` and `agent-canvas-list.spec.ts` in Chromium against a disposable Tuwunel.
   A probe (not committed) captured the timeline, the reply quote, and the reply bar before and after.
+
+### Add a custom emoji from the emoji board (2026-10-14)
+
+- Why: the owner asked for custom emoji reactions.
+  Reacting with a custom emoji already worked (the board lists image packs and sends the `mxc://` URL as the reaction key with its shortcode), but adding one took Settings → Emojis & Stickers → Default Pack → View → Select → Apply, and Simple Mode hides that page.
+- Change: the emoji board's Emoji tab has an "Add custom emoji" `+` button beside the search when its caller takes custom emoji (`onCustomEmojiSelect`: the reaction picker, the composer, the message editor, power-tag icons).
+  It opens a file picker; `AddCustomEmoji` (`components/emoji-board/components/`) then shows the image and a shortcode taken from the file name (whitespace and colons become dashes); like the search, it takes focus only off phones and tablets.
+  Add uploads the image, writes it to the personal pack (`im.ponies.user_emotes`), and selects it, so the reaction picker reacts with it right away and the composer inserts it.
+  The pack is read again just before the write, so pack edits synced during the upload are kept; a taken shortcode gets a number (`party-parrot1`), and in a sticker-only pack the image is marked as an emoji.
+  A failed upload or save leaves the form open with an error; closing the board mid-upload still saves the emoji but sends no reaction.
+- Shown in Simple Mode too; managing or deleting emoji still needs the Emojis & Stickers settings.
+  Not done: adding to room or space packs, and listing custom emoji among Recent or the quick reactions (`io.element.recent_emoji` holds only Unicode emoji).
+- New keys in all 17 catalogs: `sharedUi.emojiBoard.addCustomEmoji`, `addCustomEmojiDescription`, `addCustomEmojiFailed`, `add`; the form reuses `sharedUi.imageTile.shortcode` and `cancel`.
+- Tests: `addEmoticonToPackContent` (`plugins/custom-emoji/utils.test.ts`) covers a missing pack, a taken shortcode, a `__proto__` shortcode and a sticker-only pack; `AddCustomEmoji.test.tsx` covers the upload, the pack write and selection, and a failed upload.
+- Live check against a local Tuwunel stack: the picker's `+`, the form, and the reaction chip showing the uploaded image; the account data held both `party-parrot` and `party-parrot1` after two runs.
 
 ### Accept all Primary invites at once (2026-10-14)
 
