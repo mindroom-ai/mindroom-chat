@@ -56,7 +56,7 @@ const clientHolding = (serverPacks: Record<string, PackContent>) => {
   return { mx, client: mx as unknown as MatrixClient };
 };
 
-/** A pack past the 60,000-byte budget: 500 images with long URLs. */
+/** A pack past the 30,000-byte budget: 500 images with long URLs. */
 const fullPack = (pack: PackContent['pack']): PackContent => ({
   pack,
   images: Object.fromEntries(
@@ -204,10 +204,10 @@ describe('addToServerPack', () => {
     );
   });
 
-  it('fills a pack up to the 60,000-byte budget and no further', async () => {
+  it('fills a pack up to the 30,000-byte budget and no further', async () => {
     const bytesWithEmoji = (name: string) =>
       JSON.stringify({ pack: { display_name: name }, images: { 'party-parrot': image } }).length;
-    const padding = 60_000 - bytesWithEmoji('');
+    const padding = 30_000 - bytesWithEmoji('');
     const writeKeyFor = async (nameLength: number) => {
       const pack = { pack: { display_name: 'x'.repeat(nameLength) }, images: {} };
       const { mx, client } = clientHolding({ '': pack });

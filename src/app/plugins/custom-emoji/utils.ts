@@ -118,8 +118,9 @@ export function addEmoticonToPackContent(
   return { ...content, images: { ...images, [shortcode]: emoticon } };
 }
 
-// Matrix caps an event at 64 KiB with its envelope, so a pack's content stops well below that.
-export const MAX_PACK_CONTENT_BYTES = 60_000;
+// Matrix caps an event at 64 KiB with its envelope, and Tuwunel counts the content an update replaces
+// (`unsigned.prev_content`) toward that limit, so a pack and its previous version must fit in it together.
+export const MAX_PACK_CONTENT_BYTES = 30_000;
 
 export const packContentBytes = (content: PackContent): number =>
   new TextEncoder().encode(JSON.stringify(content)).length;
