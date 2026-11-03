@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Copy Bas-authored files from a MindRoom Chat checkout into this repository (Lane P).
 
-Usage: scripts/port_files.py <chat checkout> <commit> [--verify]
+Usage: scripts/port_files.py <chat checkout> <commit> [--wave N] [--verify]
+
+Wave 1 uses docs/provenance/portable.tsv and holes.tsv; wave N > 1 uses portable-waveN.tsv and
+holes-waveN.tsv. docs/provenance/import.txt has one line per wave: "<import commit> <source>".
 
 Reads docs/provenance/portable.tsv (path, Bas lines, other lines). For each path it runs
 `git blame -w -M -C -C --line-porcelain <commit> -- <path>` in the checkout, copies the file as of
@@ -52,20 +55,23 @@ def ported(chat: Path, commit: str, path: str) -> tuple[str, list[int]]:
 def main() -> None:
     chat, commit = Path(sys.argv[1]), sys.argv[2]
     verify = "--verify" in sys.argv[3:]
-    paths = [line.split("\t")[0] for line in (PROV / "portable.tsv").read_text().splitlines() if line]
+    wave = int(sys.argv[sys.argv.index("--wave") + 1]) if "--wave" in sys.argv else 1
+    suffix = "" if wave == 1 else f"-wave{wave}"
+    list_file, holes_file = PROV / f"portable{suffix}.tsv", PROV / f"holes{suffix}.tsv"
+    paths = [line.split("\t")[0] for line in list_file.read_text().splitlines() if line]
     with ThreadPoolExecutor(max_workers=16) as pool:
         results = list(pool.map(lambda p: (p, *ported(chat, commit, p)), paths))
     hole_rows = [f"{p}\t{n}" for p, _, holes in results for n in holes]
     if verify:
-        import_commit = (PROV / "import.txt").read_text().split()[0]
+        import_commit = (PROV / "import.txt").read_text().splitlines()[wave - 1].split()[0]
         bad = []
         for path, text, _ in results:
             committed = subprocess.run(["git", "-C", str(REPO), "show", f"{import_commit}:{path}"], capture_output=True).stdout.decode()
             if committed != text:
                 bad.append(path)
-        committed_holes = subprocess.run(["git", "-C", str(REPO), "show", f"{import_commit}:docs/provenance/holes.tsv"], capture_output=True).stdout.decode()
+        committed_holes = subprocess.run(["git", "-C", str(REPO), "show", f"{import_commit}:docs/provenance/{holes_file.name}"], capture_output=True).stdout.decode()
         if committed_holes.strip() != "\n".join(hole_rows).strip():
-            bad.append("docs/provenance/holes.tsv")
+            bad.append(f"docs/provenance/{holes_file.name}")
         if bad:
             raise SystemExit("verify failed:\n" + "\n".join(bad))
         print(f"verified {len(results)} files and {len(hole_rows)} holes against {commit}")
@@ -74,7 +80,7 @@ def main() -> None:
         dest = REPO / path
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text)
-    (PROV / "holes.tsv").write_text("\n".join(hole_rows) + "\n")
+    holes_file.write_text("\n".join(hole_rows) + "\n")
     print(f"ported {len(results)} files, {len(hole_rows)} holes, from {commit}")
 
 

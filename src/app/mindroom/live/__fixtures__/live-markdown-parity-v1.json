@@ -1,175 +1,76 @@
 {
   "version": 1,
+  "renderer": "mindroom.matrix.message_builder.markdown_to_html",
   "cases": [
     {
-      "name": "a paragraph",
-      "md": "Hello, world",
-      "html": "<p>Hello, world</p>\n"
+      "name": "paragraph with soft breaks",
+      "md": "First line\nsecond line\n\nNew paragraph",
+      "html": "<p>First line<br>\nsecond line</p>\n<p>New paragraph</p>\n"
     },
     {
-      "name": "soft line breaks become br",
-      "md": "First line\nsecond line",
-      "html": "<p>First line<br>\nsecond line</p>\n"
+      "name": "emphasis, code, link, strike",
+      "md": "**bold** *it* `code` [site](https://example.org) ~~gone~~",
+      "html": "<p><strong>bold</strong> <em>it</em> <code>code</code> <a href=\"https://example.org\">site</a> <s>gone</s></p>\n"
     },
     {
-      "name": "two paragraphs",
-      "md": "One.\n\nTwo.",
-      "html": "<p>One.</p>\n<p>Two.</p>\n"
+      "name": "heading and list",
+      "md": "## Plan\n\n- one\n- two\n  - nested\n\n1. first\n2. second",
+      "html": "<h2>Plan</h2>\n<ul>\n<li>one</li>\n<li>two\n<ul>\n<li>nested</li>\n</ul>\n</li>\n</ul>\n<ol>\n<li>first</li>\n<li>second</li>\n</ol>\n"
     },
     {
-      "name": "emphasis and strong",
-      "md": "Some *emphasis* and **strong** text",
-      "html": "<p>Some <em>emphasis</em> and <strong>strong</strong> text</p>\n"
-    },
-    {
-      "name": "strikethrough",
-      "md": "This is ~~gone~~ now",
-      "html": "<p>This is <s>gone</s> now</p>\n"
-    },
-    {
-      "name": "inline code",
-      "md": "Run `npm test` first",
-      "html": "<p>Run <code>npm test</code> first</p>\n"
-    },
-    {
-      "name": "a fenced code block",
-      "md": "```\nconst a = 1;\n```",
-      "html": "<pre><code>const a = 1;\n</code></pre>\n"
-    },
-    {
-      "name": "an unclosed fence while streaming",
-      "md": "```\nline one\nline two",
-      "html": "<pre><code>line one\nline two</code></pre>\n"
-    },
-    {
-      "name": "headings",
-      "md": "# Title\n\n## Section",
-      "html": "<h1>Title</h1>\n<h2>Section</h2>\n"
-    },
-    {
-      "name": "a bullet list",
-      "md": "- one\n- two\n- three",
-      "html": "<ul>\n<li>one</li>\n<li>two</li>\n<li>three</li>\n</ul>\n"
-    },
-    {
-      "name": "an ordered list",
-      "md": "1. first\n2. second",
-      "html": "<ol>\n<li>first</li>\n<li>second</li>\n</ol>\n"
-    },
-    {
-      "name": "a nested list",
-      "md": "- outer\n  - inner",
-      "html": "<ul>\n<li>outer\n<ul>\n<li>inner</li>\n</ul>\n</li>\n</ul>\n"
-    },
-    {
-      "name": "a block quote",
-      "md": "> quoted\n> text",
-      "html": "<blockquote>\n<p>quoted<br>\ntext</p>\n</blockquote>\n"
-    },
-    {
-      "name": "a link",
-      "md": "See [the docs](https://example.org/docs).",
-      "html": "<p>See <a href=\"https://example.org/docs\">the docs</a>.</p>\n"
-    },
-    {
-      "name": "an autolink",
-      "md": "Visit <https://example.org>",
-      "html": "<p>Visit <a href=\"https://example.org\">https://example.org</a></p>\n"
-    },
-    {
-      "name": "a thematic break",
-      "md": "Above\n\n---\n\nBelow",
-      "html": "<p>Above</p>\n<hr>\n<p>Below</p>\n"
-    },
-    {
-      "name": "a table",
-      "md": "| a | b |\n| --- | --- |\n| 1 | 2 |",
-      "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n"
-    },
-    {
-      "name": "a table without a blank line before it",
-      "md": "Results:\n| a | b |\n| --- | --- |\n| 1 | 2 |",
+      "name": "table without blank line before",
+      "md": "Results:\n| a | b |\n|---|---|\n| 1 | 2 |",
       "html": "<p>Results:</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n"
     },
     {
-      "name": "a table still missing its delimiter row",
-      "md": "| a | b |",
-      "html": "<p>| a | b |</p>\n"
+      "name": "blockquote",
+      "md": "> quoted\n> more",
+      "html": "<blockquote>\n<p>quoted<br>\nmore</p>\n</blockquote>\n"
     },
     {
-      "name": "escaped markdown",
-      "md": "\\*not emphasis\\*",
-      "html": "<p>*not emphasis*</p>\n"
+      "name": "fenced code without language",
+      "md": "```\nprint(1)\n```",
+      "html": "<pre><code>print(1)\n</code></pre>\n"
     },
     {
-      "name": "ampersands and angle brackets in text",
-      "md": "Tom & Jerry say 1 < 2",
-      "html": "<p>Tom &amp; Jerry say 1 &lt; 2</p>\n"
+      "name": "unfinished fence while streaming",
+      "md": "Here:\n\n```\nprint(1",
+      "html": "<p>Here:</p>\n<pre><code>print(1</code></pre>\n"
     },
     {
-      "name": "an allowed inline tag",
-      "md": "Press <b>bold</b> here",
-      "html": "<p>Press <b>bold</b> here</p>\n"
+      "name": "inline and block math preserved",
+      "md": "Euler $e^{i\\pi}+1=0$ and\n\n$$\nx^2\n$$",
+      "html": "<p>Euler $e^{i\\pi}+1=0$ and</p>\n<div>$$\nx^2\n$$</div>\n"
     },
     {
-      "name": "a disallowed tag opening a line",
-      "md": "<script>alert(1)</script>",
-      "html": "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n"
+      "name": "tool marker lines",
+      "md": "Intro\n\n🔧 `web_search` [1] ⏳\n\n🔧 `read_file` [2]\n\nDone",
+      "html": "<p>Intro</p>\n<p>🔧 <code>web_search</code> [1] ⏳</p>\n<p>🔧 <code>read_file</code> [2]</p>\n<p>Done</p>\n"
     },
     {
-      "name": "a comment opening a line",
-      "md": "<!-- hidden -->",
-      "html": "<p>&lt;!-- hidden --&gt;</p>\n"
+      "name": "mention link",
+      "md": "Ask [@Helper](https://matrix.to/#/@mindroom_helper:example.org) please",
+      "html": "<p>Ask <a href=\"https://matrix.to/#/@mindroom_helper:example.org\">@Helper</a> please</p>\n"
     },
     {
-      "name": "block HTML followed by markdown",
-      "md": "<details>\n<summary>More</summary>\n\nInside *text*\n</details>",
-      "html": "<details>\n<summary>More</summary>\n<p>Inside <em>text</em></p>\n</details>"
+      "name": "allowed and disallowed raw html",
+      "md": "<details><summary>More</summary>\n\nhidden\n\n</details>\n\n<script>alert(1)</script>",
+      "html": "<details><summary>More</summary>\n<p>hidden</p>\n</details>\n<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n"
     },
     {
-      "name": "inline math",
-      "md": "Euler: $e^{i\\pi} + 1 = 0$",
-      "html": "<p>Euler: $e^{i\\pi} + 1 = 0$</p>\n"
+      "name": "html comment opener escaped",
+      "md": "<!-- note -->\ntext",
+      "html": "<p>&lt;!-- note --&gt;<br>\ntext</p>\n"
     },
     {
-      "name": "block math",
-      "md": "$$\nx^2 + y^2 = z^2\n$$",
-      "html": "<div>$$\nx^2 + y^2 = z^2\n$$</div>\n"
+      "name": "unfinished bold while streaming",
+      "md": "This is **almost bold",
+      "html": "<p>This is **almost bold</p>\n"
     },
     {
-      "name": "block math on one line",
-      "md": "$$a + b$$",
-      "html": "<div>$$\na + b\n$$</div>\n"
-    },
-    {
-      "name": "an unclosed math block while streaming",
-      "md": "$$\nx = 1",
-      "html": "<p>$$<br>\nx = 1</p>\n"
-    },
-    {
-      "name": "dollars as currency",
-      "md": "It costs $5 and $10",
-      "html": "<p>It costs $5 and $10</p>\n"
-    },
-    {
-      "name": "Windows line endings",
-      "md": "one\r\ntwo",
-      "html": "<p>one<br>\ntwo</p>\n"
-    },
-    {
-      "name": "trailing spaces",
-      "md": "ends with spaces   ",
-      "html": "<p>ends with spaces</p>\n"
-    },
-    {
-      "name": "a hard break with a backslash",
-      "md": "line\\\nnext",
-      "html": "<p>line<br>\nnext</p>\n"
-    },
-    {
-      "name": "an image",
-      "md": "![alt text](https://example.org/a.png)",
-      "html": "<p><img src=\"https://example.org/a.png\" alt=\"alt text\"></p>\n"
+      "name": "horizontal rule and setext",
+      "md": "Title\n===\n\n---\n\nafter",
+      "html": "<h1>Title</h1>\n<hr>\n<p>after</p>\n"
     }
   ]
 }

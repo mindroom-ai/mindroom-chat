@@ -2,70 +2,48 @@
   "version": 1,
   "cases": [
     {
-      "name": "a snapshot replaces whatever came before",
+      "name": "snapshot of the first text",
+      "before": null,
+      "after": {
+        "md": "Hello",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 0,
         "snapshot": {
           "md": "Hello",
-          "reasoning": "The user greets me.",
+          "reasoning": "",
           "tools": [],
           "status": "streaming",
           "activity": ""
         }
-      },
-      "before": {
-        "md": "",
-        "reasoning": "",
-        "tools": [],
-        "status": "pending",
-        "activity": ""
-      },
-      "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
       }
     },
     {
-      "name": "a snapshot of a pending reply with no text yet",
-      "frame": {
-        "v": 1,
-        "reply": "$reply",
-        "sid": "1761858000123-0a1b2c3d",
-        "seq": 0,
-        "snapshot": {
-          "md": "",
-          "reasoning": "",
-          "tools": [],
-          "status": "pending",
-          "activity": "Thinking"
-        }
-      },
+      "name": "plain append",
       "before": {
         "md": "Hello",
-        "reasoning": "The user greets me.",
+        "reasoning": "",
         "tools": [],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "",
+        "md": "Hello, world",
         "reasoning": "",
         "tools": [],
-        "status": "pending",
-        "activity": "Thinking"
-      }
-    },
-    {
-      "name": "appending text",
+        "status": "streaming",
+        "activity": ""
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 1,
         "delta": {
@@ -76,196 +54,232 @@
             "len": 12
           }
         }
-      },
+      }
+    },
+    {
+      "name": "append after an astral character",
       "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "Tool 🔧 ok",
+        "reasoning": "",
         "tools": [],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello, world",
-        "reasoning": "The user greets me.",
+        "md": "Tool 🔧 ok, done 😀!",
+        "reasoning": "",
         "tools": [],
         "status": "streaming",
         "activity": ""
-      }
-    },
-    {
-      "name": "replacing text in the middle",
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 2,
         "delta": {
           "md": {
-            "at": 7,
-            "del": 5,
-            "ins": "there",
-            "len": 12
+            "at": 10,
+            "del": 0,
+            "ins": ", done 😀!",
+            "len": 20
           }
         }
-      },
+      }
+    },
+    {
+      "name": "tool marker completes: the hourglass is removed in place",
       "before": {
-        "md": "Hello, world",
-        "reasoning": "The user greets me.",
-        "tools": [],
+        "md": "Intro\n\n🔧 `web_search` [1] ⏳\n\n",
+        "reasoning": "",
+        "tools": [
+          {
+            "type": "tool_call_started",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false
+          }
+        ],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello, there",
-        "reasoning": "The user greets me.",
-        "tools": [],
+        "md": "Intro\n\n🔧 `web_search` [1]\n\n",
+        "reasoning": "",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": "3 results",
+            "truncated": false
+          }
+        ],
         "status": "streaming",
         "activity": ""
-      }
-    },
-    {
-      "name": "deleting the end of the text",
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 3,
         "delta": {
           "md": {
-            "at": 5,
-            "del": 7,
+            "at": 26,
+            "del": 2,
             "ins": "",
-            "len": 5
-          }
-        }
-      },
-      "before": {
-        "md": "Hello, world",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      },
-      "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      }
-    },
-    {
-      "name": "lengths count UTF-16 units, so an emoji is two",
-      "frame": {
-        "v": 1,
-        "reply": "$reply",
-        "sid": "1761858000123-0a1b2c3d",
-        "seq": 4,
-        "delta": {
-          "md": {
-            "at": 3,
-            "del": 0,
-            "ins": "👋 there",
-            "len": 11
-          }
-        }
-      },
-      "before": {
-        "md": "Hi ",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      },
-      "after": {
-        "md": "Hi 👋 there",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      }
-    },
-    {
-      "name": "appending reasoning",
-      "frame": {
-        "v": 1,
-        "reply": "$reply",
-        "sid": "1761858000123-0a1b2c3d",
-        "seq": 5,
-        "delta": {
-          "reasoning": {
-            "at": 19,
-            "del": 0,
-            "ins": " Answer briefly.",
-            "len": 35
-          }
-        }
-      },
-      "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      },
-      "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me. Answer briefly.",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      }
-    },
-    {
-      "name": "a tool call starts",
-      "frame": {
-        "v": 1,
-        "reply": "$reply",
-        "sid": "1761858000123-0a1b2c3d",
-        "seq": 6,
-        "delta": {
+            "len": 28
+          },
           "tools": {
             "len": 1,
             "set": [
               [
                 0,
                 {
-                  "type": "tool_call_started",
+                  "type": "tool_call_completed",
                   "tool_name": "web_search",
-                  "args_preview": "query=llama prices"
+                  "args_preview": "query=matrix",
+                  "result_preview": "3 results",
+                  "truncated": false
                 }
               ]
             ]
-          },
-          "activity": "Searching the web"
+          }
         }
-      },
+      }
+    },
+    {
+      "name": "reasoning appends while activity appears",
       "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "",
+        "reasoning": "Let me think",
         "tools": [],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "",
+        "reasoning": "Let me think about the cache.",
+        "tools": [],
+        "status": "streaming",
+        "activity": "Preparing isolated worker... 3s elapsed."
+      },
+      "frame": {
+        "v": 1,
+        "reply": "$reply:example.org",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 4,
+        "delta": {
+          "reasoning": {
+            "at": 12,
+            "del": 0,
+            "ins": " about the cache.",
+            "len": 29
+          },
+          "activity": "Preparing isolated worker... 3s elapsed."
+        }
+      }
+    },
+    {
+      "name": "activity clears and status stays",
+      "before": {
+        "md": "Done",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": "Preparing isolated worker... 3s elapsed."
+      },
+      "after": {
+        "md": "Done",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "frame": {
+        "v": 1,
+        "reply": "$reply:example.org",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 5,
+        "delta": {
+          "activity": ""
+        }
+      }
+    },
+    {
+      "name": "middle replacement of a re-rendered region",
+      "before": {
+        "md": "## Team\n\nalpha: thinking\n\nbeta: thinking\n",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "## Team\n\nalpha: the answer is 42\n\nbeta: thinking\n",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "frame": {
+        "v": 1,
+        "reply": "$reply:example.org",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 6,
+        "delta": {
+          "md": {
+            "at": 18,
+            "del": 6,
+            "ins": "e answer is 42",
+            "len": 49
+          }
+        }
+      }
+    },
+    {
+      "name": "tool list shrinks after a re-render",
+      "before": {
+        "md": "x",
+        "reasoning": "",
         "tools": [
           {
             "type": "tool_call_started",
             "tool_name": "web_search",
-            "args_preview": "query=llama prices"
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false
+          },
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": "3 results",
+            "truncated": false
           }
         ],
         "status": "streaming",
-        "activity": "Searching the web"
-      }
-    },
-    {
-      "name": "a tool call completes in place",
+        "activity": ""
+      },
+      "after": {
+        "md": "x",
+        "reasoning": "",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": "3 results",
+            "truncated": false
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 7,
         "delta": {
@@ -277,191 +291,218 @@
                 {
                   "type": "tool_call_completed",
                   "tool_name": "web_search",
-                  "args_preview": "query=llama prices",
-                  "result_preview": "3 results"
+                  "args_preview": "query=matrix",
+                  "result_preview": "3 results",
+                  "truncated": false
                 }
               ]
             ]
           }
         }
-      },
+      }
+    },
+    {
+      "name": "heartbeat snapshot with every field",
       "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
-        "tools": [
-          {
-            "type": "tool_call_started",
-            "tool_name": "web_search",
-            "args_preview": "query=llama prices"
-          }
-        ],
+        "md": "a",
+        "reasoning": "",
+        "tools": [],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "a 😀 b",
+        "reasoning": "r",
         "tools": [
           {
             "type": "tool_call_completed",
             "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
+            "args_preview": "query=matrix",
+            "result_preview": "3 results",
+            "truncated": false
           }
         ],
         "status": "streaming",
-        "activity": ""
-      }
-    },
-    {
-      "name": "a second tool call reports progress",
+        "activity": "w"
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 8,
-        "delta": {
-          "tools": {
-            "len": 2,
-            "set": [
-              [
-                1,
-                {
-                  "type": "tool_call_started",
-                  "tool_name": "read_file",
-                  "args_preview": "path=notes.md",
-                  "progress": "12 lines read"
-                }
-              ]
-            ]
-          }
+        "snapshot": {
+          "md": "a 😀 b",
+          "reasoning": "r",
+          "tools": [
+            {
+              "type": "tool_call_completed",
+              "tool_name": "web_search",
+              "args_preview": "query=matrix",
+              "result_preview": "3 results",
+              "truncated": false
+            }
+          ],
+          "status": "streaming",
+          "activity": "w"
         }
-      },
+      }
+    },
+    {
+      "name": "a running tool reports its output",
       "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "x",
+        "reasoning": "",
         "tools": [
           {
-            "type": "tool_call_completed",
+            "type": "tool_call_started",
             "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false
           }
         ],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "x",
+        "reasoning": "",
         "tools": [
           {
-            "type": "tool_call_completed",
-            "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
-          },
-          {
             "type": "tool_call_started",
-            "tool_name": "read_file",
-            "args_preview": "path=notes.md",
-            "progress": "12 lines read"
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false,
+            "progress": "step 1"
           }
         ],
         "status": "streaming",
         "activity": ""
-      }
-    },
-    {
-      "name": "the tool list shrinks without new entries",
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 9,
         "delta": {
           "tools": {
             "len": 1,
-            "set": []
+            "set": [
+              [
+                0,
+                {
+                  "type": "tool_call_started",
+                  "tool_name": "web_search",
+                  "args_preview": "query=matrix",
+                  "result_preview": null,
+                  "truncated": false,
+                  "progress": "step 1"
+                }
+              ]
+            ]
           }
         }
-      },
+      }
+    },
+    {
+      "name": "newer output replaces the older",
       "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "x",
+        "reasoning": "",
         "tools": [
-          {
-            "type": "tool_call_completed",
-            "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
-          },
           {
             "type": "tool_call_started",
-            "tool_name": "read_file",
-            "args_preview": "path=notes.md",
-            "progress": "12 lines read"
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false,
+            "progress": "step 1"
           }
         ],
         "status": "streaming",
         "activity": ""
       },
       "after": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
+        "md": "x",
+        "reasoning": "",
         "tools": [
           {
-            "type": "tool_call_completed",
+            "type": "tool_call_started",
             "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false,
+            "progress": "step 1\nstep 2 😀"
           }
         ],
         "status": "streaming",
         "activity": ""
-      }
-    },
-    {
-      "name": "the status moves from pending to streaming",
+      },
       "frame": {
         "v": 1,
-        "reply": "$reply",
-        "sid": "1761858000123-0a1b2c3d",
-        "seq": 1,
-        "delta": {
-          "status": "streaming",
-          "activity": ""
-        }
-      },
-      "before": {
-        "md": "",
-        "reasoning": "",
-        "tools": [],
-        "status": "pending",
-        "activity": "Thinking"
-      },
-      "after": {
-        "md": "",
-        "reasoning": "",
-        "tools": [],
-        "status": "streaming",
-        "activity": ""
-      }
-    },
-    {
-      "name": "one delta changes several documents",
-      "frame": {
-        "v": 1,
-        "reply": "$reply",
+        "reply": "$reply:example.org",
         "sid": "1761858000123-0a1b2c3d",
         "seq": 10,
         "delta": {
-          "md": {
-            "at": 5,
-            "del": 0,
-            "ins": "! Prices:",
-            "len": 14
-          },
+          "tools": {
+            "len": 1,
+            "set": [
+              [
+                0,
+                {
+                  "type": "tool_call_started",
+                  "tool_name": "web_search",
+                  "args_preview": "query=matrix",
+                  "result_preview": null,
+                  "truncated": false,
+                  "progress": "step 1\nstep 2 😀"
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "the completed tool drops its output",
+      "before": {
+        "md": "x",
+        "reasoning": "",
+        "tools": [
+          {
+            "type": "tool_call_started",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": null,
+            "truncated": false,
+            "progress": "step 1\nstep 2 😀"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "x",
+        "reasoning": "",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=matrix",
+            "result_preview": "3 results",
+            "truncated": false
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
+      "frame": {
+        "v": 1,
+        "reply": "$reply:example.org",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 11,
+        "delta": {
           "tools": {
             "len": 1,
             "set": [
@@ -470,41 +511,14 @@
                 {
                   "type": "tool_call_completed",
                   "tool_name": "web_search",
-                  "args_preview": "query=llama prices",
-                  "result_preview": "3 results"
+                  "args_preview": "query=matrix",
+                  "result_preview": "3 results",
+                  "truncated": false
                 }
               ]
             ]
-          },
-          "activity": ""
+          }
         }
-      },
-      "before": {
-        "md": "Hello",
-        "reasoning": "The user greets me.",
-        "tools": [
-          {
-            "type": "tool_call_started",
-            "tool_name": "web_search",
-            "args_preview": "query=llama prices"
-          }
-        ],
-        "status": "streaming",
-        "activity": "Searching the web"
-      },
-      "after": {
-        "md": "Hello! Prices:",
-        "reasoning": "The user greets me.",
-        "tools": [
-          {
-            "type": "tool_call_completed",
-            "tool_name": "web_search",
-            "args_preview": "query=llama prices",
-            "result_preview": "3 results"
-          }
-        ],
-        "status": "streaming",
-        "activity": ""
       }
     }
   ]
