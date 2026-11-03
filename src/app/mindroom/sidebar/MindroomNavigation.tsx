@@ -114,10 +114,28 @@ type MindroomPageRootProps = {
   children: ReactNode;
 };
 
-/** A page with its navigation, which is left out while collapsed. */
-export function MindroomPageRoot({ nav, children }: MindroomPageRootProps) {
+/** Remembers what a section shows, also while a phone hides the section's own list. */
+function RememberSectionPath({ navId }: { navId: string }) {
+  useNavToActivePathMapper(navId, true);
+  return null;
+}
+
+/**
+ * A page with its navigation, which is left out while collapsed. With `navId` (`home`, `direct`)
+ * it remembers the content open in that section, so its rail button returns there.
+ */
+export function MindroomPageRoot({
+  nav,
+  navId,
+  children,
+}: MindroomPageRootProps & { navId?: string }) {
   const { collapsed } = useMindroomDesktopPageNav();
-  return <PageRoot nav={collapsed ? undefined : nav}>{children}</PageRoot>;
+  return (
+    <PageRoot nav={collapsed ? undefined : nav}>
+      {navId && <RememberSectionPath navId={navId} />}
+      {children}
+    </PageRoot>
+  );
 }
 
 /** A space's page: also remembers the content open in the space, like the other sections. */
