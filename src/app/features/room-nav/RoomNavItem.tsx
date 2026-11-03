@@ -43,12 +43,13 @@ type RoomNavItemProps = {
   selected: boolean;
   /** Where the row links to. */
   linkPath: string;
-  /** Muted rooms without unread messages show a muted mark. */
+} & Partial<{
+  /** Muted rooms without unread messages show a muted mark; rows without a mode show none. */
   notificationMode: RoomNotificationMode;
   /** A direct message: shows the other person's avatar with initials as fallback. */
-  direct?: boolean;
-  showAvatar?: boolean;
-};
+  direct: boolean;
+  showAvatar: boolean;
+}>;
 
 function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () => void }) {
   const { t } = useTranslation();
