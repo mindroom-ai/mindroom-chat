@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Text } from 'folds';
-import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { SSOAction, type IIdentityProvider } from 'matrix-js-sdk';
 import {
@@ -12,6 +12,7 @@ import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import {
   getMindroomAuthSsoRedirectUrl,
+  shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
 } from '../../../mindroom/auth/authUi';
@@ -91,7 +92,9 @@ function RegisterMethods({ server, baseUrl, authFlows, ssoRedirectUrl }: Registe
     );
   }
 
-  const passwordSupported = canRegisterWithPassword(registerFlows.data);
+  // A deployment without password sign-in offers no password sign-up either.
+  const passwordSupported =
+    canRegisterWithPassword(registerFlows.data) && !shouldDisablePasswordLogin(server, auth);
   if (!passwordSupported && !providers) {
     return (
       <FieldError
@@ -114,12 +117,15 @@ function RegisterMethods({ server, baseUrl, authFlows, ssoRedirectUrl }: Registe
   );
 }
 
-/** Creates an account with a password or through single sign-on. */
+/**
+ * Creates an account with a password or through single sign-on. A deployment that turned
+ * registration off sends the page to login.
+ */
 export function Register() {
   const { t } = useTranslation();
   const { server } = useOutletContext<{ server: string }>();
   const baseUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
-  const { hashRouter } = useClientConfig();
+  const { hashRouter, auth } = useClientConfig();
   const [searchParams] = useSearchParams();
   const addAccount = isAddAccountSearch(searchParams);
 
@@ -130,31 +136,35 @@ export function Register() {
         `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(getLoginPath(server), addAccount)}`
       ),
     [hashRouter, server, addAccount]
-
-
-
-
-
-
-      </Text>
-      <AuthFlowsLoader>
-
-
-
-
-            authFlows={authFlows}
-            ssoRedirectUrl={ssoRedirectUrl}
-          />
-        )}
-      </AuthFlowsLoader>
-      <Text align="Center">
-        <Trans
-          i18nKey="sharedUi.register.accountLink"
-          components={{
-            authLink: <Link to={withAddAccountSearchIf(getLoginPath(server), addAccount)} />,
-          }}
-        />
-      </Text>
-    </Box>
   );
-}
+
+  if (auth?.allowRegistration === false) {
+    return <Navigate to={withAddAccountSearchIf(getLoginPath(server), addAccount)} replace />;
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
