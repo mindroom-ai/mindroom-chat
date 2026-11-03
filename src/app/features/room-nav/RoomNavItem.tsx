@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { RoomType, type Room } from 'matrix-js-sdk';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
-import { UnreadBadge } from '../../components/unread-badge';
+import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
@@ -284,7 +284,7 @@ function RoomNavLink({
             </Text>
           </Box>
           <BackgroundJobsMark room={room} />
-          {status}
+          {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
         </Box>
       </NavItemContent>
     </NavLink>
