@@ -31,7 +31,7 @@ export function PairCodeForm({ defaultValue = '', inputId, onSubmit }: PairCodeF
   return (
     <Box as="form" direction="Column" gap="200" onSubmit={handleSubmit}>
       <Box gap="200" alignItems="Center">
-        <Box grow="Yes">
+        <Box grow="Yes" direction="Column">
           <Input
             id={inputId}
             size="400"
