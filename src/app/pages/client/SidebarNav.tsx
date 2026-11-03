@@ -16,6 +16,7 @@ import {
   ExploreTab,
   HomeTab,
   InboxTab,
+  SearchTab,
   SettingsTab,
   SpaceTabs,
   ThreadsTab,
@@ -36,8 +37,8 @@ type SidebarNavProps = {
 
 /**
  * The icon rail. On top: Home, Direct Messages and the optional sections, then the joined spaces
- * and, where communities are on, Explore and Create Space. Pinned to the foot: device and Local
- * MindRoom notices when they apply, the Inbox, the account, and the footer.
+ * and, where communities are on, Explore and Create Space. Pinned to the foot: the command palette,
+ * device and Local MindRoom notices when they apply, the Inbox, the account, and the footer.
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -76,6 +77,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
           <>
             <SidebarStackSeparator />
             <SidebarStack>
+              <SearchTab />
               <UnverifiedTab />
               {showLocalMindroom && <MindroomTab />}
               <InboxTab />
