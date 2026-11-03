@@ -51,21 +51,17 @@ export function ExploreTab({ onSelect }: ExploreTabProps) {
     navigate(server ? getExploreServerPath(server) : getExploreFeaturedPath());
   };
 
+  const label = t('nav.exploreCommunity');
+  const exploreIcon = <Icon src={Icons.Explore} filled={selected} />;
+  const renderTrigger = (ref: React.Ref<HTMLButtonElement>) => (
+    <SidebarAvatar as="button" ref={ref} outlined aria-label={label} onClick={handleClick}>
+      {exploreIcon}
+    </SidebarAvatar>
+  );
+
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('nav.exploreCommunity')}>
-        {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            outlined
-            aria-label={t('nav.exploreCommunity')}
-            onClick={handleClick}
-          >
-            <Icon src={Icons.Explore} filled={selected} />
-          </SidebarAvatar>
-        )}
-      </SidebarItemTooltip>
+      <SidebarItemTooltip tooltip={label}>{renderTrigger}</SidebarItemTooltip>
     </SidebarItem>
   );
 }
