@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, type FormEvent } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -137,6 +137,12 @@ export function ThreadActionsMenu({
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState<string>();
+  // A regeneration request was sent: the dialog says so until Done.
+  const [requested, setRequested] = useState(false);
+  const doneRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (requested) doneRef.current?.focus();
+  }, [requested]);
 
   const agents = useMemo(
     () =>
@@ -156,9 +162,14 @@ export function ThreadActionsMenu({
     : tags.displayTags.length > 0;
   const tagsEditable = tags.canEdit && rootLoaded;
   const tagsUpdating = !!mutations.updating;
+  // Resolve and pin keep the menu open on their new label; it closes once their save is done.
+  const saving = tagsUpdating || !!pinning.updating;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
 
   const openDialog = (next: ActionDialog) => {
     setRequestError(undefined);
+    setRequested(false);
     if (next === 'editSummary') setDraft(summaryText ?? '');
     setDialog(next);
   };
@@ -169,14 +180,14 @@ export function ThreadActionsMenu({
     onClose();
   };
 
-  const runRequest = async (request: () => Promise<void>) => {
+  /** Runs a dialog's request; `onDone` follows a success, an error stays in the dialog. */
+  const runRequest = async (request: () => Promise<void>, onDone: () => void) => {
     setBusy(true);
     setRequestError(undefined);
     try {
       await request();
       setBusy(false);
-      setDialog(undefined);
-      onClose();
+      onDone();
     } catch (error) {
       setBusy(false);
       setRequestError(errorText(error));
@@ -185,13 +196,23 @@ export function ThreadActionsMenu({
 
   const handleSaveSummary = (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
-    return runRequest(() => saveThreadSummary(mx, room, rootId, draft));
+    return runRequest(
+      () => saveThreadSummary(mx, room, rootId, draft),
+      () => {
+        setDialog(undefined);
+        onClose();
+      }
+    );
   };
 
+  // The agent answers in the thread later, so the dialog stays to say the request went out.
   const handleRegenerate = (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     if (!selectedAgentId) return undefined;
-    return runRequest(() => requestThreadSummary(mx, room, rootId, selectedAgentId));
+    return runRequest(
+      () => requestThreadSummary(mx, room, rootId, selectedAgentId),
+      () => setRequested(true)
+    );
   };
 
   const handleCopyLink = () => {
@@ -257,6 +278,14 @@ export function ThreadActionsMenu({
               disabled={busy}
               onChange={(evt) => setDraft(evt.target.value)}
             />
+            <Box justifyContent="SpaceBetween" gap="300">
+              <Text size="T200" priority="300">
+                {t('threadActions.summaryHint')}
+              </Text>
+              <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
+                {t('threadActions.length', { count: length, max: SUMMARY_MAX_LENGTH })}
+              </Text>
+            </Box>
             {requestError && (
               <Text role="alert" size="T200">
                 {requestError}
@@ -278,11 +307,28 @@ export function ThreadActionsMenu({
                 variant="Primary"
                 disabled={busy || length === 0 || length > SUMMARY_MAX_LENGTH}
               >
-                <Text size="B300">{t('threadActions.save')}</Text>
+                <Text size="B300">
+                  {busy ? t('threadActions.saving') : t('threadActions.save')}
+                </Text>
               </Button>
             </Box>
           </Box>
         </form>
+      </ActionDialogFrame>
+    );
+  }
+
+  if (dialog === 'regenerate' && requested) {
+    return (
+      <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={false}>
+        <Text role="status" size="T300">
+          {t('threadActions.requested')}
+        </Text>
+        <Box justifyContent="End">
+          <Button ref={doneRef} type="button" size="300" variant="Primary" onClick={closeDialog}>
+            <Text size="B300">{t('threadActions.done')}</Text>
+          </Button>
+        </Box>
       </ActionDialogFrame>
     );
   }
@@ -292,6 +338,9 @@ export function ThreadActionsMenu({
       <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={busy}>
         <form onSubmit={handleRegenerate}>
           <Box direction="Column" gap="300">
+            <Text size="T200" priority="300">
+              {t('threadActions.regenerateHint')}
+            </Text>
             {agents.length > 0 ? (
               <select
                 aria-label={t('threadActions.agent')}
@@ -330,7 +379,9 @@ export function ThreadActionsMenu({
                 variant="Primary"
                 disabled={busy || !selectedAgentId}
               >
-                <Text size="B300">{t('threadActions.sendRequest')}</Text>
+                <Text size="B300">
+                  {busy ? t('threadActions.saving') : t('threadActions.sendRequest')}
+                </Text>
               </Button>
             </Box>
           </Box>
@@ -339,12 +390,20 @@ export function ThreadActionsMenu({
     );
   }
 
+  // Escape and outside clicks wait for a resolve or pin save, so its result shows in the menu.
   const closeMenu = () => {
+    if (savingRef.current) return false;
     onCloseRef.current();
     return true;
   };
 
-  const items: Array<{ action: string; label: string; onSelect: () => void }> = [];
+  const items: Array<{
+    action: string;
+    label: string;
+    onSelect: () => void;
+    /** Resolve and pin wait for the previous save. */
+    mutates?: boolean;
+  }> = [];
   if (onOpenThread) {
     items.push({ action: 'open', label: t('threadActions.open'), onSelect: onOpenThread });
   }
@@ -358,20 +417,20 @@ export function ThreadActionsMenu({
   if (tags.canEdit && rootLoaded && !pinned) {
     items.push({
       action: 'resolve',
+      mutates: true,
       label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
       onSelect: () => {
-        mutations.setResolved(rootId, !tags.isResolved);
-        onClose();
+        void mutations.setResolved(rootId, !tags.isResolved);
       },
     });
   }
   if (pinning.canPin && rootLoaded) {
     items.push({
       action: 'pin',
+      mutates: true,
       label: pinned ? t('threadNav.unpin') : t('threadNav.pin'),
       onSelect: () => {
         void pinning.setPinned(rootId, !pinned);
-        onClose();
       },
     });
   }
@@ -417,14 +476,17 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu aria-label={t('threadActions.more')} style={{ minWidth: '12rem' }}>
+          <Menu role="menu" aria-label={t('threadActions.more')} style={{ minWidth: '12rem' }}>
             <Box direction="Column" style={{ padding: '0.25rem' }}>
               {items.map((item) => (
                 <MenuItem
                   key={item.action}
+                  role="menuitem"
                   size="300"
                   radii="300"
                   data-thread-action={item.action}
+                  disabled={item.mutates && saving}
+                  aria-busy={item.mutates && saving ? true : undefined}
                   onClick={() => item.onSelect()}
                 >
                   <Text size="T300">{item.label}</Text>
