@@ -173,9 +173,17 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
     );
   }
 
+  // A room picture that fails falls back to the same bare icon as a room without one.
+  const failedTone = personAvatar ? undefined : 'plain';
   return (
     <Avatar size="200" radii="400">
-      <RoomAvatar roomId={room.roomId} src={src} alt={name} renderFallback={renderFallback} />
+      <RoomAvatar
+        fallbackTone={failedTone}
+        renderFallback={renderFallback}
+        alt={name}
+        src={src}
+        roomId={room.roomId}
+      />
     </Avatar>
   );
 }
