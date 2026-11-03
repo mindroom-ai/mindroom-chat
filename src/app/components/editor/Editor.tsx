@@ -25,7 +25,7 @@ import { withWordUndo } from './history';
 import { createParagraphElement, withInlineElements } from './utils';
 import * as css from './Editor.css';
 
-const initialValue: Descendant[] = [createParagraphElement()];
+const emptyDocument: Descendant[] = [createParagraphElement()];
 
 /** Creates the composer's Slate editor once per mount: React, word-wise undo, inline atoms. */
 export const useEditor = (): Editor => {
@@ -168,6 +168,8 @@ type EditorSlots = Partial<Record<'top' | 'bottom' | 'before' | 'after', ReactNo
 
 type CustomEditorProps = EditorSlots & {
   editor: Editor;
+  /** The document at mount, such as the message being edited; one empty line when not given. */
+  initialValue?: Descendant[];
   /** Names the text box for code: `data-editable-name`, such as `RoomInput` for the composer. */
   editableName?: string;
   /** Accessible name of the text box; the placeholder when not given. */
@@ -203,7 +205,7 @@ function EditorControls({ children }: { children?: ReactNode }) {
 export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
-  const { readOnly, onKeyDown, onKeyUp, onPaste } = props;
+  const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
 
   const textBox = (
     <Editable
