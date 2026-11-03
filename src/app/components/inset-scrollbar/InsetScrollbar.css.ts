@@ -28,7 +28,8 @@ export const Track = style({
   transition: 'opacity 200ms ease',
   outline: 'none',
   selectors: {
-    '&[data-overflow="false"]': { display: 'none' },
+    // Hidden but still laid out: the component reads the track's height to find overflow.
+    '&[data-overflow="false"]': { visibility: 'hidden' },
     '&[data-active="true"], &:hover, &:focus-visible': { opacity: 1 },
     '&:focus-visible': {
       boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}`,
