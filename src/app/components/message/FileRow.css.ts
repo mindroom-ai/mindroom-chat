@@ -1,12 +1,22 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
-export const FileRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S300,
-  padding: `${config.space.S200} ${config.space.S200} ${config.space.S200} ${config.space.S300}`,
-});
+// A file is a glass card in the conversation, like paste attachments and link previews.
+export const FileRow = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    display: 'flex',
+    alignItems: 'center',
+    gap: config.space.S300,
+    padding: `${config.space.S200} ${config.space.S200} ${config.space.S200} ${config.space.S300}`,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
+
+// Pinned and search previews outline their file card; the line stays when glass is off.
+export const FileRowOutlined = glassOutline;
 
 export const FileTile = style({
   display: 'grid',

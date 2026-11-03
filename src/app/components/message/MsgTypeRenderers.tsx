@@ -1,4 +1,5 @@
 import React, { CSSProperties, ReactNode } from 'react';
+import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { find as findLinks } from 'linkifyjs';
@@ -11,6 +12,7 @@ import {
 } from './content';
 import { VoiceAudioContent } from './content/VoiceAudioContent';
 import * as fileCss from './FileRow.css';
+import { useGlassHighlight } from '../glass/liquid/useLiquidGlass';
 import {
   IAudioInfo,
   IEncryptedFile,
@@ -347,6 +349,7 @@ type MFileProps = {
 export function MFile(props: MFileProps) {
   const { content, renderFileContent, outlined } = props;
   const { t } = useTranslation();
+  const cardRef = useGlassHighlight<HTMLDivElement>();
   const typeLabel = useFileTypeLabel();
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
@@ -363,7 +366,10 @@ export function MFile(props: MFileProps) {
       : typeLabel(mimeType);
 
   return (
-    <div className={fileCss.FileRow} style={outlineStyle(outlined, config.radii.R400)}>
+    <div
+      ref={cardRef}
+      className={classNames(fileCss.FileRow, outlined && fileCss.FileRowOutlined)}
+    >
       <div className={fileCss.FileTile} aria-hidden="true">
         {extension || <Icon size="100" src={Icons.File} />}
       </div>

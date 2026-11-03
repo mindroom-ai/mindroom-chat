@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config } from 'folds';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
 // A link preview card: optional image on the left, title, description and site name.
 //
@@ -9,9 +9,11 @@ import { glassSurface } from '../../styles/Glass.css';
 // all, plus S200 padding above and below: 6rem. The image is a square of that height. The card
 // is as wide as the paste attachment card beside it in messages (28rem).
 const TEXT_BLOCK_HEIGHT = '6rem';
+// High contrast and forced colors replace the glass rim with a line around the card.
 export const UrlPreview = style([
   DefaultReset,
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassOutline,
   {
     width: '28rem',
     maxWidth: '100%',
