@@ -1,0 +1,11 @@
+scripts/element-call-background.mjs	1	bas=-1%	assertElementCallTransparentBackground,injectElementCallTransparentBackground	Element Call
+src/app/features/call-status/CallStatus.tsx	1	bas=32%	CallStatus	Element Call
+src/app/hooks/useCallEmbed.ts	3	bas=42%	CALL_END_FALLBACK_MS,CallEmbedRefContextProvider,getCallEmbedViewportPlacement,useCallEmbed,useCallEmbedRef,useCallEmbedTitleSync,useCallEnd,useCallEndLifecycle,useCallJoined,useCallStart	Element Call
+src/app/hooks/useLivekitSupport.ts	1	bas=0%	useLivekitSupport	Element Call
+src/app/mindroom/settings/useMindroomAccountSettings.ts	10	bas=91%	useSimpleMode	Simple Mode
+src/app/mindroom/threads/MindroomCallChatView.tsx	1	bas=44%		Element Call
+src/app/plugins/call/CallEmbed.ts	5	bas=18%	CallEmbed,restrictCallTransportToSameOrigin	Element Call
+src/app/plugins/call/CallWidgetDriver.ts	1	bas=38%	CallWidgetDriver	Element Call
+src/app/plugins/call/index.ts	4	bas=0%	CallEmbed,ElementWidgetActions	Element Call
+src/app/plugins/call/types.ts	1	bas=0%	ElementCallIntent	Element Call
+src/app/state/callEmbed.ts	3	bas=29%	callEmbedAtom	Element Call

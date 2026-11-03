@@ -11,8 +11,9 @@ given. A file passes when it has the same number of lines as at import and every
 is listed in the hole file, was empty at import, and is now exactly one line.
 
 --wave defaults to 1. With no paths it checks every file in the wave's hole file; otherwise only
-the given paths (each must be in that hole file). Prints `path:line: reason` for each violation and
-exits 1, or exits 0 when clean.
+the given paths (each must be in that hole file). Files listed in docs/provenance/dropped.tsv
+(Lane P files deleted with a dropped feature) are skipped. Prints `path:line: reason` for each
+violation and exits 1, or exits 0 when clean.
 Later tasks may change Lane P files as the Lane P rules allow, so run it with --rev <commit> to
 check the commit that filled the blanks.
 """
@@ -28,6 +29,7 @@ PROV = REPO / "docs" / "provenance"
 
 
 HOLE_FILES = {1: "holes.tsv", 2: "holes-wave2.tsv"}
+DROPPED_FILE = "dropped.tsv"
 
 
 def read_holes(wave: int) -> dict[str, set[int]]:
@@ -37,6 +39,13 @@ def read_holes(wave: int) -> dict[str, set[int]]:
             path, line = row.split("\t")
             holes[path].add(int(line))
     return holes
+
+
+def read_dropped() -> set[str]:
+    file = PROV / DROPPED_FILE
+    if not file.is_file():
+        return set()
+    return {row.split("\t")[0] for row in file.read_text().splitlines() if row}
 
 
 def git_show(rev: str, path: str) -> str | None:
@@ -95,6 +104,9 @@ def main() -> int:
             print(f"{path}:0: not listed in docs/provenance/{HOLE_FILES[args.wave]}")
         return 1
 
+    dropped = [p for p in paths if p in read_dropped()]
+    paths = [p for p in paths if p not in dropped]
+
     found = []
     for path in paths:
         found += violations(path, holes[path], git_show(commit, path), current_text(args.rev, path))
@@ -104,7 +116,11 @@ def main() -> int:
     if found:
         print(f"check_holes: {len(found)} violation(s) in {target}", file=sys.stderr)
         return 1
-    print(f"check_holes: {len(paths)} files match {commit[:7]} outside their blanked lines ({target})")
+    skipped = f", {len(dropped)} dropped files skipped" if dropped else ""
+    print(
+        f"check_holes: {len(paths)} files match {commit[:7]} outside their blanked lines"
+        f" ({target}{skipped})"
+    )
     return 0
 
 

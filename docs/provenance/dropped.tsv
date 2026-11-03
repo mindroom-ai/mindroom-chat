@@ -1,0 +1,27 @@
+e2e/helpers/threadOverview.ts	1	thread filter bar
+e2e/live/thread-filter-persistence.spec.ts	1	thread filter bar
+src/app/components/CallEmbedHost.test.tsx	1	Element Call
+src/app/components/CallEmbedHost.tsx	1	Element Call
+src/app/components/CallIframeBackground.test.tsx	1	Element Call
+src/app/components/CallIframeBackground.tsx	1	Element Call
+src/app/features/call-status/CallStatus.test.tsx	1	Element Call
+src/app/features/settings/Settings.test.tsx	1	Simple Mode
+src/app/hooks/useCallEmbed.end.test.tsx	1	Element Call
+src/app/hooks/useCallEmbed.test.tsx	1	Element Call
+src/app/mindroom/calls/AgentCallButton.test.tsx	1	Element Call
+src/app/mindroom/calls/AgentCallHeaderButton.test.tsx	1	Element Call
+src/app/mindroom/calls/useStartAgentCall.test.tsx	1	Element Call
+src/app/mindroom/calls/useStartAgentCall.ts	1	Element Call
+src/app/mindroom/threads/MindroomCallChatView.test.tsx	1	Element Call
+src/app/mindroom/threads/RoomThreadOverview.css.ts	1	thread filter bar
+src/app/mindroom/threads/RoomThreadOverview.test.ts	1	thread filter bar
+src/app/mindroom/threads/RoomThreadOverview.tsx	1	thread filter bar
+src/app/mindroom/threads/__tests__/RoomTimeline.filter-query.test.ts	1	thread filter bar
+src/app/mindroom/threads/threadSortFreezeController.test.ts	1	thread filter bar
+src/app/mindroom/threads/threadSortFreezeController.ts	1	thread filter bar
+src/app/plugins/call/CallEmbed.dispose.test.ts	1	Element Call
+src/app/plugins/call/CallEmbed.origin.test.ts	1	Element Call
+src/app/plugins/call/CallEmbed.startedAfterTs.test.ts	1	Element Call
+src/app/plugins/call/CallWidgetDriver.test.ts	1	Element Call
+src/app/plugins/call/elementCallBackgroundBuild.test.ts	1	Element Call
+src/app/plugins/call/elementCallBackground.test.ts	1	Element Call
