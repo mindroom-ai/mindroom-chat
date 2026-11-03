@@ -29,6 +29,7 @@ import { SpaceProvider, useSpace } from '../../../hooks/useSpace';
 import { useRoomName } from '../../../hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { stopPropagation } from '../../../utils/keyboard';
+import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
@@ -217,7 +218,7 @@ export function Space() {
   const navigate = useNavigate();
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
-  const spaceRooms = useSpaceSearchRooms(space.roomId);
+  const spaceRooms = useVisibleRooms(useSpaceSearchRooms(space.roomId));
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
