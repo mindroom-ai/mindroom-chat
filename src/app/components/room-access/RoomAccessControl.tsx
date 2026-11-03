@@ -191,20 +191,24 @@ function RoomAccessSession({
     if (status === 'succeeded' && started.kind === 'knock') setDialogOpen(false);
   };
 
+  /** Awaits the request, so a client that answers without a promise settles the attempt too. */
+  const runAttempt = async (attemptKind: RoomAccessKind, request: () => unknown) => {
+    const started = startAttempt(attemptKind);
+    try {
+      await request();
+    } catch (error) {
+      settle(started, 'failed', error);
+      return;
+    }
+    settle(started, 'succeeded');
+  };
+
   const join = () => {
-    const started = startAttempt('join');
-    mx.joinRoom(joinTarget, { viaServers }).then(
-      () => settle(started, 'succeeded'),
-      (error: unknown) => settle(started, 'failed', error)
-    );
+    runAttempt('join', () => mx.joinRoom(joinTarget, { viaServers }));
   };
 
   const knock = (reason: string | undefined) => {
-    const started = startAttempt('knock');
-    mx.knockRoom(joinTarget, { reason, viaServers }).then(
-      () => settle(started, 'succeeded'),
-      (error: unknown) => settle(started, 'failed', error)
-    );
+    runAttempt('knock', () => mx.knockRoom(joinTarget, { reason, viaServers }));
   };
 
   const loading = attempt?.status === 'loading';
@@ -279,7 +283,10 @@ function RoomAccessRequestDialog({
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
-    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Test environments can provide a document without the DOM element classes.
+    const active: unknown = document.activeElement;
+    const trigger =
+      typeof HTMLElement !== 'undefined' && active instanceof HTMLElement ? active : null;
     (messageRef.current ?? dialogRef.current)?.focus();
     return () => {
       if (trigger?.isConnected) trigger.focus();
