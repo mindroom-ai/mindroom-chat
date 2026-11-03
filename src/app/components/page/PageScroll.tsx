@@ -17,6 +17,8 @@ type PageScrollProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
   scrollbarLabel?: string;
   /** Lays out the content box, which fills the viewport under the title when it is short. */
   contentClassName?: string;
+  /** Moves the scrollbar track, such as clear of a splitter at the edge. */
+  scrollbarClassName?: string;
 };
 
 /**
@@ -59,6 +61,7 @@ export function PageScroll({
   scrollbarTabIndex = 0,
   scrollbarLabel,
   contentClassName,
+  scrollbarClassName,
   className,
   ...props
 }: PageScrollProps) {
@@ -90,7 +93,7 @@ export function PageScroll({
           scrollRef={viewportRef}
           contentRef={contentRef}
           label={scrollbarLabel ?? t('sharedUi.pageScroll.scrollbar')}
-          className={css.PageScrollbar}
+          className={classNames(css.PageScrollbar, scrollbarClassName)}
           tabIndex={scrollbarTabIndex}
         />
       </div>

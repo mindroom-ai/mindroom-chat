@@ -1,4 +1,4 @@
-import { createVar, fallbackVar, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeaderInset';
@@ -46,6 +46,15 @@ export const PageNavHeader = style({
 
 /** A navigation header that scrolls with the list below it. */
 export const PageNavHeaderScroll = style({ position: 'sticky', top: 0, zIndex: 1 });
+
+/**
+ * The scrollbar of a navigation list. A resizable column's splitter covers the last pixels of
+ * the column (`--mr-panel-handle-inset`), so the track keeps clear of it there.
+ */
+export const PageNavTrack = style({});
+globalStyle(`:has(> [role="separator"][aria-orientation="vertical"]) > * ${PageNavTrack}`, {
+  right: `calc(var(--mr-panel-handle-inset, 0px) + ${toRem(2)})`,
+});
 
 /** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
 export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex: 2 });

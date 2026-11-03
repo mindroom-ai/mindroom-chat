@@ -85,7 +85,12 @@ type PageNavContentProps = {
  */
 export function PageNavContent({ scrollRef, header, children }: PageNavContentProps) {
   return (
-    <PageScroll header={header} scrollRef={scrollRef} contentClassName={css.PageNavContent}>
+    <PageScroll
+      header={header}
+      scrollRef={scrollRef}
+      contentClassName={css.PageNavContent}
+      scrollbarClassName={css.PageNavTrack}
+    >
       {children}
     </PageScroll>
   );
