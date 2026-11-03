@@ -35,15 +35,27 @@ import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-c
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom, type Settings } from '../../../state/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
-import { getEventReactions } from '../../../utils/room';
+import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../../utils/room';
 import { MessageEvent } from '../../../../types/matrix/room';
+import { EncryptedContent } from '../../../features/room/message/EncryptedContent';
 import { Event, Message } from '../../messages/MindroomMessage';
 import { CollapsibleMessage, CollapsibleMessageStateProvider } from '../CollapsibleMessage';
+import {
+  getCollapsibleMessageMeasurementKey,
+  getCollapsibleMessageMode,
+  shouldForceCollapsibleMessageOverflow,
+} from '../threadCollapsibleMessages';
+import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
+import { isMindroomAgentUserId } from '../../matrix/agentIdentity';
 import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
-import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
+import {
+  getMindroomRoomTimelineApprovalContent,
+  MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+  renderMindroomRoomTimelineThreadBadge,
+} from '../roomTimelineMessageExtensions';
 import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { canPinRoomEvents } from '../threadPinning';
@@ -235,6 +247,35 @@ const useMessagePermissions = (room: Room, userId: string | null) => {
   };
 };
 
+/** A row is still on its way to the server while its event, or its edit, is in one of these. */
+const PENDING_SEND_STATUSES: ReadonlySet<EventStatus | null> = new Set([
+  EventStatus.ENCRYPTING,
+  EventStatus.QUEUED,
+  EventStatus.SENDING,
+]);
+
+/** The edit carries the send state of an edited row while it is still being sent or failed. */
+const getSendStateEvent = (event: MatrixEvent, editedEvent: MatrixEvent | undefined) =>
+  editedEvent?.status ? editedEvent : event;
+
+/**
+ * Rows that arrived live open once, however long, and fold like history afterwards. Marking
+ * repaints the rows; consuming does not, so the open row keeps its paint until the next one.
+ */
+const useLiveExpansion = () => {
+  const idsRef = useRef(new Set<string>());
+  const [, repaint] = useReducer((value: number) => value + 1, 0);
+  const mark = useCallback((eventId: string) => {
+    if (idsRef.current.has(eventId)) return;
+    idsRef.current.add(eventId);
+    repaint();
+  }, []);
+  const consume = useCallback((eventId: string) => {
+    idsRef.current.delete(eventId);
+  }, []);
+  return { ids: idsRef.current, mark, consume };
+};
+
 /**
  * How the room and thread timelines render one message row: edit state, reply quotes, collapse,
  * approvals, summary markers and failed sends; plus Up-arrow editing of the user's last message.
@@ -243,30 +284,26 @@ export const useTimelineMessageFeature = ({
   room,
   editor,
   threadId,
+  scrollRef,
   hideActivity,
   messageLayout,
   messageSpacing,
 }: UseTimelineMessageFeatureOptions) => {
   const client = useMatrixClient();
   const [editingEventId, setEditingEventId] = useState<string>();
-  const [liveExpansionIds, setLiveExpansionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const liveExpansion = useLiveExpansion();
+  const { mark: markLiveExpansionCandidate, consume: consumeLiveExpansion } = liveExpansion;
+  const liveExpansionIds = liveExpansion.ids;
   const manualExpansionState = useRef(new Map<string, boolean>()).current;
+  const [expandAll, setExpandAll] = useState(false);
+  const restoreExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
+  const toggleExpandAll = useCallback(() => {
+    // The new baseline replaces every choice made for a single message.
+    manualExpansionState.clear();
+    setExpandAll((current) => !current);
+  }, [manualExpansionState]);
   const renderedEventsRef = useRef<MatrixEvent[]>([]);
   renderedEventsRef.current = [];
-
-  const markLiveExpansionCandidate = useCallback((eventId: string) => {
-    setLiveExpansionIds((current) =>
-      current.has(eventId) ? current : new Set([...current, eventId])
-    );
-  }, []);
-  const consumeLiveExpansion = useCallback((eventId: string) => {
-    setLiveExpansionIds((current) => {
-      if (!current.has(eventId)) return current;
-      const next = new Set(current);
-      next.delete(eventId);
-      return next;
-    });
-  }, []);
 
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
@@ -344,30 +381,28 @@ export const useTimelineMessageFeature = ({
     },
     [navigateRoomThread, room, setReplyDraft]
   );
+  // A thread badge under a room row opens its thread.
+  const handleOpenThread = useCallback(
+    (evt: React.MouseEvent) => {
+      const rootId = (evt.currentTarget as HTMLElement).getAttribute('data-thread-root-id');
+      if (rootId) navigateRoomThread(room.roomId, rootId);
+    },
+    [navigateRoomThread, room.roomId]
+  );
 
-  const renderEvent = useCallback(
+  /** The row of a message, approval, sticker or undecryptable event; read at render time. */
+  const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
-      void decryptions;
       const { event, eventId, collapse, highlighted } = row;
-      if (event.getStateKey?.() !== undefined) {
-        if (!RENDERED_STATE_EVENTS.has(event.getType())) return null;
-        return (
-          <Event
-            key={eventId}
-            data-message-id={eventId}
-            room={room}
-            mEvent={event}
-            highlight={highlighted}
-            messageSpacing={messageSpacing}
-          />
-        );
-      }
-
       const kind = getMessageKind(event.getType());
       if (!kind) return null;
-      renderedEventsRef.current?.push(event);
 
-      const content = event.getContent() as Record<string, unknown>;
+      const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
+      const content = (
+        kind === 'approval'
+          ? getMindroomRoomTimelineApprovalContent(event, editedEvent)
+          : getLatestMessageContent(event, editedEvent)
+      ) as Record<string, unknown>;
       const summaryInfo =
         threadId && kind === 'message' ? getMindroomThreadSummaryInfo(content) : undefined;
       const marker = summaryInfo
@@ -384,9 +419,18 @@ export const useTimelineMessageFeature = ({
       const historyRecords =
         data.approvalTimeline.historyByResponseId.get(eventId) ??
         data.approvalTimeline.fallbackGroupsByEventId.get(eventId);
-      const failed = event.status === EventStatus.NOT_SENT && !(threadId && eventId === threadId);
+      const sendState = getSendStateEvent(event, editedEvent);
+      const failedSend = sendState.status === EventStatus.NOT_SENT;
+      const pendingSend = PENDING_SEND_STATUSES.has(sendState.status);
+      // The footer of an open thread offers the actions for its own failed root.
+      const showFailedActions = failedSend && !(threadId && eventId === threadId);
       const editable = kind === 'message';
-      const collapseMode = liveExpansionIds.has(eventId) ? 'initially-expanded' : 'default';
+      const collapseMode = getCollapsibleMessageMode(
+        eventId,
+        content,
+        liveExpansionIds,
+        isMindroomAgentUserId(event.getSender() ?? undefined)
+      );
       const msgType = typeof content.msgtype === 'string' ? content.msgtype : '';
       const isAgentReply =
         !!content['io.mindroom.ai_run'] || !!content['io.mindroom.stream_status'];
@@ -402,8 +446,10 @@ export const useTimelineMessageFeature = ({
         msgType,
         eventType: event.getType(),
         ts: event.getTs(),
-        edited: !!event.replacingEvent(),
-        getContent: (() => event.getContent()) as <T>() => T,
+        edited: !!editedEvent || !!event.replacingEvent(),
+        pendingSend,
+        failedSend,
+        getContent: (() => content) as <T>() => T,
         mediaAutoLoad: !!mediaAutoLoad,
         urlPreview: !!showUrlPreview,
         htmlReactParserOptions,
@@ -414,6 +460,17 @@ export const useTimelineMessageFeature = ({
         canSendRedaction &&
         !event.isRedacted() &&
         (event.getSender() === userId || canRedactOthers);
+      // Room rows show the thread they start under their reactions; an open thread shows none.
+      const threadBadge = threadId
+        ? null
+        : renderMindroomRoomTimelineThreadBadge({
+            eventId,
+            event,
+            threadRecordMap: data.threadRecordMap,
+            room,
+            onClick: handleOpenThread,
+            includeRecentSummaryData: true,
+          });
 
       return (
         <React.Fragment key={eventId}>
@@ -444,12 +501,15 @@ export const useTimelineMessageFeature = ({
             }
             reactions={
               kind !== 'sticker' ? (
-                <TimelineReactions
-                  room={room}
-                  event={event}
-                  relations={relations}
-                  onReactionToggle={toggleReaction}
-                />
+                <>
+                  <TimelineReactions
+                    room={room}
+                    event={event}
+                    relations={relations}
+                    onReactionToggle={toggleReaction}
+                  />
+                  {threadBadge}
+                </>
               ) : undefined
             }
             resolvedMessageContent={content}
@@ -466,19 +526,23 @@ export const useTimelineMessageFeature = ({
             <CollapsibleMessage
               expansionKey={eventId}
               collapseMode={collapseMode}
+              forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
+              measurementKey={getCollapsibleMessageMeasurementKey(event, collapseMode, editedEvent)}
               onInitialExpandConsumed={() => consumeLiveExpansion(eventId)}
             >
-              {isAgentReply ? (
-                <LiveReplyMessageContent {...contentProps} />
-              ) : (
-                <RenderMessageContent {...contentProps} />
-              )}
+              {({ loadFullContent }) =>
+                isAgentReply ? (
+                  <LiveReplyMessageContent {...contentProps} hydrateLongText={loadFullContent} />
+                ) : (
+                  <RenderMessageContent {...contentProps} hydrateLongText={loadFullContent} />
+                )
+              }
             </CollapsibleMessage>
           </Message>
           {historyRecords && historyRecords.length > 0 && (
             <ApprovalHistory records={historyRecords as never} />
           )}
-          {failed && <FailedSendActions room={room} event={event} />}
+          {showFailedActions && <FailedSendActions room={room} event={sendState} />}
         </React.Fragment>
       );
     },
@@ -488,8 +552,8 @@ export const useTimelineMessageFeature = ({
       canSendRedaction,
       consumeLiveExpansion,
       dateFormatString,
-      decryptions,
       editingEventId,
+      handleOpenThread,
       handleReplyClick,
       hideActivity,
       hour24Clock,
@@ -506,16 +570,48 @@ export const useTimelineMessageFeature = ({
     ]
   );
 
+  const renderEvent = useCallback(
+    (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
+      void decryptions;
+      const { event, eventId, highlighted } = row;
+      if (event.getStateKey?.() !== undefined) {
+        if (!RENDERED_STATE_EVENTS.has(event.getType())) return null;
+        return (
+          <Event
+            key={eventId}
+            data-message-id={eventId}
+            room={room}
+            mEvent={event}
+            highlight={highlighted}
+            messageSpacing={messageSpacing}
+          />
+        );
+      }
+      renderedEventsRef.current?.push(event);
+      // An encrypted row renders what it decrypts to; it repaints once decrypted.
+      if (event.isEncrypted?.()) {
+        return (
+          <EncryptedContent key={eventId} mEvent={event}>
+            {() => renderMessageRow(row, data)}
+          </EncryptedContent>
+        );
+      }
+      return renderMessageRow(row, data);
+    },
+    [decryptions, messageSpacing, renderMessageRow, room]
+  );
+
   const wrapExpansion = useCallback(
     (node: ReactNode) => (
       <CollapsibleMessageStateProvider
-        expandAllInit={undefined}
+        expandAllInit={expandAll}
         manualExpansionState={manualExpansionState}
+        onExpansionLayoutChange={restoreExpansionAnchor}
       >
         {node}
       </CollapsibleMessageStateProvider>
     ),
-    [manualExpansionState]
+    [expandAll, manualExpansionState, restoreExpansionAnchor]
   );
 
   return {
@@ -524,5 +620,7 @@ export const useTimelineMessageFeature = ({
     markLiveExpansionCandidate,
     editingEventId,
     setEditingEventId,
+    expandAll,
+    toggleExpandAll,
   };
 };
