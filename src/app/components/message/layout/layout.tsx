@@ -66,14 +66,19 @@ export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode }>(
   )
 );
 
-/** The sender name in a message header; callers render it as a button that opens the profile. */
-export const Username = as<'span'>(({ as: Tag = 'span', className, ...props }, ref) => (
-  <Tag ref={ref} {...props} className={classNames(css.Username, className)} />
-));
+/** How the sender stands in the room, which colours the name (see `getSenderNameTone`). */
+export type UsernameTone = 'lead' | 'moderator' | 'member';
 
-/** The bold part of a sender name. */
-export const UsernameBold = as<'b'>(({ as: AsBold = 'b', ...props }, ref) => (
-  <AsBold {...props} ref={ref} />
+/** The sender name in a message header; callers render it as a button that opens the profile. */
+export const Username = as<'span', { tone?: UsernameTone }>(
+  ({ as: Tag = 'span', className, tone, ...props }, ref) => (
+    <Tag ref={ref} {...props} className={classNames(css.Username({ tone }), className)} />
+  )
+);
+
+/** The emphasized part of a sender name. */
+export const UsernameBold = as<'b'>(({ as: AsBold = 'b', className, ...props }, ref) => (
+  <AsBold {...props} ref={ref} className={classNames(css.UsernameName, className)} />
 ));
 
 type MessageTextBodyProps = {

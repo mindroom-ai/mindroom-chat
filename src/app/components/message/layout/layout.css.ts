@@ -78,22 +78,43 @@ export const BubbleContent = style({
   color: bubbleColors.OnContainer,
 });
 
-export const Username = style([
-  DefaultReset,
-  {
-    display: 'inline-flex',
-    minWidth: 0,
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: 'inherit',
-    font: 'inherit',
-    cursor: 'pointer',
-    selectors: {
-      '&:hover, &:focus-visible': { textDecoration: 'underline' },
+// Sender names take the colour of the sender's standing in the room: whoever leads it (creators
+// and administrators) in blue, moderators in violet, everyone else in teal. The dark themes use
+// lighter shades of the same hues.
+const DARK_THEMES = ':is(.dark-theme, .midnight-theme, .butter-theme) &';
+const nameTone = (light: string, dark: string) => ({
+  color: light,
+  selectors: { [DARK_THEMES]: { color: dark } },
+});
+
+export const Username = recipe({
+  base: [
+    DefaultReset,
+    {
+      display: 'inline-flex',
+      minWidth: 0,
+      padding: 0,
+      border: 'none',
+      background: 'none',
+      color: 'inherit',
+      font: 'inherit',
+      cursor: 'pointer',
+      selectors: {
+        '&:hover, &:focus-visible': { textDecoration: 'underline' },
+      },
+    },
+  ],
+  variants: {
+    tone: {
+      lead: nameTone('#4365B0', '#93AEF0'),
+      moderator: nameTone('#7C4AB0', '#C3A0EC'),
+      member: nameTone('#357381', '#7CC0CC'),
     },
   },
-]);
+});
+
+/** The name itself: medium weight, so it reads as a label rather than a heading. */
+export const UsernameName = style({ fontWeight: 500 });
 
 export const MessageTextBody = recipe({
   base: {

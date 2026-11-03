@@ -54,6 +54,7 @@ import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { MindroomModelBadge } from './MindroomModelBadge';
+import { getSenderNameTone } from './senderNameTone';
 import {
   getMindroomMessageCopyTextState,
   isCopyTextMessageContent,
@@ -702,6 +703,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+    const nameTone = getSenderNameTone(room, senderId);
     const avatarMxc = getMemberAvatarMxc(room, senderId);
     const avatarUrl = avatarMxc
       ? mxcUrlToHttp(client, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
@@ -736,22 +738,36 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         dismissMenu();
         controls?.openDetails();
       };
+      // The name on the left; the reply details button and the time on the right.
       const header = (
         <Box gap="300" justifyContent="SpaceBetween" alignItems="Center" grow="Yes">
-          <Box alignItems="Center" gap="200">
-            <Username as="button" data-user-id={senderId} onClick={onUsernameClick}>
-              <Text as="span" size="T400" truncate>
-                <UsernameBold>{senderDisplayName}</UsernameBold>
+          <Username
+            as="button"
+            data-user-id={senderId}
+            tone={nameTone}
+            onClick={onUsernameClick}
+          >
+            <Text as="span" size="T400" truncate>
+              <UsernameBold>{senderDisplayName}</UsernameBold>
+            </Text>
+          </Username>
+          <Box shrink="No" alignItems="Center" gap="100">
+            {controls && (
+              // Muted like the time beside it.
+              <Text as="span" size="T200" priority="300" style={{ display: 'inline-flex' }}>
+                <MindroomMessageHeaderExtensions
+                  controls={controls as never}
+                  onOpenAiRun={openAiRun}
+                />
               </Text>
-            </Username>
-            <MindroomMessageHeaderExtensions controls={controls as never} onOpenAiRun={openAiRun} />
+            )}
+            <Time
+              ts={mEvent.getTs()}
+              compact={compactLayout}
+              hour24Clock={hour24Clock}
+              dateFormatString={dateFormatString}
+            />
           </Box>
-          <Time
-            ts={mEvent.getTs()}
-            compact={compactLayout}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          />
         </Box>
       );
       // The quoted reply, then the editor or the content, then the reaction chips.
