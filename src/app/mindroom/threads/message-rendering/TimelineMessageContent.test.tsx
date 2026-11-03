@@ -100,7 +100,7 @@ describe('timeline approval cards', () => {
 const decrypted = (event: MatrixEvent, content: Record<string, unknown>) =>
   event.attemptDecryption({
     decryptEvent: async () => ({ clearEvent: { type: MessageEvent.RoomMessage, content } }),
-  } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+  } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
 
 describe('timeline rows of an encrypted room', () => {
   it('repaint when a decrypted edit replaces the content, and unsubscribe on unmount', async () => {
