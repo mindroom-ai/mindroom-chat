@@ -76,17 +76,23 @@ def read_blobs(repo, oids):
     return out
 
 
-# Lines that carry no authorial choice, skipped like blank lines (they neither count toward nor
-# break a run): a JSX closing tag; a JSX tag or attribute line whose attributes are all string,
+# Lines skipped like blank lines (they neither count toward nor break a run). Most carry no
+# authorial choice: a JSX closing tag; a JSX tag or attribute line whose attributes are all string,
 # number or boolean literals (library design tokens such as folds' variant="Surface" gap="200");
-# and a line whose only content is a Matrix namespaced identifier as a key or value
-# ('m.relates_to': {, rel_type: 'm.replace',, PoniesEmoteRooms = 'im.ponies.emote_rooms',).
+# a line whose only content is a Matrix namespaced identifier as a key or value
+# ('m.relates_to': {, rel_type: 'm.replace',, PoniesEmoteRooms = 'im.ponies.emote_rooms',); a line
+# that is only a name (eventId, or ...props in a parameter or object list) or passes a prop under
+# its own name (room={room}), because ported code fixes those names. Comment lines are skipped too,
+# so a comment cannot break a run.
 LITERAL_ATTR = r"""[A-Za-z][\w-]*(?:=(?:"[^"]*"|'[^']*'|\{-?[\d.]+\}|\{(?:true|false|null|undefined)\}|\{'[^']*'\}))?"""
 TRIVIAL = [
     re.compile(r"^</[\w.]*>$"),
     re.compile(rf"^<[\w.]+(?:\s+{LITERAL_ATTR})*\s*/?>?$"),
     re.compile(rf"^{LITERAL_ATTR}\s*/?>?$"),
     re.compile(r"""^['"]?[\w$]*['"]?\s*[:=]?\s*['"](?:m|io|im|org|com|uk|chat|de|net)\.[\w.-]+['"]\s*[,:;]?\s*\{?$"""),
+    re.compile(r"^(?:\.\.\.)?[A-Za-z_$][\w$]*,?$"),
+    re.compile(r"^([A-Za-z_$][\w$-]*)=\{\1\}\s*/?>?$"),
+    re.compile(r"^(?://|/\*|\*/|\*(?:\s|$))"),
 ]
 
 
