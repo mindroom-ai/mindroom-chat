@@ -21,10 +21,13 @@ const MAX_SUGGESTIONS = 20;
 const memberName = (member: RoomMember): string =>
   member.rawDisplayName || member.name || getMxIdLocalPart(member.userId) || member.userId;
 
-/** The strings a member is found by: display name and user ID. */
+/**
+ * The strings a member is found by: display name and the user name in their ID. The server
+ * name is left out, since most members share it and every query would match it.
+ */
 const getMemberSearchStrings = (member: RoomMember): string[] => [
   memberName(member),
-  member.userId,
+  getMxIdLocalPart(member.userId) ?? member.userId,
 ];
 
 const normalize = (value: string): string => value.normalize('NFKC').toLocaleLowerCase();
@@ -100,7 +103,7 @@ function MentionRow({
         })
       }
     >
-      <Text size="B400" truncate style={{ flexGrow: 1 }}>
+      <Text size="B400" align="Left" truncate style={{ flexGrow: 1 }}>
         {displayName}
       </Text>
     </MenuItem>
