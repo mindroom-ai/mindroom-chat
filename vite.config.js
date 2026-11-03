@@ -4,6 +4,7 @@ import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 
 /**
  * Files copied verbatim into the build output (and served by the dev server).
@@ -28,6 +29,8 @@ const precacheGlobIgnores = [
 
 export default defineConfig({
   plugins: [
+    // Only active when Playwright starts the dev server (see playwright.config.ts).
+    e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
 
 
 

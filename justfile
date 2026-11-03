@@ -50,3 +50,21 @@ verify-ported *checkout:
 # Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:
     bash scripts/similarity-audit.sh {{corpora}}
+
+# Start the disposable Tuwunel test homeserver (server name matrix.localhost) on http://127.0.0.1:28008 and wait until it is healthy.
+hs-up:
+    docker compose -f e2e/docker-compose.yaml up -d --wait
+
+# Stop the test homeserver and delete its data.
+hs-down:
+    docker compose -f e2e/docker-compose.yaml down --volumes --remove-orphans
+
+# Run Playwright (Chromium from CHROMIUM_PATH) against the dev server on port 4200, which Playwright starts when nothing listens there. Pass a spec path or any Playwright option, for example `just e2e --list`. Run `just hs-up` first for specs that need the homeserver.
+e2e *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Some specs launch their own browser from this variable.
+    if [ -z "${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-}" ] && [ -n "${CHROMIUM_PATH:-}" ]; then
+      export PLAYWRIGHT_CHROMIUM_EXECUTABLE="$CHROMIUM_PATH"
+    fi
+    exec npx playwright test {{args}}

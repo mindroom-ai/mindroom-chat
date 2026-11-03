@@ -1,0 +1,41 @@
+# Disposable Matrix homeserver for the end-to-end tests: `just hs-up` / `just hs-down`.
+#
+# Server name matrix.localhost, client API on http://127.0.0.1:28008, open registration
+# (the specs register their own users with the m.login.dummy flow), federation off.
+# `just hs-down` removes the data volume, so every start is an empty server.
+# Option names come from the example configuration of the image (`tuwunel --generate-config`);
+# TUWUNEL_<OPTION> sets a top-level option and a double underscore descends into a table.
+name: mindroom-client-e2e
+
+services:
+  tuwunel:
+    image: ghcr.io/mindroom-ai/mindroom-tuwunel:latest
+    ports:
+      - '127.0.0.1:28008:8008'
+    volumes:
+      - tuwunel-data:/var/lib/tuwunel
+    environment:
+      TUWUNEL_SERVER_NAME: matrix.localhost
+      TUWUNEL_DATABASE_PATH: /var/lib/tuwunel
+      # Inside the container network namespace the published port must reach the listener.
+      TUWUNEL_ADDRESS: 0.0.0.0
+      TUWUNEL_PORT: '8008'
+      TUWUNEL_ALLOW_REGISTRATION: 'true'
+      TUWUNEL_YES_I_AM_VERY_VERY_SURE_I_WANT_AN_OPEN_REGISTRATION_SERVER_PRONE_TO_ABUSE: 'true'
+      TUWUNEL_ALLOW_FEDERATION: 'false'
+      # Clients that start from the server name find the homeserver here.
+      TUWUNEL_WELL_KNOWN__CLIENT: http://127.0.0.1:28008
+      # Specs show display names, so skip the default suffix added at registration.
+      TUWUNEL_NEW_USER_DISPLAYNAME_SUFFIX: ''
+      # Specs sign the same accounts in again and again; a 0 rate turns a login limit off.
+      TUWUNEL_RATE_LIMITING__LOGIN__ACCOUNT__PER_SECOND: '0'
+      TUWUNEL_RATE_LIMITING__LOGIN__FAILED__PER_SECOND: '0'
+    healthcheck:
+      test: ['CMD', 'tuwunel', '--health-check']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 3s
+
+volumes:
+  tuwunel-data:
