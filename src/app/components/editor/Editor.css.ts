@@ -38,13 +38,14 @@ export const EditorPlaceholder = style({
   userSelect: 'none',
 });
 
+// Mentions, commands and paste badges: a tinted pill that keeps the line height of the text.
 export const InlineChip = style({
 
 
 
 
 
-
+  paddingInline: toRem(3),
 });
 
 export const InlineChipHighlight = style({
@@ -63,17 +64,18 @@ export const Emoticon = style({
 });
 
 export const CodeBlock = style({
-
-
+  margin: 0,
+  fontFamily: 'var(--font-mono)',
+  overflowX: 'auto',
 
 
 
 });
 
 export const BlockQuote = style({
-
-
-
+  margin: 0,
+  paddingInlineStart: config.space.S200,
+  borderInlineStart: `${config.borderWidth.B700} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
 export const Spoiler = style({
@@ -82,8 +84,9 @@ export const Spoiler = style({
 });
 
 export const InlineCode = style({
-
-
-
-
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.9em',
+  backgroundColor: color.SurfaceVariant.ContainerActive,
+  borderRadius: config.radii.R300,
+  paddingInline: toRem(3),
 });

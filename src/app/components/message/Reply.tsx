@@ -87,13 +87,13 @@ type ReplyProps = {
 };
 
 /** The quoted message above a reply: sender and a one-line preview of what was replied to. */
-
-
-
-
-
-
-
+export const Reply = as<'div', ReplyProps>(
+  (
+    {
+      room,
+      replyEventId,
+      threadRootId,
+      timelineSet,
       hideThreadIndicator,
       onClick,
       onThreadClick,
@@ -115,11 +115,11 @@ type ReplyProps = {
     );
 
     return (
-
-
-
-
-
+      <Box direction="Column" alignItems="Start" {...props} ref={ref}>
+        <MindroomReplyThreadIndicator
+          room={room}
+          threadRootId={threadRootId}
+          timelineSet={timelineSet}
           hide={hideThreadIndicator}
           onClick={onThreadClick}
         />
@@ -127,9 +127,9 @@ type ReplyProps = {
           <Box
             as="button"
             type="button"
-
-
-
+            data-event-id={replyEventId}
+            className={classNames(css.Reply, className)}
+            onClick={onClick}
           >
             <ReplyBody room={room} replyEvent={replyEvent} />
           </Box>

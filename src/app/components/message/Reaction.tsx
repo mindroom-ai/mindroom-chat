@@ -41,20 +41,24 @@ export const Reaction = as<'button', ReactionProps>(
           <img className={css.ReactionImg} src={imageSrc} alt={reaction} />
         ) : (
           <Text as="span" size="Inherit" className={css.ReactionText}>
+            {reaction}
+          </Text>
+        )}
+        {/* A labelled chip is a control, not a tally. */}
+        {!label && (
+          <Text as="span" size="T300">
+            {count}
+          </Text>
+        )}
+      </button>
+    );
+  }
+);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+type ReactionTooltipMsgProps = {
+  room: Room;
+  /** The annotation key: a Unicode emoji or an mxc URI. */
+  reaction: string;
   events: MatrixEvent[];
 };
 

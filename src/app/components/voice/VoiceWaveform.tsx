@@ -126,9 +126,9 @@ export function VoiceWaveform({
 
         return (
           <rect
-
-
-
+            // eslint-disable-next-line react/no-array-index-key
+            key={index}
+            className={classNames(
               index < activeBars ? css.BarActive : css.Bar,
               compact && css.BarCompact,
               compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded

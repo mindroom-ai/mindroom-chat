@@ -143,6 +143,13 @@ const isParagraph = (node: Descendant): node is Element & { type: typeof BlockTy
 export const trimCustomHtml = (customHtml: string): string =>
   customHtml.replace(/^(?:<br\s*\/?>)+/, '').replace(/(?:<br\s*\/?>)+$/, '');
 
+/**
+ * Whether the custom HTML adds nothing to the plain body: the same text, only escaped, with
+ * `<br/>` for line breaks. A message like that is sent without a `formatted_body`.
+ */
+export const customHtmlEqualsPlainText = (customHtml: string, plainText: string): boolean =>
+  customHtml.split(LINE_BREAK).join('\n') === sanitizeText(plainText);
+
 const inlineElementToPlainText = (node: CustomElement, children: string): string | undefined => {
   switch (node.type) {
     case BlockType.Mention:
@@ -152,7 +159,7 @@ const inlineElementToPlainText = (node: CustomElement, children: string): string
 
 
 
-
+      return children;
     case BlockType.PasteMarker:
       return mindroomEditorPasteMarkerElementToPlainText(node);
     default:
@@ -186,14 +193,13 @@ function nodeToPlainText(node: Descendant, isMarkdown: boolean): string {
 
 
 
+
       return `${'#'.repeat(node.level)} ${children}\n`;
     case BlockType.CodeBlock:
       return `\`\`\`\n${childrenToPlainText(node.children, false)}\`\`\`\n`;
     case BlockType.BlockQuote:
       return prefixLines(children, () => '> ');
-
-
-
+    case BlockType.OrderedList:
       return prefixLines(children, (index) => `${index + 1}. `);
     case BlockType.UnorderedList:
       return prefixLines(children, () => '- ');
@@ -205,9 +211,7 @@ function nodeToPlainText(node: Descendant, isMarkdown: boolean): string {
 /** Converts composer content to the plain-text `body`, one line per block. */
 export const toPlainText = (node: Descendant | Descendant[], isMarkdown: boolean): string => {
   const nodes = Array.isArray(node) ? node : [node];
-
-
-
-
-
-
+  const text = nodes.map((child) => nodeToPlainText(child, isMarkdown)).join('');
+  // Every block ends its line; the body needs no newline after the last one.
+  return text.endsWith('\n') ? text.slice(0, -1) : text;
+};

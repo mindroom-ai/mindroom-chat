@@ -125,19 +125,18 @@ type ClientConfigLoaderProps = {
     error: unknown,
     retry: () => void,
     ignore: (() => void) | undefined,
+    authenticate: () => void
+  ) => ReactNode;
+  children: (config: ClientConfig) => ReactNode;
+};
 
-
-
-
-
-
-
-
-
-
-
-
-
+/**
+ * Loads the deployment's `config.json` before rendering `children`. A cached copy renders at once
+ * (web only) while a fresh fetch runs in the background; only a sign-in failure interrupts it.
+ */
+export function ClientConfigLoader({ children, error, fallback }: ClientConfigLoaderProps) {
+  const [state, setState] = useState<LoaderState>(() => {
+    // Native apps wait for a fresh configuration; the web starts from the cached one.
     const cached = Capacitor.isNativePlatform() ? undefined : readCachedClientConfig();
     return cached ? { status: 'ready', config: cached } : { status: 'loading' };
   });

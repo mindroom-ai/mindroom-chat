@@ -5,10 +5,9 @@ import { DefaultReset, color, config, toRem } from 'folds';
 export const Button = style([
   DefaultReset,
   {
-
-
-
-
+    flexShrink: 0,
+    display: 'inline-grid',
+    placeItems: 'center',
     width: toRem(44),
     height: toRem(44),
     padding: 0,

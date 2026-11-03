@@ -63,12 +63,12 @@ const htmlReactParserOptions: HTMLReactParserOptions = {};
 const linkifyOpts: Opts = {};
 
 const renderBody = (body: string, customBody?: string, clientConfig: ClientConfig = {}) => (
-
-
-
-
-
-
+  <ClientConfigProvider value={clientConfig}>
+    <RenderBody
+      body={body}
+      customBody={customBody}
+      htmlReactParserOptions={htmlReactParserOptions}
+      linkifyOpts={linkifyOpts}
     />
   </ClientConfigProvider>
 );

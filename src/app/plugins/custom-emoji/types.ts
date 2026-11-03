@@ -11,6 +11,7 @@ export const ImageUsage = {
 } as const;
 export type ImageUsage = (typeof ImageUsage)[keyof typeof ImageUsage];
 
+/** Content of a pack: room state or the user's account data. Both fields are optional. */
 
 
 
@@ -33,7 +34,7 @@ export type ImageUsage = (typeof ImageUsage)[keyof typeof ImageUsage];
 
 
 
-
+};
 
 /** Where a room pack lives. */
 export type PackAddress = {

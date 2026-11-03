@@ -93,7 +93,9 @@ function RenderElement(props: RenderElementProps) {
   const { attributes, children } = props;
   const element = props.element as CustomElement;
 
-
+  switch (element.type) {
+    case BlockType.ListItem:
+      return <li {...attributes}>{children}</li>;
 
 
 
@@ -164,11 +166,14 @@ type CustomEditorProps = {
   /** Accessible name of the text box; the placeholder when not given. */
   ariaLabel?: string;
   placeholder?: string;
+  /** Tallest the text box grows before it scrolls; `50vh` by default. */
 
 
 
 
-
+  /** Controls at the start and end of the text row. */
+  before?: ReactNode;
+  after?: ReactNode;
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;
@@ -205,13 +210,13 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       data-editable-name={editableName}
       aria-label={ariaLabel}
       readOnly={readOnly}
-
-
-
-
-
-
-
+      placeholder={placeholder}
+      renderPlaceholder={renderPlaceholder}
+      renderElement={renderElement}
+      renderLeaf={renderLeaf}
+      onPaste={onPaste}
+      onKeyUp={onKeyUp}
+      onKeyDown={onKeyDown}
     />
   );
 

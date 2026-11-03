@@ -81,12 +81,12 @@ const withHighlight = (
  */
 export const RenderBody = memo(function RenderBody({
   body,
-
-
-
-
-
-
+  customBody,
+  highlightRegex,
+  linkifyOpts,
+  htmlReactParserOptions,
+}: RenderBodyProps) {
+  const clientConfig = useClientConfig();
   const allowedSchemes = clientConfig.messageRendering?.additionalAllowedUriSchemes;
   const schemesKey = JSON.stringify(allowedSchemes ?? null);
 

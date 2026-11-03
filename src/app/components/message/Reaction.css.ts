@@ -1,6 +1,8 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
+// A pill with the emoji (or custom emoji image) and the count; tinted while the user's own
+// reaction is among them.
 
 
 

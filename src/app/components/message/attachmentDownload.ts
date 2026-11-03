@@ -32,6 +32,10 @@ export const useAttachmentAction = <T>(
   const aliveRef = useRef(true);
   const [status, setStatus] = useState<AttachmentActionStatus>('idle');
   const sourceRef = useRef(source);
+  // Read by `run`, which stays stable for one source while the caller rebuilds the object.
+
+
+
 
 
 

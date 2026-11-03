@@ -240,12 +240,13 @@ export type RenderVideoContentArgs = {
 type MVideoProps = {
   content: MessageContent;
   renderAsFile: () => ReactNode;
+  renderVideoContent: (args: RenderVideoContentArgs) => ReactNode;
+  outlined?: boolean;
+};
 
-
-
-
-
-
+/** A video, or a file row for types the browser should not play from a blob. */
+export function MVideo({ content, outlined, renderAsFile, renderVideoContent }: MVideoProps) {
+  const { t } = useTranslation();
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
   const info = readInfo<IVideoInfo>(content);

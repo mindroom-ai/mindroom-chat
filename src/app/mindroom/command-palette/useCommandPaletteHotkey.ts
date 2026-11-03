@@ -8,10 +8,10 @@ export const useCommandPaletteHotkey = (
   setOpen: (nextOpen: boolean) => void,
   matchesShortcut: (event: KeyboardEvent) => boolean
 ) => {
-
-
-
-
+  useKeyDown(
+    window,
+    useCallback(
+      (event: KeyboardEvent) => {
         if (!matchesShortcut(event)) return;
         if (computerOwnsKeyboardEvent(event) || computerOwnsKeyboardFocus()) return;
         if (!opened && hasBlockingPortalOverlay()) {

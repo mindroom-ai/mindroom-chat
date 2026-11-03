@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 
 
+
   }, [size, initialIndex]);
 
   const next = useCallback(() => {

@@ -43,15 +43,15 @@ export function VoiceVolumeButton() {
         <Icon size="100" src={volume === 0 ? Icons.VolumeMute : Icons.VolumeHigh} />
       </button>
       <PopOut
-
-
-
-
-
-
-
-
-
+        anchor={anchor}
+        offset={8}
+        position="Top"
+        align="Center"
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              // Focus lands on the slider thumb, so arrow keys change the volume right away.
+              onDeactivate: () => setAnchor(undefined),
               // The trigger toggles the popover itself; let its click through.
               clickOutsideDeactivates: (event: { target: EventTarget | null }) =>
                 !isTrigger(event.target),

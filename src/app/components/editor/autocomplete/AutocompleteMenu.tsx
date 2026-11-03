@@ -10,6 +10,7 @@ import * as css from './AutocompleteMenu.css';
 
 
 
+
   children: ReactNode;
 };
 
@@ -30,9 +31,9 @@ export function AutocompleteMenu({ requestClose, headerContent, children }: Auto
   }, [alive, requestClose]);
 
   const trapOptions: TrapOptions = {
-
-
-
+    // A click in the composer closes the menu without stealing the caret from the text box.
+    clickOutsideDeactivates: true,
+    escapeDeactivates: stopPropagation,
     returnFocusOnDeactivate: false,
     initialFocus: false,
     isKeyForward: isArrowDown,

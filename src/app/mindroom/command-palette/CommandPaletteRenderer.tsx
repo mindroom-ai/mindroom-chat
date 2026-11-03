@@ -96,6 +96,7 @@ export function CommandPaletteRenderer() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const close = useCallback(() => setOpen(false), [setOpen]);
+  const closeLogout = useCallback(() => setLogoutOpen(false), []);
 
   useCommandPaletteHotkey(open, setOpen, matchesPaletteShortcut);
 
@@ -104,22 +105,21 @@ export function CommandPaletteRenderer() {
       {open && (
         <PaletteDialog mobile={mobile} requestClose={close} onLogout={() => setLogoutOpen(true)} />
       )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      {logoutOpen && (
+        <Overlay open backdrop={<OverlayBackdrop />}>
+          <OverlayCenter>
+            {/* Escape or a click beside the confirmation cancels the logout. */}
+            <FocusTrap
+              focusTrapOptions={{
+                clickOutsideDeactivates: true,
+                onDeactivate: closeLogout,
+              }}
+            >
+              <LogoutDialog handleClose={closeLogout} />
+            </FocusTrap>
+          </OverlayCenter>
+        </Overlay>
+      )}
+    </>
+  );
+}

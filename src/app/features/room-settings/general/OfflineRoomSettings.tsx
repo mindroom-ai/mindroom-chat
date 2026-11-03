@@ -249,25 +249,26 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
       </Box>
       <Box gap="200" wrap="Wrap">
         {snapshot.downloading ? (
-
-
-
-
-
-
-
-
+          <Button
+            size="300"
+            radii="300"
+            variant="Secondary"
+            fill="Soft"
+            before={<Spinner size="100" variant="Secondary" fill="Soft" />}
+            onClick={() => offline.cancel(roomId)}
+          >
+            <Text size="B300">{t('featureUi.roomSettings.general.offline.cancelDownload')}</Text>
           </Button>
         ) : (
           <Button
-
-
-
-
-
-
-
-
+            size="300"
+            radii="300"
+            variant="Primary"
+            fill="Soft"
+            onClick={() => offline.download(roomId, { includeAllMedia })}
+          >
+            <Text size="B300">
+              {t('featureUi.roomSettings.general.offline.downloadEntireRoom')}
             </Text>
           </Button>
         )}

@@ -10,6 +10,19 @@ import type {
 } from './slate';
 
 export const createParagraphElement = (text = ''): ParagraphElement => ({
+  type: BlockType.Paragraph,
+  children: [{ text }],
+});
+
+// Atoms (mentions, emoticons) hold one empty text child, as Slate requires of void elements.
+const emptyChildren = () => [{ text: '' }];
+
+/** A Unicode emoji, or a custom emoji by its mxc URI and shortcode. */
+export const createEmoticonElement = (key: string, shortcode: string): EmoticonElement => ({
+  type: BlockType.Emoticon,
+  key,
+  shortcode,
+  children: emptyChildren(),
 
 
 
@@ -21,20 +34,12 @@ export const createParagraphElement = (text = ''): ParagraphElement => ({
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  id,
+  name,
+  highlight,
+  ...(eventId === undefined ? {} : { eventId }),
+  ...(viaServers === undefined ? {} : { viaServers }),
+  children: emptyChildren(),
 });
 
 export const createLinkElement = (href: string, text: string): LinkElement => ({
@@ -122,18 +127,27 @@ export const restoreEditorContent = (editor: Editor, content: Descendant[]) => {
   });
 };
 
+// Inserting a void element leaves the caret inside it; one offset forward is the text after it.
+const stepOutOfAtom = (editor: Editor) => {
+  const { selection } = editor;
+  if (selection && Editor.void(editor, { at: selection })) {
+    Transforms.move(editor, { unit: 'offset' });
+  }
+};
+
 /** Replaces `range` with `element` and places the caret after it. */
 export const replaceWithElement = (editor: Editor, range: BaseRange, element: CustomElement) => {
+  Transforms.select(editor, range);
+  Transforms.insertNodes(editor, element);
+  stepOutOfAtom(editor);
+};
 
-
-
-
-
-
-
-
-
-
+/**
+ * Leaves the caret where typing continues after an insertion: past an atom it sits in, and
+ * after a space with `withSpace`.
+ */
+export const moveCursor = (editor: Editor, withSpace?: boolean) => {
+  stepOutOfAtom(editor);
 
 
 

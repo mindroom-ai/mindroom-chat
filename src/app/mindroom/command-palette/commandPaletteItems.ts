@@ -162,9 +162,9 @@ export const useCommandPaletteSource = ({
     return items;
   }, [
     directRoomIds,
-
-
-
+    getRoom,
+    navigateRoom,
+    navigateSpace,
     orderedRoomIds,
     roomToParents,
     roomToUnread,

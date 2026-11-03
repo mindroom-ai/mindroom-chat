@@ -5,6 +5,7 @@ import type { BlockType, HeadingLevel } from './types';
 
 export type FormattedText = {
   text: string;
+  // Marks (MarkType in types.ts); a missing mark is off.
 
 
 
@@ -36,6 +37,7 @@ export type EmoticonElement = {
   type: typeof BlockType.Emoticon;
   /** Unicode emoji, or the mxc URI of a custom emoji. */
   key: string;
+  /** Shortcode without colons; the alt text of a custom emoji. */
 
 
 
@@ -120,8 +122,8 @@ export type BlockElement =
 
 
 
-
-
+  | UnorderedListElement
+  | ListItemElement;
 
 export type CustomElement = BlockElement | InlineElement;
 

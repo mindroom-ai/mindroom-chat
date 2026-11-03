@@ -6,9 +6,9 @@ import { DefaultReset, color, config, toRem } from 'folds';
 export const Button = style([
   DefaultReset,
   {
-
-
-
+    display: 'inline-grid',
+    placeItems: 'center',
+    flexShrink: 0,
     minWidth: toRem(44),
     height: toRem(44),
     padding: 0,
@@ -28,11 +28,11 @@ export const Button = style([
 ]);
 
 export const Label = style({
-
-
-
-
-
+  boxSizing: 'border-box',
+  minWidth: toRem(36),
+  height: toRem(22),
+  display: 'inline-grid',
+  placeItems: 'center',
   paddingInline: config.space.S100,
 
 

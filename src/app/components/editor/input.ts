@@ -41,17 +41,19 @@ const BLOCK_TAGS = new Set([
 ]);
 
 const CONTAINER_BLOCKS: ReadonlySet<string> = new Set([
+  // Blocks whose children are lines of their own rather than inline content.
 
 
 
 
+]);
 
-
-
+/** The text content of a DOM node, tags dropped. */
+function getText(node: ChildNode): string {
   if (isText(node)) return node.data;
   if (isTag(node)) return node.children.map(getText).join('');
   return '';
-};
+}
 
 const isBlockNode = (node: ChildNode): boolean =>
   isTag(node) && (BLOCK_TAGS.has(node.name) || isMindroomEditorMathBlockElement(node));

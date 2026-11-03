@@ -20,17 +20,18 @@ export const Reply = style([
         border: 'none',
         borderInlineStart: `${toRem(2)} solid ${color.SurfaceVariant.ContainerLine}`,
         textAlign: 'start',
+        color: 'inherit',
+        font: 'inherit',
+      },
+    },
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
-
+// The preview takes the room left beside the sender and ends in an ellipsis.
+export const ReplyContent = style({
+  flex: '1 1 auto',
+  minWidth: 0,
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  textOverflow: 'ellipsis',
 });

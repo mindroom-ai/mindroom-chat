@@ -30,14 +30,15 @@ export const Dialog = style({
   overflow: 'hidden',
 });
 
+export const Header = style({
+  gap: config.space.S200,
+  paddingInline: config.space.S400,
+  borderBlockEnd: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+});
 
-
-
-
-
-
-
-
+// The task cards, one under the other.
+export const Content = style({
+  padding: config.space.S400,
   minWidth: 0,
 });
 
@@ -49,7 +50,6 @@ export const Empty = style({
 
 export const Card = style({
   minWidth: 0,
-
 
 
 
@@ -67,10 +67,10 @@ export const Prompt = style([
   Wrap,
   {
     whiteSpace: 'pre-wrap',
-
-
-
-
+    // The prompt is quoted: a bar at its start, as in a block quote.
+    margin: 0,
+    paddingInlineStart: config.space.S300,
+    borderInlineStart: `${config.borderWidth.B600} solid ${color.SurfaceVariant.ContainerLine}`,
   },
 ]);
 

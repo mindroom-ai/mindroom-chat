@@ -20,10 +20,10 @@ const FallbackLine = as<'div', FallbackLineProps>(
       style={{
         color: critical ? color.Critical.Main : undefined,
         opacity: critical ? undefined : config.opacity.P300,
-
-
-
-
+        maxWidth: '100%',
+        ...style,
+      }}
+      ref={ref}
     >
       {icon && <Icon size="50" src={icon} />}
       <Text as="span" size="T300" priority="300">

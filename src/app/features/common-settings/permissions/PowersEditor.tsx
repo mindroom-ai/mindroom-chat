@@ -19,6 +19,7 @@ import { SequenceCardStyle } from '../styles.css';
 
 
 
+
 };
 
 /** An edit the user made: a new or changed tag, or `null` for a removed one. */
@@ -44,7 +45,7 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
  * are never written; saving applies only the user's edits on top of the
  * room's latest stored tags, so concurrent changes by others survive.
  */
-
+export function PowersEditor({ requestClose, powerLevels }: PowersEditorProps) {
 
 
 

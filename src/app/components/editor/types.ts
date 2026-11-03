@@ -22,13 +22,16 @@ export const BlockType = {
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
 /** Text marks; each is a boolean property on a Slate text leaf. */
+export const MarkType = {
+  Bold: 'bold',
+  Code: 'code',
+  Italic: 'italic',
+  Spoiler: 'spoiler',
+  StrikeThrough: 'strikeThrough',
+  Underline: 'underline',
+} as const;
 
+export type MarkType = (typeof MarkType)[keyof typeof MarkType];
 
-
-
-
-
-
-
-
-
+/** Heading levels the composer writes; `h4` to `h6` are read as level 3 (see input.ts). */
+export type HeadingLevel = 1 | 2 | 3;

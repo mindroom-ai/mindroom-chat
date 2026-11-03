@@ -52,7 +52,7 @@ export const Input = style({
 });
 
 export const Close = style({
-
+  display: 'flex',
 
 
 

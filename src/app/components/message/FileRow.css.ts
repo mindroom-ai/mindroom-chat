@@ -12,7 +12,7 @@ export const FileTile = style({
 
 
 
-
+  height: toRem(44),
 
 
 

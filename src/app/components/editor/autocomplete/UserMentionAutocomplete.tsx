@@ -34,6 +34,11 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
   return getMemberSearchStrings(member).some((value) => normalize(value).includes(needle));
 };
 
+// Joined and invited members can be mentioned; people who left or were banned are not offered.
+const isMentionable = (member: RoomMember): boolean =>
+  member.membership === 'join' || member.membership === 'invite';
+
+
 
 
 
@@ -47,17 +52,18 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
 };
 
 /** Suggests room members for an `@` mention and inserts the chosen one as a mention pill. */
-export function UserMentionAutocomplete({
-  room,
-  editor,
-  query,
-  requestClose,
-  onSuggestionsChange,
 
 
 
 
 
+
+
+
+
+
+  const roomMembers = useRoomMembers(mx, room.roomId);
+  const members = useMemo(() => roomMembers.filter(isMentionable), [roomMembers]);
 
   const [result, search, resetSearch] = useAsyncSearch(members, getMemberSearchStrings);
 
@@ -130,17 +136,17 @@ export function UserMentionAutocomplete({
 
 
 
-                // The window listener would insert the first suggestion as well.
-                evt.stopPropagation();
+
+
                 handleSelect(member);
               })
             }
             onClick={() => handleSelect(member)}
-
-
-
-
-
+            after={
+              <Text size="T200" priority="300" truncate>
+                {member.userId}
+              </Text>
+            }
 
 
 
