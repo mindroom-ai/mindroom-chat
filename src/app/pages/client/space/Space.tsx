@@ -1,6 +1,6 @@
 import React, { MouseEventHandler, ReactNode, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
-import type { RectCords } from 'folds';
+import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
@@ -134,53 +134,77 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
 
 function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
   const { t } = useTranslation();
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const handleOpenMenu: MouseEventHandler<HTMLButtonElement> = (event) =>
-    setMenuAnchor(event.currentTarget.getBoundingClientRect());
+  const [menuAt, setMenuAt] = useState<RectCords>();
+  const dismiss = () => setMenuAt(undefined);
+  const showMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
+    setMenuAt(event.currentTarget.getBoundingClientRect());
+  };
+
+  // Marking the space's rooms read is the menu's only entry.
+  const menuContent = (
+    <FocusTrap
+      focusTrapOptions={{
+        clickOutsideDeactivates: true,
+        escapeDeactivates: stopPropagation,
+        initialFocus: false,
+        onDeactivate: dismiss,
+        returnFocusOnDeactivate: false,
+      }}
+    >
+      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
+        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={dismiss} />
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
 
   return (
     <PageNavHeader>
-      <Box alignItems="Center" grow="Yes" gap="300">
+      <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
-          <Text size="H4" truncate>
+          <Text truncate size="H4">
             {name}
           </Text>
         </Box>
         <IconButton
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              }}
-            >
-
-
-                  <MindroomMarkRoomsReadMenuItem
-                    roomIds={roomIds}
-                    onClose={() => setMenuAnchor(undefined)}
-                  />
-                </Box>
-              </Menu>
-            </FocusTrap>
-          }
-        />
+          variant="Background"
+          aria-label={t('featureUi.lobby.lobbyHeader.moreOptions')}
+          onClick={showMenu}
+        >
+          <Icon size="200" src={Icons.VerticalDots} />
+        </IconButton>
+        <PopOut anchor={menuAt} align="End" position="Bottom" offset={6} content={menuContent} />
       </Box>
     </PageNavHeader>
+  );
+}
+
+/** A shortcut row at the top of the space navigation, opening one of the space's pages. */
+function SpacePageLink({
+  icon,
+  label,
+  onOpen,
+}: {
+  icon: IconSrc;
+  label: string;
+  onOpen: () => void;
+}) {
+  return (
+    <NavItem radii="400" variant="Background">
+      <NavButton onClick={onOpen}>
+        <NavItemContent>
+          <Box as="span" alignItems="Center" gap="200" grow="Yes">
+            <Avatar radii="400" size="200">
+              <Icon size="100" src={icon} />
+            </Avatar>
+            <Text as="span" size="Inherit" truncate>
+              {label}
+            </Text>
+          </Box>
+        </NavItemContent>
+      </NavButton>
+    </NavItem>
   );
 }
 
@@ -204,41 +228,22 @@ function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
     return roomsClosed ? items.filter((roomId) => roomId === selectedRoomId) : items;
   }, [mx, spaceRooms, roomsClosed, selectedRoomId]);
 
-  const action = (key: string, icon: typeof Icons.Space, label: string, path: string) => (
-    <NavItem key={key} variant="Background" radii="400">
-      <NavButton onClick={() => navigate(path)}>
-        <NavItemContent>
-          <Box as="span" grow="Yes" alignItems="Center" gap="200">
-            <Avatar size="200" radii="400">
-              <Icon src={icon} size="100" />
-            </Avatar>
-            <Text as="span" size="Inherit" truncate>
-              {label}
-            </Text>
-          </Box>
-        </NavItemContent>
-      </NavButton>
-    </NavItem>
-  );
-
   return (
     <PageNav>
       <SpaceHeader name={name} roomIds={spaceRooms} />
       <PageNavContent>
         <Box direction="Column" gap="300">
           <NavCategory>
-            {action(
-              'lobby',
-              Icons.Flag,
-              t('sharedUi.space.lobby'),
-              getSpaceLobbyPath(spaceIdOrAlias)
-            )}
-            {action(
-              'search',
-              Icons.Search,
-              t('sharedUi.space.messageSearch'),
-              getSpaceSearchPath(spaceIdOrAlias)
-            )}
+            <SpacePageLink
+              icon={Icons.Flag}
+              label={t('sharedUi.space.lobby')}
+              onOpen={() => navigate(getSpaceLobbyPath(spaceIdOrAlias))}
+            />
+            <SpacePageLink
+              icon={Icons.Search}
+              label={t('sharedUi.space.messageSearch')}
+              onOpen={() => navigate(getSpaceSearchPath(spaceIdOrAlias))}
+            />
           </NavCategory>
           <NavCategory>
             <NavCategoryHeader>

@@ -1,7 +1,7 @@
 import React, { MouseEventHandler, useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
 import { Menu } from '../../../components/glass/GlassPrimitives';
-import type { RectCords } from 'folds';
+import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -57,55 +57,89 @@ const lastActivity = (mx: MatrixClient, roomId: string): number =>
 const sortRooms = (mx: MatrixClient, roomIds: string[]): string[] =>
   [...roomIds].sort((a, b) => lastActivity(mx, b) - lastActivity(mx, a));
 
+/** The header's options button, whose menu marks every listed room read. */
+function MarkRoomsReadMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const closeMenu = () => setAnchor(undefined);
+  const openMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
+    setAnchor(event.currentTarget.getBoundingClientRect());
+  };
+
+  const menu = (
+    <FocusTrap
+      focusTrapOptions={{
+        clickOutsideDeactivates: true,
+        escapeDeactivates: stopPropagation,
+        initialFocus: false,
+        onDeactivate: closeMenu,
+        returnFocusOnDeactivate: false,
+      }}
+    >
+      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
+        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
+
+  return (
+    <>
+      <IconButton variant="Background" aria-label={label} onClick={openMenu}>
+        <Icon size="200" src={Icons.VerticalDots} />
+      </IconButton>
+      <PopOut anchor={anchor} align="End" position="Bottom" offset={6} content={menu} />
+    </>
+  );
+}
+
 function HomeHeader({ roomIds }: { roomIds: string[] }) {
   const { t } = useTranslation();
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const handleOpenMenu: MouseEventHandler<HTMLButtonElement> = (event) =>
-    setMenuAnchor(event.currentTarget.getBoundingClientRect());
+  const title = t('nav.home');
 
   return (
     <PageNavHeader>
-      <Box alignItems="Center" grow="Yes" gap="300">
+      <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
-          <Text size="H4" truncate>
-            {t('nav.home')}
+          <Text truncate size="H4">
+            {title}
           </Text>
         </Box>
-        <IconButton
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              }}
-            >
-
-
-                  <MindroomMarkRoomsReadMenuItem
-                    roomIds={roomIds}
-                    onClose={() => setMenuAnchor(undefined)}
-                  />
-                </Box>
-              </Menu>
-            </FocusTrap>
-          }
+        <MarkRoomsReadMenu
+          label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+          roomIds={roomIds}
         />
       </Box>
     </PageNavHeader>
+  );
+}
+
+type RoomActionProps = {
+  /** Value of `data-home-room-action`, which tests and styles select on. */
+  action: 'create' | 'join' | 'search';
+  icon: IconSrc;
+  label: string;
+  selected?: boolean;
+  onSelect: () => void;
+};
+
+/** One of the shortcuts above the room list. */
+function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps) {
+  return (
+    <NavItem aria-selected={selected} radii="400" variant="Background">
+      <NavButton data-home-room-action={action} onClick={onSelect}>
+        <NavItemContent>
+          <Box as="span" alignItems="Center" gap="200" grow="Yes">
+            <Avatar radii="400" size="200">
+              <Icon size="100" src={icon} />
+            </Avatar>
+            <Text as="span" size="Inherit" truncate>
+              {label}
+            </Text>
+          </Box>
+        </NavItemContent>
+      </NavButton>
+    </NavItem>
   );
 }
 
@@ -156,48 +190,26 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
 
   const roomActions = (
     <NavCategory>
-      <NavItem variant="Background" radii="400" aria-selected={createSelected}>
-        <NavButton data-home-room-action="create" onClick={() => navigate(getHomeCreatePath())}>
-          <NavItemContent>
-            <Box as="span" grow="Yes" alignItems="Center" gap="200">
-              <Avatar size="200" radii="400">
-                <Icon src={Icons.Plus} size="100" />
-              </Avatar>
-              <Text as="span" size="Inherit" truncate>
-                {t('nav.createRoom')}
-              </Text>
-            </Box>
-          </NavItemContent>
-        </NavButton>
-      </NavItem>
-      <NavItem variant="Background" radii="400">
-        <NavButton data-home-room-action="join" onClick={() => setJoinOpen(true)}>
-          <NavItemContent>
-            <Box as="span" grow="Yes" alignItems="Center" gap="200">
-              <Avatar size="200" radii="400">
-                <Icon src={Icons.Link} size="100" />
-              </Avatar>
-              <Text as="span" size="Inherit" truncate>
-                {t('nav.joinWithAddress')}
-              </Text>
-            </Box>
-          </NavItemContent>
-        </NavButton>
-      </NavItem>
-      <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
-        <NavButton data-home-room-action="search" onClick={() => navigate(getHomeSearchPath())}>
-          <NavItemContent>
-            <Box as="span" grow="Yes" alignItems="Center" gap="200">
-              <Avatar size="200" radii="400">
-                <Icon src={Icons.Search} size="100" />
-              </Avatar>
-              <Text as="span" size="Inherit" truncate>
-                {t('nav.messageSearch')}
-              </Text>
-            </Box>
-          </NavItemContent>
-        </NavButton>
-      </NavItem>
+      <RoomAction
+        action="create"
+        icon={Icons.Plus}
+        label={t('nav.createRoom')}
+        selected={createSelected}
+        onSelect={() => navigate(getHomeCreatePath())}
+      />
+      <RoomAction
+        action="join"
+        icon={Icons.Link}
+        label={t('nav.joinWithAddress')}
+        onSelect={() => setJoinOpen(true)}
+      />
+      <RoomAction
+        action="search"
+        icon={Icons.Search}
+        label={t('nav.messageSearch')}
+        selected={searchSelected}
+        onSelect={() => navigate(getHomeSearchPath())}
+      />
     </NavCategory>
   );
 
@@ -244,7 +256,6 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
                   return (
                     <VirtualTile
                       key={item.index}
-                      virtualItem={item}
 
 
 
@@ -252,13 +263,14 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
 
 
 
-                      />
-                    </VirtualTile>
-                  );
-                })}
-              </div>
-            </NavCategory>
-            <ThreadNavCategory />
+
+
+
+
+
+
+
+
           </Box>
         </PageNavContent>
       )}

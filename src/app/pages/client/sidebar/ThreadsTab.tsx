@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { RefCallback } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,24 +8,26 @@ import { getThreadsPath } from '../../pathUtils';
 
 /** The Threads button of the icon rail: threads across every room. */
 export function ThreadsTab() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
-  const selected = useThreadsSelected();
+  const active = useThreadsSelected();
+  const { t } = useTranslation();
+  const label = t('nav.threads');
+
+  const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
+    <SidebarAvatar
+      ref={tooltipAnchor}
+      as="button"
+      aria-label={label}
+      outlined
+      onClick={() => navigate(getThreadsPath())}
+    >
+      <Icon filled={active} src={Icons.Thread} />
+    </SidebarAvatar>
+  );
+
   return (
-    <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('nav.threads')}>
-        {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            outlined
-            aria-label={t('nav.threads')}
-            onClick={() => navigate(getThreadsPath())}
-          >
-            <Icon src={Icons.Thread} filled={selected} />
-          </SidebarAvatar>
-        )}
-      </SidebarItemTooltip>
+    <SidebarItem active={active}>
+      <SidebarItemTooltip tooltip={label}>{renderButton}</SidebarItemTooltip>
     </SidebarItem>
   );
 }

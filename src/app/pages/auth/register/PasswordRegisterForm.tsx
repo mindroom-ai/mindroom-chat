@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useMemo, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { IAuthData } from 'matrix-js-sdk';
@@ -36,6 +36,18 @@ const isDummyOnly = (stages: string[]): boolean =>
 /** Whether this form can complete one of the server's sign-up flows. */
 export const canRegisterWithPassword = (authData: IAuthData): boolean =>
   authData.flows?.some((flow) => isDummyOnly(flow.stages)) ?? false;
+
+/** One form row: the caption above its control. */
+function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text as="label" size="L400" priority="300">
+        {caption}
+      </Text>
+      {children}
+    </Box>
+  );
+}
 
 type PasswordRegisterFormProps = {
   baseUrl: string;
@@ -86,50 +98,41 @@ export function PasswordRegisterForm({ baseUrl }: PasswordRegisterFormProps) {
     } finally {
       setBusy(false);
     }
+  };
 
-
-
-
-
-
-
-        </Text>
+  return (
+    <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+      <LabeledField caption={t('sharedUi.passwordRegisterForm.username')}>
         <Input
-          name="usernameInput"
-          variant="Background"
-          size="500"
-          required
-          outlined
           autoComplete="username"
+          name="usernameInput"
+          outlined
+          required
+          size="500"
+          variant="Background"
         />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordRegisterForm.password')}
-        </Text>
+      </LabeledField>
+      <LabeledField caption={t('sharedUi.passwordRegisterForm.password')}>
         <PasswordInput
+          autoComplete="new-password"
           name="passwordInput"
-          variant="Background"
-          size="500"
-          required
           outlined
-          autoComplete="new-password"
+          required
+          size="500"
+          variant="Background"
         />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordRegisterForm.confirmPassword')}
-        </Text>
+      </LabeledField>
+      <LabeledField caption={t('sharedUi.passwordRegisterForm.confirmPassword')}>
         <PasswordInput
-          name="confirmPasswordInput"
-          variant="Background"
-          size="500"
-          required
-          outlined
-          autoComplete="new-password"
           aria-invalid={mismatch || undefined}
+          autoComplete="new-password"
+          name="confirmPasswordInput"
+          outlined
+          required
+          size="500"
+          variant="Background"
         />
-      </Box>
+      </LabeledField>
       {error && <FieldError message={t(REGISTER_ERROR_KEYS[error])} />}
       {storeFailed && (
         <FieldError

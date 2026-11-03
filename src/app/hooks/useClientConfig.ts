@@ -1,5 +1,20 @@
 import { createContext, useContext } from 'react';
 
+const configContext = createContext<ClientConfig | undefined>(undefined);
+configContext.displayName = 'ClientConfig';
+
+/** Supplies the loaded `config.json` to everything rendered below it. */
+export const ClientConfigProvider = configContext.Provider;
+
+/** The deployment's configuration; throws when no `ClientConfigProvider` is above the caller. */
+export const useClientConfig = (): ClientConfig => {
+  const provided = useContext(configContext);
+  if (provided === undefined) {
+    throw new Error('useClientConfig() was called outside a ClientConfigProvider');
+  }
+  return provided;
+};
+
 /**
  * The deployment's `config.json`. Every field is optional: a missing field means the built-in
  * default, so an empty object is a valid configuration.
@@ -40,7 +55,7 @@ import { createContext, useContext } from 'react';
 
 
 
-  sidebar?: {
+
     showThreads?: boolean;
     showExploreCommunity?: boolean;
     /** The Local MindRoom tab; on unless set to false. */
@@ -108,16 +123,6 @@ import { createContext, useContext } from 'react';
     uiActions?: {
       /** Homeservers whose agents may open panels without a click. */
       autoOpenFromHomeservers?: string[];
-
-
-
-
-
-
-
-
-
-
-
-
-
+    };
+  };
+};

@@ -86,6 +86,33 @@ const findDirectRoom = (
 
   if (existingRoomId) return null;
 
+
+
+
+
+
+
+
+        placeholder="@user:server"
+        defaultValue={requestedUserId}
+        disabled={creating}
+        required
+        radii="400"
+        size="500"
+        variant={invalid ? 'Critical' : 'SurfaceVariant'}
+      />
+      {invalid ? (
+        <Text size="T200" style={{ color: color.Critical.Main }}>
+          {t('featureUi.createChat.pleaseEnterAValidUserId')}
+        </Text>
+      ) : null}
+    </Box>
+  );
+
+  const encryptionToggle = (
+    <Switch disabled={creating} value={encryption} variant="Primary" onChange={setEncryption} />
+  );
+
   return (
     <Box
       direction="Column"
@@ -104,45 +131,19 @@ const findDirectRoom = (
           {t('sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId')}
         </Text>
       </Box>
-      <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
-        <Box direction="Column" gap="100">
-          <Text as="label" size="L400">
-            {t('featureUi.createChat.userId')}
-          </Text>
-          <Input
-            name="userIdInput"
-            defaultValue={requestedUserId}
-            placeholder="@user:server"
-            variant={invalid ? 'Critical' : 'SurfaceVariant'}
-            size="500"
-            radii="400"
-            required
-
-
-
-
-              {t('featureUi.createChat.pleaseEnterAValidUserId')}
-            </Text>
-          )}
-        </Box>
+      <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+        {userIdField}
         <Box direction="Column" gap="100">
           <Text size="L400">{t('featureUi.createChat.options')}</Text>
           <SequenceCard
-            variant="SurfaceVariant"
             direction="Column"
+            variant="SurfaceVariant"
             style={{ padding: config.space.S300 }}
           >
             <SettingTile
-              title={t('featureUi.createChat.endToEndEncryption')}
+              after={encryptionToggle}
               description={t('featureUi.createChat.onceThisFeatureIsEnabledItCan')}
-              after={
-                <Switch
-                  variant="Primary"
-
-
-
-                />
-              }
+              title={t('featureUi.createChat.endToEndEncryption')}
             />
           </SequenceCard>
         </Box>

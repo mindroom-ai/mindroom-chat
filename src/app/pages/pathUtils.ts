@@ -114,28 +114,31 @@ export const getRegisterPath = (server?: string): string => getServerPath(REGIST
 export const getResetPasswordPath = (server?: string): string =>
   getServerPath(RESET_PASSWORD_PATH, server);
 
+/** The pairing page, with the pair code from a link in its `code` parameter when there is one. */
 export const getConnectPath = (pairCode?: string): string => {
-  const path = trimSlashes(CONNECT_PATH);
+  const connectPath = `/${trimSlashes(CONNECT_PATH)}`;
+  if (!pairCode) return connectPath;
+  return withSearchParam(connectPath, { code: pairCode });
+};
 
-
-
-
-
-
-
-
-  generatePath(HOME_ROOM_PATH, {
-    roomIdOrAlias: encodeSegment(roomIdOrAlias),
+/** A room route under Home or Direct Messages, optionally focused on one event. */
+const roomInSectionPath = (pattern: string, roomIdOrAlias: string, eventId?: string): string =>
+  generatePath(pattern, {
     eventId: optionalSegment(eventId),
-
-
-
-
-
-  generatePath(DIRECT_ROOM_PATH, {
     roomIdOrAlias: encodeSegment(roomIdOrAlias),
-    eventId: optionalSegment(eventId),
   });
+
+
+
+
+
+export const getHomeRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
+
+
+
+
+
+
 
 export const getThreadsPath = (): string => THREADS_PATH;
 export const getCanvasesPath = (): string => CANVASES_PATH;

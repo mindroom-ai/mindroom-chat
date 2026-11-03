@@ -24,6 +24,52 @@ import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/M
 import { stopPropagation } from '../../../utils/keyboard';
 import { getDirectRoomPath } from '../../pathUtils';
 
+/** The header's options button, whose menu marks every direct room read. */
+function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const closeMenu = () => setAnchor(undefined);
+
+  return (
+    <>
+      <IconButton
+        variant="Background"
+        aria-label={label}
+        onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+          setAnchor(event.currentTarget.getBoundingClientRect())
+        }
+      >
+
+
+
+
+
+
+
+
+
+
+
+
+              initialFocus: false,
+              onDeactivate: closeMenu,
+              returnFocusOnDeactivate: false,
+            }}
+          >
+            <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
+              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
+              </Box>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+    </>
+  );
+}
+
+const byLatestActivity = (a: Room, b: Room): number =>
+  b.getLastActiveTimestamp() - a.getLastActiveTimestamp();
+
 /** The Direct Messages navigation: joined direct rooms by latest activity. */
 
 
@@ -34,60 +80,27 @@ import { getDirectRoomPath } from '../../pathUtils';
 
 
 
-
-  const directRooms = useMemo(
-    () =>
-      rooms
-        .filter((roomId) => directs.has(roomId))
-        .map((roomId) => mx.getRoom(roomId))
-        .filter((room): room is Room => !!room)
-        .sort((a, b) => b.getLastActiveTimestamp() - a.getLastActiveTimestamp()),
-    [mx, rooms, directs]
-  );
+  const directRooms = useMemo(() => {
+    const joinedDirects: Room[] = [];
+    rooms.forEach((roomId) => {
+      const room = directs.has(roomId) ? mx.getRoom(roomId) : null;
+      if (room) joinedDirects.push(room);
+    });
+    return joinedDirects.sort(byLatestActivity);
+  }, [mx, rooms, directs]);
 
   return (
     <PageNav>
       <PageNavHeader>
-        <Box alignItems="Center" grow="Yes" gap="300">
+        <Box gap="300" grow="Yes" alignItems="Center">
           <Box grow="Yes">
-            <Text size="H4" truncate>
+            <Text truncate size="H4">
               {t('nav.directMessages')}
             </Text>
           </Box>
-          <IconButton
-            aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-            variant="Background"
-            onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-              setMenuAnchor(event.currentTarget.getBoundingClientRect())
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                }}
-              >
-
-
-                    <MindroomMarkRoomsReadMenuItem
-                      roomIds={directRooms.map((room) => room.roomId)}
-                      onClose={() => setMenuAnchor(undefined)}
-                    />
-                  </Box>
-                </Menu>
-              </FocusTrap>
-            }
+          <DirectOptionsMenu
+            label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+            roomIds={directRooms.map((room) => room.roomId)}
           />
         </Box>
       </PageNavHeader>

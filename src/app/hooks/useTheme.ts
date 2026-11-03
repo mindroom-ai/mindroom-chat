@@ -1,49 +1,33 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { butterTheme, darkTheme, lightTheme, midnightTheme, silverTheme } from '../../colors.css';
-import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
+import { settingsAtom } from '../state/settings';
+import * as palettes from '../../colors.css';
+
+/** Whether a theme is a light or a dark one; picks the system default and the code colors. */
 
 
 
+}
 
+export interface Theme {
+  id: string;
+  kind: ThemeKind;
+  /** Classes for `<body>`: the theme ID, its palette, and the code highlighting scheme. */
+  classNames: string[];
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Builds the theme `<name>-theme` on top of a palette class from `colors.css`. */
+const defineTheme = (name: string, kind: ThemeKind, paletteClass: string): Theme => {
+  const id = `${name}-theme`;
+  const prismScheme = kind === ThemeKind.Dark ? 'prism-dark' : 'prism-light';
+  return { id, kind, classNames: [id, paletteClass, prismScheme] };
 };
 
-export const MidnightTheme: Theme = {
-  id: 'midnight-theme',
-  kind: ThemeKind.Dark,
-
-
-
-
-
-
-
-};
+export const LightTheme = defineTheme('light', ThemeKind.Light, palettes.lightTheme);
+export const SilverTheme = defineTheme('silver', ThemeKind.Light, palettes.silverTheme);
+export const DarkTheme = defineTheme('dark', ThemeKind.Dark, palettes.darkTheme);
+export const MidnightTheme = defineTheme('midnight', ThemeKind.Dark, palettes.midnightTheme);
+export const ButterTheme = defineTheme('butter', ThemeKind.Dark, palettes.butterTheme);
 
 export const THEMES: Theme[] = [LightTheme, SilverTheme, DarkTheme, MidnightTheme, ButterTheme];
 

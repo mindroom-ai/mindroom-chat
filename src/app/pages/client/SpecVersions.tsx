@@ -55,6 +55,14 @@ function ConnectingSplash({ onCancel }: { onCancel?: () => void }) {
   );
 }
 
+/** The label inside a recovery button. */
+const RecoveryLabel = ({ children }: { children: string }) => (
+  <Text as="span" size="B400">
+    {children}
+  </Text>
+);
+
+/** The homeserver did not answer `/versions`: retry, go on without it, or start from scratch. */
 function ConnectionError({
   baseUrl,
   retry,
@@ -67,45 +75,39 @@ function ConnectionError({
 
   const [clearing, setClearing] = useState(false);
 
-  const handleClearCache = () => {
+  const clearCacheOnce = () => {
     if (clearing) return;
     setClearing(true);
     clearAllCacheAndReload().catch(() => setClearing(false));
   };
+  const clearLabel = clearing
+    ? t('sharedUi.specVersions.clearing')
+    : t('sharedUi.specVersions.clearCacheAndReload');
+  const problem = t(
+    'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection',
+    { server: baseUrl }
+  );
 
   return (
     <SplashScreen>
-      <Box grow="Yes" direction="Column" gap="400" alignItems="Center" justifyContent="Center">
+      <Box direction="Column" justifyContent="Center" alignItems="Center" gap="400" grow="Yes">
         <Dialog>
-          <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
-            <Text>
-              {t(
-                'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection',
-                { server: baseUrl }
-              )}
-            </Text>
+          <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+            <Text>{problem}</Text>
             <Button variant="Critical" onClick={retry}>
-              <Text as="span" size="B400">
-                {t('sharedUi.specVersions.retry')}
-              </Text>
+              <RecoveryLabel>{t('sharedUi.specVersions.retry')}</RecoveryLabel>
             </Button>
             <Button variant="Secondary" fill="Soft" onClick={ignore}>
-              <Text as="span" size="B400">
-                {t('sharedUi.specVersions.continue')}
-              </Text>
+              <RecoveryLabel>{t('sharedUi.specVersions.continue')}</RecoveryLabel>
             </Button>
             <Button
               variant="Secondary"
               fill="Soft"
-              onClick={handleClearCache}
               disabled={clearing}
               before={clearing ? <Spinner size="100" variant="Secondary" /> : undefined}
+              onClick={clearCacheOnce}
             >
-              <Text as="span" size="B400">
-                {clearing
-                  ? t('sharedUi.specVersions.clearing')
-                  : t('sharedUi.specVersions.clearCacheAndReload')}
-              </Text>
+              <RecoveryLabel>{clearLabel}</RecoveryLabel>
             </Button>
           </Box>
         </Dialog>

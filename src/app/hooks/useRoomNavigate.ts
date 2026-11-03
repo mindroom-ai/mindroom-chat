@@ -134,34 +134,27 @@ const getRoomPath = (
 
   /** Opens a thread and records the current page as the place its back button returns to. */
   const navigateRoomThread = useCallback(
-    (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
-      navigateMindroomRoomThread({
-        roomId,
-        threadId,
-        eventId,
-        opts,
-        navigateRoomThreadDirect,
-      });
-    },
+    (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
+      navigateMindroomRoomThread({ navigateRoomThreadDirect, roomId, threadId, eventId, opts }),
     [navigateRoomThreadDirect]
   );
 
   return useMemo(
     () => ({
       navigatePath,
-      navigateSpace,
       navigateRoom,
       navigateRoomFocusEvent,
       navigateRoomThread,
       navigateRoomThreadDirect,
+      navigateSpace,
     }),
     [
       navigatePath,
-      navigateSpace,
       navigateRoom,
       navigateRoomFocusEvent,
       navigateRoomThread,
       navigateRoomThreadDirect,
+      navigateSpace,
     ]
   );
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { RefCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -48,32 +48,34 @@ const useSessionHasCanvases = (sessionId: string): boolean => {
 
 /** The Canvases button of the icon rail, shown once there is a canvas to list. */
 export function CanvasesTab() {
-
-
-
-  const selected = useCanvasesSelected();
-  const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-  const listed = useSessionHasCanvases(sessionId);
+  const mx = useMatrixClient();
+  const navigate = useNavigate();
+  const active = useCanvasesSelected();
+  const { t } = useTranslation();
+  const listed = useSessionHasCanvases(createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()));
   const pinEvent = useAccountData(PINNED_CANVASES_TYPE);
   const pinned = useMemo(() => readPinnedCanvases(pinEvent?.getContent()).length > 0, [pinEvent]);
+  const label = t('mindroomUi.canvases.title');
 
-  if (!listed && !pinned && !selected) return null;
+  // Stays visible while the Canvases page is open, even after its last canvas went away.
+  const visible = listed || pinned || active;
+  if (!visible) return null;
+
+  const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
+    <SidebarAvatar
+      ref={tooltipAnchor}
+      as="button"
+      aria-label={label}
+      outlined
+      onClick={() => navigate(getCanvasesPath())}
+    >
+      <Icon filled={active} src={Icons.Category} />
+    </SidebarAvatar>
+  );
 
   return (
-    <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('mindroomUi.canvases.title')}>
-        {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            outlined
-            aria-label={t('mindroomUi.canvases.title')}
-            onClick={() => navigate(getCanvasesPath())}
-          >
-            <Icon src={Icons.Category} filled={selected} />
-          </SidebarAvatar>
-        )}
-      </SidebarItemTooltip>
+    <SidebarItem active={active}>
+      <SidebarItemTooltip tooltip={label}>{renderButton}</SidebarItemTooltip>
     </SidebarItem>
   );
 }

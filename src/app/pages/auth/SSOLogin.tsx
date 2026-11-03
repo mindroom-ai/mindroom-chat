@@ -35,21 +35,24 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
  * homeserver's SSO redirect; in the native app they open an in-app browser
  * (or Sign in with Apple), since leaving the app would lose the callback.
  */
-
-
-
-
-  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
-  const native = runningNatively();
-  const sortedProviders = useMemo(() => sortIdentityProviders(providers), [providers]);
+export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SSOLoginProps) {
+  const homeserverUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
+  const { t } = useTranslation();
+  const orderedProviders = useMemo(() => sortIdentityProviders(providers), [providers]);
+  // Unauthenticated client, used only to build SSO redirect and media URLs.
+  const loginClient = useMemo(
+    () => createMatrixClient({ baseUrl: homeserverUrl }),
+    [homeserverUrl]
+  );
+  const inNativeShell = runningNatively();
 
   const ssoUrl = (providerId?: string): string =>
-    mx.getSsoLoginUrl(redirectUrl, 'sso', providerId, action);
+    loginClient.getSsoLoginUrl(redirectUrl, 'sso', providerId, action);
 
   const openInNativeBrowser = async (event: MouseEvent, url: string) => {
     event.preventDefault();
     try {
-      await openNativeSsoBrowser(url, hasCloudflareAccess(baseUrl));
+      await openNativeSsoBrowser(url, hasCloudflareAccess(homeserverUrl));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('[SSO] Failed to open native browser', error);
@@ -60,9 +63,9 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
     event.preventDefault();
     try {
       await signInWithNativeApple({
-        baseUrl,
+        baseUrl: homeserverUrl,
         ssoUrl: url,
-        ephemeral: hasCloudflareAccess(baseUrl),
+        ephemeral: hasCloudflareAccess(homeserverUrl),
         providerId: provider.id,
         redirectUrl,
         request: createMatrixFetchFn(fetch),
@@ -89,9 +92,9 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
       variant="Secondary"
       fill="Soft"
       outlined
-      {...(native ? {} : { as: 'a' as const, href: url })}
+      {...(inNativeShell ? {} : { as: 'a' as const, href: url })}
       onClick={(event: MouseEvent) => {
-        if (native) onNativeClick(event);
+        if (inNativeShell) onNativeClick(event);
       }}
       before={
         icon ? (
@@ -107,7 +110,7 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
     </Button>
   );
 
-  if (sortedProviders.length === 0) {
+  if (orderedProviders.length === 0) {
     const url = ssoUrl();
     return (
       <Box direction="Column" gap="200">
@@ -125,10 +128,10 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
       wrap="Wrap"
       justifyContent="Center"
     >
-      {sortedProviders.map((provider) => {
+      {orderedProviders.map((provider) => {
         const url = ssoUrl(provider.id);
         const icon = provider.icon
-          ? mxcUrlToHttp(mx, provider.icon, false) ?? undefined
+          ? mxcUrlToHttp(loginClient, provider.icon, false) ?? undefined
           : undefined;
         const apple = isAppleIdentityProvider(provider);
         return renderButton(

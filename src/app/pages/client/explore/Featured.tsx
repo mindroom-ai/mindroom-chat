@@ -61,68 +61,78 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
   );
 }
 
+/** A titled grid of featured cards; renders nothing for an empty list. */
+function FeaturedSection({
+  title,
+  roomIdsOrAliases,
+  space,
+}: {
+  title: string;
+  roomIdsOrAliases: string[];
+  space: boolean;
+}) {
+  if (roomIdsOrAliases.length === 0) return null;
+  return (
+    <Box direction="Column" gap="300">
+      <Text size="H4">{title}</Text>
+      <RoomCardGrid>
+        {roomIdsOrAliases.map((id) => (
+          <FeaturedCard key={id} space={space} roomIdOrAlias={id} />
+        ))}
+      </RoomCardGrid>
+    </Box>
+  );
+}
+
 /** Spaces and rooms the deployment features on the Explore page. */
+export function FeaturedRooms() {
+  const { t } = useTranslation();
+  const featured = useClientConfig().featuredCommunities;
+  const spaces = featured?.spaces ?? [];
+  const rooms = featured?.rooms ?? [];
+  const nothingFeatured = spaces.length + rooms.length === 0;
 
-
-
-  const spaces = featuredCommunities?.spaces ?? [];
-  const rooms = featuredCommunities?.rooms ?? [];
+  const header = (
+    <PageHeader balance>
+      <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
+        <Icon size="400" src={Icons.Bulb} />
+        <Text size="H3" truncate>
+          {t('sharedUi.explore.featured')}
+        </Text>
+      </Box>
+    </PageHeader>
+  );
 
   return (
     <Page>
-      <PageScroll
-        header={
-          <PageHeader balance>
-            <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
-              <Icon size="400" src={Icons.Bulb} />
-              <Text size="H3" truncate>
-                {t('sharedUi.explore.featured')}
-              </Text>
-            </Box>
-          </PageHeader>
-        }
-      >
+      <PageScroll header={header}>
         <PageContent>
           <PageContentCenter>
             <Box direction="Column" gap="200">
               <PageHeroSection>
                 <PageHero
-                  icon={<Icon size="600" src={Icons.Bulb} />}
                   title={t('sharedUi.featured.featuredByClient')}
                   subTitle={t(
                     'sharedUi.featured.findAndExplorePublicRoomsAndSpacesFeaturedByClientProvider'
                   )}
+                  icon={<Icon size="600" src={Icons.Bulb} />}
                 />
               </PageHeroSection>
-              {spaces.length > 0 && (
-                <Box direction="Column" gap="300">
-                  <Text size="H4">{t('sharedUi.featured.featuredSpaces')}</Text>
-                  <RoomCardGrid>
-                    {spaces.map((roomIdOrAlias) => (
-                      <FeaturedCard key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias} space />
-                    ))}
-                  </RoomCardGrid>
-                </Box>
-              )}
-              {rooms.length > 0 && (
-                <Box direction="Column" gap="300">
-                  <Text size="H4">{t('sharedUi.featured.featuredRooms')}</Text>
-                  <RoomCardGrid>
-                    {rooms.map((roomIdOrAlias) => (
-                      <FeaturedCard
-                        key={roomIdOrAlias}
-                        roomIdOrAlias={roomIdOrAlias}
-                        space={false}
-                      />
-                    ))}
-                  </RoomCardGrid>
-                </Box>
-              )}
-              {spaces.length === 0 && rooms.length === 0 && (
+              <FeaturedSection
+                title={t('sharedUi.featured.featuredSpaces')}
+                roomIdsOrAliases={spaces}
+                space
+              />
+              <FeaturedSection
+                title={t('sharedUi.featured.featuredRooms')}
+                roomIdsOrAliases={rooms}
+                space={false}
+              />
+              {nothingFeatured ? (
                 <Text size="T300" align="Center">
                   {t('sharedUi.featured.noRoomsOrSpacesFeaturedByClientProvider')}
                 </Text>
-              )}
+              ) : null}
             </Box>
           </PageContentCenter>
         </PageContent>

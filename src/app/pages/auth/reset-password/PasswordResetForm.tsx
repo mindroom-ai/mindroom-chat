@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useCallback, useMemo, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useCallback, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { MatrixError } from 'matrix-js-sdk';
@@ -6,6 +6,18 @@ import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { FieldError } from '../FiledError';
+
+/** One form row: the caption above its input. */
+function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text as="label" size="L400" priority="300">
+        {caption}
+      </Text>
+      {children}
+    </Box>
+  );
+}
 
 type PasswordResetFormProps = {
   defaultEmail?: string;
@@ -111,55 +123,46 @@ type EmailToken = {
   }
 
   return (
-    <Box as="form" onSubmit={handleSubmit} direction="Inherit" gap="400">
+    <Box as="form" direction="Inherit" gap="400" onSubmit={handleSubmit}>
       <Text size="T300" priority="400">
         <Trans
           i18nKey="sharedUi.passwordResetForm.resetEmailDescription"
-          values={{ server: serverName }}
           components={{ strong: <strong /> }}
+          values={{ server: serverName }}
         />
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          size="500"
-          required
+      </Text>
+      <LabeledField caption={t('sharedUi.passwordResetForm.email')}>
+        <Input
+          name="emailInput"
+          type="email"
+          defaultValue={defaultEmail}
           outlined
+          required
+          size="500"
+          variant="Background"
         />
-      </Box>
+      </LabeledField>
+      <LabeledField caption={t('sharedUi.passwordResetForm.newPassword')}>
+        <Input
+          name="passwordInput"
+          type="password"
+          outlined
+          required
+          size="500"
+          variant="Background"
+        />
+      </LabeledField>
+      <LabeledField caption={t('sharedUi.passwordResetForm.confirmPassword')}>
+        <Input
+          name="confirmPasswordInput"
+          type="password"
+          aria-invalid={mismatch || undefined}
+          outlined
+          required
+          size="500"
+          variant={mismatch ? 'Critical' : 'Background'}
+        />
+      </LabeledField>
       {error && (
         <FieldError
           message={`${error.errcode ?? 'M_UNKNOWN'}: ${t(

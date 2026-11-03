@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,18 @@ const LOGIN_ERROR_KEYS = {
     'sharedUi.passwordLoginForm.failedToLoginYourLoginRequestHasBeenRateLimitedByServer',
   [LoginError.Unknown]: 'sharedUi.passwordLoginForm.failedToLoginUnknownReason',
 } as const;
+
+/** One form row: the caption, then the control and anything that belongs under it. */
+function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text as="label" size="L400" priority="300">
+        {caption}
+      </Text>
+      {children}
+    </Box>
+  );
+}
 
 type PasswordLoginFormProps = {
   /** The homeserver base URL to log in at. */
@@ -73,38 +85,32 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
   };
 
   return (
-    <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordLoginForm.username2')}
-        </Text>
+    <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+      <LabeledField caption={t('sharedUi.passwordLoginForm.username2')}>
         <Input
-          name="usernameInput"
-          variant="Background"
-          size="500"
-          required
-          outlined
           autoComplete="username"
-        />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordLoginForm.password')}
-        </Text>
-        <PasswordInput
-          name="passwordInput"
-          variant="Background"
-          size="500"
-          required
+          name="usernameInput"
           outlined
+          required
+          size="500"
+          variant="Background"
+        />
+      </LabeledField>
+      <LabeledField caption={t('sharedUi.passwordLoginForm.password')}>
+        <PasswordInput
           autoComplete="current-password"
+          name="passwordInput"
+          outlined
+          required
+          size="500"
+          variant="Background"
         />
         <Box justifyContent="End">
           <Text as={Link} size="T200" to={getResetPasswordPath(server)}>
             {t('sharedUi.passwordLoginForm.forgetPassword')}
           </Text>
         </Box>
-      </Box>
+      </LabeledField>
       {error && <FieldError message={t(LOGIN_ERROR_KEYS[error])} />}
       {storeFailed && (
         <FieldError

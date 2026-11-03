@@ -53,35 +53,48 @@ function PoweredByLinks({
   return <>{joinLinks(links, language)}</>;
 }
 
+/** One support or policy page, opened in a new tab. */
+function PolicyLink({ label, url }: PoweredByLink) {
+  return (
+    <Text size="T300">
+      <a href={url} target="_blank" rel="noreferrer">
+        {label}
+      </a>
+    </Text>
+  );
+}
+
 /** Credits and policy links under the sign-in card. */
 export function AuthFooter() {
   const { t, i18n } = useTranslation();
   const auth = (useClientConfig().auth ?? {}) as AuthFooterConfig;
-  const poweredBy = auth.poweredBy ?? MINDROOM_AUTH_BRANDING.poweredBy;
+  const credited = auth.poweredBy ?? MINDROOM_AUTH_BRANDING.poweredBy;
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'en';
 
-  const policyLinks = [
-    auth.supportUrl && { label: t('sharedUi.authFooter.support'), url: auth.supportUrl },
-    auth.privacyUrl && { label: t('sharedUi.authFooter.privacy'), url: auth.privacyUrl },
-    auth.termsUrl && { label: t('sharedUi.authFooter.terms'), url: auth.termsUrl },
-  ].filter((link): link is PoweredByLink => !!link);
+  // Support, privacy and terms, in that order; a page without a configured URL is left out.
+  const policyPages: PoweredByLink[] = [];
+  const addPolicyPage = (label: string, url: string | undefined) => {
+    if (url) policyPages.push({ label, url });
+  };
+  addPolicyPage(t('sharedUi.authFooter.support'), auth.supportUrl);
+  addPolicyPage(t('sharedUi.authFooter.privacy'), auth.privacyUrl);
+  addPolicyPage(t('sharedUi.authFooter.terms'), auth.termsUrl);
+
+  const creditLine =
+    credited.length === 0 ? null : (
+      <Text size="T300">
+        <Trans
+          i18nKey="sharedUi.authFooter.poweredBy"
+          components={{ links: <PoweredByLinks links={credited} language={language} /> }}
+        />
+      </Text>
+    );
 
   return (
     <Box className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
-      {poweredBy.length > 0 && (
-        <Text size="T300">
-          <Trans
-            i18nKey="sharedUi.authFooter.poweredBy"
-            components={{ links: <PoweredByLinks links={poweredBy} language={language} /> }}
-          />
-        </Text>
-      )}
-      {policyLinks.map((link) => (
-        <Text key={link.url} size="T300">
-          <a href={link.url} target="_blank" rel="noreferrer">
-            {link.label}
-          </a>
-        </Text>
+      {creditLine}
+      {policyPages.map((page) => (
+        <PolicyLink key={page.url} label={page.label} url={page.url} />
       ))}
     </Box>
   );
