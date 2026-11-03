@@ -41,15 +41,18 @@ const useEventReaders = (room: Room, eventId: string): string[] => {
 type EventReadersProps = {
   room: Room;
   eventId: string;
+  /** Who to list instead of the receipts on the event, when the caller already knows. */
+  readers?: string[];
   requestClose: () => void;
 };
 
 /** The list of people who have seen a message, for its read receipts dialog. */
-export function EventReaders({ room, eventId, requestClose }: EventReadersProps) {
+export function EventReaders({ room, eventId, readers: known, requestClose }: EventReadersProps) {
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   const { t } = useTranslation();
-  const readers = useEventReaders(room, eventId);
+  const onEvent = useEventReaders(room, eventId);
+  const readers = known ?? onEvent;
 
   const getAvatarSrc = (userId: string): string | undefined => {
     const mxc = getMemberAvatarMxc(room, userId);
