@@ -16,6 +16,7 @@ import {
 } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Header, Menu } from '../../../components/glass/GlassPrimitives';
+import { PageScroll } from '../../../components/page';
 import { SettingTile } from '../../../components/setting-tile';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
@@ -89,15 +90,20 @@ function FormatHints() {
     </Box>
   ));
 
+  // The tokens scroll beneath the title; the scrollbar is the focus trap's stop.
   return (
-    // The list scrolls, so it takes focus (keyboard scrolling, and the focus trap needs a stop).
-    <Menu tabIndex={0} style={{ width: toRem(280), maxHeight: '60vh', overflowY: 'auto' }}>
-      <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>
-        <Text size="H5">{t(`${HINT_PREFIX}.title`)}</Text>
-      </Header>
-      <Box direction="Column" gap="300" style={{ padding: config.space.S300 }}>
-        {groups}
-      </Box>
+    <Menu style={{ display: 'flex', width: toRem(280), maxHeight: '60vh' }}>
+      <PageScroll
+        header={
+          <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>
+            <Text size="H5">{t(`${HINT_PREFIX}.title`)}</Text>
+          </Header>
+        }
+      >
+        <Box direction="Column" gap="300" style={{ padding: config.space.S300 }}>
+          {groups}
+        </Box>
+      </PageScroll>
     </Menu>
   );
 }
