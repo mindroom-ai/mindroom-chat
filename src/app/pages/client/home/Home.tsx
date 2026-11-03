@@ -48,14 +48,15 @@ import {
 } from '../../pathUtils';
 import { useHomeRooms } from './useHomeRooms';
 
-const ROOM_ROW_HEIGHT = 38;
+const ROOM_ROW_HEIGHT = 36;
 
-const lastActivity = (mx: MatrixClient, roomId: string): number =>
-  mx.getRoom(roomId)?.getLastActiveTimestamp?.() ?? 0;
+const roomNameOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-/** Rooms by latest activity. */
-const sortRooms = (mx: MatrixClient, roomIds: string[]): string[] =>
-  [...roomIds].sort((a, b) => lastActivity(mx, b) - lastActivity(mx, a));
+/** Rooms by name, A to Z, ignoring case and accents, as in the reference sidebar. */
+const sortRooms = (mx: MatrixClient, roomIds: string[]): string[] => {
+  const nameOf = (roomId: string): string => mx.getRoom(roomId)?.name ?? roomId;
+  return [...roomIds].sort((a, b) => roomNameOrder.compare(nameOf(a), nameOf(b)));
+};
 
 /** The header's options button, whose menu marks every listed room read. */
 function MarkRoomsReadMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
@@ -236,7 +237,8 @@ export function Home() {
         />
       ) : (
         <PageNavContent scrollRef={listScrollRef}>
-          <Box direction="Column" gap="300">
+          {/* Rows stop short of the panel edge, leaving room for the scrollbar (home.png). */}
+          <Box direction="Column" gap="300" style={{ paddingRight: config.space.S500 }}>
             {roomActions}
             <NavCategory>
               <NavCategoryHeader>
