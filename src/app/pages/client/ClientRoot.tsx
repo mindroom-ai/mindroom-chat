@@ -27,7 +27,6 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { CapabilitiesProvider } from '../../hooks/useCapabilities';
 import { MediaConfigProvider } from '../../hooks/useMediaConfig';
-import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { createMindroomSyncEngine, MindroomSyncEngineProvider } from '../../mindroom/engine';
 import type { MindroomSyncEngine } from '../../mindroom/engine';
 import {
@@ -343,14 +342,12 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
       {(serverConfigs) => (
         <MatrixClientProvider value={mx}>
           <MindroomSyncEngineProvider engine={engine}>
-
-
-
-                  <ClientStartupProvider hasCompletedInitialSync={sync.live}>
-                    {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
-                    {children}
-                  </ClientStartupProvider>
-                </AuthMetadataProvider>
+            <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
+              <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
+                <ClientStartupProvider hasCompletedInitialSync={sync.live}>
+                  {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
+                  {children}
+                </ClientStartupProvider>
               </MediaConfigProvider>
             </CapabilitiesProvider>
           </MindroomSyncEngineProvider>

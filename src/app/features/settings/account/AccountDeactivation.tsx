@@ -6,7 +6,7 @@ import { SettingTile } from '../../../components/setting-tile';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
-import { useAuthMetadata } from '../../../hooks/useAuthMetadata';
+import { useServerConfigs } from '../../../components/ServerConfigsLoader';
 import { getActiveSession } from '../../../state/sessions';
 import { removeCurrentClientSessionAndReload } from '../../../../client/initMatrix';
 import { SettingsCard } from '../SettingsCard';
@@ -17,7 +17,7 @@ const KEY = 'featureUi.settings.account.accountDeactivation';
 
 /** The provider's deactivation page when the homeserver delegates accounts (MSC2965, MSC4191). */
 const useProviderDeactivationUrl = (): string | undefined => {
-  const metadata = useAuthMetadata();
+  const metadata = useServerConfigs().authMetadata;
   return metadata && getAccountManagementUrl(metadata, { action: 'org.matrix.account_deactivate' });
 };
 

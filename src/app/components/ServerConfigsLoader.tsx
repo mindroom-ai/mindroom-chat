@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 
 /** `GET /media/config`; the SDK does not export its type. */
@@ -44,6 +44,8 @@ const loadServerConfigs = async (client: MatrixClient): Promise<ServerConfigs> =
   };
 };
 
+const LoadedConfigs = createContext<ServerConfigs>({});
+
 /** Fetches the homeserver's capabilities, media limits and auth metadata, then renders children. */
 export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) {
   const [configs, setConfigs] = useState<ServerConfigs>();
@@ -60,5 +62,11 @@ export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) 
   }, [mx]);
 
   if (!configs) return null;
-  return children(configs);
+  return <LoadedConfigs.Provider value={configs}>{children(configs)}</LoadedConfigs.Provider>;
 }
+
+/**
+ * What the nearest loader fetched, for components far below it (the account and device settings
+ * read the auth metadata here instead of requesting it again); empty outside a loader.
+ */
+export const useServerConfigs = (): ServerConfigs => useContext(LoadedConfigs);
