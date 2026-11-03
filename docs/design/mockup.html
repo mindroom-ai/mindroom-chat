@@ -3,27 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MindRoom Client: design directions</title>
+<title>MindRoom Client: views</title>
 <style>
   * { box-sizing: border-box; }
-  .page { display: flex; flex-direction: column; gap: 28px; padding: 4px 0 8px; }
+  .page { display: flex; flex-direction: column; gap: 22px; padding: 4px 0 8px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: calc(var(--radius, 10px) + 4px); background: var(--secondary, #eee); border: 1px solid var(--border, #ddd); }
+  .tabs button { font: 600 13px var(--font-sans, system-ui); padding: 7px 13px; border-radius: var(--radius, 10px); border: 0; background: transparent; color: var(--muted-foreground, #777); cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--background, #fff); color: var(--foreground, #111); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
   .label { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px 2px; font: 600 15px/1.3 var(--font-sans, system-ui); }
   .label small { font-weight: 400; color: var(--muted-foreground, #888); font-size: 13px; }
   .stage { width: 100%; }
-  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: calc(var(--radius, 10px) + 4px); background: var(--secondary, #eee); border: 1px solid var(--border, #ddd); width: fit-content; }
-  .tabs button { font: 600 13px var(--font-sans, system-ui); padding: 7px 14px; border-radius: var(--radius, 10px); border: 0; background: transparent; color: var(--muted-foreground, #777); cursor: pointer; }
-  .tabs button[aria-pressed="true"] { background: var(--background, #fff); color: var(--foreground, #111); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
-  .crop { width: 100%; height: 440px; overflow: hidden; border-radius: 16px; }
+  .crop { width: 100%; height: 520px; overflow: hidden; border-radius: 16px; }
 
-  /* ---------- design tokens per direction ---------- */
+  /* ---------- tokens ---------- */
   .app {
-    --r-lg: 18px; --r-md: 12px; --r-sm: 8px;
+    --r-lg: 16px; --r-md: 12px; --r-sm: 8px;
     --font: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
     --a1: #6d5ae6; --a2: #0f9d8a; --a3: #d97706;
-    --ok: #16a34a; --warn: #d97706;
+    --ok: #15803d; --ok-btn: #047857; --warn: #b45309; --warn-soft: #fef3c7;
     width: 1440px; height: 860px; overflow: hidden; border-radius: 16px;
-    display: grid; grid-template-columns: 268px 1fr 372px;
+    display: grid; grid-template-columns: 268px 1fr;
     font-family: var(--font); color: var(--text); background: var(--app-bg);
     border: 1px solid var(--line); box-shadow: 0 30px 80px -40px rgba(0,0,0,.35);
     -webkit-font-smoothing: antialiased; letter-spacing: -0.005em;
@@ -38,11 +39,11 @@
     --app-bg: #0a0c11; --side-bg: rgba(255,255,255,.018); --surface: #12151c; --surface-2: #171b24;
     --text: #e9ebf1; --text-2: #959cab; --text-3: #626a79; --line: rgba(255,255,255,.075);
     --accent: #8b7cff; --accent-ink: #0a0c11; --accent-soft: rgba(139,124,255,.14); --active: rgba(255,255,255,.06);
-    --a1: #a78bfa; --a2: #2dd4bf; --a3: #fbbf24; --ok: #4ade80; --warn: #fbbf24;
+    --a1: #a78bfa; --a2: #2dd4bf; --a3: #fbbf24; --ok: #4ade80; --ok-btn: #059669; --warn: #fbbf24; --warn-soft: rgba(251,191,36,.10);
     --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 30px -12px rgba(0,0,0,.6);
     background:
-      radial-gradient(700px 380px at 78% -8%, rgba(124,92,255,.20), transparent 70%),
-      radial-gradient(520px 340px at 8% 108%, rgba(34,211,238,.12), transparent 70%),
+      radial-gradient(800px 420px at 80% -10%, rgba(124,92,255,.20), transparent 70%),
+      radial-gradient(560px 360px at 10% 110%, rgba(34,211,238,.12), transparent 70%),
       #0a0c11;
   }
   .studio {
@@ -50,24 +51,23 @@
     --app-bg: #ffffff; --side-bg: #fafafa; --surface: #ffffff; --surface-2: #f4f4f4;
     --text: #0a0a0a; --text-2: #5c5c5c; --text-3: #9a9a9a; --line: #ebebeb;
     --accent: #0a0a0a; --accent-ink: #d4ff3a; --accent-soft: #f0ffd0; --active: #efefef;
-    --a1: #0a0a0a; --a2: #0a0a0a; --a3: #0a0a0a;
+    --a1: #0a0a0a; --a2: #0a0a0a; --a3: #0a0a0a; --ok-btn: #0a0a0a; --warn-soft: #fff7d6;
     --shadow: 0 0 0 1px #ebebeb;
   }
 
   /* ---------- sidebar ---------- */
   .side { background: var(--side-bg); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 12px; min-height: 0; }
-  .ws { display: flex; align-items: center; gap: 10px; padding: 6px 6px; }
+  .ws { display: flex; align-items: center; gap: 10px; padding: 6px; }
   .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px;
     background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #000)); }
   .midnight .logo { background: linear-gradient(135deg, #8b5cf6, #22d3ee); }
   .studio .logo { background: #0a0a0a; color: #d4ff3a; border-radius: 6px; }
-  .ws b { display: block; font-size: 14px; }
-  .ws small { display: block; color: var(--text-3); font-size: 11.5px; }
+  .ws b { display: block; font-size: 14px; } .ws small { display: block; color: var(--text-3); font-size: 11.5px; }
   .ws svg { margin-left: auto; color: var(--text-3); }
-  .search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: var(--r-md); color: var(--text-3); font-size: 13px;
-    background: var(--surface); border: 1px solid var(--line); }
+  .search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: var(--r-md); color: var(--text-3); font-size: 13px; background: var(--surface); border: 1px solid var(--line); }
   .midnight .search { background: rgba(255,255,255,.035); }
-  .search kbd { margin-left: auto; font: 500 11px var(--mono); padding: 2px 5px; border-radius: 5px; border: 1px solid var(--line); color: var(--text-3); }
+  kbd { font: 500 11px var(--mono); padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line); color: var(--text-3); }
+  .search kbd { margin-left: auto; }
   nav { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
   .sec { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; padding: 12px 8px 6px; }
   .studio .sec { font-family: var(--mono); font-weight: 500; letter-spacing: .04em; }
@@ -76,8 +76,7 @@
   .studio .item.active { box-shadow: none; }
   .item .meta { margin-left: auto; font-size: 11px; color: var(--text-3); }
   .hash { width: 22px; text-align: center; color: var(--text-3); font-weight: 500; }
-  .badge { margin-left: auto; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 650; display: grid; place-items: center;
-    background: var(--accent); color: var(--accent-ink); }
+  .badge { margin-left: auto; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 650; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
   .dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
   .me { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 8px 4px; border-top: 1px solid var(--line); }
   .me b { display: block; font-size: 13px; }
@@ -97,7 +96,7 @@
   .hu.h1 { background: linear-gradient(140deg, #f59e0b, #ef4444); }
   .hu.h2 { background: linear-gradient(140deg, #38bdf8, #6366f1); }
   .hu.h3 { background: linear-gradient(140deg, #34d399, #0ea5e9); }
-  .pres { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--side-bg); }
+  .pres { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
   .paper .pres { box-shadow: 0 0 0 2px #f3f1ec; } .midnight .pres { box-shadow: 0 0 0 2px #0e1016; } .studio .pres { box-shadow: 0 0 0 2px #fafafa; }
   .av.live::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; padding: 1.5px;
     background: conic-gradient(from var(--spin, 0deg), var(--a2), transparent 60%, var(--a2));
@@ -108,74 +107,66 @@
   .typing { margin-left: auto; display: flex; gap: 3px; }
   .typing i { width: 4px; height: 4px; border-radius: 50%; background: var(--a2); animation: bob 1.1s infinite ease-in-out; }
   .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
-  @keyframes bob { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+  @keyframes bob { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
+  .stack { display: flex; } .stack .av { width: 22px; height: 22px; font-size: 9px; margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
+  .stack .av:first-child { margin-left: 0; }
 
-  /* ---------- main ---------- */
+  /* ---------- main shell ---------- */
   .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
-  .top { height: 60px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 22px; border-bottom: 1px solid var(--line); }
-  .top .t { display: flex; align-items: center; gap: 6px; font-size: 15.5px; font-weight: 650; white-space: nowrap; }
+  .top { height: 60px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .top .t { display: flex; align-items: center; gap: 6px; font-size: 15.5px; font-weight: 650; }
   .top .t .hash { width: auto; }
   .lock { color: var(--text-3); display: inline-flex; }
-  .topic { font-size: 12.5px; color: var(--text-3); padding-left: 12px; border-left: 1px solid var(--line); white-space: nowrap; }
-  .top .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .stack { display: flex; } .stack .av { width: 24px; height: 24px; font-size: 9.5px; box-shadow: 0 0 0 2px var(--app-bg); margin-left: -6px; }
-  .midnight .stack .av { box-shadow: 0 0 0 2px #0d0f15; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12px; font-weight: 550; color: var(--text-2);
-    background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; }
-  .studio .chip { border-radius: 6px; font-family: var(--mono); font-weight: 500; font-size: 11.5px; }
+  .topic { font-size: 12.5px; color: var(--text-3); padding-left: 12px; border-left: 1px solid var(--line); }
+  .top .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg span { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+  .seg span.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  .midnight .seg span.on { background: rgba(255,255,255,.08); }
+  .studio .seg span.on { background: #0a0a0a; color: #d4ff3a; box-shadow: none; }
   .ib { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--text-2); }
-  .ib.on { background: var(--accent-soft); color: var(--accent); }
-  .midnight .ib.on { color: #b9adff; }
-  .studio .ib.on { background: #0a0a0a; color: #d4ff3a; }
-
-  .tl { flex: 1; overflow: hidden; padding: 18px 32px 150px; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; }
-  .tl > * { flex: none; }
+  .col { width: 100%; max-width: 860px; margin: 0 auto; }
+  .scroll { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 18px 24px 150px; }
+  .scroll .col { display: flex; flex-direction: column; gap: 18px; }
   .day { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
   .day::before, .day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---------- messages ---------- */
   .msg { display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
   .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
   .hd b { font-size: 14px; font-weight: 650; }
   .hd time { font-size: 11.5px; color: var(--text-3); }
   .model { font: 500 11px var(--mono); color: var(--text-2); padding: 2px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
-  .body { font-size: 14.5px; line-height: 1.62; color: var(--text); }
+  .body { font-size: 14.5px; line-height: 1.62; }
   .body p { margin: 0 0 8px; } .body p:last-child { margin-bottom: 0; }
   .mention { color: var(--accent); font-weight: 600; background: var(--accent-soft); padding: 1px 5px; border-radius: 6px; }
-  .midnight .mention { color: #c4baff; }
-  .studio .mention { color: #0a0a0a; background: #d4ff3a; }
-  .agentcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); }
+  .midnight .mention { color: #c4baff; } .studio .mention { color: #0a0a0a; background: #d4ff3a; }
+  .agentcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 16px 14px; box-shadow: var(--shadow); }
   .midnight .agentcard { background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015)); }
   .studio .agentcard { box-shadow: none; }
-  .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  .tool { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px 0 8px; border-radius: 8px; font: 500 12px var(--mono);
-    color: var(--text-2); background: var(--surface-2); border: 1px solid var(--line); }
-  .tool .n { color: var(--text-3); }
-  .tool .ok { color: var(--ok); display: inline-flex; }
-  .tool .dur { color: var(--text-3); font-size: 11px; }
-  .tool.run { color: var(--text); border-color: color-mix(in oklab, var(--a2) 45%, var(--line)); background: color-mix(in oklab, var(--a2) 9%, var(--surface)); }
-  .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--a2) 30%, transparent); border-top-color: var(--a2); animation: rot .8s linear infinite; }
-  @keyframes rot { to { transform: rotate(360deg); } }
-  .body h4 { margin: 4px 0 6px; font-size: 14.5px; font-weight: 650; }
+  .body code, .appr code { font: 500 12px var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); }
   table { border-collapse: separate; border-spacing: 0; width: 100%; margin: 8px 0 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
   th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); }
   th { font-weight: 600; color: var(--text-2); background: var(--surface-2); font-size: 12px; }
   tr:last-child td { border-bottom: 0; }
-  td.num { font-family: var(--mono); font-size: 12.5px; }
-  .up { color: var(--ok); font-weight: 600; }
+  td.num { font-family: var(--mono); font-size: 12.5px; } .up { color: var(--ok); font-weight: 600; }
   .foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .react { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; font-size: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); }
   .react.mine { border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); background: var(--accent-soft); color: var(--text); }
-  .studio .react.mine { background: #f0ffd0; border-color: #0a0a0a; }
-  .thr { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 7px 10px 7px 8px; border-radius: 12px; width: fit-content; border: 1px solid var(--line); background: var(--surface); }
-  .thr .stack .av { width: 20px; height: 20px; font-size: 8.5px; box-shadow: 0 0 0 2px var(--surface); }
-  .thr b { font-size: 12.5px; color: var(--accent); }
-  .midnight .thr b { color: #b9adff; } .studio .thr b { color: #0a0a0a; text-decoration: underline; text-underline-offset: 3px; }
+  .thr { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 7px 12px 7px 8px; border-radius: 12px; width: fit-content; border: 1px solid var(--line); background: var(--surface); }
+  .thr b { font-size: 12.5px; color: var(--accent); } .midnight .thr b { color: #b9adff; } .studio .thr b { color: #0a0a0a; text-decoration: underline; text-underline-offset: 3px; }
   .thr span { font-size: 12px; color: var(--text-3); }
-  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--a2); }
-  .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--a2); box-shadow: 0 0 0 0 var(--a2); animation: pulse 1.6s infinite; }
-  .studio .status { color: #0a0a0a; font-family: var(--mono); background: #d4ff3a; padding: 1px 7px; border-radius: 4px; }
-  .studio .status::before { background: #0a0a0a; }
+  .thr .ttl { font-size: 12.5px; color: var(--text); font-weight: 600; }
+
+  /* status pills */
+  .st { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .st.live { color: var(--a2); background: color-mix(in oklab, var(--a2) 12%, transparent); }
+  .st.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
+  .st.wait { color: var(--warn); background: var(--warn-soft); }
+  .st.done { color: var(--text-3); }
+  .studio .st.live { color: #0a0a0a; background: #d4ff3a; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--a2) 60%, transparent); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
-  .stop { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 8px; font-size: 12px; color: var(--text-2); border: 1px solid var(--line); background: var(--surface); }
+  .stop { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 8px; font-size: 12px; color: var(--text-2); border: 1px solid var(--line); background: var(--surface); margin-left: auto; }
   .stop i { width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
   .caret { display: inline-block; width: 8px; height: 16px; margin-left: 2px; vertical-align: -3px; border-radius: 2px; background: var(--a2); animation: blink 1s steps(2) infinite; }
   .studio .caret { background: #0a0a0a; }
@@ -183,74 +174,127 @@
   .streaming .agentcard { border-color: color-mix(in oklab, var(--a2) 35%, var(--line)); }
   .midnight .streaming .agentcard { box-shadow: 0 0 0 1px rgba(45,212,191,.15), 0 0 40px -10px rgba(45,212,191,.35); }
 
+  /* tool calls: one collapsible group per message */
+  .tg { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; font-weight: 550; color: var(--text-2);
+    background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 10px; }
+  .tg.run { color: var(--text); border-color: color-mix(in oklab, var(--a2) 45%, var(--line)); background: color-mix(in oklab, var(--a2) 9%, var(--surface)); }
+  .tg .nm { font-family: var(--mono); font-weight: 500; }
+  .tg .dur { color: var(--text-3); font-weight: 500; }
+  .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--a2) 30%, transparent); border-top-color: var(--a2); animation: rot .8s linear infinite; }
+  .studio .spin { border-color: #ccc; border-top-color: #0a0a0a; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .tlist { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: -2px 0 12px; background: var(--surface); }
+  .trow { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: start; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  .trow:last-child { border-bottom: 0; }
+  .trow .ok { color: var(--ok); margin-top: 2px; }
+  .trow .nm { font: 500 12.5px var(--mono); }
+  .trow .io { margin-top: 3px; font: 400 11.5px/1.5 var(--mono); color: var(--text-2); }
+  .trow .io span { color: var(--text-3); }
+  .trow .dur { font: 500 11px var(--mono); color: var(--text-3); }
+
+  /* approval card */
+  .appr { max-width: 420px; border-radius: 14px; padding: 12px 14px; border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--line)); background: color-mix(in oklab, var(--accent) 5%, var(--surface)); }
+  .studio .appr { border-color: #0a0a0a; box-shadow: 4px 4px 0 #d4ff3a; }
+  .appr .ah { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .appr .tn { font: 500 12px var(--mono); color: var(--text); }
+  .appr .pend { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 650; color: var(--warn); }
+  .appr .what { margin: 7px 0 0; font-size: 13.5px; font-weight: 600; }
+  .appr .det { margin: 2px 0 0; font: 400 12px/1.5 var(--mono); color: var(--text-2); }
+  .btns { display: flex; gap: 8px; margin-top: 11px; }
+  .btn { height: 30px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; font-weight: 650; display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+  .btn.ok { background: var(--ok-btn); color: #fff; border-color: transparent; }
+  .studio .btn.ok { color: #d4ff3a; }
+
+  /* ---------- compact room view ---------- */
+  .clist { display: flex; flex-direction: column; gap: 8px; }
+  .conv { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: start; padding: 12px 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .midnight .conv { background: rgba(255,255,255,.025); }
+  .studio .conv { box-shadow: none; }
+  .conv.unread { border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
+  .conv .ttl { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
+  .conv .ask { margin-top: 2px; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv .last { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); min-width: 0; }
+  .conv .last b { color: var(--text); font-weight: 600; }
+  .conv .last .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .conv .side-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+  .conv .n { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--text-2); }
+  .conv .udot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .plain { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 4px 14px; font-size: 13.5px; color: var(--text-2); }
+  .plain b { color: var(--text); font-weight: 600; margin-right: 6px; }
+  .plain time { font-size: 11.5px; color: var(--text-3); }
+
+  /* ---------- thread view ---------- */
+  .thbar { flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; height: 64px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .back { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 7px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border: 1px solid var(--line); background: var(--surface); }
+  .thbar .tt { display: flex; flex-direction: column; min-width: 0; }
+  .thbar .tt small { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
+  .thbar .tt b { font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+  .thbar .right { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-3); }
+
   /* ---------- composer ---------- */
-  .composer { position: absolute; left: 24px; right: 24px; bottom: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 12px 40px -18px rgba(0,0,0,.28), var(--shadow); padding: 12px 12px 10px 16px; }
+  .composer { position: absolute; left: 50%; transform: translateX(-50%); width: min(860px, calc(100% - 48px)); bottom: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 12px 40px -18px rgba(0,0,0,.28), var(--shadow); padding: 12px 12px 10px 16px; }
   .midnight .composer { background: rgba(23,27,36,.72); backdrop-filter: blur(16px); }
   .studio .composer { border-radius: 10px; box-shadow: 0 0 0 1px #0a0a0a; border-color: #0a0a0a; }
   .ph { font-size: 14.5px; color: var(--text-3); padding: 2px 0 12px; }
   .bar { display: flex; align-items: center; gap: 4px; }
-  .bar .ib { width: 30px; height: 30px; }
-  .bar .chip { margin-left: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12px; font-weight: 550; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; margin-left: 6px; }
+  .hint { font-size: 11.5px; color: var(--text-3); margin-left: 8px; }
   .send { margin-left: auto; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
   .midnight .send { background: linear-gradient(135deg, #8b5cf6, #22d3ee); color: #fff; }
-  .hint { font-size: 11.5px; color: var(--text-3); margin-left: 8px; }
-  .hint kbd { font: 500 10.5px var(--mono); padding: 1px 4px; border: 1px solid var(--line); border-radius: 4px; }
 
-  /* ---------- thread panel ---------- */
-  .thread { border-left: 1px solid var(--line); background: var(--side-bg); display: flex; flex-direction: column; min-height: 0; position: relative; }
-  .paper .thread { background: #f8f6f2; }
-  .th-top { padding: 14px 18px 12px; border-bottom: 1px solid var(--line); }
-  .th-top small { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
-  .th-top small svg { margin-left: auto; }
-  .th-top h3 { margin: 6px 0 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
-  .th-top p { margin: 3px 0 0; font-size: 12px; color: var(--text-3); }
-  .th-body { flex: 1; overflow: hidden; padding: 16px 18px 120px; display: flex; flex-direction: column; gap: 14px; }
-  .th-body .msg { grid-template-columns: 28px 1fr; gap: 10px; }
-  .th-body .body { font-size: 13.5px; }
-  .th-body .hd b { font-size: 13px; }
-  .replies { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-3); font-weight: 600; }
-  .replies::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  .approve { border-radius: var(--r-lg); padding: 12px 14px; background: var(--surface); border: 1px solid color-mix(in oklab, var(--warn) 45%, var(--line)); box-shadow: var(--shadow); }
-  .midnight .approve { background: rgba(251,191,36,.05); }
-  .studio .approve { border: 1px solid #0a0a0a; box-shadow: 4px 4px 0 #d4ff3a; }
-  .approve .ah { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 650; color: var(--warn); margin-bottom: 6px; }
-  .studio .approve .ah { color: #0a0a0a; font-family: var(--mono); }
-  .approve p { margin: 0 0 8px; font-size: 13px; }
-  .approve code, .body code { font: 500 12px var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); }
-  pre { margin: 0 0 10px; padding: 9px 11px; border-radius: 10px; font: 500 11.5px/1.5 var(--mono); background: var(--surface-2); border: 1px solid var(--line); color: var(--text); white-space: pre-wrap; }
-  .midnight pre { background: rgba(0,0,0,.35); }
-  .studio pre { background: #0a0a0a; color: #d4ff3a; border-color: #0a0a0a; }
-  .btns { display: flex; gap: 8px; }
-  .btn { height: 30px; padding: 0 14px; border-radius: 9px; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
-  .btn.pri { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
-  .midnight .btn.pri { background: linear-gradient(135deg, #8b5cf6, #22d3ee); color: #fff; }
-  .btn .k { font: 500 10.5px var(--mono); opacity: .7; }
-  .th-comp { position: absolute; left: 14px; right: 14px; bottom: 14px; border-radius: 14px; padding: 10px 10px 10px 14px; display: flex; align-items: center; gap: 8px;
-    background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 13px; color: var(--text-3); }
-  .studio .th-comp { border-radius: 8px; }
-  .th-comp .send { width: 30px; height: 30px; border-radius: 9px; }
+  /* tool calls: one row per message, like MindRoom Chat today */
+  .tc { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 5px 10px 5px 5px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; margin-bottom: 10px; }
+  .tc .ic { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; color: var(--ok); background: color-mix(in oklab, var(--ok) 14%, transparent); }
+  .tc.run .ic { background: color-mix(in oklab, var(--a2) 14%, transparent); }
+  .tc b { font-weight: 650; white-space: nowrap; }
+  .tc .names { font: 500 12px/1.7 var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .tc .chev { margin-left: auto; color: var(--text-3); }
+  .tc.open { border-radius: 10px 10px 0 0; margin-bottom: 0; border-bottom: 0; }
+  .tc.open + .tlist { border-radius: 0 0 12px 12px; margin-top: 0; }
+  /* model badge under the agent avatar */
+  .avc { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .mb { font: 600 10px/1.5 var(--font); padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); white-space: nowrap; }
+  .msg { grid-template-columns: 44px 1fr !important; }
+  .msg > .av { justify-self: center; }
+  /* compact room: equal-height bars */
+  .filters { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .fchip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--text-2); background: var(--surface); border: 1px solid var(--line); }
+  .fchip.on { color: var(--text); border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); background: var(--accent-soft); }
+  .studio .fchip.on { background: #0a0a0a; color: #d4ff3a; border-color: #0a0a0a; }
+  .fcount { margin-left: auto; font-size: 12px; color: var(--text-3); }
+  .bars { display: flex; flex-direction: column; gap: 8px; }
+  .barrow { height: 96px; display: flex; flex-direction: column; justify-content: space-between; padding: 11px 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .midnight .barrow { background: rgba(255,255,255,.03); }
+  .studio .barrow { box-shadow: none; }
+  .barrow.unread { border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
+  .barrow .r1, .barrow .r3 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .barrow .ttl { font-size: 14px; line-height: 1.6; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .barrow time { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
+  .barrow .r2 { font-size: 13px; line-height: 1.6; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barrow .r2 b { color: var(--text); font-weight: 600; }
+  .tag { height: 22px; padding: 0 9px; border-radius: 11px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; background: #dcf3d2; color: #2f6a1d; }
+  .tag.b { background: #e3e8ff; color: #3443a8; } .tag.o { background: #ffe7d6; color: #9a3b0c; }
+  .midnight .tag { background: rgba(74,222,128,.14); color: #86efac; } .midnight .tag.b { background: rgba(129,140,248,.16); color: #c7d2fe; } .midnight .tag.o { background: rgba(251,146,60,.15); color: #fdba74; }
+  .studio .tag { background: #f4f4f4; color: #0a0a0a; border: 1px solid #e2e2e2; }
+  .barrow .cnt { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+  .barrow .push { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .scroll.topanchor { justify-content: flex-start; }
   svg { flex: none; }
 </style>
 </head>
 <body>
 <div class="page">
-  <div class="tabs" id="tabs"></div>
+  <div class="controls"><div class="tabs" id="views"></div><div class="tabs" id="themes"></div></div>
   <section><div class="label" id="ov-label"></div><div class="stage" id="overview"></div></section>
-  <section><div class="label">Close-up<small>timeline and composer at reading size</small></div><div class="crop" id="crop"></div></section>
+  <section><div class="label">Close-up<small>at reading size</small></div><div class="crop" id="crop"></div></section>
 </div>
 
-<template id="app">
-<div class="app">
+<!-- shared sidebar -->
+<template id="side">
   <aside class="side">
-    <div class="ws">
-      <div class="logo">A</div>
-      <div><b>Acme</b><small>mindroom.acme.com</small></div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
-    </div>
-    <div class="search">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      Search <kbd>⌘K</kbd>
-    </div>
+    <div class="ws"><div class="logo">A</div><div><b>Acme</b><small>mindroom.acme.com</small></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></div>
+    <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search <kbd>⌘K</kbd></div>
     <nav>
       <div class="sec">Agents</div>
       <div class="item"><span class="av ag a1">R<i class="pres"></i></span>Research<span class="meta">Sonnet 5.5</span></div>
@@ -265,166 +309,195 @@
       <div class="item"><span class="av hu h1">MS</span>Maya Santos</div>
       <div class="item"><span class="av hu h2">JL</span>Jonas Lind</div>
     </nav>
-    <div class="me">
-      <span class="av md hu h3">PR</span>
-      <div><b>Priya Raman</b><small>Online</small></div>
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-    </div>
+    <div class="me"><span class="av md hu h3">PR</span><div><b>Priya Raman</b><small>Online</small></div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></div>
   </aside>
+</template>
 
-  <main class="main">
-    <header class="top">
-      <div class="t"><span class="hash">#</span>launch-planning
-        <span class="lock" title="Encrypted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+<template id="roomtop">
+  <header class="top">
+    <div class="t"><span class="hash">#</span>launch-planning<span class="lock"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+    <div class="topic">Q4 launch prep · 8 members · 2 agents</div>
+    <div class="right">
+      <div class="seg"><span data-v="compact">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Compact</span><span data-v="room">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="6" rx="2"/></svg>Full</span></div>
+      <span class="ib"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+    </div>
+  </header>
+</template>
+
+<template id="composer">
+  <div class="composer"><div class="ph"></div>
+    <div class="bar">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span class="ib"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+      <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>Sonnet 5.5<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+      <span class="hint">Type <kbd>!</kbd> for commands</span>
+      <span class="send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+    </div></div>
+</template>
+
+<!-- view 1: compact room -->
+<template id="v-compact">
+  <div class="scroll topanchor"><div class="col">
+    <div class="filters"><span class="fchip on">Unresolved<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span><span class="fchip">Sort: Last reply<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span><span class="fcount">5 threads</span></div>
+    <div class="bars">
+      <div class="barrow unread">
+        <div class="r1"><span class="ttl">✉️ Launch email draft</span><time>10:55</time></div>
+        <div class="r2"><b>Mind:</b> Subject: Your workspace just got agents. Hi {first_name}, starting today every room can…</div>
+        <div class="r3"><div class="stack"><span class="av hu h3">PR</span><span class="av ag a3">M</span></div><span class="tag">launch</span><div class="push"><span class="st live">Streaming</span><span class="cnt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>2</span></div></div>
       </div>
-      <div class="topic">Q4 launch prep · 8 members</div>
-      <div class="right">
-        <div class="stack"><span class="av hu h1">MS</span><span class="av hu h2">JL</span><span class="av ag a1">R</span><span class="av ag a2">C</span></div>
-        <span class="chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v3M5 9h14v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"/><circle cx="9.5" cy="14" r="1"/><circle cx="14.5" cy="14" r="1"/></svg>2 agents</span>
-        <span class="ib"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
-        <span class="ib on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span>
+      <div class="barrow unread">
+        <div class="r1"><span class="ttl">📈 Cohort chart for slide 6</span><time>10:52</time></div>
+        <div class="r2"><b>Code:</b> Wants to run run_shell_command: python export_chart.py --slide 6 --format svg</div>
+        <div class="r3"><div class="stack"><span class="av hu h2">JL</span><span class="av ag a2">C</span></div><span class="tag b">board deck</span><div class="push"><span class="st wait">⏸ Pending approval</span><span class="cnt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>3</span></div></div>
       </div>
-    </header>
-
-    <div class="tl">
-      <div class="day">Today</div>
-
-      <div class="msg">
-        <span class="av lg hu h1">MS</span>
-        <div>
-          <div class="hd"><b>Maya Santos</b><time>10:42</time></div>
-          <div class="body"><span class="mention">@Research</span> can you compare our Q3 churn against SaaS benchmarks and draft a short summary for the board deck?</div>
-        </div>
+      <div class="barrow">
+        <div class="r1"><span class="ttl">📊 Q3 churn vs. SaaS benchmarks</span><time>10:47</time></div>
+        <div class="r2"><b>Research:</b> It's from the 2026 SaaS Benchmarks report. Top quartile is 1.8% monthly logo churn.</div>
+        <div class="r3"><div class="stack"><span class="av hu h1">MS</span><span class="av ag a1">R</span><span class="av ag a2">C</span></div><span class="tag b">board deck</span><span class="tag o">metrics</span><div class="push"><span class="cnt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>4</span></div></div>
       </div>
-
-      <div class="msg">
-        <span class="av lg ag a1">R</span>
-        <div>
-          <div class="hd"><b>Research</b><span class="model">claude-sonnet-5.5</span><time>10:43</time></div>
-          <div class="agentcard">
-            <div class="tools">
-              <span class="tool"><span class="ok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg></span>web_search <span class="n">[1]</span><span class="dur">2.4s</span></span>
-              <span class="tool"><span class="ok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg></span>run_python_code <span class="n">[2]</span><span class="dur">1.1s</span></span>
-            </div>
-            <div class="body">
-              <p>Q3 monthly churn came in at <b>2.9%</b>, down from 3.4% in Q2 and below the SaaS median for our segment.</p>
-              <table>
-                <tr><th>Metric</th><th>Acme Q3</th><th>Segment median</th><th>Top quartile</th></tr>
-                <tr><td>Monthly logo churn</td><td class="num">2.9%</td><td class="num">3.5%</td><td class="num">1.8%</td></tr>
-                <tr><td>Net revenue retention</td><td class="num">108%</td><td class="num">102%</td><td class="num">115%</td></tr>
-                <tr><td>Change vs. Q2</td><td class="num up">−0.5 pt</td><td class="num">−0.1 pt</td><td class="num">−0.2 pt</td></tr>
-              </table>
-              <p>Draft for the deck is in the thread, with the cohort breakdown behind it.</p>
-            </div>
-          </div>
-          <div class="foot">
-            <span class="react mine">👍 3</span><span class="react">🎯 1</span>
-          </div>
-          <div class="thr">
-            <div class="stack"><span class="av hu h1">MS</span><span class="av ag a1">R</span><span class="av ag a2">C</span></div>
-            <b>4 replies</b><span>Last reply 2 min ago</span>
-          </div>
-        </div>
+      <div class="barrow">
+        <div class="r1"><span class="ttl">🧪 Staging load test before go-live</span><time>10:31</time></div>
+        <div class="r2"><b>Code:</b> Load test passed at 2.1k rps with p99 at 180 ms. Closing LAUNCH-88.</div>
+        <div class="r3"><div class="stack"><span class="av hu h2">JL</span><span class="av ag a2">C</span></div><span class="tag">launch</span><span class="tag o">infra</span><div class="push"><span class="cnt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>6</span></div></div>
       </div>
-
-      <div class="msg">
-        <span class="av lg hu h2">JL</span>
-        <div>
-          <div class="hd"><b>Jonas Lind</b><time>10:51</time></div>
-          <div class="body"><span class="mention">@Code</span> can you turn the cohort numbers into a chart for slide 6?</div>
-        </div>
-      </div>
-
-      <div class="msg streaming">
-        <span class="av lg ag a2 live">C</span>
-        <div>
-          <div class="hd"><b>Code</b><span class="model">gpt-6.1-sol</span><span class="status">Streaming</span><span class="stop"><i></i>Stop</span></div>
-          <div class="agentcard">
-            <div class="tools">
-              <span class="tool"><span class="ok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg></span>read_file <span class="n">[1]</span><span class="dur">0.2s</span></span>
-              <span class="tool run"><span class="spin"></span>run_python_code <span class="n">[2]</span><span class="dur">3s</span></span>
-            </div>
-            <div class="body"><p>Loaded 12 monthly cohorts from <code>cohorts_q3.csv</code>. Rendering a retention curve per cohort, with the Q3 cohorts highlighted<span class="caret"></span></p></div>
-          </div>
-        </div>
+      <div class="barrow">
+        <div class="r1"><span class="ttl">🗓️ Press briefing schedule</span><time>09:58</time></div>
+        <div class="r2"><b>Maya Santos:</b> Moved the briefing to Thursday 14:00, Priya owns the slides.</div>
+        <div class="r3"><div class="stack"><span class="av hu h1">MS</span><span class="av hu h3">PR</span></div><span class="tag">press</span><div class="push"><span class="cnt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>1</span></div></div>
       </div>
     </div>
+  </div></div>
+</template>
 
-    <div class="composer">
-      <div class="ph">Message #launch-planning</div>
-      <div class="bar">
-        <span class="ib"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
-        <span class="ib"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></span>
-        <span class="ib"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11M12 20h.01"/></svg></span>
-        <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>Sonnet 5.5<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
-        <span class="hint">Type <kbd>!</kbd> for commands</span>
-        <span class="send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
-      </div>
+<!-- view 2: full room -->
+<template id="v-room">
+  <div class="scroll"><div class="col">
+    <div class="day">Today</div>
+    <div class="msg">
+      <span class="av lg hu h1">MS</span>
+      <div><div class="hd"><b>Maya Santos</b><time>10:42</time></div>
+        <div class="body"><span class="mention">@Research</span> can you compare our Q3 churn against SaaS benchmarks and draft a short summary for the board deck?</div>
+        <div class="thr"><div class="stack"><span class="av ag a1">R</span><span class="av hu h1">MS</span><span class="av ag a2">C</span></div><span class="ttl">Q3 churn vs. SaaS benchmarks</span><b>4 replies</b><span>Last reply 10:47</span><span class="st done">Done</span></div></div>
     </div>
-  </main>
+    <div class="msg">
+      <span class="av lg hu h1">MS</span>
+      <div><div class="hd"><b>Maya Santos</b><time>10:49</time></div><div class="body">Standup moves to 11:00 today.</div></div>
+    </div>
+    <div class="msg">
+      <span class="av lg hu h2">JL</span>
+      <div><div class="hd"><b>Jonas Lind</b><time>10:51</time></div>
+        <div class="body"><span class="mention">@Code</span> can you turn the cohort numbers into a chart for slide 6?</div>
+        <div class="thr"><div class="stack"><span class="av ag a2">C</span><span class="av hu h2">JL</span></div><span class="ttl">Cohort chart for slide 6</span><b>3 replies</b><span>Last reply 10:52</span><span class="st wait">⏸ Pending approval</span></div></div>
+    </div>
+    <div class="msg">
+      <span class="av lg hu h3">PR</span>
+      <div><div class="hd"><b>Priya Raman</b><time>10:54</time></div>
+        <div class="body"><span class="mention">@Mind</span> draft the launch email for existing customers, friendly but short.</div>
+        <div class="thr"><div class="stack"><span class="av ag a3">M</span></div><span class="ttl">Launch email draft</span><b>2 replies</b><span>Last reply 10:55</span><span class="st live">Streaming</span></div></div>
+    </div>
+  </div></div>
+</template>
 
-  <aside class="thread">
-    <div class="th-top">
-      <small>Thread · #launch-planning<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></small>
-      <h3>Q3 churn vs. SaaS benchmarks</h3>
-      <p>Research, Maya, Code · started 10:42</p>
+<!-- view 3: thread, full screen -->
+<template id="v-thread">
+  <div class="thbar">
+    <span class="back"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg># launch-planning</span>
+    <div class="tt"><small>Thread</small><b>Q3 churn vs. SaaS benchmarks</b></div>
+    <div class="right"><div class="stack"><span class="av hu h1">MS</span><span class="av ag a1">R</span><span class="av ag a2">C</span></div>5 messages<span class="st live">Streaming</span></div>
+  </div>
+  <div class="scroll"><div class="col">
+    <div class="msg">
+      <span class="av lg hu h1">MS</span>
+      <div><div class="hd"><b>Maya Santos</b><time>10:42</time></div>
+        <div class="body"><span class="mention">@Research</span> can you compare our Q3 churn against SaaS benchmarks and draft a short summary for the board deck?</div></div>
     </div>
-    <div class="th-body">
-      <div class="replies">4 replies</div>
-      <div class="msg">
-        <span class="av md hu h1">MS</span>
-        <div><div class="hd"><b>Maya Santos</b><time>10:46</time></div>
-          <div class="body">Great. Can you double-check where the top-quartile number comes from?</div></div>
-      </div>
-      <div class="msg">
-        <span class="av md ag a1">R</span>
-        <div><div class="hd"><b>Research</b><time>10:47</time></div>
-          <div class="tools"><span class="tool"><span class="ok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg></span>web_search <span class="n">[1]</span></span></div>
-          <div class="body">It's from the 2026 SaaS Benchmarks report (1,200 companies, $10–50M ARR). Top quartile is 1.8% monthly logo churn.</div></div>
-      </div>
-      <div class="msg">
-        <span class="av md ag a2">C</span>
-        <div><div class="hd"><b>Code</b><time>10:52</time></div>
-          <div class="approve">
-            <div class="ah"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3 2 21h20z"/><path d="M12 10v4M12 18h.01"/></svg>Approval needed</div>
-            <p>Code wants to run <code>run_shell_command</code></p>
-            <pre>python export_chart.py --slide 6 --format svg</pre>
-            <div class="btns"><span class="btn pri">Approve</span><span class="btn">Deny</span></div>
-          </div></div>
-      </div>
+    <div class="msg">
+      <div class="avc"><span class="av lg ag a1">R</span><span class="mb">Sonnet</span></div>
+      <div><div class="hd"><b>Research</b><time>10:43</time></div>
+        <div class="agentcard">
+          <div class="tc"><span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5 9-10"/></svg></span><b>Ran 2 tool calls</b><span class="names">web_search, run_python_code</span><svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="body">
+            <p>Q3 monthly churn came in at <b>2.9%</b>, down from 3.4% in Q2 and below the segment median of 3.5%. Top quartile is 1.8%.</p>
+          </div>
+        </div>
+        </div>
     </div>
-    <div class="th-comp">Reply in thread…<span class="send" style="margin-left:auto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div>
-  </aside>
-</div>
+    <div class="msg">
+      <span class="av lg hu h1">MS</span>
+      <div><div class="hd"><b>Maya Santos</b><time>10:46</time></div><div class="body">Great. <span class="mention">@Code</span> can you export that table as a chart for the deck?</div></div>
+    </div>
+    <div class="msg">
+      <div class="avc"><span class="av lg ag a2">C</span><span class="mb">Sol</span></div>
+      <div><div class="hd"><b>Code</b><time>10:52</time></div>
+        <div class="appr">
+          <div class="ah"><span class="tn">run_shell_command</span><span class="pend"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Pending approval</span></div>
+          <p class="what">Export the churn chart</p>
+          <p class="det">python export_chart.py --table q3_churn --format svg</p>
+          <div class="btns"><span class="btn ok">Approve</span><span class="btn">Deny</span></div>
+        </div></div>
+    </div>
+    <div class="msg streaming">
+      <div class="avc"><span class="av lg ag a1 live">R</span><span class="mb">Sonnet</span></div>
+      <div><div class="hd"><b>Research</b><time>10:53</time><span class="st live">Streaming</span><span class="stop"><i></i>Stop</span></div>
+        <div class="agentcard">
+          <div class="tc run"><span class="ic"><span class="spin"></span></span><b>Running 1 tool call</b><span class="names">web_search</span><svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="body"><p>While Code waits for approval, here's the two-sentence version for the deck: churn fell to 2.9% in Q3, half a point better than Q2 and<span class="caret"></span></p></div>
+        </div></div>
+    </div>
+  </div></div>
 </template>
 
 <script>
-  const directions = {
-    paper: ["A · Paper", "warm light, editorial, ember accent"],
-    midnight: ["B · Midnight", "dark, aurora glow, glass composer"],
-    studio: ["C · Studio", "monochrome, sharp, lime highlights"],
+  const themes = { paper: "A · Paper", midnight: "B · Midnight", studio: "C · Studio" };
+  const views = {
+    compact: ["Compact room", "every thread as an equal-height bar: title, latest reply, people, tags, status"],
+    room: ["Full room", "every message, thread summaries under each root"],
+    thread: ["Thread", "full screen; tool calls as one collapsible row; approval inline; reply streaming"],
   };
-  const tpl = document.getElementById("app");
-  const W = 1440, H = 860, SIDE = 268, MAIN = 800;
-  let current = "paper";
-  function clone(cls) { const a = tpl.content.firstElementChild.cloneNode(true); a.classList.add(cls); return a; }
+  const W = 1440, H = 860, SIDE = 268, COL = 860;
+  let theme = "paper", view = "compact";
+  const T = (id) => document.getElementById(id).content.cloneNode(true);
+  function build() {
+    const app = document.createElement("div"); app.className = `app ${theme}`;
+    app.appendChild(T("side"));
+    const main = document.createElement("main"); main.className = "main";
+    if (view !== "thread") {
+      main.appendChild(T("roomtop"));
+      main.querySelector(`.seg [data-v="${view}"]`).classList.add("on");
+    }
+    main.appendChild(T(`v-${view}`));
+    const comp = T("composer");
+    comp.querySelector(".ph").textContent = view === "thread" ? "Reply in thread" : "Start a conversation in #launch-planning";
+    main.appendChild(comp);
+    app.appendChild(main);
+    return app;
+  }
   function render() {
-    const [name, desc] = directions[current];
+    const [name, desc] = views[view];
     document.getElementById("ov-label").innerHTML = `${name}<small>${desc}</small>`;
-    const ov = document.getElementById("overview"); ov.replaceChildren(clone(current));
-    ov.firstElementChild.style.zoom = Math.min(1, ov.clientWidth / W);
-    const crop = document.getElementById("crop"); const c = clone(current); crop.replaceChildren(c);
-    const CROP_ZOOM = Math.min(1.1, crop.clientWidth / MAIN);
-    c.style.zoom = CROP_ZOOM;
-    c.style.marginLeft = `-${SIDE}px`;
-    c.style.marginTop = `-${H - crop.clientHeight / CROP_ZOOM}px`;
-    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.dir === current)));
+    const ov = document.getElementById("overview"); const a = build(); ov.replaceChildren(a);
+    a.style.zoom = Math.min(1, ov.clientWidth / W);
+    const crop = document.getElementById("crop"); const c = build(); crop.replaceChildren(c);
+    const z = Math.min(1.1, crop.clientWidth / (COL + 40));
+    c.style.zoom = z;
+    const mainW = W - SIDE;
+    c.style.marginLeft = `-${SIDE + (mainW - COL) / 2 - 20}px`;
+    c.style.marginTop = view === "room" ? `-${H - crop.clientHeight / z}px` : "0px";
+    for (const [id, cur] of [["views", view], ["themes", theme]])
+      document.querySelectorAll(`#${id} button`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === cur)));
   }
-  const tabs = document.getElementById("tabs");
-  for (const [dir, [name]] of Object.entries(directions)) {
-    const b = document.createElement("button"); b.textContent = name; b.dataset.dir = dir;
-    b.onclick = () => { current = dir; render(); }; tabs.appendChild(b);
+  function tabs(id, entries, set) {
+    const el = document.getElementById(id);
+    for (const [k, label] of entries) {
+      const b = document.createElement("button"); b.textContent = label; b.dataset.k = k;
+      b.onclick = () => { set(k); render(); }; el.appendChild(b);
+    }
   }
+  tabs("views", Object.entries(views).map(([k, v]) => [k, v[0]]), (k) => { view = k; });
+  tabs("themes", Object.entries(themes), (k) => { theme = k; });
   render();
   addEventListener("resize", render);
 </script>
