@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Icon, Icons, Text } from 'folds';
+import { IconButton } from '../../components/glass/GlassPrimitives';
 import { ReplyLayout } from '../../components/message';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { getMemberDisplayName } from '../../utils/room';
@@ -61,8 +62,14 @@ export function RoomInputReplyPreview({
           <Icon size="50" src={Icons.Cross} />
         </IconButton>
         <Box grow="Yes" style={{ minWidth: 0 }}>
-          <ReplyLayout username={<Text size="T300">{sender}</Text>}>
-            <Text size="T300" truncate>
+          <ReplyLayout
+            username={
+              <Text size="T300">
+                <b>{sender}</b>
+              </Text>
+            }
+          >
+            <Text size="T300" priority="300" truncate>
               {preview}
             </Text>
           </ReplyLayout>
