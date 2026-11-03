@@ -128,6 +128,12 @@ function MessageInlineEditor({ room, mEvent, content, onDone }: InlineEditorProp
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const eventId = mEvent.getId();
+  // Opening the editor (from Edit or Up in the composer) moves typing here, caret after the text.
+  const focusOnOpen = useCallback((field: HTMLTextAreaElement | null) => {
+    if (!field) return;
+    field.focus({ preventScroll: true });
+    field.setSelectionRange(field.value.length, field.value.length);
+  }, []);
   const save = async () => {
     const body = text.trim();
     if (!eventId || !body) return;
@@ -150,6 +156,7 @@ function MessageInlineEditor({ room, mEvent, content, onDone }: InlineEditorProp
   return (
     <Box direction="Column" gap="200">
       <textarea
+        ref={focusOnOpen}
         aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
         placeholder={t('featureUi.room.message.messageEditor.editMessage')}
         value={text}
@@ -706,8 +713,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
     const nameTone = getSenderNameTone(room, senderId);
     const avatarMxc = getMemberAvatarMxc(room, senderId);
+    // The spec's 96 px crop: sharp at twice the 36 px avatar, and the thumbnail other lists share.
     const avatarUrl = avatarMxc
-      ? mxcUrlToHttp(client, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
+      ? mxcUrlToHttp(client, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
       : undefined;
 
     const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
