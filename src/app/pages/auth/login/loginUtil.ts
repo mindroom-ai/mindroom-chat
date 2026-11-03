@@ -1,5 +1,7 @@
 import type { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
+import { isAllowedHomeserverBaseUrl } from '../../../cs-api';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
+import { trimTrailingSlash } from '../../../utils/common';
 import { CompletedAuth, useCompleteSession } from '../completeSession';
 
 
@@ -42,9 +44,30 @@ const toLoginError = (error: unknown): LoginFailure => {
   }
 };
 
+const sameOrigin = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+};
+
 /**
- * Logs in at `baseUrl` and returns the credentials with the homeserver URL
- * the server's well-known answer points at. Always asks for a refresh token.
+ * The homeserver URL to keep after a login at `baseUrl`. The response's well-known answer is
+ * used only when it passes the checks discovery applies and stays on the login's origin, so a
+ * login response cannot move the session, and its access token, to another server.
+ */
+const resolveLoginBaseUrl = (baseUrl: string, wellKnownBaseUrl: unknown): string => {
+  if (typeof wellKnownBaseUrl !== 'string') return baseUrl;
+  const candidate = trimTrailingSlash(wellKnownBaseUrl.trim());
+  if (!isAllowedHomeserverBaseUrl(candidate) || !sameOrigin(candidate, baseUrl)) return baseUrl;
+  return candidate;
+};
+
+/**
+ * Logs in at `baseUrl` and returns the credentials with the homeserver URL to use from now on:
+ * the server's well-known answer when it is safe to follow, `baseUrl` otherwise. Always asks for
+ * a refresh token.
  */
 export const login = async (baseUrl: string, data: LoginRequest): Promise<CustomLoginResponse> => {
   const mx = createMatrixClient({ baseUrl });
@@ -54,9 +77,8 @@ export const login = async (baseUrl: string, data: LoginRequest): Promise<Custom
   } catch (error) {
     throw toLoginError(error);
   }
-  const wellKnownBaseUrl = response.well_known?.['m.homeserver']?.base_url;
   return {
-    baseUrl: typeof wellKnownBaseUrl === 'string' ? wellKnownBaseUrl : baseUrl,
+    baseUrl: resolveLoginBaseUrl(baseUrl, response.well_known?.['m.homeserver']?.base_url),
     response,
   };
 };
