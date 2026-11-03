@@ -130,6 +130,7 @@ import {
 import { shouldAutoPaginateThreadBack } from './threadRenderUtils';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { isScrollNearBottom, isTimelineAtLiveEnd } from './timelineScrollUtils';
+import { useFooterBottomPin } from './useFooterBottomPin';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
@@ -309,6 +310,16 @@ const expandAllToggleStyle: React.CSSProperties = {
   WebkitBackdropFilter: 'blur(3px)',
 };
 
+const footerProbeStyle: React.CSSProperties = {
+  position: 'absolute',
+  insetInlineStart: 0,
+  bottom: 0,
+  width: 0,
+  height: overlay.footerInset,
+  visibility: 'hidden',
+  pointerEvents: 'none',
+};
+
 /** A pill over the timeline that takes the reader somewhere or settles the unread state. */
 function FloatingAction({
   icon,
@@ -428,6 +439,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     if (element) publishAttached();
     else queueMicrotask(publishAttached);
   }, []);
+  // As tall as the footer inset: a growing composer moves the newest row up with it.
+  const footerProbeRef = useRef<HTMLDivElement>(null);
+  useFooterBottomPin(scrollElement, footerProbeRef);
   // A new identity once the scroll area mounts, so observers built on it start over (the
   // compact view has none, and switching to the timeline mounts it later).
   const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
@@ -1368,8 +1382,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // The newest room row, while a request for it holds.
   const latestRowRequestRef = useLatestRowRequest({
-    // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
-    initiallyActive: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
+    initiallyActive: !eventId,
     scrollElement,
     scrollToBottomCount: scrollToBottomRef.current.count,
     committedView: `${viewKey}|${effectiveViewMode}`,
@@ -1544,6 +1557,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   return (
     <Box grow="Yes" direction="Column" style={{ minHeight: 0, position: 'relative' }}>
+      <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
       {showJumpToUnread && (
         <div
           className={css.TimelineFloat({ position: 'Top' })}
