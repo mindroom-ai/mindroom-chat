@@ -1,11 +1,15 @@
 import React from 'react';
-import { Box, Text, config } from 'folds';
-import { Trans } from 'react-i18next';
+import { Icon, IconButton, Icons, Text } from 'folds';
+import { Trans, useTranslation } from 'react-i18next';
+import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
+import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
+import { roomIdToTypingMembersAtom } from '../../state/typingMembers';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
+import * as css from './RoomViewTyping.css';
 
 type RoomViewTypingProps = {
   room: Room;
@@ -13,9 +17,25 @@ type RoomViewTypingProps = {
 
 const NAME = <b />;
 
-/** Names the other members who are typing in the room, below the timeline. */
+/** Three dots that take turns rising, the usual sign that someone is writing. */
+function TypingDots() {
+  return (
+    <span className={css.TypingDots} aria-hidden>
+      <span className={css.TypingDot} />
+      <span className={css.TypingDot} />
+      <span className={css.TypingDot} />
+    </span>
+  );
+}
+
+/**
+ * Names the other members who are typing in the room, in a strip above the composer. Dropping
+ * the status hides it until the next typing update arrives for that member.
+ */
 export function RoomViewTyping({ room }: RoomViewTypingProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
+  const updateTyping = useSetAtom(roomIdToTypingMembersAtom);
   const myUserId = mx.getUserId();
   const typing = useRoomTypingMember(room.roomId).filter(
     (receipt) => receipt.userId !== myUserId && receipt.isTyping()
@@ -59,16 +79,31 @@ export function RoomViewTyping({ room }: RoomViewTypingProps) {
     );
   }
 
+  const dropLabel = t('featureUi.room.typing.dropTypingStatus');
+  const dropTyping = () =>
+    typing.forEach(({ userId }) => updateTyping({ type: 'DELETE', roomId: room.roomId, userId }));
+
   return (
-    <Box
-      alignItems="Center"
-      style={{ padding: `0 ${config.space.S400}`, minWidth: 0 }}
-      role="status"
-      aria-live="polite"
-    >
-      <Text size="T200" priority="300" truncate>
+    <div className={css.TypingStrip} role="status" aria-live="polite">
+      <TypingDots />
+      <Text className={css.TypingText} size="T200" priority="300" truncate>
         {message}
       </Text>
-    </Box>
+      <IconTooltip label={dropLabel} position="Top">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            size="300"
+            radii="Pill"
+            variant="SurfaceVariant"
+            fill="None"
+            aria-label={dropLabel}
+            onClick={dropTyping}
+          >
+            <Icon size="50" src={Icons.Cross} />
+          </IconButton>
+        )}
+      </IconTooltip>
+    </div>
   );
 }
