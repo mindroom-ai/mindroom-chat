@@ -153,18 +153,24 @@ export function AuthLayout() {
     if (homeRedirect) navigate(homeRedirect, { replace: true });
   }, [homeRedirect, navigate]);
 
-  const handleServerChange = (nextServer: string) => {
-    if (resolveAuthServer(nextServer, defaultServer, locked, homeserverList) !== nextServer) return;
+  const registrationAllowed = auth?.allowRegistration !== false;
+  const showServer = (nextServer: string) =>
     navigate(
-      buildAuthRoutePath({
-        pathname,
-        search,
-        hash,
-        registrationAllowed: auth?.allowRegistration !== false,
-        server: nextServer,
-      }),
+      buildAuthRoutePath({ pathname, search, hash, registrationAllowed, server: nextServer }),
       { replace: true }
     );
+
+  // The address always names the server the card shows: `/login` becomes `/login/<default>`,
+  // and a server a locked deployment does not offer is replaced by the one it falls back to.
+  const urlNamesServer = requestedServer?.trim() === server;
+  useEffect(() => {
+    if (!homeRedirect && !urlNamesServer) showServer(server);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeRedirect, urlNamesServer, server]);
+
+  const handleServerChange = (nextServer: string) => {
+    if (resolveAuthServer(nextServer, defaultServer, locked, homeserverList) !== nextServer) return;
+    showServer(nextServer);
   };
 
   return (
