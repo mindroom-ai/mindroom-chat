@@ -1,4 +1,9 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
+import { autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
+import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import {
   RoomsNotificationPreferencesProvider,
   useRoomsNotificationPreferences,
@@ -8,18 +13,47 @@ import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPa
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 
+/**
+ * The `/.well-known/matrix/client` document of the account's server name, for the MindRoom
+ * keys it carries (such as the emoji room). The signed-in client already knows its homeserver,
+ * so `m.homeserver` always names the client's base URL, and the shell renders with only that
+ * until the document arrives, or when the server publishes none.
+ */
+const useSessionDiscoveryInfo = (mx: MatrixClient): AutoDiscoveryInfo => {
+  const [wellKnown, setWellKnown] = useState<AutoDiscoveryInfo>();
+  const serverName = mx.getDomain();
+  useEffect(() => {
+    setWellKnown(undefined);
+    if (!serverName) return undefined;
+    let cancelled = false;
+    autoDiscovery(createMatrixFetchFn(fetch), serverName).then(([, info]) => {
+      if (!cancelled && info) setWellKnown(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverName]);
+  return useMemo(
+    () => ({ ...wellKnown, 'm.homeserver': { base_url: mx.baseUrl } }),
+    [wellKnown, mx.baseUrl]
+  );
+};
+
 /** Per-account state the signed-in pages share, and the global dialogs. */
 export function ClientShell({ children }: { children: ReactNode }) {
   const notificationPreferences = useRoomsNotificationPreferences();
+  const discoveryInfo = useSessionDiscoveryInfo(useMatrixClient());
 
   return (
-    <ClientInitStorageAtom>
-      <RoomsNotificationPreferencesProvider value={notificationPreferences}>
-        <ClientNonUIFeatures />
-        {children}
-        <SettingsModalRenderer />
-        <CommandPaletteRenderer />
-      </RoomsNotificationPreferencesProvider>
-    </ClientInitStorageAtom>
+    <AutoDiscoveryInfoProvider value={discoveryInfo}>
+      <ClientInitStorageAtom>
+        <RoomsNotificationPreferencesProvider value={notificationPreferences}>
+          <ClientNonUIFeatures />
+          {children}
+          <SettingsModalRenderer />
+          <CommandPaletteRenderer />
+        </RoomsNotificationPreferencesProvider>
+      </ClientInitStorageAtom>
+    </AutoDiscoveryInfoProvider>
   );
 }
