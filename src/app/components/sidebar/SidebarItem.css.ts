@@ -116,8 +116,10 @@ export const SidebarAvatar = recipe({
       selectors: {
         '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
         '&:active': { backgroundColor: color.SurfaceVariant.ContainerActive },
+        // An outline, not a ring shadow: the glass material of raised buttons owns box-shadow.
         '&:focus-visible': {
-          boxShadow: `0 0 0 ${config.borderWidth.B600} ${color.Primary.Main}`,
+          outline: `${toRem(2)} solid ${color.Primary.Main}`,
+          outlineOffset: toRem(2),
         },
       },
     },
