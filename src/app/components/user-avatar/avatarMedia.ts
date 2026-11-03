@@ -85,15 +85,29 @@ export const avatarNeedsFetch = (
   return target === parsed.href || supportsAuthenticatedMedia(versions);
 };
 
-/** Whether `src` is homeserver media this module could fetch with the access token. */
-export const canFetchAvatar = (mx: AvatarMediaClient, src: string): boolean => {
-  const target = toAuthenticatedAvatarUrl(mx, src);
+/**
+ * The request that loads `src` from the authenticated endpoint with the access token in a header,
+ * or undefined when `src` is not homeserver media or there is no token. For code that fetches an
+ * avatar itself, for example after the server refused a legacy URL.
+ */
+export const authenticatedAvatarRequest = (
+  mx: AvatarMediaClient,
+  src: string
+): { url: string; init: RequestInit } | undefined => {
+  const url = toAuthenticatedAvatarUrl(mx, src);
+  if (!url) return undefined;
+  let init: RequestInit | undefined;
   try {
-    return !!target && !!authenticatedMediaRequestInit(mx, target);
+    init = authenticatedMediaRequestInit(mx, url);
   } catch {
-    return false;
+    init = undefined;
   }
+  return init ? { url, init } : undefined;
 };
+
+/** Whether `src` is homeserver media this module could fetch with the access token. */
+export const canFetchAvatar = (mx: AvatarMediaClient, src: string): boolean =>
+  !!authenticatedAvatarRequest(mx, src);
 
 // Object URLs of fetched avatars, most recently used last. The cap bounds memory in rooms with
 // thousands of members; an `<img>` keeps showing an image whose URL was revoked after it loaded.
@@ -147,17 +161,11 @@ const download = async (target: string, init: RequestInit): Promise<string | und
  * for one image share a single download.
  */
 export const fetchAvatar = (mx: AvatarMediaClient, src: string): Promise<string | undefined> => {
-  const target = toAuthenticatedAvatarUrl(mx, src);
-  if (!target || typeof fetch !== 'function' || typeof URL.createObjectURL !== 'function') {
+  const request = authenticatedAvatarRequest(mx, src);
+  if (!request || typeof fetch !== 'function' || typeof URL.createObjectURL !== 'function') {
     return Promise.resolve(undefined);
   }
-  let init: RequestInit | undefined;
-  try {
-    init = authenticatedMediaRequestInit(mx, target);
-  } catch {
-    init = undefined;
-  }
-  if (!init) return Promise.resolve(undefined);
+  const { url: target, init } = request;
 
   const key = cacheKey(mx, target);
   const cached = fetchedAvatars.get(key);

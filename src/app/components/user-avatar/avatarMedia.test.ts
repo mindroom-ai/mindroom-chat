@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  authenticatedAvatarRequest,
   avatarNeedsFetch,
   canFetchAvatar,
   clearFetchedAvatars,
@@ -47,6 +48,20 @@ describe('toAuthenticatedAvatarUrl', () => {
     );
     expect(toAuthenticatedAvatarUrl(client(), `${HS}/avatars/abc.png`)).toBe(undefined);
     expect(toAuthenticatedAvatarUrl(client(), 'blob:https://app.test/1')).toBe(undefined);
+  });
+});
+
+describe('authenticatedAvatarRequest', () => {
+  it('asks the authenticated endpoint with the token in a header', () => {
+    expect(authenticatedAvatarRequest(client(), LEGACY)).toEqual({
+      url: AUTHED,
+      init: { headers: { Authorization: 'Bearer secret-token' } },
+    });
+  });
+
+  it('has no request for foreign media or a signed-out client', () => {
+    expect(authenticatedAvatarRequest(client(), 'https://evil.test/a.png')).toBe(undefined);
+    expect(authenticatedAvatarRequest(client('@a:hs.test', HS, ''), LEGACY)).toBe(undefined);
   });
 });
 
