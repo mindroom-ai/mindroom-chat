@@ -3,38 +3,87 @@ import React, {
   CSSProperties,
   MouseEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
-import { Avatar, Box, Chip, Icon, IconButton, Icons, Input, Scroll, Text, config } from 'folds';
-import { Header } from '../../components/glass/GlassPrimitives';
+import {
+  Avatar,
+  Box,
+  Chip,
+  Icon,
+  IconButton,
+  Icons,
+  Input,
+  PopOut,
+  type RectCords,
+  Text,
+  config,
+  toRem,
+} from 'folds';
+import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Room, RoomMember } from 'matrix-js-sdk';
+import { Header } from '../../components/glass/GlassPrimitives';
+import { ScrollHeaderProvider } from '../../components/glass/SurfaceContext';
+import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
+import { Viewport } from '../../components/inset-scrollbar/InsetScrollbar.css';
+import { PageNavScrollbar } from '../../components/page/style.css';
+import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
+import { useSpaceOptionally } from '../../hooks/useSpace';
 import {
   MembershipFilter,
   type MembershipFilterItem,
   useMembershipFilterMenu,
 } from '../../hooks/useMemberFilter';
+import { useMemberSort, useMemberSortMenu } from '../../hooks/useMemberSort';
+import {
+  type MemberPowerTag,
+  useFlattenPowerTagMembers,
+  useGetMemberPowerTag,
+} from '../../hooks/useMemberPowerTag';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { MembershipFilterMenu } from '../../components/MembershipFilterMenu';
+import { MemberSortMenu } from '../../components/MemberSortMenu';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { UserAvatar } from '../../components/user-avatar';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { nameInitials } from '../../utils/common';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMemberDisplayName } from '../../utils/room';
 import { JoinRequestItem } from './JoinRequestItem';
 import * as css from './MembersDrawer.css';
 
-const MEMBER_ROW_HEIGHT = 44;
+// Row heights of the list (see MembersDrawer.css.ts); the virtualizer measures the real ones.
+const GROUP_TITLE_HEIGHT = 32;
+const GROUP_GAP = 12;
+const MEMBER_ROW_HEIGHT = 40;
 const REQUEST_ROW_HEIGHT = 140;
+
+// The body runs from S200 at the start edge to S200 plus the inset scrollbar's track at the end.
+const BODY_STYLE: CSSProperties = {
+  paddingInline: `${config.space.S200} calc(${config.space.S200} + ${toRem(12)})`,
+  paddingBottom: config.space.S700,
+};
+// The filter and sort row sits S200 under the header and S200 above the search field.
+const TOOLBAR_STYLE: CSSProperties = { paddingBlock: config.space.S200 };
+// The search field: 40 px high with 12 px corners, white on the panel's grey.
+const SEARCH_STYLE: CSSProperties = { blockSize: toRem(40), borderRadius: config.radii.R500 };
+// Toolbar buttons are flat: the panel shows through them until they are hovered.
+const TOOLBAR_BUTTON_STYLE: CSSProperties = {
+  blockSize: toRem(24),
+  paddingInline: config.space.S200,
+  gap: config.space.S100,
+};
 
 /** A room member; only the membership and user ID are required to place it. */
 export type MembersDrawerMember = Pick<RoomMember, 'userId' | 'membership'> & Partial<RoomMember>;
@@ -46,85 +95,127 @@ type MembersDrawerProps = {
 
 type FilterSelection = number | 'auto';
 
+/** One row of the list: a power level group's title or a member. */
+type ListEntry =
+  | { kind: 'group'; tag: MemberPowerTag; spaced: boolean }
+  | { kind: 'member'; member: RoomMember };
+
 const memberName = (room: Room, member: RoomMember): string =>
   getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
 
-// A member row is a bare button: it takes the full width and shows none of the button chrome.
-const MEMBER_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  width: '100%',
-  height: MEMBER_ROW_HEIGHT,
-  padding: `0 ${config.space.S200}`,
-  textAlign: 'start',
-  borderRadius: config.radii.R400,
-  border: 0,
-  background: 'none',
-  color: 'inherit',
-  cursor: 'pointer',
+const matchesQuery = (room: Room, member: RoomMember, query: string): boolean =>
+  memberName(room, member).toLowerCase().includes(query) ||
+  member.userId.toLowerCase().includes(query);
+
+const isMember = (item: MemberPowerTag | RoomMember): item is RoomMember => 'userId' in item;
+
+const toListEntries = (items: Array<MemberPowerTag | RoomMember>): ListEntry[] => {
+  let groups = 0;
+  return items.map((item) => {
+    if (isMember(item)) return { kind: 'member', member: item };
+    groups += 1;
+    return { kind: 'group', tag: item, spaced: groups > 1 };
+  });
 };
+
+const entryKey = (entry: ListEntry): string =>
+  entry.kind === 'member' ? entry.member.userId : `group:${entry.tag.level}`;
+
+/** Where a pop-out menu opens: under the button that was clicked, until `close`. */
+const useMenuAnchor = () => {
+  const [anchor, setAnchor] = useState<RectCords>();
+  return {
+    anchor,
+    open: (event: MouseEvent<HTMLElement>) =>
+      setAnchor(event.currentTarget.getBoundingClientRect()),
+    close: () => setAnchor(undefined),
+  };
+};
+
+function MemberGroupTitle({ tag, spaced }: { tag: MemberPowerTag; spaced: boolean }) {
+  return (
+    <Text
+      as="h3"
+      size="T200"
+      truncate
+      className={classNames(css.MemberGroupTitle, spaced && css.MemberGroupTitleSpaced)}
+    >
+      {tag.name}
+    </Text>
+  );
+}
 
 function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
   const client = useMatrixClient();
-  const openProfile = useOpenUserRoomProfile();
   const authenticatedMedia = useMediaAuthentication();
+  const openProfile = useOpenUserRoomProfile();
+  const spaceId = useSpaceOptionally()?.roomId;
   const name = memberName(room, member);
   const avatarMxc = member.getMxcAvatarUrl?.();
   const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 48, 48, 'crop') ?? undefined
     : undefined;
 
   // The drawer sits at the inline end, so the card opens towards the timeline.
   const showProfile = (event: MouseEvent<HTMLButtonElement>) => {
     const anchorRect = event.currentTarget.getBoundingClientRect();
-    openProfile(room.roomId, undefined, member.userId, anchorRect, 'Left');
+    openProfile(room.roomId, spaceId, member.userId, anchorRect, 'Left');
   };
 
   return (
-    <button type="button" style={MEMBER_ROW_STYLE} onClick={showProfile}>
-      <Avatar radii="400" size="200">
+    <button
+      type="button"
+      className={css.MemberRow}
+      data-user-id={member.userId}
+      onClick={showProfile}
+    >
+      {/* The name follows; the avatar only decorates the row. */}
+      <Avatar className={css.MemberAvatar} size="200" radii="Pill" aria-hidden>
         <UserAvatar
-          alt={name}
+          alt=""
           userId={member.userId}
           src={avatarSrc}
-          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
+          renderFallback={() => (
+            <Text as="span" size="L400">
+              {nameInitials(name)}
+            </Text>
+          )}
         />
       </Avatar>
-      <Text as="span" size="T400" truncate>
+      <Text as="span" size="T400" truncate className={css.MemberName}>
         {name}
       </Text>
     </button>
   );
 }
 
-const byName =
-  (room: Room) =>
-  (a: RoomMember, b: RoomMember): number =>
-    memberName(room, a).localeCompare(memberName(room, b));
-
-const matchesQuery = (room: Room, member: RoomMember, query: string): boolean =>
-  memberName(room, member).toLowerCase().includes(query) ||
-  member.userId.toLowerCase().includes(query);
-
 /**
- * The room's people, one membership filter at a time, with a name search and the
- * invite button. Moderators who may approve (invite) or decline (kick) also get a
- * Requests filter for `knock` memberships; it opens there while requests wait,
- * until the moderator picks a filter themselves.
+ * The room's people under their power level groups (Founder, Admin, Member, ...), one
+ * membership filter at a time, in the chosen order, with a name search and the invite button.
+ * Moderators who may approve (invite) or decline (kick) also get a Requests filter for `knock`
+ * memberships; it opens there while requests wait, until the moderator picks a filter themselves.
  */
 export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const { t } = useTranslation();
   const myUserId = useMatrixClient().getSafeUserId();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
-  const canInvite = permissions.action('invite', myUserId);
-  const canKick = permissions.action('kick', myUserId);
+  const [, setDrawerOpen] = useMembersDrawer();
+  const levels = usePowerLevelsContext();
+  const roomCreators = useRoomCreators(room);
+  const may = useRoomPermissions(roomCreators, levels);
+  const canInvite = may.action('invite', myUserId);
+  const canKick = may.action('kick', myUserId);
   const reviewsRequests = canInvite || canKick;
 
   const [selection, setSelection] = useState<FilterSelection>('auto');
+  const [sortIndex, setSortIndex] = useState(0);
   const [query, setQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
+  const filterMenu = useMenuAnchor();
+  const sortMenu = useMenuAnchor();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [listOffset, setListOffset] = useState(0);
 
   const roomMembers = members as RoomMember[];
   const requestCount = reviewsRequests
@@ -157,6 +248,9 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const selectedFilter = filters[selectedIndex] as MembershipFilterItem | undefined;
   const showingRequests = selectedIndex === requestsIndex;
 
+  const sorts = useMemberSortMenu();
+  const sort = useMemberSort(sortIndex, sorts);
+
   const joinedCount = room.getJoinedMemberCount();
   const invitedCount = room.getInvitedMemberCount();
 
@@ -167,13 +261,38 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
         (selectedFilter?.filterFn(member) ?? false) &&
         (needle === '' || matchesQuery(room, member, needle))
     );
-    return matching.sort(byName(room));
-  }, [query, room, roomMembers, selectedFilter]);
+    return sort ? matching.sort(sort.sortFn) : matching;
+  }, [query, room, roomMembers, selectedFilter, sort]);
+
+  const getPowerTag = useGetMemberPowerTag(room, roomCreators, levels);
+  const grouped = useFlattenPowerTagMembers(visibleMembers, getPowerTag);
+  // Join requests are reviewed one by one, without power groups.
+  const entries = useMemo<ListEntry[]>(
+    () =>
+      showingRequests
+        ? visibleMembers.map((member) => ({ kind: 'member', member }))
+        : toListEntries(grouped),
+    [grouped, showingRequests, visibleMembers]
+  );
+
+  // The list starts below the header, the filter and sort row and the search field.
+  useLayoutEffect(() => {
+    setListOffset(listRef.current?.offsetTop ?? 0);
+  }, []);
 
   const virtualizer = useVirtualizer({
-    count: visibleMembers.length,
+    count: entries.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => (showingRequests ? REQUEST_ROW_HEIGHT : MEMBER_ROW_HEIGHT),
+    estimateSize: (index) => {
+      const entry = entries[index];
+      if (entry?.kind === 'group') return GROUP_TITLE_HEIGHT + (entry.spaced ? GROUP_GAP : 0);
+      return showingRequests ? REQUEST_ROW_HEIGHT : MEMBER_ROW_HEIGHT;
+    },
+    getItemKey: (index) => {
+      const entry = entries[index];
+      return entry ? `${selectedIndex}:${entryKey(entry)}` : index;
+    },
+    scrollMargin: listOffset,
     overscan: 8,
   });
 
@@ -182,99 +301,210 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
     virtualizer.scrollToOffset(0);
   }, [selectedIndex, query, virtualizer]);
 
+  const emptyText = () => {
+    if (query.trim() !== '') return t('featureUi.room.membersDrawer.noResults');
+    if (showingRequests) return t('featureUi.room.membersDrawer.noPendingJoinRequests');
+    return t('featureUi.room.membersDrawer.noMembersForFilter', { filter: selectedFilter?.name });
+  };
+
   return (
     <Box
       className={`${css.MembersDrawer} ${ContainerColor({ variant: 'Background' })}`}
       direction="Column"
       shrink="No"
     >
-      <Header className={css.MembersHeaderControl} size="600" variant="Background">
-        <Box grow="Yes" alignItems="Center" gap="200">
-          <Text className={css.MembersHeaderCount} size="H5" truncate>
-            {t('featureUi.room.membersDrawer.memberCount', { count: joinedCount })}
-          </Text>
-          {invitedCount > 0 && (
-            <Chip
-              className={css.MembersHeaderInvited}
-              variant="Secondary"
-              radii="Pill"
-              onClick={() => setSelection(invitedIndex)}
-            >
-              <Text size="T200">
-                {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
-              </Text>
-            </Chip>
-          )}
-        </Box>
-        <IconButton
-          variant="Background"
-          aria-label={t('featureUi.room.membersDrawer.invitePeople')}
-          disabled={!canInvite}
-          onClick={() => setInviteOpen(true)}
-        >
-          <Icon src={Icons.UserPlus} />
-        </IconButton>
-      </Header>
       {inviteOpen && <InviteUserPrompt room={room} requestClose={() => setInviteOpen(false)} />}
       <Box className={css.MemberDrawerContentBase} grow="Yes" direction="Column">
-        <Box direction="Column" gap="200" style={{ padding: config.space.S200 }}>
-          <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-            <Box alignItems="Center" gap="100">
-              <Icon size="50" src={Icons.Filter} />
-              <Text size="T200">{selectedFilter?.name}</Text>
-            </Box>
-            <MembershipFilterMenu
-              items={filters}
-              selected={selectedIndex}
-              onSelect={(index: number) => setSelection(index)}
-            />
-          </Box>
-          <Input
-            value={query}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-            placeholder={t('featureUi.room.membersDrawer.typeName')}
-            aria-label={t('featureUi.room.membersDrawer.typeName')}
-            variant="Background"
-            size="400"
-            radii="400"
-            before={<Icon size="50" src={Icons.Search} />}
-          />
-        </Box>
-        <Scroll ref={scrollRef} variant="Background" size="300" visibility="Hover" hideTrack>
-          <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-            {virtualizer.getVirtualItems().map((item) => {
-              const member = visibleMembers[item.index];
-              if (member === undefined) return null;
-              return (
-                <div
-                  key={`${selectedIndex}:${member.userId}`}
-                  ref={virtualizer.measureElement}
-                  data-index={item.index}
-                  className={css.DrawerVirtualItem}
-                  style={{ transform: `translateY(${item.start}px)` }}
+        <Box
+          ref={scrollRef}
+          className={Viewport}
+          grow="Yes"
+          direction="Column"
+          style={{ minHeight: 0 }}
+          data-y-scrollbar-width={0}
+        >
+          <ScrollHeaderProvider value>
+            <Header className={css.MembersHeaderControl} size="600" variant="Background">
+              <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+                <Text className={css.MembersHeaderCount} size="H5" truncate>
+                  {t('featureUi.room.membersDrawer.memberCount', { count: joinedCount })}
+                </Text>
+                {invitedCount > 0 && (
+                  <Chip
+                    className={css.MembersHeaderInvited}
+                    variant="Secondary"
+                    radii="Pill"
+                    onClick={() => setSelection(invitedIndex)}
+                  >
+                    <Text size="T200">
+                      {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
+                    </Text>
+                  </Chip>
+                )}
+              </Box>
+              <Box shrink="No" alignItems="Center" gap="300">
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Background"
+                  aria-label={t('featureUi.room.membersDrawer.invitePeople')}
+                  disabled={!canInvite}
+                  onClick={() => setInviteOpen(true)}
                 >
-                  {showingRequests ? (
+                  <Icon src={Icons.UserPlus} />
+                </IconButton>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Background"
+                  aria-label={t('featureUi.room.membersDrawer.close')}
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            </Header>
+          </ScrollHeaderProvider>
+          <Box ref={contentRef} direction="Column" shrink="No" style={BODY_STYLE}>
+            <Box alignItems="Center" justifyContent="SpaceBetween" gap="200" style={TOOLBAR_STYLE}>
+              <PopOut
+                anchor={filterMenu.anchor}
+                position="Bottom"
+                align="Start"
+                offset={4}
+                content={
+                  <MembershipFilterMenu
+                    items={filters}
+                    selected={selectedIndex}
+                    onSelect={(index: number) => {
+                      filterMenu.close();
+                      setSelection(index);
+                    }}
+                    onDismiss={filterMenu.close}
+                  />
+                }
+              >
+                <Chip
+                  variant="Background"
+                  radii="300"
+                  style={TOOLBAR_BUTTON_STYLE}
+                  aria-haspopup="menu"
+                  aria-expanded={!!filterMenu.anchor}
+                  onClick={filterMenu.open}
+                >
+                  <Icon size="50" src={Icons.Filter} />
+                  <Text size="T200">{selectedFilter?.name}</Text>
+                </Chip>
+              </PopOut>
+              {sort && (
+                <PopOut
+                  anchor={sortMenu.anchor}
+                  position="Bottom"
+                  align="End"
+                  offset={4}
+                  content={
+                    <MemberSortMenu
+                      items={sorts}
+                      selected={sortIndex}
+                      onSelect={(index: number) => {
+                        sortMenu.close();
+                        setSortIndex(index);
+                      }}
+                      onDismiss={sortMenu.close}
+                    />
+                  }
+                >
+                  <Chip
+                    variant="Background"
+                    radii="300"
+                    style={TOOLBAR_BUTTON_STYLE}
+                    aria-haspopup="menu"
+                    aria-expanded={!!sortMenu.anchor}
+                    onClick={sortMenu.open}
+                  >
+                    <Text size="T200">{sort.name}</Text>
+                    <Icon size="50" src={Icons.Sort} />
+                  </Chip>
+                </PopOut>
+              )}
+            </Box>
+            <Input
+              value={query}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
+              placeholder={t('featureUi.room.membersDrawer.typeName')}
+              aria-label={t('featureUi.room.membersDrawer.typeName')}
+              variant="Surface"
+              size="400"
+              radii="500"
+              style={SEARCH_STYLE}
+              before={<Icon size="50" src={Icons.Search} />}
+            />
+            <div
+              ref={listRef}
+              style={{
+                position: 'relative',
+                marginTop: config.space.S200,
+                height: virtualizer.getTotalSize(),
+              }}
+            >
+              {virtualizer.getVirtualItems().map((item) => {
+                const entry = entries[item.index];
+                if (entry === undefined) return null;
+                let row: React.ReactNode;
+                if (entry.kind === 'group') {
+                  row = <MemberGroupTitle tag={entry.tag} spaced={entry.spaced} />;
+                } else if (showingRequests) {
+                  row = (
                     <JoinRequestItem
                       room={room}
-                      member={member}
+                      member={entry.member}
                       canApprove={canInvite}
                       canDecline={canKick}
                     />
-                  ) : (
-                    <MemberRow room={room} member={member} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {visibleMembers.length === 0 && (
-            <Box className={css.MembersGroupLabel} justifyContent="Center">
-              <Text size="T200" priority="300">
-                {t('featureUi.room.membersDrawer.noResults')}
-              </Text>
-            </Box>
-          )}
-        </Scroll>
+                  );
+                } else {
+                  row = <MemberRow room={room} member={entry.member} />;
+                }
+                return (
+                  <div
+                    key={item.key}
+                    ref={virtualizer.measureElement}
+                    data-index={item.index}
+                    className={css.DrawerVirtualItem}
+                    style={{ transform: `translateY(${item.start - listOffset}px)` }}
+                  >
+                    {row}
+                  </div>
+                );
+              })}
+            </div>
+            {visibleMembers.length === 0 && (
+              <Box className={css.MembersGroupLabel} justifyContent="Center">
+                <Text size="T200" priority="300">
+                  {emptyText()}
+                </Text>
+              </Box>
+            )}
+          </Box>
+          <InsetScrollbar
+            scrollRef={scrollRef}
+            contentRef={contentRef}
+            label={t('sharedUi.pageScroll.scrollbar')}
+            className={PageNavScrollbar}
+          />
+        </Box>
+        <ScrollTopContainer scrollRef={scrollRef} style={{ top: toRem(62) }}>
+          <IconButton
+            size="300"
+            radii="Pill"
+            variant="Surface"
+            outlined
+            aria-label={t('featureUi.room.membersDrawer.scrollToTop')}
+            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            <Icon size="200" src={Icons.ChevronTop} />
+          </IconButton>
+        </ScrollTopContainer>
       </Box>
     </Box>
   );
