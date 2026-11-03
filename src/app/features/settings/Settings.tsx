@@ -39,6 +39,7 @@ import { Devices } from './devices';
 import { EmojisStickers } from './emojis-stickers';
 import { General } from './general';
 import { Notifications } from './notifications';
+import { SettingsMenu } from './frame.css';
 
 type SettingsProps = {
   initialPage?: SettingsPage;
@@ -105,7 +106,7 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
     return (
       <MenuItem
         key={page}
-        radii="400"
+        radii="500"
         variant="Background"
         before={<Icon size="100" src={icon} filled={current} />}
         aria-pressed={current}
@@ -117,7 +118,7 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
       </MenuItem>
     );
   });
-  return <div style={{ flexGrow: 1 }}>{entries}</div>;
+  return <div className={SettingsMenu}>{entries}</div>;
 }
 
 function LogoutButton() {

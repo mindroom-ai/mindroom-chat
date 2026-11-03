@@ -14,12 +14,18 @@ export type SettingsPageProps = Pick<SettingsPageFrameProps, 'requestClose'>;
 
 type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 
+// settings.png: the close button sits 24 px from the dialog's right edge and the cards end 28 px
+// from it. Inline and in plain units, because the shared page header and content set their own
+// padding and the unit tests of the pages load this frame with folds and styles mocked.
+const HEADER_INSET = { paddingRight: '1.5rem' };
+const CONTENT_INSET = { paddingRight: '1.75rem' };
+
 function FrameHeader({ title, requestClose }: FrameHeaderProps) {
   const { t } = useTranslation();
   const closeLabel = t('featureUi.settings.emojisStickers.globalPacks.close');
 
   return (
-    <PageHeader outlined={false}>
+    <PageHeader outlined={false} style={HEADER_INSET}>
       <Box grow="Yes" alignItems="Center">
         <Text size="H3" truncate>
           {title}
@@ -37,7 +43,7 @@ export function SettingsPageFrame({ title, requestClose, children }: SettingsPag
   return (
     <Page>
       <PageScroll header={<FrameHeader title={title} requestClose={requestClose} />}>
-        <PageContent>
+        <PageContent style={CONTENT_INSET}>
           <Box direction="Column" gap="700">
             {children}
           </Box>
