@@ -1,4 +1,9 @@
-"""Seed a disposable Tuwunel with MindRoom-style content for reference screenshots."""
+"""Seed a disposable Tuwunel with MindRoom-style content for reference screenshots.
+
+Usage: scripts/e2e-slot.sh <N> python3 scripts/reference/seed.py [suffix]
+Prints the signed-in user, password, room, thread roots (r1..r4) and the direct room as JSON.
+The screenshots in docs/design/reference/ show this data in MindRoom Chat; compare against them.
+"""
 
 import json
 import sys
@@ -8,7 +13,10 @@ import urllib.request
 import uuid
 from datetime import UTC, datetime
 
-HS = "http://127.0.0.1:28009"
+import os
+
+# The homeserver to seed: E2E_HOMESERVER, else the port of an e2e slot (scripts/e2e-slot.sh), else 28009.
+HS = os.environ.get("E2E_HOMESERVER") or f"http://127.0.0.1:{os.environ.get('E2E_MATRIX_PORT', '28009')}"
 SERVER = "matrix.localhost"
 PW = "reference-pass-1"
 AGENTS = "/home/basnijholt/Work/dev/assets/avatars/painted/agents"
