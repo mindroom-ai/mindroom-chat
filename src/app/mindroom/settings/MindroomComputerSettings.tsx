@@ -11,6 +11,13 @@ import { useMindroomServerUrls } from '../server/useMindroomServers';
 
 type Feedback = 'saved' | 'invalid' | 'storageFailed';
 
+/** A save is confirmed politely; a rejected address or a failed write is an alert. */
+const FEEDBACK = {
+  saved: { role: 'status', textKey: 'settings.general.computers.saved' },
+  invalid: { role: 'alert', textKey: 'settings.general.computers.invalidUrl' },
+  storageFailed: { role: 'alert', textKey: 'settings.general.computers.saveFailed' },
+} as const satisfies Record<Feedback, { role: 'status' | 'alert'; textKey: string }>;
+
 const isPlainHttp = (value: string): boolean =>
   resolveComputerApiUrl(value)?.startsWith('http:') ?? false;
 
@@ -39,62 +46,61 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
     setFeedback(undefined);
   };
 
+  // Stores the preference on this device; on failure the alert says so and nothing changes.
+  const persist = (next: string | null): boolean => {
+    const stored = setPreference(next);
+    if (!stored) setFeedback('storageFailed');
+    return stored;
+  };
+
   const save = () => {
-    const blank = draft.trim() === '';
-    const origin = blank ? '' : resolveComputerApiUrl(draft);
+    const origin = draft.trim() === '' ? '' : resolveComputerApiUrl(draft);
     if (origin === undefined) {
       setFeedback('invalid');
-      return;
+    } else if (persist(origin)) {
+      setDraft(origin);
+      setFeedback('saved');
     }
-    if (!setPreference(origin)) {
-      setFeedback('storageFailed');
-      return;
-    }
-    setDraft(origin);
-    setFeedback('saved');
   };
 
   const followDefault = () => {
-    if (!setPreference(null)) {
-      setFeedback('storageFailed');
-      return;
-    }
-    setDraft(deploymentUrl ?? '');
+    if (!persist(null)) return;
     setFeedback(undefined);
+    setDraft(deploymentUrl ?? '');
   };
 
+  const fieldLabel = t('settings.general.computers.apiUrl');
+  const shownFeedback = feedback && FEEDBACK[feedback];
+
   return (
-    <Box direction="Column" gap="100">
+    <Box gap="100" direction="Column">
       <Text size="L400">{t('settings.general.computers.sectionTitle')}</Text>
-      <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
-        <SettingTile
-          title={t('settings.general.computers.apiUrl')}
-          description={t('settings.general.computers.description')}
-        >
-          <Box direction="Column" gap="200">
+      <SequenceCard direction="Column" gap="400" variant="SurfaceVariant" className={className}>
+        <SettingTile title={fieldLabel} description={t('settings.general.computers.description')}>
+          <Box gap="200" direction="Column">
             <Input
-              size="400"
-              variant="Background"
-              radii="300"
+              aria-label={fieldLabel}
               type="url"
               inputMode="url"
               autoComplete="off"
               spellCheck={false}
-              aria-label={t('settings.general.computers.apiUrl')}
-              value={draft}
               placeholder={placeholder}
+              value={draft}
               onChange={handleChange}
+              variant="Background"
+              size="400"
+              radii="300"
             />
-            <Box gap="200" wrap="Wrap">
-              <Button size="300" variant="Primary" fill="Soft" radii="300" onClick={save}>
+            <Box wrap="Wrap" gap="200">
+              <Button onClick={save} variant="Primary" fill="Soft" size="300" radii="300">
                 <Text size="B300">{t('settings.general.computers.save')}</Text>
               </Button>
               <Button
-                size="300"
+                onClick={followDefault}
                 variant="Secondary"
                 fill="Soft"
+                size="300"
                 radii="300"
-                onClick={followDefault}
               >
                 <Text size="B300">{t('settings.general.computers.reset')}</Text>
               </Button>
@@ -104,16 +110,13 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
                 {t('settings.general.computers.httpNotice')}
               </Text>
             )}
-            {feedback === 'saved' && (
-              <Text size="T200" role="status">
-                {t('settings.general.computers.saved')}
-              </Text>
-            )}
-            {(feedback === 'invalid' || feedback === 'storageFailed') && (
-              <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-                {feedback === 'invalid'
-                  ? t('settings.general.computers.invalidUrl')
-                  : t('settings.general.computers.saveFailed')}
+            {shownFeedback && (
+              <Text
+                size="T200"
+                role={shownFeedback.role}
+                style={shownFeedback.role === 'alert' ? { color: color.Critical.Main } : undefined}
+              >
+                {t(shownFeedback.textKey)}
               </Text>
             )}
           </Box>

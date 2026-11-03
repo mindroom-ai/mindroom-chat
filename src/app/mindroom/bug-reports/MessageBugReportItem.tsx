@@ -1,79 +1,83 @@
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
-import { MenuItem } from '../../components/glass/GlassPrimitives';
-import * as css from '../../features/room/message/styles.css';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { saveFile } from '../native/nativeFileSave';
 import { useBugReportAdmins } from './bugReportConfig';
 import { buildBugReport, getBugReportFileName, serializeBugReport } from './bugReportPayload';
 import { ensureBugReportRoom } from './bugReportRoom';
 import { sendBugReport } from './sendBugReport';
+import { saveFile } from '../native/nativeFileSave';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
+import { MessageMenuItemText } from '../../features/room/message/styles.css';
 
-type ReportState = 'idle' | 'sending' | 'failed' | 'sent';
-
-type MessageBugReportItemProps = {
-  room: Room;
-  mEvent: MatrixEvent;
-  onClose: () => void;
-};
+/** `busy` while the report is on its way, `done` once the admins have it. */
+type Phase = 'ready' | 'busy' | 'error' | 'done';
 
 /**
  * "Report a bug" in a message's menu. With bug report admins configured in the homeserver's
  * well-known, the report (this message and the conversation around it) goes to a room with them
  * and its thread opens; without, the report downloads as a file.
  */
-export function MessageBugReportItem({ room, mEvent, onClose }: MessageBugReportItemProps) {
+export function MessageBugReportItem(props: {
+  room: Room;
+  mEvent: MatrixEvent;
+  onClose: () => void;
+}) {
+  const { room, mEvent, onClose } = props;
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const admins = useBugReportAdmins();
   const { navigateRoomThread } = useRoomNavigate();
-  const [state, setState] = useState<ReportState>('idle');
-  const send = admins.length > 0;
+  const admins = useBugReportAdmins();
+  const [phase, setPhase] = useState<Phase>('ready');
+  const delivers = admins.length > 0;
 
-  const handleClick = async () => {
-    if (!send) {
-      const report = await buildBugReport(mx, room, mEvent);
-      await saveFile(serializeBugReport(report), getBugReportFileName(report));
-      onClose();
-      return;
-    }
-    setState('sending');
-    let sent: { roomId: string; threadRootId: string };
-    try {
-      const report = await buildBugReport(mx, room, mEvent);
-      const reportRoom = await ensureBugReportRoom(mx, admins);
-      sent = await sendBugReport(mx, reportRoom, report);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[bug-report] could not send the bug report', error);
-      setState('failed');
-      return;
-    }
-    // Sent: a failure to open its thread must not offer to send it again.
-    setState('sent');
+  const download = async (): Promise<void> => {
+    const report = await buildBugReport(mx, room, mEvent);
+    await saveFile(serializeBugReport(report), getBugReportFileName(report));
     onClose();
-    navigateRoomThread(sent.roomId, sent.threadRootId);
   };
 
-  let label: string;
-  if (state === 'sending') label = t('mindroomUi.messages.bugReport.sending');
-  else if (state === 'failed') label = t('mindroomUi.messages.bugReport.failed');
-  else if (send) label = t('mindroomUi.messages.bugReport.report');
-  else label = t('mindroomUi.messages.bugReport.download');
+  const deliver = async (): Promise<void> => {
+    setPhase('busy');
+    const target = await buildBugReport(mx, room, mEvent)
+      .then(async (report) => sendBugReport(mx, await ensureBugReportRoom(mx, admins), report))
+      .catch((reason: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[bug-report] could not send the bug report', reason);
+        return undefined;
+      });
+    if (target === undefined) {
+      setPhase('error');
+      return;
+    }
+    // Delivered: if its thread then fails to open, the item must not offer a second send.
+    setPhase('done');
+    onClose();
+    navigateRoomThread(target.roomId, target.threadRootId);
+  };
+
+  const idleKey = delivers
+    ? ('mindroomUi.messages.bugReport.report' as const)
+    : ('mindroomUi.messages.bugReport.download' as const);
+  const phaseKeys = {
+    ready: idleKey,
+    busy: 'mindroomUi.messages.bugReport.sending',
+    error: 'mindroomUi.messages.bugReport.failed',
+    done: idleKey,
+  } as const satisfies Record<Phase, string>;
 
   return (
     <MenuItem
       size="300"
       radii="300"
+      disabled={phase === 'busy' || phase === 'done'}
       after={<Icon size="100" src={Icons.Flag} />}
-      disabled={state === 'sending' || state === 'sent'}
-      onClick={handleClick}
+      onClick={delivers ? deliver : download}
     >
-      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {label}
+      <Text as="span" size="T300" truncate className={MessageMenuItemText}>
+        {t(phaseKeys[phase])}
       </Text>
     </MenuItem>
   );

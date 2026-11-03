@@ -219,51 +219,47 @@ export const useCommandPaletteSource = ({
       },
       t
     );
-    const run: Record<CommandPaletteQuickActionId, (() => void) | undefined> = {
-      'open-settings': () => setSettingsModal({}),
-      'go-home': () => navigate(commandPaletteStaticActionPaths.goHome),
-      'go-direct': () => navigate(commandPaletteStaticActionPaths.goDirect),
-      'go-inbox': () => navigate(commandPaletteStaticActionPaths.goInbox),
-      'create-room': () => openCreateRoom(selectedSpaceId),
-      'create-space': () => openCreateSpace(selectedSpaceId),
-      'mark-current-room-read': currentRoom
-        ? () => markRoomAndThreadsAsRead(mx, currentRoom.roomId, hideActivity)
-        : undefined,
-      'copy-current-room-link': currentRoom
+    const goTo = (path: string) => () => navigate(path);
+    // Room actions exist only while a room is open; thread ones also need the right to tag.
+    const inCurrentRoom = (action: (room: Room) => void) =>
+      currentRoom ? () => action(currentRoom) : undefined;
+    const markCurrentThread = (resolved: boolean) =>
+      canResolveThread && currentThreadId
         ? () => {
-            const idOrAlias = getCanonicalAliasOrRoomId(mx, currentRoom.roomId);
-            copyToClipboard(
-              getMatrixToRoom(
-                idOrAlias,
-                idOrAlias.startsWith('!') ? getViaServers(currentRoom) : undefined
-              )
-            ).catch((error: unknown) => {
-              // eslint-disable-next-line no-console
-              console.warn('[command-palette] could not copy the room link', error);
-            });
+            setResolved(currentThreadId, resolved);
           }
-        : undefined,
-      'open-current-room-settings': currentRoom
-        ? () => openRoomSettings(currentRoom.roomId, selectedSpaceId)
-        : undefined,
-      // The thread tag write path checks the root, shows the change at once and reports errors.
-      'resolve-current-thread':
-        canResolveThread && currentThreadId
-          ? () => {
-              setResolved(currentThreadId, true);
-            }
-          : undefined,
-      'unresolve-current-thread':
-        canResolveThread && currentThreadId
-          ? () => {
-              setResolved(currentThreadId, false);
-            }
-          : undefined,
+        : undefined;
+    const copyRoomLink = (room: Room) => {
+      const idOrAlias = getCanonicalAliasOrRoomId(mx, room.roomId);
+      // An alias resolves on its own; a bare room ID needs servers to join through.
+      const via = idOrAlias.startsWith('!') ? getViaServers(room) : undefined;
+      copyToClipboard(getMatrixToRoom(idOrAlias, via)).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[command-palette] could not copy the room link', error);
+      });
+    };
+    const run: Record<CommandPaletteQuickActionId, (() => void) | undefined> = {
+      logout: onLogout,
       'toggle-theme': () => {
         setUseSystemTheme(false);
         setThemeId(theme.kind === ThemeKind.Dark ? LightTheme.id : DarkTheme.id);
       },
-      logout: onLogout,
+      'go-direct': goTo(commandPaletteStaticActionPaths.goDirect),
+      'go-home': goTo(commandPaletteStaticActionPaths.goHome),
+      'go-inbox': goTo(commandPaletteStaticActionPaths.goInbox),
+      'create-space': () => openCreateSpace(selectedSpaceId),
+      'create-room': () => openCreateRoom(selectedSpaceId),
+      'open-settings': () => setSettingsModal({}),
+      'copy-current-room-link': inCurrentRoom(copyRoomLink),
+      'mark-current-room-read': inCurrentRoom((room) =>
+        markRoomAndThreadsAsRead(mx, room.roomId, hideActivity)
+      ),
+      'open-current-room-settings': inCurrentRoom((room) =>
+        openRoomSettings(room.roomId, selectedSpaceId)
+      ),
+      // The thread tag write path checks the root, shows the change at once and reports errors.
+      'resolve-current-thread': markCurrentThread(true),
+      'unresolve-current-thread': markCurrentThread(false),
     };
     // Resolving needs the right to set thread tags; without it the action is not offered.
     return items

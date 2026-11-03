@@ -61,22 +61,27 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         if (mxc) return mxc;
       }
       return new Promise<string>((resolve, reject) => {
-        uploadContent(mx, item.file, {
-          name: item.originalFile.name,
-          fileType: item.originalFile.type || undefined,
-          hideFilename: !!item.encInfo,
-          onPromise: (promise) =>
-            store.set(uploadAtom, { promise: promise as Promise<UploadResponse> }),
+        // The atom follows the request so the item's card shows progress and the outcome.
+        const settle = (outcome: { mxc: string } | { failure: unknown }) => {
+          if ('mxc' in outcome) {
+            store.set(uploadAtom, { mxc: outcome.mxc });
+            resolve(outcome.mxc);
+            return;
+          }
+          const error = toMatrixUploadError(outcome.failure, 'upload');
+          store.set(uploadAtom, { error });
+          reject(error);
+        };
+        const { file, originalFile, encInfo } = item;
+        uploadContent(mx, file, {
+          hideFilename: encInfo !== undefined,
+          fileType: originalFile.type || undefined,
+          name: originalFile.name,
+          onPromise: (request) =>
+            store.set(uploadAtom, { promise: request as Promise<UploadResponse> }),
           onProgress: (progress) => store.set(uploadAtom, { progress }),
-          onSuccess: (mxc) => {
-            store.set(uploadAtom, { mxc });
-            resolve(mxc);
-          },
-          onError: (error) => {
-            const uploadError = toMatrixUploadError(error, 'upload');
-            store.set(uploadAtom, { error: uploadError });
-            reject(uploadError);
-          },
+          onError: (failure) => settle({ failure }),
+          onSuccess: (mxc) => settle({ mxc }),
         }).catch(reject);
       });
     },

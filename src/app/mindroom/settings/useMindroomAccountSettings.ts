@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { ClientEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -34,7 +34,7 @@ export const useBindMindroomAccountSettings = (mx: MatrixClient): void => {
 
 
 
-      setContent(undefined);
+
     };
   }, [mx, setContent]);
 };
@@ -67,16 +67,22 @@ export const useMindroomAccountSettings = (): MindroomAccountSettings => {
   return useMemo(() => sanitizeMindroomAccountSettings(content), [content]);
 };
 
-/** Saves a patch of settings to account data; resolves once the write is accepted. */
-export const useSetMindroomAccountSettings = (): ((
-  patch: Partial<MindroomAccountSettings>
-) => Promise<void>) => {
+type AccountSettingsWriter = (patch: Partial<MindroomAccountSettings>) => Promise<void>;
+
+/**
+ * A writer for this client's settings patches; each call resolves once the homeserver accepted
+ * its write. Stable while the client stays the same.
+ */
+export function useSetMindroomAccountSettings(): AccountSettingsWriter {
   const mx = useMatrixClient();
-  return useCallback(
-    (patch: Partial<MindroomAccountSettings>) => enqueueMindroomAccountSettingsPatch(mx, patch),
+  return useMemo<AccountSettingsWriter>(
+    () => enqueueMindroomAccountSettingsPatch.bind(undefined, mx),
     [mx]
   );
-};
+}
 
-export const useShowCanvasesInSidebar = (): boolean =>
-  useMindroomAccountSettings().showCanvasesInSidebar;
+/** Whether the account lets the sidebar list canvases; on unless the user turned it off. */
+export function useShowCanvasesInSidebar(): boolean {
+  const { showCanvasesInSidebar } = useMindroomAccountSettings();
+  return showCanvasesInSidebar;
+}

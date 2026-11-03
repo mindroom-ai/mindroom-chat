@@ -71,6 +71,26 @@ const getRefElement = (ref: Ref<HTMLDivElement> | undefined): HTMLElement | null
   return (ref as MutableRefObject<HTMLDivElement | null>).current;
 };
 
+/** The dialog's title, which both of its triggers also carry as their name. */
+const useReplyDetailsLabel = (): string =>
+  useTranslation().t('mindroomUi.messages.mindroomMessageControls.replyDetails');
+
+/** Title on the left, a close button on the right; stays put while the details scroll. */
+function ReplyDetailsHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const closeLabel = t('mindroomUi.messages.mindroomMessageControls.close');
+  return (
+    <Header variant="Surface" size="500" style={{ paddingInline: 12, paddingBlock: 0 }}>
+      <Box alignItems="Center" grow="Yes">
+        <Text size="H4">{title}</Text>
+      </Box>
+      <IconButton onClick={onClose} aria-label={closeLabel} size="300">
+        <Icon src={Icons.Cross} />
+      </IconButton>
+    </Header>
+  );
+}
+
 type MindroomAiRunControlsProps = {
   info: MindroomAiRunInfo;
   eventId?: string;
@@ -86,7 +106,6 @@ export function MindroomAiRunControls({
   forwardedRef,
   children,
 }: MindroomAiRunControlsProps) {
-  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const openDetails = useCallback(() => setOpen(true), []);
   const closeDetails = useCallback(() => setOpen(false), []);
@@ -94,7 +113,7 @@ export function MindroomAiRunControls({
     () => ({ open, openDetails, closeDetails }),
     [open, openDetails, closeDetails]
   );
-  const title = t('mindroomUi.messages.mindroomMessageControls.replyDetails');
+  const title = useReplyDetailsLabel();
 
   return (
     <>
@@ -119,21 +138,8 @@ export function MindroomAiRunControls({
               style={{ width: '28rem', maxWidth: 'calc(100vw - 24px)' }}
             >
               <PageScroll
+                header={<ReplyDetailsHeader title={title} onClose={closeDetails} />}
                 className={css.ReplyDetailsScroll}
-                header={
-                  <Header size="500" variant="Surface" style={{ padding: '0 12px' }}>
-                    <Box grow="Yes" alignItems="Center">
-                      <Text size="H4">{title}</Text>
-                    </Box>
-                    <IconButton
-                      size="300"
-                      aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
-                      onClick={closeDetails}
-                    >
-                      <Icon src={Icons.Cross} />
-                    </IconButton>
-                  </Header>
-                }
               >
                 <MindroomReplyDetails info={info} eventId={eventId} />
               </PageScroll>
@@ -146,34 +152,36 @@ export function MindroomAiRunControls({
 }
 
 /** The small "i" beside the sender name of an agent reply. */
-export function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
-  const { t } = useTranslation();
+export function MindroomAiRunInfoButton(props: { open: boolean; onOpen: () => void }) {
+  const label = useReplyDetailsLabel();
+  const info = <Icon size="50" src={Icons.Info} />;
   return (
     <button
-      type="button"
-      className={css.AiRunInfoButton}
-      aria-label={t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
+      aria-label={label}
+      aria-expanded={props.open}
       aria-haspopup="dialog"
-      aria-expanded={open}
-      onClick={onOpen}
+      className={css.AiRunInfoButton}
+      onClick={props.onOpen}
+      type="button"
     >
-      <Icon size="50" src={Icons.Info} />
+      {info}
     </button>
   );
 }
 
-export function MindroomAiRunMenuItem({ onOpen }: { onOpen: () => void }) {
-  const { t } = useTranslation();
+/** "Reply details" in the message menu of an agent reply. */
+export function MindroomAiRunMenuItem(props: { onOpen: () => void }) {
+  const label = useReplyDetailsLabel();
   return (
     <MenuItem
-      size="300"
-      radii="300"
-      after={<Icon size="100" src={Icons.Info} />}
       aria-haspopup="dialog"
-      onClick={onOpen}
+      onClick={props.onOpen}
+      after={<Icon size="100" src={Icons.Info} />}
+      radii="300"
+      size="300"
     >
-      <Text className={css.MenuItemText} as="span" size="T300" truncate>
-        {t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
+      <Text as="span" size="T300" truncate className={css.MenuItemText}>
+        {label}
       </Text>
     </MenuItem>
   );

@@ -32,6 +32,12 @@ export type MessageSearchProps = {
   renderBody: SearchResultBodyRenderer;
 };
 
+type MessageSearchRow = ReturnType<typeof flattenMessageSearchRows>[number];
+
+/** First guess before measuring: a room header is one line, a result card a few. */
+const estimateRowHeight = (row: MessageSearchRow | undefined): number =>
+  row?.kind === 'room-header' ? 40 : 120;
+
 const parseRooms = (value: string | null): string[] | undefined =>
   value
     ? normalizeMessageSearchRooms(
@@ -79,19 +85,24 @@ export function MessageSearch({
   });
   const search = useMessageSearch({ term: deferred ? undefined : term, rooms });
   const pages = search.data?.pages;
-  const highlights = useMemo(
-    () => Array.from(new Set(pages?.flatMap((page) => page.highlights) ?? [])),
-    [pages]
-  );
-  const highlightRegex = useMemo(() => makeHighlightRegex(highlights), [highlights]);
-  const groups = useMemo(() => pages?.flatMap((page) => page.groups) ?? [], [pages]);
-  const rows = useMemo(() => flattenMessageSearchRows(groups), [groups]);
+  // Every loaded page contributes its room groups and the terms the server matched.
+  const { groups, rows, highlights, highlightRegex } = useMemo(() => {
+    const loaded = pages ?? [];
+    const allGroups = loaded.flatMap((page) => page.groups);
+    const matchedTerms = [...new Set(loaded.flatMap((page) => page.highlights))];
+    return {
+      groups: allGroups,
+      rows: flattenMessageSearchRows(allGroups),
+      highlights: matchedTerms,
+      highlightRegex: makeHighlightRegex(matchedTerms),
+    };
+  }, [pages]);
 
   const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => (rows[index]?.kind === 'room-header' ? 40 : 120),
     overscan: 4,
+    count: rows.length,
+    estimateSize: (index) => estimateRowHeight(rows[index]),
+    getScrollElement: () => scrollRef.current,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const renderState = getMessageSearchRenderState({

@@ -13,7 +13,18 @@ import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, MsgType, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import { Box, Icon, IconButton, Icons, PopOut, RectCords, Text, color, config } from 'folds';
+import {
+  Box,
+  Icon,
+  IconButton,
+  Icons,
+  IconSrc,
+  PopOut,
+  RectCords,
+  Text,
+  color,
+  config,
+} from 'folds';
 import { Editor as SlateEditor } from 'slate';
 import {
   AUTOCOMPLETE_PREFIXES,
@@ -101,6 +112,83 @@ export type RoomInputProps = {
 
 const isEnter = isKeyHotkey('enter');
 const isModEnter = isKeyHotkey('mod+enter');
+
+/** A leading `/me` or `/notice` picks the message type; the command itself is not sent. */
+const COMMAND_MSGTYPES: ReadonlyMap<string, MsgType> = new Map([
+  ['me', MsgType.Emote],
+  ['notice', MsgType.Notice],
+]);
+
+/** The message the composer holds, or undefined when no text is left to send. */
+const composeTextMessage = (
+  editor: Editor,
+  markdown: boolean,
+  ownUserId: string | undefined
+): IContent | undefined => {
+  const command = getBeginCommand(editor);
+  const commandType = command === undefined ? undefined : COMMAND_MSGTYPES.get(command);
+  const withoutCommand = (value: string): string =>
+    command !== undefined && commandType !== undefined ? trimCommand(command, value) : value;
+
+  const body = withoutCommand(toPlainText(editor.children, markdown).trim());
+  if (body === '') return undefined;
+  const html = withoutCommand(
+    trimCustomHtml(
+      toMatrixCustomHTML(editor.children, {
+        allowInlineMarkdown: markdown,
+        allowBlockMarkdown: markdown,
+        allowTextFormatting: true,
+      })
+    )
+  );
+
+  // Intentional mentions (MSC3952): only the users and @room the composer holds as pills.
+  const { users, room: mentionsRoom } = getMentions(editor, ownUserId);
+  const mentions: { user_ids?: string[]; room?: boolean } = {};
+  if (users.size > 0) mentions.user_ids = [...users];
+  if (mentionsRoom) mentions.room = true;
+
+  const formatted = customHtmlEqualsPlainText(html, body)
+    ? {}
+    : { format: 'org.matrix.custom.html', formatted_body: html };
+  return { msgtype: commandType ?? MsgType.Text, body, ...formatted, 'm.mentions': mentions };
+};
+
+type ComposerIconButtonProps = {
+  label: string;
+  icon: IconSrc;
+  /** Pressed state of a toggle, which also fills its icon. */
+  pressed?: boolean;
+  variant?: 'Primary' | 'SurfaceVariant';
+  onPress: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
+
+/** An icon-only composer button, named by its tooltip and its aria-label alike. */
+function ComposerIconButton({
+  label,
+  icon,
+  pressed,
+  variant = 'SurfaceVariant',
+  onPress,
+}: ComposerIconButtonProps) {
+  return (
+    <IconTooltip position="Top" label={label}>
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          onClick={onPress}
+          aria-label={label}
+          aria-pressed={pressed}
+          variant={variant}
+          radii="300"
+          size="300"
+        >
+          <Icon src={icon} filled={pressed} />
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+}
 
 const buildUploadMessageContent = async (
   mx: ReturnType<typeof useMatrixClient>,
@@ -273,35 +361,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       onRoomMessageSent,
     });
 
-    const buildTextContent = useCallback((): IContent | undefined => {
-
-
-
-
-
-
-
-
-
-
-      if (command === 'me' || command === 'notice') {
-        plainText = trimCommand(command, plainText);
-        customHtml = trimCommand(command, customHtml);
-        msgtype = command === 'me' ? MsgType.Emote : MsgType.Notice;
-      }
-      if (plainText === '') return undefined;
-      const content: IContent = { msgtype, body: plainText };
-      if (!customHtmlEqualsPlainText(customHtml, plainText)) {
-        content.format = 'org.matrix.custom.html';
-        content.formatted_body = customHtml;
-      }
-      const mentions = getMentions(editor, mx.getUserId() ?? undefined);
-      content['m.mentions'] = {
-        ...(mentions.users.size > 0 ? { user_ids: Array.from(mentions.users) } : {}),
-        ...(mentions.room ? { room: true } : {}),
-      };
-      return content;
-    }, [editor, isMarkdown, mx]);
+    const buildTextContent = useCallback(
+      (): IContent | undefined =>
+        composeTextMessage(editor, isMarkdown, mx.getUserId() ?? undefined),
+      [editor, isMarkdown, mx]
+    );
 
     const submit = useCallback(async () => {
       if (voice.blocksSubmit()) return;
@@ -463,40 +527,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            <IconTooltip label={attachLabel} position="Top">
-              {(triggerRef) => (
-                <IconButton
-                  ref={triggerRef}
-                  variant="SurfaceVariant"
-                  size="300"
-                  radii="300"
-                  aria-label={attachLabel}
-                  onClick={attachments.pickFiles}
-                >
-                  <Icon src={Icons.PlusCircle} />
-                </IconButton>
-              )}
-            </IconTooltip>
+            <ComposerIconButton
+              label={attachLabel}
+              icon={Icons.PlusCircle}
+              onPress={attachments.pickFiles}
+            />
           }
           after={
             <Box alignItems="Center" gap="100" style={{ paddingInlineEnd: config.space.S100 }}>
-              <IconTooltip label={emojiLabel} position="Top">
-                {(triggerRef) => (
-                  <IconButton
-                    ref={triggerRef}
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                    aria-label={emojiLabel}
-                    aria-pressed={!!emojiAnchor}
-                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                      setEmojiAnchor(event.currentTarget.getBoundingClientRect())
-                    }
-                  >
-                    <Icon src={Icons.Smile} filled={!!emojiAnchor} />
-                  </IconButton>
-                )}
-              </IconTooltip>
+              <ComposerIconButton
+                label={emojiLabel}
+                icon={Icons.Smile}
+                pressed={emojiAnchor !== undefined}
+                onPress={(event) => setEmojiAnchor(event.currentTarget.getBoundingClientRect())}
+              />
               <PopOut
                 anchor={emojiAnchor}
                 position="Top"
@@ -519,20 +563,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 }
               />
               {voice.microphone}
-              <IconTooltip label={sendLabel} position="Top">
-                {(triggerRef) => (
-                  <IconButton
-                    ref={triggerRef}
-                    variant={hasText || attachments.board ? 'Primary' : 'SurfaceVariant'}
-                    size="300"
-                    radii="300"
-                    aria-label={sendLabel}
-                    onClick={handleSend}
-                  >
-                    <Icon src={Icons.Send} />
-                  </IconButton>
-                )}
-              </IconTooltip>
+              <ComposerIconButton
+                label={sendLabel}
+                icon={Icons.Send}
+                variant={hasText || attachments.board ? 'Primary' : 'SurfaceVariant'}
+                onPress={handleSend}
+              />
             </Box>
           }
         />

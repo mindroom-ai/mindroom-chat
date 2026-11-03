@@ -1,23 +1,26 @@
 import React, { useCallback, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
-import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
-import { NavCategory, NavCategoryHeader } from '../../components/nav';
-import { RoomNavCategoryButton } from '../../features/room-nav';
-import { useCategoryHandler } from '../../hooks/useCategoryHandler';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
-import { makeNavCategoryId } from '../../state/closedNavCategories';
-import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
-import { mDirectAtom } from '../../state/mDirectList';
-import { roomToParentsAtom } from '../../state/room/roomToParents';
+import {
+  crossRoomThreadIndexAtom,
+  type CrossRoomThreadIndexEntry,
+} from '../cross-room-threads/crossRoomThreadIndex';
 import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
-import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
 import { buildSidebarThreadEntries } from './threadNavCategoryUtils';
 import { makeThreadSidebarPreferencesAtom } from './threadSidebarPreferences';
 import { ThreadNavItem } from './ThreadNavItem';
 import * as css from './threadNav.css';
+import { NavCategory, NavCategoryHeader } from '../../components/nav';
+import { RoomNavCategoryButton } from '../../features/room-nav';
+import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
+import { useCategoryHandler } from '../../hooks/useCategoryHandler';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { mDirectAtom } from '../../state/mDirectList';
+import { roomToParentsAtom } from '../../state/room/roomToParents';
+import { makeNavCategoryId } from '../../state/closedNavCategories';
+import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
 
 export const THREAD_NAV_CATEGORY_ID = makeNavCategoryId('mindroom', 'threads');
 
@@ -101,39 +104,63 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
     (threadKey: string) => updatePreferences({ type: 'TOGGLE_PIN', threadKey }),
     [updatePreferences]
   );
+  const isOpen = (entry: CrossRoomThreadIndexEntry) =>
+    entry.roomId === selectedRoomId && entry.threadRootId === selectedThreadId;
+
+  const toggle = (
+    <RoomNavCategoryButton
+      data-category-id={THREAD_NAV_CATEGORY_ID}
+      closed={closed}
+      onClick={handleCategoryClick}
+    >
+      {t('threadNav.title')}
+    </RoomNavCategoryButton>
+  );
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader>
-        <RoomNavCategoryButton
-          closed={closed}
-          data-category-id={THREAD_NAV_CATEGORY_ID}
-          onClick={handleCategoryClick}
-        >
-          {t('threadNav.title')}
-        </RoomNavCategoryButton>
-      </NavCategoryHeader>
-      {!closed && (
-        <div data-testid="thread-nav-list">
-          {entries.length === 0 ? (
-            <Text as="p" size="T200" priority="300" className={css.CategoryState}>
-              {t('threadNav.empty')}
-            </Text>
-          ) : (
-            entries.map((entry) => (
-              <ThreadNavItem
-                key={entry.key}
-                entry={entry}
-                pinned={pinned.has(entry.key)}
-                selected={
-                  entry.roomId === selectedRoomId && entry.threadRootId === selectedThreadId
-                }
-                onTogglePin={() => togglePin(entry.key)}
-              />
-            ))
-          )}
-        </div>
+      <NavCategoryHeader>{toggle}</NavCategoryHeader>
+      {closed ? null : (
+        <ThreadNavList
+          entries={entries}
+          pinnedKeys={pinned}
+          isOpen={isOpen}
+          onTogglePin={togglePin}
+        />
       )}
     </NavCategory>
+  );
+}
+
+type ThreadNavListProps = {
+  entries: CrossRoomThreadIndexEntry[];
+  pinnedKeys: ReadonlySet<string>;
+  /** Whether the entry is the thread shown in the main view. */
+  isOpen: (entry: CrossRoomThreadIndexEntry) => boolean;
+  onTogglePin: (threadKey: string) => void;
+};
+
+/** The expanded category's rows, or a short note when no thread qualifies. */
+function ThreadNavList({ entries, pinnedKeys, isOpen, onTogglePin }: ThreadNavListProps) {
+  const { t } = useTranslation();
+  const rows = entries.map((entry) => (
+    <ThreadNavItem
+      key={entry.key}
+      entry={entry}
+      selected={isOpen(entry)}
+      pinned={pinnedKeys.has(entry.key)}
+      onTogglePin={() => onTogglePin(entry.key)}
+    />
+  ));
+  return (
+    <div data-testid="thread-nav-list">
+      {rows.length > 0 ? (
+        rows
+      ) : (
+        <Text className={css.CategoryState} as="p" priority="300" size="T200">
+          {t('threadNav.empty')}
+        </Text>
+      )}
+    </div>
   );
 }

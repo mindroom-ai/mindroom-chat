@@ -12,25 +12,25 @@ import {
   Text,
   type RectCords,
 } from 'folds';
-import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoomMembers } from '../../hooks/useRoomMembers';
-import { copyToClipboard } from '../../utils/dom';
-import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
-import { getViaServers } from '../../plugins/via-servers';
-import { isMindroomAgentUserId } from '../matrix/agentIdentity';
-import { useThreadTags } from './useThreadTags';
-import { useMutateThreadTags } from './useMutateThreadTags';
-import { useThreadPinning } from './useThreadPinning';
-import { ThreadTagPill } from './ThreadTagPill';
-import { ThreadTagPicker } from './ThreadTagPicker';
-import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import {
   getThreadSummaryActionError,
   requestThreadSummary,
   saveThreadSummary,
   SUMMARY_MAX_LENGTH,
 } from './threadSummaryActions';
+import { getResolvableThreadRootEvent } from './threadResolvableRoot';
+import { ThreadTagPicker } from './ThreadTagPicker';
+import { ThreadTagPill } from './ThreadTagPill';
+import { useThreadPinning } from './useThreadPinning';
+import { useMutateThreadTags } from './useMutateThreadTags';
+import { useThreadTags } from './useThreadTags';
+import { isMindroomAgentUserId } from '../matrix/agentIdentity';
+import { getViaServers } from '../../plugins/via-servers';
+import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
+import { copyToClipboard } from '../../utils/dom';
+import { useRoomMembers } from '../../hooks/useRoomMembers';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 
 export type ThreadActionsMenuProps = {
   room: Room;

@@ -4,44 +4,37 @@
  * does; `{ progress }`, `{ mxc }`, and `{ error }` report the outcome directly.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { type Atom, type WritableAtom, atom, useAtomValue, useStore } from 'jotai';
+import { atom, useAtomValue, useStore, type Atom, type WritableAtom } from 'jotai';
 import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from 'matrix-js-sdk';
-import { type TUploadContent, toMatrixUploadError, uploadContent } from '../utils/matrix';
+import { toMatrixUploadError, uploadContent, type TUploadContent } from '../utils/matrix';
+
+/** Where one file's upload stands. String values keep logged and stored states readable. */
 
 
 
 
 
+}
 
+/** The fields each status adds to the file and the status itself. */
+type StatusFields = {
+  [UploadStatus.Error]: { error: Error };
+  [UploadStatus.Idle]: Record<never, never>;
+  [UploadStatus.Loading]: { promise: Promise<UploadResponse>; progress: UploadProgress };
+  [UploadStatus.Success]: { mxc: string };
+};
 
+type UploadAt<S extends UploadStatus> = { file: TUploadContent; status: S } & StatusFields[S];
 
+export type UploadIdle = UploadAt<UploadStatus.Idle>;
+export type UploadLoading = UploadAt<UploadStatus.Loading>;
+export type UploadSuccess = UploadAt<UploadStatus.Success>;
+export type UploadError = UploadAt<UploadStatus.Error>;
 
+/** One file's upload in any status; `status` tells the variants apart. */
+export type Upload = { [S in UploadStatus]: UploadAt<S> }[UploadStatus];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export type UploadAtomAction =
   | { promise: Promise<UploadResponse> }
   | { progress: UploadProgress }
   | { mxc: string }

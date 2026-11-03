@@ -1,25 +1,34 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
+// The bar fills the composer row it replaces, as tall as the composer's single text line.
+const CAPSULE_MIN_HEIGHT = toRem(40);
+
 // The recording bar that takes the composer's place: discard, waveform, timer, pause.
-export const Capsule = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  flex: '1 1 auto',
-  minWidth: 0,
+export const Capsule = style([
+  {
+    display: 'flex',
+    flex: '1 1 auto',
+    alignItems: 'center',
+    gap: config.space.S200,
+    minWidth: 0,
+    minBlockSize: CAPSULE_MIN_HEIGHT,
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
+  },
+  {
 
 
 
+  },
+]);
 
-
-
-
-
-  flexShrink: 0,
-  minWidth: '3.5ch',
+// Digits of equal width keep the elapsed time from jittering as it counts up.
+export const Timer = style({
   fontVariantNumeric: 'tabular-nums',
   textAlign: 'end',
+  minInlineSize: '3.5ch',
+  flex: 'none',
 });
 
 // Announces recording state changes to screen readers without showing them.

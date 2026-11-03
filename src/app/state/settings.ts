@@ -119,13 +119,21 @@ const BOOLEAN_SETTING_KEYS: readonly BooleanSettingKey[] = [
   'developerTools',
 ];
 
+/** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
 const sanitizeZoom = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return PAGE_ZOOM_DEFAULT;
-  return Math.min(PAGE_ZOOM_MAX, Math.max(PAGE_ZOOM_MIN, Math.round(value)));
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const percent = Math.round(value);
+    if (percent < PAGE_ZOOM_MIN) return PAGE_ZOOM_MIN;
+    return percent > PAGE_ZOOM_MAX ? PAGE_ZOOM_MAX : percent;
+  }
+  return PAGE_ZOOM_DEFAULT;
 };
 
-const optionalString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.length > 0 ? value : undefined;
+/** Optional string settings treat an empty string like an unset one. */
+const optionalString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string' || value === '') return undefined;
+  return value;
+};
 
 const isMessageLayout = (value: unknown): value is MessageLayout =>
   value === MessageLayout.Modern ||

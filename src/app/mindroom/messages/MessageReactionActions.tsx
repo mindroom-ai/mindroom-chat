@@ -113,6 +113,35 @@ export function MessageQuickReactions({
   );
 }
 
+type ReactionsDialogProps = {
+  room: Room;
+  relations: Relations;
+  open: boolean;
+  onDismiss: () => void;
+};
+
+/** The modal reaction list. Focus stays where the menu put it when the dialog closes. */
+function ReactionsDialog({ room, relations, open, onDismiss }: ReactionsDialogProps) {
+  const trapOptions = {
+    onDeactivate: onDismiss,
+    initialFocus: false as const,
+    escapeDeactivates: true,
+    clickOutsideDeactivates: true,
+    returnFocusOnDeactivate: false,
+  };
+  return (
+    <Overlay backdrop={<OverlayBackdrop />} open={open}>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <Modal size="300" variant="Surface">
+            <ReactionViewer requestClose={onDismiss} relations={relations} room={room} />
+          </Modal>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
 /** "View reactions": every reaction on the message and who sent it. */
 export function MessageAllReactionItem({
   room,
@@ -124,41 +153,26 @@ export function MessageAllReactionItem({
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState(false);
 
+  // Leaving the viewer also closes the message menu it was opened from.
+  const stopViewing = () => {
+    setViewing(false);
+    onClose?.();
+  };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              escapeDeactivates: true,
-            }}
-          >
-            <Modal variant="Surface" size="300">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <>
+      <ReactionsDialog room={room} relations={relations} open={viewing} onDismiss={stopViewing} />
+      <MenuItem
+        aria-haspopup="dialog"
+        aria-pressed={viewing}
+        after={<Icon size="100" src={Icons.Smile} />}
+        onClick={() => setViewing(true)}
+        size="300"
+        radii="300"
+      >
+        <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
           {t('mindroomUi.messages.messageReactionActions.viewReactions')}
         </Text>
       </MenuItem>

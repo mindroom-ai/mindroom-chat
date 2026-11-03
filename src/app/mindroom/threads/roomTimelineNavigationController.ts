@@ -77,27 +77,22 @@ export const useRoomTimelineNavigationController = ({
    * permalink and pins to the bottom, synchronously; the room swaps back to its live window.
    */
   const handleJumpToLatest = useCallback((): void => {
-    if (threadId) {
-      if (eventId) {
-        navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
-      }
-      pinToBottom();
-      return;
-    }
-
-    if (eventId) {
-      navigateRoom(room.roomId, undefined, { replace: true });
-    }
-    setTimeline(
-      getInitialTimeline(room, prefetchDepth, {
-        threadId,
-        ignoredUsersSet,
-        showHiddenEvents,
+    // A permalink left in the address would focus its event again on the next render.
+    const leavePermalink = Boolean(eventId);
+    if (!threadId) {
+      if (leavePermalink) navigateRoom(room.roomId, undefined, { replace: true });
+      const filters = {
         hideMembershipEvents,
         hideNickAvatarEvents,
+        ignoredUsersSet,
+        showHiddenEvents,
         showThreadRepliesInRoom,
-      })
-    );
+        threadId: undefined,
+      };
+      setTimeline(getInitialTimeline(room, prefetchDepth, filters));
+    } else if (leavePermalink) {
+      navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
+    }
     pinToBottom();
   }, [
     eventId,

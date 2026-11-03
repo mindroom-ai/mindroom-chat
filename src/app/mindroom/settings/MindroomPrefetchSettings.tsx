@@ -1,84 +1,108 @@
-import React, { MouseEventHandler, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Box, Button, Icon, Icons, PopOut, RectCords, Text, config } from 'folds';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
-import { SequenceCard } from '../../components/sequence-card';
-import { SettingTile } from '../../components/setting-tile';
-import { useSetting } from '../../state/hooks/settings';
-import { stopPropagation } from '../../utils/keyboard';
+import { useTranslation } from 'react-i18next';
+import { Box, Button, Icon, Icons, PopOut, Text, config, type RectCords } from 'folds';
 import type { PrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from './mindroomSettings';
+import { useSetting } from '../../state/hooks/settings';
+import { stopPropagation } from '../../utils/keyboard';
+import { SettingTile } from '../../components/setting-tile';
+import { SequenceCard } from '../../components/sequence-card';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 
-const SCOPES: readonly PrefetchScope[] = ['current-room-only', 'my-server', 'all-rooms'];
+/** Menu order runs from the narrowest reach to the widest. */
+const SCOPE_CHOICES = [
+  { value: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
+  { value: 'my-server', labelKey: 'options.prefetchScope.myHomeserver' },
+  { value: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },
+] as const satisfies ReadonlyArray<{ value: PrefetchScope; labelKey: string }>;
 
-const SCOPE_LABEL_KEYS = {
-  'current-room-only': 'options.prefetchScope.currentRoomOnly',
-  'my-server': 'options.prefetchScope.myHomeserver',
-  'all-rooms': 'options.prefetchScope.allRooms',
-} as const satisfies Record<PrefetchScope, string>;
+type ScopeLabelKey = (typeof SCOPE_CHOICES)[number]['labelKey'];
+
+const scopeLabelKey = (scope: PrefetchScope): ScopeLabelKey =>
+  SCOPE_CHOICES.find((choice) => choice.value === scope)?.labelKey ?? SCOPE_CHOICES[0].labelKey;
+
+/** Moves focus between the menu items with the vertical arrow keys. */
+const pressed =
+  (key: 'ArrowDown' | 'ArrowUp') =>
+  (event: KeyboardEvent): boolean =>
+    event.key === key;
+
+type ScopeMenuProps = {
+  current: PrefetchScope;
+  onPick: (scope: PrefetchScope) => void;
+  onDismiss: () => void;
+};
+
+function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
+  const { t } = useTranslation();
+  const trapOptions = {
+    initialFocus: false as const,
+    clickOutsideDeactivates: true,
+    escapeDeactivates: stopPropagation,
+    onDeactivate: onDismiss,
+    isKeyForward: pressed('ArrowDown'),
+    isKeyBackward: pressed('ArrowUp'),
+  };
+
+  return (
+    <FocusTrap focusTrapOptions={trapOptions}>
+      <Menu>
+        <Box style={{ padding: config.space.S100 }} direction="Column" gap="100">
+          {SCOPE_CHOICES.map(({ value, labelKey }) => (
+            <MenuItem
+              key={value}
+              variant="Surface"
+              size="300"
+              radii="300"
+              aria-pressed={value === current}
+              onClick={() => onPick(value)}
+            >
+              <Text size="T300">{t(labelKey)}</Text>
+            </MenuItem>
+          ))}
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
+}
 
 /** The menu for which rooms keep their history loaded in the background. */
 export function SelectPrefetchScope() {
   const { t } = useTranslation();
   const [scope, setScope] = useSetting(mindroomSettingsAtom, 'prefetchScope');
-  const [menuCords, setMenuCords] = useState<RectCords>();
+  const [anchor, setAnchor] = useState<RectCords | undefined>(undefined);
+  const dismiss = () => setAnchor(undefined);
 
-  const handleOpen: MouseEventHandler<HTMLButtonElement> = (event) => {
-    setMenuCords(event.currentTarget.getBoundingClientRect());
-  };
-
-  const choose = (next: PrefetchScope) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <>
+      <Button
+        onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+          setAnchor(event.currentTarget.getBoundingClientRect())
+        }
+        after={<Icon size="300" src={Icons.ChevronBottom} />}
+        variant="Secondary"
+        fill="Soft"
+        outlined
+        size="300"
+        radii="300"
       >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <MenuItem
-                    key={option}
-                    size="300"
-                    variant="Surface"
-                    aria-pressed={option === scope}
-                    radii="300"
-                    onClick={() => choose(option)}
-                  >
-                    <Text size="T300">{t(SCOPE_LABEL_KEYS[option])}</Text>
-                  </MenuItem>
-                ))}
-              </Box>
-            </Menu>
-          </FocusTrap>
+        <Text size="T300">{t(scopeLabelKey(scope))}</Text>
+      </Button>
+      <PopOut
+        position="Bottom"
+        align="End"
+        offset={5}
+        anchor={anchor}
+        content={
+          <ScopeMenu
+            current={scope}
+            onDismiss={dismiss}
+            onPick={(next) => {
+              setScope(next);
+              dismiss();
+            }}
+          />
         }
       />
     </>
