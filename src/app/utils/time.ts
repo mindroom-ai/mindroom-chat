@@ -18,6 +18,19 @@ export const today = (ts: number): boolean => inSameDay(ts, Date.now());
 
 export const yesterday = (ts: number): boolean => inSameDay(ts, Date.now() - daysToMs(1));
 
+/** Whole minutes between two timestamps, whichever comes first. */
+export const minuteDifference = (ts1: number, ts2: number): number =>
+  Math.floor(Math.abs(ts2 - ts1) / minutesToMs(1));
+
+/** A calendar date for a day divider: weekday, day, month and year ("Tuesday, 3 November 2026"). */
+export const timeDayMonthYear = (ts: number, language?: string): string =>
+  new Intl.DateTimeFormat(language, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(ts);
+
 // Two-digit hours on both clocks ("08:44 PM"), so the times down a timeline line up.
 export const timeHourMinute = (ts: number, hour24Clock = false, language?: string): string =>
   new Intl.DateTimeFormat(language, {
