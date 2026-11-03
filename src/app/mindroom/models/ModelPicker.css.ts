@@ -83,6 +83,10 @@ export const MobilePanel = style({
   boxShadow: 'none',
 });
 
+// The sheet's Modal holds the focus trap's wrapper; that wrapper passes the sheet's height on, so
+// the panel inside stays as tall as the sheet and its results scroll beneath the controls.
+globalStyle(`${MobilePanel}:not(${Panel}) > div`, { height: '100%', minHeight: 0 });
+
 export const MobileContainer = style({
   position: 'fixed',
   inset: 0,
@@ -104,6 +108,8 @@ export const Controls = style([
     rowGap: config.space.S200,
     padding: config.space.S300,
     borderBottom: hairline(color.Surface.ContainerLine),
+    // The title, search and runtime rows set the height, not the folds Header size.
+    selectors: { '&&': { height: 'auto' } },
   },
 ]);
 
