@@ -411,14 +411,9 @@ export const useTimelineMessageFeature = ({
   const handleSenderClick = useCallback(
     (evt: React.MouseEvent<HTMLElement>) => {
       const senderId = evt.currentTarget.getAttribute('data-user-id');
-
-
-
-
-
-
-
-      );
+      if (!senderId) return;
+      evt.stopPropagation();
+      openUserProfile(room.roomId, spaceRoomId, senderId, evt.currentTarget.getBoundingClientRect());
     },
     [openUserProfile, room.roomId, spaceRoomId]
   );
