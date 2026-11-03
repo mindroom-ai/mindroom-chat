@@ -34,11 +34,11 @@ The full MindRoom Chat feature set is too large for one spec. It splits into mil
 | Milestone | Content |
 |---|---|
 | M0 Foundations | Repository, clean-room rules, Nix toolchain, Rust core compiled to wasm, SolidJS shell, test harness, local Tuwunel test homeserver, license and similarity audit scripts |
-| M1 Core chat | Password login with `.well-known` discovery, session restore, sync, room list, room timeline, thread timelines, sending text (Markdown), back pagination, edits applied in place (this is how MindRoom streams), `io.mindroom.stream_status`, tool-call markers shown as text, E2EE through the SDK defaults |
-| M2 MindRoom UX | Tool-trace details, interactive questions, tool approval, thread summaries as titles, `!` command autocomplete, model picker, the 🛑 stop reaction, live reply frames (needs a Tuwunel sliding-sync extension) |
+| M1 Core chat | Password login with `.well-known` discovery, session restore, sync, room list, full room view, full-screen thread view, sending text (Markdown), back pagination, edits applied in place (this is how MindRoom streams), `io.mindroom.stream_status`, the tool-call row from `io.mindroom.tool_trace`, the model badge from `io.mindroom.ai_run`, design tokens with the Paper, Midnight, and Studio themes, E2EE through the SDK defaults |
+| M2 MindRoom UX | Compact room view (threads as equal-height bars, titles, tags, the Unresolved filter, last-reply sort), thread titles in the thread header, interactive questions, tool approval, the Stop action, `!` command autocomplete, model picker, live reply frames (needs a Tuwunel sliding-sync extension) |
 | M3 Account and security | SSO (OIDC), recovery key and cross-signing verification, devices, media upload and authenticated media download, notifications |
 | M4 Platforms | Desktop and mobile shells (Tauri 2), push notifications |
-| M5 Advanced | Canvases, Computers panel (noVNC, MPL-2.0), calls through LiveKit, Connections portal, settings |
+| M5 Advanced | Panel dock with the Canvas, Computer (noVNC, MPL-2.0), and Members panels; calls through LiveKit; Connections portal; settings |
 
 This document designs the whole architecture and specifies M0 and M1 in detail.
 
@@ -55,14 +55,14 @@ Allowed sources:
 
 - The Matrix specification and MSC documents.
 - `matrix-rust-sdk` source, docs, and examples (Apache-2.0), and `ruma` (MIT).
-- MindRoom backend documentation in `mindroom/docs/` and the MindRoom backend source (Apache-2.0, owned by Bas). These define the `io.mindroom.*` event formats.
+- MindRoom backend documentation in `mindroom/docs/` and the MindRoom backend source in `mindroom/src/` (Apache-2.0, owned by Bas). These define the `io.mindroom.*` event formats. Not `mindroom/docs/baspowers/` or `mindroom/docs/dev/`: their plans name MindRoom Chat internals.
 - Documentation of the libraries we use (SolidJS, Vite, wasm-bindgen, Playwright, Tauri).
 - The Robrix (MIT) and iamb (Apache-2.0) clients, for how they use `matrix-rust-sdk`. Do not copy their code without keeping their license notice.
 - This spec and the implementation plans.
 
 Process:
 
-- The orchestrating session writes specs and plans from behavior and from the MindRoom backend documentation. It has seen repository metadata of MindRoom Chat (license, authorship statistics, dependency list, directory names, a test-stack Docker Compose file written by Bas), never its source files.
+- The orchestrating session writes specs and plans from behavior and from the MindRoom backend documentation. It has seen repository metadata of MindRoom Chat (license, authorship statistics, dependency list, directory names, a test-stack Docker Compose file written by Bas), never its source files. For the look of MindRoom-specific features (tool-call row, model badge, compact thread bars, thread view, approval card) it viewed screenshots and recordings of the running app in the `demo` repository and Bas's Apache-2.0 landing-page mock (`mindroom/saas-platform/platform-frontend/src/components/landing/ProductPreview.tsx`). Those features are Bas's own designs; the mockup in `docs/design/mockup.html` is the reference implementers use.
 - Implementing agents receive only the spec, the plan, and this repository.
 - Agent transcripts are kept (Claude Code stores them under `~/.claude/projects/`). `docs/provenance.md` records each implementation session: date, agent, model, task.
 - Before each release, `scripts/similarity-audit.sh` compares `web/src` against the upstream client and MindRoom Chat with a clone detector. The orchestrator runs it, outside the implementers' context, and stores only the report. Any match longer than a trivial idiom gets rewritten from the spec.
@@ -185,6 +185,52 @@ Sending: `RoomMessageEventContent::text_markdown` through the timeline's send qu
 - A failed send keeps the message in the timeline with a retry action.
 - A panic in Rust is caught by `console_error_panic_hook` and reported as `internal`.
 
+## 5.5 Visual design
+
+Reference: `docs/design/mockup.html` (open it in a browser; tabs switch views and themes).
+
+Design tokens:
+
+- `web/src/theme/tokens.css` defines every color, radius, shadow, and font as a CSS custom property, one block per theme selected with `[data-theme="paper"|"midnight"|"studio"]` on `<html>`.
+- Components use only `var(--…)` tokens. Stylelint rejects hex, `rgb()`, and `hsl()` colors and raw `box-shadow` values outside `tokens.css`. No component branches on the theme in TypeScript.
+- Themes: Paper (warm light, ember accent) is the light default, Midnight (dark, aurora accent) the dark default, chosen by `prefers-color-scheme`; Studio (monochrome, lime highlight) is selectable. The choice is stored in `localStorage` (`mindroom.theme`: `system`, `paper`, `midnight`, `studio`).
+- Fonts: Geist and Geist Mono (SIL Open Font License), bundled with `@fontsource`.
+
+Layout:
+
+- Sidebar (268 px): workspace header, search, then sections Agents (accounts whose localpart starts with `mindroom_`, with model and presence), Rooms, Direct.
+- Main area: the room view or the thread view, content column at most 860 px wide, floating composer.
+- Panel dock on the right (M5): Canvas, Computer, or Members, one at a time, resizable, expandable to the full width; full screen below 900 px.
+
+Views:
+
+- **Full room view**: every message in the room timeline; a thread root shows a summary row with participants, the thread title, the reply count, the last reply time, and the thread status. Clicking it opens the thread view.
+- **Compact room view** (M2): one equal-height bar (96 px) per thread, newest last reply first: title with time; `Sender: preview` of the latest reply; participants, tags, status, reply count. A filter bar offers Unresolved (default) or All, and sort by last reply or by creation. The room header has a Compact and Full switch, remembered per room.
+- **Thread view**: replaces the room view in the main area (full screen on narrow viewports); header with a back button to the room, the thread title, participants, message count, status.
+
+Message parts:
+
+- Agent replies sit in a card; human messages have no card. Agents have a rounded-square avatar, people a round one.
+- Model badge under the agent's avatar: `io.mindroom.ai_run.model.display_name`, else `config`.
+- Tool-call row: one row per message, collapsed by default: a check (completed) or spinner (any call still running), `Ran N tool calls` or `Running N tool calls`, then the tool names in order with repeats folded (`google_drive_read_file ×2`), and a chevron. Expanded: one line per call with name, `args_preview`, and `result_preview`.
+- Status pill: `Streaming` (pending, streaming), `Pending approval` (approval_pending), nothing for completed; cancelled, interrupted, and error show a muted pill with that word.
+- Approval card (M2): tool name, `Pending approval`, what and details, Approve and Deny.
+- Composer: attach, voice (M3), model picker (M2), `!` hint, send.
+
+## 5.6 MindRoom contracts
+
+All from the Apache-2.0 backend (`mindroom/src/mindroom/`) and its user-facing docs:
+
+| Contract | Shape | Source |
+|---|---|---|
+| Stream status | `io.mindroom.stream_status`: `pending`, `streaming`, `approval_pending`, `completed`, `cancelled`, `interrupted`, `error`; in the edit's `m.new_content` and at the top level of the edit content | `constants.py`, `matrix/client_delivery.py`, `docs/streaming.md` |
+| Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type: tool_call_started or tool_call_completed, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}`; call `[N]` in the text is `events[N-1]` | `tool_system/events.py` |
+| Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model: {config, display_name?, id?, provider?}, usage?}` | `ai_run_metadata.py` |
+| Thread title | `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}`; the current title is the newest by (event or edit timestamp, `generated_at`), its `summary`, else `body` | `thread_summary/state.py`, `thread_summary/notices.py` |
+| Thread tags | room state `com.mindroom.thread.tags`, state key JSON `["<root event id>","<tag>"]`, content `{set_by, set_at, note?, data?}`, empty content means removed; tag `resolved` marks a resolved thread | `thread_tags.py` |
+| Canvas page API | `window.mindroom.submit`, `saveState`, `state`, `colorScheme`; theme variables `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, `--mr-font` | `docs/canvases.md`, `docs/tools/chat-ui.md` |
+| Computer | `/api/computers/*` on the MindRoom runtime, WebSocket, Matrix OpenID token; watch, take control, resume agent, close | `docs/tools/worker-computer.md` |
+
 ## 6. Testing
 
 - **Rust unit tests** (`cargo test`, native target): view-model mapping from JSON fixtures, including edits with `io.mindroom.stream_status` and `io.mindroom.tool_trace`.
@@ -211,6 +257,6 @@ Sending: `RoomMessageEventContent::text_markdown` through the timeline's send qu
 
 ## 9. Decisions not needing input now
 
-- Repository name `mindroom-client`, local only until Bas decides where it lives on GitHub.
+- Repository `mindroom-ai/mindroom-client`, private.
 - Bun as package manager and script runner; Vite for the dev server and builds.
 - Main-thread wasm in M1; the API is asynchronous and message-shaped, so moving the core into a Web Worker later is mechanical.
