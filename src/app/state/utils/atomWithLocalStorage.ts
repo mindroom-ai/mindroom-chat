@@ -24,19 +24,17 @@ export const setLocalStorageItem = <T>(key: string, value: T): boolean => {
   return setStorageItemSafe(storage, key, JSON.stringify(value));
 };
 
-const NOT_LOADED = Symbol('not loaded');
-
 /**
- * An atom backed by one localStorage key. `getItem` reads (and sanitizes) the stored value the
- * first time a store reads the atom; every write goes through `setItem`. While mounted, the atom
- * follows `storage` events for its key, so other tabs' writes show up here.
+ * An atom backed by one localStorage key. `getItem` reads (and sanitizes) the stored value once,
+ * when the atom is created; every write goes through `setItem`. While mounted, the atom follows
+ * `storage` events for its key, so other tabs' writes show up here.
  */
 export const atomWithLocalStorage = <T>(
   key: string,
   getItem: (key: string) => T,
   setItem: (key: string, value: T) => void
 ): WritableAtom<T, [T], void> => {
-  const valueAtom = atom<T | typeof NOT_LOADED>(NOT_LOADED);
+  const valueAtom = atom<T>(getItem(key));
 
   valueAtom.onMount = (setValue) => {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
@@ -55,10 +53,7 @@ export const atomWithLocalStorage = <T>(
   };
 
   return atom<T, [T], void>(
-    (get) => {
-      const value = get(valueAtom);
-      return value === NOT_LOADED ? getItem(key) : value;
-    },
+    (get) => get(valueAtom),
     (_get, set, value) => {
       set(valueAtom, value);
       setItem(key, value);
