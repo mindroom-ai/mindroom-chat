@@ -63,7 +63,7 @@ export type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms
 export type CommandPaletteSource = {
   actions: Executable<CommandPaletteActionItem>[];
   threads: Executable<CommandPaletteThreadItem>[];
-  rooms: Executable<CommandPaletteRoomItem>[];
+  rooms: readonly Executable<CommandPaletteRoomItem>[];
   getUsers: (query: CommandPaletteUserQuery) => Executable<CommandPaletteUserItem>[];
   getMessages: (query: string) => Executable<CommandPaletteMessageItem>[];
 };

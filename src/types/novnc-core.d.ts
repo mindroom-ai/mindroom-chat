@@ -1,5 +1,6 @@
 // Ambient types for the noVNC internals that the computer panel and its tests import by path.
-// The package itself only declares RFB (see novnc.d.ts).
+// The package itself only declares RFB (see novnc.d.ts). The keysym table stays undeclared:
+// computerSoftKeyboard.ts imports it with @ts-expect-error and types it there.
 
 declare module '*/@novnc/novnc/core/util/events.js' {
   export function getPointerEvent(event: Event): Event;
@@ -18,9 +19,4 @@ declare module '*/@novnc/novnc/core/input/keyboard.js' {
 
     ungrab(): void;
   }
-}
-
-declare module '*/@novnc/novnc/core/input/keysymdef.js' {
-  const keysyms: { lookup(codePoint: number): number };
-  export default keysyms;
 }
