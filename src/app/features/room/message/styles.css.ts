@@ -7,8 +7,17 @@ export const MessageBase = style({
   outline: 'none',
 });
 
-/** Avatar with the model badge of an agent's reply pinned to its corner. */
-export const MessageAvatarWithModel = style({ display: 'inline-flex', position: 'relative' });
+/**
+ * An agent's avatar with its model badge stacked underneath. The column keeps the avatar's width,
+ * so a badge wider than the avatar hangs out evenly on both sides instead of pushing it aside.
+ */
+export const MessageAvatarWithModel = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  rowGap: toRem(3),
+  width: '100%',
+});
 
 /** The reaction chips under a message. */
 export const ReactionsContainer = style({ paddingBlockStart: config.space.S100 });
