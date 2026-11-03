@@ -40,10 +40,12 @@ type LobbyHeaderProps = {
   joinRequestCount?: number;
   /** Back to the sidebar on mobile. */
   onBack?: () => void;
+  /** The space's picture and name; the lobby hides them while its own title is in view. */
+  showProfile?: boolean;
 };
 
 /** The space's avatar as a small cropped thumbnail URL, or undefined when it has none. */
-const useSpaceAvatarSrc = (space: Room): string | undefined => {
+export const useSpaceAvatarSrc = (space: Room): string | undefined => {
   const client = useMatrixClient();
   const authenticated = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(space);
@@ -51,24 +53,29 @@ const useSpaceAvatarSrc = (space: Room): string | undefined => {
   return mxcUrlToHttp(client, avatarMxc, authenticated, 96, 96, 'crop') ?? undefined;
 };
 
-type SpaceAvatarProps = { roomId: string; name: string; src?: string };
+type SpaceAvatarProps = { roomId: string; name: string; src?: string; large?: boolean };
 
-/** The space's picture in the header, or its initials while it has none. */
-function SpaceAvatar({ roomId, name, src }: SpaceAvatarProps) {
+/** The space's picture (in the header, or large atop the lobby), or its initials without one. */
+export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarProps) {
   return (
-    <Avatar size="300" radii="300">
+    <Avatar size={large ? '500' : '300'} radii={large ? '500' : '300'}>
       <RoomAvatar
         roomId={roomId}
         src={src}
         alt={name}
-        renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+        renderFallback={() => <Text size={large ? 'H2' : 'H6'}>{nameInitials(name)}</Text>}
       />
     </Avatar>
   );
 }
 
 /** The header of a space's lobby: back on mobile, the space, members with join requests, options. */
-export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: LobbyHeaderProps) {
+export function LobbyHeader({
+  powerLevels,
+  joinRequestCount = 0,
+  onBack,
+  showProfile = true,
+}: LobbyHeaderProps) {
   const space = useSpace();
   const spaceName = useRoomName(space);
   const avatarSrc = useSpaceAvatarSrc(space);
@@ -128,10 +135,14 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
           </IconButton>
         )}
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
-          <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
-          <Text size="H4" truncate>
-            {spaceName}
-          </Text>
+          {showProfile && (
+            <>
+              <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
+              <Text size="H4" truncate>
+                {spaceName}
+              </Text>
+            </>
+          )}
         </Box>
         <TooltipProvider
           position="Bottom"

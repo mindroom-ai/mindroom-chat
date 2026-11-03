@@ -133,6 +133,8 @@ export function RoomItemCard({
               radii="300"
               size="300"
               onClick={() => onOpen(roomId)}
+              // Names the room this button opens.
+              data-room-id={roomId}
             >
               <Text size="B300">{t('featureUi.lobby.roomItem.openRoom')}</Text>
             </Button>
