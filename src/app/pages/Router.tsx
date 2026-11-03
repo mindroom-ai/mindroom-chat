@@ -16,13 +16,18 @@ import {
   MindroomNavigationProvider,
   MindroomPageRoot,
   MindroomSidebarNav,
+  MindroomSpacePageRoot,
 } from '../mindroom/sidebar/MindroomNavigation';
 import { MindroomPageNav } from '../mindroom/sidebar/ResizablePageNav';
-import { MindroomMessageSearch } from '../mindroom/message-search/MindroomMessageSearch';
+import {
+  MindroomMessageSearch,
+  type MindroomMessageSearchProps,
+} from '../mindroom/message-search/MindroomMessageSearch';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { ConnectionsPage } from '../mindroom/connections/ConnectionsPage';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
 import { JoinAddressForm } from '../components/join-address-prompt';
+import { PhonePageHeader } from '../components/page/PhonePageHeader';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
 import {
@@ -53,7 +58,7 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
 } from './paths';
-import { getHomeRoomPath, withSearchParam } from './pathUtils';
+import { getHomeRoomPath, getSpacePath, withSearchParam } from './pathUtils';
 import { getAppBasePath } from '../utils/basePath';
 import { AuthLayout } from './auth/AuthLayout';
 import { Login } from './auth/login/Login';
@@ -124,11 +129,27 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
   );
 }
 
-function SectionPage({ path, nav }: { path: string; nav: ReactNode }) {
+/** A section with its navigation; `navId` names the section whose open page is remembered. */
+function SectionPage({ path, nav, navId }: { path: string; nav: ReactNode; navId?: string }) {
   return (
-    <MindroomPageRoot nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
+    <MindroomPageRoot navId={navId} nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
       <Outlet />
     </MindroomPageRoot>
+  );
+}
+
+/** A space with its navigation; it remembers the page open in that space. */
+function SpaceSectionPage({ path }: { path: string }) {
+  return (
+    <MindroomSpacePageRoot
+      nav={
+        <MindroomPageNav path={path}>
+          <Space />
+        </MindroomPageNav>
+      }
+    >
+      <Outlet />
+    </MindroomSpacePageRoot>
   );
 }
 
@@ -137,48 +158,68 @@ function SectionIndex({ page }: { page: ReactNode }) {
   return useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>;
 }
 
+// A page that fills the content area beside the navigation, with a phone title bar above it.
+const PAGE_COLUMN = { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 } as const;
+
 function CreateRoomPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   return (
-    <div
-      style={{
-        padding: '24px',
-        width: '100%',
-        maxWidth: '640px',
-        margin: '0 auto',
-        overflowY: 'auto',
-      }}
-    >
-      <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
+    <div style={PAGE_COLUMN}>
+      <PhonePageHeader to={HOME_PATH} title={t('nav.createRoom')} />
+      <div
+        style={{
+          padding: '24px',
+          width: '100%',
+          maxWidth: '640px',
+          margin: '0 auto',
+          overflowY: 'auto',
+          flexGrow: 1,
+          minHeight: 0,
+        }}
+      >
+        <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
+      </div>
+    </div>
+  );
+}
+
+// The search field and results keep off the edges of the content area.
+const SEARCH_SCROLL = { flexGrow: 1, minHeight: 0, overflowY: 'auto', padding: '16px' } as const;
+
+type SearchPageProps = Omit<MindroomMessageSearchProps, 'scrollRef'> & {
+  /** Where the phone title bar leads back to: the section the search belongs to. */
+  backTo: string;
+};
+
+/** Message search over a section's rooms, scrolling under a phone title bar. */
+function SearchPage({ backTo, ...searchProps }: SearchPageProps) {
+  const { t } = useTranslation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  return (
+    <div style={PAGE_COLUMN}>
+      <PhonePageHeader to={backTo} title={t('nav.messageSearch')} />
+      <div ref={scrollRef} style={SEARCH_SCROLL}>
+        <MindroomMessageSearch {...searchProps} scrollRef={scrollRef} />
+      </div>
     </div>
   );
 }
 
 function HomeSearchPage() {
   const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const defaultRooms = useHomeSearchRooms();
+  const rooms = useHomeSearchRooms();
   return (
-    <div ref={scrollRef} style={{ flexGrow: 1, minWidth: 0, overflowY: 'auto' }}>
-      <MindroomMessageSearch
-        defaultRooms={defaultRooms}
-        scopeName={t('nav.home')}
-        allowGlobal
-        scrollRef={scrollRef}
-      />
-    </div>
+    <SearchPage backTo={HOME_PATH} defaultRooms={rooms} scopeName={t('nav.home')} allowGlobal />
   );
 }
 
 function SpaceSearchPage() {
   const space = useSpace();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const defaultRooms = useSpaceSearchRooms(space.roomId);
-  const name = useRoomName(space);
+  const rooms = useSpaceSearchRooms(space.roomId);
+  const spaceName = useRoomName(space);
   return (
-    <div ref={scrollRef} style={{ flexGrow: 1, minWidth: 0, overflowY: 'auto' }}>
-      <MindroomMessageSearch defaultRooms={defaultRooms} scopeName={name} scrollRef={scrollRef} />
-    </div>
+    <SearchPage backTo={getSpacePath(space.roomId)} defaultRooms={rooms} scopeName={spaceName} />
   );
 }
 
@@ -186,6 +227,8 @@ function SpaceSearchPage() {
 function JoinAddressPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const title = t('sharedUi.joinAddressPrompt.joinWithAddress');
   const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
     navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
@@ -193,11 +236,16 @@ function JoinAddressPage() {
       })
     );
   return (
-    <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
-      <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
-        {t('sharedUi.joinAddressPrompt.joinWithAddress')}
-      </Text>
-      <JoinAddressForm onOpen={openRoom} style={{}} />
+    <div style={PAGE_COLUMN}>
+      <PhonePageHeader to={HOME_PATH} title={title} />
+      <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
+        {!phone && (
+          <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
+            {title}
+          </Text>
+        )}
+        <JoinAddressForm onOpen={openRoom} style={{}} />
+      </div>
     </div>
   );
 }
@@ -215,15 +263,21 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
       </Route>
       <Route path={CONNECTIONS_PATH} element={<ConnectionsPage />} />
       <Route element={<ProtectedRoutes hashRouter={hashRouter} />}>
-        <Route path={HOME_PATH} element={<SectionPage path={HOME_PATH} nav={<Home />} />}>
-          <Route index element={<WelcomePage />} />
+        <Route
+          path={HOME_PATH}
+          element={<SectionPage path={HOME_PATH} navId="home" nav={<Home />} />}
+        >
+          <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />
           <Route path={HOME_JOIN_PATH} element={<JoinAddressPage />} />
           <Route path={HOME_SEARCH_PATH} element={<HomeSearchPage />} />
           <Route path={HOME_ROOM_PATH} element={<RoomPage />} />
         </Route>
-        <Route path={DIRECT_PATH} element={<SectionPage path={DIRECT_PATH} nav={<Direct />} />}>
-          <Route index element={<WelcomePage />} />
+        <Route
+          path={DIRECT_PATH}
+          element={<SectionPage path={DIRECT_PATH} navId="direct" nav={<Direct />} />}
+        >
+          <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={DIRECT_CREATE_PATH} element={<DirectCreate />} />
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
@@ -246,11 +300,12 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
           path={SPACE_PATH}
           element={
             <SpaceRouteProvider>
-              <SectionPage path={SPACE_PATH} nav={<Space />} />
+              <SpaceSectionPage path={SPACE_PATH} />
             </SpaceRouteProvider>
           }
         >
-          <Route index element={<Lobby />} />
+          {/* A space opens on its lobby, which phones leave for the space's room list. */}
+          <Route index element={<SectionIndex page={<Navigate to="lobby" replace />} />} />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
           <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />
           <Route path={SPACE_ROOM_PATH} element={<RoomPage />} />
