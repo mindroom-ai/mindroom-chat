@@ -22,9 +22,9 @@ describe('toAuthenticatedAvatarUrl', () => {
   it('moves a legacy thumbnail to the authenticated endpoint and keeps its query', () => {
     expect(toAuthenticatedAvatarUrl(client(), LEGACY)).toBe(AUTHED);
     expect(toAuthenticatedAvatarUrl(client(), AUTHED)).toBe(AUTHED);
-    expect(
-      toAuthenticatedAvatarUrl(client(), `${HS}/_matrix/media/r0/download/hs.test/abc`)
-    ).toBe(`${HS}/_matrix/client/v1/media/download/hs.test/abc`);
+    expect(toAuthenticatedAvatarUrl(client(), `${HS}/_matrix/media/r0/download/hs.test/abc`)).toBe(
+      `${HS}/_matrix/client/v1/media/download/hs.test/abc`
+    );
   });
 
   it('keeps the base path of a homeserver served under a path', () => {

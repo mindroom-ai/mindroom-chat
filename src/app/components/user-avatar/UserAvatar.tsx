@@ -1,9 +1,11 @@
-import React, { CSSProperties, ImgHTMLAttributes, ReactNode, useState } from 'react';
+import React, { CSSProperties, ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
 import { AvatarFallback, AvatarImage, color } from 'folds';
+import { AVATAR_SWATCH_COUNT, AVATAR_SWATCH_INK, avatarSwatchVar } from './avatarSwatches';
+import { useAvatarImage } from './useAvatarImage';
 import * as css from './UserAvatar.css';
 
-// Fallback fills rotate through the theme's accent containers, picked by a stable hash of the ID.
+// Tinted fills rotate through the theme's accent containers, picked by a stable hash of the ID.
 // Read on first use, not at import, so importing the avatar never needs the folds theme.
 const getFallbackColors = () => [
   { background: color.Primary.Container, foreground: color.Primary.OnContainer },
@@ -21,25 +23,66 @@ const hashId = (id: string): number => {
   return Math.abs(hash);
 };
 
+/**
+ * How an avatar without a picture is filled: `tinted` with a pale accent container, `solid` with
+ * a saturated swatch from the avatar palette (a room header tile), or `plain`, with no fill at all
+ * (an icon that sits on the surface, as in the room list). The color follows the ID.
+ */
+export type AvatarFallbackTone = 'tinted' | 'solid' | 'plain';
+
 /** The fallback fill and text color for an avatar of this user or room ID. */
-export const getAvatarFallbackStyle = (id: string): CSSProperties => {
+export const getAvatarFallbackStyle = (
+  id: string,
+  tone: AvatarFallbackTone = 'tinted'
+): CSSProperties | undefined => {
+  if (tone === 'plain') return undefined;
+  if (tone === 'solid') {
+    const swatch = hashId(id) % AVATAR_SWATCH_COUNT;
+    return { backgroundColor: avatarSwatchVar(swatch), color: AVATAR_SWATCH_INK };
+  }
   const colors = getFallbackColors();
   const fill = colors[hashId(id) % colors.length];
   return { backgroundColor: fill.background, color: fill.foreground };
 };
 
-/**
- * Whether the image at `src` failed to load. A new `src` gets a fresh attempt, even one that
- * failed before (media URLs change once authenticated media is available, and may change back).
- */
-export const useImageFailed = (src: string | undefined): [boolean, () => void] => {
-  const [state, setState] = useState({ src, failed: false });
-  if (state.src !== src) {
-    setState({ src, failed: false });
-  }
-  const failed = state.src === src && state.failed;
-  return [failed, () => setState({ src, failed: true })];
+type AvatarPictureProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt'> & {
+  imageClassName: string;
+  fallbackClassName?: string;
+  fallbackStyle?: CSSProperties;
+  /** Shown while there is no picture: no `src`, still fetching, or failed. */
+  fallback: ReactNode;
 };
+
+/**
+ * The picture inside a folds `Avatar`, loaded through `useAvatarImage` (so homeserver media also
+ * loads without a service worker), with the fallback in its place until there is one.
+ */
+export function AvatarPicture({
+  src,
+  alt,
+  imageClassName,
+  fallbackClassName,
+  fallbackStyle,
+  fallback,
+}: AvatarPictureProps) {
+  const { imageSrc, onImageError } = useAvatarImage(src);
+  if (!imageSrc) {
+    return (
+      <AvatarFallback className={fallbackClassName} style={fallbackStyle}>
+        {fallback}
+      </AvatarFallback>
+    );
+  }
+  return (
+    <AvatarImage
+      onError={onImageError}
+      draggable={false}
+      className={imageClassName}
+      src={imageSrc}
+      alt={alt}
+    />
+  );
+}
 
 /** The image attributes the avatar takes; without a `src` (an HTTP URL) the fallback shows. */
 type AvatarImageProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'className'>;
@@ -48,27 +91,27 @@ type UserAvatarProps = AvatarImageProps & {
   userId: string;
   /** Fallback content, usually the first letter of the name. */
   renderFallback: () => ReactNode;
+  /** How the fallback is filled; tinted by default. */
+  fallbackTone?: AvatarFallbackTone;
 };
 
 /** A user's avatar image, or a colored fallback while there is none or it fails to load. */
-export function UserAvatar({ userId, src, alt, className, renderFallback }: UserAvatarProps) {
-  const [failed, setFailed] = useImageFailed(src);
-
-  if (src && !failed) {
-    return (
-      <AvatarImage
-        src={src}
-        alt={alt}
-        className={classNames(css.UserAvatar, className)}
-        draggable={false}
-        onError={() => setFailed()}
-      />
-    );
-  }
-
+export function UserAvatar({
+  userId,
+  src,
+  alt,
+  className,
+  renderFallback,
+  fallbackTone,
+}: UserAvatarProps) {
   return (
-    <AvatarFallback className={className} style={getAvatarFallbackStyle(userId)}>
-      {renderFallback()}
-    </AvatarFallback>
+    <AvatarPicture
+      src={src}
+      alt={alt}
+      imageClassName={classNames(css.UserAvatar, className)}
+      fallbackClassName={className}
+      fallbackStyle={getAvatarFallbackStyle(userId, fallbackTone)}
+      fallback={renderFallback()}
+    />
   );
 }

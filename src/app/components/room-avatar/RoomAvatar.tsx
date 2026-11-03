@@ -1,7 +1,11 @@
 import React, { ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
-import { AvatarFallback, AvatarImage, Icon } from 'folds';
-import { getAvatarFallbackStyle, useImageFailed } from '../user-avatar/UserAvatar';
+import { Icon } from 'folds';
+import {
+  AvatarFallbackTone,
+  AvatarPicture,
+  getAvatarFallbackStyle,
+} from '../user-avatar/UserAvatar';
 import { getRoomIconSrc } from './roomIconSrc';
 import * as css from './RoomAvatar.css';
 
@@ -11,30 +15,32 @@ type RoomAvatarProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' |
   roomId: string;
   /** Rendered while there is no image or it failed to load. */
   renderFallback: () => ReactNode;
+  /**
+   * How the fallback is filled: tinted by default, `solid` for a header tile, `plain` for an
+   * icon that sits on the surface (room lists).
+   */
+  fallbackTone?: AvatarFallbackTone;
 };
 
 /** A room's avatar image, or a colored fallback while there is none or it fails to load. */
-export function RoomAvatar({ roomId, src, alt, className, renderFallback }: RoomAvatarProps) {
-  const [failed, setFailed] = useImageFailed(src);
-
+export function RoomAvatar({
+  roomId,
+  src,
+  alt,
+  className,
+  renderFallback,
+  fallbackTone,
+}: RoomAvatarProps) {
   const avatarClassName = classNames(css.RoomAvatar, className);
-
-  if (src && !failed) {
-    return (
-      <AvatarImage
-        className={avatarClassName}
-        src={src}
-        alt={alt}
-        draggable={false}
-        onError={() => setFailed()}
-      />
-    );
-  }
-
   return (
-    <AvatarFallback className={avatarClassName} style={getAvatarFallbackStyle(roomId)}>
-      {renderFallback()}
-    </AvatarFallback>
+    <AvatarPicture
+      src={src}
+      alt={alt}
+      imageClassName={avatarClassName}
+      fallbackClassName={avatarClassName}
+      fallbackStyle={getAvatarFallbackStyle(roomId, fallbackTone)}
+      fallback={renderFallback()}
+    />
   );
 }
 
