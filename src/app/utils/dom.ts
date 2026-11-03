@@ -56,6 +56,19 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
   return copyWithSelection(text);
 };
 
+const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+
+/** Whether keyboard input goes to a field now: an input, a select, or editable content has focus. */
+export const editableActiveElement = (): boolean => {
+  if (typeof document === 'undefined') return false;
+  const focused = document.activeElement;
+  if (!focused || focused === document.body) return false;
+  return (
+    TEXT_ENTRY_TAGS.has(focused.tagName) ||
+    (focused instanceof HTMLElement && focused.isContentEditable)
+  );
+};
+
 /** Whether `child` is fully inside the visible part of `scrollElement`. */
 export const isInScrollView = (scrollElement: HTMLElement, child: HTMLElement): boolean => {
   const view = scrollElement.getBoundingClientRect();
