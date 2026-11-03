@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';
 import { UserAvatar } from '../../../components/user-avatar';
+import { authenticatedAvatarRequest } from '../../../components/user-avatar/avatarMedia';
 import { Modal500 } from '../../../components/Modal500';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
@@ -70,12 +71,17 @@ const useCachedActiveAvatar = (
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(
+        let response = await fetch(
           httpUrl,
           useAuthentication && accessToken
             ? { headers: { Authorization: `Bearer ${accessToken}` } }
             : {}
         );
+        // Without a service worker the URL is a legacy one, which servers with authenticated
+        // media may refuse; ask the authenticated endpoint with the token instead.
+        const retry =
+          response.ok || useAuthentication ? undefined : authenticatedAvatarRequest(mx, httpUrl);
+        if (retry) response = await fetch(retry.url, retry.init);
         if (!response.ok) return;
         const dataUrl = await readBlobAsDataUrl(await response.blob());
         if (cancelled) return;
