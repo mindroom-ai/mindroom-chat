@@ -101,7 +101,7 @@ const useCachedActiveAvatar = (
   return undefined;
 };
 
-/** The account area at the bottom of the icon rail: settings, other accounts, and add account. */
+/** The account area at the bottom of the icon rail: settings, add account, and other accounts. */
 export function SettingsTab() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -181,9 +181,10 @@ export function SettingsTab() {
     setSettingsModal({});
   };
 
+  // The active account carries the rail's selection mark, with Add account on its corner.
   return (
     <>
-      <SidebarItem>
+      <SidebarItem active>
         <SidebarItemTooltip tooltip={t('accountsRail.openSettingsAria', { name: displayName })}>
           {(triggerRef) => (
             <SidebarAvatar
@@ -198,6 +199,19 @@ export function SettingsTab() {
                 alt={displayName}
                 renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
               />
+            </SidebarAvatar>
+          )}
+        </SidebarItemTooltip>
+        <SidebarItemTooltip tooltip={t('accountsRail.addAccountAria')}>
+          {(triggerRef) => (
+            <SidebarAvatar
+              as="button"
+              corner
+              ref={triggerRef}
+              aria-label={t('accountsRail.addAccountAria')}
+              onClick={handleAddAccount}
+            >
+              <Icon size="50" src={Icons.Plus} />
             </SidebarAvatar>
           )}
         </SidebarItemTooltip>
@@ -245,21 +259,6 @@ export function SettingsTab() {
           </SidebarItemTooltip>
         </SidebarItem>
       )}
-      <SidebarItem>
-        <SidebarItemTooltip tooltip={t('accountsRail.addAccountAria')}>
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              size="300"
-              ref={triggerRef}
-              aria-label={t('accountsRail.addAccountAria')}
-              onClick={handleAddAccount}
-            >
-              <Icon src={Icons.Plus} />
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
-      </SidebarItem>
       {switcherOpen && (
         <Modal500 requestClose={() => setSwitcherOpen(false)}>
           <AccountSwitcher
