@@ -41,6 +41,7 @@ import {
   getSpaceSearchPath,
   withSearchParam,
 } from '../../pathUtils';
+import { RouteResolving } from '../RoomRoute';
 import { useSpaceSearchRooms } from './useSpaceSearchRooms';
 
 const lastActivity = (mx: MatrixClient, roomId: string): number =>
@@ -67,12 +68,14 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
   const { spaceIdOrAlias: encoded, roomIdOrAlias: encodedSecond } = useParams();
   const spaceIdOrAlias = encoded ? decodeURIComponent(encoded) : '';
   const second = encodedSecond ? decodeURIComponent(encodedSecond) : undefined;
-  const resolved = useResolvedRoomIdOrAlias(spaceIdOrAlias) as unknown;
-  const roomId = typeof resolved === 'string' ? resolved : spaceIdOrAlias;
-  const room = mx.getRoom(roomId);
+  const { roomId, isResolvingAlias } = useResolvedRoomIdOrAlias(spaceIdOrAlias);
+  const room = mx.getRoom(roomId ?? '');
   const joined = room?.getMyMembership() === KnownMembership.Join;
   const eventId = second?.startsWith('$') ? second : undefined;
   const viaServers = readViaServers(searchParams);
+
+  // An alias the client does not know yet resolves through the server first.
+  if (isResolvingAlias) return <RouteResolving />;
 
   if (eventId || (joined && room && !room.isSpaceRoom())) {
     const path =
@@ -105,13 +108,13 @@ function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
 
   return (
     <PageNavHeader>
-
-
-
-
-
-
-
+      <Box alignItems="Center" grow="Yes" gap="300">
+        <Box grow="Yes">
+          <Text size="H4" truncate>
+            {name}
+          </Text>
+        </Box>
+        <IconButton
 
 
 
@@ -170,15 +173,15 @@ function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
   }, [mx, spaceRooms, roomsClosed, selectedRoomId]);
 
   const action = (key: string, icon: typeof Icons.Space, label: string, path: string) => (
-
-
-
-
-
-
-
-
-
+    <NavItem key={key} variant="Background" radii="400">
+      <NavButton onClick={() => navigate(path)}>
+        <NavItemContent>
+          <Box as="span" grow="Yes" alignItems="Center" gap="200">
+            <Avatar size="200" radii="400">
+              <Icon src={icon} size="100" />
+            </Avatar>
+            <Text as="span" size="Inherit" truncate>
+              {label}
             </Text>
           </Box>
         </NavItemContent>
