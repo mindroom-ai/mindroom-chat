@@ -50,6 +50,12 @@
     },
     "leaveRoomPrompt": {
       "close": "Close"
+    },
+    "memberFilters": {
+      "label": "Show members"
+    },
+    "memberSort": {
+      "label": "Sort members"
     }
   },
   "featureUi": {
