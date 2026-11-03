@@ -84,8 +84,8 @@ export const SidebarItem = recipe({
   },
 });
 
-/** A hairline drawn inside the avatar's edge, so it does not change the avatar's size. */
-const OutlineRing = `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`;
+/** A rail button's fill: mostly `tone`, with a little of the rail showing through. */
+const railButtonFill = (tone: string) => `color-mix(in srgb, ${tone} 82%, transparent)`;
 
 /** The quiet grey of the corner action, with a hairline ring outside its edge. */
 const secondaryCornerTone = {
@@ -125,11 +125,18 @@ export const SidebarAvatar = recipe({
       '300': { width: toRem(34), height: toRem(34) },
       '200': { width: toRem(26), height: toRem(26) },
     },
+    // The raised button of a rail section. SidebarAvatar adds the glass control material for
+    // its rim and shadow; the fill is a deeper grey than the material's, as in home.png.
     outlined: {
       true: {
-        color: color.SurfaceVariant.OnContainer,
-        backgroundColor: color.SurfaceVariant.Container,
-        boxShadow: OutlineRing,
+        position: 'relative',
+        color: color.Secondary.OnContainer,
+        selectors: {
+          '&&&': { backgroundColor: railButtonFill(color.Secondary.ContainerActive) },
+          '&&&:hover, &&&:focus-visible': {
+            backgroundColor: railButtonFill(color.Secondary.ContainerLine),
+          },
+        },
       },
     },
     // A small round action pinned to the bottom-right corner of the entry it shares a

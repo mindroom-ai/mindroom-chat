@@ -1,6 +1,7 @@
 import React, { ReactNode, RefCallback } from 'react';
 import classNames from 'classnames';
 import { Text, Tooltip, TooltipProvider, as } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 import * as css from './SidebarItem.css';
 
 /** The icon rail at the left edge of the client. */
@@ -67,7 +68,8 @@ type SidebarAvatarProps = {
 export const SidebarAvatar = as<'div', SidebarAvatarProps>((props, ref) => {
   const { as: Square = 'div', size, outlined, corner, className, ...rest } = props;
   const variantClass = css.SidebarAvatar({ size, outlined, corner });
-  return <Square ref={ref} {...rest} className={classNames(variantClass, className)} />;
+  const material = outlined && glassSurface({ level: 'control', variant: 'Secondary' });
+  return <Square ref={ref} {...rest} className={classNames(variantClass, material, className)} />;
 });
 
 /** The unread badge on a rail entry; `hasCount` moves it out to fit a number. */
