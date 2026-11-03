@@ -4,6 +4,12 @@ import { color, config, toRem } from 'folds';
 // The frame line is drawn inside the box, so it takes no layout space.
 const editorFrameLine = createVar();
 
+// Chips, code and spoilers share one tinted, rounded surface.
+const tintedSurface = {
+  borderRadius: config.radii.R300,
+  backgroundColor: color.SurfaceVariant.ContainerActive,
+} as const;
+
 export const Editor = style({
   vars: { [editorFrameLine]: color.SurfaceVariant.ContainerLine },
   overflow: 'hidden',
@@ -40,12 +46,11 @@ export const EditorPlaceholder = style({
 
 // Mentions, commands and paste badges: a tinted pill that keeps the line height of the text.
 export const InlineChip = style({
-
-
-
-
-
+  ...tintedSurface,
+  cursor: 'default',
   paddingInline: toRem(3),
+  whiteSpace: 'nowrap',
+  fontWeight: config.fontWeight.W500,
 });
 
 export const InlineChipHighlight = style({
@@ -64,12 +69,11 @@ export const Emoticon = style({
 });
 
 export const CodeBlock = style({
+  ...tintedSurface,
   margin: 0,
   fontFamily: 'var(--font-mono)',
   overflowX: 'auto',
-
-
-
+  padding: `${config.space.S100} ${config.space.S200}`,
 });
 
 export const BlockQuote = style({
@@ -78,15 +82,11 @@ export const BlockQuote = style({
   borderInlineStart: `${config.borderWidth.B700} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
-export const Spoiler = style({
-  backgroundColor: color.SurfaceVariant.ContainerActive,
-  borderRadius: config.radii.R300,
-});
+export const Spoiler = style(tintedSurface);
 
 export const InlineCode = style({
+  ...tintedSurface,
   fontFamily: 'var(--font-mono)',
   fontSize: '0.9em',
-  backgroundColor: color.SurfaceVariant.ContainerActive,
-  borderRadius: config.radii.R300,
   paddingInline: toRem(3),
 });

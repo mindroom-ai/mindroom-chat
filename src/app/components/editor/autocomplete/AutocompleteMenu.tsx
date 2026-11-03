@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback } from 'react';
+import React, { PropsWithChildren, ReactNode, useCallback } from 'react';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
 import { Header, Menu } from '../../glass/GlassPrimitives';
@@ -7,12 +7,11 @@ import { useAlive } from '../../../hooks/useAlive';
 import { preventScrollWithArrowKey, stopPropagation } from '../../../utils/keyboard';
 import * as css from './AutocompleteMenu.css';
 
-
-
-
-
-  children: ReactNode;
-};
+type AutocompleteMenuProps = PropsWithChildren<{
+  /** Closes the menu: Escape, a click outside, or after an item was picked. */
+  requestClose: () => void;
+  headerContent: ReactNode;
+}>;
 
 type TrapOptions = NonNullable<React.ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
 
@@ -40,27 +39,24 @@ export function AutocompleteMenu({ requestClose, headerContent, children }: Auto
     isKeyBackward: isArrowUp,
     onPostDeactivate: closeIfMounted,
   };
-  const header = (
+  const heading = (
     <Header size="400" className={css.AutocompleteMenuHeader}>
+      {headerContent}
+    </Header>
+  );
+  const menu = (
+    <FocusTrap focusTrapOptions={trapOptions}>
+      <Menu className={css.AutocompleteMenu}>
+        <PageScroll header={heading} onKeyDown={preventScrollWithArrowKey} scrollbarTabIndex={-1}>
+          <div className={css.AutocompleteMenuItems}>{children}</div>
+        </PageScroll>
+      </Menu>
+    </FocusTrap>
+  );
 
-
-
-
-
-
-
-        <FocusTrap focusTrapOptions={trapOptions}>
-          <Menu className={css.AutocompleteMenu}>
-            <PageScroll
-              scrollbarTabIndex={-1}
-              onKeyDown={preventScrollWithArrowKey}
-              header={header}
-            >
-              <div className={css.AutocompleteMenuItems}>{children}</div>
-            </PageScroll>
-          </Menu>
-        </FocusTrap>
-      </div>
+  return (
+    <div className={css.AutocompleteMenuBase}>
+      <div className={css.AutocompleteMenuContainer}>{menu}</div>
     </div>
   );
 }

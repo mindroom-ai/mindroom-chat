@@ -3,6 +3,7 @@ import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
 import { downloadCachedAttachment } from '../../mindroom/messages/attachmentRepository';
 import { saveFile } from '../../mindroom/native/nativeFileSave';
+import { useAlive } from '../../hooks/useAlive';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 export type AttachmentSource = {
@@ -29,24 +30,15 @@ export const useAttachmentAction = <T>(
   const key = sourceKey(source);
   const blobRef = useRef<{ key: string; blob: Blob }>();
   const busyRef = useRef(false);
-  const aliveRef = useRef(true);
+  const alive = useAlive();
   const [status, setStatus] = useState<AttachmentActionStatus>('idle');
   const sourceRef = useRef(source);
   // Read by `run`, which stays stable for one source while the caller rebuilds the object.
+  sourceRef.current = source;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  // Another attachment starts fresh, without the error state of the previous one.
+  useEffect(() => {
+    setStatus('idle');
   }, [key]);
 
   const run = useCallback(async () => {
@@ -65,16 +57,17 @@ export const useAttachmentAction = <T>(
         });
         blobRef.current = { key, blob };
       }
+      // Status updates after an await are dropped once the component is gone.
       const result = await action(blob);
-      if (aliveRef.current) setStatus('idle');
+      if (alive()) setStatus('idle');
       return result;
     } catch {
-      if (aliveRef.current) setStatus('error');
+      if (alive()) setStatus('error');
       return undefined;
     } finally {
       busyRef.current = false;
     }
-  }, [action, key, mx]);
+  }, [action, alive, key, mx]);
 
   return [status, run];
 };

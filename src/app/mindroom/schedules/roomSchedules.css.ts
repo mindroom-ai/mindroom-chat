@@ -1,6 +1,9 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
+// A solid border line of the given width and color.
+const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}`;
+
 // The room header's schedules button; the count sits on its corner.
 export const Trigger = style({
   position: 'relative',
@@ -33,7 +36,7 @@ export const Dialog = style({
 export const Header = style({
   gap: config.space.S200,
   paddingInline: config.space.S400,
-  borderBlockEnd: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  borderBlockEnd: solid(config.borderWidth.B300, color.Surface.ContainerLine),
 });
 
 // The task cards, one under the other.
@@ -50,10 +53,10 @@ export const Empty = style({
 
 export const Card = style({
   minWidth: 0,
-
-
-
-
+  background: color.SurfaceVariant.Container,
+  border: solid(config.borderWidth.B300, color.SurfaceVariant.ContainerLine),
+  borderRadius: config.radii.R400,
+  padding: config.space.S400,
 });
 
 // Long words, URLs and display names wrap instead of widening the card on phones.
@@ -70,7 +73,7 @@ export const Prompt = style([
     // The prompt is quoted: a bar at its start, as in a block quote.
     margin: 0,
     paddingInlineStart: config.space.S300,
-    borderInlineStart: `${config.borderWidth.B600} solid ${color.SurfaceVariant.ContainerLine}`,
+    borderInlineStart: solid(config.borderWidth.B600, color.SurfaceVariant.ContainerLine),
   },
 ]);
 

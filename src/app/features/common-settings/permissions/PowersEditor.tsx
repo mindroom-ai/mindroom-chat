@@ -16,11 +16,11 @@ import {
 import { StateEvent } from '../../../../types/matrix/room';
 import { SequenceCardStyle } from '../styles.css';
 
-
-
-
-
-};
+interface PowersEditorProps {
+  requestClose: () => void;
+  /** The room's current `m.room.power_levels` content; its user levels mark tags in use. */
+  powerLevels: IPowerLevels;
+}
 
 /** An edit the user made: a new or changed tag, or `null` for a removed one. */
 type TagEdits = Map<number, PowerLevelTag | null>;
@@ -46,9 +46,9 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
  * room's latest stored tags, so concurrent changes by others survive.
  */
 export function PowersEditor({ requestClose, powerLevels }: PowersEditorProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const room = useRoom();
   const storedTags = readPowerLevelTags(
     useStateEvent(room, StateEvent.PowerLevelTags)?.getContent()
   );
@@ -96,7 +96,7 @@ export function PowersEditor({ requestClose, powerLevels }: PowersEditorProps) {
     setSaving(true);
     setSaveFailed(false);
     try {
-      await mx.sendStateEvent(
+      await client.sendStateEvent(
         room.roomId,
         StateEvent.PowerLevelTags as never,
         applyEdits(storedTags, edits) as never

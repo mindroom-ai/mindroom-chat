@@ -15,9 +15,9 @@ export const Waveform = style([
 
 export const WaveformSeek = style({
   position: 'relative',
-
-
-
+  userSelect: 'none',
+  borderRadius: config.radii.R300,
+  ':focus-within': {
     outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
     outlineOffset: config.space.S100,
   },
@@ -29,10 +29,10 @@ export const SeekInput = style({
   inset: '50% 0 auto',
   width: '100%',
   height: toRem(44),
-
-
-
-
+  margin: 0,
+  translate: '0 -50%',
+  opacity: 0,
+  cursor: 'pointer',
   ':disabled': { cursor: 'default' },
 });
 

@@ -40,12 +40,13 @@ const BLOCK_TAGS = new Set([
   'mx-reply',
 ]);
 
+const LIST_BLOCKS = [BlockType.OrderedList, BlockType.UnorderedList];
+
+// Blocks whose children are lines of their own rather than inline content.
 const CONTAINER_BLOCKS: ReadonlySet<string> = new Set([
-  // Blocks whose children are lines of their own rather than inline content.
-
-
-
-
+  BlockType.CodeBlock,
+  BlockType.BlockQuote,
+  ...LIST_BLOCKS,
 ]);
 
 /** The text content of a DOM node, tags dropped. */

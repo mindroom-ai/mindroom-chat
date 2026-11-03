@@ -53,17 +53,17 @@ export const Input = style({
 
 export const Close = style({
   display: 'flex',
-
-
-
+  alignItems: 'center',
+  placeContent: 'center',
+  flex: 'none',
   minWidth: 36,
   minHeight: 36,
   padding: 6,
   border: 0,
-
-
-
-
+  borderRadius: config.radii.R300,
+  background: 'none',
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
   ':hover': { background: color.Surface.ContainerHover },
   ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 },
   '@media': { '(max-width: 480px)': { minWidth: 44, minHeight: 44 } },
@@ -79,11 +79,11 @@ export const Filters = style({
 });
 
 export const Filter = style({
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  flex: 'none',
+  whiteSpace: 'nowrap',
   padding: '7px 10px',
   minHeight: 32,
   border: '1px solid transparent',
@@ -91,9 +91,9 @@ export const Filter = style({
   font: 'inherit',
   fontSize: 12,
   fontWeight: 500,
-
-
-
+  color: color.SurfaceVariant.OnContainer,
+  background: 'none',
+  cursor: 'pointer',
   ':hover': { background: color.Surface.ContainerHover },
   ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
   selectors: {
@@ -161,9 +161,9 @@ export const Row = style({
 
 export const RowIcon = style({
   display: 'flex',
-
-
-
+  alignItems: 'center',
+  placeContent: 'center',
+  flex: 'none',
   width: 34,
   height: 34,
   borderRadius: config.radii.R300,
@@ -197,17 +197,17 @@ export const RowTitle = style({
 
 export const RowDescription = style({
   overflow: 'hidden',
-
-
-
+  textOverflow: 'ellipsis',
+  textWrap: 'nowrap',
+  color: color.SurfaceVariant.OnContainer,
   fontSize: 12,
   lineHeight: '17px',
 });
 
 export const RowEnter = style({
-
-
-
+  flex: 'none',
+  visibility: 'hidden',
+  color: color.SurfaceVariant.OnContainer,
   selectors: { [`${Row}[data-selected="true"] &`]: { visibility: 'visible' } },
   '@media': { '(pointer: coarse)': { display: 'none' } },
 });
@@ -215,9 +215,9 @@ export const RowEnter = style({
 export const Key = style({
   direction: 'ltr',
   unicodeBidi: 'isolate',
-
-
-
+  display: 'inline-flex',
+  placeContent: 'center',
+  alignItems: 'center',
   minWidth: 20,
   height: 20,
   padding: '0 4px',
@@ -255,9 +255,9 @@ export const Hint = style({ display: 'inline-flex', alignItems: 'center', gap: 4
 
 export const Empty = style({
   display: 'flex',
-
-
-
+  flexDirection: 'column',
+  alignItems: 'center',
+  placeContent: 'center',
   gap: 12,
   minHeight: 220,
   padding: '32px 20px',

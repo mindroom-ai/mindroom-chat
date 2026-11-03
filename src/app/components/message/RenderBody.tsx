@@ -64,15 +64,15 @@ const withHighlight = (
   };
 };
 
-
-
-
-
-
+interface RenderBodyProps {
+  body: string;
+  /** Sanitized and rendered instead of `body` when it is a non-empty string. */
+  customBody?: string;
   /** Options, or a factory called once per parse for options that keep state while parsing. */
   htmlReactParserOptions: HtmlReactParserOptionsSource;
+  highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
-};
+}
 
 /**
  * A message body: the formatted HTML when there is one, otherwise the plain text with links and

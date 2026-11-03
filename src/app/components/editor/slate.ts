@@ -1,21 +1,13 @@
 import type { BaseEditor } from 'slate';
 import type { HistoryEditor } from 'slate-history';
 import type { ReactEditor } from 'slate-react';
-import type { BlockType, HeadingLevel } from './types';
+import type { BlockType, HeadingLevel, MarkType } from './types';
 
-export type FormattedText = {
-  text: string;
-  // Marks (MarkType in types.ts); a missing mark is off.
+/** A run of text. Each mark in `MarkType` is a boolean property; a missing mark is off. */
+export type FormattedText = { text: string } & { [mark in MarkType]?: boolean };
 
-
-
-
-
-
-
-
-
-
+export type LinkElement = {
+  type: typeof BlockType.Link;
   href: string;
   children: FormattedText[];
 };
@@ -33,18 +25,18 @@ export type MentionElement = {
   children: FormattedText[];
 };
 
+export type CommandElement = {
+  type: typeof BlockType.Command;
+  command: string;
+  children: FormattedText[];
+};
+
 export type EmoticonElement = {
   type: typeof BlockType.Emoticon;
   /** Unicode emoji, or the mxc URI of a custom emoji. */
   key: string;
   /** Shortcode without colons; the alt text of a custom emoji. */
-
-
-
-
-
-  type: typeof BlockType.Command;
-  command: string;
+  shortcode: string;
   children: FormattedText[];
 };
 
@@ -59,12 +51,10 @@ export type PasteMarkerElement = {
   children: FormattedText[];
 };
 
-export type InlineElement =
+/** Inline elements that are atoms: one unit in the composer, never edited character by character. */
+export type AtomElement = MentionElement | CommandElement | EmoticonElement | PasteMarkerElement;
 
-
-
-
-  | PasteMarkerElement;
+export type InlineElement = LinkElement | AtomElement;
 
 export type InlineContent = FormattedText | InlineElement;
 
@@ -114,16 +104,15 @@ export type UnorderedListElement = {
   children: ListItemElement[];
 };
 
-export type BlockElement =
+/** Blocks that hold one line of text with marks, links and atoms. */
+type RichLineElement = ParagraphElement | HeadingElement | QuoteLineElement | ListItemElement;
 
+type ListElement = OrderedListElement | UnorderedListElement;
 
+/** Blocks that hold other blocks. */
+type ContainerElement = BlockQuoteElement | CodeBlockElement | ListElement;
 
-
-
-
-
-  | UnorderedListElement
-  | ListItemElement;
+export type BlockElement = RichLineElement | CodeLineElement | ContainerElement;
 
 export type CustomElement = BlockElement | InlineElement;
 

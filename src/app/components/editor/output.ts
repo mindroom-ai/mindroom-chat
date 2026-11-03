@@ -13,13 +13,13 @@ import {
 import { BlockType } from './types';
 import type { CustomElement, FormattedText, MentionElement } from './slate';
 
-
-
-
-
-
-
-
+export type OutputOptions = {
+  /** Render text marks (bold, italic, ...) as HTML. */
+  readonly allowTextFormatting?: boolean;
+  /** Read inline Markdown (emphasis, code, links, math) in typed text. */
+  readonly allowInlineMarkdown?: boolean;
+  /** Read block Markdown (quotes, lists, headings, code blocks) across lines. */
+  readonly allowBlockMarkdown?: boolean;
 };
 
 const LINE_BREAK = '<br/>';
@@ -111,15 +111,17 @@ const isParagraph = (node: Descendant): node is Element & { type: typeof BlockTy
  * Converts composer content to `org.matrix.custom.html`. With block Markdown on, runs of
  * paragraphs are read as one Markdown document, so quotes and lists may span lines.
  */
-
-
-
+export const toMatrixCustomHTML = (
+  content: Descendant | Descendant[],
+  options: OutputOptions
 ): string => {
-  const nodes = Array.isArray(node) ? node : [node];
-  if (!opts.allowBlockMarkdown) return nodes.map((child) => nodeToCustomHtml(child, opts)).join('');
+  const nodes = Array.isArray(content) ? content : [content];
+  if (!options.allowBlockMarkdown) {
+    return nodes.map((child) => nodeToCustomHtml(child, options)).join('');
+  }
 
-  const inlineOpts: OutputOptions = { ...opts, allowInlineMarkdown: false };
-  const parseInline = opts.allowInlineMarkdown ? parseInlineMD : undefined;
+  const inlineOpts: OutputOptions = { ...options, allowInlineMarkdown: false };
+  const parseInline = options.allowInlineMarkdown ? parseInlineMD : undefined;
   let html = '';
   let markdownLines: string[] = [];
   const flushMarkdown = () => {
@@ -133,7 +135,7 @@ const isParagraph = (node: Descendant): node is Element & { type: typeof BlockTy
       return;
     }
     flushMarkdown();
-    html += nodeToCustomHtml(child, opts);
+    html += nodeToCustomHtml(child, options);
   });
   flushMarkdown();
   return html;
@@ -154,12 +156,12 @@ const inlineElementToPlainText = (node: CustomElement, children: string): string
   switch (node.type) {
     case BlockType.Mention:
       return node.name;
+    case BlockType.Link:
+      return children;
     case BlockType.Emoticon:
       return isMxcUri(node.key) ? `:${node.shortcode}:` : node.key;
-
-
-
-      return children;
+    case BlockType.Command:
+      return `/${node.command}`;
     case BlockType.PasteMarker:
       return mindroomEditorPasteMarkerElementToPlainText(node);
     default:
@@ -170,6 +172,14 @@ const inlineElementToPlainText = (node: CustomElement, children: string): string
 const childrenToPlainText = (nodes: Descendant[], isMarkdown: boolean): string =>
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   nodes.map((child) => nodeToPlainText(child, isMarkdown)).join('');
+
+// Blocks that are a single line of text in the plain body.
+const LINE_BLOCKS: ReadonlySet<string> = new Set([
+  BlockType.Paragraph,
+  BlockType.QuoteLine,
+  BlockType.ListItem,
+  BlockType.CodeLine,
+]);
 
 const prefixLines = (text: string, prefix: (index: number) => string): string =>
   text
@@ -187,13 +197,10 @@ function nodeToPlainText(node: Descendant, isMarkdown: boolean): string {
   const inline = inlineElementToPlainText(node, children);
   if (inline !== undefined) return inline;
 
+  if (LINE_BLOCKS.has(node.type)) return `${children}\n`;
+
   switch (node.type) {
-
-
-
-
-
-
+    case BlockType.Heading:
       return `${'#'.repeat(node.level)} ${children}\n`;
     case BlockType.CodeBlock:
       return `\`\`\`\n${childrenToPlainText(node.children, false)}\`\`\`\n`;

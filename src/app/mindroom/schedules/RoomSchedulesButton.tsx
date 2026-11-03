@@ -42,20 +42,18 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
   const label = t('roomSchedules.openLabel', { total: tasks.length });
   const close = () => setOpenRoomId(undefined);
 
+  const tooltip = (
+    <Tooltip>
+      <Text size="T300">{label}</Text>
+    </Tooltip>
+  );
+
   return (
     <>
-      <TooltipProvider
-        position="Bottom"
-        offset={4}
-
-
-
-
-
-
-
-
-
+      <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
             className={css.Trigger}
             variant="Surface"
             fill="None"

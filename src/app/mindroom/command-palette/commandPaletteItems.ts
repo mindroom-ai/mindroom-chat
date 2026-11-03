@@ -88,14 +88,14 @@ const roomTopic = (room: Room): string | undefined => {
 export const useCommandPaletteSource = ({
   onLogout,
 }: CommandPaletteSourceOptions = {}): CommandPaletteSource => {
-
-
-
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const { navigateRoom, navigateSpace, navigateRoomThread } = useRoomNavigate();
-
-
-
+  const selectedRoomId = useSelectedRoom();
+  const [searchParams] = useSearchParams();
   const selectedThreadId = selectedRoomId ? searchParams.get('threadId') ?? undefined : undefined;
+  const selectedSpaceId = useSelectedSpace();
   const allRoomIds = useAtomValue(allRoomsAtom);
   const directRoomIds = useAtomValue(mDirectAtom);
   const roomToUnread = useAtomValue(roomToUnreadAtom);
@@ -111,9 +111,9 @@ export const useCommandPaletteSource = ({
   const [, setUseSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');
   const [, setThemeId] = useSetting(settingsAtom, 'themeId');
   const theme = useTheme();
-  const myUserId = mx.getSafeUserId();
+  const myUserId = client.getSafeUserId();
 
-  const getRoom = useCallback((roomId: string) => mx.getRoom(roomId) ?? undefined, [mx]);
+  const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
   const currentRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
   const currentSpace = selectedSpaceId ? getRoom(selectedSpaceId) : undefined;
 
@@ -200,7 +200,10 @@ export const useCommandPaletteSource = ({
 
   const currentThreadId = currentRoom ? selectedThreadId : undefined;
   // The thread tag hooks need a room; without one open, no thread action is offered anyway.
-  const noRoom = useMemo(() => new Room('!command-palette:invalid', mx, myUserId), [mx, myUserId]);
+  const noRoom = useMemo(
+    () => new Room('!command-palette:invalid', client, myUserId),
+    [client, myUserId]
+  );
   const resolutionRoom = currentRoom ?? noRoom;
   const { isResolved: currentThreadResolved } = useThreadResolution(
     resolutionRoom,
@@ -230,7 +233,7 @@ export const useCommandPaletteSource = ({
           }
         : undefined;
     const copyRoomLink = (room: Room) => {
-      const idOrAlias = getCanonicalAliasOrRoomId(mx, room.roomId);
+      const idOrAlias = getCanonicalAliasOrRoomId(client, room.roomId);
       // An alias resolves on its own; a bare room ID needs servers to join through.
       const via = idOrAlias.startsWith('!') ? getViaServers(room) : undefined;
       copyToClipboard(getMatrixToRoom(idOrAlias, via)).catch((error: unknown) => {
@@ -252,7 +255,7 @@ export const useCommandPaletteSource = ({
       'open-settings': () => setSettingsModal({}),
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
       'mark-current-room-read': inCurrentRoom((room) =>
-        markRoomAndThreadsAsRead(mx, room.roomId, hideActivity)
+        markRoomAndThreadsAsRead(client, room.roomId, hideActivity)
       ),
       'open-current-room-settings': inCurrentRoom((room) =>
         openRoomSettings(room.roomId, selectedSpaceId)
@@ -278,7 +281,7 @@ export const useCommandPaletteSource = ({
     currentThreadId,
     currentThreadResolved,
     hideActivity,
-    mx,
+    client,
     navigate,
     onLogout,
     openCreateRoom,

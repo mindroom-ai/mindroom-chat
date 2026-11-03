@@ -28,9 +28,9 @@ function ScheduleCard({
   formatter: Intl.DateTimeFormat;
   onOpenThread: (threadId: string) => void;
 }) {
-
-
-
+  const [t] = useTranslation();
+  const mx = useMatrixClient();
+  const mentionClickHandler = useMentionClickHandler(roomId);
   const creatorMention =
     task.createdBy && isUserId(task.createdBy)
       ? renderMatrixMention(mx, roomId, getMatrixToUser(task.createdBy), {

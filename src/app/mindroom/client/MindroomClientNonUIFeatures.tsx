@@ -44,9 +44,9 @@ const invitedRoomIds = (mx: MatrixClient): string[] =>
  * client's invites first, since it may still hold the previous account's.
  */
 export function MindroomInviteNotifications() {
-
-
-
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const invites = useAtomValue(allInvitesAtom);
   const setInvites = useSetAtom(allInvitesAtom);
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
   const [notificationSounds] = useSetting(settingsAtom, 'isNotificationSounds');
@@ -56,14 +56,14 @@ export function MindroomInviteNotifications() {
   const stale = useRef<readonly string[]>();
 
   useLayoutEffect(() => {
-    const baseline = invitedRoomIds(mx);
+    const baseline = invitedRoomIds(client);
     seen.current = new Set(baseline);
     previous.current = baseline;
     stale.current = invites;
     setInvites({ type: 'INITIALIZE', rooms: baseline });
     // Only a client change resets the baseline; `invites` is read for the stale marker alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mx, setInvites]);
+  }, [client, setInvites]);
 
   useEffect(() => {
     if (invites === stale.current) return;

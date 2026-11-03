@@ -9,13 +9,13 @@ export const FileRow = style({
 });
 
 export const FileTile = style({
-
-
-
+  display: 'grid',
+  flex: '0 0 auto',
+  width: toRem(36),
   height: toRem(44),
-
-
-
+  borderRadius: config.radii.R300,
+  color: color.Primary.OnContainer,
+  background: color.Primary.Container,
   placeItems: 'end center',
   paddingBottom: toRem(6),
   fontSize: toRem(11),
@@ -25,10 +25,10 @@ export const FileTile = style({
 
 export const FileInfo = style({
   minWidth: 0,
-
-
-
-
+  flex: '1 1 auto',
+  display: 'flex',
+  flexDirection: 'column',
+  rowGap: toRem(2),
 });
 
 export const FileName = style({

@@ -37,10 +37,10 @@ export const Track = style([
   {
     position: 'relative',
     display: 'flex',
-
-
-
-
+    alignItems: 'center',
+    inlineSize: '100%',
+    height: toRem(24),
+    cursor: 'pointer',
   },
 ]);
 
@@ -51,10 +51,10 @@ export const TrackLine = style({
 });
 
 export const Thumb = style({
-
-
-
-  backgroundColor: color.Primary.Main,
+  width: toRem(16),
+  height: toRem(16),
+  borderRadius: config.radii.Round,
+  background: color.Primary.Main,
   boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.Primary.OnMain}`,
   outline: 'none',
   selectors: {

@@ -20,7 +20,7 @@ import {
   withReact,
 } from 'slate-react';
 import { BlockType } from './types';
-import type { CustomElement, InlineElement } from './slate';
+import type { BlockElement, CustomElement, HeadingElement, InlineElement } from './slate';
 import { withWordUndo } from './history';
 import { createParagraphElement, withInlineElements } from './utils';
 import * as css from './Editor.css';
@@ -89,44 +89,48 @@ function InlineAtom({
   );
 }
 
+type BlockTag = {
+  Tag: 'blockquote' | 'div' | 'li' | 'ol' | 'p' | 'pre' | 'ul';
+  className?: string;
+  style?: CSSProperties;
+};
+
+/** Block elements that are one HTML tag around their children. */
+type TaggedBlock = Exclude<BlockElement, HeadingElement>;
+
+const blockTags: Record<TaggedBlock['type'], BlockTag> = {
+  [BlockType.Paragraph]: { Tag: 'p', style: { margin: 0 } },
+  [BlockType.QuoteLine]: { Tag: 'p', style: { margin: 0 } },
+  [BlockType.CodeBlock]: { Tag: 'pre', className: css.CodeBlock },
+  [BlockType.CodeLine]: { Tag: 'div' },
+  [BlockType.BlockQuote]: { Tag: 'blockquote', className: css.BlockQuote },
+  [BlockType.ListItem]: { Tag: 'li' },
+  [BlockType.OrderedList]: { Tag: 'ol' },
+  [BlockType.UnorderedList]: { Tag: 'ul' },
+};
+
+const isTaggedBlock = (element: CustomElement): element is TaggedBlock => element.type in blockTags;
+
 function RenderElement(props: RenderElementProps) {
   const { attributes, children } = props;
   const element = props.element as CustomElement;
 
+  if (isTaggedBlock(element)) {
+    const { Tag, className, style } = blockTags[element.type];
+    return (
+      <Tag {...attributes} className={className} style={style}>
+        {children}
+      </Tag>
+    );
+  }
+
   switch (element.type) {
-    case BlockType.ListItem:
-      return <li {...attributes}>{children}</li>;
-
-
-
-
-      return (
-        <p {...attributes} style={{ margin: 0 }}>
-          {children}
-        </p>
-      );
     case BlockType.Heading:
       return (
         <Text as={`h${element.level}`} size={`H${element.level + 2}` as 'H3'} {...attributes}>
           {children}
         </Text>
       );
-    case BlockType.CodeBlock:
-      return (
-        <pre {...attributes} className={css.CodeBlock}>
-          {children}
-        </pre>
-      );
-    case BlockType.BlockQuote:
-      return (
-        <blockquote {...attributes} className={css.BlockQuote}>
-          {children}
-        </blockquote>
-      );
-    case BlockType.OrderedList:
-      return <ol {...attributes}>{children}</ol>;
-    case BlockType.UnorderedList:
-      return <ul {...attributes}>{children}</ul>;
     case BlockType.Link:
       return (
         <a {...attributes} href={element.href}>
@@ -159,7 +163,10 @@ function RenderPlaceholder({ attributes, children }: RenderPlaceholderProps) {
   );
 }
 
-type CustomEditorProps = {
+/** What the editor frames: `top` and `bottom` rows around the text row, `before` and `after` controls beside the text box. */
+type EditorSlots = Partial<Record<'top' | 'bottom' | 'before' | 'after', ReactNode>>;
+
+type CustomEditorProps = EditorSlots & {
   editor: Editor;
   /** Names the text box for code: `data-editable-name`, such as `RoomInput` for the composer. */
   editableName?: string;
@@ -167,13 +174,7 @@ type CustomEditorProps = {
   ariaLabel?: string;
   placeholder?: string;
   /** Tallest the text box grows before it scrolls; `50vh` by default. */
-
-
-
-
-  /** Controls at the start and end of the text row. */
-  before?: ReactNode;
-  after?: ReactNode;
+  maxHeight?: string;
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;

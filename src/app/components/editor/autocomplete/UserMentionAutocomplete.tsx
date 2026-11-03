@@ -38,12 +38,13 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
 const isMentionable = (member: RoomMember): boolean =>
   member.membership === 'join' || member.membership === 'invite';
 
-
-
-
-
-
-
+type UserMentionAutocompleteProps = {
+  /** Only the room ID is read. */
+  room: Pick<Room, 'roomId'>;
+  editor: Editor;
+  query: AutocompleteQuery<string>;
+  /** Closes the menu, after a pick or when the host dismisses it. */
+  requestClose: () => void;
   /**
    * Called on mount and whenever it changes with whether the menu shows: a query that matches no
    * member shows none, so Enter has no suggestion to pick.
@@ -51,18 +52,67 @@ const isMentionable = (member: RoomMember): boolean =>
   onSuggestionsChange?: (hasSuggestions: boolean) => void;
 };
 
+const renderFallbackAvatar = () => <Icon size="50" src={Icons.User} filled />;
+
+/** One suggestion: avatar, name and user ID. A click, Tab or Enter picks it. */
+function MentionRow({
+  member,
+  onSelect,
+}: {
+  member: RoomMember;
+  onSelect: (member: RoomMember) => void;
+}) {
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
+  const displayName = memberName(member);
+  const avatarMxc = member.getMxcAvatarUrl();
+  const avatarSrc = avatarMxc
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined
+    : undefined;
+  const avatar = (
+    <Avatar size="200">
+      <UserAvatar
+        userId={member.userId}
+        src={avatarSrc}
+        alt={displayName}
+        renderFallback={renderFallbackAvatar}
+      />
+    </Avatar>
+  );
+
+  return (
+    <MenuItem
+      as="button"
+      type="button"
+      radii="300"
+      before={avatar}
+      after={
+        <Text size="T200" priority="300" truncate>
+          {member.userId}
+        </Text>
+      }
+      onClick={() => onSelect(member)}
+      onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) =>
+        onTabPress(event, () => {
+          // The window listener would insert the first suggestion as well.
+          event.stopPropagation();
+          onSelect(member);
+        })
+      }
+    >
+      <Text size="B400" truncate style={{ flexGrow: 1 }}>
+        {displayName}
+      </Text>
+    </MenuItem>
+  );
+}
+
 /** Suggests room members for an `@` mention and inserts the chosen one as a mention pill. */
-
-
-
-
-
-
-
-
-
-
-  const roomMembers = useRoomMembers(mx, room.roomId);
+export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
+  const { room, editor, query, requestClose, onSuggestionsChange } = props;
+  const client = useMatrixClient();
+  const [t] = useTranslation();
+  const roomMembers = useRoomMembers(client, room.roomId);
   const members = useMemo(() => roomMembers.filter(isMentionable), [roomMembers]);
 
   const [result, search, resetSearch] = useAsyncSearch(members, getMemberSearchStrings);
@@ -92,7 +142,7 @@ const isMentionable = (member: RoomMember): boolean =>
 
   const handleSelect = useCallback(
     (member: RoomMember) => {
-      const ownUserId = mx.getUserId();
+      const ownUserId = client.getUserId();
       replaceWithElement(
         editor,
         query.range,
@@ -101,7 +151,7 @@ const isMentionable = (member: RoomMember): boolean =>
       moveCursor(editor, true);
       requestClose();
     },
-    [mx, editor, query.range, requestClose]
+    [client, editor, query.range, requestClose]
   );
 
   const handleKeyDown = useCallback(
@@ -122,48 +172,9 @@ const isMentionable = (member: RoomMember): boolean =>
       requestClose={requestClose}
       headerContent={<Text size="L400">{t('sharedUi.userMentionAutocomplete.mentions')}</Text>}
     >
-      {suggestions.map((member) => {
-        const name = memberName(member);
-        const avatarMxc = member.getMxcAvatarUrl();
-        const avatarUrl = avatarMxc
-          ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 32, 32, 'crop') ?? undefined
-          : undefined;
-        return (
-          <MenuItem
-
-
-
-
-
-
-
-
-                handleSelect(member);
-              })
-            }
-            onClick={() => handleSelect(member)}
-            after={
-              <Text size="T200" priority="300" truncate>
-                {member.userId}
-              </Text>
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-              {name}
-            </Text>
-          </MenuItem>
-        );
-      })}
+      {suggestions.map((member) => (
+        <MentionRow key={member.userId} member={member} onSelect={handleSelect} />
+      ))}
     </AutocompleteMenu>
   );
 }

@@ -103,15 +103,16 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   });
   const legacyCryptoStore = new IndexedDBCryptoStore(globalThis.indexedDB, storeNames.crypto);
 
+  const { userId, deviceId } = session;
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,
     accessToken: session.accessToken,
     refreshToken: session.refreshToken,
     tokenRefreshFunction,
-
-
-
-
+    userId,
+    deviceId,
+    store,
+    cryptoStore: legacyCryptoStore,
     // The JavaScript cache answers `undefined` for an unknown key, which the SDK treats as none.
     cryptoCallbacks: cryptoCallbacks as unknown as CryptoCallbacks,
     timelineSupport: true,

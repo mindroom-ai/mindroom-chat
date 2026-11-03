@@ -1,4 +1,4 @@
-import { BasePoint, BaseRange, Descendant, Editor, Element, Range, Text, Transforms } from 'slate';
+import { BaseRange, Descendant, Editor, Element, Range, Text, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { BlockType } from './types';
 import type {
@@ -23,22 +23,22 @@ export const createEmoticonElement = (key: string, shortcode: string): EmoticonE
   key,
   shortcode,
   children: emptyChildren(),
+});
 
-
-
-
-
-
-
-
-
-
-
-  id,
-  name,
+/** A mention pill; permalinks to an event carry its ID and the `via` servers to reach it. */
+export const createMentionElement = (
+  targetId: string,
+  label: string,
+  highlight: boolean,
+  eventId?: string,
+  via?: string[]
+): MentionElement => ({
+  type: BlockType.Mention,
+  id: targetId,
+  name: label,
   highlight,
   ...(eventId === undefined ? {} : { eventId }),
-  ...(viaServers === undefined ? {} : { viaServers }),
+  ...(via === undefined ? {} : { viaServers: via }),
   children: emptyChildren(),
 });
 
@@ -148,22 +148,20 @@ export const replaceWithElement = (editor: Editor, range: BaseRange, element: Cu
  */
 export const moveCursor = (editor: Editor, withSpace?: boolean) => {
   stepOutOfAtom(editor);
-
-
-
-
-
-
-
-
-  const [leaf] = Editor.leaf(editor, cursor);
-  if (!Text.isText(leaf)) return undefined;
-  const before = leaf.text.slice(0, cursor.offset);
-  const start = before.search(/\S+$/);
-  if (start < 0) return undefined;
-  const anchor: BasePoint = { path: cursor.path, offset: start };
-  return { anchor, focus: cursor };
+  if (withSpace) Editor.insertText(editor, ' ');
 };
+
+/** The run of non-space characters right before a collapsed caret, for autocomplete queries. */
+export function getPrevWorldRange(editor: Editor): BaseRange | undefined {
+  const { selection } = editor;
+  if (!selection || Range.isExpanded(selection)) return undefined;
+  const caret = selection.focus;
+  const [leaf] = Editor.leaf(editor, caret);
+  if (!Text.isText(leaf)) return undefined;
+  const wordStart = leaf.text.slice(0, caret.offset).search(/\S+$/);
+  if (wordStart < 0) return undefined;
+  return { anchor: { path: caret.path, offset: wordStart }, focus: caret };
+}
 
 /** The command a message starts with, when the first node is a command element. */
 export const getBeginCommand = (editor: Editor): string | undefined => {

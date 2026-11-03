@@ -33,13 +33,13 @@ export const Label = style({
   height: toRem(22),
   display: 'inline-grid',
   placeItems: 'center',
+  background: color.SurfaceVariant.Container,
   paddingInline: config.space.S100,
-
-
-
+  borderRadius: config.radii.Pill,
+  color: color.SurfaceVariant.OnContainer,
   selectors: {
     [`${Button}:hover &`]: {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+      background: color.SurfaceVariant.ContainerHover,
     },
   },
 });

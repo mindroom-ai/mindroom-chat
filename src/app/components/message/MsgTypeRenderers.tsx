@@ -340,12 +340,13 @@ const useFileTypeLabel = () => {
 type MFileProps = {
   content: MessageContent;
   renderFileContent: (args: RenderFileContentArgs) => ReactNode;
+  outlined?: boolean;
+};
 
-
-
-
-
-
+/** A file as one row: type tile, name, type and size, then the caller's actions. */
+export function MFile(props: MFileProps) {
+  const { content, renderFileContent, outlined } = props;
+  const { t } = useTranslation();
   const typeLabel = useFileTypeLabel();
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
