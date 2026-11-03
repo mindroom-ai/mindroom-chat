@@ -4,7 +4,8 @@ import { AvatarFallback, AvatarImage, color } from 'folds';
 import * as css from './UserAvatar.css';
 
 // Fallback fills rotate through the theme's accent containers, picked by a stable hash of the ID.
-const FALLBACK_COLORS = [
+// Read on first use, not at import, so importing the avatar never needs the folds theme.
+const getFallbackColors = () => [
   { background: color.Primary.Container, foreground: color.Primary.OnContainer },
   { background: color.Secondary.Container, foreground: color.Secondary.OnContainer },
   { background: color.Success.Container, foreground: color.Success.OnContainer },
@@ -22,7 +23,8 @@ const hashId = (id: string): number => {
 
 /** The fallback fill and text color for an avatar of this user or room ID. */
 export const getAvatarFallbackStyle = (id: string): CSSProperties => {
-  const fill = FALLBACK_COLORS[hashId(id) % FALLBACK_COLORS.length];
+  const colors = getFallbackColors();
+  const fill = colors[hashId(id) % colors.length];
   return { backgroundColor: fill.background, color: fill.foreground };
 };
 
