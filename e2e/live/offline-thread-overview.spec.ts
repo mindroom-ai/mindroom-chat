@@ -23,9 +23,7 @@ test('restores all 400 downloaded threads behind a long room history while offli
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-    simpleMode: false,
-  });
+  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {});
   const roomName = `Offline thread overview ${Date.now()}`;
   const roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: roomName,

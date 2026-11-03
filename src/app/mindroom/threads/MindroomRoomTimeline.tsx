@@ -26,7 +26,7 @@ import { useTimelineMessageFeature } from './message-rendering/useTimelineMessag
 import type { TimelineMessageRow } from './message-rendering/types';
 import { getRenderableEventEntries } from './roomTimelineEvents';
 import { renderMindroomRoomTimelineThreadBadge } from './roomTimelineMessageExtensions';
-import type { ThreadFilterState, ThreadSortFreezeState } from './roomThreadOverviewModel';
+import type { ThreadFilterState } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import {
   getInitialTimeline,
@@ -50,7 +50,6 @@ export type RoomTimelineProps = {
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
-  threadSortFreezeState: ThreadSortFreezeState | null;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   editor: Editor;
@@ -101,7 +100,6 @@ export function RoomTimeline({
   summaryMap,
   onStoreThreadSummary,
   threadFilterState,
-  threadSortFreezeState,
   viewMode,
   compactRoomScrollStateRef,
   editor,
@@ -198,7 +196,8 @@ export function RoomTimeline({
     threadResolutionMap,
     currentUserId: mx.getUserId() ?? undefined,
     requestedThreadFilterState: threadFilterState,
-    threadSortFreezeState,
+    // The sort-order lock belonged to the room filter bar, which this client does not have.
+    threadSortFreezeState: null,
     overviewRefreshCounter: version,
     sessionId,
     mx,

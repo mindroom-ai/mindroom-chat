@@ -13,15 +13,6 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings([true])).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
   });
 
-  it('defaults to Simple Mode while preserving explicit booleans', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({}).simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: true }).simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: false }).simpleMode).toBe(false);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: 0 }).simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: '' }).simpleMode).toBe(true);
-  });
-
   it('shows Canvases in the sidebar by default while preserving explicit booleans', () => {
     expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(true);
     expect(sanitizeMindroomAccountSettings({}).showCanvasesInSidebar).toBe(true);
@@ -41,7 +32,6 @@ describe('sanitizeMindroomAccountSettings', () => {
         expandLongMessagesByDefault: true,
       })
     ).toEqual({
-      simpleMode: true,
       showCanvasesInSidebar: true,
     });
   });
@@ -49,26 +39,31 @@ describe('sanitizeMindroomAccountSettings', () => {
 
 describe('mergeMindroomAccountSettings', () => {
   it('overlays the patch onto stored content', () => {
-    expect(mergeMindroomAccountSettings({ simpleMode: false }, { simpleMode: true })).toEqual({
-      simpleMode: true,
+    expect(
+      mergeMindroomAccountSettings(
+        { showCanvasesInSidebar: false },
+        { showCanvasesInSidebar: true }
+      )
+    ).toEqual({
+      showCanvasesInSidebar: true,
     });
   });
 
   it('preserves unknown keys written by other clients', () => {
     expect(
       mergeMindroomAccountSettings(
-        { simpleMode: false, futureKey: { nested: 1 } },
-        { simpleMode: true }
+        { showCanvasesInSidebar: false, futureKey: { nested: 1 } },
+        { showCanvasesInSidebar: true }
       )
-    ).toEqual({ simpleMode: true, futureKey: { nested: 1 } });
+    ).toEqual({ showCanvasesInSidebar: true, futureKey: { nested: 1 } });
   });
 
   it('treats malformed stored content as empty', () => {
-    expect(mergeMindroomAccountSettings(undefined, { simpleMode: true })).toEqual({
-      simpleMode: true,
+    expect(mergeMindroomAccountSettings(undefined, { showCanvasesInSidebar: true })).toEqual({
+      showCanvasesInSidebar: true,
     });
-    expect(mergeMindroomAccountSettings('garbage', { simpleMode: true })).toEqual({
-      simpleMode: true,
+    expect(mergeMindroomAccountSettings('garbage', { showCanvasesInSidebar: true })).toEqual({
+      showCanvasesInSidebar: true,
     });
   });
 });

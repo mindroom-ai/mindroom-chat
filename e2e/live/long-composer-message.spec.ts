@@ -32,9 +32,7 @@ test.beforeAll(async ({ browser }) => {
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-    simpleMode: false,
-  });
+  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {});
   page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   await loginWithPassword(page, { homeserver, ...credentials });
 });

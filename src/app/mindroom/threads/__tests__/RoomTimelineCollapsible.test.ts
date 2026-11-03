@@ -18,7 +18,6 @@ const ROOM_TIMELINE_EVENT = 'Room.timeline';
 const {
   passthrough,
   scrollType,
-  roomThreadOverviewType,
   messageType,
   messageTestId,
   collapsibleType,
@@ -30,7 +29,6 @@ const {
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
-  roomThreadOverviewType: 'room-thread-overview',
   messageType: 'div',
   messageTestId: 'mock-message',
   collapsibleType: 'div',
@@ -784,10 +782,6 @@ vi.mock('../threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
   markThreadEditBackfillAttempted: vi.fn(),
   shouldFetchThreadEditBackfill: () => false,
-}));
-
-vi.mock('../RoomThreadOverview', () => ({
-  RoomThreadOverview: roomThreadOverviewType,
 }));
 
 vi.mock('../CompactRoomView', () => ({

@@ -49,7 +49,7 @@ for (const mobile of [false, true]) {
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        { simpleMode: true }
+        {}
       );
       await loginWithPassword(page, { homeserver, ...credentials });
       await page.goto('/home/');
@@ -137,9 +137,7 @@ test('hides archived direct and space rooms and follows remote restore', async (
     '@archive-peer:example.org',
     directId
   );
-  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-    simpleMode: false,
-  });
+  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {});
   await setArchived(homeserver, session.accessToken, session.userId, roomId, true);
   await setArchived(homeserver, session.accessToken, session.userId, directId, true);
   await loginWithPassword(page, { homeserver, ...credentials });

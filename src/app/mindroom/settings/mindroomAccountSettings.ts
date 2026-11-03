@@ -11,17 +11,11 @@
 export const MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 
 export type MindroomAccountSettings = {
-  /**
-   * Hide advanced UI (spaces, command palette, thread filter toolbar, …) for
-   * non-technical users. Off means the full interface.
-   */
-  simpleMode: boolean;
   /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
   showCanvasesInSidebar: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: MindroomAccountSettings = {
-  simpleMode: true,
   showCanvasesInSidebar: true,
 };
 
@@ -36,10 +30,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const sanitizeMindroomAccountSettings = (content: unknown): MindroomAccountSettings => {
   if (!isRecord(content)) return DEFAULT_MINDROOM_ACCOUNT_SETTINGS;
   return {
-    simpleMode:
-      typeof content.simpleMode === 'boolean'
-        ? content.simpleMode
-        : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode,
     showCanvasesInSidebar:
       typeof content.showCanvasesInSidebar === 'boolean'
         ? content.showCanvasesInSidebar

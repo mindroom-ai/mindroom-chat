@@ -12,9 +12,9 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 
-for (const [themeId, width, simpleMode] of [
-  ['dark-theme', 390, true],
-  ['silver-theme', 1100, false],
+for (const [themeId, width] of [
+  ['dark-theme', 390],
+  ['silver-theme', 1100],
 ] as const) {
   test(`space header overlays scrolling rooms in ${themeId}`, async ({ page }, testInfo) => {
     test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
@@ -45,7 +45,7 @@ for (const [themeId, width, simpleMode] of [
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        { ...savedSettings, simpleMode }
+        { ...savedSettings }
       );
       const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
         name: 'MindRoom',
@@ -94,9 +94,7 @@ for (const [themeId, width, simpleMode] of [
       await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0, {
         timeout: 60_000,
       });
-      await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(
-        simpleMode ? 0 : 1
-      );
+      await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(1);
       // Read both rectangles in one snapshot: sync status can move the entire
       // application between separate Playwright calls without moving this header.
       const headerOffset = () =>

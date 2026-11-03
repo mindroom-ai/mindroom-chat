@@ -48,9 +48,7 @@ test('lists and reopens a large thread overview without a request per thread', a
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-    simpleMode: false,
-  });
+  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {});
   const roomName = `Thread bootstrap requests ${Date.now()}`;
   const roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: roomName,

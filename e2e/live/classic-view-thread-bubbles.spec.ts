@@ -26,9 +26,7 @@ test.describe('live issue-076 classic room timeline', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {});
     const stamp = Date.now();
     const fixture = await createThreadFixture(homeserver, accessToken, {
       name: `ISSUE-076 Classic ${stamp}`,

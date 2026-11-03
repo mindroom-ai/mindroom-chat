@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   roomToParents: new Map<string, Set<string>>(),
   mDirects: new Set<string>(),
   developerTools: false,
-  simpleMode: false,
   selectedSpace: undefined as string | undefined,
   mx: {},
   historyState: { idx: 1, key: 'room-entry' },
@@ -69,10 +68,6 @@ vi.mock('../state/settings', () => ({
 
 vi.mock('../state/hooks/settings', () => ({
   useSetting: () => [mocks.developerTools],
-}));
-
-vi.mock('../mindroom/settings/useMindroomAccountSettings', () => ({
-  useSimpleMode: () => mocks.simpleMode,
 }));
 
 vi.mock('../state/room/roomToParents', () => ({
@@ -142,7 +137,6 @@ describe('useRoomNavigate', () => {
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.developerTools = false;
-    mocks.simpleMode = false;
     mocks.selectedSpace = undefined;
     mocks.historyState = { idx: 1, key: 'room-entry' };
     Object.assign(window.history, { state: mocks.historyState });
@@ -252,11 +246,10 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
-  describe.each([true, false])('selected space with simple mode %s', (simpleMode) => {
+  describe('selected space', () => {
     it.each(['navigateRoomThreadDirect', 'navigateRoomThread'] as const)(
       'keeps %s inside the selected space',
       (method) => {
-        mocks.simpleMode = simpleMode;
         mocks.selectedSpace = '!space:example.org';
         mocks.roomToParents.set('!room:example.org', new Set(['!space:example.org']));
         const { getSnapshot, renderer } = renderHookHarness();
@@ -273,7 +266,6 @@ describe('useRoomNavigate', () => {
     );
 
     it('keeps a nested-space thread inside the selected nested space', () => {
-      mocks.simpleMode = simpleMode;
       mocks.selectedSpace = '!nested:example.org';
       mocks.roomToParents.set('!room:example.org', new Set(['!child:example.org']));
       mocks.roomToParents.set('!child:example.org', new Set(['!nested:example.org']));
@@ -291,7 +283,6 @@ describe('useRoomNavigate', () => {
     });
 
     it('keeps room and focused-event navigation inside the selected space', () => {
-      mocks.simpleMode = simpleMode;
       mocks.selectedSpace = '!space:example.org';
       mocks.roomToParents.set('!room:example.org', new Set(['!space:example.org']));
       const { getSnapshot, renderer } = renderHookHarness();
@@ -312,8 +303,7 @@ describe('useRoomNavigate', () => {
     });
   });
 
-  it('keeps a direct-room thread inside its selected space in simple mode', () => {
-    mocks.simpleMode = true;
+  it('keeps a direct-room thread inside its selected space', () => {
     mocks.selectedSpace = '!space:example.org';
     mocks.roomToParents.set('!direct:example.org', new Set(['!space:example.org']));
     mocks.mDirects.add('!direct:example.org');
@@ -348,13 +338,12 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
-  it('keeps direct rooms on the Direct route in simple mode', () => {
+  it('keeps direct rooms on the Direct route', () => {
     const roomId = '!direct:example.org';
     const spaceId = '!space:example.org';
     const threadId = '$thread';
     mocks.roomToParents.set(roomId, new Set([spaceId]));
     mocks.mDirects.add(roomId);
-    mocks.simpleMode = true;
     const { getSnapshot, renderer } = renderHookHarness();
 
     act(() => {

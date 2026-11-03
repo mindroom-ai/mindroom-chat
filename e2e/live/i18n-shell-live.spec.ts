@@ -16,9 +16,13 @@ test.describe('live shell i18n', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     await loginWithPassword(page, { homeserver, username, password });
 
     // English defaults

@@ -951,7 +951,6 @@ describe('RoomInput', () => {
       .findAll((node) => node.type === 'button')
       .map((button) => button.props['aria-label']);
 
-    // Simple Mode, so no formatting or sticker buttons.
     expect(labels).toEqual(expect.arrayContaining(['Attach files', 'Emoji', 'Send message']));
     expect(labels.some((label) => String(label).startsWith('Record voice message'))).toBe(true);
 

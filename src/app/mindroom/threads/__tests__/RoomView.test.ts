@@ -32,7 +32,6 @@ const {
   passthrough,
   permissionState,
   roomTimelineType,
-  simpleModeState,
   navigateRoomFocusEventMock,
   navigateRoomMock,
   navigateRoomThreadMock,
@@ -67,7 +66,6 @@ const {
   passthrough: 'div',
   permissionState: { canMessage: true },
   roomTimelineType: 'room-timeline',
-  simpleModeState: { enabled: false },
   navigateRoomFocusEventMock: vi.fn(),
   navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
@@ -214,14 +212,6 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
     getSafeUserId: () => '@alice:example.org',
   }),
 }));
-
-vi.mock('../../settings/useMindroomAccountSettings', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../settings/useMindroomAccountSettings')>();
-  return {
-    ...actual,
-    useSimpleMode: () => simpleModeState.enabled,
-  };
-});
 
 vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
@@ -464,29 +454,8 @@ const createThreadStateHarness =
 const getTimeline = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByType(roomTimelineType as never) as unknown as {
     props: {
-      onToggle: (key: string) => void;
-      onAddTag: (tag: string) => void;
-      onSearchQueryChange: (query: string) => void;
-      onSortDirectionChange: () => void;
-      onToggleThreadSortFreeze: () => void;
-      onReset: () => void;
       compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
       threadId?: string;
-      threadFilterState: {
-        resolved: string;
-        streaming: string;
-        scheduled: string;
-        unread: string;
-        idle: string;
-        sortBy: string;
-        sortDirection: string;
-        freeText: string;
-        tags: Map<string, string>;
-      };
-      threadSortFreezeState: {
-        controlSignature: string | null;
-        orderedRootIds: string[];
-      } | null;
     };
   };
 
@@ -536,7 +505,6 @@ describe('RoomView', () => {
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
     permissionState.canMessage = true;
-    simpleModeState.enabled = false;
     threadContextBannerState.props = undefined;
     useKeyDownMock.mockClear();
     useThreadRootEventMock.mockReset();
@@ -608,37 +576,6 @@ describe('RoomView', () => {
       });
       offline.stop();
     }
-  });
-
-  it('persists the thread filter state across thread enter/exit', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: room as never }));
-    });
-
-    // Toggle resolved: any -> include
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-
-    // Enter thread — filter should persist
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-
-    // Exit thread — filter should persist
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
   });
 
   it('restores compact scroll after a card open and history-back thread exit', async () => {
@@ -777,286 +714,6 @@ describe('RoomView', () => {
     });
 
     expect(scrollElement.scrollTop).toBe(0);
-  });
-
-  it('keeps thread filter state isolated per room when switching rooms', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const roomA = makeRoom(nextRoomId('room-a'));
-    const roomB = makeRoom(nextRoomId('room-b'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: roomA as never }));
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-
-    // Switch rooms; room B starts with its own default state.
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
-
-    // Give room B a different persisted value.
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
-
-    // Switch back; room A should keep its own persisted value.
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomA as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-
-    // Room B should also keep its own persisted value when revisited.
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
-  });
-
-  it('persists the freeze state across thread enter/exit in the same room', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: room as never }));
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggleThreadSortFreeze();
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: room as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-  });
-
-  it('ignores agent filters and sort freeze as soon as the room becomes agentless', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
-      );
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-      getTimeline(renderer!).props.onToggleThreadSortFreeze();
-    });
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-
-    await act(async () => {
-      renderer?.update(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
-      );
-    });
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
-    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
-
-    await act(async () => {
-      renderer?.update(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
-      );
-    });
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
-  });
-
-  it('cycles and preserves sort modes in Simple Mode, including agentless rooms', async () => {
-    simpleModeState.enabled = true;
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
-      );
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
-    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('desc');
-    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
-
-    await act(async () => {
-      getTimeline(renderer!).props.onSortDirectionChange();
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
-    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('asc');
-
-    await act(async () => {
-      renderer?.update(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
-      );
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
-    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('asc');
-
-    await act(async () => {
-      getTimeline(renderer!).props.onSortDirectionChange();
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('natural');
-    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('desc');
-  });
-
-  it('preserves hidden agent filters when searching in an agentless room', async () => {
-    vi.useFakeTimers();
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
-      );
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-    await act(async () => {
-      getTimeline(renderer!).props.onAddTag('saved');
-    });
-
-    await act(async () => {
-      renderer?.update(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
-      );
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onSearchQueryChange('hello is:streaming tag:priority');
-      await vi.advanceTimersByTimeAsync(300);
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.freeText).toBe(
-      'hello is:streaming tag:priority'
-    );
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
-    expect(getTimeline(renderer!).props.threadFilterState.tags).toEqual(new Map());
-
-    await act(async () => {
-      renderer?.update(
-        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
-      );
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.freeText).toBe(
-      'hello is:streaming tag:priority'
-    );
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
-    expect(getTimeline(renderer!).props.threadFilterState.streaming).toBe('any');
-    expect(getTimeline(renderer!).props.threadFilterState.tags).toEqual(
-      new Map([['saved', 'include']])
-    );
-  });
-
-  it('resets the freeze state when switching rooms', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const roomA = makeRoom(nextRoomId('room-a'));
-    const roomB = makeRoom(nextRoomId('room-b'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: roomA as never }));
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggleThreadSortFreeze();
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-
-    await act(async () => {
-      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
-  });
-
-  it('clears the freeze state when sort cycles back to natural', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: room as never }));
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggleThreadSortFreeze();
-    });
-
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
-
-    await act(async () => {
-      getTimeline(renderer!).props.onSortDirectionChange();
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onSortDirectionChange();
-    });
-
-    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('natural');
-    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
-  });
-
-  it('resets all filters on onReset', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    let renderer: ReturnType<typeof create> | undefined;
-
-    await act(async () => {
-      renderer = create(React.createElement(RoomView, { room: room as never }));
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-      getTimeline(renderer!).props.onToggle('streaming');
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onReset();
-    });
-
-    const state = getTimeline(renderer!).props.threadFilterState;
-    expect(state.resolved).toBe('any');
-    expect(state.streaming).toBe('any');
-    expect(state.sortDirection).toBe('desc');
   });
 
   it('exits a thread with history back when it was opened from the room timeline', async () => {

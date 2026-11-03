@@ -62,21 +62,10 @@ describe('roomViewMode', () => {
     unmount();
   });
 
-  it('limits Simple Mode to compact and threaded views', async () => {
-    const { getAvailableRoomViewModes, isRoomViewModeAvailable } = await import('./roomViewMode');
-
-    expect(getAvailableRoomViewModes(true, false)).toEqual(['compact', 'threaded']);
-    expect(getAvailableRoomViewModes(false, false)).toEqual(['compact', 'threaded', 'classic']);
-    expect(isRoomViewModeAvailable('threaded', true)).toBe(true);
-    expect(isRoomViewModeAvailable('classic', true)).toBe(false);
-    expect(isRoomViewModeAvailable('classic', false)).toBe(true);
-  });
-
   it('offers no view modes in a direct message between people', async () => {
     const { getAvailableRoomViewModes } = await import('./roomViewMode');
 
-    expect(getAvailableRoomViewModes(true, true)).toEqual([]);
-    expect(getAvailableRoomViewModes(false, true)).toEqual([]);
+    expect(getAvailableRoomViewModes(true)).toEqual([]);
   });
 
   it('persists room view mode per account and room', async () => {

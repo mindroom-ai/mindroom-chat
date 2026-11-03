@@ -31,9 +31,13 @@ for (const surface of ['room', 'thread'] as const) {
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     const agent = await registerAgentAccount(homeserver, 'general');
     const fixture = await createThreadFixture(homeserver, session.accessToken, {
       name: `Own long message folds ${surface} ${Date.now()}`,

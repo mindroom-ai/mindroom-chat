@@ -43,7 +43,6 @@ import { createContext, useContext } from 'react';
   sidebar?: {
     showThreads?: boolean;
     showExploreCommunity?: boolean;
-    showExploreCommunityInSimpleMode?: boolean;
     /** The Local MindRoom tab; on unless set to false. */
     showMindRoom?: boolean;
     /** Where the Local MindRoom tab links for more about MindRoom. */

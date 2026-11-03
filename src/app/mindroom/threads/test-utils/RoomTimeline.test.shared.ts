@@ -27,7 +27,6 @@ import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 const {
   passthrough,
   scrollType,
-  roomThreadOverviewType,
   roomIntroType,
   defaultPlaceholderType,
   compactPlaceholderType,
@@ -64,7 +63,6 @@ const {
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
-  roomThreadOverviewType: 'room-thread-overview',
   roomIntroType: 'room-intro',
   defaultPlaceholderType: 'default-placeholder',
   compactPlaceholderType: 'compact-placeholder',
@@ -1243,10 +1241,6 @@ vi.mock('../threadEditBackfill', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
-vi.mock('../RoomThreadOverview', () => ({
-  RoomThreadOverview: roomThreadOverviewType,
-}));
-
 vi.mock('../CompactRoomView', () => ({
   CompactRoomView: compactPlaceholderType,
 }));
@@ -1915,7 +1909,6 @@ export {
   timeDayMonthYearMock,
   roomIntroType,
   roomThreadListThreadsMock,
-  roomThreadOverviewType,
   roomUnreadState,
   saveRoomEventsToCacheMock,
   saveThreadOpenSeedSnapshot,

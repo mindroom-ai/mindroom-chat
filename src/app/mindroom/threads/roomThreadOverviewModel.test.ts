@@ -279,71 +279,6 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 
-  describe('simplifyThreadFilterState', () => {
-    it('keeps only unresolved and sorting dimensions', async () => {
-      const { createDefaultThreadFilterState, simplifyThreadFilterState } = await import(
-        './roomThreadOverviewModel'
-      );
-
-      const advanced = makeDefaultState({
-        resolved: 'exclude',
-        streaming: 'include',
-        unread: 'exclude',
-        sortBy: 'natural',
-        statusMode: 'or',
-        freeText: 'needle',
-        unsupportedQuery: 'tag:a OR tag:b',
-        tags: new Map([['priority', 'include']]),
-      });
-
-      expect(simplifyThreadFilterState(advanced)).toEqual({
-        ...createDefaultThreadFilterState(),
-        resolved: 'exclude',
-        sortBy: 'natural',
-        sortDirection: 'desc',
-      });
-    });
-
-    it('preserves last-reply sort direction', async () => {
-      const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
-
-      expect(
-        simplifyThreadFilterState(makeDefaultState({ sortBy: 'lastReply', sortDirection: 'asc' }))
-      ).toMatchObject({ sortBy: 'lastReply', sortDirection: 'asc' });
-    });
-
-    it('maps every non-exclude resolved value to showing all threads', async () => {
-      const { createDefaultThreadFilterState, simplifyThreadFilterState } = await import(
-        './roomThreadOverviewModel'
-      );
-
-      const naturalSortState = {
-        ...createDefaultThreadFilterState(),
-        sortBy: 'natural' as const,
-        sortDirection: 'desc' as const,
-      };
-      expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'include' }))).toEqual(
-        naturalSortState
-      );
-      expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }))).toEqual(
-        naturalSortState
-      );
-    });
-
-    it('keeps the unresolved projection canonical without a DSL round trip', async () => {
-      const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
-      const { serializeThreadFilterQuery } = await import('./threadFilterDsl');
-
-      const projected = simplifyThreadFilterState(makeDefaultState({ resolved: 'exclude' }));
-      expect(projected.resolved).toBe('exclude');
-      expect(serializeThreadFilterQuery(projected)).toBe('-is:resolved');
-
-      const projectedOff = simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }));
-      expect(projectedOff.resolved).toBe('any');
-      expect(serializeThreadFilterQuery(projectedOff)).toBe('');
-    });
-  });
-
   describe('simplifyAgentlessThreadFilterState', () => {
     it('keeps only text search and sorting from the full toolbar state', async () => {
       const { simplifyAgentlessThreadFilterState } = await import('./roomThreadOverviewModel');
@@ -370,30 +305,6 @@ describe('roomThreadOverviewModel', () => {
         sortDirection: 'asc',
         freeText: 'needle',
         unsupportedQuery: 'from:alice',
-      });
-    });
-  });
-
-  describe('simplifyAgentlessSimpleThreadFilterState', () => {
-    it('keeps sorting while clearing every hidden filter dimension', async () => {
-      const { simplifyAgentlessSimpleThreadFilterState } = await import(
-        './roomThreadOverviewModel'
-      );
-
-      expect(
-        simplifyAgentlessSimpleThreadFilterState(
-          makeDefaultState({
-            resolved: 'exclude',
-            sortBy: 'lastReply',
-            sortDirection: 'asc',
-            freeText: 'hidden search',
-            tags: new Map([['priority', 'include']]),
-          })
-        )
-      ).toEqual({
-        ...makeDefaultState(),
-        sortBy: 'lastReply',
-        sortDirection: 'asc',
       });
     });
   });

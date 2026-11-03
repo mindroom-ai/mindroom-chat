@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   settings: {
-    simpleMode: false,
     showCanvasesInSidebar: true,
   },
   clientConfig: {} as { mindroom?: { canvas?: { enabled?: boolean } } },
@@ -71,7 +70,6 @@ vi.mock('react-i18next', async () => {
 });
 
 afterEach(() => {
-  state.settings.simpleMode = false;
   state.settings.showCanvasesInSidebar = true;
   state.clientConfig = {};
   state.setAccountSettings.mockReset();

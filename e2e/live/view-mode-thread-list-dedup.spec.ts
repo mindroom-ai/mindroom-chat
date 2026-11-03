@@ -51,9 +51,7 @@ test.describe('live room view-mode thread-list load ownership', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {});
     const stamp = Date.now();
     const roomName = `View mode load ownership ${stamp}`;
     const fixture = await createThreadFixture(homeserver, accessToken, {

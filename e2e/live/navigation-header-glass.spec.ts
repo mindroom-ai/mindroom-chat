@@ -41,7 +41,7 @@ for (const [themeId, width] of [
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        { ...savedSettings, simpleMode: false }
+        { ...savedSettings }
       );
       for (let index = 1; index <= 32; index += 1) {
         // eslint-disable-next-line no-await-in-loop

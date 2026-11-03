@@ -195,9 +195,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
     const username = getRequiredEnv('E2E_DEPLOYED_USERNAME');
     const password = getRequiredEnv('E2E_DEPLOYED_PASSWORD');
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, SETTINGS_EVENT_TYPE, {
-      simpleMode: false,
-    });
+    await setAccountData(homeserver, session.accessToken, session.userId, SETTINGS_EVENT_TYPE, {});
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
     await installScrollWriteProbe(page);

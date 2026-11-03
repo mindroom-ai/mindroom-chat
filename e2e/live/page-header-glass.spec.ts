@@ -43,7 +43,7 @@ for (const [themeId, width] of [
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        { ...savedSettings, simpleMode: false }
+        { ...savedSettings }
       );
       const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
         name: 'MindRoom',

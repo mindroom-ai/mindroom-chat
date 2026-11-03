@@ -7,24 +7,18 @@ import { mDirectAtom } from '../../state/mDirectList';
 import { createSessionId } from '../../state/sessions';
 import { getAccountData } from '../../utils/room';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
-import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
-  DEFAULT_ROOM_VIEW_MODE,
   getAvailableRoomViewModes,
-  isRoomViewModeAvailable,
   roomViewModeAtomFamily,
   type RoomViewMode,
 } from './roomViewMode';
 
 export const resolveEffectiveRoomViewMode = (
   storedViewMode: RoomViewMode,
-  simpleMode: boolean,
   humanDirectRoom: boolean
 ): RoomViewMode => {
   if (humanDirectRoom) return 'classic';
-  return isRoomViewModeAvailable(storedViewMode, simpleMode)
-    ? storedViewMode
-    : DEFAULT_ROOM_VIEW_MODE;
+  return storedViewMode;
 };
 
 // Thread lists render a card per thread, so one client listener serves every direct room's hooks.
@@ -83,13 +77,12 @@ const useIsHumanDirectRoom = (roomId: string): boolean => {
 /** One account-scoped source for persisted and effective room view modes. */
 export const useRoomViewMode = (roomId: string) => {
   const mx = useMatrixClient();
-  const simpleMode = useSimpleMode();
   const humanDirectRoom = useIsHumanDirectRoom(roomId);
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
   const atom = useMemo(() => roomViewModeAtomFamily(sessionId, roomId), [roomId, sessionId]);
   const [storedViewMode, setViewMode] = useAtom(atom);
-  const viewMode = resolveEffectiveRoomViewMode(storedViewMode, simpleMode, humanDirectRoom);
-  const availableViewModes = getAvailableRoomViewModes(simpleMode, humanDirectRoom);
+  const viewMode = resolveEffectiveRoomViewMode(storedViewMode, humanDirectRoom);
+  const availableViewModes = getAvailableRoomViewModes(humanDirectRoom);
 
   return { availableViewModes, setViewMode, storedViewMode, viewMode };
 };

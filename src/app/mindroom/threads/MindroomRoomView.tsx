@@ -99,7 +99,6 @@ export function RoomView({
             summaryMap={threadState.summaryMap ?? EMPTY_SUMMARY_MAP}
             onStoreThreadSummary={threadState.storeThreadSummary ?? ignoreSummary}
             threadFilterState={threadState.threadFilterState}
-            threadSortFreezeState={threadState.threadSortFreezeState ?? null}
             viewMode={threadState.viewMode}
             compactRoomScrollStateRef={compactRoomScrollStateRef}
             editor={editor}

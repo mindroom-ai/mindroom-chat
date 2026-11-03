@@ -5,7 +5,6 @@ import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientCo
 import { SidebarNav } from './SidebarNav';
 
 const mocks = vi.hoisted(() => ({
-  simpleMode: false,
   showCanvases: true,
   homeserverUrl: 'https://mindroom.chat',
 }));
@@ -60,7 +59,6 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
-  useSimpleMode: () => mocks.simpleMode,
   useShowCanvasesInSidebar: () => mocks.showCanvases,
 }));
 
@@ -78,7 +76,6 @@ const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boo
 
 describe('SidebarNav', () => {
   beforeEach(() => {
-    mocks.simpleMode = false;
     mocks.showCanvases = true;
     mocks.homeserverUrl = 'https://mindroom.chat';
   });
@@ -108,7 +105,7 @@ describe('SidebarNav', () => {
     renderer.unmount();
   });
 
-  it('shows Canvases after Threads where canvases are on, in Simple Mode too', () => {
+  it('shows Canvases after Threads where canvases are on', () => {
     const canvases = { mindroom: { canvas: { enabled: true } } };
     const renderer = renderSidebarNav(canvases);
     expect(
@@ -123,11 +120,6 @@ describe('SidebarNav', () => {
     expect(hasTab(off, 'canvases')).toBe(false);
     off.unmount();
 
-    mocks.simpleMode = true;
-    const simple = renderSidebarNav(canvases);
-    expect(hasTab(simple, 'canvases')).toBe(true);
-    simple.unmount();
-
     // The user can turn the button off in Settings → General → Interface.
     mocks.showCanvases = false;
     const turnedOff = renderSidebarNav(canvases);
@@ -135,12 +127,10 @@ describe('SidebarNav', () => {
     turnedOff.unmount();
   });
 
-  it('keeps Explorer visible in the full interface regardless of the Simple Mode option', () => {
+  it('keeps Explorer visible in the full interface', () => {
     const cases: [ClientConfig, boolean][] = [
       [{}, true],
       [{ sidebar: {} }, true],
-      [{ sidebar: { showExploreCommunityInSimpleMode: false } }, true],
-      [{ sidebar: { showExploreCommunityInSimpleMode: true } }, true],
       [{ sidebar: { showExploreCommunity: false } }, false],
       [{ sidebar: { showExploreCommunity: true } }, true],
     ];
@@ -152,52 +142,6 @@ describe('SidebarNav', () => {
 
       renderer.unmount();
     });
-  });
-
-  it('only shows Explorer in Simple Mode when its dedicated option is enabled', () => {
-    mocks.simpleMode = true;
-    const cases: [ClientConfig, boolean][] = [
-      [{}, false],
-      [{ sidebar: {} }, false],
-      [{ sidebar: { showExploreCommunityInSimpleMode: false } }, false],
-      [{ sidebar: { showExploreCommunityInSimpleMode: true } }, true],
-      [{ sidebar: { showExploreCommunity: false } }, false],
-      [{ sidebar: { showExploreCommunity: true } }, false],
-      [{ sidebar: { showExploreCommunity: false, showExploreCommunityInSimpleMode: true } }, true],
-    ];
-
-    cases.forEach(([config, visible]) => {
-      const renderer = renderSidebarNav(config);
-
-      expect(hasTab(renderer, 'explore')).toBe(visible);
-
-      renderer.unmount();
-    });
-  });
-
-  it('keeps other advanced navigation hidden when Explorer is enabled in Simple Mode', () => {
-    mocks.simpleMode = true;
-    const renderer = renderSidebarNav({ sidebar: { showExploreCommunityInSimpleMode: true } });
-
-    expect(hasTab(renderer, 'explore')).toBe(true);
-    expect(hasTab(renderer, 'threads')).toBe(false);
-    expect(hasTab(renderer, 'mindroom')).toBe(false);
-    expect(hasTab(renderer, 'create')).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('keeps spaces visible in Simple Mode while hiding advanced navigation', () => {
-    mocks.simpleMode = true;
-    const renderer = renderSidebarNav();
-
-    expect(hasTab(renderer, 'spaces')).toBe(true);
-    expect(hasTab(renderer, 'threads')).toBe(false);
-    expect(hasTab(renderer, 'explore')).toBe(false);
-    expect(hasTab(renderer, 'mindroom')).toBe(false);
-    expect(hasTab(renderer, 'create')).toBe(false);
-
-    renderer.unmount();
   });
 
   it('shows Local MindRoom only for accounts on the provisioning homeserver', () => {

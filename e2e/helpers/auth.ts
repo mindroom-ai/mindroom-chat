@@ -44,8 +44,7 @@ export const waitForLoggedInShell = async (page: Page) => {
         const activeAccountButtons = await page
           .getByRole('button', { name: activeAccountButtonNamePattern })
           .count();
-        // Simple Mode intentionally hides "Add account". The active account control is the
-        // mode-independent signal that the authenticated shell has mounted.
+        // The active account control is the signal that the authenticated shell has mounted.
         return activeAccountButtons > 0;
       },
       {
@@ -119,7 +118,7 @@ export const setFullInterfaceModeForSession = async (
     session.accessToken,
     session.userId,
     mindroomAccountSettingsEventType,
-    { ...settings, simpleMode: false }
+    { ...settings }
   );
 
   return () =>

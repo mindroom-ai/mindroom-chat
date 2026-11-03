@@ -17,11 +17,10 @@ const isHomeRoom = (
   mx: MatrixClient,
   roomId: string,
   directs: Set<string>,
-  roomToParents: RoomToParents,
-  includeChildRooms: boolean
+  roomToParents: RoomToParents
 ): boolean => {
   if (directs.has(roomId)) return false;
-  if (!includeChildRooms && (roomToParents.get(roomId)?.size ?? 0) > 0) return false;
+  if ((roomToParents.get(roomId)?.size ?? 0) > 0) return false;
   const room = mx.getRoom(roomId);
   return !isSpace(room) && !isMindroomEmojiRoom(room);
 };
@@ -29,16 +28,14 @@ const isHomeRoom = (
 /**
  * Rooms that Home lists and message search covers from Home: joined rooms
  * that are not direct messages, not spaces, not the server emoji room, and
- * (unless `includeChildRooms`) not inside a space.
+ * not inside a space.
  */
 export const getHomeSearchRooms = (
   mx: MatrixClient,
   roomIds: string[],
   directs: Set<string>,
-  roomToParents: RoomToParents,
-  includeChildRooms = false
-): string[] =>
-  roomIds.filter((roomId) => isHomeRoom(mx, roomId, directs, roomToParents, includeChildRooms));
+  roomToParents: RoomToParents
+): string[] => roomIds.filter((roomId) => isHomeRoom(mx, roomId, directs, roomToParents));
 
 /** Room IDs shown under Rooms on Home. */
 export const useHomeRooms = (): string[] => {

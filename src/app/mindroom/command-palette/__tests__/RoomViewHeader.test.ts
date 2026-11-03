@@ -3,7 +3,6 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
-import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
   () => ({
@@ -337,7 +336,6 @@ const renderHeader = async (
   joinRequestCount = 0,
   headerProps: {
     hasMindroomAgents?: boolean;
-    callView?: boolean;
     computerAvailable?: boolean;
     computerOpen?: boolean;
     computerShown?: boolean;
@@ -348,13 +346,9 @@ const renderHeader = async (
     onCanvasOpen?: (canvasId: string) => void;
     onCanvasClose?: () => void;
     threadId?: string;
-  } = {},
-  simpleMode = false
+  } = {}
 ) => {
   const store = createStore();
-  store.set(mindroomAccountSettingsAtom, {
-    simpleMode,
-  });
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
     React.createElement(
@@ -381,26 +375,15 @@ afterEach(() => {
 });
 
 describe('RoomViewHeader', () => {
-  it.each([false, true])('hides schedules without agents when callView is %s', async (callView) => {
-    const { renderer, store } = await renderHeader(0, { hasMindroomAgents: false, callView });
-    expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
-    act(() => {
-      store.set(mindroomAccountSettingsAtom, {
-        simpleMode: true,
-      });
-    });
+  it('hides schedules without agents', async () => {
+    const { renderer } = await renderHeader(0, { hasMindroomAgents: false });
     expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
-  it('keeps schedules accessible in simple mode on phones', async () => {
+  it('keeps schedules accessible on phones', async () => {
     screenSizeState.value = 'Mobile';
-    const { renderer, store } = await renderHeader();
-    act(() => {
-      store.set(mindroomAccountSettingsAtom, {
-        simpleMode: true,
-      });
-    });
+    const { renderer } = await renderHeader();
     expect(renderer.root.findByProps({ 'aria-label': 'Scheduled tasks (0)' })).toBeDefined();
     act(() => renderer.unmount());
   });
@@ -464,14 +447,13 @@ describe('RoomViewHeader', () => {
   );
 
   it.each([
-    { label: 'an unencrypted room', encrypted: false, simpleMode: false, offered: true },
-    { label: 'an encrypted room', encrypted: true, simpleMode: false, offered: false },
-    { label: 'Simple Mode', encrypted: false, simpleMode: true, offered: false },
+    { label: 'an unencrypted room', encrypted: false, offered: true },
+    { label: 'an encrypted room', encrypted: true, offered: false },
   ])(
     'offers message search in the room menu, not the top bar, for $label',
-    async ({ encrypted, simpleMode, offered }) => {
+    async ({ encrypted, offered }) => {
       if (encrypted) encryptionState.value = {};
-      const { renderer } = await renderHeader(0, {}, simpleMode);
+      const { renderer } = await renderHeader(0, {});
       const findIcons = (icon: string) =>
         renderer.root.findAll((node) => node.props?.['data-icon'] === icon);
       const textOf = (node: ReactTestInstance): string =>
@@ -712,17 +694,6 @@ describe('RoomViewHeader', () => {
 
       expect(onComputerToggle).toHaveBeenCalledOnce();
       expect(leaveRoom()).toHaveLength(0);
-      act(() => renderer.unmount());
-    });
-
-    it('keeps the room menu entry in Simple Mode', async () => {
-      const { renderer } = await renderHeader(
-        0,
-        { computerAvailable: true, onComputerToggle: vi.fn() },
-        true
-      );
-      await openMoreMenu(renderer);
-      expect(findMenuItem(renderer)).toHaveLength(1);
       act(() => renderer.unmount());
     });
   });

@@ -47,7 +47,7 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
     await matrixFetch(homeserver, settingsPath, {
       method: 'PUT',
       accessToken: session.accessToken,
-      body: JSON.stringify({ ...settings, simpleMode: false }),
+      body: JSON.stringify({ ...settings }),
     });
     await loginWithPassword(page, { homeserver, ...credentials });
     const collapse = page.getByRole('button', { name: 'Collapse navigation panel', exact: true });

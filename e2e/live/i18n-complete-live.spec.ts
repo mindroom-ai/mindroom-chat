@@ -28,9 +28,13 @@ test.describe('complete interface localization', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      simpleMode: true,
-    });
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
     await loginWithPassword(page, { homeserver, username, password });
     await page.getByRole('button', { name: /Open settings for / }).click();
     await page.getByRole('button', { name: 'General', exact: true }).click();

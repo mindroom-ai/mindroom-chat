@@ -14,7 +14,6 @@ import { settingsModalAtom } from '../../../state/settingsModal';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { useUserProfile } from '../../../hooks/useUserProfile';
 import { removeStoredSession } from '../../../../client/initMatrix';
-import { mindroomAccountSettingsAtom } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 const navigate = vi.fn();
 const mediaAuthState = vi.hoisted(() => ({ value: false }));
@@ -333,9 +332,6 @@ describe('SettingsTab', () => {
     vi.mocked(useStoredSessions).mockReturnValue([localSession]);
 
     const store = createStore();
-    store.set(mindroomAccountSettingsAtom, {
-      simpleMode: false,
-    });
     const renderer = create(
       React.createElement(Provider, { store }, React.createElement(SettingsTab))
     );

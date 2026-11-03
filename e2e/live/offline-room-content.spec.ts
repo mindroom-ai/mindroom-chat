@@ -181,7 +181,6 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
     });
     await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
       ...savedSettings,
-      simpleMode: false,
     });
 
     return {

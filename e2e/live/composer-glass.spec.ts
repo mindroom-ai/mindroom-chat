@@ -55,7 +55,6 @@ for (const [themeId, width] of [
     try {
       await setAccountData(homeserver, author.accessToken, author.userId, 'io.mindroom.settings', {
         ...accountSettings,
-        simpleMode: false,
       });
       await joinRoom(homeserver, reader.accessToken, roomId);
       readerJoined = true;

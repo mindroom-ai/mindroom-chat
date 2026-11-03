@@ -46,9 +46,7 @@ for (const surface of ['room', 'thread'] as const) {
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        {
-          simpleMode: false,
-        }
+        {}
       );
       const fixture = await createThreadFixture(homeserver, session.accessToken, {
         name: `Message disclosure ${surface} ${theme} ${Date.now()}`,

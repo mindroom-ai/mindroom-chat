@@ -296,9 +296,13 @@ test.describe('live issue073 persistent thread navigation', () => {
 
     const diagnostics = attachBrowserDiagnostics(page);
     const { fixtures, homeserver, password, session, username } = await prepareThreadFixtures(2);
-    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      'io.mindroom.settings',
+      {}
+    );
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
@@ -368,9 +372,7 @@ test.describe('live issue073 persistent thread navigation', () => {
         session.accessToken,
         session.userId,
         'io.mindroom.settings',
-        {
-          simpleMode: false,
-        }
+        {}
       );
 
       await page.setViewportSize({ width: viewport.width, height: viewport.height });

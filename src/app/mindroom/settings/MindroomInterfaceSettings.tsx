@@ -14,10 +14,7 @@ type MindroomInterfaceSettingsProps = {
   className?: string;
 };
 
-type MindroomBooleanSetting = keyof Pick<
-  MindroomAccountSettings,
-  'simpleMode' | 'showCanvasesInSidebar'
->;
+type MindroomBooleanSetting = keyof Pick<MindroomAccountSettings, 'showCanvasesInSidebar'>;
 
 type MindroomAccountSwitchProps = {
   setting: MindroomBooleanSetting;
@@ -71,29 +68,22 @@ function MindroomAccountSwitch({ setting, title, description }: MindroomAccountS
 
 /**
  * The "Interface" group at the top of Settings → General. Its switches are
- * backed by `io.mindroom.settings` account data. This group must stay visible
- * while simple mode is ON — it is the way back out.
+ * backed by `io.mindroom.settings` account data.
  */
 export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
   const { t } = useTranslation();
   const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
+  if (!canvasesEnabled) return null;
 
   return (
     <Box direction="Column" gap="100">
       <Text size="L400">{t('settings.general.interface.sectionTitle')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         <MindroomAccountSwitch
-          setting="simpleMode"
-          title={t('settings.general.interface.simpleMode')}
-          description={t('settings.general.interface.simpleModeDescription')}
+          setting="showCanvasesInSidebar"
+          title={t('settings.general.interface.showCanvasesInSidebar')}
+          description={t('settings.general.interface.showCanvasesInSidebarDescription')}
         />
-        {canvasesEnabled && (
-          <MindroomAccountSwitch
-            setting="showCanvasesInSidebar"
-            title={t('settings.general.interface.showCanvasesInSidebar')}
-            description={t('settings.general.interface.showCanvasesInSidebarDescription')}
-          />
-        )}
       </SequenceCard>
     </Box>
   );

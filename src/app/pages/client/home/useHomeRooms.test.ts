@@ -33,10 +33,6 @@ describe('getHomeSearchRooms', () => {
     const rooms = ['!root:example.org', '!emoji:example.org'];
 
     expect(getHomeSearchRooms(mx, rooms, new Set(), new Map())).toEqual(['!root:example.org']);
-    // Simple mode searches child rooms too, and still has no use for the emoji room.
-    expect(getHomeSearchRooms(mx, rooms, new Set(), new Map(), true)).toEqual([
-      '!root:example.org',
-    ]);
   });
 
   it('deduplicates room ids when multiple room sources are merged upstream', () => {

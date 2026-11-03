@@ -85,9 +85,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
-    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
-      simpleMode: false,
-    });
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {});
     const stamp = Date.now();
     const roomId = await createPrivateRoom(homeserver, accessToken, {
       name: `ISSUE-077 Classic Large ${stamp}`,

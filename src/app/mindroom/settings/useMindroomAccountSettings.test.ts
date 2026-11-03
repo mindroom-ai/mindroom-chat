@@ -17,21 +17,21 @@ const makeClient = (initial: Record<string, unknown>) => {
 
 describe('enqueueMindroomAccountSettingsPatch', () => {
   it('serializes same-turn patches and keeps the last value for each setting', async () => {
-    const { mx, setAccountData } = makeClient({ simpleMode: false, futureKey: 'keep' });
+    const { mx, setAccountData } = makeClient({ showCanvasesInSidebar: false, futureKey: 'keep' });
 
-    const first = enqueueMindroomAccountSettingsPatch(mx, { simpleMode: true });
-    const second = enqueueMindroomAccountSettingsPatch(mx, { simpleMode: false });
+    const first = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
+    const second = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
     await Promise.all([first, second]);
 
     expect(setAccountData).toHaveBeenCalledTimes(2);
     expect(setAccountData).toHaveBeenLastCalledWith(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE, {
-      simpleMode: false,
+      showCanvasesInSidebar: false,
       futureKey: 'keep',
     });
   });
 
   it('serializes patches queued during a write and re-reads echoed content', async () => {
-    let content: Record<string, unknown> = { simpleMode: false, futureKey: 'v1' };
+    let content: Record<string, unknown> = { showCanvasesInSidebar: false, futureKey: 'v1' };
     let releaseFirst: (() => void) | undefined;
     const firstWrite = new Promise<void>((resolve) => {
       releaseFirst = resolve;
@@ -50,28 +50,28 @@ describe('enqueueMindroomAccountSettingsPatch', () => {
       setAccountData,
     } as unknown as MatrixClient;
 
-    const first = enqueueMindroomAccountSettingsPatch(mx, { simpleMode: true });
+    const first = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
     await vi.waitFor(() => expect(setAccountData).toHaveBeenCalledTimes(1));
-    const second = enqueueMindroomAccountSettingsPatch(mx, { simpleMode: false });
+    const second = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
     releaseFirst?.();
     await Promise.all([first, second]);
 
     expect(setAccountData).toHaveBeenCalledTimes(2);
     expect(setAccountData).toHaveBeenLastCalledWith(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE, {
-      simpleMode: false,
+      showCanvasesInSidebar: false,
       futureKey: 'server-v2',
     });
   });
 
   it('continues with a later patch after a failed batch', async () => {
-    const { mx, setAccountData } = makeClient({ simpleMode: false });
+    const { mx, setAccountData } = makeClient({ showCanvasesInSidebar: false });
     setAccountData.mockRejectedValueOnce(new Error('offline'));
 
-    await expect(enqueueMindroomAccountSettingsPatch(mx, { simpleMode: true })).rejects.toThrow(
-      'offline'
-    );
     await expect(
-      enqueueMindroomAccountSettingsPatch(mx, { simpleMode: false })
+      enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true })
+    ).rejects.toThrow('offline');
+    await expect(
+      enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false })
     ).resolves.toBeUndefined();
 
     expect(setAccountData).toHaveBeenCalledTimes(2);

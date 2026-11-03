@@ -10,32 +10,15 @@ import { createSessionId } from '../../state/sessions';
 import { getRoomViewModeStorageKey, type RoomViewMode } from './roomViewMode';
 import { resolveEffectiveRoomViewMode, useRoomViewMode } from './useRoomViewMode';
 
-const simpleModeState = vi.hoisted(() => ({ value: true }));
-
-vi.mock('../settings/useMindroomAccountSettings', () => ({
-  useSimpleMode: () => simpleModeState.value,
-}));
-
 describe('resolveEffectiveRoomViewMode', () => {
-  it('keeps compact and threaded preferences while Simple Mode is enabled', () => {
-    expect(resolveEffectiveRoomViewMode('compact', true, false)).toBe('compact');
-    expect(resolveEffectiveRoomViewMode('threaded', true, false)).toBe('threaded');
+  it('preserves the account-scoped room preference', () => {
+    expect(resolveEffectiveRoomViewMode('classic', false)).toBe('classic');
+    expect(resolveEffectiveRoomViewMode('threaded', false)).toBe('threaded');
   });
 
-  it('keeps Classic out of Simple Mode by falling back to compact', () => {
-    expect(resolveEffectiveRoomViewMode('classic', true, false)).toBe('compact');
-  });
-
-  it('preserves the account-scoped room preference outside Simple Mode', () => {
-    expect(resolveEffectiveRoomViewMode('classic', false, false)).toBe('classic');
-    expect(resolveEffectiveRoomViewMode('threaded', false, false)).toBe('threaded');
-  });
-
-  it('shows a direct message between people in Classic, also in Simple Mode', () => {
-    expect(resolveEffectiveRoomViewMode('compact', true, true)).toBe('classic');
-    expect(resolveEffectiveRoomViewMode('threaded', true, true)).toBe('classic');
-    expect(resolveEffectiveRoomViewMode('compact', false, true)).toBe('classic');
-    expect(resolveEffectiveRoomViewMode('threaded', false, true)).toBe('classic');
+  it('shows a direct message between people in Classic', () => {
+    expect(resolveEffectiveRoomViewMode('compact', true)).toBe('classic');
+    expect(resolveEffectiveRoomViewMode('threaded', true)).toBe('classic');
   });
 });
 
@@ -114,7 +97,6 @@ describe('useRoomViewMode', () => {
   const rerender = (probes: string[]) => act(() => renderer?.update(tree(probes)));
 
   beforeEach(() => {
-    simpleModeState.value = true;
     directContent = {};
     mx = createClient();
     vi.stubGlobal('localStorage', {
@@ -161,7 +143,7 @@ describe('useRoomViewMode', () => {
     setMembership(roomId, agentId, 'invite');
 
     expect(results.get(roomId)?.viewMode).toBe('threaded');
-    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
     expect(storedMode(roomId)).toBe('"threaded"');
   });
 
@@ -171,7 +153,7 @@ describe('useRoomViewMode', () => {
     storeMode(roomId, 'threaded');
     render([roomId], [roomId]);
     expect(results.get(roomId)?.viewMode).toBe('threaded');
-    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
 
     setMembership(roomId, agentId, 'leave');
 
@@ -182,7 +164,6 @@ describe('useRoomViewMode', () => {
   it('keeps the stored mode in a room of people that is not a direct message', () => {
     const roomId = '!people-room:example.org';
     addRoom(roomId, [userId, '@bob:example.org']);
-    simpleModeState.value = false;
     storeMode(roomId, 'threaded');
 
     render([roomId], []);
@@ -215,7 +196,7 @@ describe('useRoomViewMode', () => {
     render([roomId], [roomId]);
 
     expect(results.get(roomId)?.viewMode).toBe('threaded');
-    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
   });
 
   it('shows Classic once the m.direct agent partner has left or is banned', () => {
