@@ -137,7 +137,7 @@ function CustomFormatForm({ initial, onSave }: { initial: string; onSave: (f: st
   return (
     <Box as="form" direction="Column" gap="100" onSubmit={submit}>
       <Box gap="200" alignItems="Center">
-        <Box grow="Yes">
+        <Box grow="Yes" direction="Column">
           <Input
             name="customDateFormatInput"
             aria-label={t('settings.general.dateTime.dateFormat')}
