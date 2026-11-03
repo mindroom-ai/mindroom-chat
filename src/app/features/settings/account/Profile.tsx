@@ -7,6 +7,7 @@ import { useUserProfile } from '../../../hooks/useUserProfile';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useFilePicker } from '../../../hooks/useFilePicker';
 import { useAlive } from '../../../hooks/useAlive';
+import { useCapabilities } from '../../../hooks/useCapabilities';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
 import { UserAvatar } from '../../../components/user-avatar';
@@ -64,6 +65,8 @@ function AvatarTile() {
   const [busy, setBusy] = useState<Busy>();
   const [failed, setFailed] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Matrix spec, "Capabilities negotiation": a server may forbid profile picture changes.
+  const locked = useCapabilities()['m.set_avatar_url']?.enabled === false;
 
   const shownName = displayName ?? getMxIdLocalPart(userId) ?? userId;
   const picture = avatarUrl
@@ -137,13 +140,13 @@ function AvatarTile() {
         radii="300"
         variant="Secondary"
         fill="Soft"
-        disabled={busy !== undefined}
+        disabled={locked || busy !== undefined}
         before={busy === 'uploading' ? <Spinner size="50" variant="Secondary" /> : undefined}
         onClick={pickImage}
       >
         <Text size="B300">{t('featureUi.settings.account.profile.upload')}</Text>
       </Button>
-      {avatarUrl && (
+      {avatarUrl && !locked && (
         <Button
           size="300"
           radii="300"
@@ -191,8 +194,9 @@ function DisplayNameTile() {
   // A new name from the server (or another device) replaces the draft.
   useEffect(() => setDraft(savedName ?? ''), [savedName]);
 
+  const locked = useCapabilities()['m.set_displayname']?.enabled === false;
   const nextName = draft.trim();
-  const canSave = nextName !== '' && nextName !== savedName;
+  const canSave = !locked && nextName !== '' && nextName !== savedName;
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -218,6 +222,7 @@ function DisplayNameTile() {
             size="400"
             radii="300"
             value={draft}
+            readOnly={locked}
             onChange={(event) => setDraft(event.currentTarget.value)}
           />
         </Box>
