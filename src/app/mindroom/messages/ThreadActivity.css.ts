@@ -68,9 +68,9 @@ export const Icon = styleVariants({
 });
 
 export const Title = style({
-
-
-
+  flexShrink: 0,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
 });
 
 export const Detail = style({

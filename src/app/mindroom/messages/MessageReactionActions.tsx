@@ -59,15 +59,15 @@ export function MessageQuickReactions({
   imagePackRooms,
   onReaction,
 }: {
-
-
-
-
-
-
-
+  imagePackRooms: Room[];
+  /** Called with the chosen emoji; custom emoji come from the packs of `imagePackRooms`. */
+  onReaction: ReactionHandler;
+}) {
+  const client = useMatrixClient();
+  // Custom emoji load through authenticated media when the server supports it.
+  const authenticatedMedia = useMediaAuthentication();
   const packs = useRelevantImagePacks(ImageUsage.Emoticon, imagePackRooms);
-  const recent = useRecentEmoji(mx, QUICK_REACTION_COUNT, packs);
+  const recent = useRecentEmoji(client, QUICK_REACTION_COUNT, packs);
 
   if (recent.length === 0) return null;
 
@@ -76,14 +76,14 @@ export function MessageQuickReactions({
       {recent.map((emoji) => {
         if (isCustomEmoji(emoji)) {
           const src =
-            mx.mxcUrlToHttp(
+            client.mxcUrlToHttp(
               emoji.url,
               undefined,
               undefined,
               undefined,
               undefined,
               undefined,
-              useAuthentication
+              authenticatedMedia
             ) ?? emoji.url;
           return (
             <QuickReaction

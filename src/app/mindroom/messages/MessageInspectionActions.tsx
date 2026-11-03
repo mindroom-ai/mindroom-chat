@@ -76,21 +76,23 @@ const getEventSource = (mEvent: MatrixEvent): string => {
   )}`;
 };
 
+/** What every inspection menu item gets from the message menu. */
+type InspectionItemProps = {
+  room: Room;
+  onClose?: () => void;
+};
+
 /** "View Source": the event as JSON. */
 export function MessageSourceCodeItem({
   mEvent,
   onClose,
-}: {
-  room: Room;
-
-
-
-
-
-
-
-
+}: InspectionItemProps & { mEvent: MatrixEvent }) {
+  const { t } = useTranslation();
+  // The JSON is built when the dialog renders, so it shows the event's current decryption and edit.
+  return (
+    <MenuDialogItem
       label={t('mindroomUi.messages.messageInspectionActions.viewSource')}
+      icon={Icons.BlockCode}
       onClose={onClose}
       renderDialog={(requestClose) => (
         <TextViewer
@@ -109,16 +111,12 @@ export function MessageReadReceiptItem({
   room,
   eventId,
   onClose,
-}: {
-  room: Room;
-  eventId: string;
-  onClose?: () => void;
-}) {
+}: InspectionItemProps & { eventId: string }) {
   const { t } = useTranslation();
   return (
     <MenuDialogItem
-      icon={Icons.CheckTwice}
       label={t('mindroomUi.messages.messageInspectionActions.readReceipts')}
+      icon={Icons.CheckTwice}
       onClose={onClose}
       renderDialog={(requestClose) => (
         <EventReaders room={room} eventId={eventId} requestClose={requestClose} />

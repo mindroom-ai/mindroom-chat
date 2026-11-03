@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
 import { AvatarFallback, AvatarImage, Icon } from 'folds';
 import { getAvatarFallbackStyle, useImageFailed } from '../user-avatar/UserAvatar';
@@ -7,13 +7,10 @@ import * as css from './RoomAvatar.css';
 
 export { getRoomIconSrc };
 
-
-
-
-
-
-
-  className?: string;
+type RoomAvatarProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'className'> & {
+  roomId: string;
+  /** Rendered while there is no image or it failed to load. */
+  renderFallback: () => ReactNode;
 };
 
 /** A room's avatar image, or a colored fallback while there is none or it fails to load. */

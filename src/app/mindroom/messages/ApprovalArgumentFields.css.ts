@@ -41,9 +41,9 @@ export const Scalar = style({
 });
 
 export const Code = style({
-
-
-
+  borderRadius: config.radii.R300,
+  paddingBlock: config.space.S100, paddingInline: config.space.S200,
+  margin: 0,
   backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.ContainerActive} 45%, transparent)`,
   fontFamily: 'var(--font-mono)',
   fontSize: toRem(12.5),

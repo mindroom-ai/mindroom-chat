@@ -31,14 +31,18 @@ export type TUploadMetadata = {
   };
 };
 
-/** A file staged in the composer: what is uploaded (`file`), what the user chose, and how. */
+/** What is sent for a staged file: the bytes and, when they are encrypted, how to decrypt them. */
+type UploadPayload = {
+  /** The bytes sent to the media repository: `originalFile` or its encrypted copy. */
+  file: TUploadContent;
+  /** Present when `file` is the encrypted form of `originalFile`. */
+  encInfo: EncryptedAttachmentInfo | undefined;
+};
 
-
-
-
-
-
-
+/** A file staged in the composer: what the user chose, what is uploaded for it, and how. */
+export type TUploadItem = UploadPayload & {
+  originalFile: TUploadContent;
+  metadata: TUploadMetadata;
   /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
   prepError?: MatrixError;
 };

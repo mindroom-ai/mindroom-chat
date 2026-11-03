@@ -87,14 +87,14 @@ export const useRoomNavigate = () => {
   const roomToParents = useAtomValue(roomToParentsAtom);
   const directChats = useAtomValue(mDirectAtom);
   // Paths name rooms and spaces by their canonical alias when they have one.
-
-
-
+  const client = useMatrixClient();
+  const navigate = useNavigate();
+  const selectedSpaceId = useSelectedSpace();
 
   const roomPath = useCallback(
     (roomId: string, eventId?: string) =>
-      getRoomPath(mx, roomToParents, directChats, selectedSpaceId, roomId, eventId),
-    [mx, roomToParents, directChats, selectedSpaceId]
+      getRoomPath(client, roomToParents, directChats, selectedSpaceId, roomId, eventId),
+    [client, roomToParents, directChats, selectedSpaceId]
   );
 
   /** Opens an app path as it is, such as a path recorded earlier. */
@@ -116,9 +116,9 @@ export const useRoomNavigate = () => {
   /** Opens a space's own page, addressed by its canonical alias when it has one. */
   const navigateSpace = useCallback(
     (spaceId: string, opts?: NavigateOptions) => {
-      navigate(getSpacePath(getCanonicalAliasOrRoomId(mx, spaceId)), opts);
+      navigate(getSpacePath(getCanonicalAliasOrRoomId(client, spaceId)), opts);
     },
-    [mx, navigate]
+    [client, navigate]
   );
 
   /** Opens the room focused on `eventId`, without opening its thread. */

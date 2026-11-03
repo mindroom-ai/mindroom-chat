@@ -186,9 +186,9 @@ export const SectionIcon = style({
   flexShrink: 0,
   display: 'grid',
   placeItems: 'center',
-
-
-
+  borderRadius: '8px',
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
 });
 export const SectionTitle = style({
   flexShrink: 0,
@@ -246,9 +246,9 @@ export const DurationRow = style({
 });
 // Solid segments: on a glass sheet, see-through buttons read as disabled.
 export const Segmented = style({
-
-
-
+  display: 'inline-flex',
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  borderRadius: '8px',
   overflow: 'hidden',
 });
 export const Segment = style({

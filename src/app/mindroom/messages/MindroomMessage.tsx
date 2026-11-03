@@ -577,41 +577,53 @@ export function MessageReportItem({ room, mEvent, onClose }: EventActionItemProp
   );
 }
 
-
-
-
-
-
-
-
-
-  onEditId?: (eventId: string | undefined) => void;
-
-
-
-
-
-
-
-  messageLayout?: MessageLayout;
-  messageSpacing?: MessageSpacing;
-  onUserClick?: MouseEventHandler<HTMLButtonElement>;
-  onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
-  /** Reply to this message, or start (or continue) its thread. */
-  onReplyClick?: (eventId: string, startThread?: boolean) => void;
-  onReactionToggle?: ReactionHandler;
-  /** The quoted message this one replies to, shown above the body. */
-
-
-
-
-  hour24Clock?: boolean;
-  dateFormatString?: string;
+/** The message, its content after edits, and the relations that decorate it. */
+type MessageSubject = {
+  room: Room;
+  mEvent: MatrixEvent;
   /** Content after edits and long-text hydration, used by the controls. */
   resolvedMessageContent?: Record<string, unknown>;
-  children?: ReactNode;
-  'data-message-id'?: string;
+  relations?: Relations;
 };
+
+/**
+ * What the viewer may do with the message; every flag defaults to off. `canSendReaction` is off
+ * for stickers, which take no reactions.
+ */
+type MessageAbilities = Partial<Record<'canDelete' | 'canPinEvent' | 'canSendReaction', boolean>>;
+
+/** How the row is drawn in the timeline. */
+type MessageAppearance = {
+  /** Continues the previous sender's group: no avatar or name header. */
+  collapse: boolean;
+  highlight: boolean;
+  messageLayout?: MessageLayout;
+  messageSpacing?: MessageSpacing;
+  hideReadReceipts?: boolean;
+  hour24Clock?: boolean;
+  dateFormatString?: string;
+};
+
+export type MessageProps = MessageSubject &
+  MessageAbilities &
+  MessageAppearance & {
+    /** Shows the inline editor in place of the body. */
+    edit?: boolean;
+    onEditId?: (eventId: string | undefined) => void;
+    onUserClick?: MouseEventHandler<HTMLButtonElement>;
+    onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
+    /** Reply to this message, or start (or continue) its thread. */
+    onReplyClick?: (eventId: string, startThread?: boolean) => void;
+    /** Rooms whose emoji packs the reaction pickers offer. */
+    imagePackRooms?: Room[];
+    onReactionToggle?: ReactionHandler;
+    children?: ReactNode;
+    /** The quoted message this one replies to, shown above the body. */
+    reply?: ReactNode;
+    /** The reaction chips, shown under the body. */
+    reactions?: ReactNode;
+    'data-message-id'?: string;
+  };
 
 const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
   const target = (evt.currentTarget.parentElement?.parentElement ??
@@ -656,10 +668,10 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     },
     ref
   ) => {
-
-
-
-
+    const client = useMatrixClient();
+    const { t } = useTranslation();
+    // Anchors of the context menu and of the emoji board while they are open.
+    const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // The hover toolbar shows while the pointer or the keyboard focus is inside the row.
     const [pointerInside, setPointerInside] = useState(false);
@@ -686,13 +698,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     );
     const extensionState = useMindroomMessageExtensionState(content, !!menuAnchor, mEvent);
     const copyState = getMindroomMessageCopyTextState(extensionState);
-    const closeMenu = () => setMenuAnchor(undefined);
+    const dismissMenu = () => setMenuAnchor(undefined);
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
     const avatarMxc = getMemberAvatarMxc(room, senderId);
     const avatarUrl = avatarMxc
-      ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
+      ? mxcUrlToHttp(client, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
       : undefined;
 
     const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
@@ -721,7 +733,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const compactLayout = messageLayout === MessageLayout.Compact;
     const renderBody = (controls?: { open: boolean; openDetails: () => void }) => {
       const openAiRun = () => {
-        closeMenu();
+        dismissMenu();
         controls?.openDetails();
       };
       const header = (
@@ -766,11 +778,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             initialFocus: false,
             returnFocusOnDeactivate: false,
             clickOutsideDeactivates: () => {
-              closeMenu();
+              dismissMenu();
               return true;
             },
             escapeDeactivates: () => {
-              closeMenu();
+              dismissMenu();
               return true;
             },
           }}
@@ -782,12 +794,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   imagePackRooms={imagePackRooms}
                   onReaction={(key, shortcode) => {
                     onReactionToggle(key, shortcode);
-                    closeMenu();
+                    dismissMenu();
                   }}
                 />
               )}
               {confirmed && relations && (
-                <MessageAllReactionItem room={room} relations={relations} onClose={closeMenu} />
+                <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
               )}
               {confirmed && onReplyClick && (
                 <MessageMenuAction
@@ -795,7 +807,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   icon={Icons.ReplyArrow}
                   onClick={() => {
                     onReplyClick(eventId);
-                    closeMenu();
+                    dismissMenu();
                   }}
                 />
               )}
@@ -805,7 +817,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   icon={Icons.ThreadPlus}
                   onClick={() => {
                     onReplyClick(eventId, true);
-                    closeMenu();
+                    dismissMenu();
                   }}
                 />
               )}
@@ -815,7 +827,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   icon={Icons.SmilePlus}
                   onClick={() => {
                     setEmojiAnchor(menuAnchor);
-                    closeMenu();
+                    dismissMenu();
                   }}
                 />
               )}
@@ -825,31 +837,31 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   originalContent={mEvent.getContent()}
                   resolvedContent={copyState.resolvedContent}
                   loading={copyState.loading}
-                  onClose={closeMenu}
+                  onClose={dismissMenu}
                 />
               ) : null}
               {confirmed && (
-                <MessageCopyLinkItem room={room} eventId={eventId} onClose={closeMenu} />
+                <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
               )}
               {confirmed && canPinEvent && (
-                <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
               )}
               <MindroomMessageMenuExtensions
                 controls={controls as never}
                 state={extensionState}
-                onClose={closeMenu}
+                onClose={dismissMenu}
                 onOpenAiRun={openAiRun}
               />
               {!hideReadReceipts && confirmed && (
-
-
-
-
-              {confirmed && canDelete && (
-                <MessageDeleteItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
               )}
-              {confirmed && senderId !== mx.getUserId() && (
-                <MessageReportItem room={room} mEvent={mEvent} onClose={closeMenu} />
+              <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              {confirmed && canDelete && (
+                <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+              )}
+              {confirmed && senderId !== client.getUserId() && (
+                <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
               )}
             </Box>
           </Menu>
@@ -976,14 +988,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
   }
 );
 
-
-
-
-
-
-
-  children?: ReactNode;
-  'data-message-id'?: string;
+/** A state or membership row shares its identity, highlight and slots with a message. */
+export type EventProps = Pick<
+  MessageProps,
+  'room' | 'mEvent' | 'highlight' | 'children' | 'data-message-id'
+> & {
+  messageSpacing: MessageSpacing;
 };
 
 const ROOM_STATE_LINES: Record<string, string> = {
