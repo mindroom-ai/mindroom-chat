@@ -36,7 +36,7 @@ export function MindroomMarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
       size="300"
       radii="300"
     >
-      <Text as="span" size="T300" truncate style={labelStyle}>
+      <Text as="span" size="T300" align="Left" truncate style={labelStyle}>
         {t('mindroomUi.notifications.mindroomMarkRoomReadMenuItem.markAsRead')}
       </Text>
     </MenuItem>
