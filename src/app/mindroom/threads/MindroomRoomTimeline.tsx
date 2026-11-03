@@ -1154,32 +1154,34 @@ export function RoomTimeline(props: RoomTimelineProps) {
     unreadInfo,
   });
 
-  // Scrolling near the top of a thread's loaded rows asks for older ones.
+  // Scrolling near the top of a thread's loaded rows asks for older ones. It follows the
+  // reader's scrolling: a page that added nothing must not ask again by itself.
   const virtualItems = virtualizer.getVirtualItems();
-  const firstRenderedIndex = virtualItems[0]?.index;
   const threadPaginatingBack = threadPagination.isPending('backward');
-  const { paginateBack: paginateThreadBack } = threadPagination;
-  useEffect(() => {
-    if (
-      shouldAutoPaginateThreadBack({
-        threadId,
-        firstRenderedIndex,
-        paginatingBack: threadPaginatingBack,
-        showLoadOlder: showThreadLoadOlder,
-        hasUserScrollIntent: threadUserScrolled,
-        triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
-      })
-    ) {
-      void paginateThreadBack();
-    }
-  }, [
-    firstRenderedIndex,
-    paginateThreadBack,
-    showThreadLoadOlder,
+  const autoPaginateRef = useLatestRef({
     threadId,
-    threadPaginatingBack,
-    threadUserScrolled,
-  ]);
+    paginatingBack: threadPaginatingBack,
+    showLoadOlder: showThreadLoadOlder,
+    hasUserScrollIntent: threadUserScrolled,
+    paginateBack: threadPagination.paginateBack,
+  });
+  useEffect(() => {
+    if (!scrollElement || !threadId) return undefined;
+    const checkTop = () => {
+      const current = autoPaginateRef.current;
+      const shouldPaginate = shouldAutoPaginateThreadBack({
+        threadId: current.threadId,
+        firstRenderedIndex: virtualizerRef.current.getVirtualItems()[0]?.index,
+        paginatingBack: current.paginatingBack,
+        showLoadOlder: current.showLoadOlder,
+        hasUserScrollIntent: current.hasUserScrollIntent,
+        triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+      });
+      if (shouldPaginate) void current.paginateBack();
+    };
+    scrollElement.addEventListener('scroll', checkTop, { passive: true });
+    return () => scrollElement.removeEventListener('scroll', checkTop);
+  }, [autoPaginateRef, scrollElement, threadId, virtualizerRef]);
 
   // The newest room row, while a request for it holds.
   const latestRowRequestRef = useLatestRowRequest({
@@ -1201,6 +1203,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     handleOpenEvent,
   });
 
+  const { paginateBack: paginateThreadBack } = threadPagination;
   const handleLoadOlderThread = useCallback(() => {
     void paginateThreadBack();
   }, [paginateThreadBack]);
