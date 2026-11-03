@@ -35,7 +35,7 @@ The full MindRoom Chat feature set is too large for one spec. It splits into mil
 |---|---|
 | M0 Foundations | Repository, clean-room rules, Nix toolchain, Rust core compiled to wasm, SolidJS shell, test harness, local Tuwunel test homeserver, license and similarity audit scripts |
 | M1 Core chat | Password login with `.well-known` discovery, session restore, sync, room list, full room view, full-screen thread view, sending text (Markdown), back pagination, edits applied in place (this is how MindRoom streams), `io.mindroom.stream_status`, the tool-call row from `io.mindroom.tool_trace`, the model badge from `io.mindroom.ai_run`, design tokens with the Paper, Midnight, and Studio themes, E2EE through the SDK defaults |
-| M2 MindRoom UX | Compact room view (threads as equal-height bars, titles, tags, the Unresolved filter, last-reply sort), thread titles in the thread header, interactive questions, tool approval, the Stop action, `!` command autocomplete, model picker, live reply frames (needs a Tuwunel sliding-sync extension) |
+| M2 MindRoom UX | Compact room view (threads as equal-height bars, titles, tags, the Unresolved filter, last-reply sort), thread titles on the full room view's thread rows (M1 shows them in the thread header), interactive questions, tool approval, the Stop action, `!` command autocomplete, model picker, live reply frames (needs a Tuwunel sliding-sync extension) |
 | M3 Account and security | SSO (OIDC), recovery key and cross-signing verification, devices, media upload and authenticated media download, notifications |
 | M4 Platforms | Desktop and mobile shells (Tauri 2), push notifications |
 | M5 Advanced | Panel dock with the Canvas, Computer (noVNC, MPL-2.0), and Members panels; calls through LiveKit; Connections portal; settings |
@@ -212,7 +212,7 @@ Message parts:
 
 - Agent replies sit in a card; human messages have no card. Agents have a rounded-square avatar, people a round one.
 - Model badge under the agent's avatar: `io.mindroom.ai_run.model.display_name`, else `config`.
-- Tool-call row: one row per message, collapsed by default: a check (completed) or spinner (any call still running), `Ran N tool calls` or `Running N tool calls`, then the tool names in order with repeats folded (`google_drive_read_file ×2`), and a chevron. Expanded: one line per call with name, `args_preview`, and `result_preview`.
+- Tool-call row: one row per message, collapsed by default: a check (completed) or spinner (any call still running), `Ran N tool calls` or `Running N tool calls` (N counts every call in the message, singular for one), then the tool names in order with repeats folded (`google_drive_read_file ×2`), and a chevron. Expanded: one line per call with name, `args_preview`, and `result_preview`.
 - Status pill: `Streaming` (pending, streaming), `Pending approval` (approval_pending), nothing for completed; cancelled, interrupted, and error show a muted pill with that word.
 - Approval card (M2): tool name, `Pending approval`, what and details, Approve and Deny.
 - Composer: attach, voice (M3), model picker (M2), `!` hint, send.
