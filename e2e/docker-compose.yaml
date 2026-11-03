@@ -1,6 +1,6 @@
 # Disposable Matrix homeserver for the end-to-end tests: `just hs-up` / `just hs-down`.
 #
-# Server name matrix.localhost, client API on http://127.0.0.1:28008, open registration
+# Server name matrix.localhost, client API on http://127.0.0.1:28008 (or E2E_MATRIX_PORT), open registration
 # (the specs register their own users with the m.login.dummy flow), federation off.
 # `just hs-down` removes the data volume, so every start is an empty server.
 # Option names come from the example configuration of the image (`tuwunel --generate-config`);
@@ -11,7 +11,7 @@ services:
   tuwunel:
     image: ghcr.io/mindroom-ai/mindroom-tuwunel:latest
     ports:
-      - '127.0.0.1:28008:8008'
+      - '127.0.0.1:${E2E_MATRIX_PORT:-28008}:8008'
     volumes:
       - tuwunel-data:/var/lib/tuwunel
     environment:
@@ -24,7 +24,7 @@ services:
       TUWUNEL_YES_I_AM_VERY_VERY_SURE_I_WANT_AN_OPEN_REGISTRATION_SERVER_PRONE_TO_ABUSE: 'true'
       TUWUNEL_ALLOW_FEDERATION: 'false'
       # Clients that start from the server name find the homeserver here.
-      TUWUNEL_WELL_KNOWN__CLIENT: http://127.0.0.1:28008
+      TUWUNEL_WELL_KNOWN__CLIENT: http://127.0.0.1:${E2E_MATRIX_PORT:-28008}
       # Specs show display names, so skip the default suffix added at registration.
       TUWUNEL_NEW_USER_DISPLAYNAME_SUFFIX: ''
       # Specs sign the same accounts in again and again; a 0 rate turns a login limit off.

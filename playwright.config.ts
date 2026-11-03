@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// The Vite dev server (`just dev`) listens here; see server in vite.config.js.
-const baseURL = 'http://127.0.0.1:4200';
+// The Vite dev server listens here: port 4200 (see server in vite.config.js), or E2E_APP_PORT,
+// which scripts/e2e-slot.sh sets so that several runs can share one machine.
+const appPort = process.env.E2E_APP_PORT ?? '4200';
+const baseURL = `http://127.0.0.1:${appPort}`;
 
 /**
  * Playwright runs the specs in e2e/ in the Chromium from `CHROMIUM_PATH` (exported by
@@ -35,7 +37,7 @@ const playwrightConfig = defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npx vite',
+    command: `npx vite --port ${appPort}`,
     url: baseURL,
     reuseExistingServer: true,
     timeout: 120_000,

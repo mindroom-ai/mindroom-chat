@@ -22,13 +22,13 @@ import { spawnSync } from 'node:child_process';
  * | `PERF_*`, `REPRO_REPLY_COUNT`, `IOS_INVARIANT_REPLY_COUNT` | Sizes of the `live/perf-*` and iOS specs |
  * | `PLAYWRIGHT_CHROMIUM_EXECUTABLE` | Browser for specs that launch their own (`just e2e` copies `CHROMIUM_PATH` into it) |
  *
- * With no `E2E_USERNAME` and a homeserver on http://127.0.0.1:28008 (`just hs-up`), this
+ * With no `E2E_USERNAME` and a homeserver on http://127.0.0.1:28008 (`just hs-up`; the port is E2E_MATRIX_PORT when set), this
  * registers one account per role on that disposable server, creates the fixture room, and
  * exports the variables above for them. It never registers anything on another homeserver.
  * Variables that are already set win.
  */
 
-export const LOCAL_HOMESERVER = 'http://127.0.0.1:28008';
+export const LOCAL_HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const LOCAL_SERVER_NAME = 'matrix.localhost';
 const LOCAL_PASSWORD = 'e2e-local-password';
 const FIXTURE_ROOM_ALIAS = `#mindroom-e2e-fixture:${LOCAL_SERVER_NAME}`;

@@ -5,7 +5,7 @@ import {
 } from '../helpers/browserDiagnostics';
 
 // The disposable homeserver of `just hs-up` (open registration, server name matrix.localhost).
-const HOMESERVER = 'http://127.0.0.1:28008';
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'boot-spec-password';
 
 const homeserverIsUp = async (): Promise<boolean> => {
