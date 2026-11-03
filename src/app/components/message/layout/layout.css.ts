@@ -30,9 +30,6 @@ export const MessageBase = recipe({
     collapse: {
       true: { marginTop: 0 },
     },
-    autoCollapse: {
-      true: {},
-    },
     highlight: {
       true: { backgroundColor: color.Primary.Container },
     },

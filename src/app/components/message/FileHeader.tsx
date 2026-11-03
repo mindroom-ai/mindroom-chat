@@ -1,29 +1,10 @@
-import React, { ReactNode, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { Icon, IconButton, Icons, Spinner } from 'folds';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
 import { saveFile } from '../../mindroom/native/nativeFileSave';
 import { useAttachmentAction } from './attachmentDownload';
-
-type FileHeaderProps = {
-  body: string;
-  mimeType: string;
-  after?: ReactNode;
-};
-
-/** File name line above a file's actions. */
-export function FileHeader({ body, mimeType, after }: FileHeaderProps) {
-  return (
-    <Box alignItems="Center" gap="200" style={{ minWidth: 0 }} title={mimeType}>
-      <Icon size="100" src={Icons.File} />
-      <Text size="T300" truncate style={{ flexGrow: 1, minWidth: 0 }}>
-        {body}
-      </Text>
-      {after}
-    </Box>
-  );
-}
 
 type FileDownloadButtonProps = {
   filename: string;

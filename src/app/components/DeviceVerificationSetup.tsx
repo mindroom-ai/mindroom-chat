@@ -209,20 +209,20 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
               }}
             >
               <div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                <ActionUIAFlowsLoader
+                  authData={uiaRequest.authData}
+                  unsupported={() => <UnsupportedUIA onClose={cancelUIA} />}
+                >
+                  {(ongoingFlow) => (
+                    <ActionUIA
+                      authData={uiaRequest.authData}
+                      ongoingFlow={ongoingFlow}
+                      action={uiaRequest.resolve}
+                      onCancel={cancelUIA}
+                    />
+                  )}
+                </ActionUIAFlowsLoader>
+              </div>
             </FocusTrap>
           </OverlayCenter>
         </Overlay>
@@ -265,7 +265,7 @@ function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
           wordBreak: 'break-all',
         }}
       >
-        <Text as="code" size="T300" data-recovery-key>
+        <Text as="code" size="T300">
           {recoveryKey}
         </Text>
       </Box>

@@ -1,6 +1,6 @@
 import React, { ComponentProps, ReactNode, RefObject } from 'react';
 import classNames from 'classnames';
-import { Box, Icon, IconSrc, Line, Scroll, Text, as } from 'folds';
+import { Box, Line, Scroll, Text, as } from 'folds';
 import { Header } from '../glass/GlassPrimitives';
 import { useSurfaceContext } from '../glass/SurfaceContext';
 import { inheritSurface } from '../glass/Surface.css';
@@ -28,15 +28,15 @@ import * as css from './style.css';
       )}
     >
       {nav}
+      {nav && screenSize !== ScreenSize.Mobile && (
+        <Line variant="Background" size="300" direction="Vertical" />
+      )}
+      {children}
+    </Box>
+  );
+}
 
-
-
-
-
-
-
-
-
+type PageNavProps = {
   size?: '400' | '300';
   children: ReactNode;
 };
@@ -57,26 +57,26 @@ import * as css from './style.css';
 }
 
 export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean }>(
+  ({ className, outlined: _outlined, scroll, ...props }, ref) => (
+    <Header
+      className={classNames(css.PageNavHeader, scroll && css.PageNavHeaderScroll, className)}
+      variant="Background"
+      size="600"
+      {...props}
+      ref={ref}
+    />
+  )
+);
 
-
-
-
-
-
-
-
-
-
-
-
+type PageNavContentProps = {
   scrollRef?: RefObject<HTMLDivElement>;
   children: ReactNode;
 };
 
 export function PageNavContent({ scrollRef, children }: PageNavContentProps) {
   return (
-
-
+    <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
+      <Scroll
 
 
 
@@ -144,16 +144,6 @@ export const PageHeader = as<'header', PageHeaderProps>(
 
 
 
-
-  <Box
-    alignItems="Center"
-    justifyContent="Center"
-    className={classNames(css.PageHeroEmpty, className)}
-    {...props}
-    ref={ref}
-  />
-));
-
 type PageHeroProps = {
   icon: ReactNode;
   title: ReactNode;
@@ -162,13 +152,13 @@ type PageHeroProps = {
 };
 
 /** Centered icon, title, and subtitle at the top of an empty or welcome page. */
-
-
-
-
-
-
-
+export function PageHero({ icon, title, subTitle, children }: PageHeroProps) {
+  return (
+    <Box direction="Column" gap="400">
+      <Box direction="Column" alignItems="Center" gap="200">
+        {icon}
+      </Box>
+      <Box as="h2" direction="Column" gap="200" alignItems="Center" style={{ margin: 0 }}>
         <Text align="Center" size="H2">
           {title}
         </Text>
@@ -181,9 +171,4 @@ type PageHeroProps = {
       {children}
     </Box>
   );
-}
-
-/** Large icon for a PageHero. */
-export function PageHeroIcon({ src }: { src: IconSrc }) {
-  return <Icon size="600" src={src} />;
 }

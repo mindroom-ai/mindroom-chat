@@ -2,7 +2,6 @@ import { BasePoint, BaseRange, Descendant, Editor, Element, Range, Text, Transfo
 import { HistoryEditor } from 'slate-history';
 import { BlockType } from './types';
 import type {
-  CommandElement,
   CustomElement,
   EmoticonElement,
   LinkElement,
@@ -39,18 +38,12 @@ export const createParagraphElement = (text = ''): ParagraphElement => ({
 });
 
 export const createLinkElement = (href: string, text: string): LinkElement => ({
+  type: BlockType.Link,
+  href,
+  children: [{ text }],
+});
 
-
-
-
-
-
-
-
-
-
-
-
+const INLINE_TYPES: ReadonlySet<string> = new Set([
   BlockType.Link,
   BlockType.Mention,
   BlockType.Emoticon,

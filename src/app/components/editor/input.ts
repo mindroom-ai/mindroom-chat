@@ -367,9 +367,3 @@ export const htmlToEditorInput = (unsafeHtml: string, markdown?: boolean): Desce
   const blocks = dropTrailingEmptyLine(parseBlocks(parse(unsafeHtml), !!markdown));
   return blocks.length > 0 ? blocks : [paragraph([])];
 };
-
-/** Converts plain text into composer lines. */
-export const plainToEditorInput = (text: string, markdown?: boolean): Descendant[] =>
-  text
-    .split('\n')
-    .map((line) => paragraph([{ text: markdown ? escapeMarkdownInlineSequences(line) : line }]));

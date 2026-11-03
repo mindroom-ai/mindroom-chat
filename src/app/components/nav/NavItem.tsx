@@ -17,6 +17,7 @@ type NavItemProps = {
 export const NavItem = as<'div', NavItemProps>(
   ({ as: AsNavItem = 'div', className, variant, radii, highlight, ...props }, ref) => (
     <AsNavItem
+      className={classNames(css.NavItem({ variant, radii, highlight }), className)}
 
 
 

@@ -8,7 +8,7 @@ type MessageBaseProps = {
   space?: MessageSpacing;
   /** A follow-up from the same sender: no gap and no header. */
   collapse?: boolean;
-  /** State events collapse into one dense run. */
+  /** Passed for state events; adds no styling, and is kept off the DOM. */
   autoCollapse?: boolean;
   highlight?: boolean;
   selected?: boolean;
@@ -18,10 +18,6 @@ type MessageBaseProps = {
 export const MessageBase = as<'div', MessageBaseProps>(
   ({ className, space, collapse, autoCollapse, highlight, selected, ...props }, ref) => (
     <div
-      className={classNames(
-        css.MessageBase({ space, collapse, autoCollapse, highlight, selected }),
-        className
-      )}
 
 
 

@@ -116,7 +116,6 @@ function TextMessage({
         as="div"
         size="T400"
         priority={notice ? '300' : undefined}
-        data-message-text-body
         style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', ...style }}
       >
         {prefix}

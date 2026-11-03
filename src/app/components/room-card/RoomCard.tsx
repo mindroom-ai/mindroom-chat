@@ -17,22 +17,12 @@ import {
 } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
 import { RoomAvatar } from '../room-avatar';
+import { getRoomIconSrc } from '../room-avatar/roomIconSrc';
 import { RoomAccessControl, type RoomAccessJoinRule } from '../room-access';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { isRoomId } from '../../utils/matrix';
 import { stopPropagation } from '../../utils/keyboard';
 import * as css from './style.css';
-
-/** The icon for a room or space without an avatar, by how it can be joined. */
-const getRoomCardIcon = (space: boolean, joinRule: string | undefined) => {
-  const restricted = joinRule === JoinRule.Invite || joinRule === JoinRule.Knock;
-  if (space) {
-    if (joinRule === JoinRule.Public) return Icons.SpaceGlobe;
-    return restricted ? Icons.SpaceLock : Icons.Space;
-  }
-  if (joinRule === JoinRule.Public) return Icons.HashGlobe;
-  return restricted ? Icons.HashLock : Icons.Hash;
-};
 
 
 
@@ -134,7 +124,7 @@ type RoomCardProps = {
 
 
 
-                <Icon size="400" src={getRoomCardIcon(space, knownJoinRule)} filled />
+                <Icon size="400" src={getRoomIconSrc(space, knownJoinRule)} filled />
               )}
             />
           </Avatar>

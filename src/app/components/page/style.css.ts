@@ -93,14 +93,3 @@ export const PageContentCenter = style({
     margin: 'auto',
   },
 ]);
-
-// An empty state's card; tall enough to read as the page body rather than a banner.
-
-
-
-
-
-
-
-  },
-]);

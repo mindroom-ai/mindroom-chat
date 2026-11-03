@@ -33,7 +33,7 @@ const highlightText = (regex: RegExp, text: string): ReactNode[] | undefined => 
     } else {
       if (match.index > last) parts.push(text.slice(last, match.index));
       parts.push(
-        <span key={match.index} data-search-highlight style={highlightStyle()}>
+        <span key={match.index} style={highlightStyle()}>
           {match[0]}
         </span>
       );
