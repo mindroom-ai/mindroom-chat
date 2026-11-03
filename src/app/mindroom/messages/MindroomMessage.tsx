@@ -26,7 +26,6 @@ import {
   PopOut,
   Text,
   color,
-  config,
   type RectCords,
 } from 'folds';
 import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
@@ -900,8 +899,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             before={collapse && !extensionState.aiRunInfo ? undefined : renderAvatar(true)}
           >
             {!collapse && header}
-            {/* The body stops short of the time above it, as the reference timeline does. */}
-            <div style={{ paddingInlineEnd: config.space.S200 }}>{body}</div>
+            {body}
           </ModernLayout>
         );
 

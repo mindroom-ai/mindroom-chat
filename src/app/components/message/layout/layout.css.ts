@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { MESSAGE_AVATAR_WIDTH_PX } from './config';
@@ -60,6 +60,24 @@ export const LayoutContent = style({
   flexGrow: 1,
   flexBasis: 0,
 });
+
+// The foldable body of a message row: the wrapper the timeline marks with `data-message-fold`.
+globalStyle('[data-message-fold]', {
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  maxWidth: '100%',
+});
+
+// A person's text message is only as wide as its text, so a short line leaves the row empty
+// beside it. Once it folds, its preview and Show full message button take the whole column.
+globalStyle('[data-message-fold="text"]:not(:has(> * > [data-message-disclosure]))', {
+  alignItems: 'flex-start',
+});
+
+// The hover options of the row below float over this row's bottom edge, where the fold button
+// sits; the button stays on top, so it can still be clicked while that row is hovered.
+globalStyle('[data-message-fold] > * > [data-message-disclosure]', { zIndex: 2 });
 
 const bubbleColors = color.SurfaceVariant;
 

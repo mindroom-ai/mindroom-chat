@@ -132,6 +132,9 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
   return replyEventId !== previousEventId;
 };
 
+/** Text messages; their body is only as wide as their text (`data-message-fold`, layout.css.ts). */
+const TEXT_MSGTYPES: ReadonlySet<string> = new Set(['m.text', 'm.notice', 'm.emote']);
+
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
 
 /** The settings each message row reads; the row list re-renders when one changes. */
@@ -569,21 +572,31 @@ export const useTimelineMessageFeature = ({
             hour24Clock={!!hour24Clock}
             dateFormatString={dateFormatString}
           >
-            <CollapsibleMessage
-              expansionKey={eventId}
-              collapseMode={collapseMode}
-              forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
-              measurementKey={getCollapsibleMessageMeasurementKey(event, collapseMode, editedEvent)}
-              onInitialExpandConsumed={() => consumeLiveExpansion(eventId)}
-            >
-              {({ loadFullContent }) =>
-                isAgentReply ? (
-                  <LiveReplyMessageContent {...contentProps} hydrateLongText={loadFullContent} />
-                ) : (
-                  <RenderMessageContent {...contentProps} hydrateLongText={loadFullContent} />
-                )
+            <div
+              data-message-fold={
+                collapseMode !== 'always-expanded' && TEXT_MSGTYPES.has(msgType) ? 'text' : 'block'
               }
-            </CollapsibleMessage>
+            >
+              <CollapsibleMessage
+                expansionKey={eventId}
+                collapseMode={collapseMode}
+                forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
+                measurementKey={getCollapsibleMessageMeasurementKey(
+                  event,
+                  collapseMode,
+                  editedEvent
+                )}
+                onInitialExpandConsumed={() => consumeLiveExpansion(eventId)}
+              >
+                {({ loadFullContent }) =>
+                  isAgentReply ? (
+                    <LiveReplyMessageContent {...contentProps} hydrateLongText={loadFullContent} />
+                  ) : (
+                    <RenderMessageContent {...contentProps} hydrateLongText={loadFullContent} />
+                  )
+                }
+              </CollapsibleMessage>
+            </div>
           </Message>
           {historyRecords && historyRecords.length > 0 && (
             <ApprovalHistory records={historyRecords as never} />
