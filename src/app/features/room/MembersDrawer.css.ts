@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 // Measured from the members panel of docs/design/reference/room-light.png (1x): the header is
@@ -30,17 +30,36 @@ export const MembersHeaderControl = style({
   position: 'sticky',
   insetBlockStart: 0,
   zIndex: 2,
-  columnGap: config.space.S300,
   paddingInline: `${config.space.S300} ${endInset}`,
 });
+
+// The header is flat chrome: its buttons never paint a fill, resting, hovered or pressed;
+// keyboard focus still shows its outline.
+globalStyle(
+  `${MembersHeaderControl} button, ${MembersHeaderControl} button:hover, ${MembersHeaderControl} button:active`,
+  { backgroundColor: 'transparent', backgroundImage: 'none', boxShadow: 'none' }
+);
 
 export const MembersHeaderCount = style({
   fontWeight: config.fontWeight.W600,
 });
 
+/** "1 Invited" after the count: text that opens the Invited filter. */
 export const MembersHeaderInvited = style({
-  minWidth: 0,
   flexShrink: 0,
+  padding: 0,
+  border: 0,
+  color: color.Secondary.Main,
+  font: 'inherit',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { textDecoration: 'underline' },
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B400} solid ${color.Primary.Main}`,
+      outlineOffset: config.borderWidth.B400,
+      borderRadius: config.radii.R300,
+    },
+  },
 });
 
 /** The line that says why the list is empty. */

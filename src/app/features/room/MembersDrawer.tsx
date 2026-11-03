@@ -334,21 +334,25 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
         >
           <ScrollHeaderProvider value>
             <Header className={css.MembersHeaderControl} size="600" variant="Background">
-              <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+              <Box grow="Yes" alignItems="Center" gap="100" style={{ minWidth: 0 }}>
                 <Text className={css.MembersHeaderCount} size="H5" truncate>
                   {t('featureUi.room.membersDrawer.memberCount', { count: joinedCount })}
                 </Text>
                 {invitedCount > 0 && (
-                  <Chip
-                    className={css.MembersHeaderInvited}
-                    variant="Secondary"
-                    radii="Pill"
-                    onClick={() => setSelection(invitedIndex)}
-                  >
-                    <Text size="T200">
-                      {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
+                  <>
+                    <Text as="span" size="T200" priority="300" aria-hidden>
+                      ·
                     </Text>
-                  </Chip>
+                    <button
+                      type="button"
+                      className={css.MembersHeaderInvited}
+                      onClick={() => setSelection(invitedIndex)}
+                    >
+                      <Text as="span" size="T200">
+                        {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
+                      </Text>
+                    </button>
+                  </>
                 )}
               </Box>
               <Box shrink="No" alignItems="Center" gap="300">
