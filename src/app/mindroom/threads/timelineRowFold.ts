@@ -19,6 +19,23 @@ export type TimelineRowContext = {
 /** Messages from one sender within this many minutes share one author line. */
 const GROUP_MINUTES = 2;
 
+/**
+ * Event types that are parts of one turn: an agent's reply, the tool approval card it sends
+ * between the reply's parts, and the summary notice after it all sit under one author line.
+ * Other events group only with events of their own type.
+ */
+const TURN_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'm.room.message',
+  'm.room.encrypted',
+  'm.sticker',
+  'io.mindroom.tool_approval',
+]);
+
+const groupKind = (event: MatrixEvent): string => {
+  const type = event.getType();
+  return TURN_EVENT_TYPES.has(type) ? 'turn' : type;
+};
+
 /** Edits, reactions and redactions change other rows and have no row of their own. */
 export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
   reactionOrEditEvent(event) || !!event.isRedaction?.();
@@ -70,7 +87,7 @@ export const foldTimelineRowContexts = ({
         !dayChanged &&
         !!above &&
         above.getSender() === event.getSender() &&
-        above.getType() === event.getType() &&
+        groupKind(above) === groupKind(event) &&
         minuteDifference(above.getTs(), event.getTs()) < GROUP_MINUTES;
       const unreadDivider =
         hasRow &&
