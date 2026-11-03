@@ -23,9 +23,9 @@ typecheck-tests:
 typecheck-all:
     node scripts/typecheck-all.mjs
 
-# Run the unit tests.
+# Run the unit tests. On NixOS, scripts/with-fhs-bin.sh adds the /bin/bash and /usr/bin tools that tests of the iOS CI scripts expect.
 test *args:
-    npx vitest run {{args}}
+    bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
 # Lint with ESLint.
 lint:
