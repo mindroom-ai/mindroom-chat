@@ -91,6 +91,21 @@ const pushActiveSession = (): void => {
 };
 
 /**
+ * Whether this app has an activated worker that could take the page after a reload. Without one
+ * (registration failed, was blocked, or is still installing) a reload changes nothing.
+ */
+const hasActivatedServiceWorker = async (): Promise<boolean> => {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration(
+      ensureBasePathTrailingSlash(getAppBasePath())
+    );
+    return !!registration?.active;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * A signed-in page the service worker does not control cannot load
  * authenticated media. Reload once, marked as a recovery navigation, so the
  * worker can take the page; the address, history state and scroll target
@@ -105,6 +120,7 @@ const recoverServiceWorkerControl = async (): Promise<void> => {
   // Without a readable marker a reload could loop, so stay on this page.
   if (alreadyReloaded) return;
   if (await waitForServiceWorkerControl()) return;
+  if (!(await hasActivatedServiceWorker())) return;
 
   const url = new URL(window.location.href);
   url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
