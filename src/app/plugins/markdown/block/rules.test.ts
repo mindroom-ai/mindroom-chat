@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CodeBlockRule } from './rules';
-import { parseBlockMD } from './parser';
+import { BLOCK_MD_RULES, CodeBlockRule } from './rules';
+import { parseBlockMD, parseBlockMDWithRules } from './parser';
 
 const codeBlock = (text: string) => {
   const match = CodeBlockRule.match(text);
@@ -49,6 +49,26 @@ describe('fenced code blocks', () => {
     expect(result).toBeNull();
     expect(parseBlockMD(unclosed)).toBe(unclosed.split('\n').join('<br/>'));
     expect(ms).toBeLessThan(1000);
+  });
+
+  it('pairs fences once per parse, so blocks after an unclosed fence stay linear', () => {
+    // Each `````a` never closes; each ``` closes the one before it and opens the next block.
+    const text = '````a\n```\n'.repeat(6_000);
+    const { result, ms } = timed(() => parseBlockMD(text));
+    expect(result).toBe('````a<br/><pre data-md="```"><code>````a\n</code></pre>'.repeat(3_000));
+    expect(ms).toBeLessThan(1000);
+  });
+
+  it.each([
+    '````a\n```\nx\n```\n````\n',
+    '```\na\n$$\n```\n$$\n```\n',
+    '$$\n```\n$$\n```\ny\n```\n',
+    '# h\n```\ncode\n```\n> q\n```js\nz\n```',
+    '- item\n```\n- not item\n```\n```\n',
+    '````a\n```\n```\n````\n```\n',
+  ])('finds the same blocks in one pass as by searching each rest: %j', (text) => {
+    const searchEachRest = BLOCK_MD_RULES.map((rule) => ({ match: rule.match, html: rule.html }));
+    expect(parseBlockMD(text)).toBe(parseBlockMDWithRules(text, searchEachRest));
   });
 
   it('renders many code blocks in linear time', () => {

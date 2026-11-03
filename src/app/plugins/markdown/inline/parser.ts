@@ -65,12 +65,27 @@ const applyRules = (text: string, rules: InlineMDRule[], parseInline: InlineMDPa
 };
 
 /**
+ * How deep inline Markdown may nest, as in `**_~~a~~_**`. Text nested deeper stays as written, so
+ * a long run of delimiters costs one pass per level up to here and cannot exhaust the call stack.
+ */
+export const MAX_INLINE_MD_NESTING = 32;
+
+/**
  * Renders inline Markdown with the given rules. Inline code is always handled, before any rule,
  * so Markdown inside it stays literal. The input is HTML-escaped text; the output is HTML.
  */
 export const parseInlineMDWithRules = (text: string, rules: InlineMDRule[]): string =>
   withProtectedCode(text, (masked) => {
-    const parseInline: InlineMDParser = (part) => applyRules(part, rules, parseInline);
+    let depth = 0;
+    const parseInline: InlineMDParser = (part) => {
+      if (depth >= MAX_INLINE_MD_NESTING) return part;
+      depth += 1;
+      try {
+        return applyRules(part, rules, parseInline);
+      } finally {
+        depth -= 1;
+      }
+    };
     return parseInline(masked);
   });
 

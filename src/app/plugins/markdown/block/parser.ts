@@ -13,6 +13,17 @@ const renderText = (text: string, parseInline: InlineMDParser): string =>
     .map((line) => parseInline(line))
     .join('<br/>');
 
+/** Finds a rule's first block at or after `from`, through its scanner when it has one. */
+const createBlockFinder = (text: string, rule: BlockMDRule) => {
+  let scanned: ((from: number) => RegExpMatchArray | null) | undefined;
+  return (from: number): FoundBlock | null => {
+    if (rule.scan) scanned ??= rule.scan(text);
+    const match = scanned ? scanned(from) : rule.match(from === 0 ? text : text.slice(from));
+    if (!match || match.index === undefined || match[0].length === 0) return null;
+    return { index: scanned ? match.index : from + match.index, match };
+  };
+};
+
 /**
  * Renders block Markdown with the given rules: the block that starts first wins, the earlier rule
  * on a tie, and the text between blocks is rendered line by line with `parseInline`. Every block
@@ -23,6 +34,7 @@ export const parseBlockMDWithRules = (
   rules: BlockMDRule[],
   parseInline: InlineMDParser = plainText
 ): string => {
+  const finders = rules.map((rule) => createBlockFinder(text, rule));
   const found: Array<FoundBlock | null | undefined> = rules.map(() => undefined);
   let output = '';
   let cursor = 0;
@@ -32,11 +44,7 @@ export const parseBlockMDWithRules = (
     for (let index = 0; index < rules.length; index += 1) {
       let candidate = found[index];
       if (candidate === undefined || (candidate !== null && candidate.index < cursor)) {
-        const match = rules[index].match(cursor === 0 ? text : text.slice(cursor));
-        candidate =
-          match && match.index !== undefined && match[0].length > 0
-            ? { index: cursor + match.index, match }
-            : null;
+        candidate = finders[index](cursor);
         found[index] = candidate;
       }
       if (candidate && (!best || candidate.index < best.index)) {

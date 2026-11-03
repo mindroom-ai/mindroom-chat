@@ -18,78 +18,101 @@ const backtickRunLength = (text: string, from: number, to: number): number => {
   return end - from;
 };
 
-type Opener = { line: Line; fence: string; info: string; closed: boolean };
+/** Whether `text` between `from` and `to` holds `length` backticks in a row. */
+const hasBacktickRun = (text: string, from: number, to: number, length: number): boolean => {
+  let run = 0;
+  for (let index = from; index < to; index += 1) {
+    run = text[index] === '`' ? run + 1 : 0;
+    if (run >= length) return true;
+  }
+  return false;
+};
+
+type FencedCodeBlock = { opener: Line; fence: string; info: string; closer: Line };
+type Opener = Omit<FencedCodeBlock, 'closer'> & { closer?: Line };
 
 /**
- * Finds the first fenced code block: a line starting with three or more backticks (the fence)
- * and an info string that does not repeat the fence, up to the next line that is exactly the
- * same fence; a longer or shorter run of backticks inside stays code. One pass over the lines,
- * which stops once the earliest opener still open is closed: a closing line closes every open
- * fence of its length, and an earlier opener that never closes only costs reading to the end.
+ * The fenced code blocks of `text`, by where they start: a line starting with three or more
+ * backticks (the fence) and an info string that does not repeat the fence, up to the next line
+ * that is exactly the same fence; a longer or shorter run of backticks inside stays code. A
+ * closing line closes every open fence of its length, so no block takes another's closer and one
+ * pass over the lines pairs them all. Blocks may overlap: a reader takes the first one that starts
+ * where it reads. With `firstOnly` the pass stops once the first opener of `text` is closed; an
+ * opener that never closes makes it read to the end.
  */
-const matchCodeBlock = (text: string): RegExpMatchArray | null => {
-  const opened: Opener[] = [];
+const findFencedCodeBlocks = (text: string, firstOnly: boolean): FencedCodeBlock[] => {
+  const openers: Opener[] = [];
   const openByLength = new Map<number, Opener[]>();
-  let firstOpen = 0;
-  let block: { opener: Opener; closer: Line } | undefined;
-  const earliestOpen = (): Opener | undefined => {
-    while (firstOpen < opened.length && opened[firstOpen].closed) firstOpen += 1;
-    return opened[firstOpen];
-  };
-
   for (let start = 0; ; ) {
     const lineBreak = text.indexOf('\n', start);
     const line = { start, end: lineBreak < 0 ? text.length : lineBreak };
     const run = backtickRunLength(text, line.start, line.end);
-
     const closing = run >= 3 && run === line.end - line.start ? openByLength.get(run) : undefined;
     if (closing) {
       closing.forEach((opener) => {
-        opener.closed = true;
+        opener.closer = line;
       });
       openByLength.delete(run);
-      if (!block || closing[0].line.start < block.opener.line.start) {
-        block = { opener: closing[0], closer: line };
-      }
+      if (firstOnly && openers[0].closer) break;
     }
-    if (block) {
-      const open = earliestOpen();
-      if (!open || open.line.start > block.opener.line.start) break;
-    }
-
-    if (run >= 3 && lineBreak >= 0) {
-      const fence = text.slice(line.start, line.start + run);
-      const info = text.slice(line.start + run, line.end);
-      if (!info.includes(fence)) {
-        const opener: Opener = { line, fence, info, closed: false };
-        opened.push(opener);
-        const sameLength = openByLength.get(run);
-        if (sameLength) sameLength.push(opener);
-        else openByLength.set(run, [opener]);
-      }
+    if (run >= 3 && lineBreak >= 0 && !hasBacktickRun(text, line.start + run, line.end, run)) {
+      const opener: Opener = {
+        opener: line,
+        fence: text.slice(line.start, line.start + run),
+        info: text.slice(line.start + run, line.end),
+      };
+      openers.push(opener);
+      const sameLength = openByLength.get(run);
+      if (sameLength) sameLength.push(opener);
+      else openByLength.set(run, [opener]);
     }
     if (lineBreak < 0) break;
     start = lineBreak + 1;
   }
+  return openers.filter((opener): opener is FencedCodeBlock => opener.closer !== undefined);
+};
 
-  if (!block) return null;
-  const { opener, closer } = block;
+const toCodeBlockMatch = (text: string, block: FencedCodeBlock): RegExpMatchArray => {
+  const { opener, fence, info, closer } = block;
   const end = closer.end < text.length ? closer.end + 1 : closer.end;
   return toMatch(
-    [
-      text.slice(opener.line.start, end),
-      opener.fence,
-      opener.info,
-      text.slice(opener.line.end + 1, closer.start),
-    ],
-    opener.line.start,
+    [text.slice(opener.start, end), fence, info, text.slice(opener.end + 1, closer.start)],
+    opener.start,
     text
   );
+};
+
+/** The first fenced code block of `text`; `findFencedCodeBlocks` describes the grammar. */
+const matchCodeBlock = (text: string): RegExpMatchArray | null => {
+  const [first] = findFencedCodeBlocks(text, true);
+  return first ? toCodeBlockMatch(text, first) : null;
+};
+
+/** Pairs the fences of `text` once, then finds the first block that starts at or after `from`. */
+const scanCodeBlocks = (text: string) => {
+  const blocks = findFencedCodeBlocks(text, false);
+  return (from: number): RegExpMatchArray | null => {
+    // The pairing assumes lines of `text`; a search from inside a line reads that rest anew.
+    if (from > 0 && text[from - 1] !== '\n') {
+      const match = matchCodeBlock(text.slice(from));
+      if (match?.index !== undefined) match.index += from;
+      return match;
+    }
+    let low = 0;
+    let high = blocks.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (blocks[middle].opener.start < from) low = middle + 1;
+      else high = middle;
+    }
+    return low < blocks.length ? toCodeBlockMatch(text, blocks[low]) : null;
+  };
 };
 
 /** A fenced code block; the first word of the info string is its language. */
 export const CodeBlockRule: BlockMDRule = {
   match: matchCodeBlock,
+  scan: scanCodeBlocks,
   html: (_parseInline, match) => {
     const [, fence, info, code] = match;
     const language = info.trim().split(/\s+/)[0];
