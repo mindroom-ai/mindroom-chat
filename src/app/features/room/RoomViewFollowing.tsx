@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import classNames from 'classnames';
 import { Trans } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
 import { type MatrixEvent, type Room, RoomEvent, RoomStateEvent, ThreadEvent } from 'matrix-js-sdk';
 import { EventReaders } from '../../components/event-readers';
 import { Modal500 } from '../../components/Modal500';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { Following as hideOnShortViewport } from '../../mindroom/threads/RoomOverlay.css';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
@@ -96,12 +94,7 @@ function FollowersSentence({ names }: { names: string[] }) {
 
 /** The empty row under the composer: it reserves the space the followers line uses. */
 export function RoomViewFollowingPlaceholder() {
-  return (
-    <div
-      className={classNames(css.FollowingStrip, hideOnShortViewport)}
-      data-room-following="true"
-    />
-  );
+  return <div className={css.FollowingStrip} data-room-following="true" />;
 }
 
 type RoomViewFollowingProps = {
@@ -128,7 +121,7 @@ export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
   );
 
   return (
-    <div className={classNames(css.FollowingStrip, hideOnShortViewport)} data-room-following="true">
+    <div className={css.FollowingStrip} data-room-following="true">
       <button
         type="button"
         className={css.FollowingButton}

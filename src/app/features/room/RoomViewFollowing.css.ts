@@ -1,4 +1,5 @@
 import { style } from '@vanilla-extract/css';
+import { shortViewport } from '../../mindroom/threads/shortViewport';
 import { color, config, toRem } from 'folds';
 
 // The row under the composer. It keeps its height while empty, so the composer never moves
@@ -10,6 +11,8 @@ export const FollowingStrip = style({
   minBlockSize: toRem(28),
   paddingInline: config.space.S400,
   minWidth: 0,
+  // Short landscape phones give the row's height to the messages (after the display above).
+  '@media': { [shortViewport]: { display: 'none' } },
 });
 
 // A frosted label: tint and blur only, no rim or shadow, so it reads as part of the strip.
