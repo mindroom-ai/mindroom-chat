@@ -122,6 +122,11 @@ const useRoomOverlayInsets = (
   }, [areaRef, dockRef, footerRef, headerRef, threadId]);
 };
 
+// Dialogs, menus and lists keep their own typing (fields, type-ahead).
+const OWNS_TYPING_SELECTOR = '[role="dialog"], [role="menu"], [role="listbox"]';
+const focusOwnsTyping = (): boolean =>
+  typeof document !== 'undefined' && !!document.activeElement?.closest?.(OWNS_TYPING_SELECTOR);
+
 /** Typing a letter or digit with nothing focused starts a message in the composer. */
 const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
   const handleKey = useCallback(
@@ -129,7 +134,7 @@ const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean
       if (!enabled || evt.ctrlKey || evt.metaKey || evt.altKey) return;
       if (!/^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '')) return;
       // The agent's computer screen takes its own keystrokes.
-      if (computerOwnsKeyboardEvent(evt) || editableActiveElement()) return;
+      if (computerOwnsKeyboardEvent(evt) || editableActiveElement() || focusOwnsTyping()) return;
       ReactEditor.focus(editor as ReactEditor);
     },
     [editor, enabled]
@@ -141,11 +146,7 @@ const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean
  * The open thread's root while it is still a local echo: its event, when the room holds it.
  * Re-renders as the echo's send state changes, and reports a root that was deleted unsent.
  */
-const useLocalEchoRoot = (
-  room: Room,
-  threadId: string | undefined,
-  onDeleted: () => void
-) => {
+const useLocalEchoRoot = (room: Room, threadId: string | undefined, onDeleted: () => void) => {
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   const pending = isLocalEchoEventId(threadId);
   const latestOnDeleted = useRef(onDeleted);
@@ -256,7 +257,9 @@ export function RoomView({
       ) : (
         <Box justifyContent="Center" style={NOTICE_STYLE}>
           <Text size="T300" priority="300">
-            {t('mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed')}
+            {t(
+              'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
+            )}
           </Text>
         </Box>
       );
