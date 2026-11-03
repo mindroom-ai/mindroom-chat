@@ -1,15 +1,10 @@
-import {
-  Filter,
-  type ICreateClientOpts,
-  type IStartClientOpts,
-  type MatrixClient,
-} from 'matrix-js-sdk';
+import { type ICreateClientOpts, type MatrixClient } from 'matrix-js-sdk';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
-import { Feature, ServerSupport, buildFeatureSupportMap } from 'matrix-js-sdk/lib/feature';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
+import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../app/mindroom/matrix/clientSyncPolicy';
 import {
   type ClientBootstrapSession,
   inspectCryptoStoreContinuity,
@@ -23,7 +18,6 @@ import {
   hasInitializedCryptoStore,
   markCryptoStoreInitialized,
 } from '../app/state/sessions';
-import { readCachedSpecVersions } from '../app/state/cachedSpecVersions';
 import { createStoredSessionTokenRefresh } from './sessionTokenRefresh';
 import { cryptoCallbacks } from './secretStorageKeys';
 
@@ -37,18 +31,12 @@ export {
   removeStoredSession,
 } from '../app/mindroom/matrix/sessionLifecycle';
 export { DeviceIdentityVerificationError, MissingCryptoStoreError };
-
-/** Timeline events per room in a /sync response: enough for previews and the first screen. */
-export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
-
-/**
- * Timeline events per room the IndexedDB sync store keeps between sessions, so a reload shows
- * recent history without asking the server.
- */
-export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
-
-/** Room ephemeral events to receive: typing, receipts and MindRoom's live reply frames. */
-const SYNC_EPHEMERAL_TYPES = ['m.typing', 'm.receipt', 'io.mindroom.live'];
+// How the client syncs is the MindRoom sync policy's; the app shell starts the client from here.
+export {
+  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
+  STARTUP_SYNC_TIMELINE_LIMIT,
+  startClient,
+} from '../app/mindroom/matrix/clientSyncPolicy';
 
 const MAX_CLIENT_LISTENERS = 50;
 
@@ -163,54 +151,4 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   safeMarkCryptoStoreInitialized(session.sessionId);
   mx.setMaxListeners(MAX_CLIENT_LISTENERS);
   return mx;
-};
-
-type VersionSeedableClient = MatrixClient & {
-  serverVersionsPromise?: Promise<unknown>;
-};
-
-/**
- * Gives the SDK the `/versions` this account cached last time, so startup does not wait for the
- * request (and works offline). The SDK refreshes them later on its own schedule.
- */
-const seedCachedServerVersions = async (mx: MatrixClient): Promise<void> => {
-  const userId = mx.getUserId();
-  if (!userId) return;
-  const cached = readCachedSpecVersions(mx.baseUrl, userId);
-  if (!cached) return;
-  const client = mx as VersionSeedableClient;
-  if (client.serverVersionsPromise) return;
-  const versions = { versions: cached.versions, unstable_features: cached.unstable_features ?? {} };
-  client.serverVersionsPromise = Promise.resolve(versions);
-  client.canSupport = await buildFeatureSupportMap(versions);
-};
-
-const buildSyncFilter = (mx: MatrixClient): Filter => {
-  const filter = new Filter(mx.getUserId());
-  filter.setDefinition({
-    room: {
-      timeline: { limit: STARTUP_SYNC_TIMELINE_LIMIT },
-      state: { lazy_load_members: true },
-      ephemeral: { types: SYNC_EPHEMERAL_TYPES },
-    },
-  });
-  if (mx.canSupport?.get(Feature.ThreadUnreadNotifications) !== ServerSupport.Unsupported) {
-    filter.setUnreadThreadNotifications(true);
-  }
-  return filter;
-};
-
-/** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
-export const startClient = async (
-  mx: MatrixClient,
-  options: Partial<IStartClientOpts> = {}
-): Promise<void> => {
-  await seedCachedServerVersions(mx);
-
-
-
-    initialSyncLimit: STARTUP_SYNC_TIMELINE_LIMIT,
-    filter: buildSyncFilter(mx),
-    ...options,
-  });
 };
