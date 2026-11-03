@@ -8,11 +8,15 @@ import { LocalRoomSummaryLoader, RoomSummaryLoader } from '../../components/Room
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import type { LocalRoomSummary } from '../../hooks/useLocalRoomSummary';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { usePowerLevels } from '../../hooks/usePowerLevels';
+import { PowerLevelsContextProvider, usePowerLevels } from '../../hooks/usePowerLevels';
+import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useSpace } from '../../hooks/useSpace';
 import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getSpacePath, getSpaceRoomPath } from '../../pages/pathUtils';
+import { MembersDrawer } from '../room/MembersDrawer';
+import { ResizableMembersPanel } from '../../mindroom/sidebar/ResizableMembersPanel';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { LobbyHeader } from './LobbyHeader';
 import { RoomItemCard } from './RoomItem';
 import { SpaceItemCard } from './SpaceItem';
@@ -67,13 +71,15 @@ const getLobbyItems = (client: MatrixClient, space: Room): HierarchyItem[] =>
 
 const noop = () => undefined;
 
-/** A space's lobby: its header and the rooms and subspaces it lists. */
+/** A space's lobby: its header, the rooms and subspaces it lists, and the space's members. */
 export function Lobby() {
   const space = useSpace();
   const client = useMatrixClient();
   const screenSize = useScreenSizeContext();
   const navigate = useNavigate();
   const powerLevels = usePowerLevels(space);
+  const members = useRoomMembers(client, space.roomId);
+  const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [closedCategories, setClosedCategories] = useState<Set<string>>(() => new Set());
   const items = useMemo(() => getLobbyItems(client, space), [client, space]);
   const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
@@ -130,45 +136,56 @@ export function Lobby() {
   };
 
   return (
-    <Page>
-      <LobbyHeader
-        powerLevels={powerLevels}
-        onBack={
-          screenSize === ScreenSize.Mobile ? () => navigate(getSpacePath(space.roomId)) : undefined
-        }
-      />
-      <Box grow="Yes" style={{ minHeight: 0 }}>
-        <Scroll hideTrack visibility="Hover">
-          <Box
-            direction="Column"
-            gap="200"
-            style={{ padding: config.space.S400, maxWidth: '720px', margin: '0 auto' }}
-          >
-            {items.map((item) => {
-              if (item.space) {
-                const joined = !!getRoom(item.roomId);
-                return (
-                  <SpaceItemCard
-                    key={item.roomId}
-                    item={item}
-                    summary={undefined}
-                    joined={joined}
-                    categoryId={item.roomId}
-                    closed={closedCategories.has(item.roomId)}
-                    handleClose={toggleCategory}
-                    canEditChild={false}
-                    canReorder={false}
-                    onDragging={noop}
-                    getRoom={getRoom}
-                  />
-                );
-              }
-              if (item.depth === 2 && closedCategories.has(item.parentId)) return null;
-              return renderRoom(item);
-            })}
+    <PowerLevelsContextProvider value={powerLevels}>
+      <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
+        <Page>
+          <LobbyHeader
+            powerLevels={powerLevels}
+            onBack={
+              screenSize === ScreenSize.Mobile
+                ? () => navigate(getSpacePath(space.roomId))
+                : undefined
+            }
+          />
+          <Box grow="Yes" style={{ minHeight: 0 }}>
+            <Scroll hideTrack visibility="Hover">
+              <Box
+                direction="Column"
+                gap="200"
+                style={{ padding: config.space.S400, maxWidth: '720px', margin: '0 auto' }}
+              >
+                {items.map((item) => {
+                  if (item.space) {
+                    const joined = !!getRoom(item.roomId);
+                    return (
+                      <SpaceItemCard
+                        key={item.roomId}
+                        item={item}
+                        summary={undefined}
+                        joined={joined}
+                        categoryId={item.roomId}
+                        closed={closedCategories.has(item.roomId)}
+                        handleClose={toggleCategory}
+                        canEditChild={false}
+                        canReorder={false}
+                        onDragging={noop}
+                        getRoom={getRoom}
+                      />
+                    );
+                  }
+                  if (item.depth === 2 && closedCategories.has(item.parentId)) return null;
+                  return renderRoom(item);
+                })}
+              </Box>
+            </Scroll>
           </Box>
-        </Scroll>
+        </Page>
+        {membersOpen && (
+          <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
+            <MembersDrawer key={space.roomId} room={space} members={members} />
+          </ResizableMembersPanel>
+        )}
       </Box>
-    </Page>
+    </PowerLevelsContextProvider>
   );
 }
