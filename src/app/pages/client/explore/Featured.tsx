@@ -110,7 +110,8 @@ export function FeaturedRooms() {
 
   return (
     <Page>
-      <PageScroll header={header}>
+      {/* On wider screens the hero names the page, so only phones keep the title bar. */}
+      <PageScroll header={phone ? header : undefined}>
         <PageContent>
           <PageContentCenter>
             <Box direction="Column" gap="200">
