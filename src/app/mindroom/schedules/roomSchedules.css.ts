@@ -1,0 +1,96 @@
+import { style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
+
+// The room header's schedules button; the count sits on its corner.
+export const Trigger = style({
+  position: 'relative',
+});
+
+export const Count = style({
+  position: 'absolute',
+  top: toRem(2),
+  insetInlineEnd: toRem(2),
+  minWidth: toRem(14),
+  height: toRem(14),
+  padding: `0 ${toRem(3)}`,
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Secondary.Main,
+  color: color.Secondary.OnMain,
+  fontSize: toRem(9),
+  fontWeight: config.fontWeight.W600,
+  lineHeight: toRem(14),
+  textAlign: 'center',
+  pointerEvents: 'none',
+});
+
+export const Dialog = style({
+  width: `min(${toRem(560)}, 100vw)`,
+  maxWidth: '100vw',
+  maxHeight: 'min(85vh, 100dvh)',
+  overflow: 'hidden',
+});
+
+
+
+
+
+
+
+
+
+  minWidth: 0,
+});
+
+export const Empty = style({
+  padding: `${config.space.S500} ${config.space.S300}`,
+  alignItems: 'center',
+  textAlign: 'center',
+});
+
+export const Card = style({
+  minWidth: 0,
+
+
+
+
+
+});
+
+// Long words, URLs and display names wrap instead of widening the card on phones.
+export const Wrap = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+});
+
+export const Prompt = style([
+  Wrap,
+  {
+    whiteSpace: 'pre-wrap',
+
+
+
+
+  },
+]);
+
+export const Metadata = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, max-content) minmax(0, 1fr)',
+  columnGap: config.space.S300,
+  rowGap: config.space.S100,
+  margin: 0,
+  minWidth: 0,
+  selectors: {
+    '& dt': { opacity: config.opacity.P400 },
+    '& dd': { margin: 0, minWidth: 0 },
+  },
+  '@media': {
+    '(max-width: 360px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
+  },
+});
+
+export const Awaiting = style({
+  color: color.Warning.Main,
+  fontWeight: config.fontWeight.W500,
+});

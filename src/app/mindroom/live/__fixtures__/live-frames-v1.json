@@ -1,0 +1,511 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "a snapshot replaces whatever came before",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 0,
+        "snapshot": {
+          "md": "Hello",
+          "reasoning": "The user greets me.",
+          "tools": [],
+          "status": "streaming",
+          "activity": ""
+        }
+      },
+      "before": {
+        "md": "",
+        "reasoning": "",
+        "tools": [],
+        "status": "pending",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "a snapshot of a pending reply with no text yet",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 0,
+        "snapshot": {
+          "md": "",
+          "reasoning": "",
+          "tools": [],
+          "status": "pending",
+          "activity": "Thinking"
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "",
+        "reasoning": "",
+        "tools": [],
+        "status": "pending",
+        "activity": "Thinking"
+      }
+    },
+    {
+      "name": "appending text",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 1,
+        "delta": {
+          "md": {
+            "at": 5,
+            "del": 0,
+            "ins": ", world",
+            "len": 12
+          }
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello, world",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "replacing text in the middle",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 2,
+        "delta": {
+          "md": {
+            "at": 7,
+            "del": 5,
+            "ins": "there",
+            "len": 12
+          }
+        }
+      },
+      "before": {
+        "md": "Hello, world",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello, there",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "deleting the end of the text",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 3,
+        "delta": {
+          "md": {
+            "at": 5,
+            "del": 7,
+            "ins": "",
+            "len": 5
+          }
+        }
+      },
+      "before": {
+        "md": "Hello, world",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "lengths count UTF-16 units, so an emoji is two",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 4,
+        "delta": {
+          "md": {
+            "at": 3,
+            "del": 0,
+            "ins": "👋 there",
+            "len": 11
+          }
+        }
+      },
+      "before": {
+        "md": "Hi ",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hi 👋 there",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "appending reasoning",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 5,
+        "delta": {
+          "reasoning": {
+            "at": 19,
+            "del": 0,
+            "ins": " Answer briefly.",
+            "len": 35
+          }
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me. Answer briefly.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "a tool call starts",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 6,
+        "delta": {
+          "tools": {
+            "len": 1,
+            "set": [
+              [
+                0,
+                {
+                  "type": "tool_call_started",
+                  "tool_name": "web_search",
+                  "args_preview": "query=llama prices"
+                }
+              ]
+            ]
+          },
+          "activity": "Searching the web"
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_started",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices"
+          }
+        ],
+        "status": "streaming",
+        "activity": "Searching the web"
+      }
+    },
+    {
+      "name": "a tool call completes in place",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 7,
+        "delta": {
+          "tools": {
+            "len": 1,
+            "set": [
+              [
+                0,
+                {
+                  "type": "tool_call_completed",
+                  "tool_name": "web_search",
+                  "args_preview": "query=llama prices",
+                  "result_preview": "3 results"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_started",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "a second tool call reports progress",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 8,
+        "delta": {
+          "tools": {
+            "len": 2,
+            "set": [
+              [
+                1,
+                {
+                  "type": "tool_call_started",
+                  "tool_name": "read_file",
+                  "args_preview": "path=notes.md",
+                  "progress": "12 lines read"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          },
+          {
+            "type": "tool_call_started",
+            "tool_name": "read_file",
+            "args_preview": "path=notes.md",
+            "progress": "12 lines read"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "the tool list shrinks without new entries",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 9,
+        "delta": {
+          "tools": {
+            "len": 1,
+            "set": []
+          }
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          },
+          {
+            "type": "tool_call_started",
+            "tool_name": "read_file",
+            "args_preview": "path=notes.md",
+            "progress": "12 lines read"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      },
+      "after": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "the status moves from pending to streaming",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 1,
+        "delta": {
+          "status": "streaming",
+          "activity": ""
+        }
+      },
+      "before": {
+        "md": "",
+        "reasoning": "",
+        "tools": [],
+        "status": "pending",
+        "activity": "Thinking"
+      },
+      "after": {
+        "md": "",
+        "reasoning": "",
+        "tools": [],
+        "status": "streaming",
+        "activity": ""
+      }
+    },
+    {
+      "name": "one delta changes several documents",
+      "frame": {
+        "v": 1,
+        "reply": "$reply",
+        "sid": "1761858000123-0a1b2c3d",
+        "seq": 10,
+        "delta": {
+          "md": {
+            "at": 5,
+            "del": 0,
+            "ins": "! Prices:",
+            "len": 14
+          },
+          "tools": {
+            "len": 1,
+            "set": [
+              [
+                0,
+                {
+                  "type": "tool_call_completed",
+                  "tool_name": "web_search",
+                  "args_preview": "query=llama prices",
+                  "result_preview": "3 results"
+                }
+              ]
+            ]
+          },
+          "activity": ""
+        }
+      },
+      "before": {
+        "md": "Hello",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_started",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices"
+          }
+        ],
+        "status": "streaming",
+        "activity": "Searching the web"
+      },
+      "after": {
+        "md": "Hello! Prices:",
+        "reasoning": "The user greets me.",
+        "tools": [
+          {
+            "type": "tool_call_completed",
+            "tool_name": "web_search",
+            "args_preview": "query=llama prices",
+            "result_preview": "3 results"
+          }
+        ],
+        "status": "streaming",
+        "activity": ""
+      }
+    }
+  ]
+}

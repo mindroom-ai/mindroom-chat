@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "a paragraph",
+      "md": "Hello, world",
+      "html": "<p>Hello, world</p>\n"
+    },
+    {
+      "name": "soft line breaks become br",
+      "md": "First line\nsecond line",
+      "html": "<p>First line<br>\nsecond line</p>\n"
+    },
+    {
+      "name": "two paragraphs",
+      "md": "One.\n\nTwo.",
+      "html": "<p>One.</p>\n<p>Two.</p>\n"
+    },
+    {
+      "name": "emphasis and strong",
+      "md": "Some *emphasis* and **strong** text",
+      "html": "<p>Some <em>emphasis</em> and <strong>strong</strong> text</p>\n"
+    },
+    {
+      "name": "strikethrough",
+      "md": "This is ~~gone~~ now",
+      "html": "<p>This is <s>gone</s> now</p>\n"
+    },
+    {
+      "name": "inline code",
+      "md": "Run `npm test` first",
+      "html": "<p>Run <code>npm test</code> first</p>\n"
+    },
+    {
+      "name": "a fenced code block",
+      "md": "```\nconst a = 1;\n```",
+      "html": "<pre><code>const a = 1;\n</code></pre>\n"
+    },
+    {
+      "name": "an unclosed fence while streaming",
+      "md": "```\nline one\nline two",
+      "html": "<pre><code>line one\nline two</code></pre>\n"
+    },
+    {
+      "name": "headings",
+      "md": "# Title\n\n## Section",
+      "html": "<h1>Title</h1>\n<h2>Section</h2>\n"
+    },
+    {
+      "name": "a bullet list",
+      "md": "- one\n- two\n- three",
+      "html": "<ul>\n<li>one</li>\n<li>two</li>\n<li>three</li>\n</ul>\n"
+    },
+    {
+      "name": "an ordered list",
+      "md": "1. first\n2. second",
+      "html": "<ol>\n<li>first</li>\n<li>second</li>\n</ol>\n"
+    },
+    {
+      "name": "a nested list",
+      "md": "- outer\n  - inner",
+      "html": "<ul>\n<li>outer\n<ul>\n<li>inner</li>\n</ul>\n</li>\n</ul>\n"
+    },
+    {
+      "name": "a block quote",
+      "md": "> quoted\n> text",
+      "html": "<blockquote>\n<p>quoted<br>\ntext</p>\n</blockquote>\n"
+    },
+    {
+      "name": "a link",
+      "md": "See [the docs](https://example.org/docs).",
+      "html": "<p>See <a href=\"https://example.org/docs\">the docs</a>.</p>\n"
+    },
+    {
+      "name": "an autolink",
+      "md": "Visit <https://example.org>",
+      "html": "<p>Visit <a href=\"https://example.org\">https://example.org</a></p>\n"
+    },
+    {
+      "name": "a thematic break",
+      "md": "Above\n\n---\n\nBelow",
+      "html": "<p>Above</p>\n<hr>\n<p>Below</p>\n"
+    },
+    {
+      "name": "a table",
+      "md": "| a | b |\n| --- | --- |\n| 1 | 2 |",
+      "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n"
+    },
+    {
+      "name": "a table without a blank line before it",
+      "md": "Results:\n| a | b |\n| --- | --- |\n| 1 | 2 |",
+      "html": "<p>Results:</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>\n"
+    },
+    {
+      "name": "a table still missing its delimiter row",
+      "md": "| a | b |",
+      "html": "<p>| a | b |</p>\n"
+    },
+    {
+      "name": "escaped markdown",
+      "md": "\\*not emphasis\\*",
+      "html": "<p>*not emphasis*</p>\n"
+    },
+    {
+      "name": "ampersands and angle brackets in text",
+      "md": "Tom & Jerry say 1 < 2",
+      "html": "<p>Tom &amp; Jerry say 1 &lt; 2</p>\n"
+    },
+    {
+      "name": "an allowed inline tag",
+      "md": "Press <b>bold</b> here",
+      "html": "<p>Press <b>bold</b> here</p>\n"
+    },
+    {
+      "name": "a disallowed tag opening a line",
+      "md": "<script>alert(1)</script>",
+      "html": "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n"
+    },
+    {
+      "name": "a comment opening a line",
+      "md": "<!-- hidden -->",
+      "html": "<p>&lt;!-- hidden --&gt;</p>\n"
+    },
+    {
+      "name": "block HTML followed by markdown",
+      "md": "<details>\n<summary>More</summary>\n\nInside *text*\n</details>",
+      "html": "<details>\n<summary>More</summary>\n<p>Inside <em>text</em></p>\n</details>"
+    },
+    {
+      "name": "inline math",
+      "md": "Euler: $e^{i\\pi} + 1 = 0$",
+      "html": "<p>Euler: $e^{i\\pi} + 1 = 0$</p>\n"
+    },
+    {
+      "name": "block math",
+      "md": "$$\nx^2 + y^2 = z^2\n$$",
+      "html": "<div>$$\nx^2 + y^2 = z^2\n$$</div>\n"
+    },
+    {
+      "name": "block math on one line",
+      "md": "$$a + b$$",
+      "html": "<div>$$\na + b\n$$</div>\n"
+    },
+    {
+      "name": "an unclosed math block while streaming",
+      "md": "$$\nx = 1",
+      "html": "<p>$$<br>\nx = 1</p>\n"
+    },
+    {
+      "name": "dollars as currency",
+      "md": "It costs $5 and $10",
+      "html": "<p>It costs $5 and $10</p>\n"
+    },
+    {
+      "name": "Windows line endings",
+      "md": "one\r\ntwo",
+      "html": "<p>one<br>\ntwo</p>\n"
+    },
+    {
+      "name": "trailing spaces",
+      "md": "ends with spaces   ",
+      "html": "<p>ends with spaces</p>\n"
+    },
+    {
+      "name": "a hard break with a backslash",
+      "md": "line\\\nnext",
+      "html": "<p>line<br>\nnext</p>\n"
+    },
+    {
+      "name": "an image",
+      "md": "![alt text](https://example.org/a.png)",
+      "html": "<p><img src=\"https://example.org/a.png\" alt=\"alt text\"></p>\n"
+    }
+  ]
+}

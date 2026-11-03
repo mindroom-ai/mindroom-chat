@@ -1,0 +1,406 @@
+import { useCallback, useMemo } from 'react';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { StateEvent } from '../../../types/matrix/room';
+import { useDirectUsers } from '../../hooks/useDirectUsers';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
+import { useSelectedSpace } from '../../hooks/router/useSelectedSpace';
+import { DarkTheme, LightTheme, ThemeKind, useTheme } from '../../hooks/useTheme';
+import { getMatrixToRoom } from '../../plugins/matrix-to';
+import { getViaServers } from '../../plugins/via-servers';
+import { useOpenCreateRoomModal } from '../../state/hooks/createRoomModal';
+import { useOpenCreateSpaceModal } from '../../state/hooks/createSpaceModal';
+import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
+import { useSetting } from '../../state/hooks/settings';
+import { mDirectAtom } from '../../state/mDirectList';
+import { roomToParentsAtom } from '../../state/room/roomToParents';
+import { roomToUnreadAtom } from '../../state/room/roomToUnread';
+import { allRoomsAtom } from '../../state/room-list/roomList';
+import { settingsAtom } from '../../state/settings';
+import { settingsModalAtom } from '../../state/settingsModal';
+import { copyToClipboard } from '../../utils/dom';
+import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../../utils/matrix';
+import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
+import { markRoomAndThreadsAsRead } from '../notifications/readReceipts';
+import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
+import {
+  aggregateThreadTagEvents,
+  buildPerTagEventContent,
+  buildPerTagStateKey,
+  isThreadResolved,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../threads/threadTags';
+import {
+  type CommandPaletteQuickActionId,
+  commandPaletteStaticActionPaths,
+  getCommandPaletteMessageTargets,
+  getCommandPaletteQuickActions,
+  resolveCommandPaletteUserTarget,
+} from './commandPaletteActions';
+import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
+import type {
+  CommandPaletteActionItem,
+  CommandPaletteItem,
+  CommandPaletteMessageItem,
+  CommandPaletteRoomItem,
+  CommandPaletteThreadItem,
+  CommandPaletteUserItem,
+} from './commandPaletteTypes';
+import {
+  buildCommandPaletteDmRoomMap,
+  collectCommandPaletteUserCandidates,
+  getCommandPaletteDmUserDetails,
+} from './commandPaletteUserCandidates';
+
+type Executable<T> = T & { onSelect?: () => void };
+
+/** A palette row together with what choosing it does. */
+export type ExecutableCommandPaletteItem = Executable<CommandPaletteItem>;
+
+/** How far the Users section looks: past its caps for a typed query, into other rooms when asked. */
+export type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boolean };
+
+/** Everything the palette can show; users and message searches are built on demand. */
+export type CommandPaletteSource = {
+  actions: Executable<CommandPaletteActionItem>[];
+  threads: Executable<CommandPaletteThreadItem>[];
+  rooms: Executable<CommandPaletteRoomItem>[];
+  getUsers: (query: CommandPaletteUserQuery) => Executable<CommandPaletteUserItem>[];
+  getMessages: (query: string) => Executable<CommandPaletteMessageItem>[];
+};
+
+type CommandPaletteSourceOptions = {
+  /** Logging out asks for confirmation, which the caller shows. */
+  onLogout?: () => void;
+};
+
+const liveState = (room: Room) => room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+
+const roomTopic = (room: Room): string | undefined => {
+  const topic = liveState(room)?.getStateEvents(StateEvent.RoomTopic, '')?.getContent().topic;
+  return typeof topic === 'string' && topic ? topic : undefined;
+};
+
+const isThreadPinnedInRoom = (room: Room, threadId: string): boolean => {
+  const pinned = liveState(room)
+    ?.getStateEvents(StateEvent.RoomPinnedEvents, '')
+    ?.getContent().pinned;
+  return Array.isArray(pinned) && pinned.includes(threadId);
+};
+
+const isThreadResolvedInRoom = (room: Room, threadId: string): boolean => {
+  const events = liveState(room)?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
+  const content = aggregateThreadTagEvents(events).get(threadId);
+  return content ? isThreadResolved(content) : false;
+};
+
+const setThreadResolved = (
+  mx: MatrixClient,
+  roomId: string,
+  threadId: string,
+  resolved: boolean
+): Promise<unknown> =>
+  mx.sendStateEvent(
+    roomId,
+    MINDROOM_THREAD_TAGS_EVENT as never,
+    (resolved ? buildPerTagEventContent(mx.getSafeUserId()) : {}) as never,
+    buildPerTagStateKey(threadId, RESOLVED_TAG)
+  );
+
+/**
+ * The command palette's items for the signed-in account: quick actions for where the user is,
+ * recent threads, rooms and spaces ranked by activity and unread state, people, and message
+ * searches. Lists keep their identity while their inputs do, so search indexes are reused.
+ */
+export const useCommandPaletteSource = ({
+  onLogout,
+}: CommandPaletteSourceOptions = {}): CommandPaletteSource => {
+
+
+
+  const { navigateRoom, navigateSpace, navigateRoomThread } = useRoomNavigate();
+
+
+
+  const selectedThreadId = selectedRoomId ? searchParams.get('threadId') ?? undefined : undefined;
+  const allRoomIds = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const roomToUnread = useAtomValue(roomToUnreadAtom);
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const archivedRooms = useAtomValue(archivedRoomsAtom);
+  const threadIndex = useAtomValue(crossRoomThreadIndexAtom);
+  const directUsers = useDirectUsers();
+  const setSettingsModal = useSetAtom(settingsModalAtom);
+  const openCreateRoom = useOpenCreateRoomModal();
+  const openCreateSpace = useOpenCreateSpaceModal();
+  const openRoomSettings = useOpenRoomSettings();
+  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
+  const [, setUseSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');
+  const [, setThemeId] = useSetting(settingsAtom, 'themeId');
+  const theme = useTheme();
+  const myUserId = mx.getSafeUserId();
+
+  const getRoom = useCallback((roomId: string) => mx.getRoom(roomId) ?? undefined, [mx]);
+  const currentRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
+  const currentSpace = selectedSpaceId ? getRoom(selectedSpaceId) : undefined;
+
+  // Joined rooms by latest activity, newest first; DMs are offered through the people they are with.
+  const orderedRoomIds = useMemo(
+    () =>
+      allRoomIds
+        .map((roomId) => getRoom(roomId))
+        .filter((room): room is Room => !!room && isRoomVisible(room.roomId, archivedRooms))
+        .sort((a, b) => b.getLastActiveTimestamp() - a.getLastActiveTimestamp())
+        .map((room) => room.roomId),
+    [allRoomIds, archivedRooms, getRoom]
+  );
+
+  const rooms = useMemo<Executable<CommandPaletteRoomItem>[]>(() => {
+    const items: Executable<CommandPaletteRoomItem>[] = [];
+    const roomCount = orderedRoomIds.length;
+    orderedRoomIds.forEach((roomId, index) => {
+      const room = getRoom(roomId);
+      if (!room || directRoomIds.has(roomId)) return;
+      const unread = roomToUnread.get(roomId);
+      const space = room.isSpaceRoom();
+      const parentNames = Array.from(roomToParents.get(roomId) ?? [])
+        .map((parentId) => getRoom(parentId)?.name)
+        .filter((name): name is string => !!name);
+      items.push({
+        id: `room:${roomId}`,
+        kind: space ? 'space' : 'room',
+        name: room.name,
+        canonicalAlias: room.getCanonicalAlias() ?? undefined,
+        topic: roomTopic(room),
+        parentNames: parentNames.length > 0 ? parentNames : undefined,
+        unreadCount: unread?.total,
+        unreadHighlight: (unread?.highlight ?? 0) > 0,
+        ...getCommandPaletteRoomRanking({
+          roomId,
+          selectedRoomId,
+          selectedSpaceId,
+          activityRank: roomCount - index,
+          unreadTotal: unread?.total ?? 0,
+          unreadHighlights: unread?.highlight ?? 0,
+        }),
+        onSelect: () => (space ? navigateSpace(roomId) : navigateRoom(roomId)),
+      });
+    });
+    return items;
+  }, [
+    directRoomIds,
+
+
+
+    orderedRoomIds,
+    roomToParents,
+    roomToUnread,
+    selectedRoomId,
+    selectedSpaceId,
+  ]);
+
+  const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(
+    () =>
+      Array.from(threadIndex.entries.values())
+        .filter((entry) => isRoomVisible(entry.roomId, archivedRooms))
+        .sort((a, b) => b.lastActivityTs - a.lastActivityTs)
+        .map((entry, index, entries) => ({
+          id: `thread:${entry.key}`,
+          kind: 'thread',
+          roomId: entry.roomId,
+          threadId: entry.threadRootId,
+          summaryText: entry.summaryText || entry.rootPreviewText,
+          isFallbackSummary: !entry.summaryText,
+          roomName: entry.roomName,
+          tags: entry.tags,
+          isResolved: entry.isResolved,
+          // The thread already open goes last, like the room already open.
+          sortRank:
+            entry.roomId === selectedRoomId && entry.threadRootId === selectedThreadId
+              ? 0
+              : entries.length - index,
+          boost: entry.isUnread ? 10 : 0,
+          onSelect: () => navigateRoomThread(entry.roomId, entry.threadRootId),
+        })),
+    [archivedRooms, navigateRoomThread, selectedRoomId, selectedThreadId, threadIndex.entries]
+  );
+
+  const currentThreadId = currentRoom ? selectedThreadId : undefined;
+  const actions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
+    const items = getCommandPaletteQuickActions(
+      {
+        currentRoomName: currentRoom?.name,
+        currentThreadId,
+        isCurrentThreadResolved:
+          currentRoom && currentThreadId
+            ? isThreadResolvedInRoom(currentRoom, currentThreadId)
+            : undefined,
+        isCurrentThreadPinned:
+          currentRoom && currentThreadId
+            ? isThreadPinnedInRoom(currentRoom, currentThreadId)
+            : undefined,
+      },
+      t
+    );
+    const run: Record<CommandPaletteQuickActionId, (() => void) | undefined> = {
+      'open-settings': () => setSettingsModal({}),
+      'go-home': () => navigate(commandPaletteStaticActionPaths.goHome),
+      'go-direct': () => navigate(commandPaletteStaticActionPaths.goDirect),
+      'go-inbox': () => navigate(commandPaletteStaticActionPaths.goInbox),
+      'create-room': () => openCreateRoom(selectedSpaceId),
+      'create-space': () => openCreateSpace(selectedSpaceId),
+      'mark-current-room-read': currentRoom
+        ? () => markRoomAndThreadsAsRead(mx, currentRoom.roomId, hideActivity)
+        : undefined,
+      'copy-current-room-link': currentRoom
+        ? () => {
+            const idOrAlias = getCanonicalAliasOrRoomId(mx, currentRoom.roomId);
+            copyToClipboard(
+              getMatrixToRoom(
+                idOrAlias,
+                idOrAlias.startsWith('!') ? getViaServers(currentRoom) : undefined
+              )
+            ).catch(() => undefined);
+          }
+        : undefined,
+      'open-current-room-settings': currentRoom
+        ? () => openRoomSettings(currentRoom.roomId, selectedSpaceId)
+        : undefined,
+      'resolve-current-thread':
+        currentRoom && currentThreadId
+          ? () => {
+              setThreadResolved(mx, currentRoom.roomId, currentThreadId, true).catch(
+                () => undefined
+              );
+            }
+          : undefined,
+      'unresolve-current-thread':
+        currentRoom && currentThreadId
+          ? () => {
+              setThreadResolved(mx, currentRoom.roomId, currentThreadId, false).catch(
+                () => undefined
+              );
+            }
+          : undefined,
+      'toggle-theme': () => {
+        setUseSystemTheme(false);
+        setThemeId(theme.kind === ThemeKind.Dark ? LightTheme.id : DarkTheme.id);
+      },
+      logout: onLogout,
+    };
+    return items.map((item) => ({
+      ...item,
+      onSelect: run[item.id as CommandPaletteQuickActionId],
+    }));
+  }, [
+    currentRoom,
+    currentThreadId,
+    hideActivity,
+    mx,
+    navigate,
+    onLogout,
+    openCreateRoom,
+    openCreateSpace,
+    openRoomSettings,
+    selectedSpaceId,
+    setSettingsModal,
+    setThemeId,
+    setUseSystemTheme,
+    t,
+    theme.kind,
+  ]);
+
+  const dmRoomByUserId = useMemo(
+    () =>
+      buildCommandPaletteDmRoomMap({
+        directRoomIds: Array.from(directRoomIds),
+        getRoom,
+        joinedRoomIds: allRoomIds,
+        myUserId,
+      }),
+    [allRoomIds, directRoomIds, getRoom, myUserId]
+  );
+
+  // One list per query shape, so repeated renders reuse the search index built for it.
+  const userLists = useMemo(
+    () => new Map<string, Executable<CommandPaletteUserItem>[]>(),
+    [allRoomIds, directUsers, dmRoomByUserId, orderedRoomIds, selectedRoomId]
+  );
+  const getUsers = useCallback(
+    ({ exhaustive, includeRelatedRooms }: CommandPaletteUserQuery) => {
+      const key = `${exhaustive}:${includeRelatedRooms}`;
+      const cached = userLists.get(key);
+      if (cached) return cached;
+      const { candidates, currentRoomMemberIds } = collectCommandPaletteUserCandidates({
+        directUsers,
+        exhaustive,
+        getRoom,
+        includeRelatedRooms,
+        myUserId,
+        orderedRoomIds,
+        selectedRoomId,
+      });
+      const items = candidates.map((candidate): Executable<CommandPaletteUserItem> => {
+        const dmRoomId = dmRoomByUserId.get(candidate.userId);
+        const dm = getCommandPaletteDmUserDetails(
+          dmRoomId ? getRoom(dmRoomId) : undefined,
+          candidate.userId
+        );
+        const localpart = getMxIdLocalPart(candidate.userId) ?? candidate.userId;
+        return {
+          id: `user:${candidate.userId}`,
+          kind: 'user',
+          userId: candidate.userId,
+          displayName: candidate.displayName ?? dm.displayName ?? localpart,
+          localpart,
+          dmRoomName: dm.roomName,
+          existingDmRoomId: dmRoomId,
+          boost: (dmRoomId ? 10 : 0) + (currentRoomMemberIds.has(candidate.userId) ? 5 : 0),
+          onSelect: () => {
+            const target = resolveCommandPaletteUserTarget(candidate.userId, dmRoomId);
+            if (target.kind === 'room') navigateRoom(target.roomId);
+            else navigate(target.path);
+          },
+        };
+      });
+      userLists.set(key, items);
+      return items;
+    },
+    [
+      directUsers,
+      dmRoomByUserId,
+      getRoom,
+      myUserId,
+      navigate,
+      navigateRoom,
+      orderedRoomIds,
+      selectedRoomId,
+      userLists,
+    ]
+  );
+
+  const getMessages = useCallback(
+    (query: string) =>
+      getCommandPaletteMessageTargets(
+        {
+          query,
+          currentRoomId: currentRoom?.roomId,
+          currentRoomName: currentRoom?.name,
+          currentSpaceId: currentSpace?.roomId,
+          currentSpaceName: currentSpace?.name,
+        },
+        t
+      ).map(({ path, ...item }) => ({ ...item, onSelect: () => navigate(path) })),
+    [currentRoom, currentSpace, navigate, t]
+  );
+
+  return useMemo(
+    () => ({ actions, threads, rooms, getUsers, getMessages }),
+    [actions, getMessages, getUsers, rooms, threads]
+  );
+};
