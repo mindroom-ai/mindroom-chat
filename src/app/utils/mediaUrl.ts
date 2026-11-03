@@ -58,8 +58,15 @@ const withHomeserverPath = (url: URL, homeserver: URL): URL => {
   return rebased;
 };
 
-const isHomeserverMediaUrl = (url: URL, homeserver: URL): boolean =>
-  url.origin === homeserver.origin && url.pathname.includes(AUTHENTICATED_MEDIA_PATH);
+// Matches only the homeserver's own media endpoints under its base path, like the service worker
+// (`swMediaAuth.ts`), so a lookalike path elsewhere on the same origin never gets the token.
+const isHomeserverMediaUrl = (url: URL, homeserver: URL): boolean => {
+  const basePath = homeserver.pathname.replace(/\/+$/, '');
+  return (
+    url.origin === homeserver.origin &&
+    url.pathname.startsWith(`${basePath}${AUTHENTICATED_MEDIA_PATH}`)
+  );
+};
 
 /** The HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
 export const mxcUrlToHttp = (
