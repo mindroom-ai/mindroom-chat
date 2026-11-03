@@ -11,7 +11,7 @@ import {
   useNavigate,
 } from 'react-router-dom';
 import type { ClientConfig } from '../hooks/useClientConfig';
-import { ScreenSize } from '../hooks/useScreenSize';
+import { ScreenSize, useScreenSizeContext } from '../hooks/useScreenSize';
 import {
   MindroomNavigationProvider,
   MindroomPageRoot,
@@ -80,6 +80,8 @@ import { Canvases } from './client/canvases';
 import { FeaturedRooms } from './client/explore/Featured';
 import { PublicRooms } from './client/explore/Server';
 import { Invites } from './client/inbox/Invites';
+import { InboxNav } from './client/inbox/InboxNav';
+import { ExploreNav } from './client/explore/ExploreNav';
 import { Notifications } from './client/inbox/Notifications';
 
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
@@ -128,6 +130,11 @@ function SectionPage({ path, nav }: { path: string; nav: ReactNode }) {
       <Outlet />
     </MindroomPageRoot>
   );
+}
+
+/** A section's own page: on phones its navigation list fills the screen there instead. */
+function SectionIndex({ page }: { page: ReactNode }) {
+  return useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>;
 }
 
 function CreateRoomPage() {
@@ -222,13 +229,16 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
         </Route>
         <Route path={THREADS_PATH} element={<Threads />} />
         <Route path={CANVASES_PATH} element={<Canvases />} />
-        <Route path={EXPLORE_PATH} element={<Outlet />}>
-          <Route index element={<FeaturedRooms />} />
+        <Route
+          path={EXPLORE_PATH}
+          element={<SectionPage path={EXPLORE_PATH} nav={<ExploreNav />} />}
+        >
+          <Route index element={<SectionIndex page={<FeaturedRooms />} />} />
           <Route path={EXPLORE_FEATURED_PATH} element={<FeaturedRooms />} />
           <Route path={EXPLORE_SERVER_PATH} element={<PublicRooms />} />
         </Route>
-        <Route path={INBOX_PATH} element={<Outlet />}>
-          <Route index element={<Invites />} />
+        <Route path={INBOX_PATH} element={<SectionPage path={INBOX_PATH} nav={<InboxNav />} />}>
+          <Route index element={<SectionIndex page={<Invites />} />} />
           <Route path={INBOX_NOTIFICATIONS_PATH} element={<Notifications />} />
           <Route path={INBOX_INVITES_PATH} element={<Invites />} />
         </Route>
