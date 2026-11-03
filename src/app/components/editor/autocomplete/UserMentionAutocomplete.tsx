@@ -39,14 +39,20 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
 
 
 
+  /**
+   * Called on mount and whenever it changes with whether the menu shows: a query that matches no
+   * member shows none, so Enter has no suggestion to pick.
+   */
+  onSuggestionsChange?: (hasSuggestions: boolean) => void;
 };
 
 /** Suggests room members for an `@` mention and inserts the chosen one as a mention pill. */
-
-
-
-
-
+export function UserMentionAutocomplete({
+  room,
+  editor,
+  query,
+  requestClose,
+  onSuggestionsChange,
 
 
 
@@ -73,6 +79,11 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
       .slice(0, MAX_SUGGESTIONS);
   }, [members, queryText, result]);
 
+  const hasSuggestions = suggestions.length > 0;
+  useEffect(() => {
+    onSuggestionsChange?.(hasSuggestions);
+  }, [hasSuggestions, onSuggestionsChange]);
+
   const handleSelect = useCallback(
     (member: RoomMember) => {
       const ownUserId = mx.getUserId();
@@ -98,7 +109,7 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
   );
   useKeyDown(typeof window === 'undefined' ? undefined : window, handleKeyDown);
 
-  if (suggestions.length === 0) return null;
+  if (!hasSuggestions) return null;
 
   return (
     <AutocompleteMenu
@@ -136,12 +147,12 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
 
 
 
-              <Text size="T200" priority="300" truncate>
-                {member.userId}
-              </Text>
-            }
-          >
-            <Text style={{ flexGrow: 1 }} size="B400" truncate>
+
+
+
+
+
+
               {name}
             </Text>
           </MenuItem>

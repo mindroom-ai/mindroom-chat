@@ -151,6 +151,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
     const isComposing = useComposingCheck();
     const [autocompleteQuery, setAutocompleteQuery] = useState<AutocompleteQuery<string>>();
+    // Set when the mention menu reports that an `@` query matches no member, so it shows nothing.
+    const [mentionMenuEmpty, setMentionMenuEmpty] = useState(false);
+    const handleMentionSuggestions = useCallback(
+      (hasSuggestions: boolean) => setMentionMenuEmpty(!hasSuggestions),
+      []
+    );
     const [submitPending, setSubmitPending] = useState(false);
     const [hasText, setHasText] = useState(() => !isEmptyEditor(editor));
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
@@ -323,12 +329,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       return sending;
     }, [submit]);
 
-    // Only `@` mentions and matching `!` commands show a menu; other prefixes send on Enter.
+    // Only `@` mentions and `!` commands with a match show a menu; anything else sends on Enter.
     let autocompleteMenuOpen = false;
     if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
       autocompleteMenuOpen = getMindroomCommandSuggestions(autocompleteQuery.text).length > 0;
     } else if (autocompleteQuery) {
-      autocompleteMenuOpen = autocompleteQuery.prefix === AutocompletePrefix.UserMention;
+      autocompleteMenuOpen =
+        autocompleteQuery.prefix === AutocompletePrefix.UserMention && !mentionMenuEmpty;
     }
 
     const handleKeyDown = useCallback(
@@ -393,6 +400,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
 
             requestClose={closeAutocomplete}
+            onSuggestionsChange={handleMentionSuggestions}
           />
         )
       ));
@@ -429,7 +437,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         {voice.renderRecorder(handleSend)}
         <CustomEditor
           editor={editor}
-          editableName={t('composer.placeholder')}
+          editableName="RoomInput"
           placeholder={t('composer.placeholder')}
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
 

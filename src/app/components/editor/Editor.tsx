@@ -160,9 +160,11 @@ function RenderPlaceholder({ attributes, children }: RenderPlaceholderProps) {
 
 type CustomEditorProps = {
   editor: Editor;
-  /** Accessible name of the text box. */
-
-
+  /** Names the text box for code: `data-editable-name`, such as `RoomInput` for the composer. */
+  editableName?: string;
+  /** Accessible name of the text box; the placeholder when not given. */
+  ariaLabel?: string;
+  placeholder?: string;
 
 
 
@@ -183,6 +185,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
     {
       editor,
       editableName,
+      ariaLabel,
       placeholder,
       top,
       bottom,
