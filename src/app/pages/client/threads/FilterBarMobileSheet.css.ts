@@ -13,6 +13,8 @@ export const SheetContainer = style({
 export const SheetBody = style({
   display: 'flex',
   flexDirection: 'column',
+  // Options keep their own width; the panel shows beside them, as under the title.
+  alignItems: 'flex-start',
   gap: config.space.S400,
   padding: `${config.space.S300} ${config.space.S400}`,
   // Clear of the home indicator at the bottom of a phone.
