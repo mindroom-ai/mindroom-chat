@@ -1,0 +1,117 @@
+import React, { ReactNode, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Box, Button, Text, config } from 'folds';
+import type { AuthDict, IAuthData, MatrixError } from 'matrix-js-sdk';
+import { ActionUIA, ActionUIAFlowsLoader } from '../../components/ActionUIA';
+import { Dialog } from '../../components/glass/GlassPrimitives';
+import { SettingsOverlay } from './SettingsOverlay';
+
+/** Thrown by `run` when the person closes the authentication prompt. */
+export class AuthenticationCancelled extends Error {
+  constructor() {
+    super('Authentication cancelled');
+    this.name = 'AuthenticationCancelled';
+  }
+}
+
+/** The interactive-auth answer in a 401 (Matrix client-server API, "User-interactive API"). */
+const readAuthData = (error: unknown): IAuthData | undefined => {
+  const data = (error as MatrixError | undefined)?.data as IAuthData | undefined;
+  return data && Array.isArray(data.flows) ? data : undefined;
+};
+
+type Waiting = {
+  authData: IAuthData;
+  answer: (auth: AuthDict) => void;
+  cancel: () => void;
+};
+
+type AuthenticatedAction = {
+  /**
+   * Calls `request` without auth, then again with each stage the server asks for, until it
+   * succeeds or fails for another reason. Rejects with `AuthenticationCancelled` on cancel.
+   */
+  run: <T>(request: (auth?: AuthDict) => Promise<T>) => Promise<T>;
+  /** The prompt for the current stage; render it anywhere. */
+  prompt: ReactNode;
+};
+
+/** Shown when every flow the server offers has a stage this client cannot do. */
+function UnsupportedStages({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Dialog variant="Surface" role="alertdialog" aria-modal="true">
+      <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+        <Text size="T300">
+          {t('featureUi.settings.devices.otherDevices.authenticationStepsToPerformThisActionAre')}
+        </Text>
+        <Button variant="Secondary" fill="Soft" onClick={onClose}>
+          <Text size="B400">{t('featureUi.settings.devices.otherDevices.cancel')}</Text>
+        </Button>
+      </Box>
+    </Dialog>
+  );
+}
+
+/** Account actions that need the password or single sign-on again (deactivate, sign out). */
+export function useAuthenticatedAction(): AuthenticatedAction {
+  const [waiting, setWaiting] = useState<Waiting>();
+
+  const ask = useCallback(
+    (authData: IAuthData) =>
+      new Promise<AuthDict>((resolve, reject) => {
+        const entry: Waiting = {
+          authData,
+          answer: (auth) => {
+            setWaiting((current) => (current === entry ? undefined : current));
+            resolve(auth);
+          },
+          cancel: () => {
+            setWaiting((current) => (current === entry ? undefined : current));
+            reject(new AuthenticationCancelled());
+          },
+        };
+        setWaiting(entry);
+      }),
+    []
+  );
+
+  const run = useCallback(
+    async <T,>(request: (auth?: AuthDict) => Promise<T>): Promise<T> => {
+      let auth: AuthDict | undefined;
+      for (;;) {
+        try {
+          // The loop retries strictly one stage at a time.
+          // eslint-disable-next-line no-await-in-loop
+          return await request(auth);
+        } catch (error) {
+          const authData = readAuthData(error);
+          if (!authData) throw error;
+          // eslint-disable-next-line no-await-in-loop
+          auth = await ask(authData);
+        }
+      }
+    },
+    [ask]
+  );
+
+  const prompt = waiting ? (
+    <SettingsOverlay onDismiss={waiting.cancel}>
+      <ActionUIAFlowsLoader
+        authData={waiting.authData}
+        unsupported={() => <UnsupportedStages onClose={waiting.cancel} />}
+      >
+        {(flow) => (
+          <ActionUIA
+            authData={waiting.authData}
+            ongoingFlow={flow}
+            action={waiting.answer}
+            onCancel={waiting.cancel}
+          />
+        )}
+      </ActionUIAFlowsLoader>
+    </SettingsOverlay>
+  ) : null;
+
+  return { run, prompt };
+}
