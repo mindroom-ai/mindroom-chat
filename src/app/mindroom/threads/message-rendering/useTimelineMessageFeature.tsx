@@ -10,25 +10,37 @@ import React, {
 } from 'react';
 import {
   EventStatus,
+  EventType,
   MatrixEventEvent,
   RelationType,
   type MatrixEvent,
+  type Relations,
   type Room,
 } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
+import { useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useKeyDown } from '../../../hooks/useKeyDown';
+import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { isEmptyEditor } from '../../../components/editor';
+import { Reply } from '../../../components/message';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
-import { Event, Message } from '../../messages/MindroomMessage';
-import type { MessageLayout, MessageSpacing } from '../../../state/settings';
+import { Reactions } from '../../../features/room/message/Reactions';
+import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-custom-html-parser';
+import { useSetting } from '../../../state/hooks/settings';
+import { settingsAtom, type MessageLayout, type MessageSpacing } from '../../../state/settings';
+import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
+import { getEventReactions } from '../../../utils/room';
 import { MessageEvent } from '../../../../types/matrix/room';
+import { Event, Message } from '../../messages/MindroomMessage';
 import { CollapsibleMessage, CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
+import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { getLinkedTimelines } from '../linkedTimelines';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
@@ -54,8 +66,6 @@ const RENDERED_STATE_EVENTS = new Set([
   'm.room.name',
   'm.room.topic',
   'm.room.avatar',
-  'm.room.create',
-  'm.room.encryption',
 ]);
 
 const getMessageKind = (eventType: string): TimelineMessageKind | undefined => {
@@ -87,16 +97,100 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
   return replyEventId !== previousEventId;
 };
 
-/** Re-render rows whose encrypted event decrypts; listens only to the events on screen. */
-const useDecryptedEventsRefresh = (events: readonly MatrixEvent[]) => {
-  const [, refresh] = useReducer((value: number) => value + 1, 0);
+/**
+ * Re-render the host when an encrypted row on screen decrypts. Listens to exactly the events the
+ * last render showed: new rows subscribe, rows that left the screen unsubscribe.
+ */
+const useDecryptionRepaint = (renderedEventsRef: RefObject<MatrixEvent[]>): number => {
+  const [decryptions, repaint] = useReducer((value: number) => value + 1, 0);
+  const subscribedRef = useRef(new Set<MatrixEvent>());
   useEffect(() => {
-    const encrypted = events.filter((event) => event.isEncrypted() && !event.getClearContent());
-    encrypted.forEach((event) => event.once(MatrixEventEvent.Decrypted, refresh));
-    return () => {
-      encrypted.forEach((event) => event.removeListener(MatrixEventEvent.Decrypted, refresh));
-    };
+    const subscribed = subscribedRef.current;
+    const current = new Set(
+      (renderedEventsRef.current ?? []).filter((event) => event.isEncrypted?.())
+    );
+    subscribed.forEach((event) => {
+      if (current.has(event)) return;
+      event.removeListener(MatrixEventEvent.Decrypted, repaint);
+      subscribed.delete(event);
+    });
+    current.forEach((event) => {
+      if (subscribed.has(event)) return;
+      event.on(MatrixEventEvent.Decrypted, repaint);
+      subscribed.add(event);
+    });
   });
+  useEffect(
+    () => () => {
+      subscribedRef.current.forEach((event) =>
+        event.removeListener(MatrixEventEvent.Decrypted, repaint)
+      );
+      subscribedRef.current.clear();
+    },
+    []
+  );
+  return decryptions;
+};
+
+type ReactionToggle = (
+  targetEventId: string,
+  key: string,
+  shortcode: string | undefined,
+  relations?: Relations
+) => void;
+
+/** The reaction chips under a message; renders nothing until it has reactions. */
+function TimelineReactions({
+  room,
+  event,
+  relations,
+  onReactionToggle,
+}: {
+  room: Room;
+  event: MatrixEvent;
+  relations: Relations | undefined;
+  onReactionToggle: ReactionToggle;
+}) {
+  const eventId = event.getId();
+  if (!relations || !eventId) return null;
+  return (
+    <Reactions
+      room={room}
+      mEventId={eventId}
+      targetEvent={event}
+      canSendReaction
+      relations={relations}
+      onReactionToggle={onReactionToggle}
+    />
+  );
+}
+
+/** Toggle the user's reaction `key` on `targetEventId`: redact it when present, send it otherwise. */
+const useReactionToggle = (room: Room, threadId: string | undefined) => {
+  const mx = useMatrixClient();
+  return useCallback(
+    (targetEventId: string, key: string, shortcode: string | undefined, relations?: Relations) => {
+      const userId = mx.getUserId();
+      const own = relations
+        ?.getSortedAnnotationsByKey()
+        ?.find(([annotationKey]) => annotationKey === key)?.[1];
+      const ownEvent =
+        own && [...own].find((event) => event.getSender() === userId && !event.isRedacted());
+      const ownEventId = ownEvent?.getId();
+      if (ownEventId) {
+        mx.redactEvent(room.roomId, ownEventId).catch(() => undefined);
+        return;
+      }
+      const content = {
+        'm.relates_to': { rel_type: RelationType.Annotation, event_id: targetEventId, key },
+        ...(shortcode ? { shortcode } : {}),
+      };
+      mx.sendEvent(room.roomId, threadId ?? null, EventType.Reaction, content as never).catch(
+        () => undefined
+      );
+    },
+    [mx, room.roomId, threadId]
+  );
 };
 
 /**
@@ -172,8 +266,41 @@ export const useTimelineMessageFeature = ({
     )
   );
 
+  const decryptions = useDecryptionRepaint(renderedEventsRef);
+
+
+
+
+
+
+
+  const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
+  const htmlReactParserOptions = useMemo(
+    () =>
+      getReactCustomHtmlParser(mx, room.roomId, { linkifyOpts: LINKIFY_OPTS, useAuthentication }),
+    [mx, room.roomId, useAuthentication]
+  );
+
+  const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));
+  const { navigateRoomThread } = useRoomNavigate();
+  const handleReplyClick = useCallback(
+    (replyEventId: string, startThread = false) => {
+      const reply = buildMindroomRoomTimelineReplyDraft(room, replyEventId, startThread);
+      if (!reply) return;
+      setReplyDraft(reply.draft);
+      if (startThread && threadIdRef.current !== reply.threadRootId) {
+        navigateRoomThread(room.roomId, reply.threadRootId);
+      }
+      document
+        .querySelector<HTMLElement>('[data-editable-name="RoomInput"]')
+        ?.focus({ preventScroll: true });
+    },
+    [navigateRoomThread, room, setReplyDraft]
+  );
+
   const renderEvent = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
+      void decryptions;
       const { event, eventId, collapse, highlighted } = row;
       if (event.getStateKey?.() !== undefined) {
         if (!RENDERED_STATE_EVENTS.has(event.getType())) return null;
@@ -183,16 +310,15 @@ export const useTimelineMessageFeature = ({
             data-message-id={eventId}
             room={room}
             mEvent={event}
-
-
-
+            highlight={highlighted}
+            messageSpacing={messageSpacing}
           />
         );
       }
 
       const kind = getMessageKind(event.getType());
       if (!kind) return null;
-      renderedEventsRef.current.push(event);
+      renderedEventsRef.current?.push(event);
 
       const content = event.getContent() as Record<string, unknown>;
       const summaryInfo =
@@ -215,20 +341,23 @@ export const useTimelineMessageFeature = ({
       const msgType = typeof content.msgtype === 'string' ? content.msgtype : '';
       const isAgentReply =
         !!content['io.mindroom.ai_run'] || !!content['io.mindroom.stream_status'];
+      const replyEventId =
+        kind !== 'sticker' && shouldShowReply(row) ? event.replyEventId : undefined;
       const contentProps = {
         mEvent: event,
         eventId,
-        displayName: room.getMember(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
+        displayName: room.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
         msgType,
         eventType: event.getType(),
         ts: event.getTs(),
         edited: !!event.replacingEvent(),
         getContent: (() => event.getContent()) as <T>() => T,
-        mediaAutoLoad: true,
-        urlPreview: true,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
+        mediaAutoLoad: !!mediaAutoLoad,
+        urlPreview: !!showUrlPreview,
+        htmlReactParserOptions,
+        linkifyOpts: LINKIFY_OPTS,
       };
+      const relations = getEventReactions(row.timelineSet, eventId);
 
       return (
         <React.Fragment key={eventId}>
@@ -240,18 +369,41 @@ export const useTimelineMessageFeature = ({
             highlight={highlighted}
             edit={editable && editingEventId === eventId ? true : undefined}
             onEditId={editable ? setEditingEventId : undefined}
+            canSendReaction={kind !== 'sticker'}
+            relations={relations}
             reply={
-              kind !== 'sticker' && shouldShowReply(row) ? (
-                <span data-reply-to={event.replyEventId} />
+              replyEventId ? (
+                <Reply
+
+
+
+                  timelineSet={row.timelineSet}
+                  hideThreadIndicator={!!threadId}
+                  data-event-id={replyEventId}
+                  onClick={data.handleOpenReply}
+                />
               ) : undefined
             }
-            reactions={kind !== 'sticker' ? <span data-reactions-for={eventId} /> : undefined}
+            reactions={
+              kind !== 'sticker' ? (
+                <TimelineReactions
+
+
+
+                  onReactionToggle={toggleReaction}
+                />
+              ) : undefined
+            }
             resolvedMessageContent={content}
-            messageLayout={messageLayout}
-            messageSpacing={messageSpacing}
-            onReplyClick={data.handleOpenReply as never}
-            hour24Clock={false}
-            dateFormatString="D MMM YYYY"
+
+
+
+            onReactionToggle={(key, shortcode) =>
+              toggleReaction(eventId, key, shortcode, relations)
+            }
+            hideReadReceipts={hideActivity}
+            hour24Clock={!!hour24Clock}
+            dateFormatString={dateFormatString}
           >
             <CollapsibleMessage
               expansionKey={eventId}
@@ -274,23 +426,22 @@ export const useTimelineMessageFeature = ({
     },
     [
       consumeLiveExpansion,
+      dateFormatString,
+      decryptions,
       editingEventId,
-      hideActivity,
-      liveExpansionIds,
-      messageLayout,
-      messageSpacing,
-      room,
-      threadId,
-    ]
-  );
+      handleReplyClick,
 
-  const RefreshOnDecryption = useMemo(
-    () =>
-      function RefreshOnDecryptionInner({ children }: { children: ReactNode }) {
-        useDecryptedEventsRefresh(renderedEventsRef.current);
-        return <>{children}</>;
-      },
-    []
+
+
+      liveExpansionIds,
+
+
+
+      room,
+      showUrlPreview,
+      threadId,
+      toggleReaction,
+    ]
   );
 
   const wrapExpansion = useCallback(
@@ -299,10 +450,10 @@ export const useTimelineMessageFeature = ({
         expandAllInit={undefined}
         manualExpansionState={manualExpansionState}
       >
-        <RefreshOnDecryption>{node}</RefreshOnDecryption>
+        {node}
       </CollapsibleMessageStateProvider>
     ),
-    [manualExpansionState, RefreshOnDecryption]
+    [manualExpansionState]
   );
 
   return {

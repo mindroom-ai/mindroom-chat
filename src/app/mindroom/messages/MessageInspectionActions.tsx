@@ -51,7 +51,7 @@ function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemPr
             }}
           >
             <Modal variant="Surface" size="500">
-              {renderDialog(close)}
+              {open && renderDialog(close)}
             </Modal>
           </FocusTrap>
         </OverlayCenter>
@@ -99,7 +99,7 @@ export function MessageSourceCodeItem({
 
 
 
-      label={t('sharedUi.message.viewSource')}
+      label={t('mindroomUi.messages.messageInspectionActions.viewSource')}
       onClose={onClose}
       renderDialog={(requestClose) => (
         <TextViewer
@@ -127,7 +127,7 @@ export function MessageReadReceiptItem({
   return (
     <MenuDialogItem
       icon={Icons.CheckTwice}
-      label={t('sharedUi.message.readReceipts')}
+      label={t('mindroomUi.messages.messageInspectionActions.readReceipts')}
       onClose={onClose}
       renderDialog={(requestClose) => (
         <EventReaders room={room} eventId={eventId} requestClose={requestClose} />

@@ -40,10 +40,6 @@ type MockComputerPanelProps = {
   threadId?: string;
 };
 
-type MockCallChatViewProps = MockRoomViewProps & {
-  room: { roomId: string; isCallRoom: () => boolean };
-};
-
 const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, roomState } =
   vi.hoisted(() => ({
     navigateRoomMock: vi.fn(),
@@ -61,7 +57,6 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     },
     room: {
       roomId: '!room:example.org',
-      isCallRoom: () => roomState.callRoom,
       getMembers: () => roomState.members,
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
@@ -89,9 +84,6 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       routedEvent: undefined as
         | undefined
         | { getId: () => string; threadRootId?: string; isSending: () => boolean },
-      callChat: false,
-      callChatViewProps: undefined as MockCallChatViewProps | undefined,
-      callRoom: false,
       clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as
@@ -102,7 +94,6 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
             expanded: boolean;
             onToggleExpanded: () => void;
           },
-      callEmbed: undefined as unknown,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
@@ -149,8 +140,6 @@ vi.mock('jotai', async () => {
   return {
     ...actual,
     useAtomValue: (atom: { mock?: string }) => {
-      if (atom?.mock === 'callEmbed') return roomState.callEmbed;
-      if (atom?.mock === 'callChat') return roomState.callChat;
       return actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]);
     },
   };
@@ -308,28 +297,12 @@ vi.mock('../../recent-threads/recentThreads', () => ({
   removeRecentThread: removeRecentThreadMock,
 }));
 
-vi.mock('../../../features/call/CallView', () => ({
-  CallView: () => React.createElement('div'),
-}));
-
 vi.mock('../../../features/room/RoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
 
 vi.mock('../MindroomRoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
-}));
-
-vi.mock('../MindroomCallChatView', () => ({
-  MindroomCallChatView: (props: MockCallChatViewProps) => {
-    roomState.callChatViewProps = props;
-    return React.createElement('mock-call-chat-view');
-  },
-}));
-
-vi.mock('../../../state/callEmbed', () => ({
-  callChatAtom: { mock: 'callChat' },
-  callEmbedAtom: { mock: 'callEmbed' },
 }));
 
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -355,13 +328,9 @@ describe('Room', () => {
     roomState.panelDisposals = 0;
     roomState.computerPanelThreads = [];
     roomState.routedEvent = undefined;
-    roomState.callChat = false;
-    roomState.callChatViewProps = undefined;
-    roomState.callRoom = false;
     roomState.clientConfig = { mindroom: {} };
     roomState.computerPanelProps = undefined;
     roomState.canvasPanelProps = undefined;
-    roomState.callEmbed = undefined;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
@@ -741,21 +710,6 @@ describe('Room', () => {
     await act(async () => roomState.canvasPanelProps?.onClose());
     expect(canvasOpen()).toBe(false);
 
-    // A call's frames listen to window messages, so a call closes canvases and blocks new ones.
-    await act(async () => {
-      emitAction('show_canvas', { canvas });
-    });
-    expect(canvasOpen()).toBe(true);
-    roomState.callEmbed = { mock: 'active call' };
-    await act(async () => renderer!.update(React.createElement(Room)));
-    expect(canvasOpen()).toBe(false);
-    await act(async () => {
-      emitAction('show_canvas', { canvas });
-    });
-    expect(canvasOpen()).toBe(false);
-    roomState.callEmbed = undefined;
-    await act(async () => renderer!.update(React.createElement(Room)));
-    expect(canvasOpen()).toBe(false);
     await act(async () => renderer!.unmount());
     vi.stubGlobal('document', undefined);
   });
@@ -857,29 +811,6 @@ describe('Room', () => {
     expect(roomState.canvasPanelProps?.expanded).toBe(true);
     expect(room.conversationShown()).toBe(false);
     await room.unmount();
-  });
-
-  it('does not expand a requested canvas that could not open during a call, when it opens later', async () => {
-    const canvas = listedCanvas();
-    roomState.loadedEvents.set('$listed', canvas);
-    roomState.callEmbed = { mock: 'active call' };
-    const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
-    requestCanvasOpen('!room:example.org', '$listed');
-    const view = await renderCanvasRoom();
-    await act(async () => undefined);
-    expect(view.canvasOpen()).toBe(false);
-    roomState.callEmbed = undefined;
-    await view.rerender();
-    expect(view.canvasOpen()).toBe(false);
-    // The agent shows it again after the call: it opens beside the conversation, as usual.
-    await act(async () => {
-      roomState.mxListeners.get('Room.timeline')?.(listedCanvas(), room, false, false, {
-        liveEvent: true,
-      });
-    });
-    expect(view.canvasOpen()).toBe(true);
-    expect(roomState.canvasPanelProps?.expanded).toBe(false);
-    await view.unmount();
   });
 
   describe('the header canvas button', () => {
@@ -1036,16 +967,6 @@ describe('Room', () => {
         expect(roomState.roomViewProps?.openCanvasId).toBe('$fast');
         await view.unmount();
       });
-    });
-
-    it('lists no canvases during a call', async () => {
-      roomState.conversationCanvases = [entry('$listed')];
-      roomState.callEmbed = { mock: 'active call' };
-      const view = await renderCanvasRoom();
-
-      expect(roomState.roomViewProps).toBeDefined();
-      expect(roomState.roomViewProps?.canvases).toBeUndefined();
-      await view.unmount();
     });
 
     it('lists no canvases when the deployment has not enabled them', async () => {
@@ -1677,30 +1598,5 @@ describe('Room', () => {
 
     expect(renderer!.root.findAllByType('mock-room-view')).toHaveLength(1);
     expect(renderer!.root.findAllByType('mock-room-view-header')).toHaveLength(0);
-  });
-
-  it('updates call-room chat from the overview to the selected thread route', async () => {
-    roomState.callChat = true;
-    roomState.callRoom = true;
-    const { Room } = await import('../../../features/room/Room');
-    let renderer: ReturnType<typeof create>;
-
-    await act(async () => {
-      renderer = create(React.createElement(Room));
-    });
-
-    expect(roomState.callChatViewProps?.threadId).toBeUndefined();
-
-    roomState.search = '?threadId=%24root';
-    await act(async () => {
-      renderer!.update(React.createElement(Room));
-    });
-
-    expect(roomState.callChatViewProps).toMatchObject({
-      focusEventInRoom: false,
-      room,
-      threadId: '$root',
-    });
-    expect(roomState.callChatViewProps?.onThreadLoadError).toEqual(expect.any(Function));
   });
 });

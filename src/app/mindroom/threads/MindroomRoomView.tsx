@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Box } from 'folds';
 import { useEditor } from '../../components/editor';
@@ -12,13 +12,16 @@ import { RoomInput } from '../room-input/MindroomRoomInput';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
-import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { RoomTimeline } from './MindroomRoomTimeline';
 import { RoomViewHeader } from './MindroomRoomViewHeader';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
-import type { ThreadSortFreezeState } from './roomThreadOverviewModel';
+import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+
+const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
+/** Stand-in for handlers the thread state mock or a minimal state leaves out. */
+const ignoreSummary = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 
@@ -26,19 +29,11 @@ export type RoomViewProps = {
   room: Room;
   eventId?: string;
   threadId?: string;
-  focusEventInRoom?: boolean;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
-  callView?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
-  computerShown?: boolean;
   onComputerToggle?: () => void;
-  canvasOpen?: boolean;
-  canvases?: CanvasListEntry[];
-  openCanvasId?: string;
-  onCanvasOpen?: (canvasId: string) => void;
-  onCanvasClose?: () => void;
   onThreadLoadError?: (threadId: string) => void;
 };
 
@@ -51,10 +46,8 @@ export function RoomView({
   room,
   eventId,
   threadId,
-  focusEventInRoom,
   hasMindroomAgents,
   joinRequestCount,
-  callView,
   computerAvailable,
   computerOpen,
   onComputerToggle,
@@ -71,28 +64,6 @@ export function RoomView({
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
   const effectiveThreadId = threadState.effectiveThreadId;
-  const [localSortFreeze, setLocalSortFreeze] = useState<ThreadSortFreezeState | null>(null);
-  const noop = useCallback(() => undefined, []);
-
-  const timelineProps = useMemo(
-    () => ({
-      summaryMap: threadState.summaryMap ?? new Map(),
-      onStoreThreadSummary: threadState.storeThreadSummary ?? noop,
-      threadFilterState: threadState.threadFilterState,
-      threadSortFreezeState: threadState.threadSortFreezeState ?? localSortFreeze,
-      onToggle: threadState.handleToggle ?? noop,
-      onSortDirectionChange: threadState.handleSortDirectionChange ?? noop,
-      onToggleThreadSortFreeze: threadState.handleToggleThreadSortFreeze ?? noop,
-      setThreadSortFreezeState: threadState.setThreadSortFreezeState ?? setLocalSortFreeze,
-      onCycleTag: threadState.handleCycleTag ?? noop,
-      onAddTag: threadState.handleAddTag ?? noop,
-      onRemoveTag: threadState.handleRemoveTag ?? noop,
-      onReset: threadState.handleReset ?? noop,
-      onViewModeChange: threadState.handleViewModeChange ?? noop,
-    }),
-    [localSortFreeze, noop, threadState]
-  );
-
   const focusConversation = useCallback(() => {
     roomInputRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
@@ -104,22 +75,19 @@ export function RoomView({
         threadId={effectiveThreadId}
         focusConversation={focusConversation}
       >
-        {!callView && (
-          <RoomViewHeader
-            room={room}
-            hasMindroomAgents={hasMindroomAgents}
-            joinRequestCount={joinRequestCount}
-            computerAvailable={computerAvailable}
-            computerOpen={computerOpen}
-            onComputerToggle={onComputerToggle}
-          />
-        )}
+        <RoomViewHeader
+          hasMindroomAgents={hasMindroomAgents}
+          joinRequestCount={joinRequestCount}
+          computerAvailable={computerAvailable}
+          computerOpen={computerOpen}
+          onComputerToggle={onComputerToggle}
+        />
         {effectiveThreadId && (
           <ThreadContextBanner
             room={room}
             threadId={effectiveThreadId}
             summaryInfo={threadState.threadSummaryInfo}
-            onExitThread={threadState.handleExitThread ?? noop}
+            onExitThread={threadState.handleExitThread ?? ignoreSummary}
           />
         )}
         <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
@@ -127,15 +95,15 @@ export function RoomView({
             key={`${room.roomId}:${effectiveThreadId ?? ''}`}
             room={room}
             eventId={eventId}
-            focusEventInRoom={focusEventInRoom}
             threadId={effectiveThreadId}
-            hasMindroomAgents={hasMindroomAgents}
+            summaryMap={threadState.summaryMap ?? EMPTY_SUMMARY_MAP}
+            onStoreThreadSummary={threadState.storeThreadSummary ?? ignoreSummary}
+            threadFilterState={threadState.threadFilterState}
+            threadSortFreezeState={threadState.threadSortFreezeState ?? null}
             viewMode={threadState.viewMode}
-            roomInputRef={roomInputRef}
             compactRoomScrollStateRef={compactRoomScrollStateRef}
             editor={editor}
             onThreadLoadError={onThreadLoadError}
-            {...timelineProps}
           />
         </Box>
         <Box direction="Column" shrink="No">
@@ -145,18 +113,21 @@ export function RoomView({
             canCancel={canCancelJobs}
           />
           {effectiveThreadId && <ThreadApprovalQueue />}
-
-
-
-
-
-            threadId={effectiveThreadId}
-            editor={editor}
-            fileDropContainerRef={roomInputRef}
-            onRoomMessageSent={threadState.handleRoomMessageSent}
-          />
         </Box>
       </ThreadApprovalProvider>
+      {/* Outside the approval provider: opening a thread must not remount the composer. */}
+      <Box direction="Column" shrink="No">
+
+
+
+
+
+          threadId={effectiveThreadId}
+          editor={editor}
+          fileDropContainerRef={roomInputRef}
+          onRoomMessageSent={threadState.handleRoomMessageSent}
+        />
+      </Box>
     </Page>
   );
 }

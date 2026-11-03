@@ -32,11 +32,13 @@ export function MindroomThreadSummaryCard({
 
   let label: string;
   if (isManual) {
-    label = t('mindroomUi.threadSummary.manual');
+    label = t('sharedUi.threadSummary.manual');
   } else if (compact && hasCount) {
-    label = t('mindroomUi.threadSummary.aiOfLast', { count: messageCount });
+    label = t('sharedUi.threadSummary.provenanceCount', { count: messageCount });
   } else {
-    label = t('mindroomUi.threadSummary.ai');
+    label = compact
+      ? t('sharedUi.threadSummary.provenance')
+      : t('mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary');
   }
 
   return (
@@ -55,7 +57,7 @@ export function MindroomThreadSummaryCard({
         {!compact && !isManual && hasCount && (
           <Chip as="span" size="400" radii="Pill" variant="SurfaceVariant" aria-disabled="true">
             <Text size="T200">
-              {t('mindroomUi.threadSummary.generatedFrom', { count: messageCount })}
+              {t('sharedUi.threadSummary.provenanceCount', { count: messageCount })}
             </Text>
           </Chip>
         )}

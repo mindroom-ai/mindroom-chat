@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icon, IconButton, Icons, PopOut, Text, type RectCords } from 'folds';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar } from '../../components/room-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useRoom } from '../../hooks/useRoom';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
+import { mxcUrlToHttp } from '../../utils/mediaUrl';
+import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
+import { useStateEvent } from '../../hooks/useStateEvent';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useRoomViewMode } from './useRoomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import * as css from './MindroomRoomViewHeader.css';
 
 export type RoomViewHeaderProps = {
-  room: Room;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
-  /** Shown beside a running call; hides room-level actions that do not apply there. */
-  callView?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
@@ -29,9 +29,7 @@ export type RoomViewHeaderProps = {
  * pinned messages, the computer, and the members panel.
  */
 export function RoomViewHeader({
-  room,
   joinRequestCount = 0,
-  callView,
   computerAvailable,
   computerOpen,
   onComputerToggle,
@@ -39,30 +37,48 @@ export function RoomViewHeader({
 
 
 
-  const { viewMode, setViewMode } = useRoomViewMode(room.roomId);
+
+  const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(room.roomId);
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
 
-  const topic = getStateEvent(room, 'm.room.topic')?.getContent()?.topic;
-  const avatarUrl = getRoomAvatarUrl(mx, room, 96, useAuthentication);
+  // Compact shows threads as cards; Full is the classic timeline. A direct chat offers neither.
+  const fullMode: RoomViewMode | undefined = availableViewModes.includes('classic')
+    ? 'classic'
+    : availableViewModes.find((mode) => mode !== 'compact');
+  const canSwitchView = availableViewModes.includes('compact') && fullMode !== undefined;
   const compact = viewMode === 'compact';
+  const switchLabel = compact
+    ? t('mindroomUi.threads.mindroomRoomViewHeader.classic')
+    : t('mindroomUi.threads.mindroomRoomViewHeader.compact');
+  const membersLabel = membersOpen
+    ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+    : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
 
-  return (
-    <PageHeader className={css.Header} balance>
+  const roomName = useRoomName(room);
+  const topicContent = useStateEvent(room, 'm.room.topic')?.getContent();
+  const topic = typeof topicContent?.topic === 'string' ? topicContent.topic : undefined;
+
+
+
+
+
+
+
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
         <Avatar size="300">
           <RoomAvatar
 
 
 
-            renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
+            renderFallback={() => <Text size="H6">{roomName.slice(0, 1)}</Text>}
           />
         </Avatar>
         <Box direction="Column" style={{ minWidth: 0 }}>
           <Text size="H4" truncate>
-            {room.name}
+            {roomName}
           </Text>
-          {typeof topic === 'string' && topic && (
+          {topic && (
             <Text size="T200" priority="300" truncate>
               {topic}
             </Text>
@@ -70,14 +86,14 @@ export function RoomViewHeader({
         </Box>
       </Box>
       <Box shrink="No" alignItems="Center" gap="100">
-        {!callView && (
+        {canSwitchView && fullMode && (
           <IconButton
             size="300"
             radii="300"
-            aria-label={compact ? t('room.header.showFull') : t('room.header.showCompact')}
-            title={compact ? t('room.header.showFull') : t('room.header.showCompact')}
+            aria-label={switchLabel}
+            title={switchLabel}
             aria-pressed={compact}
-            onClick={() => setViewMode(compact ? 'threaded' : 'compact')}
+            onClick={() => setViewMode(compact ? fullMode : 'compact')}
           >
             <Icon size="200" src={compact ? Icons.Message : Icons.Category} />
           </IconButton>
@@ -86,7 +102,11 @@ export function RoomViewHeader({
           <IconButton
             size="300"
             radii="300"
-            aria-label={t('room.header.computer')}
+            aria-label={
+              computerOpen
+                ? t('mindroomUi.threads.mindroomRoomViewHeader.hideComputer')
+                : t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')
+            }
             aria-pressed={!!computerOpen}
             onClick={onComputerToggle}
           >
@@ -120,7 +140,7 @@ export function RoomViewHeader({
           <IconButton
             size="300"
             radii="300"
-            aria-label={t('room.header.pinnedMessages')}
+            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
             aria-pressed={!!pinAnchor}
             onClick={(evt: React.MouseEvent<HTMLButtonElement>) => {
               const rect = evt.currentTarget.getBoundingClientRect();
@@ -134,7 +154,14 @@ export function RoomViewHeader({
           <IconButton
             size="300"
             radii="300"
-            aria-label={t('room.header.members')}
+            aria-label={
+              joinRequestCount > 0
+                ? t('featureUi.room.pendingJoinRequests.accessibleLabel', {
+                    baseLabel: membersLabel,
+                    count: joinRequestCount,
+                  })
+                : membersLabel
+            }
             aria-pressed={membersOpen}
             onClick={() => setMembersOpen(!membersOpen)}
           >
@@ -147,7 +174,7 @@ export function RoomViewHeader({
               fill="Solid"
               radii="Pill"
               style={{ position: 'absolute', top: 0, right: 0, pointerEvents: 'none' }}
-              aria-label={t('room.header.joinRequests', { count: joinRequestCount })}
+              aria-hidden="true"
             >
               <Text size="L400">{joinRequestCount}</Text>
             </Badge>

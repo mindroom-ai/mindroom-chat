@@ -6,7 +6,7 @@ import { Icon, Icons } from 'folds';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../utils/sanitize';
-import { ACTIVE_STREAM_STATUSES, STREAM_STATUS_KEY } from './aiRun';
+import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from './aiRun';
 import * as css from './MindroomReasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
@@ -23,17 +23,6 @@ const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
     durationMs:
       typeof durationMs === 'number' && Number.isFinite(durationMs) ? durationMs : undefined,
   };
-};
-
-const getStreamStatus = (content: Record<string, unknown>): string | undefined => {
-  const status = content[STREAM_STATUS_KEY];
-  if (typeof status === 'string') return status;
-  const newContent = content['m.new_content'];
-  if (typeof newContent === 'object' && newContent !== null) {
-    const nested = (newContent as Record<string, unknown>)[STREAM_STATUS_KEY];
-    if (typeof nested === 'string') return nested;
-  }
-  return undefined;
 };
 
 const nonEmptyString = (value: unknown): string | undefined =>
@@ -141,7 +130,7 @@ function ReasoningHeader({
     return (
       <ReasoningBlock
         key="live"
-        label={t('mindroomUi.messages.reasoning.thinking')}
+        label={t('mindroomUi.messages.mindroomReasoning.thinking')}
         text={live}
         defaultExpanded
         htmlReactParserOptions={htmlReactParserOptions}
@@ -156,8 +145,8 @@ function ReasoningHeader({
       key="final"
       label={
         seconds === undefined
-          ? t('mindroomUi.messages.reasoning.thought')
-          : t('mindroomUi.messages.reasoning.thoughtFor', { seconds })
+          ? t('mindroomUi.messages.mindroomReasoning.thought')
+          : t('mindroomUi.messages.mindroomReasoning.thoughtFor', { count: seconds })
       }
       text={final.text}
       defaultExpanded={false}
@@ -176,13 +165,13 @@ export const withMindroomReasoning = (
   content: Record<string, unknown>,
   body: ReactNode,
   htmlReactParserOptions: HTMLReactParserOptions,
-  // Accepted for parity with the body renderers; reasoning is rendered from Markdown.
-  linkifyOpts?: LinkifyOpts
+  // The body renderers pass their linkify options too; reasoning renders from Markdown.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _linkifyOpts?: LinkifyOpts
 ): ReactNode => {
-  void linkifyOpts;
   const final = parseFinalReasoning(content[MINDROOM_REASONING_KEY]);
   const liveText = nonEmptyString(content[LIVE_REASONING_KEY]);
-  const status = getStreamStatus(content);
+  const status = getStreamStatusFromContent(content);
   const streaming = status === undefined || ACTIVE_STREAM_STATUSES.has(status);
   const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
   const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);

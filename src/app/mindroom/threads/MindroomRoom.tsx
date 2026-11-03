@@ -10,10 +10,12 @@ import { MembersDrawer } from '../../features/room/MembersDrawer';
 import { markRoomAndThreadsAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import { isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
+import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useBindsOpenIdTokens, useRoomMindroomServers } from '../server/useMindroomServers';
+import { removeRecentThread } from '../recent-threads/recentThreads';
 import { RoomView } from './MindroomRoomView';
 
 /** The computer agents of the room and the server each one runs on. */
@@ -61,7 +63,7 @@ const useRoomComputer = (
   const threadId = searchParams.get('threadId') ?? undefined;
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
-  const [membersOpen] = useMembersDrawer();
+  const [membersOpen, setMembersOpen] = useMembersDrawer();
   const myUserId = mx.getSafeUserId();
 
   const hasMindroomAgents = useMemo(
@@ -84,14 +86,16 @@ const useRoomComputer = (
     if (!computer.apiUrl) setComputerOpen(false);
   }, [computer.apiUrl]);
 
-  const [failedThreadId, setFailedThreadId] = useState<string>();
-  const onThreadLoadError = useCallback((failed: string) => setFailedThreadId(failed), []);
-  void failedThreadId;
+  // A thread that cannot load leaves the recently opened list; the route itself stays.
+  const onThreadLoadError = useCallback(
+    (failed: string) => removeRecentThread(room.roomId, failed),
 
-  // Escape marks everything in view as read.
-  useKeyDown(
-    window,
-    useCallback(
+
+
+
+
+
+
       (evt: KeyboardEvent) => {
         if (evt.key !== 'Escape' || evt.defaultPrevented) return;
         if (threadId) markThreadAsRead(mx, room.roomId, threadId, false);
@@ -109,7 +113,6 @@ const useRoomComputer = (
             room={room}
             eventId={eventId}
             threadId={threadId}
-            focusEventInRoom={!threadId && !!eventId}
             hasMindroomAgents={hasMindroomAgents}
             joinRequestCount={joinRequestCount}
             computerAvailable={!!computer.apiUrl}
@@ -137,7 +140,11 @@ const useRoomComputer = (
             />
           </Box>
         )}
-        {membersOpen && <MembersDrawer key={room.roomId} room={room} members={members} />}
+        {membersOpen && (
+          <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
+            <MembersDrawer key={room.roomId} room={room} members={members} />
+          </ResizableMembersPanel>
+        )}
       </Box>
     </PowerLevelsContextProvider>
   );

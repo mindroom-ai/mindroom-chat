@@ -15,15 +15,24 @@ import type { MatrixEvent, Relations, Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Box,
+  Button,
   Icon,
   IconButton,
   Icons,
   Menu,
   MenuItem,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
   PopOut,
   Text,
+  color,
   type RectCords,
 } from 'folds';
+import { Trans } from 'react-i18next';
+import { Dialog } from '../../components/glass/GlassPrimitives';
+import { EmojiBoard } from '../../components/emoji-board';
+import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import {
   AvatarBase,
   BubbleLayout,
@@ -102,6 +111,193 @@ function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItem
 }
 
 /** "Copy Text": the message body, without the tool call markers MindRoom adds. */
+/** Edits a text message in place and sends the edit as an `m.replace` event. */
+function MessageInlineEditor({
+  room,
+  mEvent,
+  content,
+  onDone,
+}: {
+  room: Room;
+
+
+
+
+
+
+  const [text, setText] = useState(typeof content.body === 'string' ? content.body : '');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const eventId = mEvent.getId();
+  const save = async () => {
+    const body = text.trim();
+    if (!eventId || !body) return;
+    setBusy(true);
+    setFailed(false);
+    const msgtype = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
+    try {
+      await mx.sendMessage(room.roomId, mEvent.threadRootId ?? null, {
+        msgtype,
+        body: `* ${body}`,
+        'm.new_content': { msgtype, body },
+        'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
+      } as never);
+      onDone();
+    } catch {
+      setFailed(true);
+      setBusy(false);
+    }
+  };
+  return (
+    <Box direction="Column" gap="200">
+      <textarea
+        aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+        placeholder={t('featureUi.room.message.messageEditor.editMessage')}
+        value={text}
+        disabled={busy}
+        rows={Math.min(8, Math.max(2, text.split('\n').length))}
+        style={{ width: '100%', font: 'inherit', resize: 'vertical' }}
+        onChange={(evt) => setText(evt.target.value)}
+        onKeyDown={(evt) => {
+          if (evt.key === 'Escape') onDone();
+          if (evt.key === 'Enter' && !evt.shiftKey) {
+            evt.preventDefault();
+            void save();
+          }
+        }}
+      />
+      {failed && (
+        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+          {t('threadActions.failed')}
+        </Text>
+      )}
+      <Box gap="200">
+        <Button
+          type="button"
+          size="300"
+          variant="Primary"
+          disabled={busy}
+          onClick={() => void save()}
+        >
+
+
+
+
+
+
+
+
+          onClick={onDone}
+        >
+          <Text size="B300">{t('featureUi.room.message.messageEditor.cancel')}</Text>
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+/** A small modal for the message actions that need a confirmation or a reason. */
+function MessageActionDialog({
+  title,
+  description,
+  confirmLabel,
+  busyLabel,
+  reasonLabel,
+  error,
+  done,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  busyLabel: string;
+  reasonLabel?: string;
+  error?: string;
+  done?: string;
+  busy: boolean;
+  onConfirm: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [reason, setReason] = useState('');
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            escapeDeactivates: () => {
+              if (!busy) onClose();
+              return !busy;
+            },
+            clickOutsideDeactivates: () => {
+              if (!busy) onClose();
+              return !busy;
+            },
+          }}
+        >
+          <Dialog
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            style={{ padding: '1rem', width: 'min(26rem, calc(100vw - 2rem))' }}
+          >
+            <Box direction="Column" gap="300">
+              <Text size="H4">{title}</Text>
+              <Text size="T300">{description}</Text>
+              {reasonLabel && (
+                <input
+                  aria-label={reasonLabel}
+                  placeholder={reasonLabel}
+                  value={reason}
+                  disabled={busy}
+                  onChange={(evt) => setReason(evt.target.value)}
+                />
+              )}
+              {error && (
+                <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+                  {error}
+                </Text>
+              )}
+              {done && (
+                <Text role="status" size="T200" style={{ color: color.Success.Main }}>
+                  {done}
+                </Text>
+              )}
+              <Box justifyContent="End" gap="200">
+                <Button
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="Soft"
+                  disabled={busy}
+                  onClick={onClose}
+                >
+                  <Text size="B300">{t('threadActions.cancel')}</Text>
+                </Button>
+                {!done && (
+                  <Button
+                    type="button"
+                    size="300"
+                    variant="Critical"
+                    disabled={busy}
+                    onClick={() => onConfirm(reason.trim())}
+                  >
+                    <Text size="B300">{busy ? busyLabel : confirmLabel}</Text>
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          </Dialog>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
+/** "Copy Text": the message body, without the tool call markers MindRoom adds. */
 export function MessageCopyTextItem({
   content,
   originalContent,
@@ -114,7 +310,8 @@ export function MessageCopyTextItem({
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const handleCopy = () => {
+  const [failed, setFailed] = useState(false);
+  const handleCopy = async () => {
     const source = getMessageCopyTextSource(content, originalContent ?? content, resolvedContent);
     if (!source) return;
     const scan = scanMindroomToolMarkerLines(
@@ -122,14 +319,49 @@ export function MessageCopyTextItem({
       source.formattedBody,
       !source.formattedBody
     );
-    void copyToClipboard(getMessageCopyTexts(source, scan).text);
-    onClose?.();
+    const copied = await copyToClipboard(getMessageCopyTexts(source, scan).text);
+    setFailed(!copied);
+    if (copied) onClose?.();
   };
   return (
     <MessageMenuAction
-      label={t('sharedUi.message.copyText')}
-      icon={Icons.Text}
-      onClick={handleCopy}
+      label={
+        failed ? t('threadActions.failed') : t('mindroomUi.messages.messageCopyActions.copyText')
+      }
+      icon={failed ? Icons.Warning : Icons.Text}
+      variant={failed ? 'Critical' : undefined}
+      onClick={() => void handleCopy()}
+    />
+  );
+}
+
+/** "Copy Link": a matrix.to permalink of the message. */
+export function MessageCopyLinkItem({
+  room,
+  eventId,
+  onClose,
+}: {
+  room: Room;
+  eventId: string;
+  onClose?: () => void;
+}) {
+  const { t } = useTranslation();
+  const [failed, setFailed] = useState(false);
+  const handleCopy = async () => {
+    const copied = await copyToClipboard(
+      getMatrixToRoomEvent(room.roomId, eventId, getViaServers(room))
+    );
+    setFailed(!copied);
+    if (copied) onClose?.();
+  };
+  return (
+    <MessageMenuAction
+      label={
+        failed ? t('threadActions.failed') : t('mindroomUi.messages.messageCopyActions.copyLink')
+      }
+      icon={failed ? Icons.Warning : Icons.Link}
+      variant={failed ? 'Critical' : undefined}
+      onClick={() => void handleCopy()}
     />
   );
 }
@@ -145,22 +377,33 @@ export function MessagePinItem({
 }) {
   const { t } = useTranslation();
   const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
+  const [failed, setFailed] = useState(false);
   const eventId = mEvent.getId();
   if (!eventId || !canPin) return null;
   const pinned = pinnedEventIds.includes(eventId);
+  const handlePin = async () => {
+    const saved = await setPinned(eventId, !pinned);
+    setFailed(!saved);
+    if (saved) onClose?.();
+  };
+  let label = pinned
+    ? t('mindroomUi.messages.messageModerationActions.unpinMessage')
+    : t('mindroomUi.messages.messageModerationActions.pinMessage');
+  if (failed) label = t('threadActions.failed');
   return (
     <MessageMenuAction
-      label={pinned ? t('sharedUi.message.unpinMessage') : t('sharedUi.message.pinMessage')}
-      icon={Icons.Pin}
+      label={label}
+      icon={failed ? Icons.Warning : Icons.Pin}
+      variant={failed ? 'Critical' : undefined}
       disabled={updating}
-      onClick={() => {
-        void setPinned(eventId, !pinned);
-        onClose?.();
-      }}
+      onClick={() => void handlePin()}
     />
   );
 }
 
+type ActionState = { busy: boolean; error?: string; done?: string };
+
+/** "Delete": redacts the message after a confirmation, with an optional reason. */
 export function MessageDeleteItem({
   room,
   mEvent,
@@ -172,21 +415,59 @@ export function MessageDeleteItem({
 
 
 
-
-
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<ActionState>({ busy: false });
+  const eventId = mEvent.getId();
+  if (!eventId) return null;
+  const close = () => {
+    setOpen(false);
+    setState({ busy: false });
+    onClose?.();
+  };
+  const handleDelete = async (reason: string) => {
+    setState({ busy: true });
+    try {
+      await mx.redactEvent(room.roomId, eventId, undefined, reason ? { reason } : undefined);
+      close();
+    } catch {
+      setState({
+        busy: false,
+        error: t(
+          'mindroomUi.messages.messageModerationActions.failedToDeleteMessagePleaseTryAgain'
+        ),
+      });
+    }
+  };
   return (
-    <MessageMenuAction
-      label={t('sharedUi.message.delete')}
-      icon={Icons.Delete}
-      variant="Critical"
-      onClick={() => {
-        void mx.redactEvent(room.roomId, eventId);
-        onClose?.();
-      }}
-    />
+    <>
+      <MessageMenuAction
+        label={t('mindroomUi.messages.messageModerationActions.delete')}
+        icon={Icons.Delete}
+        variant="Critical"
+        onClick={() => setOpen(true)}
+      />
+      {open && (
+        <MessageActionDialog
+          title={t('mindroomUi.messages.messageModerationActions.deleteMessage')}
+          description={t(
+            'mindroomUi.messages.messageModerationActions.thisActionIsIrreversibleAreYouSureThatYouWant'
+          )}
+          reasonLabel={`${t('mindroomUi.messages.messageModerationActions.reason')} ${t(
+            'mindroomUi.messages.messageModerationActions.optional'
+          )}`}
+          confirmLabel={t('mindroomUi.messages.messageModerationActions.delete')}
+          busyLabel={t('mindroomUi.messages.messageModerationActions.deleting')}
+          busy={state.busy}
+          error={state.error}
+          onConfirm={(reason) => void handleDelete(reason)}
+          onClose={close}
+        />
+      )}
+    </>
   );
 }
 
+/** "Report Message": reports the message to the homeserver with a reason. */
 export function MessageReportItem({
   room,
   mEvent,
@@ -198,18 +479,57 @@ export function MessageReportItem({
 
 
 
-
-
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<ActionState>({ busy: false });
+  const eventId = mEvent.getId();
+  if (!eventId) return null;
+  const close = () => {
+    setOpen(false);
+    setState({ busy: false });
+    onClose?.();
+  };
+  const handleReport = async (reason: string) => {
+    setState({ busy: true });
+    try {
+      await mx.reportEvent(room.roomId, eventId, -100, reason);
+      setState({
+        busy: false,
+        done: t('mindroomUi.messages.messageModerationActions.messageHasBeenReportedToServer'),
+      });
+    } catch {
+      setState({
+        busy: false,
+        error: t(
+          'mindroomUi.messages.messageModerationActions.failedToReportMessagePleaseTryAgain'
+        ),
+      });
+    }
+  };
   return (
-    <MessageMenuAction
-      label={t('sharedUi.message.report')}
-      icon={Icons.Warning}
-      variant="Critical"
-      onClick={() => {
-        void mx.reportEvent(room.roomId, eventId, -100, '');
-        onClose?.();
-      }}
-    />
+    <>
+      <MessageMenuAction
+        label={t('mindroomUi.messages.messageModerationActions.reportMessage')}
+        icon={Icons.Warning}
+        variant="Critical"
+        onClick={() => setOpen(true)}
+      />
+      {open && (
+        <MessageActionDialog
+          title={t('mindroomUi.messages.messageModerationActions.reportMessage')}
+          description={t(
+            'mindroomUi.messages.messageModerationActions.reportThisMessageToServerWhichMayThenNotifyThe'
+          )}
+          reasonLabel={t('mindroomUi.messages.messageModerationActions.reason')}
+          confirmLabel={t('mindroomUi.messages.messageModerationActions.report')}
+          busyLabel={t('mindroomUi.messages.messageModerationActions.reporting')}
+          busy={state.busy}
+          error={state.error}
+          done={state.done}
+          onConfirm={(reason) => void handleReport(reason)}
+          onClose={close}
+        />
+      )}
+    </>
   );
 }
 
@@ -229,9 +549,9 @@ export function MessageReportItem({
 
 
 
-  onReplyClick?: (evt: MouseEvent<HTMLButtonElement>, startThread?: boolean) => void;
+  /** Reply to this message, or start (or continue) its thread. */
+  onReplyClick?: (eventId: string, startThread?: boolean) => void;
   onReactionToggle?: ReactionHandler;
-
 
 
 
@@ -290,6 +610,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
 
 
+    const baseRef = useRef<HTMLDivElement | null>(null);
     const setBaseRef = useCallback(
       (node: HTMLDivElement | null) => {
         baseRef.current = node;
@@ -365,7 +686,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
         <>
           {reply}
-          {children}
+
+
+
+
+
+              onDone={() => onEditId(undefined)}
+            />
+          ) : (
+            children
+          )}
           {reactions}
         </>
       );
@@ -400,29 +730,32 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               )}
               {confirmed && onReplyClick && (
                 <MessageMenuAction
-                  label={t('sharedUi.message.reply')}
+                  label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
                   onClick={() => {
-                    onReplyClick({ currentTarget: baseRef.current } as never);
+                    onReplyClick(eventId);
                     closeMenu();
                   }}
                 />
               )}
               {confirmed && onReplyClick && (
                 <MessageMenuAction
-                  label={t('sharedUi.message.replyInThread')}
+                  label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
                   icon={Icons.ThreadPlus}
                   onClick={() => {
-                    onReplyClick({ currentTarget: baseRef.current } as never, true);
+                    onReplyClick(eventId, true);
                     closeMenu();
                   }}
                 />
               )}
               {canSendReaction && confirmed && (
                 <MessageMenuAction
-                  label={t('sharedUi.message.addReaction')}
+                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
                   icon={Icons.SmilePlus}
-                  onClick={closeMenu}
+                  onClick={() => {
+                    setEmojiAnchor(menuAnchor);
+                    closeMenu();
+                  }}
                 />
               )}
               {copyState.visible || isCopyTextMessageContent(content) ? (
@@ -434,16 +767,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 />
               ) : null}
               {confirmed && (
-                <MessageMenuAction
-                  label={t('sharedUi.message.copyLink')}
-                  icon={Icons.Link}
-                  onClick={() => {
-                    void copyToClipboard(
-                      getMatrixToRoomEvent(room.roomId, eventId, getViaServers(room))
-                    );
-                    closeMenu();
-                  }}
-                />
+                <MessageCopyLinkItem room={room} eventId={eventId} onClose={closeMenu} />
               )}
               {confirmed && canPinEvent && (
                 <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
@@ -469,6 +793,29 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           </Menu>
         </FocusTrap>
       );
+      const emojiBoard = emojiAnchor && onReactionToggle && (
+        <PopOut
+          anchor={emojiAnchor}
+          position="Bottom"
+          align="End"
+          offset={4}
+          content={
+            <EmojiBoard
+              imagePackRooms={imagePackRooms}
+              requestClose={() => setEmojiAnchor(undefined)}
+              returnFocusOnDeactivate
+              onEmojiSelect={(unicode, shortcode) => {
+                onReactionToggle(unicode, shortcode);
+                setEmojiAnchor(undefined);
+              }}
+              onCustomEmojiSelect={(mxc, shortcode) => {
+                onReactionToggle(mxc, shortcode);
+                setEmojiAnchor(undefined);
+              }}
+            />
+          }
+        />
+      );
 
 
 
@@ -477,8 +824,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <IconButton
                   size="300"
                   radii="300"
-                  aria-label={t('sharedUi.message.addReaction')}
-                  onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
+                  aria-label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                  aria-pressed={!!emojiAnchor}
+                  onClick={(evt: MouseEvent<HTMLButtonElement>) => setEmojiAnchor(getAnchor(evt))}
                 >
                   <Icon src={Icons.SmilePlus} size="100" />
                 </IconButton>
@@ -487,8 +835,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <IconButton
                   size="300"
                   radii="300"
-                  aria-label={t('sharedUi.message.reply')}
-                  onClick={(evt: MouseEvent<HTMLButtonElement>) => onReplyClick(evt)}
+                  aria-label={t('mindroomUi.messages.mindroomMessage.reply')}
+                  onClick={() => onReplyClick(eventId)}
                 >
                   <Icon src={Icons.ReplyArrow} size="100" />
                 </IconButton>
@@ -497,8 +845,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <IconButton
                   size="300"
                   radii="300"
-                  aria-label={t('sharedUi.message.replyInThread')}
-                  onClick={(evt: MouseEvent<HTMLButtonElement>) => onReplyClick(evt, true)}
+                  aria-label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                  onClick={() => onReplyClick(eventId, true)}
                 >
                   <Icon src={Icons.ThreadPlus} size="100" />
                 </IconButton>
@@ -507,7 +855,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <IconButton
                   size="300"
                   radii="300"
-                  aria-label={t('sharedUi.message.moreOptions')}
+                  aria-label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
                   aria-pressed={!!menuAnchor}
                   onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
                 >
@@ -547,6 +895,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
 
 
+          {emojiBoard}
           {layout}
         </MessageBase>
       );
@@ -554,14 +903,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
     return (
       <MindroomMessageExtensionShell state={extensionState} forwardedRef={baseRef}>
-
-
-
-
-
-
-
-
+        {(controls) => renderBody(controls)}
+      </MindroomMessageExtensionShell>
+    );
+  }
+);
 
 
 
@@ -572,26 +918,41 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
   'data-message-id'?: string;
 };
 
+const ROOM_STATE_LINES: Record<string, string> = {
+  'm.room.name': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomName',
+  'm.room.topic': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomTopic',
+  'm.room.avatar': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomAvatar',
+};
+
+/** The one-line text of a state event: membership changes, room name, topic, and avatar. */
+function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
+  const parseMemberEvent = useMemberEventParser();
+  const type = mEvent.getType();
+  if (type === 'm.room.member') {
+    const parsed = parseMemberEvent(mEvent);
+    return (
+      <Box alignItems="Center" gap="200">
+        <Icon size="100" src={parsed.icon} />
+        <Text size="T300" priority="300">
+          {parsed.body}
+        </Text>
+      </Box>
+    );
+  }
+  const key = ROOM_STATE_LINES[type];
+  if (!key) return null;
+  const senderId = mEvent.getSender() ?? '';
+  const sender = getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
+  return (
+    <Text size="T300" priority="300">
+      <Trans i18nKey={key as never} values={{ sender }} components={{ sender: <b /> }} />
+    </Text>
+  );
+}
+
 /** A state or membership event: a single compact line without a sender header. */
 export const Event = forwardRef<HTMLDivElement, EventProps>(
-  (
-    {
-      room,
-      mEvent,
-
-
-
-
-
-
-      ...props
-    },
-    ref
-  ) => {
-    void room;
-    void canDelete;
-    void hideReadReceipts;
-    void showDeveloperTools;
+  ({ room, mEvent, highlight, messageSpacing, children, ...props }, ref) => {
     return (
       <MessageBase
         ref={ref}
@@ -602,7 +963,7 @@ export const Event = forwardRef<HTMLDivElement, EventProps>(
 
         {...props}
       >
-        {children}
+        {children ?? <StateEventLine room={room} mEvent={mEvent} />}
       </MessageBase>
     );
   }

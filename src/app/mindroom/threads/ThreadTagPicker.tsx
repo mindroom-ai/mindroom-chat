@@ -71,13 +71,13 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
       <button
         type="button"
         style={addButtonStyle}
-        aria-label={t('thread.tagPicker.add')}
+        aria-label={t('mindroomUi.threads.threadTagPicker.addTag')}
         aria-haspopup="menu"
         aria-expanded={!!anchor}
         disabled={disabled}
         onClick={handleOpen}
       >
-        {t('thread.tagPicker.trigger')}
+        {t('mindroomUi.threads.threadTagPicker.tag')}
       </button>
       <PopOut
         anchor={anchor}
@@ -106,8 +106,8 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                   className={css.TagPickerInput}
-                  aria-label={t('thread.tagPicker.filterLabel')}
-                  placeholder={t('thread.tagPicker.placeholder')}
+                  aria-label={t('mindroomUi.threads.threadTagPicker.filterOrCreateTag')}
+                  placeholder={t('mindroomUi.threads.threadTagPicker.filterNew')}
                   value={query}
                   maxLength={50}
                   onChange={(evt) => setQuery(evt.target.value)}
@@ -118,7 +118,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                 {canCreate && (
                   <MenuItem size="300" radii="300" onClick={() => choose(normalizedQuery)}>
                     <Text size="T300" truncate>
-                      {t('thread.tagPicker.create', { name: normalizedQuery })}
+                      {t('mindroomUi.threads.threadTagPicker.createTag', { tag: normalizedQuery })}
                     </Text>
                   </MenuItem>
                 )}
@@ -131,7 +131,9 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                 ))}
                 {!canCreate && suggestions.length === 0 && (
                   <Text size="T200" priority="300" style={{ padding: config.space.S200 }}>
-                    {t('thread.tagPicker.empty')}
+                    {normalizedQuery
+                      ? t('mindroomUi.threads.threadTagPicker.noMatches')
+                      : t('mindroomUi.threads.threadTagPicker.typeToCreateATag')}
                   </Text>
                 )}
               </Box>

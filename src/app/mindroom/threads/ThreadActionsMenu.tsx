@@ -200,7 +200,7 @@ export function ThreadActionsMenu({
   };
 
   if (dialog === 'tags') {
-    const label = tagsEditable ? t('thread.actions.editTags') : t('thread.actions.tags');
+    const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
     return (
       <ActionDialogFrame label={label} onClose={closeDialog} busy={false}>
         <Box wrap="Wrap" gap="200" alignItems="Center">
@@ -225,7 +225,7 @@ export function ThreadActionsMenu({
         </Box>
         {mutations.error && (
           <Text role="alert" size="T200">
-            {t('thread.actions.tagsFailed')}
+            {t('threadActions.failed')}
           </Text>
         )}
         <Box justifyContent="End">
@@ -236,7 +236,7 @@ export function ThreadActionsMenu({
             disabled={tagsUpdating}
             onClick={closeDialog}
           >
-            <Text size="B300">{t('thread.actions.done')}</Text>
+            <Text size="B300">{t('threadActions.done')}</Text>
           </Button>
         </Box>
       </ActionDialogFrame>
@@ -246,11 +246,11 @@ export function ThreadActionsMenu({
   if (dialog === 'editSummary') {
     const length = Array.from(draft.trim()).length;
     return (
-      <ActionDialogFrame label={t('thread.actions.editSummary')} onClose={closeDialog} busy={busy}>
+      <ActionDialogFrame label={t('threadActions.editSummary')} onClose={closeDialog} busy={busy}>
         <form onSubmit={handleSaveSummary}>
           <Box direction="Column" gap="300">
             <textarea
-              aria-label={t('thread.actions.summaryLabel')}
+              aria-label={t('threadActions.summary')}
               style={{ ...fieldStyle, minHeight: '5rem', resize: 'vertical' }}
               value={draft}
               maxLength={SUMMARY_MAX_LENGTH * 2}
@@ -270,7 +270,7 @@ export function ThreadActionsMenu({
                 disabled={busy}
                 onClick={closeDialog}
               >
-                <Text size="B300">{t('thread.actions.cancel')}</Text>
+                <Text size="B300">{t('threadActions.cancel')}</Text>
               </Button>
               <Button
                 type="submit"
@@ -278,7 +278,7 @@ export function ThreadActionsMenu({
                 variant="Primary"
                 disabled={busy || length === 0 || length > SUMMARY_MAX_LENGTH}
               >
-                <Text size="B300">{t('thread.actions.save')}</Text>
+                <Text size="B300">{t('threadActions.save')}</Text>
               </Button>
             </Box>
           </Box>
@@ -289,12 +289,12 @@ export function ThreadActionsMenu({
 
   if (dialog === 'regenerate') {
     return (
-      <ActionDialogFrame label={t('thread.actions.regenerate')} onClose={closeDialog} busy={busy}>
+      <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={busy}>
         <form onSubmit={handleRegenerate}>
           <Box direction="Column" gap="300">
             {agents.length > 0 ? (
               <select
-                aria-label={t('thread.actions.agentLabel')}
+                aria-label={t('threadActions.agent')}
                 style={fieldStyle}
                 value={selectedAgentId}
                 disabled={busy}
@@ -307,7 +307,7 @@ export function ThreadActionsMenu({
                 ))}
               </select>
             ) : (
-              <Text size="T300">{t('thread.actions.noAgents')}</Text>
+              <Text size="T300">{t('threadActions.noAgents')}</Text>
             )}
             {requestError && (
               <Text role="alert" size="T200">
@@ -322,7 +322,7 @@ export function ThreadActionsMenu({
                 disabled={busy}
                 onClick={closeDialog}
               >
-                <Text size="B300">{t('thread.actions.cancel')}</Text>
+                <Text size="B300">{t('threadActions.cancel')}</Text>
               </Button>
               <Button
                 type="submit"
@@ -330,7 +330,7 @@ export function ThreadActionsMenu({
                 variant="Primary"
                 disabled={busy || !selectedAgentId}
               >
-                <Text size="B300">{t('thread.actions.send')}</Text>
+                <Text size="B300">{t('threadActions.sendRequest')}</Text>
               </Button>
             </Box>
           </Box>
@@ -346,19 +346,19 @@ export function ThreadActionsMenu({
 
   const items: Array<{ action: string; label: string; onSelect: () => void }> = [];
   if (onOpenThread) {
-    items.push({ action: 'open', label: t('thread.actions.open'), onSelect: onOpenThread });
+    items.push({ action: 'open', label: t('threadActions.open'), onSelect: onOpenThread });
   }
   if (showTags) {
     items.push({
       action: 'tags',
-      label: tagsEditable ? t('thread.actions.editTags') : t('thread.actions.tags'),
+      label: tagsEditable ? t('threadActions.tags') : t('thread.stats.tags'),
       onSelect: () => openDialog('tags'),
     });
   }
   if (tags.canEdit && rootLoaded && !pinned) {
     items.push({
       action: 'resolve',
-      label: tags.isResolved ? t('thread.actions.reopen') : t('thread.actions.resolve'),
+      label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
       onSelect: () => {
         mutations.setResolved(rootId, !tags.isResolved);
         onClose();
@@ -368,7 +368,7 @@ export function ThreadActionsMenu({
   if (pinning.canPin && rootLoaded) {
     items.push({
       action: 'pin',
-      label: pinned ? t('thread.actions.unpin') : t('thread.actions.pin'),
+      label: pinned ? t('threadNav.unpin') : t('threadNav.pin'),
       onSelect: () => {
         void pinning.setPinned(rootId, !pinned);
         onClose();
@@ -379,21 +379,21 @@ export function ThreadActionsMenu({
     items.push(
       {
         action: 'editSummary',
-        label: t('thread.actions.editSummary'),
+        label: t('threadActions.editSummary'),
         onSelect: () => openDialog('editSummary'),
       },
       {
         action: 'regenerate',
-        label: t('thread.actions.regenerate'),
+        label: t('threadActions.regenerate'),
         onSelect: () => openDialog('regenerate'),
       }
     );
   }
-  items.push({ action: 'copy', label: t('thread.actions.copyLink'), onSelect: handleCopyLink });
+  items.push({ action: 'copy', label: t('threadActions.copy'), onSelect: handleCopyLink });
   if (onHideDetails) {
     items.push({
       action: 'hideDetails',
-      label: t('thread.actions.hideDetails'),
+      label: t('thread.hideDetails'),
       onSelect: () => {
         onHideDetails();
 
@@ -416,7 +416,7 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu aria-label={t('thread.actions.label')} style={{ minWidth: '12rem' }}>
+          <Menu aria-label={t('threadActions.more')} style={{ minWidth: '12rem' }}>
             <Box direction="Column" style={{ padding: '0.25rem' }}>
               {items.map((item) => (
                 <MenuItem

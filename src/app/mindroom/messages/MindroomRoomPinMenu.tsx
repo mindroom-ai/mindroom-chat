@@ -56,7 +56,7 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
   if (event === null) {
     return (
       <Text size="T300" priority="300" style={{ padding: config.space.S300 }}>
-        {t('sharedUi.roomPinMenu.failedToLoad')}
+        {t('mindroomUi.messages.mindroomRoomPinMenu.failedToLoadMessage')}
       </Text>
     );
   }
@@ -130,12 +130,12 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
         <Box direction="Column">
           <Box alignItems="Center" gap="200" style={{ padding: config.space.S300 }}>
             <Box grow="Yes">
-              <Text size="H5">{t('sharedUi.roomPinMenu.title')}</Text>
+              <Text size="H5">{t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages')}</Text>
             </Box>
             <IconButton
               size="300"
               radii="300"
-              aria-label={t('sharedUi.roomPinMenu.close')}
+              aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
               onClick={requestClose}
             >
               <Icon size="100" src={Icons.Cross} />
@@ -145,7 +145,7 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
             <Box direction="Column" gap="200" style={{ padding: config.space.S200 }}>
               {eventIds.length === 0 ? (
                 <Text size="T300" priority="300">
-                  {t('sharedUi.roomPinMenu.empty')}
+                  {t('mindroomUi.messages.mindroomRoomPinMenu.noPinnedMessages')}
                 </Text>
               ) : (
                 eventIds.map((eventId) => (

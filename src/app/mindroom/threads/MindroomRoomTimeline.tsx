@@ -5,11 +5,8 @@ import React, {
   useReducer,
   useRef,
   useState,
-  type Dispatch,
   type MouseEvent,
   type MutableRefObject,
-  type RefObject,
-  type SetStateAction,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Direction, RoomEvent, ThreadEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -29,11 +26,7 @@ import { useTimelineMessageFeature } from './message-rendering/useTimelineMessag
 import type { TimelineMessageRow } from './message-rendering/types';
 import { getRenderableEventEntries } from './roomTimelineEvents';
 import { renderMindroomRoomTimelineThreadBadge } from './roomTimelineMessageExtensions';
-import type {
-  ThreadFilterKey,
-  ThreadFilterState,
-  ThreadSortFreezeState,
-} from './roomThreadOverviewModel';
+import type { ThreadFilterState, ThreadSortFreezeState } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import {
   getInitialTimeline,
@@ -53,26 +46,15 @@ const PAGINATION_LIMIT = 30;
 export type RoomTimelineProps = {
   room: Room;
   eventId?: string;
-  focusEventInRoom?: boolean;
   threadId?: string;
-  hasMindroomAgents?: boolean;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
-  onToggle: (key: ThreadFilterKey) => void;
-  onSortDirectionChange: () => void;
-  onToggleThreadSortFreeze: () => void;
-  setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
-  onCycleTag: (tag: string) => void;
-  onAddTag: (tag: string) => void;
-  onRemoveTag: (tag: string) => void;
-  onReset: () => void;
   viewMode: RoomViewMode;
-  onViewModeChange: (mode: RoomViewMode) => void;
-  roomInputRef: RefObject<HTMLElement>;
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   editor: Editor;
+  /** Called when the open thread's root cannot be loaded at all. */
   onThreadLoadError?: (threadId: string) => void;
 };
 
@@ -123,6 +105,7 @@ export function RoomTimeline({
   viewMode,
   compactRoomScrollStateRef,
   editor,
+  onThreadLoadError,
 
 
 
@@ -148,11 +131,12 @@ export function RoomTimeline({
   }, [room]);
   // A limited sync swaps the live timeline; follow it.
   const liveTimeline = getLiveTimeline(room);
-  const linkedTimelines = useMemo(() => {
-    void version;
-    void timeline.linkedTimelines;
-    return getLinkedTimelines(liveTimeline);
-  }, [liveTimeline, timeline.linkedTimelines, version]);
+  // Pagination grows the chain in place; `timeline` changing is the signal to re-read it.
+  const linkedTimelines = useMemo(
+    () => getLinkedTimelines(liveTimeline),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveTimeline, timeline, version]
+  );
 
   const filterOptsRef = useRef(undefined);
   const paginate = useTimelinePagination(
@@ -174,7 +158,6 @@ export function RoomTimeline({
   }, [paginate]);
 
   const renderableEventEntries = useMemo(() => {
-    void version;
     return getRenderableEventEntries(
       linkedTimelines,
       room,
@@ -185,6 +168,7 @@ export function RoomTimeline({
       !!hideNickAvatarEvents,
       showThreadRepliesInRoom
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -225,7 +209,6 @@ export function RoomTimeline({
   });
 
   const threadEvents = useMemo(() => {
-    void version;
     if (!threadId) return [];
     const thread = room.getThread(threadId);
     const root = thread?.rootEvent ?? room.findEventById(threadId);
@@ -233,7 +216,22 @@ export function RoomTimeline({
       ...(root ? [root] : []),
       ...(thread ? getThreadTimelineEvents(thread) : []),
     ]);
+    // `version` changes whenever the thread's timelines do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, threadId, version]);
+
+  // A thread whose root is neither loaded nor fetchable cannot open.
+  useEffect(() => {
+    if (!threadId || !onThreadLoadError) return undefined;
+    if (room.getThread(threadId)?.rootEvent || room.findEventById(threadId)) return undefined;
+    let cancelled = false;
+    mx.fetchRoomEvent(room.roomId, threadId).catch(() => {
+      if (!cancelled) onThreadLoadError(threadId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mx, onThreadLoadError, room, threadId]);
 
   const visibleEvents = threadId
     ? threadEvents
@@ -381,7 +379,9 @@ export function RoomTimeline({
                 {loadingOlder ? (
                   <Spinner size="100" />
                 ) : (
-                  <Text size="B300">{t('room.timeline.loadOlder')}</Text>
+                  <Text size="B300">
+                    {t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+                  </Text>
                 )}
               </Button>
             </Box>

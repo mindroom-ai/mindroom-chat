@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ClientEvent, type MatrixEvent, type Relations, type Room } from 'matrix-js-sdk';
+import type { Relations, Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -19,11 +19,11 @@ import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { ImageUsage } from '../../plugins/custom-emoji';
 import { getRecentEmojis } from '../../plugins/recent-emoji';
+import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import { ReactionViewer } from '../../features/room/reaction-viewer';
 import * as css from '../../features/room/message/styles.css';
 
 const QUICK_REACTION_COUNT = 4;
-const RECENT_EMOJI_EVENT = 'io.element.recent_emoji';
 
 /** Called with the reaction key (Unicode emoji or mxc URL) and a custom emoji's shortcode. */
 export type ReactionHandler = (key: string, shortcode?: string) => void;
@@ -75,22 +75,7 @@ export function MessageQuickReactions({
 
 
   const packs = useRelevantImagePacks(ImageUsage.Emoticon, imagePackRooms);
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    const handleAccountData = (event: MatrixEvent) => {
-
-
-
-
-
-
-
-
-  const recent = useMemo(() => {
-    void revision;
-    return getRecentEmojis(mx, QUICK_REACTION_COUNT, packs);
-  }, [mx, packs, revision]);
+  const recent = useRecentEmoji(mx, QUICK_REACTION_COUNT, packs);
 
   if (recent.length === 0) return null;
 
@@ -184,7 +169,7 @@ export function MessageAllReactionItem({
 
 
 
-          {t('sharedUi.message.viewReactions')}
+          {t('mindroomUi.messages.messageReactionActions.viewReactions')}
         </Text>
       </MenuItem>
     </>
