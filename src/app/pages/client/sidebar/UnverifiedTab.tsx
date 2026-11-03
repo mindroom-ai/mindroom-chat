@@ -8,7 +8,11 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { settingsModalAtom } from '../../../state/settingsModal';
 import { SettingsPages } from '../../../features/settings/settingsPages';
 
-/** Shown while this device is not verified; opens the device settings. */
+/**
+ * Shown while the account has cross-signing keys that have not verified this device; opens the
+ * device settings. An account without cross-signing has nothing to verify against, so the tab
+ * stays away and the welcome page offers to set up backup instead.
+ */
 export function UnverifiedTab() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -21,21 +25,28 @@ export function UnverifiedTab() {
     const crypto = client.getCrypto();
     if (!crypto || !userId || !deviceId) return undefined;
     let cancelled = false;
+    const isUnverified = async (): Promise<boolean> => {
+      if (!(await crypto.userHasCrossSigningKeys(userId))) return false;
+      const status = await crypto.getDeviceVerificationStatus(userId, deviceId);
+      return !!status && !status.crossSigningVerified;
+    };
     const check = () => {
-      crypto
-        .getDeviceVerificationStatus(userId, deviceId)
-        .then((status) => {
-          if (!cancelled) setUnverified(!!status && !status.crossSigningVerified);
+      isUnverified()
+        .then((result) => {
+          if (!cancelled) setUnverified(result);
         })
         .catch(() => undefined);
     };
     check();
-    client.on(CryptoEvent.UserTrustStatusChanged, check);
-    client.on(CryptoEvent.DevicesUpdated, check);
+    const events = [
+      CryptoEvent.UserTrustStatusChanged,
+      CryptoEvent.DevicesUpdated,
+      CryptoEvent.KeysChanged,
+    ] as const;
+    events.forEach((event) => client.on(event, check));
     return () => {
       cancelled = true;
-      client.removeListener(CryptoEvent.UserTrustStatusChanged, check);
-      client.removeListener(CryptoEvent.DevicesUpdated, check);
+      events.forEach((event) => client.removeListener(event, check));
     };
   }, [client]);
 
