@@ -1,0 +1,197 @@
+import React, { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
+import type { MatrixError } from 'matrix-js-sdk';
+import { UploadCard, UploadCardError, UploadCardProgress } from './UploadCard';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaConfig } from '../../hooks/useMediaConfig';
+import { type Upload, UploadStatus, useBindUploadAtom } from '../../state/upload';
+import {
+  type TUploadItem,
+  type TUploadMetadata,
+  roomUploadAtomFamily,
+} from '../../state/room/roomInputDrafts';
+import { getMatrixUploadErrorMessage, toMatrixUploadError } from '../../utils/matrix';
+import { bytesToSize } from '../../utils/common';
+
+const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size';
+
+/** The icon for a file by its MIME type. */
+export const getFileTypeIcon = (mimeType: string): IconSrc => {
+  if (mimeType.startsWith('image/')) return Icons.Photo;
+  if (mimeType.startsWith('video/')) return Icons.Vlc;
+  if (mimeType.startsWith('audio/')) return Icons.Play;
+  return Icons.File;
+};
+
+const fileNameOf = (file: { name?: string }): string => file.name ?? '';
+
+/**
+ * An error that blocks the upload before it starts: the file is larger than the server accepts.
+ * The message names both sizes.
+ */
+export const getTooLargeError = (
+  fileSize: number,
+  maxUploadSize: number | undefined
+): MatrixError | undefined =>
+  maxUploadSize !== undefined && fileSize > maxUploadSize
+    ? toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload')
+    : undefined;
+
+type UploadStatusLineProps = {
+  upload: Upload;
+  blockedError?: MatrixError;
+  uploadKind?: 'file' | 'avatar';
+  maxUploadSize?: number;
+  onRetry?: () => void;
+};
+
+/** Progress, error, or nothing, for the bottom of an upload card. */
+export function UploadStatusLine({
+  upload,
+  blockedError,
+  uploadKind,
+  maxUploadSize,
+  onRetry,
+}: UploadStatusLineProps) {
+  const { t } = useTranslation();
+  const error = blockedError ?? (upload.status === UploadStatus.Error ? upload.error : undefined);
+
+  if (error) {
+    const message = getMatrixUploadErrorMessage(error, undefined, {
+      uploadKind,
+      fileSize: upload.file.size,
+      maxUploadSize,
+    });
+    return (
+      <Box alignItems="Center" gap="200" justifyContent="SpaceBetween">
+        <UploadCardError>{message}</UploadCardError>
+        {!blockedError && onRetry && (
+          <Chip type="button" variant="Critical" radii="Pill" onClick={onRetry}>
+            <Text as="span" size="B300">
+              {t('sharedUi.uploadCard.retry')}
+            </Text>
+          </Chip>
+        )}
+      </Box>
+    );
+  }
+
+  if (upload.status === UploadStatus.Loading) {
+    return (
+      <UploadCardProgress sentBytes={upload.progress.loaded} totalBytes={upload.progress.total} />
+    );
+  }
+
+  return null;
+}
+
+
+
+
+  onRemove: (file: TUploadItem['file']) => void;
+  /** The room is encrypted: a file that is not encrypted must never upload. */
+  isEncrypted?: boolean;
+};
+
+/** A staged composer attachment: uploads it at once and shows progress, errors and options. */
+
+
+
+
+
+
+
+
+
+  const maxUploadSize = mediaConfig[MEDIA_UPLOAD_SIZE_KEY];
+  const { file, originalFile, metadata, encInfo, prepError } = fileItem;
+
+  // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
+  const blockUploadError = useMemo(
+    () =>
+      prepError ??
+      (isEncrypted && !encInfo
+        ? toMatrixUploadError(new Error('The file was not encrypted.'), 'create')
+        : undefined),
+    [prepError, isEncrypted, encInfo]
+  );
+  const tooLargeError = useMemo(
+    () => getTooLargeError(file.size, maxUploadSize),
+    [file.size, maxUploadSize]
+  );
+
+  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, roomUploadAtomFamily(file), {
+    // Only the encrypted blob is uploaded without its name; the name travels inside the event.
+    hideFilename: encInfo !== undefined,
+    blockUploadError,
+  });
+
+  const blocked = blockUploadError ?? tooLargeError;
+  useEffect(() => {
+    if (blocked || upload.status !== UploadStatus.Idle) return;
+    startUpload();
+  }, [blocked, upload.status, startUpload]);
+
+
+
+
+  };
+
+  const mimeType = originalFile.type || file.type;
+  const isImage = mimeType.startsWith('image/');
+  const name = fileNameOf(originalFile as File) || fileNameOf(file as File);
+
+  return (
+    <UploadCard
+      outlined
+      before={<Icon src={getFileTypeIcon(mimeType)} />}
+      after={
+        <>
+
+
+
+          {isImage && (
+            <IconButton
+              type="button"
+              size="300"
+              radii="Pill"
+              variant={metadata.markedAsSpoiler ? 'Warning' : 'SurfaceVariant'}
+              aria-pressed={metadata.markedAsSpoiler}
+              aria-label={t('sharedUi.uploadCard.markAsSpoiler')}
+              onClick={() =>
+                setMetadata(fileItem, { ...metadata, markedAsSpoiler: !metadata.markedAsSpoiler })
+              }
+            >
+              <Icon src={Icons.EyeBlind} size="50" />
+            </IconButton>
+          )}
+          <IconButton
+            type="button"
+            size="300"
+            radii="Pill"
+            aria-label={t('sharedUi.uploadCard.removeFile', { name })}
+
+
+
+
+
+
+
+        <UploadStatusLine
+          upload={upload}
+          blockedError={blocked}
+          maxUploadSize={maxUploadSize}
+          onRetry={startUpload}
+        />
+      }
+    >
+      <Text size="H6" truncate title={name}>
+        {name}
+      </Text>
+      <Text size="T200" priority="300">
+        {bytesToSize(originalFile.size)}
+      </Text>
+    </UploadCard>
+  );
+}

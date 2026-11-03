@@ -1,0 +1,40 @@
+import { style } from '@vanilla-extract/css';
+import { DefaultReset, config } from 'folds';
+
+// Layers over an image or video thumbnail: the media fills the base, overlays sit on top.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
