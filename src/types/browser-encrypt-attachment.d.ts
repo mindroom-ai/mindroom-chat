@@ -5,7 +5,8 @@ declare module 'browser-encrypt-attachment' {
     v: string;
     key: {
       alg: string;
-      ext: boolean;
+      // Always true on keys this library makes; keys read from received events may leave it out.
+      ext?: boolean;
       key_ops: string[];
       kty: string;
       k: string;

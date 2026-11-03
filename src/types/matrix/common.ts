@@ -1,10 +1,13 @@
 // Shapes of Matrix event content shared by message, media and upload code.
 // See the client-server specification, "m.room.message msgtypes" and "Sending encrypted attachments".
 
-/** A JSON Web Key for AES-CTR, as carried in encrypted attachment metadata. */
+/**
+ * A JSON Web Key for AES-CTR, as carried in encrypted attachment metadata. The specification has
+ * senders set `ext` to true, but decryption imports the key without it, so received keys may omit it.
+ */
 export type IEncryptedFileKey = {
   alg: string;
-  ext: boolean;
+  ext?: boolean;
   key_ops: string[];
   kty: string;
   k: string;
