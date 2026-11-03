@@ -7,6 +7,7 @@ import {
   MINDROOM_DOCS_URL,
   MINDROOM_FAVICON_SRC,
   MINDROOM_NOTIFICATION_BRAND,
+  MINDROOM_SITE_URL,
   MINDROOM_SOURCE_URL,
 } from './branding';
 
@@ -20,11 +21,12 @@ describe('MindRoom branding', () => {
     expect(MINDROOM_DOCS_URL).toBe('https://docs.mindroom.chat/');
   });
 
-  it('keeps the MindRoom platform as the first default powered-by link', () => {
-    expect(MINDROOM_DEFAULT_POWERED_BY[0]).toEqual({
-      label: 'MindRoom',
-      url: MINDROOM_SOURCE_URL,
-    });
+  it('credits only MindRoom and Matrix by default', () => {
+    expect(MINDROOM_SITE_URL).toBe('https://mindroom.chat');
+    expect(MINDROOM_DEFAULT_POWERED_BY).toEqual([
+      { label: 'MindRoom', url: 'https://mindroom.chat' },
+      { label: 'Matrix', url: 'https://matrix.org' },
+    ]);
   });
 
   it('exports MindRoom-owned image assets from the branding boundary', () => {

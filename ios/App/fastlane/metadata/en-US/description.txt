@@ -15,6 +15,6 @@ Built on Matrix:
 - Voice messages and photo/video sharing
 - Existing Matrix accounts and compatible homeservers
 - Apple sign-in when supported by your homeserver
-- An open-source client based on the upstream client
+- An open-source Matrix client
 
 Use the hosted service at mindroom.chat or connect to a compatible Matrix homeserver and MindRoom deployment. Available agents, models, tools, bridges, memory, registration, and retention depend on the services you connect.

@@ -23,14 +23,11 @@ const link = (label: string, url: string, dir = ' dir="auto"') =>
   `<a href="${url}" target="_blank" rel="noreferrer"${dir}>${label}</a>`;
 
 describe('AuthFooter', () => {
-  it('credits MindRoom Chat, Matrix, and the upstream client by default', () => {
+  it('credits MindRoom and Matrix by default', () => {
     expect(renderFooter({})).toContain(
-      `<p>Powered by ${link(
-        'MindRoom Chat',
-        'https://github.com/mindroom-ai/mindroom-chat'
-      )}, ${link('Matrix', 'https://matrix.org')}, and ${link(
-        'the upstream client',
-        'https://upstream.invalid/source'
+      `<p>Powered by ${link('MindRoom', 'https://mindroom.chat')} and ${link(
+        'Matrix',
+        'https://matrix.org'
       )}</p>`
     );
   });

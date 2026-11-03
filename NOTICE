@@ -33,6 +33,13 @@ noVNC
   Source: https://github.com/novnc/noVNC (tag v1.7.0), also published as the
   npm package @novnc/novnc@1.7.0, which carries the license texts in docs/.
 
+folds
+  folds 2.7.1, by Ajay Bura, Apache License 2.0 (https://www.npmjs.com/package/folds;
+  the license text ships in the package as LICENSE). It is the design system
+  mindroom-client's components are built on, installed from npm as a
+  dependency; the web bundle includes its components and styles, patched as
+  listed under "Modified dependencies".
+
 Inter
   The Inter typeface, Copyright 2020 The Inter Project Authors
   (https://github.com/rsms/inter), SIL Open Font License 1.1, packaged as

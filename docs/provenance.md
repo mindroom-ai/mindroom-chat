@@ -53,6 +53,7 @@ The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5
 | 2026-11-03 | task reviewers, re-reviewers, final reviewers | Claude Sonnet 5.5 and Claude Opus 5.5 | read-only review of every task, fix round and the whole branch | this repository and review packages; the Task 13c reviewer and the final reviewer of tooling and provenance read parts of FORK_CHANGES.md before it was dropped; no MindRoom Chat or Cinny source |
 | 2026-11-03 | types pin and Signal fix | Claude Sonnet 5.5, Claude Haiku 5.5 | pinned @types/react 18.2.39 and @types/react-dom 18.2.17; Signal voice override audio/aac | this repository; no MindRoom Chat or Cinny source |
 | 2026-11-03 | audit rewriters R1 to R5 and one follow-up | Claude Opus 5.5, Claude Sonnet 5.5 | rewrote 135 Lane C spans the similarity audit flagged (given file and line ranges only, never the matched code) | this repository, library documentation; no MindRoom Chat, Cinny or audit report contents |
+| 2026-11-03 | credit change | Claude Sonnet 5.5 | removed the Cinny credit from the UI at Bas's request; Bas-directed edit to Lane P authUi.ts (also branding.ts, their tests, the App Store description, NOTICE) | this repository; no MindRoom Chat or Cinny source |
 
 ## Similarity audit
 

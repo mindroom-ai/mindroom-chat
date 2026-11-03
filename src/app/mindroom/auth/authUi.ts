@@ -1,9 +1,9 @@
 import {
   MINDROOM_APP_NAME,
-  MINDROOM_CHAT_SOURCE_URL,
   MINDROOM_DEVICE_DISPLAY_NAME,
   MINDROOM_LOGO_ALT,
   MINDROOM_LOGO_SRC,
+  MINDROOM_SITE_URL,
 } from '../branding/branding';
 import {
   buildNativeSsoRedirectUrl,
@@ -25,9 +25,8 @@ export const MINDROOM_AUTH_BRANDING = {
   logoAlt: MINDROOM_LOGO_ALT,
   logoSrc: MINDROOM_LOGO_SRC,
   poweredBy: [
-    { label: MINDROOM_APP_NAME, url: MINDROOM_CHAT_SOURCE_URL },
+    { label: 'MindRoom', url: MINDROOM_SITE_URL },
     { label: 'Matrix', url: 'https://matrix.org' },
-    { label: 'the upstream client', url: 'https://upstream.invalid/source' },
   ],
 } as const;
 
