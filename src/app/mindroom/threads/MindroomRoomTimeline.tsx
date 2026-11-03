@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { Direction, RoomEvent, ThreadEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Button, Scroll, Spinner, Text, config } from 'folds';
+import { MessageAside } from '../../components/message/layout/MessageAside';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
@@ -249,9 +250,44 @@ export function RoomTimeline(props: RoomTimelineProps) {
     };
   }, [client, onThreadLoadError, room, threadId]);
 
-  const visibleEvents = threadId
-    ? threadEvents
-    : renderableEventEntries.map((entry) => entry.event);
+  // The classic view reads like a plain chat: thread replies sit in the room timeline, in time
+  // order, where the client keeps them apart in each thread's own timeline.
+  const classicThreadReplies = useMemo(() => {
+    if (threadId || !showThreadRepliesInRoom) return [];
+    return (room.getThreads?.() ?? []).flatMap((thread) =>
+      getRenderableEventEntries(
+        getLinkedTimelines(thread.liveTimeline),
+        room,
+        undefined,
+        ignoredUsersSet,
+        !!showHiddenEvents,
+        !!hideMembershipEvents,
+        !!hideNickAvatarEvents,
+        true
+      )
+        .map((entry) => entry.event)
+        .filter((event) => event.getId() !== thread.id)
+    );
+    // `version` changes whenever a thread's timelines do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    ignoredUsersSet,
+    room,
+    showHiddenEvents,
+    showThreadRepliesInRoom,
+    threadId,
+    version,
+  ]);
+  const roomEvents = useMemo(() => {
+    const events = renderableEventEntries.map((entry) => entry.event);
+    if (classicThreadReplies.length === 0) return events;
+    return dedupeById([...events, ...classicThreadReplies]).sort(
+      (a, b) => a.getTs() - b.getTs()
+    );
+  }, [classicThreadReplies, renderableEventEntries]);
+  const visibleEvents = threadId ? threadEvents : roomEvents;
   const approvalTimeline = useThreadApprovalTimeline(
     visibleEvents,
     ignoredUsersSet,
@@ -350,17 +386,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
     }
     const rendered = feature.renderEvent(row, data);
     if (rendered === null) return null;
+    // Thread chips under their roots, except in the classic view, which shows the replies.
+    const badge =
+      !threadId &&
+      !showThreadRepliesInRoom &&
+      renderMindroomRoomTimelineThreadBadge({
+        eventId: id,
+        event,
+        threadRecordMap: threadIndex.threadRecordMap,
+        room,
+        onClick: handleOpenThread,
+      });
     return (
       <div key={id} data-timeline-event-id={id}>
         {rendered}
-        {!threadId &&
-          renderMindroomRoomTimelineThreadBadge({
-            eventId: id,
-            event,
-            threadRecordMap: threadIndex.threadRecordMap,
-            room,
-            onClick: handleOpenThread,
-          })}
+        {badge && <MessageAside>{badge}</MessageAside>}
       </div>
     );
   });
