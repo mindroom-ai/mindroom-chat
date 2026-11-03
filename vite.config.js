@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
+import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
 /**
  * Files copied verbatim into the build output (and served by the dev server).
@@ -22,13 +23,16 @@ export const copyFiles = {
 };
 
 // The service worker precaches the SPA shell. Some files must stay network-fresh
-// so a deployment can change them without rebuilding the bundle.
-const precacheGlobIgnores = ['runtime-config.js', 'version.json'];
+// so a deployment can change them without rebuilding the bundle, and the
+// authentication recovery script also serves shells cached by older workers.
+const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
 export default defineConfig({
   plugins: [
     // Only active when Playwright starts the dev server (see playwright.config.ts).
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
+    // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
+    mindroomBuildAssets(),
 
 
 
