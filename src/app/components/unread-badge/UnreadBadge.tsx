@@ -26,8 +26,16 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
       />
     );
   }
+  // A plain count is a quiet grey chip with a hairline ring; mentions and direct messages
+  // stay solid so they stand out (docs/design/reference/home.png).
   return (
-    <Badge variant={stressed ? 'Primary' : 'Secondary'} fill="Solid" radii="Pill" size="400">
+    <Badge
+      variant={stressed ? 'Primary' : 'Secondary'}
+      fill={stressed ? 'Solid' : 'Soft'}
+      outlined={!stressed}
+      radii="Pill"
+      size="400"
+    >
       <Text as="span" size="L400">
         {formatCount(count)}
       </Text>
