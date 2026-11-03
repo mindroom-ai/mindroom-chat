@@ -13,18 +13,7 @@ import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, MsgType, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  IconSrc,
-  PopOut,
-  RectCords,
-  Text,
-  color,
-  config,
-} from 'folds';
+import { Box, Icon, Icons, IconSrc, PopOut, RectCords, Text, color, config } from 'folds';
 import { Editor as SlateEditor } from 'slate';
 import {
   AUTOCOMPLETE_PREFIXES,
@@ -51,6 +40,7 @@ import {
   restoreEditorContent,
 } from '../../components/editor/utils';
 import { EmojiBoard } from '../../components/emoji-board';
+import { IconButton } from '../../components/glass/GlassPrimitives';
 import {
   getAudioMsgContent,
   getFileMsgContent,
@@ -111,6 +101,20 @@ export type RoomInputProps = {
 };
 
 const isEnter = isKeyHotkey('enter');
+
+// The composer card lines up with the approval and typing bars above it.
+const COMPOSER_STYLE: React.CSSProperties = { marginInline: config.space.S400 };
+
+// Shown over the composer while files are dragged in; it never takes the drop itself.
+const DROP_ZONE_STYLE: React.CSSProperties = {
+  pointerEvents: 'none',
+  color: color.Primary.OnContainer,
+  backgroundColor: color.Primary.Container,
+  border: `${config.borderWidth.B400} dashed ${color.Primary.Main}`,
+  borderRadius: config.radii.R400,
+  padding: config.space.S400,
+  marginBlockEnd: config.space.S200,
+};
 const isModEnter = isKeyHotkey('mod+enter');
 
 /** A leading `/me` or `/notice` picks the message type; the command itself is not sent. */
@@ -246,7 +250,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       []
     );
     const [submitPending, setSubmitPending] = useState(false);
-    const [hasText, setHasText] = useState(() => !isEmptyEditor(editor));
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
@@ -432,9 +435,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const handleChange = useCallback(() => {
       saveDraft();
       attachments.onEditorChange();
-      const typed = !isEmptyEditor(editor);
-      setHasText(typed);
-      sendTypingStatus(typed);
+      sendTypingStatus(!isEmptyEditor(editor));
     }, [attachments, editor, saveDraft, sendTypingStatus]);
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
@@ -470,7 +471,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ));
 
     return (
-      <div ref={ref}>
+      <div ref={ref} style={COMPOSER_STYLE}>
         {autocomplete}
         {attachments.dropZoneVisible && (
           <Box
@@ -478,15 +479,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             alignItems="Center"
             gap="100"
             role="status"
-            style={{
-              margin: `0 ${config.space.S200} ${config.space.S200}`,
-              padding: config.space.S400,
-              borderRadius: config.radii.R400,
-              border: `${config.borderWidth.B400} dashed ${color.Primary.Main}`,
-              backgroundColor: color.Primary.Container,
-              color: color.Primary.OnContainer,
-              pointerEvents: 'none',
-            }}
+            style={DROP_ZONE_STYLE}
           >
             <Icon size="400" src={Icons.File} />
             <Text size="H5" align="Center">
@@ -527,14 +520,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            <ComposerIconButton
-              label={attachLabel}
-              icon={Icons.PlusCircle}
-              onPress={attachments.pickFiles}
-            />
+            <>
+              <ComposerIconButton
+                label={attachLabel}
+                icon={Icons.PlusCircle}
+                onPress={attachments.pickFiles}
+              />
+              {voice.microphone}
+            </>
           }
           after={
-            <Box alignItems="Center" gap="100" style={{ paddingInlineEnd: config.space.S100 }}>
+            <>
               <ComposerIconButton
                 label={emojiLabel}
                 icon={Icons.Smile}
@@ -562,14 +558,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
-              {voice.microphone}
               <ComposerIconButton
                 label={sendLabel}
                 icon={Icons.Send}
-                variant={hasText || attachments.board ? 'Primary' : 'SurfaceVariant'}
+                variant="Primary"
                 onPress={handleSend}
               />
-            </Box>
+            </>
           }
         />
       </div>
