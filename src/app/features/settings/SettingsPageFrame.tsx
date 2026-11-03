@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../components/page';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 
 type SettingsPageFrameProps = {
   title: string;
@@ -20,18 +21,47 @@ type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 const HEADER_INSET = { paddingRight: '1.5rem' };
 const CONTENT_INSET = { paddingRight: '1.75rem' };
 
+/**
+ * On phones a page covers the menu, so its header leads with a back arrow to the menu (the
+ * dialog's own close stays on the menu); wider screens show the menu beside the page and close
+ * the dialog from the page.
+ */
 function FrameHeader({ title, requestClose }: FrameHeaderProps) {
   const { t } = useTranslation();
-  const closeLabel = t('featureUi.settings.emojisStickers.globalPacks.close');
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const heading = (
+    <Text size="H3" truncate>
+      {title}
+    </Text>
+  );
+
+  if (phone) {
+    return (
+      <PageHeader outlined={false} balance>
+        <Box grow="Yes" alignItems="Center" gap="200">
+          <IconButton
+            variant="Surface"
+            onClick={requestClose}
+            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
+          >
+            <Icon src={Icons.ArrowLeft} />
+          </IconButton>
+          {heading}
+        </Box>
+      </PageHeader>
+    );
+  }
 
   return (
     <PageHeader outlined={false} style={HEADER_INSET}>
       <Box grow="Yes" alignItems="Center">
-        <Text size="H3" truncate>
-          {title}
-        </Text>
+        {heading}
       </Box>
-      <IconButton variant="Surface" onClick={requestClose} aria-label={closeLabel}>
+      <IconButton
+        variant="Surface"
+        onClick={requestClose}
+        aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+      >
         <Icon src={Icons.Cross} />
       </IconButton>
     </PageHeader>
