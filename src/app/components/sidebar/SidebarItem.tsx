@@ -56,14 +56,19 @@ export function SidebarItemTooltip({ tooltip, children }: SidebarItemTooltipProp
   );
 }
 
+type SidebarAvatarProps = {
+  size?: '400' | '300' | '200';
+  outlined?: boolean;
+  /** A small action on the corner of the entry beside it, shown while that entry is engaged. */
+  corner?: boolean;
+};
+
 /** The rounded square holding a rail entry's icon or avatar. */
-export const SidebarAvatar = as<'div', { size?: '400' | '300' | '200'; outlined?: boolean }>(
-  (props, ref) => {
-    const { as: Square = 'div', size, outlined, className, ...rest } = props;
-    const variantClass = css.SidebarAvatar({ size, outlined });
-    return <Square ref={ref} {...rest} className={classNames(variantClass, className)} />;
-  }
-);
+export const SidebarAvatar = as<'div', SidebarAvatarProps>((props, ref) => {
+  const { as: Square = 'div', size, outlined, corner, className, ...rest } = props;
+  const variantClass = css.SidebarAvatar({ size, outlined, corner });
+  return <Square ref={ref} {...rest} className={classNames(variantClass, className)} />;
+});
 
 /** The unread badge on a rail entry; `hasCount` moves it out to fit a number. */
 export const SidebarItemBadge = as<'div', { hasCount?: boolean }>((props, ref) => {
