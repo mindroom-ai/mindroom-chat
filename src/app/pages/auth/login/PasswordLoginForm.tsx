@@ -12,8 +12,11 @@ import {
   LoginError,
   LoginFailure,
   login,
+  resolveMatrixIdHomeserver,
   useLoginComplete,
 } from './loginUtil';
+import { isServerChoiceAllowed } from '../authRouteUtils';
+import { useClientConfig } from '../../../hooks/useClientConfig';
 
 const LOGIN_ERROR_KEYS = {
   [LoginError.ServerNotAllowed]:
@@ -54,6 +57,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
   const [error, setError] = useState<LoginError>();
   const [busy, setBusy] = useState(false);
   const storeFailed = useLoginComplete(result);
+  const clientConfig = useClientConfig();
   const [searchParams] = useSearchParams();
   const resetLink = withAddAccountSearchIf(
     getResetPasswordPath(server),
@@ -72,8 +76,12 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
     setBusy(true);
     setError(undefined);
     try {
+      // A full Matrix ID may name another homeserver than the one picked above.
+      const loginBaseUrl = await resolveMatrixIdHomeserver(user, baseUrl, (name) =>
+        isServerChoiceAllowed(clientConfig, name)
+      );
       setResult(
-        await login(baseUrl, {
+        await login(loginBaseUrl, {
           type: 'm.login.password',
           identifier:
             user.includes('@') && !user.startsWith('@')
