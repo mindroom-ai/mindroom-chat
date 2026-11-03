@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
+import { Page } from '../../../components/page';
 import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
@@ -302,43 +303,45 @@ export function Invites() {
   };
 
   return (
-    <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-      <Box alignItems="Center" gap="200">
-        <PhoneBackButton to={INBOX_PATH} />
-        <Text size="H4" style={{ flexGrow: 1 }}>
-          {t('sharedUi.invites.invites')}
-        </Text>
-        {category !== 'spam' && shownInvites.length > 1 && (
-          <Button
-            size="300"
-            radii="300"
-            variant="Success"
-            fill="Soft"
-            disabled={acceptingAll}
-            onClick={handleAcceptAll}
-          >
-            <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
-          </Button>
+    <Page>
+      <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+        <Box alignItems="Center" gap="200">
+          <PhoneBackButton to={INBOX_PATH} />
+          <Text size="H4" style={{ flexGrow: 1 }}>
+            {t('sharedUi.invites.invites')}
+          </Text>
+          {category !== 'spam' && shownInvites.length > 1 && (
+            <Button
+              size="300"
+              radii="300"
+              variant="Success"
+              fill="Soft"
+              disabled={acceptingAll}
+              onClick={handleAcceptAll}
+            >
+              <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
+            </Button>
+          )}
+        </Box>
+        <InviteFilterChips counts={counts} selected={category} onSelect={setPickedCategory} />
+        {shownInvites.length === 0 && (
+          <Text size="T300">
+            {category === 'spam'
+              ? t('sharedUi.invites.noSpamInvites')
+              : t('sharedUi.invites.noInvites')}
+          </Text>
         )}
+        {shownInvites.map((invite) => (
+          <InviteCard
+            {...timeFormat}
+            key={invite.roomId}
+            invite={invite}
+            onNavigate={handleNavigate}
+            hideAvatar={hasBadWords(invite)}
+            useAuthentication={useAuthentication}
+          />
+        ))}
       </Box>
-      <InviteFilterChips counts={counts} selected={category} onSelect={setPickedCategory} />
-      {shownInvites.length === 0 && (
-        <Text size="T300">
-          {category === 'spam'
-            ? t('sharedUi.invites.noSpamInvites')
-            : t('sharedUi.invites.noInvites')}
-        </Text>
-      )}
-      {shownInvites.map((invite) => (
-        <InviteCard
-          {...timeFormat}
-          key={invite.roomId}
-          invite={invite}
-          onNavigate={handleNavigate}
-          hideAvatar={hasBadWords(invite)}
-          useAuthentication={useAuthentication}
-        />
-      ))}
-    </Box>
+    </Page>
   );
 }

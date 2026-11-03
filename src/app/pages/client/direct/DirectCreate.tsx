@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { EventType, KnownMembership, Preset, Visibility } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
+import { Page } from '../../../components/page';
 import { PhonePageHeader } from '../../../components/page/PhonePageHeader';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
@@ -120,7 +121,7 @@ export function DirectCreate() {
   );
 
   return (
-    <Box direction="Column" grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
+    <Page>
       <PhonePageHeader to={DIRECT_PATH} title={t('sharedUi.directCreate.createChat')} />
       <Box
         direction="Column"
@@ -174,6 +175,6 @@ export function DirectCreate() {
           </Button>
         </Box>
       </Box>
-    </Box>
+    </Page>
   );
 }

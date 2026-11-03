@@ -27,6 +27,7 @@ import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { ConnectionsPage } from '../mindroom/connections/ConnectionsPage';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
 import { JoinAddressForm } from '../components/join-address-prompt';
+import { Page } from '../components/page';
 import { PhonePageHeader } from '../components/page/PhonePageHeader';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
@@ -158,14 +159,11 @@ function SectionIndex({ page }: { page: ReactNode }) {
   return useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>;
 }
 
-// A page that fills the content area beside the navigation, with a phone title bar above it.
-const PAGE_COLUMN = { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 } as const;
-
 function CreateRoomPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   return (
-    <div style={PAGE_COLUMN}>
+    <Page>
       <PhonePageHeader to={HOME_PATH} title={t('nav.createRoom')} />
       <div
         style={{
@@ -180,7 +178,7 @@ function CreateRoomPage() {
       >
         <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -197,12 +195,12 @@ function SearchPage({ backTo, ...searchProps }: SearchPageProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <div style={PAGE_COLUMN}>
+    <Page>
       <PhonePageHeader to={backTo} title={t('nav.messageSearch')} />
       <div ref={scrollRef} style={SEARCH_SCROLL}>
         <MindroomMessageSearch {...searchProps} scrollRef={scrollRef} />
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -236,7 +234,7 @@ function JoinAddressPage() {
       })
     );
   return (
-    <div style={PAGE_COLUMN}>
+    <Page>
       <PhonePageHeader to={HOME_PATH} title={title} />
       <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
         {!phone && (
@@ -246,7 +244,7 @@ function JoinAddressPage() {
         )}
         <JoinAddressForm onOpen={openRoom} style={{}} />
       </div>
-    </div>
+    </Page>
   );
 }
 
