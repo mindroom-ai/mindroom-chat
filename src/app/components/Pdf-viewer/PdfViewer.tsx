@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import { Box, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../glass/GlassPrimitives';
 import { saveFile } from '../../mindroom/native/nativeFileSave';
+import { appUrl } from '../../utils/basePath';
 import * as css from './PdfViewer.css';
 
 export type PdfViewerProps = {
@@ -16,6 +17,11 @@ export type PdfViewerProps = {
 // The frame is not sandboxed (browsers do not run their PDF viewer in one), so only local
 // object URLs reach it: never a `javascript:` URL or a server response that could be HTML.
 const isBlobUrl = (src: string) => src.startsWith('blob:');
+
+// The app's frame-src policy (index.html) refuses blob: frames, so the PDF opens in the app's own
+// frame page, which hands the object URL named after its # sign to the browser's viewer.
+export const pdfFrameUrl = (src: string): string =>
+  `${appUrl('pdf-frame.html')}#${encodeURIComponent(src)}`;
 
 /** Whether a save is running, and whether the last one failed. */
 type SaveProgress = { pending: boolean; failed: boolean };
@@ -70,7 +76,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           </Chip>
         </Header>
         <Box className={css.PdfViewerContent} grow="Yes">
-          {savable ? <iframe src={src} title={name} style={frameStyle} /> : null}
+          {savable ? <iframe src={pdfFrameUrl(src)} title={name} style={frameStyle} /> : null}
         </Box>
       </Box>
     );

@@ -56,7 +56,9 @@ describe('PdfViewer sources', () => {
   it('shows and saves a blob URL', async () => {
     const renderer = render('blob:https://chat.example.org/1234');
 
-    expect(renderer.root.findByType('iframe').props.src).toBe('blob:https://chat.example.org/1234');
+    expect(renderer.root.findByType('iframe').props.src).toBe(
+      `/pdf-frame.html#${encodeURIComponent('blob:https://chat.example.org/1234')}`
+    );
     await act(async () => {
       downloadChip(renderer)?.props.onClick();
     });

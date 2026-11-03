@@ -100,6 +100,8 @@ const navigationFallbackDenylist = [
   /^\/(?:[^/]+\/)?_synapse(?:\/|$)/,
   /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
   /^\/(?:[^/]+\/)?public(?:\/|\?|$)/,
+  // The PDF viewer's frame page (public/pdf-frame.html).
+  /^\/(?:[^/]+\/)?pdf-frame\.html(?:\?|$)/,
   ...RUNTIME_NAVIGATION_PATHS.map(navigationFallbackExcludePathPattern),
   ...readNavigationFallbackExcludePaths(self.location.href).map(
     navigationFallbackExcludePathPattern
