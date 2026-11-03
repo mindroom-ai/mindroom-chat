@@ -47,12 +47,15 @@ import { today, timeDayMonthYear, yesterday } from '../../utils/time';
 import { RoomIntro } from '../../components/room-intro';
 import { VirtualTile } from '../../components/virtualizer';
 import * as css from '../../features/room/RoomTimeline.css';
+import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { sanitizePrefetchDepth } from '../engine/prefetchPolicy';
 import { scheduleReconcile, useMindroomSyncEngine } from '../engine';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { CompactRoomView } from './CompactRoomView';
+import * as overlay from './RoomOverlay.css';
+import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
@@ -365,7 +368,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     scrollRef.current = element;
     setScrollElement(element);
   }, []);
-  const getScrollElement = useCallback(() => scrollRef.current, []);
+  // A new identity once the scroll area mounts, so observers built on it start over (the
+  // compact view has none, and switching to the timeline mounts it later).
+  const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
+  const contentRef = useRef<HTMLDivElement>(null);
   const atBottomAnchorRef = useRef<HTMLElement | null>(null);
   const roomIdRef = useLatestRef(room.roomId);
   const threadIdRef = useLatestRef(threadId);
@@ -456,9 +462,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const threadTailLoaded = session.snapshot.history.tailLoaded;
   const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
 
-  // Room rows.
-  const renderableEventEntries = useMemo(() => {
-    if (threadId) return EMPTY_ENTRIES;
+  // Room rows: the room timeline's own, plus in the classic view the threads' replies.
+  const { roomEntries, renderableEventEntries } = useMemo(() => {
+    if (threadId) return { roomEntries: EMPTY_ENTRIES, renderableEventEntries: EMPTY_ENTRIES };
     const entries = getRenderableEventEntries(
       timeline.linkedTimelines,
       room,
@@ -469,13 +475,14 @@ export function RoomTimeline(props: RoomTimelineProps) {
       hideNickAvatarEvents,
       showThreadRepliesInRoom
     );
-    if (!showThreadRepliesInRoom) return entries;
-    return buildClassicRoomRowEntries(room, entries, {
+    if (!showThreadRepliesInRoom) return { roomEntries: entries, renderableEventEntries: entries };
+    const merged = buildClassicRoomRowEntries(room, entries, {
       ignoredUsersSet,
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
     });
+    return { roomEntries: entries, renderableEventEntries: merged };
   }, [
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -486,6 +493,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     timeline,
   ]);
+  // The newest window counts the room timeline's rows; with merged replies the same window ends
+  // at the newest merged row.
+  const roomEntryCount = roomEntries.length;
+  const mergedEntryCount = renderableEventEntries.length;
+  const windowTimeline = useMemo(() => {
+    const { start, end } = timeline.range;
+    if (mergedEntryCount === roomEntryCount || end !== roomEntryCount) return timeline;
+    const size = end - start;
+    return {
+      ...timeline,
+      range: { start: Math.max(mergedEntryCount - size, 0), end: mergedEntryCount },
+    };
+  }, [mergedEntryCount, roomEntryCount, timeline]);
   const renderableEvents = useMemo(
     () => renderableEventEntries.map(({ event }) => event),
     [renderableEventEntries]
@@ -540,7 +560,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
     threadTailLoaded,
-    timeline,
+    timeline: windowTimeline,
     unreadInfo,
   });
   const roomRows = threadId ? EMPTY_EVENTS : windowState.threadFilteredEvents;
@@ -552,6 +572,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () => roomRows.slice(activeTimelineRange.start, activeTimelineRange.end),
     [activeTimelineRange.end, activeTimelineRange.start, roomRows]
   );
+
+  // A window that reached the newest row keeps reaching it when rows join without a live
+  // event, such as thread replies the classic view merges in or restored history.
+  const windowEndRef = useRef<{ end: number; count: number }>();
+  const roomRowCount = roomRows.length;
+  useLayoutEffect(() => {
+    const { start, end } = activeTimelineRange;
+    const previous = windowEndRef.current;
+    windowEndRef.current = { end, count: roomRowCount };
+    const reachedEnd = previous ? previous.end >= previous.count : !eventId;
+    if (threadId || !reachedEnd || end >= roomRowCount) return;
+    if (previous && end < previous.count) return;
+    setTimeline((current) => ({ ...current, range: { start, end: roomRowCount } }));
+  }, [activeTimelineRange, eventId, roomRowCount, threadId]);
 
   const liveTimelineLinked = timeline.linkedTimelines.includes(getLiveTimeline(room));
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -1329,26 +1363,39 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
   const showJumpToUnread =
     !threadId && !!unreadInfo?.readUptoEventId && (!unreadInfo.inLiveTimeline || roomUnread);
+  const expandAllButton = (
+    <button type="button" style={expandAllToggleStyle} onClick={handleToggleExpandAll}>
+      {expandAll
+        ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
+        : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}
+    </button>
+  );
+  // Under a thread's banner the toggle hangs in the gap above the first row; in the room it
+  // takes a line of its own above the rows.
   const expandAllToggle = itemCount > 0 && (
     <div
       style={{
         display: 'flex',
         justifyContent: 'flex-end',
-        padding: `${config.space.S100} ${config.space.S400} 0`,
+        padding: `${config.space.S100} ${config.space.S700} 0`,
       }}
     >
-      <button type="button" style={expandAllToggleStyle} onClick={handleToggleExpandAll}>
-        {expandAll
-          ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
-          : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}
-      </button>
+      {expandAllButton}
+    </div>
+  );
+  const bannerExpandAllToggle = itemCount > 0 && (
+    <div style={{ position: 'absolute', top: config.space.S300, right: config.space.S500 }}>
+      {expandAllButton}
     </div>
   );
 
   return (
     <Box grow="Yes" direction="Column" style={{ minHeight: 0, position: 'relative' }}>
       {showJumpToUnread && (
-        <div className={css.TimelineFloat({ position: 'Top' })}>
+        <div
+          className={css.TimelineFloat({ position: 'Top' })}
+          style={{ top: `calc(${overlay.controlsTopInset} + ${config.space.S300})` }}
+        >
           <FloatingAction
             primary
             icon={Icons.MessageUnread}
@@ -1362,15 +1409,28 @@ export function RoomTimeline(props: RoomTimelineProps) {
           />
         </div>
       )}
-      <Scroll ref={attachScroll} visibility="Hover" size="300">
+      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
         <Box
+          ref={contentRef}
           direction="Column"
           justifyContent={threadId ? 'Start' : 'End'}
-          style={{ minHeight: '100%', paddingBottom: config.space.S400 }}
+          style={{
+            minHeight: '100%',
+            paddingTop: overlay.topInset,
+            paddingBottom: `calc(${overlay.footerInset} + ${config.space.S400})`,
+          }}
         >
           {threadId ? (
             <>
-              {threadHeader}
+              {threadHeader && (
+                <ThreadTimelineHeader
+                  expansionControl={bannerExpandAllToggle}
+                  onResize={ledger.holdThreadBannerResize}
+                  scrollRef={scrollRef}
+                >
+                  {threadHeader}
+                </ThreadTimelineHeader>
+              )}
               <div ref={ledger.threadLeadingRef}>
                 {threadLoadError && (
                   <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
@@ -1405,7 +1465,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                     <Spinner size="300" variant="Secondary" />
                   </Box>
                 )}
-                {expandAllToggle}
+                {!threadHeader && expandAllToggle}
               </div>
             </>
           ) : (
@@ -1437,6 +1497,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
           <span ref={atBottomAnchorRef} />
         </Box>
       </Scroll>
+      <InsetScrollbar
+        scrollRef={scrollRef}
+        contentRef={contentRef}
+        className={overlay.Scrollbar}
+        label={t('threadNav.messages')}
+      />
       {minimap.minimapItems.length > 0 && (
         <TimelineMinimap
           items={minimap.minimapItems}
@@ -1445,7 +1511,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
         />
       )}
       {!atBottom && (
-        <div className={css.TimelineFloat({ position: 'Bottom' })}>
+        <div
+          className={css.TimelineFloat({ position: 'Bottom' })}
+          style={{ bottom: `calc(${overlay.footerInset} + ${config.space.S400})` }}
+        >
           <FloatingAction
             icon={Icons.ArrowBottom}
             label={t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest')}
