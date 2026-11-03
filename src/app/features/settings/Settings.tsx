@@ -181,34 +181,37 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     [isMobile, requestClose]
   );
 
+  // The title rides on top of the menu, which scrolls beneath it; Logout stays below the list.
+  const title = (
+    <PageNavHeader outlined={false}>
+      <Box grow="Yes" gap="200" alignItems="Center">
+        <Avatar size="200" radii="300">
+          <UserAvatar
+            alt={displayName}
+            src={avatarUrl}
+            userId={userId}
+            renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
+          />
+        </Avatar>
+        <Text size="H4" truncate>
+          {t('settings.title')}
+        </Text>
+      </Box>
+      {isMobile && (
+        <IconButton
+          variant="Background"
+          aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+          onClick={requestClose}
+        >
+          <Icon src={Icons.Cross} />
+        </IconButton>
+      )}
+    </PageNavHeader>
+  );
   const nav = (
     <PageNav size="300">
-      <PageNavHeader outlined={false}>
-        <Box grow="Yes" gap="200" alignItems="Center">
-          <Avatar size="200" radii="300">
-            <UserAvatar
-              alt={displayName}
-              src={avatarUrl}
-              userId={userId}
-              renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
-            />
-          </Avatar>
-          <Text size="H4" truncate>
-            {t('settings.title')}
-          </Text>
-        </Box>
-        {isMobile && (
-          <IconButton
-            variant="Background"
-            aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-            onClick={requestClose}
-          >
-            <Icon src={Icons.Cross} />
-          </IconButton>
-        )}
-      </PageNavHeader>
-      <Box grow="Yes" direction="Column">
-        <PageNavContent>
+      <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
+        <PageNavContent header={title}>
           <SettingsMenuList items={menuItems} activePage={activePage} onSelect={setActivePage} />
         </PageNavContent>
         <LogoutButton />
