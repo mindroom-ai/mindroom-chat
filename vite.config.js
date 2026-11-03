@@ -68,6 +68,9 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 4200,
     strictPort: true,
+    // E2E_NO_WATCH=1 (set by scripts/e2e-slot.sh) serves the files as they were at start, so edits
+    // that other sessions make in the same checkout cannot reload pages in the middle of a spec.
+    ...(process.env.E2E_NO_WATCH === '1' ? { watch: null } : {}),
   },
   optimizeDeps: {
     // The Rust crypto bindings locate their .wasm with `new URL(..., import.meta.url)`.

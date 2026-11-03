@@ -22,6 +22,8 @@ fi
 if ! curl -fsS -o /dev/null "http://127.0.0.1:$E2E_MATRIX_PORT/_matrix/client/versions" 2>/dev/null; then
   docker compose -f e2e/docker-compose.yaml up -d --wait
 fi
+# Dev servers started for this slot do not watch files (see vite.config.js); set E2E_NO_WATCH=0 to watch.
+export E2E_NO_WATCH="${E2E_NO_WATCH:-1}"
 export CHROMIUM_PATH="${CHROMIUM_PATH:-$(command -v chromium || true)}"
 export PLAYWRIGHT_CHROMIUM_EXECUTABLE="${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-$CHROMIUM_PATH}"
 exec "$@"
