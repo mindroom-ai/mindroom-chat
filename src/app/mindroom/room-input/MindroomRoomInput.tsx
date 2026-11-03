@@ -39,7 +39,8 @@ import {
   moveCursor,
   restoreEditorContent,
 } from '../../components/editor/utils';
-import { EmojiBoard } from '../../components/emoji-board';
+import { toggleKeyboardShortcut } from '../../components/editor/keyboard';
+import { EmojiBoard, type EmojiBoardTab } from '../../components/emoji-board';
 import { IconButton } from '../../components/glass/GlassPrimitives';
 import {
   getAudioMsgContent,
@@ -49,6 +50,7 @@ import {
 } from '../../features/room/msgContent';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
 import { useSetting } from '../../state/hooks/settings';
@@ -67,6 +69,8 @@ import { getMindroomCommandSuggestions } from '../commands/mindroomCommandSugges
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { IconTooltip } from '../tooltip/IconTooltip';
+import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
+import { sendComposerSticker } from './composerSticker';
 import {
   getMindroomRoomInputAutocompleteQuery,
   isMindroomRoomInputAutocompleteQuery,
@@ -252,6 +256,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const [submitPending, setSubmitPending] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+    const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
+    const [formattingOpen, setFormattingOpen] = useState(false);
+    // Phones reach stickers through the emoji board's tabs instead of a button of their own.
+    const showStickerButton = useScreenSizeContext() !== ScreenSize.Mobile;
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
@@ -410,6 +418,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       (event: KeyboardEvent<HTMLDivElement>) => {
         if (isComposing(event.nativeEvent)) return;
         const keyEvent = event.nativeEvent ?? event;
+        if (toggleKeyboardShortcut(editor, event)) return;
         // With a menu open, Enter picks its suggestion; it never sends then.
         if (autocompleteMenuOpen && isEnter(keyEvent)) {
           event.preventDefault();
@@ -421,7 +430,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           handleSend();
         }
       },
-      [autocompleteMenuOpen, enterForNewline, handleSend, isComposing]
+      [autocompleteMenuOpen, editor, enterForNewline, handleSend, isComposing]
     );
 
     const syncAutocompleteQuery = useCallback(() => {
@@ -447,9 +456,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [editor]
     );
+    const sendSticker = useCallback(
+      (mxc: string, label: string) => {
+        const target = { roomId, threadId, replyDraft, threadingEnabled };
+        sendComposerSticker(mx, target, { mxc, label }, imagePackRooms).catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[room-input] could not send the sticker', error);
+        });
+        if (replyDraft) clearReplyDraft({ roomId, replyDraft });
+      },
+      [clearReplyDraft, imagePackRooms, mx, replyDraft, roomId, threadId, threadingEnabled]
+    );
+    const openBoard = (tab: EmojiBoardTab, event: React.MouseEvent<HTMLButtonElement>) => {
+      setBoardTab(tab);
+      setEmojiAnchor(event.currentTarget.getBoundingClientRect());
+    };
+
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
     const attachLabel = t('composer.attach');
+    const boardOpen = emojiAnchor !== undefined;
 
     const autocomplete =
       autocompleteQuery &&
@@ -528,15 +554,30 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 onPress={attachments.pickFiles}
               />
               {voice.microphone}
+              <ComposerIconButton
+                label={t('composer.formatting')}
+                icon={Icons.Text}
+                pressed={formattingOpen}
+                onPress={() => setFormattingOpen((open) => !open)}
+              />
             </>
           }
+          bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
             <>
+              {showStickerButton && (
+                <ComposerIconButton
+                  label={t('sharedUi.tabs.sticker')}
+                  icon={Icons.Sticker}
+                  pressed={boardOpen && boardTab === 'Sticker'}
+                  onPress={(event) => openBoard('Sticker', event)}
+                />
+              )}
               <ComposerIconButton
                 label={emojiLabel}
                 icon={Icons.Smile}
-                pressed={emojiAnchor !== undefined}
-                onPress={(event) => setEmojiAnchor(event.currentTarget.getBoundingClientRect())}
+                pressed={boardOpen && boardTab === 'Emoji'}
+                onPress={(event) => openBoard('Emoji', event)}
               />
               <PopOut
                 anchor={emojiAnchor}
@@ -546,6 +587,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 content={
                   <EmojiBoard
                     imagePackRooms={imagePackRooms}
+                    tab={boardTab}
+                    onTabChange={setBoardTab}
+                    onStickerSelect={(mxc, _shortcode, label) => sendSticker(mxc, label)}
                     returnFocusOnDeactivate={false}
                     requestClose={() => setEmojiAnchor(undefined)}
                     onEmojiSelect={(unicode) =>
