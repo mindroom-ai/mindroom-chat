@@ -155,9 +155,9 @@ export const useRoomCacheHydrationController = ({
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
       setTimeline(buildInitialTimeline());
-
-
-
+      setAtBottom(true);
+      scrollToBottomRef.current.count++;
+      scrollToBottomRef.current.smooth = false;
       markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
         hydratedCount: eventsToInsert.length + prependEvents.length,

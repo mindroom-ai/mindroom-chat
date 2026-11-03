@@ -38,9 +38,9 @@ export const MinimapRail = style({
   position: 'absolute',
   top: '50%',
   insetInlineStart: 0,
-
-
-
+  transform: 'translateY(-50%)',
+  width: '1rem',
+  cursor: 'pointer',
   background: 'none',
   border: 'none',
   padding: 0,
@@ -90,10 +90,10 @@ export const MinimapPreviewCard = style({
   width: toRem(320),
   maxWidth: `calc(100vw - ${toRem(96)})`,
   padding: `${toRem(8)} ${toRem(12)}`,
-
-
-
-
+  borderRadius: config.radii.R400,
+  border: `solid ${config.borderWidth.B300} ${color.Surface.ContainerLine}`,
+  backgroundColor: color.Surface.Container,
+  color: color.Surface.OnContainer,
   textAlign: 'start',
   boxShadow: config.shadow.E400,
   zIndex: 1,
@@ -111,9 +111,9 @@ export const MinimapPreviewTitle = style({
 });
 
 export const MinimapPreviewBody = style({
-
-
-
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: '3',
   marginTop: toRem(4),
   maxHeight: toRem(60),
   overflow: 'hidden',

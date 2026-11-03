@@ -51,9 +51,9 @@ const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   }, undefined);
 
 const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {
-
-
-
+  const eventId: string | undefined = mEvent.getId();
+  const eventType = mEvent.getType();
+  const relation = mEvent.getRelation();
 
   if (!eventId || !eventType || !relation?.event_id || !relation.rel_type) {
     return undefined;

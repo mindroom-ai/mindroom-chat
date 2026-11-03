@@ -13,14 +13,14 @@ export const Capsule = style([
     gap: config.space.S200,
     minWidth: 0,
     minBlockSize: CAPSULE_MIN_HEIGHT,
+    borderRadius: config.radii.R400,
     paddingBlock: config.space.S100,
     paddingInline: config.space.S200,
   },
-  // Its fill: the composer's container color with a rounded edge, under the liquid glass filter.
+  // Its fill: the composer's container color, under the liquid glass filter.
   {
-
-
-
+    color: color.SurfaceVariant.OnContainer,
+    backgroundColor: color.SurfaceVariant.Container,
   },
 ]);
 

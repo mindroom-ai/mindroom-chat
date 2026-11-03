@@ -44,15 +44,15 @@ export const Card = style([
   DefaultReset,
   {
     display: 'flex',
-
-
-
-
-
-
-
-
-
+    flexDirection: 'column',
+    rowGap: config.space.S100,
+    padding: `${config.space.S200} ${config.space.S300}`,
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    inlineSize: '100%',
+    borderRadius: config.radii.R400,
+    backgroundColor: color.SurfaceVariant.Container,
+    minInlineSize: 0,
+    color: color.SurfaceVariant.OnContainer,
     textAlign: 'start',
     cursor: 'pointer',
     transition: transition(['background-color', 'border-color']),
@@ -76,9 +76,9 @@ export const CardAction = style({
   backgroundColor: color.SurfaceVariant.ContainerHover,
   position: 'absolute',
   insetInlineEnd: config.space.S300,
-
-
-
+  top: '50%',
+  transform: 'translateY(-50%)',
+  placeItems: 'center',
   opacity: 0,
   pointerEvents: 'none',
   transition: transition(['opacity']),
@@ -92,16 +92,16 @@ export const CardAction = style({
       transform: 'none',
       opacity: 1,
       pointerEvents: 'auto',
-
-
-
-
-
-
-
-
-
-
+      background: 'none',
+      selectors: {
+        '&::before': {
+          content: 'none',
+        },
+      },
+    },
+  },
+  selectors: {
+    '&::before': {
       content: "''",
       position: 'absolute',
       insetBlock: 0,
@@ -164,9 +164,9 @@ export const TitleText = style({
   minWidth: 0,
   flex: 1,
   overflowWrap: 'anywhere',
-
-
-
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: '2',
   overflow: 'hidden',
 });
 
@@ -176,9 +176,9 @@ export const TimeText = style({
 });
 
 export const TimeTextUnread = style({
-
-
-
+  color: color.Primary.Main,
+  fontWeight: 600,
+  opacity: 1,
 });
 
 export const MessagePreview = style({
@@ -223,12 +223,12 @@ export const ParticipantAvatar = style({
 });
 
 export const ResolutionByline = style({
-
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  columnGap: config.space.S100,
+  minWidth: 0,
+  color: color.Success.Main,
+  fontWeight: 500,
 });
 
 export const ResolutionBylineLabel = style({
@@ -239,18 +239,18 @@ export const ResolutionBylineLabel = style({
 });
 
 export const StreamingStatus = style({
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  columnGap: config.space.S100,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 });
 
 export const Stats = style({
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  columnGap: config.space.S200,
+  flexShrink: 0,
   marginInlineStart: 'auto',
 });
 

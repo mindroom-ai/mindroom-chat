@@ -1,26 +1,26 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
+/** Items in a row, centered on the text line. */
+const inlineRow = { display: 'inline-flex', alignItems: 'center' } as const;
+
 /** The "N replies" chip under a message that starts a thread, and the composer's thread label. */
-
-
-
+export const ThreadIndicator = style({
+  ...inlineRow,
   alignSelf: 'flex-start',
   gap: config.space.S100,
   minWidth: 0,
   maxWidth: '100%',
   padding: `${toRem(2)} ${config.space.S200}`,
-
-
-
-
+  borderRadius: config.radii.R300,
+  border: `solid ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+  background: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
   font: 'inherit',
   textAlign: 'start',
   selectors: {
-
-
-
-
+    'button&': { cursor: 'pointer' },
+    'button&:hover, button&:focus-visible': {
       background: color.SurfaceVariant.ContainerHover,
     },
     'button&:focus-visible': {
@@ -54,8 +54,7 @@ export const ThreadIndicatorLabel = style({
 });
 
 export const ThreadParticipants = style({
-  display: 'inline-flex',
-  alignItems: 'center',
+  ...inlineRow,
   paddingInlineStart: toRem(2),
 });
 

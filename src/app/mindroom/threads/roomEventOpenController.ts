@@ -410,11 +410,11 @@ export const useRoomEventOpenController = ({
       if (filteredIndex !== -1) {
         const scrolled = scrollToItem(filteredIndex, {
           behavior: 'smooth',
-
-
-
-
-
+          align: 'center',
+          stopInView: true,
+        });
+        onScroll?.(scrolled);
+        setFocusItem({
           eventId: evtId,
           index: filteredIndex,
           scrollTo: false,

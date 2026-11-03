@@ -170,10 +170,10 @@ export const OverflowChip = style({
   fontSize: '0.65rem',
   fontWeight: config.fontWeight.W500,
   padding: '0.1rem 0.4rem',
-
-
-
-
+  borderRadius: config.radii.Pill,
+  border: `solid ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
   userSelect: 'none',
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
@@ -202,10 +202,10 @@ export const SummaryText = style({
   // Fills the row only as far as the title is long, so a schedule or a
   // byline follows it instead of the far end of the row.
   maxWidth: 'max-content',
-
-
-
-
+  overflow: 'hidden',
+  flex: '1 1 0px',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   ...whenCompact({ flexBasis: 'auto' }),
 });
 
@@ -231,11 +231,11 @@ export const SummaryTextChanged = style({
 });
 
 export const ScheduledWrap = style({
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  minInlineSize: 0,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
   ...whenCompact({ flexShrink: 1 }),
 });
 
@@ -246,10 +246,10 @@ export const MetadataDot = style({
 export const ScheduledIndicator = style({
   minWidth: 0,
   maxWidth: '14rem',
-
-
-
-
+  flexShrink: 0,
+  overflow: 'hidden',
+  color: 'currentColor',
+  whiteSpace: 'nowrap',
   ...whenCompact({ flexShrink: 1 }),
 });
 

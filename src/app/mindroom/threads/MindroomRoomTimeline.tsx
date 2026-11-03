@@ -15,7 +15,7 @@ import { Box, Button, Scroll, Spinner, Text, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { useSetting } from '../../state/hooks/settings';
+import { useSettingValue } from '../../state/hooks/useSettingValue';
 import { settingsAtom } from '../../state/settings';
 import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
@@ -80,22 +80,14 @@ const useRoomTimelineVersion = (room: Room): number => {
 };
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
-const useTimelineDisplaySettings = () => {
-
-
-
-
-
-
-  return {
-    hideActivity,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    messageLayout,
-    messageSpacing,
-    showHiddenEvents,
-  };
-};
+const useTimelineDisplaySettings = () => ({
+  hideActivity: useSettingValue(settingsAtom, 'hideActivity'),
+  hideMembershipEvents: useSettingValue(settingsAtom, 'hideMembershipEvents'),
+  hideNickAvatarEvents: useSettingValue(settingsAtom, 'hideNickAvatarEvents'),
+  messageLayout: useSettingValue(settingsAtom, 'messageLayout'),
+  messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
+  showHiddenEvents: useSettingValue(settingsAtom, 'showHiddenEvents'),
+});
 
 const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
   const seen = new Set<string>();
@@ -112,21 +104,22 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
  * room timeline with a thread badge under each thread root; inside a thread, the root and its
  * replies.
  */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export function RoomTimeline(props: RoomTimelineProps) {
+  const {
+    room,
+    eventId,
+    threadId,
+    summaryMap,
+    onStoreThreadSummary,
+    threadFilterState,
+    viewMode,
+    compactRoomScrollStateRef,
+    editor,
+    onThreadLoadError,
+  } = props;
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const ignoredUsers = useIgnoredUsers();
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
   const { navigateRoomThread } = useRoomNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -140,7 +133,10 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
   } = useTimelineDisplaySettings();
   const version = useRoomTimelineVersion(room);
   const showThreadRepliesInRoom = viewMode === 'classic';
-  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
+  const sessionId = useMemo(
+    () => createSessionId(client.getHomeserverUrl(), client.getSafeUserId()),
+    [client]
+  );
 
   const [timeline, setTimeline] = useState<Timeline>(() =>
     getInitialTimeline(room, TIMELINE_PAGE_SIZE)
@@ -159,7 +155,7 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
 
   const filterOptsRef = useRef(undefined);
   const paginate = useTimelinePagination(
-    mx,
+    client,
     timeline,
     setTimeline,
     TIMELINE_PAGE_SIZE,
@@ -215,13 +211,13 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
     hideNickAvatarEvents: !!hideNickAvatarEvents,
     summaryMap,
     threadResolutionMap,
-    currentUserId: mx.getUserId() ?? undefined,
+    currentUserId: client.getUserId() ?? undefined,
     requestedThreadFilterState: threadFilterState,
     // The sort-order lock belonged to the room filter bar, which this client does not have.
     threadSortFreezeState: null,
     overviewRefreshCounter: version,
     sessionId,
-    mx,
+    mx: client,
     onStoreThreadSummary: onStoreThreadSummary as (
       threadRootId: string,
       info: MindroomThreadSummaryInfo | undefined
@@ -245,13 +241,13 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
     if (!threadId || !onThreadLoadError) return undefined;
     if (room.getThread(threadId)?.rootEvent || room.findEventById(threadId)) return undefined;
     let cancelled = false;
-    mx.fetchRoomEvent(room.roomId, threadId).catch(() => {
+    client.fetchRoomEvent(room.roomId, threadId).catch(() => {
       if (!cancelled) onThreadLoadError(threadId);
     });
     return () => {
       cancelled = true;
     };
-  }, [mx, onThreadLoadError, room, threadId]);
+  }, [client, onThreadLoadError, room, threadId]);
 
   const visibleEvents = threadId
     ? threadEvents

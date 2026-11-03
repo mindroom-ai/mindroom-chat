@@ -31,8 +31,8 @@ import { Reply } from '../../../components/message';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { Reactions } from '../../../features/room/message/Reactions';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-custom-html-parser';
-import { useSetting } from '../../../state/hooks/settings';
-import { settingsAtom, type MessageLayout, type MessageSpacing } from '../../../state/settings';
+import { useSettingValue } from '../../../state/hooks/useSettingValue';
+import { settingsAtom, type Settings } from '../../../state/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
 import { getEventReactions } from '../../../utils/room';
 import { MessageEvent } from '../../../../types/matrix/room';
@@ -50,19 +50,26 @@ import { getLinkedTimelines } from '../linkedTimelines';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { TimelineMessageData, TimelineMessageKind, TimelineMessageRow } from './types';
 
-export type UseTimelineMessageFeatureOptions = {
+/**
+ * The settings below come from the user's preferences; `hideActivity` keeps read receipts
+ * private, so the rows show none either.
+ */
+type TimelineSettings = Pick<
+  Settings,
+  | 'messageLayout'
+  | 'messageSpacing'
+  | 'hideActivity'
+  | 'hideMembershipEvents'
+  | 'hideNickAvatarEvents'
+  | 'showHiddenEvents'
+>;
+
+export type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
   editor: Editor;
   threadId?: string;
   scrollRef: RefObject<HTMLDivElement>;
   showThreadRepliesInRoom: boolean;
-
-
-
-
-
-
-
 };
 
 /** State events the timeline shows as a one-line notice. */
@@ -105,14 +112,13 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
 
 /** The settings each message row reads; the row list re-renders when one changes. */
-const useMessageDisplaySettings = () => {
-
-
-
-
-
-  return { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview };
-};
+const useMessageDisplaySettings = () => ({
+  dateFormatString: useSettingValue(settingsAtom, 'dateFormatString'),
+  hour24Clock: useSettingValue(settingsAtom, 'hour24Clock'),
+  mediaAutoLoad: useSettingValue(settingsAtom, 'mediaAutoLoad'),
+  urlPreview: useSettingValue(settingsAtom, 'urlPreview'),
+  encUrlPreview: useSettingValue(settingsAtom, 'encUrlPreview'),
+});
 
 /**
  * Re-render the host when an encrypted row on screen decrypts or gets new content from an edit.
@@ -187,10 +193,10 @@ function TimelineReactions({
 
 /** Toggle the user's reaction `key` on `targetEventId`: redact it when present, send it otherwise. */
 const useReactionToggle = (room: Room, threadId: string | undefined) => {
-  const mx = useMatrixClient();
+  const client = useMatrixClient();
   return useCallback(
     (targetEventId: string, key: string, shortcode: string | undefined, relations?: Relations) => {
-      const userId = mx.getUserId();
+      const userId = client.getUserId();
       const own = relations
         ?.getSortedAnnotationsByKey()
         ?.find(([annotationKey]) => annotationKey === key)?.[1];
@@ -198,19 +204,34 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
         own && [...own].find((event) => event.getSender() === userId && !event.isRedacted());
       const ownEventId = ownEvent?.getId();
       if (ownEventId) {
-        mx.redactEvent(room.roomId, ownEventId).catch(() => undefined);
+        client.redactEvent(room.roomId, ownEventId).catch(() => undefined);
         return;
       }
       const content = {
         'm.relates_to': { rel_type: RelationType.Annotation, event_id: targetEventId, key },
         ...(shortcode ? { shortcode } : {}),
       };
-      mx.sendEvent(room.roomId, threadId ?? null, EventType.Reaction, content as never).catch(
-        () => undefined
-      );
+      client
+        .sendEvent(room.roomId, threadId ?? null, EventType.Reaction, content as never)
+        .catch(() => undefined);
     },
-    [mx, room.roomId, threadId]
+    [client, room.roomId, threadId]
   );
+};
+
+/** What the user may do with the room's events, for the actions of a message row. */
+const useMessagePermissions = (room: Room, userId: string | null) => {
+  const creators = useRoomCreators(room);
+  const levels = usePowerLevelsContext();
+  const permissions = useRoomPermissions(creators, levels);
+  if (!userId) return { canPinEvent: false, canSendRedaction: false, canRedactOthers: false };
+  return {
+    canPinEvent: canPinRoomEvents(creators, levels, userId),
+    // A redaction needs permission to send `m.room.redaction`; redacting someone else's event also
+    // needs the room's `redact` level (Matrix specification, redaction authorization rules).
+    canSendRedaction: permissions.event(MessageEvent.RoomRedaction, userId),
+    canRedactOthers: permissions.action('redact', userId),
+  };
 };
 
 /**
@@ -225,7 +246,7 @@ export const useTimelineMessageFeature = ({
   messageLayout,
   messageSpacing,
 }: UseTimelineMessageFeatureOptions) => {
-  const mx = useMatrixClient();
+  const client = useMatrixClient();
   const [editingEventId, setEditingEventId] = useState<string>();
   const [liveExpansionIds, setLiveExpansionIds] = useState<ReadonlySet<string>>(() => new Set());
   const manualExpansionState = useRef(new Map<string, boolean>()).current;
@@ -250,7 +271,7 @@ export const useTimelineMessageFeature = ({
   threadIdRef.current = threadId;
 
   const findLatestEditableEvent = useCallback((): MatrixEvent | undefined => {
-    const userId = mx.getUserId();
+    const userId = client.getUserId();
     const activeThreadId = threadIdRef.current;
     if (activeThreadId) {
       const thread = room.getThread(activeThreadId);
@@ -266,38 +287,29 @@ export const useTimelineMessageFeature = ({
     return [...room.getLiveTimeline().getEvents()]
       .reverse()
       .find((event) => isEditableOwnMessage(event, userId));
+  }, [client, room]);
 
-
-
-
-
-
-      (evt: KeyboardEvent) => {
-        if (evt.key !== 'ArrowUp') return;
-        const active = document.activeElement;
-        if (active?.getAttribute('data-editable-name') !== 'RoomInput') return;
-        if (!isEmptyEditor(editor)) return;
-        const target = findLatestEditableEvent();
-        const targetId = target?.getId();
-        if (!targetId) return;
-        evt.preventDefault();
-        setEditingEventId(targetId);
-      },
-      [editor, findLatestEditableEvent]
-    )
+  // Up in an empty composer edits the user's latest message, as in most chat clients.
+  const editLatestOnArrowUp = useCallback(
+    (evt: KeyboardEvent) => {
+      if (evt.key !== 'ArrowUp') return;
+      const active = document.activeElement;
+      if (active?.getAttribute('data-editable-name') !== 'RoomInput') return;
+      if (!isEmptyEditor(editor)) return;
+      const target = findLatestEditableEvent();
+      const targetId = target?.getId();
+      if (!targetId) return;
+      evt.preventDefault();
+      setEditingEventId(targetId);
+    },
+    [editor, findLatestEditableEvent]
   );
+  useKeyDown(window, editLatestOnArrowUp);
 
   const decryptions = useDecryptionRepaint(renderedEventsRef);
 
-
-
-
-
-  const canPinEvent = !!userId && canPinRoomEvents(creators, powerLevels, userId);
-  // A redaction needs permission to send `m.room.redaction`; redacting someone else's event also
-  // needs the room's `redact` level (Matrix specification, redaction authorization rules).
-  const canSendRedaction = !!userId && permissions.event(MessageEvent.RoomRedaction, userId);
-  const canRedactOthers = !!userId && permissions.action('redact', userId);
+  const userId = client.getUserId();
+  const { canPinEvent, canSendRedaction, canRedactOthers } = useMessagePermissions(room, userId);
 
   const toggleReaction = useReactionToggle(room, threadId);
   const useAuthentication = useMediaAuthentication();
@@ -308,8 +320,11 @@ export const useTimelineMessageFeature = ({
   const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
   const htmlReactParserOptions = useMemo(
     () =>
-      getReactCustomHtmlParser(mx, room.roomId, { linkifyOpts: LINKIFY_OPTS, useAuthentication }),
-    [mx, room.roomId, useAuthentication]
+      getReactCustomHtmlParser(client, room.roomId, {
+        linkifyOpts: LINKIFY_OPTS,
+        useAuthentication,
+      }),
+    [client, room.roomId, useAuthentication]
   );
 
   const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));

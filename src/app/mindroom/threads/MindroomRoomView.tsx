@@ -53,19 +53,19 @@ export function RoomView({
   onComputerToggle,
   onThreadLoadError,
 }: RoomViewProps) {
-
-
-
+  const client = useMatrixClient();
+  const editor = useEditor();
+  const composerRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
   // Cancelling a background job sends an event, so it takes that event's power level.
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
-  const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
+  const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, client.getSafeUserId());
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId });
   const effectiveThreadId = threadState.effectiveThreadId;
   const focusConversation = useCallback(() => {
-    roomInputRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+    composerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
 
   return (
@@ -116,14 +116,14 @@ export function RoomView({
       </ThreadApprovalProvider>
       {/* Outside the approval provider: opening a thread must not remount the composer. */}
       <Box direction="Column" shrink="No">
-
-
-
-
-
+        <RoomViewTyping room={room} />
+        <RoomInput
+          ref={composerRef}
+          room={room}
+          roomId={room.roomId}
           threadId={effectiveThreadId}
           editor={editor}
-          fileDropContainerRef={roomInputRef}
+          fileDropContainerRef={composerRef}
           onRoomMessageSent={threadState.handleRoomMessageSent}
         />
       </Box>

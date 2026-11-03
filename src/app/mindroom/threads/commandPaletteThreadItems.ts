@@ -219,10 +219,10 @@ export const useMindroomCommandPaletteThreadItems = ({
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(myUserId), [myUserId]);
   const recentThreads = useAtomValue(recentThreadsAtom);
   const [resolutionVersion, refreshResolution] = useForceUpdate();
-
-
-
-
+  useStateEventCallback(
+    mx,
+    useCallback(
+      function onThreadStateChange(event) {
         if (
           event.getType() === MINDROOM_THREAD_TAGS_EVENT ||
           event.getType() === StateEvent.RoomPinnedEvents

@@ -36,14 +36,8 @@ export const getMatrixToRoom = (roomIdOrAlias: string, viaServers?: string[]): s
   `${appLink(encodeId(roomIdOrAlias))}${viaQuery(viaServers)}`;
 
 /** A link that opens the event in this app. */
-
-
-
-
-): string => {
-  const path = [roomIdOrAlias, eventId].map(encodeId).join('/');
-  return `${appLink(path)}${viaQuery(viaServers)}`;
-};
+export const getMatrixToRoomEvent = (room: string, event: string, viaServers?: string[]): string =>
+  `${appLink([room, event].map(encodeId).join('/'))}${viaQuery(viaServers)}`;
 
 /** A parsed room link: the room ID or alias, and the servers to join it through. */
 export type MatrixToRoom = {

@@ -13,140 +13,88 @@ import { isRecord } from '../utils/isRecord';
 const SETTINGS_STORAGE_KEY = 'settings';
 
 /** How timeline messages are laid out; stored as the number. */
+export enum MessageLayout {
+  Modern = 0, // Avatar and name beside each group of messages.
+  Compact = 1, // Time, name and body on one line.
+  Bubble = 2, // Chat bubbles, own messages on the right.
+}
 
-
-
-
-
-
-
-
-
-
-
-
-const MESSAGE_SPACINGS: readonly MessageSpacing[] = ['0', '100', '200', '300', '400', '500'];
+/** Vertical gap between messages, as a folds space token. */
+const MESSAGE_SPACINGS = ['0', '100', '200', '300', '400', '500'] as const;
+export type MessageSpacing = (typeof MESSAGE_SPACINGS)[number];
 
 /** Page zoom in percent. */
 export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
 
-export type Settings = {
+/** The on/off settings, in the order of the settings pages that show them. */
+const BOOLEAN_SETTING_KEYS = [
   // Appearance
-  /** Theme used when `useSystemTheme` is off. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  threadBannerCollapsed: boolean;
-
+  'useSystemTheme', // Follow the operating system's light or dark preference.
+  'twitterEmoji', // Draw emoji with the Twemoji font instead of the system font.
+  // Composer
+  'isMarkdown', // Parse Markdown in sent messages.
+  'enterForNewline', // Enter inserts a line break and Ctrl+Enter sends, instead of the reverse.
+  // Privacy
+  'hideActivity', // Send read receipts and typing notices privately.
+  // Layout
+  'isPeopleDrawer', // Whether the members drawer is open on wide screens.
+  // Timeline
+  'hideMembershipEvents', // Leave joins, leaves, invites and kicks out of the timeline.
+  'hideNickAvatarEvents', // Leave display name and avatar changes out of the timeline.
+  'showHiddenEvents', // Show events the timeline normally hides, for debugging.
+  'mediaAutoLoad', // Load images and videos without a click.
+  'urlPreview', // Show link previews in unencrypted rooms.
+  'encUrlPreview', // Show link previews in encrypted rooms too; the homeserver then sees the links.
+  'hour24Clock', // Times as 13:00 instead of 1:00 PM.
+  'threadBannerCollapsed',
   // Notifications
-  /** Desktop notifications for new messages. */
+  'showNotifications', // Desktop notifications for new messages.
+  'isNotificationSounds', // Play a sound with each notification.
+  // Developer
+  'developerTools', // Developer options in the settings and message menus.
+] as const;
 
+type BooleanSettingKey = (typeof BOOLEAN_SETTING_KEYS)[number];
 
+/** `themeId` applies while `useSystemTheme` is off; the other two are the system's light and dark picks. */
+type ThemePicks = Partial<Record<'themeId' | 'lightThemeId' | 'darkThemeId', string>>;
 
+type MessageDisplay = { messageLayout: MessageLayout; messageSpacing: MessageSpacing };
 
+export type Settings = Record<BooleanSettingKey, boolean> &
+  ThemePicks &
+  MessageDisplay & {
+    /** Page zoom in percent, between `PAGE_ZOOM_MIN` and `PAGE_ZOOM_MAX`. */
+    pageZoom: number;
+    /** dayjs format for dates in the timeline. */
+    dateFormatString: string;
+  };
 
-
-};
-
-const DEFAULT_SETTINGS: Settings = {
-
-
-
-
-  pageZoom: PAGE_ZOOM_DEFAULT,
-
-
-
-
-
-
-
-
-  messageLayout: MessageLayout.Modern,
-
-
-
-
-
-
-
-
-
-
-  threadBannerCollapsed: false,
-
-
-
-
-
-};
-
-type BooleanSettingKey = {
-  [K in keyof Settings]-?: Settings[K] extends boolean ? K : never;
-}[keyof Settings];
-
-const BOOLEAN_SETTING_KEYS: readonly BooleanSettingKey[] = [
+/** The on/off settings that start on; every other one starts off. */
+const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'useSystemTheme',
-  'twitterEmoji',
   'isMarkdown',
-  'enterForNewline',
-  'hideActivity',
   'isPeopleDrawer',
-  'hideMembershipEvents',
   'hideNickAvatarEvents',
-  'showHiddenEvents',
   'mediaAutoLoad',
   'urlPreview',
-  'encUrlPreview',
-  'hour24Clock',
-  'threadBannerCollapsed',
   'showNotifications',
   'isNotificationSounds',
-  'developerTools',
 ];
+
+const DEFAULT_BOOLEANS = Object.fromEntries(
+  BOOLEAN_SETTING_KEYS.map((key) => [key, ON_BY_DEFAULT.includes(key)])
+) as Record<BooleanSettingKey, boolean>;
+
+const DEFAULT_SETTINGS: Settings = {
+  ...DEFAULT_BOOLEANS,
+  pageZoom: PAGE_ZOOM_DEFAULT,
+  messageLayout: MessageLayout.Modern,
+  messageSpacing: '400',
+  dateFormatString: 'D MMM YYYY',
+};
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
 const sanitizeZoom = (value: unknown): number => {

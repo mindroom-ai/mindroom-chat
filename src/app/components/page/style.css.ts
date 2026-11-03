@@ -37,16 +37,13 @@ export const PageNavHeader = style({
 });
 
 /** A navigation header that scrolls with the list below it. */
-export const PageNavHeaderScroll = style({
+export const PageNavHeaderScroll = style({ position: 'sticky', top: 0, zIndex: 1 });
 
-
-
-
-
-
-
-
-  padding: `${config.space.S200} 0 ${config.space.S700} ${config.space.S200}`,
+// Top S200, flush right against the scrollbar, room at the bottom, rows S200 from the rail.
+export const PageNavContent = style({
+  minHeight: '100%',
+  paddingBlock: `${config.space.S200} ${config.space.S700}`,
+  paddingLeft: config.space.S200,
 });
 
 /** Page headers sit S400 in on the title side and S200 at the actions; `balance` evens both. */
@@ -74,20 +71,14 @@ export const PageContent = style([
   },
 ]);
 
+// A column that fills the space up to `max` and centers itself in what is left.
+const centeredColumn = (max: string) => ({ width: '100%', maxWidth: max, margin: 'auto' });
+
 // Explore pages center their room grid; three 300 px cards with S400 gaps and padding fit.
-export const PageContentCenter = style({
+export const PageContentCenter = style(centeredColumn(toRem(964)));
 
-
-
-
-
-
-
+// home.png: the welcome block is a 360 px column (logo, title, buttons, backup card).
+export const PageHeroSection = style([
   DefaultReset,
-  {
-    padding: `${config.space.S700} 0`,
-    maxWidth: toRem(360),
-    width: '100%',
-    margin: 'auto',
-  },
+  { padding: `${config.space.S700} 0`, ...centeredColumn(toRem(360)) },
 ]);

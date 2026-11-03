@@ -15,20 +15,15 @@ type SpecVersionsLoaderProps = {
   /** Shown while the server has not answered. */
   fallback?: () => ReactNode;
   /** Shown when the request failed; `ignore` continues as if the server listed no versions. */
+  error?: (failure: unknown, retry: () => void, ignore: () => void) => ReactNode;
+  /** Renders the app once the versions are known. */
+  children(versions: SpecVersions): ReactNode;
+};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Fetches the homeserver's supported spec versions and renders `children` with the answer. */
+export function SpecVersionsLoader(props: SpecVersionsLoaderProps) {
+  const { baseUrl, fetchFn, fallback, error: renderError, children } = props;
+  const [state, setState] = useState<LoaderState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -51,6 +46,6 @@ type SpecVersionsLoaderProps = {
   const ignore = useCallback(() => setState({ status: 'loaded', versions: EMPTY_VERSIONS }), []);
 
   if (state.status === 'loading') return fallback?.() ?? null;
-  if (state.status === 'error') return error?.(state.error, retry, ignore) ?? null;
+  if (state.status === 'error') return renderError?.(state.error, retry, ignore) ?? null;
   return children(state.versions);
 }

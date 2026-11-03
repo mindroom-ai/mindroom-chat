@@ -130,9 +130,9 @@ function RecentlyOpenedList({ entries, userId }: RecentlyOpenedListProps) {
 export function RecentlyOpenedNavCategory({
   limit = DEFAULT_RECENTLY_OPENED_THREAD_LIMIT,
 }: RecentlyOpenedNavCategoryProps) {
-
-
-
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const userId: string = mx.getSafeUserId();
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(userId), [userId]);
   const panelHeightAtom = useMemo(() => makeRecentlyOpenedPanelHeightAtom(userId), [userId]);
   const recentThreads = useAtomValue(recentThreadsAtom);

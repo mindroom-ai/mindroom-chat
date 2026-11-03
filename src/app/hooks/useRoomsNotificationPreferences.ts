@@ -68,47 +68,43 @@ const removeRule = async (mx: MatrixClient, kind: PushRuleKind, roomId: string):
   } catch (error) {
     if ((error as { httpStatus?: number }).httpStatus !== 404) throw error;
   }
+};
 
+/**
+ * Moves a room from the `previous` mode to the `next` one. The rule behind the previous mode goes
+ * first, then the new mode's rule is added (client-server API, "Push Rules": override rules win
+ * over room rules, so a mute is an override rule that matches the room ID). `Unset` adds no rule.
+ */
+export async function setRoomNotificationPreference(
+  client: MatrixClient,
+  roomId: string,
+  next: RoomNotificationMode,
+  previous: RoomNotificationMode
+): Promise<void> {
+  if (next === previous) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-  if (previousMode === RoomNotificationMode.Mute) {
-    await removeRule(mx, PushRuleKind.Override, roomId);
+  if (previous === RoomNotificationMode.Mute) {
+    await removeRule(client, PushRuleKind.Override, roomId);
   } else if (
-    previousMode === RoomNotificationMode.AllMessages ||
-    previousMode === RoomNotificationMode.SpecialMessages
+    previous === RoomNotificationMode.AllMessages ||
+    previous === RoomNotificationMode.SpecialMessages
   ) {
-    await removeRule(mx, PushRuleKind.RoomSpecific, roomId);
+    await removeRule(client, PushRuleKind.RoomSpecific, roomId);
   }
 
-  if (mode === RoomNotificationMode.Mute) {
-    await mx.addPushRule('global', PushRuleKind.Override, roomId, {
+  if (next === RoomNotificationMode.Mute) {
+    await client.addPushRule('global', PushRuleKind.Override, roomId, {
       actions: [],
       conditions: [{ kind: ConditionKind.EventMatch, key: 'room_id', pattern: roomId }],
     });
-    return;
-  }
-  if (mode === RoomNotificationMode.AllMessages) {
-    await mx.addPushRule('global', PushRuleKind.RoomSpecific, roomId, {
+  } else if (next === RoomNotificationMode.AllMessages) {
+    await client.addPushRule('global', PushRuleKind.RoomSpecific, roomId, {
       actions: [PushRuleActionName.Notify, { set_tweak: TweakName.Sound, value: 'default' }],
     });
-    return;
+  } else if (next === RoomNotificationMode.SpecialMessages) {
+    await client.addPushRule('global', PushRuleKind.RoomSpecific, roomId, { actions: [] });
   }
-  if (mode === RoomNotificationMode.SpecialMessages) {
-    await mx.addPushRule('global', PushRuleKind.RoomSpecific, roomId, { actions: [] });
-  }
-};
+}
 
 /** Per-room notification settings, following push rule changes. */
 export const useRoomsNotificationPreferences = (): RoomToNotificationMode => {

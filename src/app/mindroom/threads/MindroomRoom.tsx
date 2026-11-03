@@ -55,16 +55,17 @@ const useRoomComputer = (
 };
 
 /** A room: its view, the members panel, and the agents' computer beside it. */
-
-
-
-
-  const eventId = useParams().eventId;
-  const threadId = searchParams.get('threadId') ?? undefined;
+export function Room() {
+  const client = useMatrixClient();
+  const room = useRoom();
+  const { roomId } = room;
+  const [query] = useSearchParams();
+  const threadId = query.get('threadId') ?? undefined;
+  const { eventId } = useParams();
   const powerLevels = usePowerLevels(room);
-  const members = useRoomMembers(mx, room.roomId);
+  const members = useRoomMembers(client, roomId);
   const [membersOpen, setMembersOpen] = useMembersDrawer();
-  const myUserId = mx.getSafeUserId();
+  const myUserId = client.getSafeUserId();
 
   const hasMindroomAgents = useMemo(
     () =>
@@ -88,22 +89,20 @@ const useRoomComputer = (
 
   // A thread that cannot load leaves the recently opened list; the route itself stays.
   const onThreadLoadError = useCallback(
-    (failed: string) => removeRecentThread(room.roomId, failed),
-
-
-
-
-
-
-
-      (evt: KeyboardEvent) => {
-        if (evt.key !== 'Escape' || evt.defaultPrevented) return;
-        if (threadId) markThreadAsRead(mx, room.roomId, threadId, false);
-        else markRoomAndThreadsAsRead(mx, room.roomId, false);
-      },
-      [mx, room.roomId, threadId]
-    )
+    (failed: string) => removeRecentThread(roomId, failed),
+    [roomId]
   );
+
+  // Escape marks everything in view as read.
+  const markViewAsRead = useCallback(
+    (evt: KeyboardEvent) => {
+      if (evt.key !== 'Escape' || evt.defaultPrevented) return;
+      if (threadId) markThreadAsRead(client, roomId, threadId, false);
+      else markRoomAndThreadsAsRead(client, roomId, false);
+    },
+    [client, roomId, threadId]
+  );
+  useKeyDown(window, markViewAsRead);
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
@@ -131,8 +130,8 @@ const useRoomComputer = (
             <ComputerPanel
               agents={computer.agents}
               apiUrl={computer.apiUrl}
-              mx={mx}
-              roomId={room.roomId}
+              mx={client}
+              roomId={roomId}
               threadId={threadId}
               onClose={() => setComputerOpen(false)}
               expanded={computerExpanded}
@@ -142,7 +141,7 @@ const useRoomComputer = (
         )}
         {membersOpen && (
           <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
-            <MembersDrawer key={room.roomId} room={room} members={members} />
+            <MembersDrawer key={roomId} room={room} members={members} />
           </ResizableMembersPanel>
         )}
       </Box>

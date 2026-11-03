@@ -46,9 +46,9 @@ export const CollapsiblePill = style([
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
   {
-
-
-
+    display: 'inline-flex',
+    alignItems: 'center',
+    placeContent: 'center',
     minHeight: toRem(32),
     maxWidth: '100%',
     padding: `${config.space.S100} ${config.space.S300}`,

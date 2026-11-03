@@ -9,9 +9,9 @@ import {
 import to from 'await-to-js';
 
 export const getTimelineEventById = (
-
-
-
+  linkedTimelines: readonly EventTimeline[],
+  eventId: string
+): MatrixEvent | undefined => {
   for (const timeline of linkedTimelines) {
     const event = timeline.getEvents().find((mEvent) => mEvent.getId() === eventId);
     if (event) {
