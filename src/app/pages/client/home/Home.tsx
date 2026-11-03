@@ -216,28 +216,27 @@ export function Home() {
 
   return (
     <PageNav>
-      <HomeHeader roomIds={homeRooms} />
       {joinOpen && (
         <JoinAddressPrompt onOpen={handleJoinOpen} onCancel={() => setJoinOpen(false)} />
       )}
-      {homeRooms.length === 0 ? (
-        <NavEmptyLayout
-          icon={<Icon size="600" src={Icons.Hash} />}
-          title={
-            <Text size="H5" align="Center">
-              {t('nav.noRooms')}
-            </Text>
-          }
-          content={
-            <Text size="T300" align="Center">
-              {t('nav.noRoomsDescription')}
-            </Text>
-          }
-          options={roomActions}
-        />
-      ) : (
-        <PageNavContent scrollRef={listScrollRef}>
-          {/* Rows stop short of the panel edge, leaving room for the scrollbar (home.png). */}
+      <PageNavContent scrollRef={listScrollRef} header={<HomeHeader roomIds={homeRooms} />}>
+        {homeRooms.length === 0 ? (
+          <NavEmptyLayout
+            icon={<Icon size="600" src={Icons.Hash} />}
+            title={
+              <Text size="H5" align="Center">
+                {t('nav.noRooms')}
+              </Text>
+            }
+            content={
+              <Text size="T300" align="Center">
+                {t('nav.noRoomsDescription')}
+              </Text>
+            }
+            options={roomActions}
+          />
+        ) : (
+          // Rows stop short of the panel edge, leaving room for the scrollbar (home.png).
           <Box direction="Column" gap="300" style={{ paddingRight: config.space.S500 }}>
             {roomActions}
             <NavCategory>
@@ -274,8 +273,8 @@ export function Home() {
             </NavCategory>
             <ThreadNavCategory />
           </Box>
-        </PageNavContent>
-      )}
+        )}
+      </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
   );
