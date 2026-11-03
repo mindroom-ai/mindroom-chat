@@ -7,12 +7,12 @@ import {
 } from 'react';
 import { Direction } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-
-
-
-
+import {
+  getIntersectionObserverEntry,
+  useIntersectionObserver,
+} from '../../hooks/useIntersectionObserver';
 import { useDebounce } from '../../hooks/useDebounce';
-
+import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,

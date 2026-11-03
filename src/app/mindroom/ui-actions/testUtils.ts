@@ -1,4 +1,4 @@
-
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 
 export const viewerId = '@alice:example.org';
 export const agentId = '@mindroom_helper:example.org';

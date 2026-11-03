@@ -81,7 +81,7 @@ export const useRoomLiveRenderController = ({
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
   effectiveThreadFilterState: ThreadFilterState;
-  hideActivity: boolean;
+
 
 
   ignoredUsersSet: Set<string>;
@@ -134,8 +134,8 @@ export const useRoomLiveRenderController = ({
           })
         ) {
           // Arm on the SDK's initial local-echo signal, before rendering increases scrollHeight.
-
-
+          scrollToBottomRef.current.count += 1;
+          scrollToBottomRef.current.smooth = true;
         }
 
         setTimeline((current) => ({ ...current }));
@@ -144,9 +144,9 @@ export const useRoomLiveRenderController = ({
     )
   );
 
-
-
-
+  useLiveEventArrive(
+    room,
+    useCallback(
       (mEvt: MatrixEvent, timelineMeta: TimelineArriveMeta) => {
         const mEventId = mEvt.getId();
         const relation = mEvt.getRelation();
@@ -257,12 +257,12 @@ export const useRoomLiveRenderController = ({
                   isTimelineAtLiveEnd: timelineAtLiveEnd,
                 })
               ) {
-
-
+                scrollToBottomRef.current.count += 1;
+                scrollToBottomRef.current.smooth = true;
               } else if (atLiveEndRef.current && isNearBottom) {
                 // Fresh scroll measurement avoids trapping users at bottom during streaming edits.
-
-
+                scrollToBottomRef.current.count += 1;
+                scrollToBottomRef.current.smooth = false;
               }
             }
           }

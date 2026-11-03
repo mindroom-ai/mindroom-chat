@@ -1,8 +1,8 @@
 import React, { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MobileFriendlyPageNav } from '../../pages/MobileFriendly';
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMindroomDesktopPageNav } from './desktopPageNavState';
 import { ResizablePanel } from './ResizablePanel';
 

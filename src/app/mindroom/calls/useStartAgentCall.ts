@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { atom, useAtomValue, useStore } from 'jotai';
-
+import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
 import { useClientConfig } from '../../hooks/useClientConfig';
-
-
+import { useLivekitSupport } from '../../hooks/useLivekitSupport';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { callEmbedAtom } from '../../state/callEmbed';
 import { webRTCSupported } from '../../utils/rtc';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
@@ -40,7 +40,7 @@ export function useStartAgentCall(): StartAgentCall {
   const mx = useMatrixClient();
   const { createRoom } = useClientConfig();
   const startCall = useCallStart(false);
-  const callEmbed = useCallEmbed();
+
 
 
   const store = useStore();

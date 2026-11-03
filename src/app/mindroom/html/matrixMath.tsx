@@ -1,5 +1,5 @@
-
-
+import React from 'react';
+import classNames from 'classnames';
 import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import Linkify from 'linkify-react';
@@ -68,8 +68,8 @@ export const renderTextWithMatrixMath = (
   text: string,
   params: {
     linkify?: boolean;
-
-
+    linkifyOpts?: LinkifyOpts;
+    highlightRegex?: RegExp;
     keyPrefix?: string;
     renderStyledText: StyledTextRenderer;
   }

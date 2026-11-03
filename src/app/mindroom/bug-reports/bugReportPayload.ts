@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { APP_BUILD_VERSION } from '../../../appVersion';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
-
+import { getViaServers } from '../../plugins/via-servers';
 import { buildDiagnosticsPayload, type DiagnosticsPayload } from '../diagnostics/diagnosticsExport';
 import { getThreadReplyEventsForRoot } from '../threads/threadUtils';
 

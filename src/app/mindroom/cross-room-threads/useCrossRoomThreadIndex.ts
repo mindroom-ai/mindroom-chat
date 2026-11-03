@@ -5,10 +5,10 @@ import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/eve
 import { RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { ThreadEvent, type Thread } from 'matrix-js-sdk/lib/models/thread';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
-
-
+import { allRoomsAtom } from '../../state/room-list/roomList';
+import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { makeRecentThreadsAtom } from '../recent-threads/recentThreads';
 import {
   ensureThreadSummaryStateLoaded,
@@ -171,11 +171,11 @@ const isJoinedTimelineRoom = (room: Room | null | undefined): room is Room =>
   !!room && room.getMyMembership?.() === 'join' && !room.isSpaceRoom?.();
 
 export const useCrossRoomThreadIndex = () => {
-
+  const mx = useMatrixClient();
   const activeSession = useActiveSession();
   const userId = mx.getUserId() ?? activeSession?.userId;
   const joinedRoomIds = useAtomValue(allRoomsAtom);
-
+  const roomToParents = useAtomValue(roomToParentsAtom);
   const recentThreads = useAtomValue(useMemo(() => makeRecentThreadsAtom(userId ?? ''), [userId]));
   const snapshot = useAtomValue(crossRoomThreadIndexAtom);
   const setSnapshot = useSetAtom(crossRoomThreadIndexAtom);
@@ -469,7 +469,7 @@ export const useCrossRoomThreadIndex = () => {
         : undefined;
 
       roomDisposers.set(room.roomId, () => {
-
+        room.removeListener(RoomEvent.Receipt, handleReceipt);
         room.removeListener(RoomEvent.Timeline, handleTimeline);
         room.removeListener(RoomEvent.LocalEchoUpdated, handleTimeline);
         room.removeListener(ThreadEvent.New, handleThread);

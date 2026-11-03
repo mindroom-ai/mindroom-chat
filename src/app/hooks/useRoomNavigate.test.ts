@@ -5,10 +5,10 @@ import type { NavigateOptions } from 'react-router-dom';
 import {
   getDirectRoomPath,
   getHomeRoomPath,
-
+  getSpaceRoomPath,
   withSearchParam,
-
-
+} from '../pages/pathUtils';
+import { useRoomNavigate } from './useRoomNavigate';
 import { ROOM_THREAD_EXIT_TARGET_STATE_KEY } from '../mindroom/threads/roomNavigateState';
 
 const mocks = vi.hoisted(() => ({

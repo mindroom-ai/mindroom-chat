@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { EventTimeline, Room } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
   buildAddTagContent,
   buildPerTagEventContent,
@@ -33,8 +33,8 @@ export type UseMutateThreadTagsResult = {
  */
 const readLiveTagsContent = (room: Room, threadRootId: string) => {
   const stateEvents = room
-
-
+    .getLiveTimeline()
+    .getState(EventTimeline.FORWARDS)
     ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
 
   if (!Array.isArray(stateEvents)) {

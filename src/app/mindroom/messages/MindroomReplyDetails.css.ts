@@ -25,7 +25,7 @@ export const Tile = style({
   width: toRem(36),
   height: toRem(36),
   borderRadius: toRem(10),
-
+  backgroundColor: color.SurfaceVariant.Container,
 });
 
 export const ModelName = style({

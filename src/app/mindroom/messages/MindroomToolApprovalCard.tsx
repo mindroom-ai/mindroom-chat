@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import {
   getEffectiveToolApprovalStatus,

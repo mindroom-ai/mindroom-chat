@@ -2,9 +2,9 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-
-
-
+import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { allInvitesAtom } from '../../state/room-list/inviteList';
 import {
   BugReportAutoJoinFeature,
   shouldAutoJoinBugReportInvite,

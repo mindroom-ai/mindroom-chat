@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixClient } from 'matrix-js-sdk';
-
+import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { commitSidebarReorder } from './sidebarReorder';
 
 const makeMatrixClient = (sidebar: unknown): MatrixClient =>

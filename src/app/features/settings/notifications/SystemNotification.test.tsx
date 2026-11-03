@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
-
+import { SystemNotification } from './SystemNotification';
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),

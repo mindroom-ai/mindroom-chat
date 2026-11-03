@@ -43,7 +43,7 @@ export const isRenderableEvent = (
 ): boolean => {
   const mEventId = mEvent.getId();
   if (!mEvent || !mEventId) return false;
-
+  const eventSender = mEvent.getSender();
   if (eventSender && ignoredUsersSet.has(eventSender)) return false;
   if (!threadId && !showThreadRepliesInRoom && isThreadReplyEvent(mEventId, mEvent.threadRootId)) {
     return false;
@@ -54,7 +54,7 @@ export const isRenderableEvent = (
   if (isHiddenReferenceEvent(mEvent) && !showHiddenEvents) return false;
 
   if (mEvent.getType() === StateEvent.RoomMember) {
-
+    const membershipChanged = isMembershipChanged(mEvent);
     if (membershipChanged && hideMembershipEvents) return false;
     if (!membershipChanged && hideNickAvatarEvents) return false;
   }
@@ -70,7 +70,7 @@ export const isRenderableEvent = (
 };
 
 export const getRenderableEventEntries = (
-
+  linkedTimelines: EventTimeline[],
   room: Room,
   threadId: string | undefined,
   ignoredUsersSet: Set<string>,
@@ -203,7 +203,7 @@ export const mergeClassicRoomThreadReplyEntries = ({
 };
 
 export const getRenderableEvents = (
-
+  linkedTimelines: EventTimeline[],
   room: Room,
   threadId: string | undefined,
   ignoredUsersSet: Set<string>,
@@ -333,7 +333,7 @@ export const buildRoomSurfaceEventEntries = ({
 };
 
 export const getRoomPreloadCounts = (
-
+  linkedTimelines: EventTimeline[],
   room: Room,
   filterOpts: {
     threadId: string | undefined;

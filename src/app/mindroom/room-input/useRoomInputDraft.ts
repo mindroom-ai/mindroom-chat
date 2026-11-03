@@ -42,8 +42,8 @@ export const useRoomInputDraft = (
       saveDraft();
       activeRef.current = undefined;
       unsubscribe();
-
-
+      // Nothing else to undo: the next destination's effect restores its own draft into
+      // this editor, and an unmounted editor is discarded.
     };
   }, [draftAtom, editor, saveDraft, store]);
 

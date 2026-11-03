@@ -1,4 +1,4 @@
-
+import { CSSProperties, ReactNode } from 'react';
 import {
   CODE_BLOCK_LANGUAGE_ICONS,
   CodeBlockIconPath,

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { AutoDiscoveryInfo } from '../../cs-api';
-
+import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { isUserId } from '../../utils/matrix';
 
 const BUG_REPORTS_WELL_KNOWN_KEY = 'io.mindroom.bug_reports';

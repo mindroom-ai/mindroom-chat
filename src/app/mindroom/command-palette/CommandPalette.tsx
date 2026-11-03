@@ -1,9 +1,9 @@
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
-
-
-
+import React, {
+  ChangeEventHandler,
+  KeyboardEventHandler,
   useEffect,
   useId,
   useRef,
@@ -285,7 +285,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
           aria-label={t('commandPalette.inputAria')}
           placeholder={t('commandPalette.placeholder')}
           value={query}
-
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
         />
         <button

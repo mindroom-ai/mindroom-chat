@@ -1,12 +1,12 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { SSOAction } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { createMatrixClient, createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import { hasCloudflareAccess } from '../../mindroom/native/cloudflareAccess';
-
+import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
 const authenticate = vi.fn();

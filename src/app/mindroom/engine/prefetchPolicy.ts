@@ -77,7 +77,7 @@ export type RoomPrefetchTier = 'own' | 'federated' | 'background';
  */
 export const resolveRoomPrefetchTier = (mx: MatrixClient, room: Room): RoomPrefetchTier => {
   const ourDomain = mx.getDomain?.();
-
+  const createEvent = getStateEvent(room, StateEvent.RoomCreate);
   const senderDomain = senderDomainOf(createEvent?.getSender?.());
   if (!senderDomain) return 'background';
   if (!ourDomain) return 'federated';

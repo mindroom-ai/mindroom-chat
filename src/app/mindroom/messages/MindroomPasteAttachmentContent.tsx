@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-
-
+import React from 'react';
+import { Box, Text } from 'folds';
 import classNames from 'classnames';
 import type { EventAttachmentOwner } from './eventAttachments';
 import { DownloadFile, ReadTextFile } from '../../components/message';

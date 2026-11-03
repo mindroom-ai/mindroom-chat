@@ -15,7 +15,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { Membership } from '../../../types/matrix/room';
 import { RoomAccessControl } from './RoomAccessControl';
 

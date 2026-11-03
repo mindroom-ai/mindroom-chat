@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useState } from 'react';
 import { Button, Icon, Icons, Text } from 'folds';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ToolApprovalData } from './toolApproval';
 import { downloadMindroomSidecarBlob } from './sidecarDownload';
 import { ApprovalArgumentFields, countArgumentFields } from './ApprovalArgumentFields';

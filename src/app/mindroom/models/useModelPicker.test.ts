@@ -3,7 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createClient, ClientEvent, Device, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { useModelPicker, useModelControllerLifetime, ModelPickerState } from './useModelPicker';
 
 let renderer: ReactTestRenderer | undefined;

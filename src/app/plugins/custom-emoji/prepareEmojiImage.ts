@@ -1,7 +1,7 @@
 import { IImageInfo } from '../../../types/matrix/common';
 import { getThumbnail } from '../../utils/dom';
 import { getImageInfo } from '../../utils/matrix';
-
+import { getFileNameWithoutExt } from '../../utils/mimeTypes';
 
 export const MAX_EMOJI_DIMENSION = 128;
 export const MAX_ANIMATED_EMOJI_BYTES = 256 * 1024;

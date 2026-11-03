@@ -40,9 +40,9 @@ export const estimateMindroomTextMessageContentBytes = ({
   };
 
   if (formattedBody !== undefined) {
-
-
-
+    content.format = 'org.matrix.custom.html';
+    content.formatted_body = formattedBody;
+  }
 
   return byteLength(JSON.stringify(content));
 };

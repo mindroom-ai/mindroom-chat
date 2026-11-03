@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-
+import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { deviceSignedByOwner } from './matrix-crypto';
 
 const cryptoReporting = (status: Record<string, unknown> | null): CryptoApi =>

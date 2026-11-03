@@ -5,7 +5,7 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Membership } from '../../../types/matrix/room';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import type { LocalRoomSummary } from '../../hooks/useLocalRoomSummary';
 import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { SpaceItemCard } from './SpaceItem';

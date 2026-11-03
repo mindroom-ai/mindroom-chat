@@ -12,7 +12,7 @@ import {
 } from '../../../state/sessions';
 import { settingsModalAtom } from '../../../state/settingsModal';
 import { withAddAccountSearch } from '../../auth/addAccount';
-
+import { useUserProfile } from '../../../hooks/useUserProfile';
 import { removeStoredSession } from '../../../../client/initMatrix';
 import { mindroomAccountSettingsAtom } from '../../../mindroom/settings/useMindroomAccountSettings';
 

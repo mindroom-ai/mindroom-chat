@@ -210,10 +210,10 @@ const flushEffects = async () => {
 
 const toBootstrapSession = (session: {
   sessionId: string;
-
-
-
-
+  baseUrl: string;
+  userId: string;
+  deviceId: string;
+  accessToken: string;
   refreshToken?: string;
 }) => ({
   sessionId: session.sessionId,

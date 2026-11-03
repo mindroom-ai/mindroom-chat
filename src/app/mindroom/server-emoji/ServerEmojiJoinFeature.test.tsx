@@ -3,10 +3,10 @@ import { Provider, createStore } from 'jotai';
 import type { Store } from 'jotai/vanilla';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-
+import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { ClientStartupProvider } from '../../pages/client/ClientStartupContext';
-
+import { allRoomsAtom } from '../../state/room-list/roomList';
 import { ServerEmojiJoinFeature } from './ServerEmojiJoinFeature';
 
 const ROOM_ID = '!emoji:example.com';

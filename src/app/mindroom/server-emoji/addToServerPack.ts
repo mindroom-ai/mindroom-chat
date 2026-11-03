@@ -3,7 +3,7 @@ import { StateEvent } from '../../../types/matrix/room';
 import { ErrorCode } from '../../cs-errorcode';
 import { getPowersLevelFromMatrixEvent } from '../../hooks/usePowerLevels';
 import { getRoomCreators } from '../../hooks/useRoomCreators';
-
+import { getRoomPermissionsAPI } from '../../hooks/useRoomPermissions';
 import {
   addEmoticonToPackContent,
   getRoomImagePacks,
@@ -20,7 +20,7 @@ import { getStateEvent } from '../../utils/room';
 
 /** Whether the user's power level allows adding to the room's emoji packs. */
 export const canAddServerEmoji = (mx: MatrixClient, room: Room): boolean => {
-
+  const createEvent = getStateEvent(room, StateEvent.RoomCreate);
   if (!createEvent) return false;
   const powerLevels = getPowersLevelFromMatrixEvent(
     getStateEvent(room, StateEvent.RoomPowerLevels)

@@ -9,8 +9,8 @@ import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/eve
 import { RoomEvent, RoomStateEvent, MatrixEvent as StateMatrixEvent } from 'matrix-js-sdk';
 import { ThreadEvent, type Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-
-
+import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { makeRecentThreadsAtom } from '../../recent-threads/recentThreads';
 import {
   clearThreadSummarySharedState,

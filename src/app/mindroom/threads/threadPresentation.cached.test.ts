@@ -1,4 +1,4 @@
-
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveCachedOverviewUpdate } from './threadOverviewCacheHydration';

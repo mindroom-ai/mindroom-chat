@@ -160,7 +160,7 @@ export const Row = style({
 });
 
 export const RowIcon = style({
-
+  display: 'flex',
 
 
 

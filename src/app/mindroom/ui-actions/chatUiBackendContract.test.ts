@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { readChatUiAction, type ChatUiCanvas, type ChatUiSettingsSection } from './chatUiProtocol';
 

@@ -14,7 +14,7 @@ import {
   readPowerLevel,
   type IPowerLevels,
 } from '../../hooks/usePowerLevels';
-
+import { getRoomPermissionsAPI } from '../../hooks/useRoomPermissions';
 import { getStateEvent } from '../../utils/room';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 

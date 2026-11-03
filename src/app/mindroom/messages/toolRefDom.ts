@@ -30,11 +30,11 @@ export const isDomElementNode = (node: unknown): node is Element =>
       text += node.data;
     } else if (isDomElementNode(node)) {
       text += extractTextFromChildren((node as { children: ChildNode[] }).children);
+    }
+  });
 
-
-
-
-
+  return text;
+};
 
 export type ToolRefElementPrefix = {
   html: string;

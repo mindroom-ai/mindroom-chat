@@ -1,7 +1,7 @@
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { ClientEvent, MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { useEffect, useMemo } from 'react';
-
+import { allRoomsAtom } from '../../state/room-list/roomList';
 
 const ARCHIVED_ROOM_EVENT = 'io.mindroom.archived';
 
@@ -58,7 +58,7 @@ export const useBindArchivedRoomsAtom = (mx: MatrixClient) => {
     const handleDeleteRoom = (roomId: string) => updateRoom(roomId, false);
     mx.on(RoomEvent.AccountData, handleAccountData);
     mx.on(ClientEvent.Room, handleRoom);
-
+    mx.on(ClientEvent.DeleteRoom, handleDeleteRoom);
     setArchived(
       new Set(
         mx
@@ -70,8 +70,8 @@ export const useBindArchivedRoomsAtom = (mx: MatrixClient) => {
     return () => {
       mx.removeListener(RoomEvent.AccountData, handleAccountData);
       mx.removeListener(ClientEvent.Room, handleRoom);
-
-
+      mx.removeListener(ClientEvent.DeleteRoom, handleDeleteRoom);
+    };
   }, [mx, setArchived]);
 };
 

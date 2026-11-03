@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getEditedEvent } from '../../utils/room';
 import { hydrateCachedMindroomLongText } from './attachmentRepository';
 import { loadMindroomEditableContent } from './longEdit';

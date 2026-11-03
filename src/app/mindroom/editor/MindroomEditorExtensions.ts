@@ -60,7 +60,7 @@ export const parseMindroomEditorMathBlock = (
 
   if (!markdown) {
     return splitMindroomEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
-
+      type: BlockType.Paragraph,
       children: [{ text: lineText }],
     }));
   }
@@ -76,15 +76,15 @@ export const parseMindroomEditorMathBlock = (
 
   return [
     {
-
+      type: BlockType.Paragraph,
       children: [{ text: '$$' }],
     },
     ...splitMindroomEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
-
+      type: BlockType.Paragraph,
       children: [{ text: lineText }],
     })),
     {
-
+      type: BlockType.Paragraph,
       children: [{ text: '$$' }],
     },
   ];

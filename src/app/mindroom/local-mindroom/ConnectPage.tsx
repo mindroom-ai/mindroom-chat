@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
-
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import classNames from 'classnames';
 import { Box, Button, Scroll, Spinner, Text, color } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
@@ -54,31 +54,31 @@ const getPairingErrorMessage = (error: unknown, t: TFunction): string => {
 };
 
 function ConnectCard({ children }: { children: React.ReactNode }) {
-  const hasPersistentParticleBackground = usePersistentParticleBackground();
 
 
 
 
-        className={classNames(
-          css.AuthLayout,
-          hasPersistentParticleBackground && css.AuthLayoutPersistentParticle
-        )}
+
+
+
+
+
 
 
 
 
         <ParticleBackgroundSurface />
-
+        <Box className={css.AuthCard} direction="Column">
           <Header className={css.AuthHeader} size="600" variant="Surface" appearance="plain">
-
+            <Box grow="Yes" alignItems="Center" gap="300">
               <img
                 className={css.AuthLogo}
                 src={MINDROOM_AUTH_BRANDING.logoSrc}
                 alt={MINDROOM_AUTH_BRANDING.logoAlt}
               />
               <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
-
-
+            </Box>
+          </Header>
           <Box className={css.AuthCardContent} direction="Column" gap="500">
             {children}
           </Box>
@@ -93,8 +93,8 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
 export function ConnectPage() {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-
-
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const rawCode = searchParams.get('code') ?? undefined;
   const pairCode = normalizePairCode(rawCode);
   const { sidebar } = useClientConfig();

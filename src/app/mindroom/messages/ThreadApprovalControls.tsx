@@ -1,23 +1,23 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-
-
+import FocusTrap from 'focus-trap-react';
+import classNames from 'classnames';
 import {
   Box,
   Button,
-
-
-
-
-
-
-
-
+  Icon,
+  IconButton,
+  Icons,
+  Input,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Text,
 } from 'folds';
 import { PageScroll } from '../../components/page';
 import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
@@ -63,11 +63,11 @@ export function ApprovalDialog({
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
-
-
-
-
-
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap
+          focusTrapOptions={{
             setReturnFocus: () => returnFocus.current ?? false,
             onDeactivate: onClose,
             onPostDeactivate: () => {

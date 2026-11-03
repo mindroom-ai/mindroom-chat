@@ -444,7 +444,7 @@ export const useRoomInputSendSessionController = ({
         if (!composerAlreadyReset) {
 
 
-          sendTypingStatus(false);
+
         }
       }
       try {

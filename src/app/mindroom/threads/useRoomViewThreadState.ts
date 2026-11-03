@@ -88,10 +88,10 @@ export const useRoomViewThreadState = ({
   room,
   threadId,
 }: UseRoomViewThreadStateOptions): RoomViewThreadState => {
-  const { t } = useTranslation();
 
 
-  const userId = mx.getSafeUserId();
+
+
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
     useRoomNavigate();

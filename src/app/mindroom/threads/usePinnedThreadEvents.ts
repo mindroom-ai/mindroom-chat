@@ -1,5 +1,5 @@
 import { useQueries, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   MatrixEventEvent,
   RelationType,
@@ -13,7 +13,7 @@ import { usePinnedEventIds } from './useThreadPinning';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useSyncState } from '../../hooks/useSyncState';
 
 const collectEvents = (results: UseQueryResult<MatrixEvent>[]) =>

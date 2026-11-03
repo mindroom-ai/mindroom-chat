@@ -10,7 +10,7 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { agentRoomState, useAgentRoomState } from '../matrix/agentRoomState';
 import { readOpenIdBinding } from '../matrix/openidAudience';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';

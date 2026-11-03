@@ -33,7 +33,7 @@ export function CanvasResponseSidecarReceipt({
   const key = `${getMindroomLongTextSourceIdentity(source)}\n${JSON.stringify(
     source.owner ?? null
   )}`;
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableSource = useMemo(() => source, [key]);
   const resolved = useMindroomLongTextResolvedContent(stableSource, hydrate);
   // Chat's reader accepts more files than MindRoom's; a receipt claims only what the agent reads,

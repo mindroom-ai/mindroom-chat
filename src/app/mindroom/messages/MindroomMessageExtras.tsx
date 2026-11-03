@@ -27,7 +27,7 @@ type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
 
 type MindroomMessageExtrasProps = {
   extras: MindroomMessageExtrasData;
-
+  htmlReactParserOptions: HTMLReactParserOptions;
   /** The content whose tool and paste markers the sections render. */
   markerContent: Record<string, unknown>;
 };

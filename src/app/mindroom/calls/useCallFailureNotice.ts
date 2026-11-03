@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { EventTimelineSetHandlerMap, MatrixClient, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getCallFailureNotice } from './callFailureNotice';
 
 export type CallFailureNotice = {
@@ -68,7 +68,7 @@ export const useCallFailureNotice = (
       await inspectEvent(event);
     };
 
-
+    mx.on(RoomEvent.Timeline, handleTimelineEvent);
     const recentCutoff = Date.now() - RECENT_NOTICE_WINDOW_MS;
     const recentEvents = room
       .getLiveTimeline()
@@ -90,8 +90,8 @@ export const useCallFailureNotice = (
 
     return () => {
       active = false;
-
-
+      mx.off(RoomEvent.Timeline, handleTimelineEvent);
+    };
   }, [joined, mx, room, startedAfterTs]);
 
   return notice;

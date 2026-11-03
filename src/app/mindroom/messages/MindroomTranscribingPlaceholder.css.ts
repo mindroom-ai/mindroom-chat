@@ -1,4 +1,4 @@
-
+import { keyframes, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
 const pulse = keyframes({

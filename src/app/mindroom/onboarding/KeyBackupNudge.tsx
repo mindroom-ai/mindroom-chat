@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Text, color } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useClientConfig } from '../../hooks/useClientConfig';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
 import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudgeDismissal';
@@ -11,7 +11,7 @@ import { useKeyBackupPresence } from './useKeyBackupPresence';
 import { WelcomeCardStyle } from './welcomeCard';
 
 function KeyBackupNudgeCard() {
-  const { t } = useTranslation();
+
 
 
   const setSettingsModal = useSetAtom(settingsModalAtom);

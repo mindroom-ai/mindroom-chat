@@ -2,8 +2,8 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { Capabilities } from 'matrix-js-sdk';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-
+import { CapabilitiesProvider } from '../../hooks/useCapabilities';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { ClientConfig, ClientConfigProvider } from '../../hooks/useClientConfig';
 import { CreateRoomAccess, CreateRoomType } from '../../components/create-room/types';
 import { CreateRoomForm } from './CreateRoom';

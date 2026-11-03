@@ -11,7 +11,7 @@ export const acceptInvite = async (mx: MatrixClient, room: Room): Promise<void> 
 
 
 
-  }
+
 };
 
 // One failed join leaves that invite in the list and does not stop the rest.

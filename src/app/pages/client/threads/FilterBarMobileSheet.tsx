@@ -38,8 +38,8 @@ export function FilterBarMobileSheet({ open, requestClose, children }: FilterBar
 
   if (!open) return null;
 
-
-
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
       <div className={css.SheetContainer}>
         <FocusScope contain restoreFocus autoFocus>
           <Modal size="500" flexHeight variant="Background" style={MOBILE_SHEET_STYLE}>

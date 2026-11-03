@@ -1,6 +1,6 @@
 import { ClientEvent, SyncState, ThreadEvent, type MatrixClient, type Thread } from 'matrix-js-sdk';
 import { useEffect, useReducer, useState, useSyncExternalStore } from 'react';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 /** Cards scrolled past within this time do not load their thread. */
 export const SHOWN_THREAD_DWELL_MS = 500;

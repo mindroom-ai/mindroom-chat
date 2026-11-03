@@ -3,12 +3,12 @@ import React, {
   lazy,
   RefAttributes,
   Suspense,
-
+  useCallback,
   useEffect,
-
-
-
-
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { requestAudienceOpenIdToken } from '../matrix/openidAudience';

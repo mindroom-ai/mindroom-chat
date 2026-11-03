@@ -51,7 +51,7 @@ export const getStoredSessionCleanupContexts = (): SessionCleanupContext[] =>
   listSessions().map((session) => ({
     sessionId: session.sessionId,
 
-    userId: session.userId,
+
 
   }));
 

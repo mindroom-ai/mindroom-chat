@@ -1,6 +1,6 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import type { TUploadItem } from '../../state/room/roomInputDrafts';
 import { getImageMsgContent, getVideoMsgContent } from './msgContent';
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +39,7 @@ vi.mock('../../utils/matrix', async () => {
 
 const createUploadItem = (file: File): TUploadItem => ({
   file,
-  originalFile: file,
+
 
 
 

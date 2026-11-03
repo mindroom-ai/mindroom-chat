@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { useMatrixClient } from '../useMatrixClient';
 import { useResolvedRoomIdOrAlias } from './useResolvedRoomIdOrAlias';
 
 const getCanonicalAliasRoomId = vi.hoisted(() => vi.fn());

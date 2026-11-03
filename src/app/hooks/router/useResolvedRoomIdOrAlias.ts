@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-
+import { useMatrixClient } from '../useMatrixClient';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
 
 const resolveKnownRoomId = (

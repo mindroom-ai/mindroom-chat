@@ -50,7 +50,7 @@ export const Version = style({
 
 export const Notice = style({
   alignItems: 'center',
-
+  backgroundColor: color.SurfaceVariant.Container,
   borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   display: 'flex',
   flex: '0 0 auto',

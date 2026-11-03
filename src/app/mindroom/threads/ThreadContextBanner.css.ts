@@ -174,7 +174,7 @@ export const OverflowChip = style({
 
 
 
-
+  userSelect: 'none',
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',

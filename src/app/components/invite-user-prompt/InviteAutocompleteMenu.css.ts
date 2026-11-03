@@ -35,9 +35,9 @@ export const InviteAutocompleteMenu = style([
 ]);
 
 export const InviteAutocompleteMenuHeader = style([
-
-
-
+  DefaultReset,
+  { flexShrink: 0, padding: `0 ${config.space.S300}` },
+]);
 
 export const InviteAutocompleteOption = style([
   DefaultReset,

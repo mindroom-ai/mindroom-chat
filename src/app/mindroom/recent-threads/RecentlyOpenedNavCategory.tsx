@@ -1,15 +1,15 @@
 import React, { useMemo, useRef, useState } from 'react';
-
+import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Scroll, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useCategoryHandler } from '../../hooks/useCategoryHandler';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
-
+import { allRoomsAtom } from '../../state/room-list/roomList';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { makeRecentThreadsAtom, type RecentThreadItem } from './recentThreads';
 import { RecentThreadEntry } from './RecentThreadEntry';
@@ -130,7 +130,7 @@ function RecentlyOpenedList({ entries, userId }: RecentlyOpenedListProps) {
 export function RecentlyOpenedNavCategory({
   limit = DEFAULT_RECENTLY_OPENED_THREAD_LIMIT,
 }: RecentlyOpenedNavCategoryProps) {
-  const { t } = useTranslation();
+
 
 
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(userId), [userId]);
@@ -138,15 +138,15 @@ export function RecentlyOpenedNavCategory({
   const recentThreads = useAtomValue(recentThreadsAtom);
   const archivedRooms = useAtomValue(archivedRoomsAtom);
   const allRoomIds = useAtomValue(allRoomsAtom);
-
+  const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const [preferredPanelHeight, setPreferredPanelHeight] = useAtom(panelHeightAtom);
   const [previewPanelHeight, setPreviewPanelHeight] = useState<number>();
   const dragStateRef = useRef<DragState>();
   const panelHeight = previewPanelHeight ?? preferredPanelHeight;
   const closed = closedCategories.has(RECENTLY_OPENED_NAV_CATEGORY_ID);
-
-
-
+  const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId: string) =>
+    closedCategories.has(categoryId)
+  );
   const visibleLimit = Number.isFinite(limit)
     ? Math.max(0, Math.floor(limit))
     : DEFAULT_RECENTLY_OPENED_THREAD_LIMIT;

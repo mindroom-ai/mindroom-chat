@@ -1,6 +1,6 @@
-
+import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-
+import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import {
   ACTIVE_STREAM_STATUSES,
   STREAM_STATUS_KEY,

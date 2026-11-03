@@ -1,8 +1,8 @@
 import React, { type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
-
-
+import type { HTMLReactParserOptions } from 'html-react-parser';
+import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from './eventAttachments';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
 import { trimReplyFromBody } from '../../utils/room';
@@ -41,17 +41,17 @@ export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
   /** Whether the sender is a MindRoom account on the viewer's homeserver. */
   fromMindroomAgent?: boolean;
-
+  displayName: string;
   eventType?: string;
   roomId?: string;
   eventId?: string;
   threadId?: string;
-
+  msgType: string;
   edited?: boolean;
   content: Record<string, unknown>;
   pendingSend?: boolean;
   failedSend?: boolean;
-  renderUrlsPreview?: (urls: string[]) => ReactNode;
+
 
 
 
@@ -76,7 +76,7 @@ function MindroomMessageExtrasRenderNotice({
 }
 
 type MindroomRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
-
+  htmlReactParserOptions: HTMLReactParserOptions;
   /** The content whose tool and paste markers the body renders. */
   markerContent: Record<string, unknown>;
   metadataStatus?: MindroomToolMetadataStatus;
@@ -104,17 +104,17 @@ function MindroomRenderBody({
 export const renderMindroomMessageContent = ({
   mEvent,
   fromMindroomAgent = false,
-
+  displayName,
   eventType,
   roomId,
   eventId,
   threadId,
-
+  msgType,
   edited,
   content,
   pendingSend,
   failedSend,
-  renderUrlsPreview,
+
 
 
 
@@ -182,8 +182,8 @@ export const renderMindroomMessageContent = ({
         renderableContent,
         <MindroomRenderBody
           {...props}
-          customBody={customBody}
-          highlightRegex={highlightRegex}
+
+
 
           markerContent={renderableContent}
           linkifyOpts={linkifyOpts}
@@ -204,7 +204,7 @@ export const renderMindroomMessageContent = ({
       <MindroomRenderBody
         {...props}
         highlightRegex={highlightRegex}
-
+        htmlReactParserOptions={htmlReactParserOptions}
         markerContent={resolvedContent}
         metadataStatus={metadataStatus}
         linkifyOpts={linkifyOpts}
@@ -253,7 +253,7 @@ export const renderMindroomMessageContent = ({
       >
         <MindroomMessageExtras
           extras={extras}
-
+          htmlReactParserOptions={htmlReactParserOptions}
           markerContent={parserOptionsContent}
         />
       </MindroomMessageExtrasRenderNotice>
@@ -393,17 +393,17 @@ export const renderMindroomMessageContent = ({
         />
       );
     }
+  }
 
-
-
+  if (msgType === MsgType.Emote) {
     const isStreaming = isMindroomAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Emote}
-
-
+          displayName={displayName}
+          edited={edited}
           renderStateSuffix={getMessageStateSuffix(
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
@@ -420,10 +420,10 @@ export const renderMindroomMessageContent = ({
     }
 
     const renderableContent = withToolRefFormattedBodyFallback(content);
-
-
-
-
+    return (
+      <MEmote
+        displayName={displayName}
+        edited={edited}
         renderStateSuffix={getMessageStateSuffix(
           isStreaming ? renderMindroomStreamingIndicator : undefined
         )}

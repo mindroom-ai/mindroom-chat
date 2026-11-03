@@ -8,7 +8,7 @@ import {
 import {
   RoomNotificationMode,
   setRoomNotificationPreference,
-
+} from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../background-jobs/backgroundJobsContract';

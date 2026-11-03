@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-
+import {
   buildCanvasDocument,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_PERMISSIONS,
@@ -303,8 +303,8 @@ export function CanvasPanel({
       });
     };
     window.addEventListener('blur', handleBlur);
-
-
+    window.addEventListener('message', handleMessage);
+    return () => {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('message', handleMessage);
     };

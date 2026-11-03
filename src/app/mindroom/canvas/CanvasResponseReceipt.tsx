@@ -1,5 +1,5 @@
-
-
+import React from 'react';
+import { Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { CANVAS_LABEL_MAX_LENGTH, type CanvasResponseReceipt as Receipt } from './canvasMessages';
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-
+import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

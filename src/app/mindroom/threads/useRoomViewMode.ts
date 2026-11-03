@@ -2,7 +2,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { KnownMembership, RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { AccountDataEvent, type MDirectContent } from '../../../types/matrix/accountData';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';
 import { createSessionId } from '../../state/sessions';
 import { getAccountData } from '../../utils/room';

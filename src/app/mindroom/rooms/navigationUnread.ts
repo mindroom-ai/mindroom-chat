@@ -1,6 +1,6 @@
 import { atom } from 'jotai';
 import { RoomToUnread } from '../../../types/matrix/room';
-
+import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { archivedRoomsAtom, isRoomVisible } from './archivedRooms';
 
 // Space aggregates track the leaf rooms contributing their counts. Exclude

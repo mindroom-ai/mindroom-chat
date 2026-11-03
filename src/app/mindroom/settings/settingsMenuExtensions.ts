@@ -27,5 +27,5 @@ export const resolveMindroomSettingsInitialPage = (
   const resolvedInitialPage = resolveLocalMindroomInitialSettingsPage(initialPage, enabled);
   if (resolvedInitialPage !== undefined) return resolvedInitialPage;
 
-
+  return initialPage ?? (screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage);
 };

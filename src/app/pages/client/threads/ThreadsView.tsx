@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React, { useMemo, useRef } from 'react';
-
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import type { CrossRoomThreadIndexSnapshot } from '../../../mindroom/cross-room-threads/crossRoomThreadIndex';
 import {
@@ -12,7 +12,7 @@ import {
   type CrossRoomThreadFilters,
   type CrossRoomThreadFiltersUpdate,
 } from '../../../mindroom/cross-room-threads/crossRoomThreadFilters';
-
+import { VirtualTile } from '../../../components/virtualizer';
 import { ThreadsViewRow } from './ThreadsViewRow';
 import * as css from './ThreadsView.css';
 

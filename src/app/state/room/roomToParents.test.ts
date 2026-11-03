@@ -53,7 +53,7 @@ const setup = (spaces: Record<string, string[]>) => {
   });
   const store = createStore();
   const Binder = () => {
-
+    useBindRoomToParentsAtom(mx, roomToParentsAtom);
     return null;
   };
   act(() => {

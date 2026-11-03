@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { config, toRem } from 'folds';
 
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import {
   userDirectoryCacheAtom,
   type UserDirectoryCacheState,

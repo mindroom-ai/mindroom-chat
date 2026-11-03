@@ -4,10 +4,10 @@ import { Provider, createStore } from 'jotai';
 import { ClientEvent, MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { useRoomArchiveAction } from './useRoomArchiveAction';
-
-
+import { allRoomsAtom } from '../../state/room-list/roomList';
+import {
   archivedRoomsAtom,
   navigationRoomsAtom,
   joinedArchivedRoomsAtom,

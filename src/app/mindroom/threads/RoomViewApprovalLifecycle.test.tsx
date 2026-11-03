@@ -6,7 +6,7 @@ import { createEditor } from 'slate';
 import { expect, it, vi } from 'vitest';
 import { RoomView } from './MindroomRoomView';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
-
+import type { TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 

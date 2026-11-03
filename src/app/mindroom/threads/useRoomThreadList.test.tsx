@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MatrixClient, MatrixEvent, type Thread } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { loadRoomThreads } from './roomThreadList';
 import { useRoomThreadList } from './useRoomThreadList';
 import { loadCachedThreadRootsForRoom } from './eventRepository';

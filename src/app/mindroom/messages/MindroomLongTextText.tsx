@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 import { MEmote, MNotice, MText } from '../../components/message/MsgTypeRenderers';
 import {
@@ -21,9 +21,9 @@ export enum MindroomLongTextKind {
 
 const LOADING_INDICATOR_DELAY_MS = 350;
 
-
-
-
+type RenderBodyProps = {
+  body: string;
+  customBody?: string;
 };
 
 type MindroomLongTextTextProps = {

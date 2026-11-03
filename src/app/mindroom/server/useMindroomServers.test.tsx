@@ -2,7 +2,7 @@ import React, { useLayoutEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT, type MindroomServer } from './mindroomServer';
 import {
   useBindsOpenIdTokens,

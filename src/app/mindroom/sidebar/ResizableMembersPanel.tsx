@@ -1,9 +1,9 @@
 import React, { ReactNode } from 'react';
 import { Overlay, OverlayBackdrop } from 'folds';
-
+import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { ResizablePanel } from './ResizablePanel';
 import * as css from './ResizableMembersPanel.css';
 

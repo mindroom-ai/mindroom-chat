@@ -19,7 +19,7 @@ export const buildMindroomRoomTimelineReplyDraft = (
   const threadRootId = replyEvent.threadRootId ?? eventId;
   const editedReply = getEditedEvent(eventId, replyEvent, room.getUnfilteredTimelineSet());
   const content: IContent = editedReply?.getContent()['m.new_content'] ?? replyEvent.getContent();
-
+  const { body, formatted_body: formattedBody } = content;
   // The reply bar names a canvas by its title, not the fallback body for other clients.
   const canvasTitle = readCanvasNoticeTitle(content);
   const { 'm.relates_to': relation } = startThread

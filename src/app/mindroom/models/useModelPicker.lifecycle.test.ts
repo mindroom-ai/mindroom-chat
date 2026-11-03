@@ -5,7 +5,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { ClientEvent, createClient, Device, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { disposeModelController, getModelController } from './modelController';
 import { ModelPickerState, useModelControllerLifetime, useModelPicker } from './useModelPicker';
 

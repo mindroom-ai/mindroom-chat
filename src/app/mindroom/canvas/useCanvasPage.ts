@@ -49,7 +49,7 @@ export function useCanvasPage(
       .catch(() => finish({ status: 'failed' }));
     return () => controller.abort();
     // The reference identifies the content; a new upload has a new MXC URL.
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mx, roomId, key]);
 
   if ('html' in canvas) return { status: 'ready', html: canvas.html };

@@ -11,7 +11,7 @@ import {
 } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { getThreadUnread } from './roomThreadList';
 import { buildThreadRecord } from './threadRecord';
 import { SHOWN_THREAD_DWELL_MS, useInitializeShownThread } from './useInitializeShownThread';

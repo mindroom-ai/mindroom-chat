@@ -56,7 +56,7 @@ const setup = () => {
   mx.reEmitter.reEmit(room.getMember(AGENT)!, [RoomMemberEvent.Typing]);
   const store = createStore();
   const Binder = () => {
-
+    useBindRoomIdToTypingMembersAtom(mx, roomIdToTypingMembersAtom);
     return null;
   };
   act(() => {

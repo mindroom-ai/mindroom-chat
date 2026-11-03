@@ -268,7 +268,7 @@ export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
     allowedSchemes: ['http', 'https', 'mailto'],
     allowedSchemesByTag: {
       a: ['http', 'https', 'mailto'],
-
+    },
 
 
 

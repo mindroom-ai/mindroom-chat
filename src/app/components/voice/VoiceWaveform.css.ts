@@ -1,5 +1,5 @@
-
-
+import { style } from '@vanilla-extract/css';
+import { DefaultReset, color, config, toRem } from 'folds';
 
 export const Waveform = style([
   DefaultReset,

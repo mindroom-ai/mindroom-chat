@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { EventTimeline } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getPendingThreadTagsContent, resetPendingThreadTagsForTests } from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { getValidThreadRootEvent } from './threadUtils';

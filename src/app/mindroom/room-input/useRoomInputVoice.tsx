@@ -1,4 +1,4 @@
-
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient } from 'matrix-js-sdk';
@@ -6,7 +6,7 @@ import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../../components/glass/GlassPrimitives';
 import { IconTooltip } from '../tooltip/IconTooltip';
-
+import { useMediaConfig } from '../../hooks/useMediaConfig';
 import {
   TUploadItem,
   pendingVoiceSendDraftAtom,
@@ -517,9 +517,9 @@ export const useRoomInputVoice = ({
             pauseAllMediaElements();
             setVoiceRecorderOpen(true);
           }}
-
-
-
+          variant="SurfaceVariant"
+          size="300"
+          radii="300"
           disabled={voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft}
           aria-label={microphoneLabel}
         >

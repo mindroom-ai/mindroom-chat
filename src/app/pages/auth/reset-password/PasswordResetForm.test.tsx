@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
-
+import { PasswordResetForm } from './PasswordResetForm';
 
 vi.mock('folds', () => ({
   Box: ({ as = 'div', children, ...props }: { as?: string; children?: React.ReactNode }) =>

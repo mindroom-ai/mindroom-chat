@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
-
+import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
+import {
   allDevicesSignedByOwner,
   collectAgentDeviceSignatures,
   getOrFetchAgentTrust,

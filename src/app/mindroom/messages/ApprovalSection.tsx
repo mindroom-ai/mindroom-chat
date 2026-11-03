@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-
-
+import React from 'react';
+import classNames from 'classnames';
 import { Avatar, Icon, Icons, IconSrc, Text } from 'folds';
 import { ToolApprovalData, ToolApprovalDuration } from './toolApproval';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
@@ -11,9 +11,9 @@ import {
   ApprovalMemberRoom,
   userDisplayName,
 } from './approvalPeople';
-
-
-
+import { UserAvatar } from '../../components/user-avatar';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { toolTitle } from './approvalLabels';
 import type { ApprovalChipLabel, describeApprovalChip } from './approvalLabels';
@@ -52,8 +52,8 @@ export function ApprovalAgentAvatar({
   agentName: string;
   size?: '200' | '300';
 }) {
-
-
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
   const member = agentMember(room, agentName);
   const mxc = member?.getMxcAvatarUrl?.();
   const name = member?.name || agentName;

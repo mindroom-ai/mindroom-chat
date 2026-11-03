@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-
+import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
-
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
@@ -9,9 +9,9 @@ import { useAlive } from '../../../hooks/useAlive';
 
 type AudioContentSourceOptions = {
   owner?: EventAttachmentOwner;
-
-
-
+  mimeType: string;
+  url: string;
+  encInfo?: EncryptedAttachmentInfo;
 };
 
 export const getAudioContentSourceIdentity = ({

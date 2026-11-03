@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { getMatrixToUser } from '../../plugins/matrix-to';
 import { ServerChip, ShareChip } from './UserChips';
 
 const mocks = vi.hoisted(() => ({

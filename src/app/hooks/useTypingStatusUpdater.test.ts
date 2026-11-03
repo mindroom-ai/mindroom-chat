@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { TYPING_TIMEOUT_MS } from '../state/typingMembers';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 
 let renderer: ReactTestRenderer | undefined;

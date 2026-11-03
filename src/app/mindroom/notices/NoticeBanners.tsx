@@ -2,10 +2,10 @@ import React, { ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Capacitor } from '@capacitor/core';
-
+import { ErrorBoundary } from 'react-error-boundary';
 import { Icon, IconButton, Icons, IconSrc, Text } from 'folds';
 import { appUrl } from '../../utils/basePath';
-
+import { useResizeObserver } from '../../hooks/useResizeObserver';
 import { Notice, NoticeIconName, NoticeLevel, NOTICES_FILE, isNoticeIconName } from './notices';
 import { renderNoticeText } from './noticeText';
 import { useNotices } from './useNotices';

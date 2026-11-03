@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { NavButton, NavItem, NavItemContent } from '../../components/nav';
-
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';

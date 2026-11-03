@@ -305,8 +305,8 @@ export const useThreadEditBackfillController = ({
             clientHeight: scrollElement.clientHeight,
           })
         ) {
-
-
+          scrollToBottomRef.current.count += 1;
+          scrollToBottomRef.current.smooth = false;
         }
         persistThreadEventCache(
           threadId,

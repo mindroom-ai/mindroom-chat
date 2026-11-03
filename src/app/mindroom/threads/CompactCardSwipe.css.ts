@@ -29,8 +29,8 @@ export const SwipeAction = style({
   gap: config.space.S200,
   paddingInline: config.space.S400,
   overflow: 'hidden',
-  whiteSpace: 'nowrap',
-  borderRadius: config.radii.R300,
+
+
 
 
   pointerEvents: 'none',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Direction } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
-
+import { ErrorBoundary } from 'react-error-boundary';
 import { describe, expect, it, vi } from 'vitest';
 import {
   create,

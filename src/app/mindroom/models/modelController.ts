@@ -1,9 +1,9 @@
 import {
   ClientEvent,
-
-
-
-
+  MatrixClient,
+  MatrixEvent,
+  MatrixEventEvent,
+  Room,
   RoomMember,
   RoomMemberEvent,
   SyncState,

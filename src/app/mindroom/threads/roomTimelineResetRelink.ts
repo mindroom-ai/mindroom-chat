@@ -46,8 +46,8 @@ export const useRoomTimelineResetRelink = ({
       // Close the duplicate-reset window before React commits the state update.
       viewRef.current = { ...view, timeline: rebuiltTimeline };
       if (isViewportAtBottomNow()) {
-
-
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
       }
       setTimeline(rebuiltTimeline);
     };

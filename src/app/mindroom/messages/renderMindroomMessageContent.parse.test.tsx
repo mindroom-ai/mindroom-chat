@@ -129,7 +129,7 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
   return (
     <ClientConfigProvider value={{}}>
       {replies.map((content, index) => (
-
+        // eslint-disable-next-line react/no-array-index-key
         <React.Fragment key={index}>
           {renderMindroomMessageContent({
             displayName: 'Agent',

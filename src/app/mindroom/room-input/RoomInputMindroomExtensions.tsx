@@ -200,11 +200,11 @@ export function MindroomRoomInputReplyContext({
   if (!leading && !children && !pendingSend) return null;
 
   return (
-
-
-
-
-
+    <Box
+      direction="Column"
+      gap="100"
+      style={{ padding: `${config.space.S200} ${config.space.S400} 0` }}
+    >
       {leading}
       <Box direction="Row" gap="200" alignItems="Center">
         <MindroomRoomInputThreadIndicator room={room} relation={relation} />

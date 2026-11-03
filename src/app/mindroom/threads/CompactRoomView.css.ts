@@ -20,12 +20,12 @@ export const View = style([
 ]);
 
 export const EmptyState = style({
-
-
-
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   minHeight: '8rem',
-
-
+  padding: config.space.S400,
+  borderRadius: config.radii.R400,
   border: `${config.borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
   color: color.SurfaceVariant.OnContainer,
 });

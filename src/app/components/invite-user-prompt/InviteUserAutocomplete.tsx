@@ -18,8 +18,8 @@ import { MenuItem } from '../glass/GlassPrimitives';
 
 import { useInviteUserSearch } from '../../hooks/useInviteUserSearch';
 import { useListFocusIndex } from '../../hooks/useListFocusIndex';
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import type { ServerUserDirectoryUser } from '../../state/userDirectoryCache';
 import { getMxIdLocalPart, isUserId, mxcUrlToHttp } from '../../utils/matrix';
 import { sanitizeInviteAutocompleteOptionId } from '../../utils/userDirectorySearch';
@@ -79,7 +79,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
     },
     ref
   ) => {
-    const { t } = useTranslation();
+
 
 
     // Per-instance listbox id: the invite dialog and the create-DM page can
@@ -198,8 +198,8 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               onKeyDown={handleInputKeyDown}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
-
-
+              name="userIdInput"
+              placeholder={t('sharedUi.inviteUserAutocomplete.placeholder')}
 
 
 
@@ -249,19 +249,19 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                         commitUser(user);
                       });
                     }}
-                    onClick={() => commitUser(user)}
-                    before={
-                      <Avatar size="200">
-                        <UserAvatar
-                          userId={user.userId}
-                          src={avatarUrl}
-                          alt={displayName}
 
 
 
 
-                  >
-                    <span className={css.InviteAutocompleteIdentity}>
+
+
+
+
+
+
+
+
+
                       <Text
                         as="span"
                         className={css.InviteAutocompleteDisplayName}

@@ -5,7 +5,7 @@ import { Direction, MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, expect, it, vi } from 'vitest';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { createMindroomSyncEngine } from '../engine/mindroomSyncEngine';
 import { MindroomSyncEngineProvider } from '../engine/engineContext';
 import {

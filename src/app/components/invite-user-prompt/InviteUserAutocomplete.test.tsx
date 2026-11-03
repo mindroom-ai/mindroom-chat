@@ -4,7 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import {
   INVITE_SERVER_SEARCH_LIMIT,
   userDirectoryCacheAtom,

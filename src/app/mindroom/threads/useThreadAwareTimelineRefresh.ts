@@ -1,4 +1,4 @@
-
+import { useCallback, useEffect, useRef } from 'react';
 import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from './threadRouteUtils';
 

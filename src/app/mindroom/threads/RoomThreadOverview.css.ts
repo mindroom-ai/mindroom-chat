@@ -301,9 +301,9 @@ export const AddTagDropdown = style({
   minWidth: toRem(140),
   maxHeight: toRem(200),
   overflowY: 'auto',
-  borderRadius: config.radii.R300,
 
-  padding: config.space.S100,
+
+
 });
 
 export const AddTagOption = style({
@@ -369,9 +369,9 @@ export const PresetDropdown = style({
   insetInlineStart: 0,
   zIndex: 200,
   minWidth: toRem(180),
-  borderRadius: config.radii.R300,
 
-  padding: config.space.S100,
+
+
 });
 
 export const PresetOption = style({

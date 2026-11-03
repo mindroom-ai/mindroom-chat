@@ -10,7 +10,7 @@ import {
 } from '../../plugins/markdown/inline/rules';
 import { InlineMDRule } from '../../plugins/markdown/inline/type';
 import { sanitizeCustomHtml, sanitizeText } from '../../utils/sanitize';
-
+import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { toHttpsUrl } from './notices';
 
 const ESCAPED_TEXT: Record<string, string> = {

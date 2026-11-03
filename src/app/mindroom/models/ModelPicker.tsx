@@ -9,9 +9,9 @@ import {
   IconSearch,
   IconX,
 } from '@tabler/icons-react';
-
-
-
+import React, {
+  ChangeEventHandler,
+  KeyboardEventHandler,
   useEffect,
   useId,
   useMemo,
@@ -21,7 +21,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePreventScroll } from 'react-aria';
 
-
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { PageScroll } from '../../components/page';
 import { Header, Modal, Surface } from '../../components/glass/GlassPrimitives';
 import type { ModelCatalogEntry } from './modelProtocol';
@@ -369,9 +369,9 @@ function TrappedPanel({ state, mobile, requestClose, onCommand }: SurfaceProps) 
   return (
     <FocusTrap
       focusTrapOptions={{
-
-
-
+        initialFocus: false,
+        clickOutsideDeactivates: true,
+        onDeactivate: requestClose,
         returnFocusOnDeactivate: true,
       }}
     >
@@ -389,8 +389,8 @@ function TrappedPanel({ state, mobile, requestClose, onCommand }: SurfaceProps) 
 
 function MobileSurface({ state, requestClose, onCommand }: Omit<SurfaceProps, 'mobile'>) {
   usePreventScroll();
-
-
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
       <div className={css.MobileContainer}>
         <Modal
           appearance="glass"

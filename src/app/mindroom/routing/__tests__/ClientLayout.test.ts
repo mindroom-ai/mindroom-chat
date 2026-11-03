@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from '../../../pages/client/ClientLayout';
-
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useActiveSession } from '../../../hooks/useSessionStore';
 import { updateSessionLastPath } from '../../../state/sessions';
 

@@ -4,8 +4,8 @@ import { enableMapSet } from 'immer';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../rooms/archivedRooms';
-
-
+import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
+import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { clearRecentThreadsStore, makeRecentThreadsAtom } from './recentThreads';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {

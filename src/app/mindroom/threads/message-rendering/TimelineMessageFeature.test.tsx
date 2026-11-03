@@ -19,7 +19,7 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout, MessageSpacing } from '../../../state/settings';
 import { MessageEvent } from '../../../../types/matrix/room';
-
+import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import type { ThreadRecord } from '../types';
 import type { TimelineMessageRow } from './types';

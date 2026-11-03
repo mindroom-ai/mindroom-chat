@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-
-
+import { SequenceCard } from '../../components/sequence-card';
+import { SettingTile } from '../../components/setting-tile';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import {
   useMindroomAccountSettings,

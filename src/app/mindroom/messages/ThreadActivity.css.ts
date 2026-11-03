@@ -1,5 +1,5 @@
 import { style, styleVariants } from '@vanilla-extract/css';
-
+import { DefaultReset, color, config, toRem } from 'folds';
 
 export const Activity = style([
   DefaultReset,
@@ -15,9 +15,9 @@ export const Activity = style([
 export const Line = style([
   DefaultReset,
   {
-
-
-
+    display: 'flex',
+    alignItems: 'center',
+    gap: config.space.S200,
     width: `calc(100% + ${config.space.S200})`,
     marginInline: `calc(${config.space.S100} * -1)`,
     padding: `${toRem(3)} ${config.space.S100}`,
@@ -88,7 +88,7 @@ export const Chevron = style({
 });
 
 export const Panel = style({
-  marginTop: config.space.S200,
+
 
 
 

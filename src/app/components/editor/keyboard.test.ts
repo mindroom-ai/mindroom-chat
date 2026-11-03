@@ -1,7 +1,7 @@
 import { KeyboardEvent } from 'react';
 import { createEditor } from 'slate';
 import { describe, expect, it, vi } from 'vitest';
-
+import { toggleKeyboardShortcut } from './keyboard';
 import { BlockType } from './types';
 
 type ModifierKey = 'ctrlKey' | 'metaKey';

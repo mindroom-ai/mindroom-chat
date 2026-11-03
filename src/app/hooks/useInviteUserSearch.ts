@@ -1,4 +1,4 @@
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 
 import {
@@ -20,7 +20,7 @@ import {
 import { useAlive } from './useAlive';
 import { useDebounce } from './useDebounce';
 import { useDirectUsers } from './useDirectUsers';
-
+import { useMatrixClient } from './useMatrixClient';
 import { useUserDirectoryCache } from './useUserDirectoryCache';
 
 type ServerSearchResult = {
@@ -68,8 +68,8 @@ export const useInviteUserSearch = (
   room: Room | undefined,
   query: string
 ): InviteUserSearchResult => {
-
-
+  const mx = useMatrixClient();
+  const alive = useAlive();
   const cache = useUserDirectoryCache();
   const directUsers = useDirectUsers();
   const requestIdRef = useRef(0);

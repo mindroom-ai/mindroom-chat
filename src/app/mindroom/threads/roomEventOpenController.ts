@@ -98,8 +98,8 @@ export const useRoomEventOpenController = ({
   cancelThreadBottomSettle?: () => void;
   effectiveViewMode: RoomViewMode;
   focusEventInRoom?: boolean;
-
-
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
   ignoredUsersSet: Set<string>;
   mx: MatrixClient;
   navigateRoomThread: (
@@ -121,8 +121,8 @@ export const useRoomEventOpenController = ({
   scrollRef: RefObject<HTMLElement>;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
-
-
+  scrollToElement: ScrollToElement;
+  scrollToItem: ScrollToItem;
   searchQuery: string;
   setFocusItem: Dispatch<SetStateAction<FocusItemState | undefined>>;
   notifyThreadEventsChanged: () => void;
@@ -311,8 +311,8 @@ export const useRoomEventOpenController = ({
             filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
         })
       );
-
-
+      scrollToBottomRef.current.count += 1;
+      scrollToBottomRef.current.smooth = false;
     }, [
       alive,
       effectiveViewMode,
@@ -357,15 +357,15 @@ export const useRoomEventOpenController = ({
           setFocusItem({
             eventId: evtId,
             index: threadItemIndex,
-
-
-
+            scrollTo: false,
+            highlight,
+          });
           if (target) {
             scrollToElement(target, {
-
-
-
-
+              behavior: 'smooth',
+              align: 'center',
+              stopInView: true,
+            });
             if (onScroll) onScroll(true);
             return;
           }
@@ -453,10 +453,10 @@ export const useRoomEventOpenController = ({
           notifyThreadEventsChanged();
           return;
         }
-
+        setTimeline(getEmptyTimeline());
         await loadEventTimeline(evtId);
-
-
+      }
+    },
     [
       alive,
       cancelThreadBottomSettle,

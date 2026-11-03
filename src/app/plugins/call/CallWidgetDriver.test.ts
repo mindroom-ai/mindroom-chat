@@ -1,6 +1,6 @@
 import { createClient, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { CallWidgetDriver } from './CallWidgetDriver';
 
 type EncryptBatch = Awaited<
   ReturnType<NonNullable<ReturnType<MatrixClient['getCrypto']>>['encryptToDeviceMessages']>

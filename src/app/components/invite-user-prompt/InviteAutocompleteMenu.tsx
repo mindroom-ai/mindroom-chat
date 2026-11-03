@@ -103,10 +103,10 @@ export function InviteAutocompleteMenu({
   return (
     <FocusTrap
       active={open}
-
-
-
-
+      focusTrapOptions={{
+        initialFocus: false,
+        returnFocusOnDeactivate: false,
+        onPostDeactivate: handleDeactivate,
         clickOutsideDeactivates: handleClickOutsideDeactivates,
         allowOutsideClick: true,
         isKeyForward: () => false,
@@ -146,7 +146,7 @@ export function InviteAutocompleteMenu({
                   onKeyDown={preventScrollWithArrowKey}
                   scrollbarTabIndex={-1}
                 >
-
+                  <div style={{ padding: config.space.S100 }}>{children}</div>
                 </PageScroll>
               </Menu>
             </div>

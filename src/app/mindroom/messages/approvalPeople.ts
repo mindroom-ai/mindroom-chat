@@ -1,4 +1,4 @@
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 

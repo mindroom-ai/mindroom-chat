@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixError, Method } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { KeyBackupPresence, useKeyBackupPresence } from './useKeyBackupPresence';
 
 vi.mock('../../hooks/useMatrixClient', () => ({

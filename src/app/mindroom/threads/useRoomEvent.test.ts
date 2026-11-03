@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClientEvent, createClient, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';

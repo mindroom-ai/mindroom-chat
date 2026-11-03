@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client';
 import parse from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import { color, configClass, varsClass } from 'folds';
-
-
+import 'folds/dist/style.css';
+import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import '../../src/app/i18n';
 import {

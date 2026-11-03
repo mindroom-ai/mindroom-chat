@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React, { type CSSProperties, type ReactNode } from 'react';
 import { Box, Chip, color, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { discardFailedLocalEcho, isFailedLocalEchoEvent } from './pendingLocalEcho';
 
 type FailedSendActionsProps = {
@@ -14,9 +14,9 @@ type FailedSendActionsProps = {
 };
 
 export function FailedSendActions({ room, event, style, message }: FailedSendActionsProps) {
-  const { t } = useTranslation();
 
-  const handleRetry = () => {
+
+
     if (!isFailedLocalEchoEvent(event)) return;
     // The SDK reuses the transaction ID, so the server drops a copy that already arrived.
     // A failed retry marks the event unsent again, which brings these actions back.

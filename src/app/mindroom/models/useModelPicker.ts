@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Room } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getModelController, ModelPickerSnapshot } from './modelController';
 
 export type ModelPickerState = ModelPickerSnapshot & {

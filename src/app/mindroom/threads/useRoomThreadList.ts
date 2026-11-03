@@ -6,7 +6,7 @@ import {
   roomThreadListIsComplete,
   sortThreadsByActivity,
 } from './roomThreadList';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMindroomSyncEngine } from '../engine/engineContext';
 import {
   createPreferLiveEventMapper,

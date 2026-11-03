@@ -3,10 +3,10 @@ import { generatePath, matchPath } from 'react-router-dom';
 import {
   DIRECT_ROOM_PATH,
   HOME_ROOM_PATH,
-
-
-
-
+  SPACE_LOBBY_PATH,
+  SPACE_PATH,
+  SPACE_ROOM_PATH,
+  SPACE_SEARCH_PATH,
 } from '../../pages/paths';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
 

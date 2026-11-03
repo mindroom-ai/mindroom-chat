@@ -1,5 +1,5 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
-
+import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { describe, expect, it, vi } from 'vitest';
 
 const makeEditEvent = (

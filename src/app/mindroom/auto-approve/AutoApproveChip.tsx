@@ -1,4 +1,4 @@
-
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -36,7 +36,7 @@ const formatEnd = (expiresAt: number, now: number, language: string, hour24Clock
 export function AutoApproveChip({ room, threadId }: { room: Room; threadId: string }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-
+  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [now, setNow] = useState(Date.now);
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);

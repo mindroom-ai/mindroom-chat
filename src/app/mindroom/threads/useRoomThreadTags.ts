@@ -1,10 +1,10 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useEffect, useMemo } from 'react';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevels } from '../../hooks/usePowerLevels';
-
-
+import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useStateEvents } from './useStateEvents';
 import {
   type TagMetadata,
@@ -104,7 +104,7 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   const pVersion = usePendingVersion();
   const pendingMap = useMemo(
     () => getPendingThreadTagsContentMap(room.roomId),
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [room.roomId, pVersion]
   );
 
@@ -140,11 +140,11 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
 
 export const useToggleThreadResolution = (room: Room) => {
   const { setResolved, updating, updatingThreadRootIds, error } = useMutateThreadTags(room);
-  const mx = useMatrixClient();
-  const powerLevels = usePowerLevels(room);
 
 
-  const canToggle = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId());
+
+
+
 
   return {
     canToggle,

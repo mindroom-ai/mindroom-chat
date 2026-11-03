@@ -128,7 +128,7 @@ export function VoiceWaveform({
           <rect
 
 
-            className={classNames(
+
               index < activeBars ? css.BarActive : css.Bar,
               compact && css.BarCompact,
               compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded

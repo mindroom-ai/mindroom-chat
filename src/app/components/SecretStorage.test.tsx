@@ -3,7 +3,7 @@ import React from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { SecretStorageRecoveryKey, SecretStorageRecoveryPassphrase } from './SecretStorage';
 
 const mocks = vi.hoisted(() => ({
   error: new Error(),

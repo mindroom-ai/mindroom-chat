@@ -3,8 +3,8 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
@@ -257,7 +257,7 @@ export const useCompactThreadCardViewModels = ({
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-
+  const useAuthentication = useMediaAuthentication();
   const currentUserId = mx.getUserId() ?? undefined;
   // Records are rebuilt on every index refresh. Snapshot their values before
   // formatting so an unrelated streaming edit does not rebuild every card.

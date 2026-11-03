@@ -1,5 +1,5 @@
 import { EventTimelineSet, IEvent, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-
+import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import {
   cloneRawEvent,
   getSerializedRelationEvent,

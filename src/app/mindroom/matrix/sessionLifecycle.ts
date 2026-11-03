@@ -188,8 +188,8 @@ export const removeSessionAndReload = async (
   // cache data is safe to clean up later; deleting crypto for an account that
   // remains selectable is not.
   await removeSessionRecordAndLocalData(session);
-
-
+  window.location.reload();
+};
 
 export const removeCurrentClientSessionAndReload = async (
   mx: MatrixClient,
@@ -210,7 +210,7 @@ export const removeCurrentClientSessionAndReload = async (
 
   if (session) {
     await removeSessionRecordAndLocalData(session, mx);
-
+    window.location.reload();
     return;
   }
 
@@ -233,8 +233,8 @@ export const removeCurrentClientSessionAndReload = async (
   } finally {
     clearLegacySessionStorage();
   }
-
-
+  window.location.reload();
+};
 
 export const removeStoredSession = async (session: StoredSession): Promise<void> => {
   const activeSession = getActiveSession();
@@ -244,7 +244,7 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
   }
 
   await removeSessionRecordAndLocalData(session);
-
+};
 
 export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
   const liveSession = mx ? getMatrixClientSessionCleanupContext(mx) : undefined;
@@ -307,15 +307,15 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   window.location.replace(getCacheBustedAppReloadTarget(appBasePath));
 };
 
-
+export const logoutClient = async (mx: MatrixClient): Promise<void> => {
   const activeSession = getActiveSession();
   // A logout that cannot pass Cloudflare Access leaves this device and its pusher.
   await renewExpiredCloudflareAccess(mx.getHomeserverUrl());
   stopClientRuntime(mx);
-
-
-
-
-
+  try {
+    await mx.logout(true);
+  } catch {
+    // The server may already have dropped this device; local cleanup still runs.
+  }
   await removeCurrentClientSessionAndReload(mx, activeSession);
-
+};

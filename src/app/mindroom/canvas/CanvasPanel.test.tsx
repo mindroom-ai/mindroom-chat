@@ -17,7 +17,7 @@ import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
 import { CANVAS_LIBRARY_SOURCE, canvasPolicy, type CanvasSaved } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

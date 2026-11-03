@@ -1,7 +1,7 @@
-
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { deviceSignedByOwner } from '../../utils/matrix-crypto';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { useDeviceListChange } from '../../hooks/useDeviceList';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
@@ -178,11 +178,11 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
   useEffect(() => {
     update();
   }, [update]);
-
-
-
-
-
+  useDeviceListChange(
+    useCallback(
+      (userIds: string[]) => {
+        if (userIds.includes(userId)) {
+          // Coalesce with every other badge for this agent; the refresh invalidates first.
           if (crypto) {
             scheduleAgentDeviceTrustRefresh(crypto, userId, () => void update());
           }

@@ -1,4 +1,4 @@
-
+import type { ClientConfig } from '../hooks/useClientConfig';
 import { getActiveSession, hasStoredSessions } from '../state/sessions';
 import { getStoredNavToActivePath } from '../state/navToActivePath';
 import { isAddAccountSearch } from './auth/addAccount';

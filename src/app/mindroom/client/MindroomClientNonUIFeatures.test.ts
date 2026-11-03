@@ -8,11 +8,11 @@ import { ClientEvent, MatrixEvent, type MatrixClient, type Room } from 'matrix-j
 import { MemoryRouter } from 'react-router-dom';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import InviteSound from '../../../../public/sound/invite.ogg';
 import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { createSessionId } from '../../state/sessions';
-
+import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { Membership } from '../../../types/matrix/room';
 import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
 import { playChime } from '../notifications/playChime';

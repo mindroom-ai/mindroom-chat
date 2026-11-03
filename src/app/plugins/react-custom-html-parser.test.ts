@@ -3,7 +3,7 @@ import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-p
 import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
-
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   act,
   create,
@@ -158,8 +158,8 @@ vi.mock('../mindroom/messages/ApprovalArgumentFields.css', () => ({
 }));
 
 const createBaseOpts = (): HTMLReactParserOptions => {
-
-
+  const opts: HTMLReactParserOptions = {
+    replace: (domNode) => {
       if (domNode instanceof Element && domNode.name === 'p') {
         return React.createElement('p', null, domToReact(domNode.children, opts));
       }

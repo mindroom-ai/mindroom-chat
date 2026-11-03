@@ -1,5 +1,5 @@
-
-
+import React from 'react';
+import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '../../src/index.css';

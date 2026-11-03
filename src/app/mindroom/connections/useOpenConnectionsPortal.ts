@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { IOpenIDToken } from 'matrix-js-sdk';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 import { openConnectionsPortal, submitConnectionsHandoff } from './openConnections';
 

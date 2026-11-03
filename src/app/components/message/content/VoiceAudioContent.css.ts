@@ -1,5 +1,5 @@
-
-
+import { style } from '@vanilla-extract/css';
+import { DefaultReset, color, config, toRem } from 'folds';
 import { glassShadow, glassSurface } from '../../../styles/Glass.css';
 
 export const Root = style({
@@ -22,8 +22,8 @@ export const Capsule = style([
     minWidth: 0,
     padding: config.space.S200,
     borderRadius: toRem(16),
-
-
+    border: 'none',
+    color: color.SurfaceVariant.OnContainer,
     boxShadow: glassShadow,
     selectors: {
       '&[data-playing="true"]': {

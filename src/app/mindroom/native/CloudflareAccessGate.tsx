@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-
+import React, { ReactNode, useEffect, useState } from 'react';
 import { Box, Button, Text, color } from 'folds';
 import {
   discoverCloudflareAccess,

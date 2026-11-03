@@ -3,7 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { atom, createStore, Provider, useAtomValue, useSetAtom } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientBindAtoms } from './ClientBindAtoms';
-
+import { useBindAtoms } from '../../state/hooks/useBindAtoms';
 
 const mocks = vi.hoisted(() => ({
   client: { accountValue: 'account-b' },

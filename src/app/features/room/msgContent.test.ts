@@ -6,13 +6,13 @@ import {
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../../types/matrix/common';
-
+import type { TUploadItem } from '../../state/room/roomInputDrafts';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../utils/audioWaveform';
 import { getAudioMsgContent } from './msgContent';
 
 const createUploadItem = (file: File, duration?: number, waveform?: number[]): TUploadItem => ({
   file,
-  originalFile: file,
+
 
 
 

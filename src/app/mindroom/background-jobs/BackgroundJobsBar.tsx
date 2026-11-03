@@ -11,7 +11,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import * as css from './backgroundJobsBar.css';
 import { jobsInView } from './backgroundJobsContract';
@@ -39,7 +39,7 @@ type OpenMode = 'hover' | 'pinned';
  */
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
-
+  const mx = useMatrixClient();
   const roomJobs = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const sent = useSentCancels(room.roomId);

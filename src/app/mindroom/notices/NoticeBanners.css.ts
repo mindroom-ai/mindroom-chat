@@ -23,11 +23,11 @@ const levelColors = (tone: typeof color.Primary) => ({
 export const Notice = recipe({
   base: {
     // Rows keep their height; the capped stack scrolls instead.
-    flexShrink: 0,
 
 
 
-    minHeight: toRem(36),
+
+
     padding: `${config.space.S100} ${config.space.S200} ${config.space.S100} ${config.space.S300}`,
     borderBottomWidth: config.borderWidth.B300,
     borderBottomStyle: 'solid',

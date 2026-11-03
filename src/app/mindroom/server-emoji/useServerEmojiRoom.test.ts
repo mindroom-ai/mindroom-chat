@@ -3,9 +3,9 @@ import { Provider, createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-
-
-
+import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { allRoomsAtom } from '../../state/room-list/roomList';
 import { findServerEmojiRoom, useServerEmojiRoom } from './useServerEmojiRoom';
 
 const ROOM_ID = '!emoji:example.com';

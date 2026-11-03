@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { isKeyHotkey } from 'is-hotkey';
 import { useKeyDown } from '../../hooks/useKeyDown';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { markRoomAndThreadsAsRead, markThreadAsRead } from '../notifications/readReceipts';
 
 type UseRoomEscapeReadReceiptsOptions = {

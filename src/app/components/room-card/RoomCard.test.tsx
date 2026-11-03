@@ -3,7 +3,7 @@ import { JoinRule, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { Membership } from '../../../types/matrix/room';
 import type { RoomAccessJoinRule } from '../room-access';

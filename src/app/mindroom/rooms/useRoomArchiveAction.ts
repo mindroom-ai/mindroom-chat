@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai';
 import { useRef, useState } from 'react';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { archivedRoomsAtom, setRoomArchived } from './archivedRooms';
 

@@ -64,8 +64,8 @@ export type RoomFocusScrollControllerOptions = {
   scrollRef: MutableRefObject<HTMLDivElement | null>;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-
-
+  scrollToElement: ScrollToElement;
+  scrollToItem: ScrollToItem;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
   suppressFocusPaginationRef: MutableRefObject<boolean>;
@@ -125,14 +125,14 @@ export const useRoomFocusScrollController = ({
   unreadInfo,
   unreadScrollAnchorIndex,
 }: RoomFocusScrollControllerOptions): void => {
-  const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
 
 
 
 
 
 
-  }, [scrollRef]);
+
+
 
   useEffect(() => {
     if (!threadId) return undefined;
@@ -363,7 +363,7 @@ export const useRoomFocusScrollController = ({
     ) {
       return;
     }
-
+    const scrollEl = scrollRef.current;
     if (!scrollEl) return;
     if (!requestThreadOpenBottomPin()) return;
     scrollToBottom(scrollEl, 'instant');
@@ -414,7 +414,7 @@ export const useRoomFocusScrollController = ({
 
 
 
-
+      });
       threadTargets.complete(pendingOpen.requestId, true);
       return;
     }
@@ -445,13 +445,13 @@ export const useRoomFocusScrollController = ({
     threadTimelineTick,
   ]);
 
-
-
+  const scrollToBottomCount = scrollToBottomRef.current.count;
+  useLayoutEffect(() => {
     if (scrollToBottomCount > 0 && shouldApplyThreadBottomPin(scrollToBottomCount)) {
       const scrollEl = scrollRef.current;
       if (scrollEl) {
-
-
+        scrollToBottom(scrollEl, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
+      }
     }
   }, [scrollRef, scrollToBottomCount, scrollToBottomRef, shouldApplyThreadBottomPin]);
 
@@ -464,8 +464,8 @@ export const useRoomFocusScrollController = ({
 
 
 
-
-
+      });
+    }
   }, [editId, scrollRef, scrollToElement]);
 
   useEffect(() => {

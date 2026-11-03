@@ -2,7 +2,7 @@ import React, { useEffect, useReducer, useState } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { ThemeKind, useTheme } from '../../hooks/useTheme';
-
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getMemberDisplayName, isEventOrderedAfter } from '../../utils/room';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';

@@ -15,7 +15,7 @@ import {
 import { UploadStatus } from '../../state/upload';
 import { toMatrixUploadError } from '../../utils/matrix';
 import { UploadBoardHeader } from '../../components/upload-board';
-
+import { UploadCardRenderer } from '../../components/upload-card';
 import { createMindroomRoomInputPasteMarkerElement } from './RoomInputMindroomExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';

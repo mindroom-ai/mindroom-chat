@@ -51,7 +51,7 @@ const createDeferred = <T>() => {
 
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
-  originalFile: file,
+
 
 
 
@@ -61,7 +61,7 @@ const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => (
 
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
-  originalFile: file,
+
 
 
 

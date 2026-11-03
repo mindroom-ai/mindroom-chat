@@ -1,5 +1,5 @@
-
-
+import { configClass, varsClass } from 'folds';
+import {
   ButterTheme,
   DarkTheme,
   LightTheme,

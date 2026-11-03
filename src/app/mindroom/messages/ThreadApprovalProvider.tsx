@@ -2,15 +2,15 @@ import React, {
   createContext,
   useCallback,
   useContext,
-
-
-
-
-
-
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { MatrixEvent, MatrixEventEvent, Room, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
-
-
+import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { enqueueThreadApprovalBackfill, useMindroomSyncEngine } from '../engine';
 import { useLiveEventArrive } from '../threads/roomLiveEventArrive';
 import { collectKnownRedactedEventIds } from '../threads/eventRevision';

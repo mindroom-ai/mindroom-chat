@@ -11,7 +11,7 @@ import {
   type ServerUserDirectoryUser,
   type UserDirectoryCacheState,
 } from '../state/userDirectoryCache';
-
+import { useMatrixClient } from './useMatrixClient';
 
 type UserDirectoryFetchResult = {
   users: ServerUserDirectoryUser[];

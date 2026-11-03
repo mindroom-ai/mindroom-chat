@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { createClient, Room } from 'matrix-js-sdk';
 import { useStateEvents } from './useStateEvents';
-
-
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
+import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import {
   getPendingThreadTagsContent,
   resetPendingThreadTagsForTests,

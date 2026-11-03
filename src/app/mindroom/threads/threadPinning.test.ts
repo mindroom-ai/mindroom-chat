@@ -5,7 +5,7 @@ import { act, create } from 'react-test-renderer';
 import { StateEvent } from '../../../types/matrix/room';
 import { canPinRoomEvents, isThreadPinned, setRoomEventPinned } from './threadPinning';
 import { usePinnedEventIds } from './useThreadPinning';
-
+import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 
 const admin = '@admin:example.org';
 const syncPins = (room: Room, id: string, pinned: string[]) =>

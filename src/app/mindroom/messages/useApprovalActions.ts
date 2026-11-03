@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ApprovalResponseContent, createApprovalActions } from './approvalActions';
 import { ThreadApprovalRecord } from './threadApprovalModel';
 

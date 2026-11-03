@@ -1,5 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-
+import { color, config } from 'folds';
 import { MarginSpaced } from '../../styles/CustomHtml.css';
 
 export const Container = style([

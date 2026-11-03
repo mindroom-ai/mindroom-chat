@@ -84,7 +84,7 @@ export function useCanvasVersions(
       alive = false;
     };
     // `latest` changes identity on every render; its ID marks a new version.
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mx, room, request, latestId]);
   useEffect(() => {
     // A deleted version leaves the list at once; a chosen one falls back to the latest. Versions come

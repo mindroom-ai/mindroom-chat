@@ -257,10 +257,10 @@ export const createMindroomSyncEngine = ({
   /** Confirmed events already saved from a timeline, so their echo is not saved again. */
   const confirmedTimelineEvents = new WeakSet<MatrixEvent>();
 
-
+  const handleTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
     event: MatrixEvent,
-
-
+    room: Room | undefined,
+    toStartOfTimeline: boolean | undefined,
     removed: boolean | undefined,
     data
   ) => {
@@ -376,7 +376,7 @@ export const createMindroomSyncEngine = ({
     }
 
     mx.on(ClientEvent.Sync, handleSync);
-
+    mx.on(RoomEvent.Timeline, handleTimeline);
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
@@ -402,7 +402,7 @@ export const createMindroomSyncEngine = ({
       // Structural teardown must finish even if the best-effort flush fails;
       // destructive account cleanup may delete these stores immediately.
       mx.removeListener(ClientEvent.Sync, handleSync);
-
+      mx.removeListener(RoomEvent.Timeline, handleTimeline);
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);

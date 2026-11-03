@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PageScroll } from '../../components/page';
 import { Header, Modal } from '../../components/glass/GlassPrimitives';
-
-
-
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
+import { getMatrixToUser } from '../../plugins/matrix-to';
 import {
-
-
-
+  makeMentionCustomProps,
+  renderMatrixMention,
+} from '../../plugins/react-custom-html-parser';
 import { isUserId } from '../../utils/matrix';
 import { parseScheduleTimestamp, type ParsedScheduledTask } from '../threads/scheduledTaskContract';
 import { getScheduleTimestamp } from './roomSchedules';
@@ -28,9 +28,9 @@ function ScheduleCard({
   formatter: Intl.DateTimeFormat;
   onOpenThread: (threadId: string) => void;
 }) {
-  const { t } = useTranslation();
 
-  const mentionClickHandler = useMentionClickHandler(roomId);
+
+
   const creatorMention =
     task.createdBy && isUserId(task.createdBy)
       ? renderMatrixMention(mx, roomId, getMatrixToUser(task.createdBy), {
