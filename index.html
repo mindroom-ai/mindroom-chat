@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="google" content="notranslate" />
+    <!-- Frames may show only this app's own pages and reCAPTCHA (registration). Agent canvases
+         are srcdoc frames, which inherit this policy and add their own. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="frame-src 'self' https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/"
+    />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
