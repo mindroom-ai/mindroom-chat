@@ -10,14 +10,86 @@ const toMatch = (parts: string[], index: number, input: string): RegExpMatchArra
 const renderLines = (lines: string[], parseInline: InlineMDParser): string =>
   lines.map((line) => parseInline(line)).join('<br/>');
 
-// A fence of three or more backticks at the start of a line, an info string that does not repeat
-// the fence, and the code up to a line that is exactly the same fence. A longer or shorter run of
-// backticks inside the code stays code.
-const CODE_BLOCK_REG = /^(`{3,})((?:(?!\1)[^\n])*)\n([\s\S]*?)^\1$\n?/m;
+type Line = { start: number; end: number };
+
+const backtickRunLength = (text: string, from: number, to: number): number => {
+  let end = from;
+  while (end < to && text[end] === '`') end += 1;
+  return end - from;
+};
+
+type Opener = { line: Line; fence: string; info: string; closed: boolean };
+
+/**
+ * Finds the first fenced code block: a line starting with three or more backticks (the fence)
+ * and an info string that does not repeat the fence, up to the next line that is exactly the
+ * same fence; a longer or shorter run of backticks inside stays code. One pass over the lines,
+ * which stops once the earliest opener still open is closed: a closing line closes every open
+ * fence of its length, and an earlier opener that never closes only costs reading to the end.
+ */
+const matchCodeBlock = (text: string): RegExpMatchArray | null => {
+  const opened: Opener[] = [];
+  const openByLength = new Map<number, Opener[]>();
+  let firstOpen = 0;
+  let block: { opener: Opener; closer: Line } | undefined;
+  const earliestOpen = (): Opener | undefined => {
+    while (firstOpen < opened.length && opened[firstOpen].closed) firstOpen += 1;
+    return opened[firstOpen];
+  };
+
+  for (let start = 0; ; ) {
+    const lineBreak = text.indexOf('\n', start);
+    const line = { start, end: lineBreak < 0 ? text.length : lineBreak };
+    const run = backtickRunLength(text, line.start, line.end);
+
+    const closing = run >= 3 && run === line.end - line.start ? openByLength.get(run) : undefined;
+    if (closing) {
+      closing.forEach((opener) => {
+        opener.closed = true;
+      });
+      openByLength.delete(run);
+      if (!block || closing[0].line.start < block.opener.line.start) {
+        block = { opener: closing[0], closer: line };
+      }
+    }
+    if (block) {
+      const open = earliestOpen();
+      if (!open || open.line.start > block.opener.line.start) break;
+    }
+
+    if (run >= 3 && lineBreak >= 0) {
+      const fence = text.slice(line.start, line.start + run);
+      const info = text.slice(line.start + run, line.end);
+      if (!info.includes(fence)) {
+        const opener: Opener = { line, fence, info, closed: false };
+        opened.push(opener);
+        const sameLength = openByLength.get(run);
+        if (sameLength) sameLength.push(opener);
+        else openByLength.set(run, [opener]);
+      }
+    }
+    if (lineBreak < 0) break;
+    start = lineBreak + 1;
+  }
+
+  if (!block) return null;
+  const { opener, closer } = block;
+  const end = closer.end < text.length ? closer.end + 1 : closer.end;
+  return toMatch(
+    [
+      text.slice(opener.line.start, end),
+      opener.fence,
+      opener.info,
+      text.slice(opener.line.end + 1, closer.start),
+    ],
+    opener.line.start,
+    text
+  );
+};
 
 /** A fenced code block; the first word of the info string is its language. */
 export const CodeBlockRule: BlockMDRule = {
-  match: (text) => text.match(CODE_BLOCK_REG),
+  match: matchCodeBlock,
   html: (_parseInline, match) => {
     const [, fence, info, code] = match;
     const language = info.trim().split(/\s+/)[0];
@@ -43,17 +115,24 @@ export const BlockMathRule: BlockMDRule = {
   },
 };
 
-const HEADING_REG = /^(#{1,6})[ \t]+(\S[^\n]*?)[ \t]*(?:\n|$)/m;
+const HEADING_REG = /^(#{1,6})[ \t]+(\S[^\n]*)\n?/m;
+
+/** The heading text without trailing whitespace or a closing run of hashes (`## Title ##`). */
+const headingText = (line: string): string => {
+  const trimmed = line.trimEnd();
+  let end = trimmed.length;
+  while (end > 0 && trimmed[end - 1] === '#') end -= 1;
+  if (end === trimmed.length || end === 0 || !/[ \t]/.test(trimmed[end - 1])) return trimmed;
+  return trimmed.slice(0, end).trimEnd();
+};
 
 /** `# Heading` to `###### Heading`. */
 export const HeadingRule: BlockMDRule = {
   match: (text) => text.match(HEADING_REG),
   html: (parseInline, match) => {
-    const [, hashes, heading] = match;
+    const [, hashes, line] = match;
     const level = hashes.length;
-    // A closing run of hashes, as in `## Title ##`, is not part of the heading.
-    const content = heading.replace(/[ \t]+#+$/, '');
-    return `<h${level} data-md="${hashes}">${parseInline(content)}</h${level}>`;
+    return `<h${level} data-md="${hashes}">${parseInline(headingText(line))}</h${level}>`;
   },
 };
 

@@ -8,7 +8,8 @@ declare global {
 
 // Links to users go to matrix.to, which every Matrix client understands. Links to rooms and
 // events open this app on the current origin (`<origin><base>/<room>/<event>?via=...`), so a
-// copied link brings the reader straight back to the message.
+// copied link brings the reader straight back to the message; without a page (no `location`)
+// they go to matrix.to as well.
 
 const MATRIX_TO_ORIGIN = 'https://matrix.to';
 
@@ -21,7 +22,10 @@ const viaQuery = (viaServers?: string[]): string =>
     ? `?${viaServers.map((server) => `via=${encodeURIComponent(server)}`).join('&')}`
     : '';
 
-const appLink = (path: string): string => `${window.location.origin}${appUrl(path)}`;
+const appLink = (path: string): string => {
+  const origin = globalThis.location?.origin;
+  return origin ? `${origin}${appUrl(path)}` : `${MATRIX_TO_ORIGIN}/#/${path}`;
+};
 
 /** A matrix.to link to a user, as mentions use. */
 export const getMatrixToUser = (userId: string): string =>
@@ -79,7 +83,7 @@ const fromMatrixUri = (href: string): Permalink | undefined => {
   const parts = path.split('/').map(safeDecode);
   if (parts.some((part) => !part)) return undefined;
   const [kind, id, eventKind, eventId] = parts as string[];
-  const sigil = MATRIX_URI_SIGILS[kind];
+  const sigil = Object.hasOwn(MATRIX_URI_SIGILS, kind) ? MATRIX_URI_SIGILS[kind] : undefined;
   if (!sigil || sigil === '$' || !id) return undefined;
   if (eventKind !== undefined && (eventKind !== 'e' || !eventId || sigil === '@')) return undefined;
   const viaServers = new URLSearchParams(query).getAll('via').filter((server) => server !== '');

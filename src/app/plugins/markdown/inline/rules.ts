@@ -113,12 +113,23 @@ export const SpoilerRule: InlineMDRule = {
     `<span data-md="||" data-mx-spoiler>${parseInline(match[1])}</span>`,
 };
 
-// The destination may hold one level of parentheses, as Wikipedia links do.
-const LINK_REG = /\[([^[\]]+)\]\(((?:[^\s()]|\([^\s()]*\))+)\)/;
+// The destination may hold one level of parentheses, as Wikipedia links do, but no brackets, so
+// a link that is refused never hides another one starting inside it.
+const LINK_REG = /\[([^[\]]+)\]\(((?:[^\s()[\]]|\([^\s()[\]]*\))+)\)/g;
 
-/** `[label](url)`; the label may hold inline Markdown. */
+// The schemes the message sanitizer (`utils/sanitize`) keeps in links; any other destination,
+// relative ones included, stays text even before the sanitizer runs.
+const LINK_SCHEME_REG = /^(?:https?|ftp|mailto|magnet):/i;
+
+/** `[label](url)` with an http(s), ftp, mailto or magnet URL; the label may hold inline Markdown. */
 export const LinkRule: InlineMDRule = {
-  match: (text) => text.match(LINK_REG),
+  match: (text) => {
+    LINK_REG.lastIndex = 0;
+    for (let match = LINK_REG.exec(text); match; match = LINK_REG.exec(text)) {
+      if (LINK_SCHEME_REG.test(match[2])) return match;
+    }
+    return null;
+  },
   html: (parseInline, match) => `<a data-md href="${match[2]}">${parseInline(match[1])}</a>`,
 };
 

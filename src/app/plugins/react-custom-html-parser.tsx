@@ -3,6 +3,7 @@ import React, {
   KeyboardEvent,
   MouseEventHandler,
   ReactNode,
+  SyntheticEvent,
   useEffect,
   useRef,
   useState,
@@ -349,9 +350,8 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
           {iconToken && (
             <span
               role="img"
-              aria-label={t('messageContent.codeBlock.language', {
+              aria-label={t('messageCodeBlock.language', {
                 language: language ?? labelExtension,
-                defaultValue: 'Language: {{language}}',
               })}
             >
               <CodeBlockLanguageIcon token={iconToken} />
@@ -361,12 +361,16 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
             <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
           )}
         </div>
-        <div className={css.CodeBlockActions}>
+        <div
+          className={css.CodeBlockActions}
+          role="group"
+          aria-label={t('messageCodeBlock.actions')}
+        >
           <button
             type="button"
             className={css.CodeBlockAction}
-            aria-label={t('messageContent.codeBlock.wrap', 'Wrap lines')}
-            title={t('messageContent.codeBlock.wrap', 'Wrap lines')}
+            aria-label={t('messageCodeBlock.wrap')}
+            title={t('messageCodeBlock.wrap')}
             aria-pressed={wrap}
             onClick={() => setWrap((value) => !value)}
           >
@@ -376,11 +380,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
             <button
               type="button"
               className={css.CodeBlockAction}
-              aria-label={
-                expanded
-                  ? t('messageContent.codeBlock.collapse', 'Collapse')
-                  : t('messageContent.codeBlock.expand', 'Expand')
-              }
+              aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
               aria-expanded={expanded}
               onClick={() => setExpanded((value) => !value)}
             >
@@ -390,11 +390,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
           <button
             type="button"
             className={css.CodeBlockAction}
-            aria-label={
-              copied
-                ? t('messageContent.codeBlock.copied', 'Copied')
-                : t('messageContent.codeBlock.copy', 'Copy code')
-            }
+            aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
             onClick={copy}
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
@@ -423,11 +419,16 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
 function Spoiler({ reason, children }: { reason?: string; children: ReactNode }) {
   const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
-  const reveal = () => setRevealed(true);
+  // While hidden, the first click or key press only reveals: a link inside is not followed
+  // and the message around it does not see the click.
+  const reveal = (event: SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setRevealed(true);
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
     if (revealed || (event.key !== 'Enter' && event.key !== ' ')) return;
-    event.preventDefault();
-    reveal();
+    reveal(event);
   };
   return (
     <span
@@ -436,7 +437,7 @@ function Spoiler({ reason, children }: { reason?: string; children: ReactNode })
       role={revealed ? undefined : 'button'}
       tabIndex={revealed ? undefined : 0}
       aria-pressed={!revealed}
-      aria-label={revealed ? undefined : reason || t('messageContent.spoiler', 'Spoiler')}
+      aria-label={revealed ? undefined : reason || t('sharedUi.imageContent.spoiler')}
       title={revealed ? undefined : reason || undefined}
       onClick={revealed ? undefined : reveal}
       onKeyDown={onKeyDown}
