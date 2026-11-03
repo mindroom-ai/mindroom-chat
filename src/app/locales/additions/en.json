@@ -47,6 +47,9 @@
     },
     "inviteUserAutocomplete": {
       "placeholder": "Search users or enter a user ID"
+    },
+    "leaveRoomPrompt": {
+      "close": "Close"
     }
   },
   "featureUi": {
@@ -75,6 +78,11 @@
         "title": "Invitation",
         "body_one": "You have {{count}} new invitation request.",
         "body_other": "You have {{count}} new invitation requests."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Compact view"
       }
     }
   },
