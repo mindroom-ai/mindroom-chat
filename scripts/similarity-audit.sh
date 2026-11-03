@@ -3,9 +3,11 @@
 #
 # Compares Lane C code (every tracked src/** file not listed in docs/provenance/portable.tsv)
 # against each corpus directory with `jscpd --min-tokens 50`. Only clones that pair a Lane C file
-# with a corpus file count; clones inside either side are dropped. Writes, per corpus, the full
-# jscpd report and `clones.tsv` (Lane C file, corpus file, lines) under
-# docs/provenance/audit/<date>/<corpus name>/, plus `summary.tsv` for the run.
+# with a corpus file count; clones inside either side are dropped. Writes, per corpus,
+# `clones.tsv` (file and line range on each side, clone length) under
+# docs/provenance/audit/<date>/<n>-<corpus name>/, plus `summary.tsv` for the run. Only paths and
+# line numbers reach that tracked directory: jscpd's own report embeds the duplicated code, so it
+# stays in a scratch directory that is deleted on exit.
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -48,27 +50,32 @@ for corpus in "$@"; do
   corpus=$(cd "$corpus" && pwd)
   dest="$out/$index-$(basename "$corpus")"
   rm -rf "$dest"
-  mkdir -p "$dest"
+  mkdir -p "$dest" "$work/report-$index"
   npx --yes jscpd@4 --min-tokens 50 --reporters json --silent \
-    --ignore '**/node_modules/**,**/.git/**' --output "$dest" "$work/lane-c" "$corpus"
-  python3 - "$dest/jscpd-report.json" "$work/lane-c" "$corpus" "$dest" "$out/summary.tsv" <<'PY'
+    --ignore '**/node_modules/**,**/.git/**' --output "$work/report-$index" "$work/lane-c" "$corpus"
+  python3 - "$work/report-$index/jscpd-report.json" "$work/lane-c" "$corpus" "$dest" "$out/summary.tsv" <<'PY'
 import json, os, sys
 
 report, lane_c, corpus, dest, summary = sys.argv[1:]
 inside = lambda name, root: os.path.abspath(name).startswith(root + os.sep)
 rows = []
 for clone in json.load(open(report))["duplicates"]:
-    first, second = clone["firstFile"]["name"], clone["secondFile"]["name"]
+    first, second = clone["firstFile"], clone["secondFile"]
     for ours, theirs in ((first, second), (second, first)):
-        if inside(ours, lane_c) and inside(theirs, corpus):
-            rows.append((os.path.relpath(ours, lane_c), os.path.relpath(theirs, corpus), clone["lines"]))
+        if inside(ours["name"], lane_c) and inside(theirs["name"], corpus):
+            rows.append((
+                os.path.relpath(ours["name"], lane_c), f"{ours['startLoc']['line']}-{ours['endLoc']['line']}",
+                os.path.relpath(theirs["name"], corpus), f"{theirs['startLoc']['line']}-{theirs['endLoc']['line']}",
+                clone["lines"],
+            ))
             break
 with open(os.path.join(dest, "clones.tsv"), "w") as f:
-    f.write("lane_c_file\tcorpus_file\tlines\n")
-    f.writelines(f"{a}\t{b}\t{n}\n" for a, b, n in rows)
+    f.write("lane_c_file\tlane_c_lines\tcorpus_file\tcorpus_lines\tlines\n")
+    f.writelines("\t".join(map(str, row)) + "\n" for row in rows)
+total = sum(row[4] for row in rows)
 with open(summary, "a") as f:
-    f.write(f"{corpus}\t{len(rows)}\t{sum(n for _, _, n in rows)}\n")
-print(f"similarity-audit: {corpus}: {len(rows)} cross clones, {sum(n for _, _, n in rows)} lines")
+    f.write(f"{corpus}\t{len(rows)}\t{total}\n")
+print(f"similarity-audit: {corpus}: {len(rows)} cross clones, {total} lines")
 PY
 done
 echo "similarity-audit: wrote $out"
