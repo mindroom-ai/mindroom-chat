@@ -129,7 +129,7 @@ export function Login() {
 
   return (
     <Box direction="Column" gap="500">
-      <Text as="h1" size="H2" priority="400">
+      <Text size="H2" priority="400">
         {t('sharedUi.login.login')}
       </Text>
       {tokenError && !loginToken && <TokenLoginError error={tokenError} />}
