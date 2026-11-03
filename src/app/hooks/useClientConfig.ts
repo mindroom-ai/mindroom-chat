@@ -100,7 +100,8 @@ export type ClientConfig = {
   welcome?: {
     title?: string;
     subtitle?: string;
-    poweredBy?: string;
+    /** Credits under the welcome links, as for the sign-in card; an empty list hides them. */
+    poweredBy?: { label: string; url: string }[];
     docsLabel?: string;
     docsUrl?: string;
     sourceLabel?: string;
