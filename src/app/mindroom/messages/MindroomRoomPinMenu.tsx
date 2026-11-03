@@ -1,7 +1,8 @@
 import React, { forwardRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Box, Icon, IconButton, Icons, Menu, Scroll, Spinner, Text, config } from 'folds';
+import { Box, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { useSetting } from '../../state/hooks/settings';

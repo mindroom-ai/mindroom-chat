@@ -19,8 +19,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -30,7 +28,7 @@ import {
   type RectCords,
 } from 'folds';
 import { Trans } from 'react-i18next';
-import { Dialog } from '../../components/glass/GlassPrimitives';
+import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { EmojiBoard } from '../../components/emoji-board';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import {
@@ -179,14 +177,14 @@ function MessageInlineEditor({
           disabled={busy}
           onClick={() => void save()}
         >
-
-
-
-
-
-
-
-
+          <Text size="B300">{t('featureUi.room.message.messageEditor.save')}</Text>
+        </Button>
+        <Button
+          type="button"
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+          disabled={busy}
           onClick={onDone}
         >
           <Text size="B300">{t('featureUi.room.message.messageEditor.cancel')}</Text>

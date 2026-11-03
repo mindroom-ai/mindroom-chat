@@ -2,18 +2,8 @@ import React, { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Relations, Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  MenuItem,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
+import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';

@@ -1,4 +1,11 @@
 /* eslint-env node */
+
+// Menus, dialogs, modals and headers come from the glass primitives, which give every surface
+// the same material; only the adapter itself may use the raw folds components.
+const GLASS_SURFACE_MESSAGE =
+  'Use the shared surface from src/app/components/glass/GlassPrimitives instead of the raw folds component.';
+const RAW_FOLDS_SURFACES = ['default', 'Menu', 'MenuItem', 'Modal', 'Dialog', 'Header'];
+
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
@@ -40,8 +47,32 @@ module.exports = {
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
     'prefer-const': 'warn',
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: [
+          // Named and default imports of the raw surfaces; `import *` and `export *` count too.
+          { name: 'folds', importNames: RAW_FOLDS_SURFACES, message: GLASS_SURFACE_MESSAGE },
+          { name: 'folds/dist', message: GLASS_SURFACE_MESSAGE },
+        ],
+        patterns: [
+          {
+            // Any deep import of folds, except its stylesheet.
+            group: ['folds/*', '!folds/dist', 'folds/dist/*', '!folds/dist/style.css'],
+            message: GLASS_SURFACE_MESSAGE,
+          },
+        ],
+      },
+    ],
   },
   overrides: [
+    {
+      // The adapter wraps the raw folds surfaces.
+      files: ['src/app/components/glass/GlassPrimitives.tsx'],
+      rules: {
+        'no-restricted-imports': 'off',
+      },
+    },
     {
       // Tests build loose doubles and inline components on purpose.
       files: ['**/*.test.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],

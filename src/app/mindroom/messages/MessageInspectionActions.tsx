@@ -2,17 +2,8 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import {
-  Icon,
-  Icons,
-  MenuItem,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  type IconSrc,
-} from 'folds';
+import { Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, type IconSrc } from 'folds';
+import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
 import { TextViewer } from '../../components/text-viewer';
 import { EventReaders } from '../../components/event-readers';
 import * as css from '../../features/room/message/styles.css';
