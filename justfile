@@ -57,8 +57,8 @@ verify-ported *checkout:
 
 # Lane P files may differ from each import only in their blanked lines. Later Lane P edits are allowed, so each wave is checked at the commit that filled its blanks, not the working tree.
 check-holes:
-    python3 scripts/check_holes.py --wave 1 --rev f824c82
-    python3 scripts/check_holes.py --wave 2 --rev 2717365
+    python3 scripts/check_holes.py --wave 1 --rev feed1b4
+    python3 scripts/check_holes.py --wave 2 --rev d5ddbcf
 
 # Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:

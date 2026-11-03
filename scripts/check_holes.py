@@ -16,6 +16,9 @@ overlap the upstream client) count as holes too.
 lines blanked at the tip by the 2026-11-03 history rewrite, and docs/provenance/overlap.txt names
 that commit; each listed file must differ from it only in those lines.
 
+A line that is empty in the checked revision and listed for that file's blob in
+docs/provenance/history-blanked.tsv (blanked there by the history rewrite) is also accepted.
+
 --wave defaults to 1. With no paths it checks every file in the wave's hole file; otherwise only
 the given paths (each must be in that hole file). Files listed in docs/provenance/dropped.tsv
 (Lane P files deleted with a dropped feature) are skipped. Prints `path:line: reason` for each
@@ -80,7 +83,22 @@ def import_commit(wave: int | None) -> str:
     return rows[wave - 1].split()[0]
 
 
-def violations(path: str, holes: set[int], before: str | None, after: str | None) -> list[str]:
+def history_blanked() -> dict[str, set[int]]:
+    found: dict[str, set[int]] = defaultdict(set)
+    file = PROV / "history-blanked.tsv"
+    for row in file.read_text().splitlines()[1:] if file.is_file() else []:
+        blob, _path, line = row.split("\t")
+        found[blob].add(int(line))
+    return found
+
+
+def blob_id(rev: str | None, path: str) -> str:
+    target = f"{rev}:{path}" if rev else f":{path}"
+    result = subprocess.run(["git", "-C", str(REPO), "rev-parse", target], capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def violations(path: str, holes: set[int], before: str | None, after: str | None, blanked: set[int] = frozenset()) -> list[str]:
     if before is None:
         return [f"{path}:0: missing from the import commit"]
     if after is None:
@@ -94,6 +112,8 @@ def violations(path: str, holes: set[int], before: str | None, after: str | None
         if old_line == new_line:
             continue
         number = index + 1
+        if new_line == "" and number in blanked:
+            continue
         if number not in holes:
             found.append(f"{path}:{number}: changed a line that was not blanked")
         elif old_line != "":
@@ -123,9 +143,12 @@ def main() -> int:
     dropped = [p for p in paths if p in dropped_paths]
     paths = [p for p in paths if p not in dropped_paths]
 
+    blanked = history_blanked()
     found = []
     for path in paths:
-        found += violations(path, holes[path], git_show(commit, path), current_text(args.rev, path))
+        found += violations(
+            path, holes[path], git_show(commit, path), current_text(args.rev, path), blanked.get(blob_id(args.rev, path), set())
+        )
     for line in found:
         print(line)
     target = f"{f'wave {wave}' if wave else 'overlap'}, {args.rev or 'working tree'}"
