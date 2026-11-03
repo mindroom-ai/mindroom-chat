@@ -1,16 +1,17 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Spinner, Text } from 'folds';
+import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import { Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { IMyDevice } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { SequenceCard } from '../../../components/sequence-card';
+import { useAlive } from '../../../hooks/useAlive';
+import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
 import { SettingTile } from '../../../components/setting-tile';
-import { SettingsPageFrame } from '../SettingsPageFrame';
-import { SequenceCardStyle } from '../styles.css';
+import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
+import { SettingsCard } from '../SettingsCard';
+import { AuthenticationCancelled, useAuthenticatedAction } from '../useAuthenticatedAction';
 
-type DevicesProps = {
-  requestClose: () => void;
-};
+const TILE = 'featureUi.settings.devices.deviceTile';
+const OTHERS = 'featureUi.settings.devices.otherDevices';
 
 const formatLastSeen = (device: IMyDevice, language: string): string | undefined => {
   if (!device.last_seen_ts) return undefined;
@@ -19,74 +20,310 @@ const formatLastSeen = (device: IMyDevice, language: string): string | undefined
   );
 };
 
-/** The account's sessions; the current one first. Signing out others needs the account manager or UIA. */
-export function Devices({ requestClose }: DevicesProps) {
-  const { t, i18n } = useTranslation();
-  const mx = useMatrixClient();
+/** The device list from `GET /devices`, newest activity first; `null` when it failed. */
+const useDeviceList = () => {
+  const client = useMatrixClient();
+  const alive = useAlive();
   const [devices, setDevices] = useState<IMyDevice[] | null>();
-  const currentDeviceId = mx.getDeviceId();
 
-  const load = useCallback(async () => {
-    setDevices(undefined);
+  const reload = useCallback(async () => {
     try {
-      const { devices: list } = await mx.getDevices();
-      setDevices(
-        [...list].sort((a, b) => {
-          if (a.device_id === currentDeviceId) return -1;
-          if (b.device_id === currentDeviceId) return 1;
-          return (b.last_seen_ts ?? 0) - (a.last_seen_ts ?? 0);
-        })
-      );
+      const { devices: list } = await client.getDevices();
+      if (!alive()) return;
+      setDevices([...list].sort((a, b) => (b.last_seen_ts ?? 0) - (a.last_seen_ts ?? 0)));
     } catch {
-      setDevices(null);
+      if (alive()) setDevices(null);
     }
-  }, [mx, currentDeviceId]);
+  }, [client, alive]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void reload();
+  }, [reload]);
+
+  return { devices, reload, setDevices };
+};
+
+/** Where the identity provider lets the person manage sessions, for delegated accounts. */
+const useDeviceDashboardUrl = (): string | undefined => {
+  const client = useMatrixClient();
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    client.getAuthMetadata().then(
+      (metadata) => {
+        if (current)
+          setUrl(getAccountManagementUrl(metadata, { action: 'org.matrix.devices_list' }));
+      },
+      () => undefined
+    );
+    return () => {
+      current = false;
+    };
+  }, [client]);
+  return url;
+};
+
+type RenameFormProps = {
+  device: IMyDevice;
+  onDone: (renamed: boolean) => void;
+};
+
+/** Edits a device's public display name. */
+function RenameForm({ device, onDone }: RenameFormProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const alive = useAlive();
+  const [draft, setDraft] = useState(device.display_name ?? '');
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const name = draft.trim();
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name || name === device.display_name) return;
+    setSaving(true);
+    setFailed(false);
+    client
+      .setDeviceDetails(device.device_id, { display_name: name })
+      .then(() => alive() && onDone(true))
+      .catch(() => {
+        if (!alive()) return;
+        setFailed(true);
+        setSaving(false);
+      });
+  };
+
+  return (
+    <Box as="form" direction="Column" gap="100" onSubmit={submit}>
+      <Box gap="200" alignItems="Center">
+        <Box grow="Yes" direction="Column">
+          <Input
+            aria-label={t(`${TILE}.deviceName`)}
+            value={draft}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            variant="Background"
+            size="300"
+            radii="300"
+            autoFocus
+          />
+        </Box>
+        <Button
+          type="submit"
+          size="300"
+          radii="300"
+          variant="Primary"
+          fill="Soft"
+          disabled={saving || !name || name === device.display_name}
+          before={saving ? <Spinner size="50" variant="Primary" /> : undefined}
+        >
+          <Text size="B300">{t(`${TILE}.save`)}</Text>
+        </Button>
+        <Button
+          type="button"
+          size="300"
+          radii="300"
+          variant="Secondary"
+          fill="Soft"
+          disabled={saving}
+          onClick={() => onDone(false)}
+        >
+          <Text size="B300">{t(`${TILE}.cancel`)}</Text>
+        </Button>
+      </Box>
+      <Text size="T200" priority="300">
+        {t(`${TILE}.deviceNamesAreVisibleToPublic`)}
+      </Text>
+      {failed && (
+        <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+          {t('featureUi.settings.emojisStickers.globalPacks.failedToApplyChangesPleaseTryAgain')}
+        </Text>
+      )}
+    </Box>
+  );
+}
+
+type DeviceRowProps = {
+  device: IMyDevice;
+  current: boolean;
+  /** Signs the device out; missing for this device, which signs out with Logout. */
+  onSignOut?: () => void;
+  signingOut?: boolean;
+  onRenamed: () => void;
+};
+
+function DeviceRow({ device, current, onSignOut, signingOut, onRenamed }: DeviceRowProps) {
+  const { t, i18n } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const lastSeen = formatLastSeen(device, i18n.language);
+  const name = device.display_name || device.device_id;
+  const details = [
+    device.device_id,
+    !current && lastSeen ? `${t(`${TILE}.lastActivity`)} ${lastSeen}` : undefined,
+    device.last_seen_ip,
+  ].filter(Boolean);
+
+  const actions = (
+    <Box gap="200" alignItems="Center">
+      <Button
+        size="300"
+        radii="300"
+        variant="Secondary"
+        fill="Soft"
+        aria-label={`${t(`${TILE}.edit`)} ${name}`}
+        aria-pressed={renaming}
+        onClick={() => setRenaming((open) => !open)}
+      >
+        <Text size="B300">{t(`${TILE}.edit`)}</Text>
+      </Button>
+      {onSignOut && (
+        <Button
+          size="300"
+          radii="300"
+          variant="Critical"
+          fill="Soft"
+          disabled={signingOut}
+          aria-label={`${t(`${TILE}.logout`)} ${name}`}
+          before={signingOut ? <Spinner size="50" variant="Critical" /> : undefined}
+          onClick={onSignOut}
+        >
+          <Text size="B300">{t(`${TILE}.logout`)}</Text>
+        </Button>
+      )}
+    </Box>
+  );
+
+  return (
+    <SettingTile title={name} description={details.join(' · ')} after={actions}>
+      {renaming && (
+        <RenameForm
+          device={device}
+          onDone={(renamed) => {
+            setRenaming(false);
+            if (renamed) onRenamed();
+          }}
+        />
+      )}
+    </SettingTile>
+  );
+}
+
+/**
+ * The account's sessions: this device first, then the others with rename and sign out. Signing
+ * another device out asks for the password or single sign-on again.
+ */
+export function Devices({ requestClose }: SettingsPageProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const alive = useAlive();
+  const { devices, reload } = useDeviceList();
+  const dashboardUrl = useDeviceDashboardUrl();
+  const { run, prompt } = useAuthenticatedAction();
+  const [signingOut, setSigningOut] = useState<string>();
+  const [error, setError] = useState<string>();
+  const currentId = client.getDeviceId();
+  const thisDevice = devices?.find((device) => device.device_id === currentId);
+  const others = devices?.filter((device) => device.device_id !== currentId) ?? [];
+
+  const signOut = (deviceId: string) => {
+    setSigningOut(deviceId);
+    setError(undefined);
+    run((auth) => client.deleteMultipleDevices([deviceId], auth))
+      .then(() => reload())
+      .catch((failure: unknown) => {
+        if (!alive() || failure instanceof AuthenticationCancelled) return;
+        const message = failure instanceof Error ? failure.message : String(failure);
+        setError(t(`${OTHERS}.logoutFailed`, { error: message }));
+      })
+      .finally(() => alive() && setSigningOut(undefined));
+  };
+
+  let body: React.ReactNode;
+  if (devices === undefined) {
+    body = (
+      <SettingsCard>
+        <Spinner variant="Secondary" />
+      </SettingsCard>
+    );
+  } else if (devices === null) {
+    body = (
+      <SettingsCard>
+        <SettingTile
+          title={t('featureUi.settings.devices.loadFailed')}
+          after={
+            <Button size="300" radii="300" fill="Soft" onClick={() => void reload()}>
+              <Text size="B300">{t('sharedUi.clientRoot.retry')}</Text>
+            </Button>
+          }
+        />
+      </SettingsCard>
+    );
+  } else {
+    body = (
+      <>
+        {thisDevice && (
+          <Box direction="Column" gap="100">
+            <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
+            <SettingsCard>
+              <DeviceRow device={thisDevice} current onRenamed={() => void reload()} />
+            </SettingsCard>
+          </Box>
+        )}
+        {others.length > 0 && (
+          <Box direction="Column" gap="100">
+            <Text size="L400">{t(`${OTHERS}.others`)}</Text>
+            <SettingsCard>
+              {others.map((device) => (
+                <DeviceRow
+                  key={device.device_id}
+                  device={device}
+                  current={false}
+                  // Delegated accounts sign devices out at their identity provider.
+                  onSignOut={dashboardUrl ? undefined : () => signOut(device.device_id)}
+                  signingOut={signingOut === device.device_id}
+                  onRenamed={() => void reload()}
+                />
+              ))}
+              {error && (
+                <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+                  {error}
+                </Text>
+              )}
+            </SettingsCard>
+          </Box>
+        )}
+      </>
+    );
+  }
 
   return (
     <SettingsPageFrame title={t('settings.nav.devices')} requestClose={requestClose}>
-      <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.settings.devices.devices')}</Text>
-        <SequenceCard
-          className={SequenceCardStyle}
-          variant="SurfaceVariant"
-          direction="Column"
-          gap="400"
-        >
-          {devices === undefined && <Spinner variant="Secondary" />}
-          {devices === null && (
+      {dashboardUrl && (
+        <Box direction="Column" gap="100">
+          <Text size="L400">{t(`${OTHERS}.deviceDashboard`)}</Text>
+          <SettingsCard>
             <SettingTile
-              title={t('featureUi.settings.devices.loadFailed')}
+              title={t(`${OTHERS}.deviceDashboard`)}
+              description={t(`${OTHERS}.manageYourDevicesOnOidcDashboard`)}
               after={
-                <Button size="300" radii="300" fill="Soft" onClick={() => void load()}>
-                  <Text size="B300">{t('sharedUi.clientRoot.retry')}</Text>
+                <Button
+                  as="a"
+                  href={dashboardUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  size="300"
+                  radii="300"
+                  variant="Secondary"
+                  fill="Soft"
+                >
+                  <Text size="B300">{t(`${OTHERS}.open`)}</Text>
                 </Button>
               }
             />
-          )}
-          {devices?.map((device) => {
-            const lastSeen = formatLastSeen(device, i18n.language);
-            return (
-              <SettingTile
-                key={device.device_id}
-                title={device.display_name || device.device_id}
-                description={[
-                  device.device_id,
-                  device.device_id === currentDeviceId
-                    ? t('featureUi.settings.devices.current')
-                    : lastSeen &&
-                      `${t('featureUi.settings.devices.deviceTile.lastActivity')} ${lastSeen}`,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              />
-            );
-          })}
-        </SequenceCard>
-      </Box>
+          </SettingsCard>
+        </Box>
+      )}
+      {body}
+      {prompt}
     </SettingsPageFrame>
   );
 }
