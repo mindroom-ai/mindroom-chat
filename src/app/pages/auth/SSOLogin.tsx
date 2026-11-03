@@ -91,7 +91,8 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
   ) => (
     <Button
       key={key}
-      style={{ width: saveScreenSpace ? undefined : '100%' }}
+      // A link styled as a button: no link underline under its label.
+      style={{ width: saveScreenSpace ? undefined : '100%', textDecoration: 'none' }}
       size="500"
       variant="Secondary"
       fill="Soft"
