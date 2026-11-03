@@ -96,26 +96,24 @@ type ButtonOptions = {
 // Text and PDF viewers get most of the window, past the modal's usual size cap.
 const VIEWER_BOX = { width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' };
 
-/** A viewer in a modal over the page, closed by Escape or a click outside. */
-function ViewerOverlay({
-  onClose,
-  children,
-}: {
+type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+
+// An outside click or Escape closes a viewer; Escape does not reach handlers behind it.
+const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
+
+type ViewerOverlayProps = {
   /** Escape, a click outside, or the viewer closing itself. */
+  onClose: () => void;
+  children: ReactNode;
+};
 
-
-
-
-
-
-
-
-
-
-
-            onDeactivate: onClose,
-          }}
-        >
+/** A viewer in a modal over the page, closed by Escape or a click outside. */
+function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
+  const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
+  return (
+    <Overlay backdrop={<OverlayBackdrop />} open>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={trapOptions}>
           <Modal
             size="500"
             style={VIEWER_BOX}
@@ -376,17 +374,20 @@ export function DownloadFile({
           : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
       </Text>
     </Button>
+  );
+}
 
+/** Renders one open action; FileContent calls it only for the file types it suits. */
+type RenderOpenAction = () => ReactNode;
 
-
-
-
-
-
-
-
-
-
+type FileActionsProps = {
+  /** The file name; callers pass it on to the actions they render. */
+  body: string;
+  mimeType: string;
+  /** The open action for text files, such as a ReadTextFile. */
+  renderAsTextFile: RenderOpenAction;
+  /** The open action for PDF files, such as a ReadPdfFile. */
+  renderAsPdfFile: RenderOpenAction;
   children?: ReactNode;
 };
 
@@ -396,11 +397,13 @@ export function FileContent({
   renderAsTextFile,
   renderAsPdfFile,
   children,
-}: FileContentProps) {
+}: FileActionsProps) {
+  const opensAsText = isTextFileMimeType(mimeType);
+  const opensAsPdf = isPdfFileMimeType(mimeType);
   return (
     <Box alignItems="Center" gap="100" shrink="No">
-      {isTextFileMimeType(mimeType) && renderAsTextFile()}
-      {isPdfFileMimeType(mimeType) && renderAsPdfFile()}
+      {opensAsText && renderAsTextFile()}
+      {opensAsPdf && renderAsPdfFile()}
       {children}
     </Box>
   );

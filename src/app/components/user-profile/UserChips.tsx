@@ -21,6 +21,22 @@ const useCopiedFeedback = (): [boolean, () => void] => {
   return [copied, () => setCopied(true)];
 };
 
+/** Where a chip's menu opens: below the chip that was clicked, until `close`. */
+const useMenuAnchor = () => {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const openMenu: MouseEventHandler<HTMLElement> = (evt) =>
+    setAnchor(evt.currentTarget.getBoundingClientRect());
+  const close = () => setAnchor(undefined);
+  return { anchor, openMenu, close };
+};
+
+type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+
+// A click outside or Escape closes the menu; Escape does not reach handlers behind it.
+const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
+
+const arrowKey = (name: 'arrowdown' | 'arrowup') => (evt: KeyboardEvent) => isHotkey(name, evt);
+
 type ChipMenuProps = {
   anchor: RectCords | undefined;
   requestClose: () => void;
@@ -30,24 +46,22 @@ type ChipMenuProps = {
 
 /** A chip that opens a small menu of actions below it. */
 function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
+  const trapOptions: TrapOptions = {
+    ...DISMISSIBLE,
+    initialFocus: false,
+    onDeactivate: requestClose,
+    isKeyForward: arrowKey('arrowdown'),
+    isKeyBackward: arrowKey('arrowup'),
+  };
   return (
     <PopOut
       anchor={anchor}
       position="Bottom"
       align="Start"
       offset={4}
-
-
-
-
-
-
-
-
-
-
-
-
+      content={
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <Menu role="menu" style={{ display: 'grid', padding: config.space.S100 }}>
             {menu}
           </Menu>
         </FocusTrap>
@@ -66,16 +80,13 @@ function ChipMenuItem({ onClick, children }: { onClick: () => void; children: Re
   );
 }
 
+type ServerChipProps = { server: string };
+
 /** The user's homeserver, with actions to copy it or open it in the browser. */
-
-
-
+export function ServerChip({ server }: ServerChipProps) {
+  const { t } = useTranslation();
+  const { anchor, openMenu, close } = useMenuAnchor();
   const [copied, showCopied] = useCopiedFeedback();
-
-  const open: MouseEventHandler<HTMLButtonElement> = (evt) => {
-    setAnchor(evt.currentTarget.getBoundingClientRect());
-  };
-  const close = () => setAnchor(undefined);
 
   const copyServer = async () => {
     close();
@@ -104,26 +115,23 @@ function ChipMenuItem({ onClick, children }: { onClick: () => void; children: Re
         radii="Pill"
         aria-pressed={!!anchor}
         before={<Icon size="50" src={copied ? Icons.Check : Icons.Server} />}
+        onClick={openMenu}
+      >
+        <Text size="B300" truncate>
+          {server}
+        </Text>
+      </Chip>
+    </ChipMenu>
+  );
+}
 
+type ShareChipProps = { userId: string };
 
-
-
-
-
-
-
-
-
-
-
-
-
+/** Copies the user's ID or matrix.to link. */
+export function ShareChip({ userId }: ShareChipProps) {
+  const { t } = useTranslation();
+  const { anchor, openMenu, close } = useMenuAnchor();
   const [copied, showCopied] = useCopiedFeedback();
-
-  const open: MouseEventHandler<HTMLButtonElement> = (evt) => {
-    setAnchor(evt.currentTarget.getBoundingClientRect());
-  };
-  const close = () => setAnchor(undefined);
 
   const copy = async (text: string) => {
     close();
@@ -150,7 +158,7 @@ function ChipMenuItem({ onClick, children }: { onClick: () => void; children: Re
         radii="Pill"
         aria-pressed={!!anchor}
         before={<Icon size="50" src={Icons.Link} />}
-        onClick={open}
+        onClick={openMenu}
       >
         <Text size="B300">{t('sharedUi.userChips.share')}</Text>
       </Chip>

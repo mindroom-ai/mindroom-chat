@@ -1,16 +1,14 @@
 /** An emoji, or the `mxc://` URL of an image. */
+export type PowerLevelTagIcon = { key: string };
 
+/**
+ * The label a room shows for members at one power level (`io.mindroom.power_level_tags`).
+ * `color` is a CSS color for the label.
+ */
+export type PowerLevelTag = { name: string; color?: string; icon?: PowerLevelTagIcon };
 
-
-
-
-
-
-
-
-
-
-
+/** Tags keyed by the power level they label. */
+export type PowerLevelTags = { [level: number]: PowerLevelTag };
 
 const readTag = (value: unknown): PowerLevelTag | undefined => {
   if (!value || typeof value !== 'object') return undefined;

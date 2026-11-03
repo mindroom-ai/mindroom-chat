@@ -4,21 +4,22 @@ import { logger } from 'matrix-js-sdk/lib/logger';
 
 const EMPTY_MEMBERS: RoomMember[] = [];
 
+const knownMembers = (client: MatrixClient, roomId: string): RoomMember[] =>
+  client.getRoom(roomId)?.getMembers() ?? EMPTY_MEMBERS;
+
 /**
  * The members of a room, following membership, name and power changes. Starts with the members
  * the client already knows and loads the full list in the background (lazy-loaded rooms).
  */
-
-
-    () => mx.getRoom(roomId)?.getMembers() ?? EMPTY_MEMBERS
-  );
+export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] => {
+  const [members, setMembers] = useState(() => knownMembers(mx, roomId));
 
   useEffect(() => {
     let disposed = false;
     const room = mx.getRoom(roomId);
     const refresh = () => {
       if (disposed) return;
-      setMembers(mx.getRoom(roomId)?.getMembers() ?? EMPTY_MEMBERS);
+      setMembers(knownMembers(mx, roomId));
     };
     const handleMemberEvent = (event: MatrixEvent | undefined, member?: RoomMember) => {
       const eventRoomId = event?.getRoomId() ?? member?.roomId;

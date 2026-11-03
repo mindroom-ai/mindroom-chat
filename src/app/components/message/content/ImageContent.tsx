@@ -112,6 +112,15 @@ type ImageContentProps = {
   renderViewer: (props: RenderImageViewerProps) => ReactNode;
 };
 
+/** A layer over the whole image box that centres what it holds, such as a button or spinner. */
+function CenteredLayer({ children }: { children: ReactNode }) {
+  return (
+    <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+      {children}
+    </Box>
+  );
+}
+
 /**
  * An `m.image` attachment: loads the image (right away, or on "View" without `autoPlay`), keeps
  * a spoiler blurred until it is revealed, and opens the full viewer on click or Enter.
@@ -188,6 +197,13 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
+    const caption = { alt: body, title: body };
+    const showViewer = () => setViewerOpen(true);
+    const showViewerOnEnter = (evt: React.KeyboardEvent<HTMLElement>) => {
+      if (evt.key !== 'Enter') return;
+      evt.preventDefault();
+      showViewer();
+    };
 
     return (
       <Box
@@ -220,44 +236,39 @@ export const ImageContent = as<'div', ImageContentProps>(
         )}
         {src && (
           <Box className={classNames(css.AbsoluteContainer, !spoilerRevealed && css.Blur)}>
-
-
-
-
-
-              onClick: () => setViewerOpen(true),
-              onKeyDown: (evt) => {
-                if (evt.key !== 'Enter') return;
-                evt.preventDefault();
-                setViewerOpen(true);
-              },
+            {renderImage({
+              src,
+              ...caption,
+              tabIndex: 0,
+              onClick: showViewer,
+              onKeyDown: showViewerOnEnter,
               onLoad: () => setLoaded(true),
               onError: () => setFailed(true),
             })}
           </Box>
         )}
         {!spoilerRevealed && src && (
-          <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+          <CenteredLayer>
             <Chip variant="Secondary" radii="Pill" onClick={() => setSpoilerRevealed(true)}>
               <Text size="B300">{t('sharedUi.imageContent.spoiler')}</Text>
             </Chip>
-          </Box>
+          </CenteredLayer>
         )}
         {srcState.status === AsyncStatus.Idle && !autoPlay && (
-          <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+          <CenteredLayer>
             <Button variant="Secondary" fill="Solid" radii="300" size="300" onClick={load}>
               <Text size="B300">{t('sharedUi.imageContent.view')}</Text>
             </Button>
-          </Box>
+          </CenteredLayer>
         )}
         {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
           (spoilerRevealed || !src) && (
-            <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+            <CenteredLayer>
               <Spinner variant="Secondary" size="400" />
-            </Box>
+            </CenteredLayer>
           )}
-
-
+        {(failed || srcState.status === AsyncStatus.Error) && (
+          <CenteredLayer>
             <Button
               variant="Critical"
               fill="Soft"
@@ -272,7 +283,7 @@ export const ImageContent = as<'div', ImageContentProps>(
             >
               <Text size="B300">{t('sharedUi.imageContent.retry')}</Text>
             </Button>
-          </Box>
+          </CenteredLayer>
         )}
       </Box>
     );

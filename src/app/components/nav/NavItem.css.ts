@@ -10,16 +10,21 @@ const variant = (name: 'Background' | 'Surface' | 'SurfaceVariant' | 'Primary' |
   },
 });
 
+// A flex box that centres its children on the cross axis.
+const centeredFlex = { display: 'flex', alignItems: 'center' } as const;
+
+// Flex box that also takes the space left in its row; `minWidth: 0` lets long text shrink it.
+const fillingFlex = { ...centeredFlex, flexGrow: 1, minWidth: 0 } as const;
+
 // A sidebar row. Its action (NavButton or NavLink) fills it; NavItemOptions sit at its end.
-
-
-
-
-
-
-
-
-      width: '100%',
+export const NavItem = recipe({
+  base: [
+    DefaultReset,
+    centeredFlex,
+    {
+      position: 'relative',
+      minBlockSize: toRem(36),
+      inlineSize: '100%',
       color: 'var(--nav-item-on)',
       outline: 'none',
       selectors: {
@@ -55,12 +60,9 @@ const variant = (name: 'Background' | 'Surface' | 'SurfaceVariant' | 'Primary' |
 
 export const NavAction = style([
   DefaultReset,
+  fillingFlex,
   {
-    display: 'flex',
-
-
-
-
+    color: 'inherit',
     textDecoration: 'none',
     background: 'none',
     border: 'none',
@@ -79,34 +81,27 @@ export const NavAction = style([
 
 export const NavItemContent = style([
   DefaultReset,
+  fillingFlex,
   {
-    display: 'flex',
-
-
-
-
-
+    gap: config.space.S200,
+    minBlockSize: toRem(36),
     paddingInline: config.space.S200,
   },
 ]);
 
-
-
-
-
-
-  paddingInlineEnd: config.space.S100,
-});
+export const NavItemOptions = style([
+  centeredFlex,
+  { flexShrink: 0, gap: config.space.S100, paddingInlineEnd: config.space.S100 },
+]);
 
 export const NavCategory = style([DefaultReset, { position: 'relative' }]);
 
 // An empty list's message stands in the middle of the space the list would fill.
 const centeredColumn = {
-  display: 'flex',
-
-
-
-
+  ...centeredFlex,
+  flexGrow: 1,
+  flexFlow: 'column',
+  justifyContent: 'center',
 } as const;
 
 export const NavEmptyCenter = style(centeredColumn);

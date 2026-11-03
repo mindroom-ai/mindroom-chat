@@ -14,6 +14,9 @@ export type RenderVideoProps = {
   controls: boolean;
 };
 
+/** Draws the player once the video is loaded. */
+type RenderVideo = (props: RenderVideoProps) => ReactNode;
+
 type VideoContentProps = {
   body: string;
   mimeType: string;
@@ -23,10 +26,10 @@ type VideoContentProps = {
   encInfo?: EncryptedAttachmentInfo;
   owner?: EventAttachmentOwner;
   /** Load the video right away instead of on a click. */
-
-
-
-
+  autoPlay?: boolean;
+  /** Shown behind the Watch button and the spinner until the video is ready. */
+  renderThumbnail?: () => ReactNode;
+  renderVideo: RenderVideo;
 };
 
 /** An `m.video` attachment: a thumbnail until the video is loaded, then the player. */

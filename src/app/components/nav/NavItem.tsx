@@ -59,17 +59,12 @@ export const NavEmptyCenter = as<'div'>(({ as: Center = 'div', className, ...res
   <Center {...rest} ref={ref} className={classNames(css.NavEmptyCenter, className)} />
 ));
 
+/** Every part is optional; `options` holds the actions under the text, such as "Create Room". */
+type EmptySlots = Partial<Record<'icon' | 'title' | 'content' | 'options', ReactNode>>;
 
-
-
-
-
-
-
-
-
-
-
+/** What a sidebar list shows while it has nothing in it. */
+export function NavEmptyLayout({ icon, title, content, options }: EmptySlots) {
+  return (
     <div className={css.NavEmptyLayout}>
       {icon}
       {(title || content) && (

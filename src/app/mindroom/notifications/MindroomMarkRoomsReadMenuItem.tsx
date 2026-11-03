@@ -2,10 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
-import { markRoomAndThreadsAsRead } from './readReceipts';
+import { useMarkRoomsRead } from './useMarkRoomsRead';
 
 /**
  * "Mark all as read" in a list's menu (Home, a space): reads every listed room with its threads.
@@ -16,12 +13,10 @@ export function MindroomMarkRoomsReadMenuItem({
   onClose,
 }: {
   roomIds: readonly string[];
-
-
-
-
-
-
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const markRead = useMarkRoomsRead();
   const empty = roomIds.length === 0;
 
   return (
@@ -32,9 +27,7 @@ export function MindroomMarkRoomsReadMenuItem({
       aria-disabled={empty || undefined}
       onClick={() => {
         if (empty) return;
-        roomIds.forEach((roomId) => {
-          markRoomAndThreadsAsRead(mx, roomId, hideActivity);
-        });
+        markRead(roomIds);
         onClose();
       }}
     >
