@@ -157,3 +157,14 @@ describe('DeviceVerificationSetup unsupported auth flow', () => {
     expectSetupStopped(renderer);
   });
 });
+
+describe('DeviceVerificationSetup passphrase field', () => {
+  it('asks password managers for a new secret, not the account password', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<DeviceVerificationSetup onCancel={vi.fn()} />);
+    });
+
+    expect(renderer.root.findByType('input').props.autoComplete).toBe('new-password');
+  });
+});

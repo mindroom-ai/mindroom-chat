@@ -6,11 +6,15 @@ import { Chip, Header, IconButton } from '../glass/GlassPrimitives';
 import { saveFile } from '../../mindroom/native/nativeFileSave';
 import * as css from './PdfViewer.css';
 
+export type PdfViewerProps = {
+  name: string;
+  /** Object URL (`blob:`) of the PDF. Any other URL is neither shown nor saved. */
+  src: string;
+  requestClose: () => void;
+};
 
-
-
-
-
+// The frame is not sandboxed (browsers do not run their PDF viewer in one), so only local
+// object URLs reach it: never a `javascript:` URL or a server response that could be HTML.
 
 
 
@@ -19,9 +23,10 @@ import * as css from './PdfViewer.css';
 
     const [saving, setSaving] = useState(false);
     const [saveFailed, setSaveFailed] = useState(false);
+    const allowed = isBlobUrl(src);
 
     const handleDownload = async () => {
-      if (saving) return;
+      if (saving || !allowed) return;
       setSaving(true);
       try {
         await saveFile(src, name);
@@ -37,23 +42,23 @@ import * as css from './PdfViewer.css';
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            <IconButton
+              size="300"
+              radii="300"
+              onClick={requestClose}
+              aria-label={t('sharedUi.pdfViewer.close')}
+            >
+              <Icon size="50" src={Icons.ArrowLeft} />
+            </IconButton>
+            <Text size="T300" truncate>
+              {name}
+            </Text>
+          </Box>
+          <Box shrink="No" alignItems="Center" gap="200">
+            <Chip
+              variant={saveFailed ? 'Critical' : 'Primary'}
+              radii="300"
+              disabled={saving || !allowed}
               onClick={() => {
                 handleDownload().catch(() => undefined);
               }}
@@ -68,11 +73,13 @@ import * as css from './PdfViewer.css';
           </Box>
         </Header>
         <Box grow="Yes" className={css.PdfViewerContent}>
-          <iframe
-            title={name}
-            src={src}
-            style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
-          />
+          {allowed && (
+            <iframe
+              title={name}
+              src={src}
+              style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
+            />
+          )}
         </Box>
       </Box>
     );

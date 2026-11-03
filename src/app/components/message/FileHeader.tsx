@@ -1,10 +1,9 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Icon, IconButton, Icons, Spinner } from 'folds';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
-import { saveFile } from '../../mindroom/native/nativeFileSave';
-import { useAttachmentAction } from './attachmentDownload';
+import { useAttachmentSave } from './attachmentDownload';
 
 type FileDownloadButtonProps = {
   filename: string;
@@ -23,8 +22,7 @@ export function FileDownloadButton({
   owner,
 }: FileDownloadButtonProps) {
   const { t } = useTranslation();
-  const save = useCallback((blob: Blob) => saveFile(blob, filename), [filename]);
-  const [status, download] = useAttachmentAction({ owner, url, mimeType, encInfo }, save);
+  const [status, download] = useAttachmentSave({ owner, url, mimeType, encInfo }, filename);
 
   return (
     <IconButton

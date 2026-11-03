@@ -16,12 +16,11 @@ import {
 } from 'folds';
 import { Modal } from '../../glass/GlassPrimitives';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
-import { saveFile } from '../../../mindroom/native/nativeFileSave';
 import { bytesToSize } from '../../../utils/common';
 import { getFileNameExt, getMimeTypeBase } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
 import type { IFileInfo } from '../../../../types/matrix/common';
-import { useAttachmentAction } from '../attachmentDownload';
+import { useAttachmentAction, useAttachmentSave } from '../attachmentDownload';
 
 const TEXT_MIME_TYPES = new Set([
   'application/json',
@@ -226,141 +225,137 @@ function ViewerOverlay({
 
 
 
-        errorLabel={t('sharedUi.fileContent.loadFailed')}
-        iconLabel={t('sharedUi.fileContent.openValue1', { value1: body })}
-        iconErrorLabel={t('sharedUi.fileContent.loadFailed')}
-        onClick={open}
-        {...buttonOptions}
-      />
-      {text !== undefined && (
-        <ViewerOverlay requestClose={() => setText(undefined)}>
-          {renderViewer({
-            name: body,
-            text,
-            langName: getFileLanguageName(body, mimeType),
-            requestClose: () => setText(undefined),
-          })}
-        </ViewerOverlay>
-      )}
-    </>
-  );
-}
 
-export type PdfViewerRenderProps = {
-  name: string;
-  src: string;
-  requestClose: () => void;
-};
 
-type ReadPdfFileProps = AttachmentProps &
-  ButtonOptions & {
-    iconOnly?: boolean;
-    renderViewer: (props: PdfViewerRenderProps) => ReactNode;
-  };
 
-/** Opens a PDF attachment in a viewer dialog. */
-export function ReadPdfFile({
-  owner,
-  body,
-  mimeType,
-  url,
-  encInfo,
-  iconOnly,
-  renderViewer,
-  ...buttonOptions
-}: ReadPdfFileProps) {
-  const { t } = useTranslation();
-  const [src, setSrc] = useState<string>();
-  const toUrl = useCallback(
-    async (blob: Blob) => URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })),
-    []
-  );
-  const [status, load] = useAttachmentAction({ owner, url, mimeType, encInfo }, toUrl);
 
-  useEffect(
-    () => () => {
-      if (src) URL.revokeObjectURL(src);
-    },
-    [src]
-  );
 
-  const open = () => {
-    load().then(
-      (objectUrl) => {
-        if (objectUrl) setSrc(objectUrl);
-      },
-      () => undefined
-    );
-  };
 
-  return (
-    <>
-      <AttachmentActionTrigger
-        status={status}
-        iconOnly={iconOnly}
-        label={t('sharedUi.fileContent.openPdf')}
-        errorLabel={t('sharedUi.fileContent.loadFailed')}
-        iconLabel={t('sharedUi.fileContent.openValue1', { value1: body })}
-        iconErrorLabel={t('sharedUi.fileContent.loadFailed')}
-        onClick={open}
-        {...buttonOptions}
-      />
-      {src && (
-        <ViewerOverlay requestClose={() => setSrc(undefined)}>
-          {renderViewer({ name: body, src, requestClose: () => setSrc(undefined) })}
-        </ViewerOverlay>
-      )}
-    </>
-  );
-}
 
-type DownloadFileProps = AttachmentProps &
-  ButtonOptions & {
-    info?: IFileInfo;
-  };
 
-/** Saves an attachment, with its size on the button. */
-export function DownloadFile({
-  owner,
-  body,
-  mimeType,
-  url,
-  encInfo,
-  info,
-  buttonText,
-  errorButtonText,
-  buttonSize = '400',
-}: DownloadFileProps) {
-  const { t } = useTranslation();
-  const save = useCallback((blob: Blob) => saveFile(blob, body), [body]);
-  const [status, download] = useAttachmentAction({ owner, url, mimeType, encInfo }, save);
-  const size = bytesToSize(info?.size ?? 0);
-  const failed = status === 'error';
 
-  return (
-    <Button
-      size={buttonSize}
-      radii="300"
-      variant={failed ? 'Critical' : 'Secondary'}
-      fill="Soft"
-      disabled={status === 'loading'}
-      before={
-        status === 'loading' ? (
-          <Spinner size="100" variant="Secondary" />
-        ) : (
-          <Icon size="100" src={failed ? Icons.Warning : Icons.Download} />
-        )
-      }
-      onClick={() => {
-        download().catch(() => undefined);
-      }}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     >
       <Text size="B300">
         {failed
           ? errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size })
-          : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
-      </Text>
-    </Button>
 
 
 
@@ -369,7 +364,10 @@ export function DownloadFile({
 
 
 
-  /** Trailing actions, usually the download button. */
+
+
+
+
   children?: ReactNode;
 };
 

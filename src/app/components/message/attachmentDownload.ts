@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
 import { downloadCachedAttachment } from '../../mindroom/messages/attachmentRepository';
+import { saveFile } from '../../mindroom/native/nativeFileSave';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 export type AttachmentSource = {
@@ -72,4 +73,20 @@ export const useAttachmentAction = <T>(
   }, [action, key, mx]);
 
   return [status, run];
+};
+
+/**
+ * Type of every saved attachment. The sender declares the real type, so a save never keeps it:
+ * a browser that opens a save instead of downloading it (FileSaver's fallback) then cannot
+ * render HTML or SVG from this origin.
+ */
+export const DOWNLOAD_MIME_TYPE = 'application/octet-stream';
+
+/** Saves an attachment as `fileName`, with the bytes typed as {@link DOWNLOAD_MIME_TYPE}. */
+export const useAttachmentSave = (
+  source: AttachmentSource,
+  fileName: string
+): [AttachmentActionStatus, () => Promise<boolean | undefined>] => {
+  const save = useCallback((blob: Blob) => saveFile(blob, fileName), [fileName]);
+  return useAttachmentAction({ ...source, mimeType: DOWNLOAD_MIME_TYPE }, save);
 };
