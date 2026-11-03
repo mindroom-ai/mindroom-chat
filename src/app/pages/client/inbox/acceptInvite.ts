@@ -4,8 +4,8 @@ import { addRoomIdToMDirect, guessDmRoomUserId, rateLimitedActions } from '../..
 import { Membership } from '../../../../types/matrix/room';
 
 export const acceptInvite = async (mx: MatrixClient, room: Room): Promise<void> => {
-  const userId = mx.getSafeUserId();
-  // Read is_direct and the DM partner before joining; the join replaces our invite member event.
+
+
 
 
 

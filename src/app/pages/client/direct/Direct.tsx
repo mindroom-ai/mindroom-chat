@@ -74,7 +74,8 @@ const byLatestActivity = (a: Room, b: Room): number =>
 
 
 
-
+  // On a phone, opening the list keeps the remembered conversation for the next visit.
+  useNavToActivePathMapper('direct', true);
 
 
 

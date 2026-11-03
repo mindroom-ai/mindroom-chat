@@ -15,8 +15,9 @@ import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
-export const getStateEvent = (
-  room: Room,
+
+
+
 
 
 
@@ -265,7 +266,10 @@ export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent): boolean => 
 
 const MINDROOM_TOOL_APPROVAL_EVENT = 'io.mindroom.tool_approval';
 
-const UNREAD_EVENT_TYPES = new Set<string>([
+// Event types that carry a message, sorted by type (Matrix Client-Server API modules: End-to-End
+// Encryption for m.room.encrypted, Instant Messaging for m.room.message, Stickers for m.sticker),
+// plus MindRoom's tool approval requests.
+const UNREAD_EVENT_TYPES: ReadonlySet<string> = new Set<string>([
 
 
 
@@ -285,7 +289,7 @@ const isUnreadWorthy = (mEvent: MatrixEvent): boolean =>
  * Whether the room has a message we have not read: walking back from the newest event, a
  * message by someone else before our read position or our own last message.
  */
-
+export const roomHaveUnread = (mx: MatrixClient, room: Room): boolean => {
 
 
 
@@ -313,9 +317,9 @@ export const getUnreadInfo = (room: Room) => ({
 export const decryptAllTimelineEvent = async (
   mx: MatrixClient,
   timeline: EventTimeline
-
-
-
+): Promise<void> => {
+  // Without a crypto backend there is nothing to decrypt with.
+  if (!mx.getCrypto()) return;
   await Promise.all(
     timeline
       .getEvents()

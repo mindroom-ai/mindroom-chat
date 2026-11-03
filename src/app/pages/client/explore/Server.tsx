@@ -31,8 +31,8 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
 
 
 
-
-
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const useAuthentication = useMediaAuthentication();
   const { server: encodedServer } = useParams();
   const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -121,9 +121,9 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
                         key={room.room_id}
                         roomIdOrAlias={room.canonical_alias ?? room.room_id}
                         roomId={room.room_id}
-
-
-
+                        name={room.name}
+                        avatarUrl={avatarUrl}
+                        allRooms={joinedRoomIds}
                         topic={room.topic}
                         memberCount={room.num_joined_members}
                         roomType={room.room_type}

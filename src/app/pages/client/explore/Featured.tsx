@@ -24,8 +24,8 @@ import { mxcUrlToHttp } from '../../../utils/mediaUrl';
 import { renderTopicText } from './exploreRoomCard';
 
 function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: boolean }) {
-
-
+  const { navigateSpace, navigateRoom } = useRoomNavigate();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
 
 
 
@@ -45,7 +45,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
 
 
 
-
+            allRooms={joinedRoomIds}
             joinRule={
               summary ? (summary.join_rule as JoinRule | undefined) ?? JoinRule.Public : undefined
             }

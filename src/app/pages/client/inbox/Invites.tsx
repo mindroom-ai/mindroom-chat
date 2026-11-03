@@ -44,6 +44,7 @@ const BAD_WORDS_REGEX = new RegExp(
   'iu'
 );
 
+/** One pending invite, read from the stripped state the server sent with it. */
 
 
 
@@ -51,6 +52,9 @@ const BAD_WORDS_REGEX = new RegExp(
 
 
 
+
+
+  /** The inviter's user ID. */
   senderId?: string;
   /** The inviter's display name as they set it, for checks. */
   senderDisplayName?: string;
@@ -105,6 +109,7 @@ export const hasBadWords = (invite: InviteData): boolean =>
 
 
 
+
   onNavigate: (roomId: string, isSpace: boolean) => void;
   hideAvatar: boolean;
   /** Whether media needs an access token (authenticated media). */
@@ -113,10 +118,10 @@ export const hasBadWords = (invite: InviteData): boolean =>
 
 export function InviteCard({
   invite,
-
-
-
-
+  onNavigate,
+  dateFormatString,
+  hour24Clock,
+  hideAvatar,
   useAuthentication = false,
 
 
@@ -148,18 +153,18 @@ export function InviteCard({
   const busy = state === 'joining' || state === 'leaving';
   const time = invite.inviteTs
     ? dayjs(invite.inviteTs).format(`${dateFormatString} ${hour24Clock ? 'HH:mm' : 'hh:mm A'}`)
+    : undefined;
 
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <SequenceCard
+      direction="Column"
+      gap="200"
+      variant="SurfaceVariant"
+      style={{ padding: config.space.S400 }}
+    >
+      <Box alignItems="Center" gap="300">
+        <Avatar size="300" radii={invite.isSpace ? '300' : 'Pill'}>
+          <RoomAvatar
 
 
 
@@ -226,7 +231,7 @@ export function InviteCard({
   );
 }
 
-/** Pending invites; suspicious ones collapse behind their own heading. */
+/** Pending invites. One that looks like spam shows no avatar and is left out of Accept All. */
 
 
 
@@ -284,8 +289,8 @@ export function InviteCard({
 
 
 
-
-
+          dateFormatString={dateFormatString}
+          hour24Clock={hour24Clock}
           hideAvatar={hasBadWords(invite)}
           useAuthentication={useAuthentication}
         />

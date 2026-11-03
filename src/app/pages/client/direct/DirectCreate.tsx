@@ -48,11 +48,9 @@ const findDirectRoom = (
     const target = event.target as HTMLFormElement & { userIdInput: HTMLInputElement };
     const userId = target.userIdInput.value.trim();
     setFailed(false);
-
-
-
-
-
+    const valid = isUserId(userId);
+    setInvalid(!valid);
+    if (!valid) return;
     const existing = findDirectRoom(mx, userId);
     if (existing) {
       navigate(getDirectRoomPath(existing));
@@ -61,6 +59,7 @@ const findDirectRoom = (
     setCreating(true);
     try {
       const { room_id: roomId } = await mx.createRoom({
+
 
 
 
@@ -86,13 +85,15 @@ const findDirectRoom = (
 
   if (existingRoomId) return null;
 
-
-
-
-
-
-
-
+  const userIdField = (
+    <Box direction="Column" gap="100">
+      <Text as="label" htmlFor="direct-create-user-id" size="L400">
+        {t('featureUi.createChat.userId')}
+      </Text>
+      <Input
+        id="direct-create-user-id"
+        name="userIdInput"
+        onChange={() => setInvalid(false)}
         placeholder="@user:server"
         defaultValue={requestedUserId}
         disabled={creating}
@@ -152,15 +153,15 @@ const findDirectRoom = (
             {t('featureUi.createChat.failed')}
           </Text>
         )}
-
-
-
-
-
-
-
-
-
+        <Button
+          type="submit"
+          variant="Primary"
+          size="500"
+          radii="400"
+          disabled={creating}
+          before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
+        >
+          <Text size="B500">{t('featureUi.createChat.create')}</Text>
         </Button>
       </Box>
     </Box>

@@ -48,6 +48,12 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
     );
   };
 
+  const unreadBadge = unread ? (
+    <SidebarItemBadge hasCount={unread.total > 0}>
+      <UnreadBadge count={unread.total} highlight={unread.highlight > 0} />
+    </SidebarItemBadge>
+  ) : null;
+
   return (
     <SidebarItem active={selected}>
       <SidebarItemTooltip tooltip={space.name}>
@@ -64,17 +70,13 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+              renderFallback={() => <Text size="H4">{nameInitials(space.name, 2)}</Text>}
+            />
+          </SidebarAvatar>
+        )}
+      </SidebarItemTooltip>
+      {unreadBadge}
+      <SidebarContextMenu anchor={menuAnchor} onClose={() => setMenuAnchor(undefined)}>
         <MindroomMarkRoomsReadMenuItem
           roomIds={spaceRooms}
           onClose={() => setMenuAnchor(undefined)}

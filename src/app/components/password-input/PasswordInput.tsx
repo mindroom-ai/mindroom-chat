@@ -13,9 +13,9 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
     return (
       <Input
         {...props}
-
-
-
+        ref={ref}
+        type={visible ? 'text' : 'password'}
+        size={size}
         autoComplete={props.autoComplete ?? 'current-password'}
         after={
           <IconButton

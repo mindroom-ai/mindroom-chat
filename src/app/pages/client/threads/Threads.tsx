@@ -21,13 +21,13 @@ export function Threads() {
 
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
   const filtersAtom = useMemo(() => makeCrossRoomThreadFiltersAtom(userId), [userId]);
+  const [filters, setFilters] = useAtom(filtersAtom);
 
-
-
-
-
-
-
+  return (
+    <Page>
+      <PageHeader balance>
+        <Box alignItems="Center" justifyContent="Center" grow="Yes" gap="200">
+          <Icon src={Icons.Thread} size="400" />
           <Text size="H4" truncate>
             {t('nav.threads')}
           </Text>

@@ -149,7 +149,8 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
 
 
 
-
+  // On a phone, opening the list keeps the remembered room for the next visit.
+  useNavToActivePathMapper('home', true);
   const homeRooms = useVisibleRooms(useHomeRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
@@ -161,21 +162,20 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
   const closedCategoriesAtom = useClosedNavCategoriesAtom();
   const [closedCategories, setClosedCategories] = useAtom(closedCategoriesAtom);
   const roomsClosed = closedCategories.has(roomsCategoryId);
+  const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
+  const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
-
-
-
-
+  const sortedRooms = useMemo(() => {
     const items = sortRooms(mx, homeRooms);
     if (!roomsClosed) return items;
     // A collapsed category still shows the selected room.
     return items.filter((roomId) => roomId === selectedRoomId);
+  }, [mx, homeRooms, roomsClosed, selectedRoomId]);
 
 
 
 
-
-
+    estimateSize: () => ROOM_ROW_HEIGHT,
     overscan: 10,
   });
 
@@ -256,21 +256,21 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
                   return (
                     <VirtualTile
                       key={item.index}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                      virtualItem={item}
+                      ref={virtualizer.measureElement}
+                    >
+                      <RoomNavItem
+                        room={room}
+                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
+                        selected={roomId === selectedRoomId}
+                        notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
+                      />
+                    </VirtualTile>
+                  );
+                })}
+              </div>
+            </NavCategory>
+            <ThreadNavCategory />
           </Box>
         </PageNavContent>
       )}

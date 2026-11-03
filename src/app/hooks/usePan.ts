@@ -7,17 +7,16 @@ type Pan = {
 
 type Point = { x: number; y: number };
 
+/** Where a pan starts and where it returns when panning turns off. */
+const INITIAL_PAN: Pan = { translateX: 0, translateY: 0 };
 
-
-
-
-
-
-
-
-
-
-
+/**
+ * Drag-to-pan for a zoomed element. One pointer pans; a second one (a pinch) suspends panning
+ * until a single pointer is left. Turning `active` off recenters the element.
+ */
+export const usePan = (active: boolean) => {
+  const [isPanning, setIsPanning] = useState(false);
+  const [pan, setPan] = useState<Pan>(INITIAL_PAN);
   const pointersRef = useRef(new Map<number, Point>());
   const activeRef = useRef(active);
   activeRef.current = active;

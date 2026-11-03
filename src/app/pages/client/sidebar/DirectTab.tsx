@@ -47,6 +47,13 @@ export function DirectTab({ onSelect }: DirectTabProps) {
     navigate(lastPath ? joinPathComponent(lastPath) : getDirectPath());
   };
 
+  // Direct messages are personal, so any unread one stands out like a mention.
+  const unreadBadge = unread ? (
+    <SidebarItemBadge hasCount={unread.total > 0}>
+      <UnreadBadge dm count={unread.total} highlight={unread.highlight > 0} />
+    </SidebarItemBadge>
+  ) : null;
+
   return (
     <SidebarItem active={selected}>
       <SidebarItemTooltip tooltip={t('nav.directMessages')}>
@@ -59,18 +66,14 @@ export function DirectTab({ onSelect }: DirectTabProps) {
             onClick={handleClick}
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
-
-
-
-
-
-
-
-
-
-
-
-
+            <Icon filled={selected} src={Icons.User} />
+          </SidebarAvatar>
+        )}
+      </SidebarItemTooltip>
+      {unreadBadge}
+      <SidebarContextMenu anchor={menuAnchor} onClose={() => setMenuAnchor(undefined)}>
+        <MindroomMarkRoomsReadMenuItem
+          roomIds={directRoomIds}
           onClose={() => setMenuAnchor(undefined)}
         />
       </SidebarContextMenu>

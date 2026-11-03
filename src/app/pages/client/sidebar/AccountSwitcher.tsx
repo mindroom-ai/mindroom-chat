@@ -3,6 +3,7 @@ import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { StoredSession } from '../../../state/sessions';
 import { UserAvatar } from '../../../components/user-avatar';
+import { nameInitials } from '../../../utils/common';
 
 export type AccountSwitcherAccount = {
   session: StoredSession;
@@ -47,16 +48,16 @@ function AccountRow({
       gap="200"
       style={{ padding: config.space.S300, borderRadius: config.radii.R400 }}
     >
-
-
-
-
-
-
-
-
-
-
+      <Box gap="300" alignItems="Center">
+        <Avatar size="300" radii="Pill">
+          <UserAvatar
+            userId={session.userId}
+            alt={name}
+            src={avatarUrl}
+            renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+          />
+        </Avatar>
+        <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
           <Text size="T300" truncate>
             {name}
           </Text>
@@ -87,15 +88,15 @@ function AccountRow({
                 <Text size="B300">{t('accountSwitcher.switch')}</Text>
               )}
             </Button>
-
-
-
-
-
-
-
-
-
+            <Button
+              size="300"
+              variant="Critical"
+              fill="None"
+              radii="300"
+              disabled={busy}
+              onClick={() => onRemoveAccount(session)}
+            >
+              <Text size="B300">{t('accountSwitcher.removeFromDevice')}</Text>
             </Button>
           </>
         )}

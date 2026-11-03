@@ -33,6 +33,7 @@ type RoomPermissionsAPI = {
   };
 };
 
+/** Memoized {@link getRoomPermissionsAPI} for a component. */
 
 
 

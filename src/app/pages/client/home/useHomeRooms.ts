@@ -37,13 +37,19 @@ export const getHomeSearchRooms = (
   roomToParents: RoomToParents
 ): string[] => roomIds.filter((roomId) => isHomeRoom(mx, roomId, directs, roomToParents));
 
+/** What both Home room lists are computed from: the joined rooms and how they are grouped. */
+const useHomeRoomSources = () => {
+
+
+
+
+  return { mx, rooms, directs, roomToParents };
+};
+
 /** Room IDs shown under Rooms on Home. */
 export const useHomeRooms = (): string[] => {
-
-
-
-
-
+  const { mx, rooms, directs, roomToParents } = useHomeRoomSources();
+  return useMemo(
     () => getHomeSearchRooms(mx, rooms, directs, roomToParents),
     [mx, rooms, directs, roomToParents]
   );
@@ -51,10 +57,7 @@ export const useHomeRooms = (): string[] => {
 
 /** Room IDs message search covers from Home: every Home room, including those the SDK knows but the list has not bound yet. */
 export const useHomeSearchRooms = (): string[] => {
-
-
-
-
+  const { mx, rooms, directs, roomToParents } = useHomeRoomSources();
   return useMemo(() => {
     const sdkRooms = mx.getRooms().map((room) => room.roomId);
     return getHomeSearchRooms(

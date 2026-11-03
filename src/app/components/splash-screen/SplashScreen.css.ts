@@ -37,8 +37,9 @@ export const SplashScreenContent = style({
 
 
 
-
-
+  position: 'relative',
+  paddingInline: config.space.S400,
+  paddingTop: config.space.S400,
   paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
   opacity: config.opacity.P300,
 });

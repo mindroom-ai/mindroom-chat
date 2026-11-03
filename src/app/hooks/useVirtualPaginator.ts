@@ -18,6 +18,7 @@ type ScrollToOptions = {
   stopInView?: boolean;
 };
 
+/** Jumping to an item takes the same options as scrolling to an element. */
 
 
 
@@ -51,10 +52,12 @@ export type RetryPaginationOptions = {
   deferAutomaticPagination?: (retry: () => boolean) => boolean;
 };
 
+export type VirtualPaginator = {
+  /** Indices of the items in the current window, in order. */
 
 
 
-
+  /** Paginates again towards a sentinel that is still in view. */
   retryPagination: (opts?: RetryPaginationOptions) => void;
   /** Ref callbacks for the sentinels before the first and after the last item. */
   observeBackAnchor: (element: HTMLElement | null) => void;
@@ -407,19 +410,19 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     return items;
   }, [range.start, range.end, count]);
 
-
-
-
-
-
+  return useMemo(
+    () => ({
+      getItems,
+      scrollToElement,
+      scrollToItem,
       retryPagination,
-
-
-
-
-
-
-
+      observeBackAnchor,
+      observeFrontAnchor,
+    }),
+    [
+      getItems,
+      scrollToElement,
+      scrollToItem,
       retryPagination,
       observeBackAnchor,
       observeFrontAnchor,

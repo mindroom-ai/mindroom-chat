@@ -82,10 +82,10 @@ const errorMessage = (error: unknown): string | undefined =>
  * answers, and a stale request result never undoes what sync reported later.
  */
 function RoomAccessSession({
-
-
-
-
+  roomName,
+  roomIdOrAlias,
+  roomId,
+  joinRule,
   membership: summaryMembership,
   viaServers,
   fallback,

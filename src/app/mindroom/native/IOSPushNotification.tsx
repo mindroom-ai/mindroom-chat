@@ -88,27 +88,28 @@ function IOSPushNotificationTile() {
     );
   }
 
+  const failed = toggleState.status === AsyncStatus.Error;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <SequenceCard
+      className={SequenceCardStyle}
+      variant="SurfaceVariant"
+      direction="Column"
+      gap="400"
+    >
+      <SettingTile
+        title={t('mindroomUi.native.iOSPushNotification.iosPushNotifications')}
+        description={
+          // The tile wraps this in a paragraph, so only inline elements go inside.
+          <Box as="span" direction="Column" gap="100">
+            <span>
+              {t(
+                'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
+              )}
+            </span>
+            <span>{status}</span>
+            {failed && (
+              <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
                 {t('mindroomUi.native.iOSPushNotification.failedToUpdateNativePushSettings')}
               </Text>
             )}

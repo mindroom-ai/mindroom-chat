@@ -31,9 +31,9 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
             escapeDeactivates: stopPropagation,
           }}
         >
-
-
-
+          <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
+            <Box style={{ padding: config.space.S100 }} direction="Column" gap="100">
+              {children}
             </Box>
           </Menu>
         </FocusTrap>

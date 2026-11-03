@@ -6,14 +6,14 @@ export const Bar = style([
   DefaultReset,
   glassSurface({ level: 'panel', variant: 'Surface' }),
   {
+    position: 'relative',
 
 
 
 
 
 
-
-
+    padding: `${config.space.S200} ${config.space.S400}`,
     borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
     background: color.Surface.Container,
   },

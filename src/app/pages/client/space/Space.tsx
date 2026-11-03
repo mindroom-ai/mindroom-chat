@@ -215,7 +215,8 @@ function SpacePageLink({
 
 
 
-
+  // On a phone, opening the list keeps the remembered room for the next visit.
+  useNavToActivePathMapper(space.roomId, true);
   const spaceRooms = useSpaceSearchRooms(space.roomId);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
@@ -251,18 +252,17 @@ function SpacePageLink({
                 {t('sharedUi.space.rooms')}
               </RoomNavCategoryButton>
             </NavCategoryHeader>
-
-
-
-
-
-
-
-
+            {sortedRooms.map((roomId) => {
+              const room = mx.getRoom(roomId);
+              return room ? (
+                <RoomNavItem
+                  key={roomId}
+                  room={room}
+                  selected={roomId === selectedRoomId}
                   linkPath={getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(mx, roomId))}
                   notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
                 />
-              );
+              ) : null;
             })}
           </NavCategory>
           <ThreadNavCategory spaceId={space.roomId} />

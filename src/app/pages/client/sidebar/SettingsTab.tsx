@@ -195,14 +195,14 @@ const useCachedActiveAvatar = (
               <UserAvatar
                 userId={userId}
                 src={avatarSrc}
-
-
-
-
-
-
-
-
+                alt={displayName}
+                renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
+              />
+            </SidebarAvatar>
+          )}
+        </SidebarItemTooltip>
+      </SidebarItem>
+      {otherSessions.map((session) => {
         const name = sessionName(session);
         const label = t('accountsRail.switchAria', { name, userId: session.userId });
         return (

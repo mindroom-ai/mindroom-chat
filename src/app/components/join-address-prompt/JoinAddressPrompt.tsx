@@ -13,6 +13,7 @@ import {
   Text,
   color,
   config,
+  toRem,
 } from 'folds';
 import { Dialog, Header, IconButton } from '../glass/GlassPrimitives';
 import { parseMatrixToRoom, parseMatrixToRoomEvent } from '../../plugins/matrix-to';
@@ -41,18 +42,22 @@ const EXAMPLE_ADDRESSES = [
 ];
 
 type JoinAddressPromptProps = {
+  /** Called with the room, its routing servers and an event, once the address parses. */
+  onOpen: (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => void;
+  onCancel: () => void;
+};
 
+const TITLE_ID = 'join-address-prompt-title';
 
-
-
-
-
+/** Dialog that opens a room from an alias, a room ID, or a matrix.to link. */
+export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [invalid, setInvalid] = useState(false);
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
     setValue(evt.target.value);
+    // Editing the address clears the error until the next submit.
 
 
 
@@ -76,6 +81,27 @@ type JoinAddressPromptProps = {
 
 
 
+          }}
+        >
+          <Dialog
+            role="dialog"
+            aria-labelledby={TITLE_ID}
+            variant="Surface"
+            style={{ width: '100%', maxWidth: toRem(440) }}
+          >
+            <Header
+              size="500"
+              style={{
+                paddingBlock: 0,
+                paddingLeft: config.space.S400,
+                paddingRight: config.space.S200,
+              }}
+            >
+              <Text id={TITLE_ID} as="h2" size="H4" style={{ flexGrow: 1 }}>
+                {t('sharedUi.joinAddressPrompt.joinWithAddress')}
+              </Text>
+              <IconButton
+                aria-label={t('sharedUi.inviteUserPrompt.close')}
 
 
 
@@ -90,23 +116,18 @@ type JoinAddressPromptProps = {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              <Box direction="Column" gap="200">
+                <Text size="T300" priority="400">
+                  {t(
+                    'sharedUi.joinAddressPrompt.enterPublicAddressToJoinTheCommunityAddressesLooksLike'
+                  )}
+                </Text>
+                <Box
+                  as="ul"
+                  direction="Column"
+                  gap="100"
+                  style={{ margin: 0, paddingLeft: config.space.S400 }}
+                >
                   {EXAMPLE_ADDRESSES.map((example) => (
                     <Text as="li" key={example} size="T200" priority="300">
                       <i>{example}</i>

@@ -48,6 +48,13 @@ export function HomeTab({ onSelect }: HomeTabProps) {
     navigate(lastPath ? joinPathComponent(lastPath) : getHomePath());
   };
 
+  const closeMenu = () => setMenuAnchor(undefined);
+  const unreadBadge = unread ? (
+    <SidebarItemBadge hasCount={unread.total > 0}>
+      <UnreadBadge count={unread.total} highlight={unread.highlight > 0} />
+    </SidebarItemBadge>
+  ) : null;
+
   return (
     <SidebarItem active={homeSelected}>
       <SidebarItemTooltip tooltip={t('nav.home')}>
@@ -60,21 +67,14 @@ export function HomeTab({ onSelect }: HomeTabProps) {
             onClick={handleClick}
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            <Icon filled={homeSelected} src={Icons.Home} />
+          </SidebarAvatar>
+        )}
+      </SidebarItemTooltip>
+      {unreadBadge}
+      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
+        <MindroomMarkRoomsReadMenuItem roomIds={homeRooms} onClose={closeMenu} />
+      </SidebarContextMenu>
+    </SidebarItem>
+  );
+}
