@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import type { IThumbnailContent } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
@@ -23,13 +23,25 @@ export function ThumbnailContent({ info, owner, renderImage }: ThumbnailContentP
   const mxcUri = encryptedFile?.url ?? info.thumbnail_url;
   const declaredType = info.thumbnail_info?.mimetype;
   const mimeType = declaredType ? getBlobSafeMimeType(declaredType) : FALLBACK_MIMETYPE;
+  // Callers rebuild the owner and file objects on each render; the load follows what they
+  // identify (the event revision and the file), not their identity.
+  const ownerRef = useRef(owner);
+  ownerRef.current = owner;
+  const fileRef = useRef(encryptedFile);
+  fileRef.current = encryptedFile;
   const ownerKey = owner ? `${owner.roomId}|${owner.eventId}|${owner.revisionTs}` : '';
+  const fileKey = encryptedFile ? `${encryptedFile.iv}|${encryptedFile.hashes?.sha256 ?? ''}` : '';
 
   useEffect(() => {
     if (!mxcUri) return undefined;
     let active = true;
     let objectUrl: string | undefined;
-    downloadCachedAttachment(mx, { owner, mxcUri, mimeType, encryptedFile }).then(
+    downloadCachedAttachment(mx, {
+      owner: ownerRef.current,
+      mxcUri,
+      mimeType,
+      encryptedFile: fileRef.current,
+    }).then(
       (blob) => {
         objectUrl = URL.createObjectURL(blob);
         if (active) setSrc(objectUrl);
@@ -42,9 +54,7 @@ export function ThumbnailContent({ info, owner, renderImage }: ThumbnailContentP
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       setSrc(undefined);
     };
-    // The owner is identified by its key; a new object for the same event changes nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mx, mxcUri, mimeType, encryptedFile, ownerKey]);
+  }, [mx, mxcUri, mimeType, fileKey, ownerKey]);
 
   return src ? renderImage(src) : null;
 }

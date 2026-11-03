@@ -1,13 +1,3 @@
-import { style } from '@vanilla-extract/css';
-import { DefaultReset } from 'folds';
-
-// Fills the folds Avatar it sits in; the fallback color comes from the room ID (inline vars).
-export const RoomAvatar = style([
-  DefaultReset,
-  {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    userSelect: 'none',
-  },
-]);
+// Room avatars fill their folds Avatar exactly like user avatars; the fallback color comes from
+// the room ID (inline vars).
+export { UserAvatar as RoomAvatar } from '../user-avatar/UserAvatar.css';
