@@ -136,9 +136,11 @@ type RoomNavItemAvatarProps = {
   /** Show a person (direct message partner) with initials, instead of the room privacy icon. */
   personAvatar: boolean;
   selected: boolean;
+  /** Read rooms show their privacy icon as faint as their name. */
+  quiet: boolean;
 };
 
-function RoomNavItemAvatar({ room, name, personAvatar, selected }: RoomNavItemAvatarProps) {
+function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNavItemAvatarProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(room, personAvatar);
@@ -161,6 +163,15 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected }: RoomNavItemAv
     const isSpace = room.getType() === RoomType.Space;
     return <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} />;
   };
+
+  // A room without a picture shows the bare privacy icon, with no tinted tile behind it.
+  if (!src && !personAvatar) {
+    return (
+      <Avatar size="200" radii="400" style={quiet ? { opacity: config.opacity.P300 } : undefined}>
+        {renderFallback()}
+      </Avatar>
+    );
+  }
 
   return (
     <Avatar size="200" radii="400">
@@ -265,6 +276,7 @@ function RoomNavLink({
             name={name}
             personAvatar={personAvatar}
             selected={selected}
+            quiet={!hasUnread}
           />
           <Box as="span" grow="Yes">
             <Text as="span" size="Inherit" priority={hasUnread ? '500' : '300'} truncate>
