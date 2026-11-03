@@ -1,7 +1,7 @@
 import React, { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, PopOut, Text, color, config, type RectCords } from 'folds';
+import { Box, PopOut, Text, config, type RectCords } from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { isValidTagName, normalizeTagName } from './threadTags';
 import * as css from './ThreadContextBanner.css';
@@ -13,15 +13,17 @@ export type ThreadTagPickerProps = {
   disabled?: boolean;
 };
 
-// A dashed outline of the tag pills beside it: the same type size, an empty slot to fill.
+// A dashed outline of the tag pills beside it: the same type size, an empty slot to fill. Text
+// and outline share the muted text colour, so the control reads as a placeholder.
 const addButtonStyle: React.CSSProperties = {
   padding: '0 0.4rem',
   display: 'inline-flex',
   alignItems: 'center',
-  border: `1px dashed ${color.SurfaceVariant.ContainerLine}`,
+  border: '1px dashed currentColor',
   borderRadius: '0.5rem',
   background: 'none',
   color: 'inherit',
+  opacity: 0.6,
   font: 'inherit',
   fontSize: '0.65rem',
   lineHeight: 1.6,
