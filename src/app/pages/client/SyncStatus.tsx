@@ -83,6 +83,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
 
   return (
     <Box
+      data-testid="client-sync-status"
       className={ContainerColor({ variant: critical ? 'Critical' : 'Success' })}
       justifyContent="Center"
       alignItems="Center"
