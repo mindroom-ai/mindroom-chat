@@ -4,6 +4,7 @@ import { Box, Chip, Icon, Icons, Text } from 'folds';
 import { MessageEditedContent } from '../../components/message/content';
 import { MessageTextBody } from '../../components/message/layout';
 import { Time } from '../../components/message/Time';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import type { MindroomThreadSummaryInfo } from './threadSummary';
 import * as css from './MindroomThreadSummaryCard.css';
 
@@ -27,6 +28,8 @@ export function MindroomThreadSummaryCard({
   renderBody,
 }: MindroomThreadSummaryCardProps) {
   const { t } = useTranslation();
+  // The timeline card follows the pointer like the other glass cards; compact rows sit inside one.
+  const glassRef = useGlassHighlight<HTMLElement>(undefined, !compact);
   const { isManual, summaryText, messageCount, generatedTs } = summaryInfo;
   const hasCount = typeof messageCount === 'number' && messageCount > 0;
 
@@ -44,6 +47,7 @@ export function MindroomThreadSummaryCard({
   return (
     <Box
       as="section"
+      ref={glassRef}
       className={css.ThreadSummaryCard}
       direction="Column"
       gap="100"
