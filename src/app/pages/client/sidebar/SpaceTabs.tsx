@@ -62,13 +62,12 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
   return (
     <SidebarItem active={selected}>
       <SidebarItemTooltip tooltip={name}>
-        {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            size="400"
-            aria-label={name}
-            onClick={handleClick}
+
+
+
+
+
+
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
             <RoomAvatar
