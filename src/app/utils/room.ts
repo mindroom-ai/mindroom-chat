@@ -9,6 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
+import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { MessageEvent, MsgType, RoomType, StateEvent } from '../../types/matrix/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { isRecord } from './isRecord';
@@ -310,19 +311,23 @@ export const getUnreadInfo = (room: Room) => ({
   total: room.getUnreadNotificationCount('total' as never) ?? 0,
 });
 
-/** Decrypts every encrypted event of the timeline that has not been decrypted yet. */
+/**
+ * Decrypts every encrypted event of the timeline that has not been decrypted yet, and waits for
+ * the ones already decrypting. The client's crypto API is the backend that decrypts them.
+ */
 export const decryptAllTimelineEvent = async (
   mx: MatrixClient,
   timeline: EventTimeline
 ): Promise<void> => {
   // Without a crypto backend there is nothing to decrypt with.
-  if (!mx.getCrypto()) return;
-  await Promise.all(
-    timeline
-      .getEvents()
-      .filter((event) => event.isEncrypted() && event.shouldAttemptDecryption())
-      .map((event) => mx.decryptEventIfNeeded(event))
-  );
+  const backend = mx.getCrypto() as unknown as CryptoBackend | undefined;
+  if (!backend) return;
+  const pending: Promise<void>[] = [];
+  for (const event of timeline.getEvents()) {
+    if (event.shouldAttemptDecryption()) pending.push(event.attemptDecryption(backend));
+    else if (event.isBeingDecrypted()) pending.push(event.getDecryptionPromise()!);
+  }
+  await Promise.all(pending);
 };
 
 /**
