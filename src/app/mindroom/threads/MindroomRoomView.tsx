@@ -58,8 +58,8 @@ export function RoomView({
 
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
-
-
+  // Cancelling a background job sends an event, so it takes that event's power level.
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId });

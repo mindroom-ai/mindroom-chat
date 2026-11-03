@@ -10,25 +10,24 @@ const readStateEvent = (room: Room, type: StateEvent): MatrixEvent | undefined =
 /** Re-renders when `type` state changes in `room`. */
 const useRoomStateVersion = (room: Room, type: StateEvent): number => {
   const [version, refresh] = useForceUpdate();
-
-
-
-      (event: MatrixEvent) => {
-        if (event.getRoomId() === room.roomId && event.getType() === type) refresh();
-      },
-      [room.roomId, type, refresh]
-    )
+  const onStateEvent = useCallback(
+    (event: MatrixEvent) => {
+      if (event.getRoomId() === room.roomId && event.getType() === type) refresh();
+    },
+    [room.roomId, type, refresh]
   );
+  useStateEventCallback(room.client, onStateEvent);
+  return version;
+};
 
+/** The room's display name as computed by matrix-js-sdk, updated on every `RoomEvent.Name`. */
+export const useRoomName = (room: Room): string => {
+  const [name, setName] = useState(() => room.name);
 
-
-
-
-
-
-
-
-
+  useEffect(() => {
+    const handleName = (renamed: Room) => setName(renamed.name);
+    // The room may have been renamed between the first render and this subscription.
+    setName(room.name);
     room.on(RoomEvent.Name, handleName);
     return () => {
       room.removeListener(RoomEvent.Name, handleName);

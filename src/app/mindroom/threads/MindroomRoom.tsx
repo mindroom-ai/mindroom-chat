@@ -59,7 +59,7 @@ const useRoomComputer = (
 
 
 
-
+  const eventId = useParams().eventId;
   const threadId = searchParams.get('threadId') ?? undefined;
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);

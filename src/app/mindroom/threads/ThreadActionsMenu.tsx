@@ -396,18 +396,19 @@ export function ThreadActionsMenu({
       label: t('thread.hideDetails'),
       onSelect: () => {
         onHideDetails();
+        onClose();
+      },
+    });
+  }
 
-
-
-
-
-
-
-
-
-
-
-
+  // The menu opens under its trigger, its end edge on the trigger's end edge.
+  return (
+    <PopOut
+      anchor={anchor}
+      offset={4}
+      align="End"
+      position="Bottom"
+      content={
         <FocusTrap
           focusTrapOptions={{
             initialFocus: false,

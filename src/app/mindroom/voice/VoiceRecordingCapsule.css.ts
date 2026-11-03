@@ -16,6 +16,7 @@ export const Capsule = style([
     paddingBlock: config.space.S100,
     paddingInline: config.space.S200,
   },
+  // Its fill: the composer's container color with a rounded edge, under the liquid glass filter.
   {
 
 

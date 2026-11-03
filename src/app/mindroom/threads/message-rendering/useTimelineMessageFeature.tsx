@@ -62,6 +62,7 @@ export type UseTimelineMessageFeatureOptions = {
 
 
 
+
 };
 
 /** State events the timeline shows as a one-line notice. */
@@ -102,6 +103,16 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
 };
 
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
+
+/** The settings each message row reads; the row list re-renders when one changes. */
+const useMessageDisplaySettings = () => {
+
+
+
+
+
+  return { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview };
+};
 
 /**
  * Re-render the host when an encrypted row on screen decrypts or gets new content from an edit.
@@ -210,9 +221,9 @@ export const useTimelineMessageFeature = ({
   room,
   editor,
   threadId,
-
-
-
+  hideActivity,
+  messageLayout,
+  messageSpacing,
 }: UseTimelineMessageFeatureOptions) => {
   const mx = useMatrixClient();
   const [editingEventId, setEditingEventId] = useState<string>();
@@ -260,6 +271,7 @@ export const useTimelineMessageFeature = ({
 
 
 
+
       (evt: KeyboardEvent) => {
         if (evt.key !== 'ArrowUp') return;
         const active = document.activeElement;
@@ -280,18 +292,19 @@ export const useTimelineMessageFeature = ({
 
 
 
+
   const canPinEvent = !!userId && canPinRoomEvents(creators, powerLevels, userId);
   // A redaction needs permission to send `m.room.redaction`; redacting someone else's event also
   // needs the room's `redact` level (Matrix specification, redaction authorization rules).
   const canSendRedaction = !!userId && permissions.event(MessageEvent.RoomRedaction, userId);
   const canRedactOthers = !!userId && permissions.action('redact', userId);
 
-
-
-
-
-
-
+  const toggleReaction = useReactionToggle(room, threadId);
+  const useAuthentication = useMediaAuthentication();
+  const { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview } =
+    useMessageDisplaySettings();
+  // Encrypted rooms preview links only when the user allows it: the preview request reveals the
+  // link to the homeserver.
   const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
   const htmlReactParserOptions = useMemo(
     () =>
@@ -401,9 +414,9 @@ export const useTimelineMessageFeature = ({
             reply={
               replyEventId ? (
                 <Reply
-
-
-
+                  room={room}
+                  replyEventId={replyEventId}
+                  threadRootId={event.threadRootId}
                   timelineSet={row.timelineSet}
                   hideThreadIndicator={!!threadId}
                   data-event-id={replyEventId}
@@ -414,17 +427,17 @@ export const useTimelineMessageFeature = ({
             reactions={
               kind !== 'sticker' ? (
                 <TimelineReactions
-
-
-
+                  room={room}
+                  event={event}
+                  relations={relations}
                   onReactionToggle={toggleReaction}
                 />
               ) : undefined
             }
             resolvedMessageContent={content}
-
-
-
+            messageLayout={messageLayout}
+            messageSpacing={messageSpacing}
+            onReplyClick={handleReplyClick}
             onReactionToggle={(key, shortcode) =>
               toggleReaction(eventId, key, shortcode, relations)
             }
@@ -460,13 +473,13 @@ export const useTimelineMessageFeature = ({
       decryptions,
       editingEventId,
       handleReplyClick,
-
-
-
+      hideActivity,
+      hour24Clock,
+      htmlReactParserOptions,
       liveExpansionIds,
-
-
-
+      mediaAutoLoad,
+      messageLayout,
+      messageSpacing,
       room,
       showUrlPreview,
       threadId,

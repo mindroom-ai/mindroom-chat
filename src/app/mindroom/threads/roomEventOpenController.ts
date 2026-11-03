@@ -255,12 +255,12 @@ export const useRoomEventOpenController = ({
                 eventId: anchor.eventId,
                 index: focusIndex,
                 scrollTo: !threadId,
-
-
-
-
-
-
+                highlight: evtId !== readUptoEventIdRef.current,
+              }
+            : undefined
+        );
+        setTimeline({
+          linkedTimelines,
           range: {
             start: Math.max(focusIndex - prefetchDepthRef.current, 0),
             end: Math.min(focusIndex + prefetchDepthRef.current, count),
@@ -284,9 +284,9 @@ export const useRoomEventOpenController = ({
         prefetchDepthRef,
         searchQuery,
         scheduledStatusMap,
-
-
-
+        setFocusItem,
+        setTimeline,
+        showHiddenEvents,
         threadFilterStateRef,
         threadId,
         threadParticipantMap,
@@ -417,11 +417,11 @@ export const useRoomEventOpenController = ({
 
           eventId: evtId,
           index: filteredIndex,
-
-
-
-
-
+          scrollTo: false,
+          highlight,
+        });
+      } else {
+        if (threadId) {
           let currentThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
           const expectedThreadId = threadId;
           if (!currentThreadTimelineSet) {
@@ -466,9 +466,9 @@ export const useRoomEventOpenController = ({
       room,
       scrollRef,
       scrollThreadEventIntoView,
-
-
-
+      scrollToElement,
+      scrollToItem,
+      setFocusItem,
       notifyThreadEventsChanged,
       setTimeline,
       threadEventIndexMapRef,

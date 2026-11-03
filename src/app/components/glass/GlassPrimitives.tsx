@@ -79,9 +79,9 @@ export const Chip = as<'button', ChipProps>(
   ({ className, variant = 'SurfaceVariant', ...props }, ref) => (
     <FoldsChip
       {...props}
-
-
-
+      ref={ref}
+      variant={variant}
+      className={classNames(
         glassSurface({ level: 'control', variant }),
         glassFloating,
         glassOutline,

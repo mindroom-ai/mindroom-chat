@@ -17,9 +17,9 @@ const whenCompact = (compact: CSSProperties) => ({
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
-
-
-
+  padding: `${config.space.S200} ${config.space.S300}`,
+  borderRadius: config.radii.R500,
+  position: 'relative',
   pointerEvents: 'auto',
   selectors: { [`&${Collapsed}`]: { width: 'fit-content', padding: config.space.S100 } },
   '@media': { [shortViewport]: { padding: config.space.S200 } },
@@ -84,9 +84,9 @@ export const TitleColumn = style({
 
 // The tags take the room the status chips leave, clipped where they do not fit.
 export const TagsRow = style({
-
-
-
+  display: 'flex',
+  alignItems: 'center',
+  minWidth: 0,
   gap: '0.3rem',
   flexWrap: 'nowrap',
   overflow: 'hidden',
@@ -244,8 +244,8 @@ export const MetadataDot = style({
 });
 
 export const ScheduledIndicator = style({
-
-
+  minWidth: 0,
+  maxWidth: '14rem',
 
 
 

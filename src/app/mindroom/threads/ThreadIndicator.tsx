@@ -48,57 +48,64 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
   return (
     <Avatar className={css.ThreadParticipant} size="200" radii="400" title={name}>
       <UserAvatar
+        userId={userId}
+        src={src}
+        alt={name}
+        renderFallback={() => (
+          <Text as="span" size="T200">
+            {Array.from(name.replace(/^[@#!]/, ''))[0]?.toUpperCase() ?? '?'}
+          </Text>
+        )}
+      />
+    </Avatar>
+  );
+}
 
+/**
+ * A chip with a thread's reply count, its first participants and a resolved mark. With
+ * `as="button"` it opens the thread; without a `threadRootId` it only reads "Thread".
+ */
+export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
+  function ThreadIndicator(
+    {
+      threadReplyCount,
+      threadParticipantIds,
+      threadRootId,
+      timelineSet,
+      isResolved,
+      room,
+      className,
+      as: tag = 'div',
+      ...rest
+    },
+    ref
+  ) {
+    const { t } = useTranslation();
 
+    let replyCount = threadReplyCount;
+    if (replyCount === undefined && threadRootId) {
+      replyCount = resolveReplyCount(room, threadRootId, timelineSet);
+    }
+    const label =
+      replyCount === undefined ? t('thread.chip') : t('thread.replyCount', { count: replyCount });
+    const participants = threadParticipantIds?.slice(0, MAX_PARTICIPANTS) ?? [];
 
+    const ownProps = {
+      // A button inside a form must never submit it.
+      ...(tag === 'button' ? { type: 'button' as const } : undefined),
+      ...rest,
+      ref,
+      className: classNames(
+        css.ThreadIndicator,
+        isResolved ? css.ThreadIndicatorResolved : undefined,
+        className
+      ),
+    };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return React.createElement(
+      tag,
+      ownProps,
+      <Icon size="50" src={Icons.Thread} aria-hidden="true" />,
       <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
         {label}
       </Text>,

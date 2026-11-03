@@ -61,7 +61,14 @@ export const getRoomNotificationMode = (
   roomId: string
 ): RoomNotificationMode => preferences.get(roomId) ?? RoomNotificationMode.Unset;
 
-const removeRule = (mx: MatrixClient, kind: PushRuleKind, roomId: string) =>
+/** Deletes the room's own rule of `kind`; a rule that is already gone counts as deleted. */
+const removeRule = async (mx: MatrixClient, kind: PushRuleKind, roomId: string): Promise<void> => {
+  try {
+    await mx.deletePushRule('global', kind, roomId);
+  } catch (error) {
+    if ((error as { httpStatus?: number }).httpStatus !== 404) throw error;
+  }
+
 
 
 
@@ -82,13 +89,13 @@ const removeRule = (mx: MatrixClient, kind: PushRuleKind, roomId: string) =>
     previousMode === RoomNotificationMode.AllMessages ||
     previousMode === RoomNotificationMode.SpecialMessages
   ) {
+    await removeRule(mx, PushRuleKind.RoomSpecific, roomId);
+  }
 
-
-
-
-
-
+  if (mode === RoomNotificationMode.Mute) {
+    await mx.addPushRule('global', PushRuleKind.Override, roomId, {
       actions: [],
+      conditions: [{ kind: ConditionKind.EventMatch, key: 'room_id', pattern: roomId }],
     });
     return;
   }

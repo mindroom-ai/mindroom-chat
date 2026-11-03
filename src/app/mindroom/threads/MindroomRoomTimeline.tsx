@@ -79,6 +79,24 @@ const useRoomTimelineVersion = (room: Room): number => {
   return version;
 };
 
+/** The display settings the timeline follows, each read on its own so a change re-renders. */
+const useTimelineDisplaySettings = () => {
+
+
+
+
+
+
+  return {
+    hideActivity,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    messageLayout,
+    messageSpacing,
+    showHiddenEvents,
+  };
+};
+
 const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
   const seen = new Set<string>();
   return events.filter((event) => {
@@ -94,30 +112,32 @@ const dedupeById = (events: MatrixEvent[]): MatrixEvent[] => {
  * room timeline with a thread badge under each thread root; inside a thread, the root and its
  * replies.
  */
-export function RoomTimeline({
-  room,
-  eventId,
-  threadId,
-  summaryMap,
-  onStoreThreadSummary,
-  threadFilterState,
-  viewMode,
-  compactRoomScrollStateRef,
-  editor,
-  onThreadLoadError,
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
   const { navigateRoomThread } = useRoomNavigate();
-
-
-
-
-
-
-
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const {
+    hideActivity,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    messageLayout,
+    messageSpacing,
+    showHiddenEvents,
+  } = useTimelineDisplaySettings();
   const version = useRoomTimelineVersion(room);
   const showThreadRepliesInRoom = viewMode === 'classic';
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);

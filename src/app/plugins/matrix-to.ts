@@ -40,18 +40,22 @@ export const getMatrixToRoom = (roomIdOrAlias: string, viaServers?: string[]): s
 
 
 
+): string => {
+  const path = [roomIdOrAlias, eventId].map(encodeId).join('/');
+  return `${appLink(path)}${viaQuery(viaServers)}`;
+};
 
+/** A parsed room link: the room ID or alias, and the servers to join it through. */
+export type MatrixToRoom = {
+  viaServers?: string[];
+  roomIdOrAlias: string;
+};
 
+/** A parsed event link; `roomIdOrAlias` is the room that holds the event. */
+export type MatrixToRoomEvent = MatrixToRoom & { eventId: string };
 
-
-
-
-
-
-
-
-
-
+/** What any supported permalink form names, before it is sorted into user, room, or event. */
+type Permalink = {
   identifier: string;
   eventId?: string;
   viaServers: string[];

@@ -14,10 +14,10 @@ export const RecentlyOpenedPanel = style({
   flexDirection: 'column',
   padding: config.space.S200,
   paddingInlineEnd: 0,
-
-
-
-
+  minHeight: 0,
+  selectors: {
+    '&::before': {
+      content: "''",
       position: 'absolute',
       top: 0,
       insetInline: config.space.S400,

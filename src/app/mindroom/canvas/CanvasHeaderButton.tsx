@@ -73,21 +73,24 @@ export function CanvasHeaderButton({
   };
 
   const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
+  const closeMenu = () => {
+    setMenuAnchor(undefined);
+    return true;
+  };
+  const tooltip = (
+    <Tooltip>
+      <Text size="T200">{label}</Text>
+    </Tooltip>
+  );
 
   return (
     <>
-      <TooltipProvider
-        position="Bottom"
-        offset={4}
-
-
-
-
-
-
-
-
-
+      <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
+        {(anchorRef) => (
+          <IconButton
+            ref={anchorRef}
+            size="300"
+            radii="300"
             variant={openHere ? 'Primary' : 'Surface'}
             fill={openHere ? 'Soft' : 'None'}
             aria-label={label}
@@ -96,23 +99,22 @@ export function CanvasHeaderButton({
             aria-expanded={several ? !!menuAnchor : undefined}
             onClick={handleClick}
           >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            <Icon size="200" src={Icons.Category} filled={openHere} />
+          </IconButton>
+        )}
+      </TooltipProvider>
+      <PopOut
+        offset={4}
+        align="End"
+        position="Bottom"
+        anchor={menuAnchor}
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              escapeDeactivates: closeMenu,
+              clickOutsideDeactivates: closeMenu,
             }}
           >
             <Menu

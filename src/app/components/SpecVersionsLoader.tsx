@@ -22,12 +22,13 @@ type SpecVersionsLoaderProps = {
 
 
 
-  fetchFn,
-  fallback,
-  error,
-  children,
-}: SpecVersionsLoaderProps) {
-  const [state, setState] = useState<LoaderState>({ status: 'loading' });
+
+
+
+
+
+
+
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {

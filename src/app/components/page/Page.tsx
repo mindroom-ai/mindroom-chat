@@ -1,12 +1,14 @@
 import React, { ComponentProps, ReactNode, RefObject } from 'react';
 import classNames from 'classnames';
-import { Box, Line, Scroll, Text, as } from 'folds';
+import { Box, Line, Scroll, Text, as, color, config } from 'folds';
 import { Header } from '../glass/GlassPrimitives';
 import { useSurfaceContext } from '../glass/SurfaceContext';
 import { inheritSurface } from '../glass/Surface.css';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import * as css from './style.css';
+
+const NAV_HEADER_OUTLINE = `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`;
 
 type PageRootProps = {
   nav: ReactNode;
@@ -45,19 +47,25 @@ export function PageNav({ size, children }: { size?: '400' | '300'; children: Re
   );
 }
 
+/**
+ * The title bar of a navigation column. `scroll` keeps it pinned while the list scrolls under it;
+ * `outlined` draws a line between it and the list (the reference screens have none by default).
+ */
 export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean }>(
+  ({ scroll, outlined, className, style, ...props }, ref) => (
+    <Header
+      as="header"
+      variant="Background"
+      size="600"
+      {...props}
+      ref={ref}
+      style={outlined ? { ...style, borderBottom: NAV_HEADER_OUTLINE } : style}
+      className={classNames(css.PageNavHeader, scroll && css.PageNavHeaderScroll, className)}
+    />
+  )
+);
 
-
-
-
-
-
-
-
-
-
-
-
+type PageNavContentProps = {
   scrollRef?: RefObject<HTMLDivElement>;
   children: ReactNode;
 };
@@ -133,16 +141,10 @@ export const PageContent = classedDiv(css.PageContent);
 
 export const PageContentCenter = classedDiv(css.PageContentCenter);
 
+/** The narrow centered column that holds a `PageHero` and whatever follows it. */
+export const PageHeroSection = classedDiv(css.PageHeroSection);
 
-
-
-
-
-
-
-
-
-
+type PageHeroProps = {
   icon: ReactNode;
   title: ReactNode;
   subTitle?: ReactNode;

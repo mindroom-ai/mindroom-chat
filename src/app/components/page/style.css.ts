@@ -8,11 +8,11 @@ import { DefaultReset, color, config, toRem } from 'folds';
 // button 16 px from the divider (S400); rows start 8 px below the header and 8 px from the rail
 // (S200) and are 36 px apart (the row component). Everything else uses folds spacing tokens.
 
-
-
-
-
-
+export const PageNav = recipe({
+  base: {
+    flexShrink: 0,
+    height: '100%',
+    width: '100%',
     minHeight: 0,
   },
   variants: {
@@ -61,15 +61,15 @@ export const PageHeader = recipe({
       true: { borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}` },
     },
   },
+  defaultVariants: { balance: false },
+});
 
-
-
-
-
-
-
-
-
+// Page bodies: S400 around the content, more room under the last item.
+export const PageContent = style([
+  DefaultReset,
+  {
+    paddingTop: config.space.S400,
+    paddingInline: config.space.S400,
     paddingBottom: config.space.S700,
   },
 ]);

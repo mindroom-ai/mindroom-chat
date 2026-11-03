@@ -171,13 +171,13 @@ const CompactThreadCardRow = React.memo(
               {(triggerRef) => (
                 <IconButton
                   ref={triggerRef}
-
-
-
-
-
-
-
+                  className={css.CardMenuButton}
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="None"
+                  radii="300"
+                  aria-label={moreLabel}
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
                   onClick={(event: React.MouseEvent<HTMLButtonElement>) =>

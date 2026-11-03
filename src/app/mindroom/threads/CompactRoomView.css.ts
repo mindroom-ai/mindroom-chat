@@ -79,8 +79,8 @@ export const CardAction = style({
 
 
 
-
-
+  opacity: 0,
+  pointerEvents: 'none',
   transition: transition(['opacity']),
   '@media': {
     [touchActions]: {

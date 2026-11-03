@@ -13,10 +13,11 @@ export type ThreadTagPickerProps = {
   disabled?: boolean;
 };
 
+// A dashed outline of the tag pills beside it: the same type size, an empty slot to fill.
 const addButtonStyle: React.CSSProperties = {
-
-
-
+  padding: '0 0.4rem',
+  display: 'inline-flex',
+  alignItems: 'center',
   border: `1px dashed ${color.SurfaceVariant.ContainerLine}`,
   borderRadius: '0.5rem',
   background: 'none',

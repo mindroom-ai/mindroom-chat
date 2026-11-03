@@ -5,10 +5,10 @@ import { Direction, type EventTimeline, type MatrixEvent, type Thread } from 'ma
  * Walks iteratively so long chains cannot exhaust the call stack. When the links form a cycle
  * there is no real end, so the starting timeline is returned instead.
  */
-
-
-
-
+export function getFirstLinkedTimeline(
+  timeline: EventTimeline,
+  direction: Direction
+): EventTimeline {
   const visited = new Set<EventTimeline>([timeline]);
   let current = timeline;
   for (;;) {
@@ -18,7 +18,7 @@ import { Direction, type EventTimeline, type MatrixEvent, type Thread } from 'ma
     visited.add(next);
     current = next;
   }
-};
+}
 
 /**
  * Every timeline linked to `timeline`, oldest first: walks back to the earliest neighbour, then

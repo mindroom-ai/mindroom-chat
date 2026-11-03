@@ -89,7 +89,7 @@ export const MinimapPreviewCard = style({
   insetInlineStart: toRem(32),
   width: toRem(320),
   maxWidth: `calc(100vw - ${toRem(96)})`,
-
+  padding: `${toRem(8)} ${toRem(12)}`,
 
 
 

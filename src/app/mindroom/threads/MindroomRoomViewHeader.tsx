@@ -34,10 +34,10 @@ export function RoomViewHeader({
   computerOpen,
   onComputerToggle,
 }: RoomViewHeaderProps) {
-
-
-
-
+  const room = useRoom();
+  const mx = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
+  const { t } = useTranslation();
   const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(room.roomId);
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -58,19 +58,20 @@ export function RoomViewHeader({
   const roomName = useRoomName(room);
   const topicContent = useStateEvent(room, 'm.room.topic')?.getContent();
   const topic = typeof topicContent?.topic === 'string' ? topicContent.topic : undefined;
+  const avatarMxc = useRoomAvatar(room);
+  // Twice the 36 px avatar, so it stays sharp on high-density screens.
+  const avatarSrc = avatarMxc
+    ? mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
+    : undefined;
 
-
-
-
-
-
-
+  return (
+    <PageHeader className={css.Header}>
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
         <Avatar size="300">
           <RoomAvatar
-
-
-
+            alt={roomName}
+            src={avatarSrc}
+            roomId={room.roomId}
             renderFallback={() => <Text size="H6">{roomName.slice(0, 1)}</Text>}
           />
         </Avatar>
@@ -79,7 +80,7 @@ export function RoomViewHeader({
             {roomName}
           </Text>
           {topic && (
-            <Text size="T200" priority="300" truncate>
+            <Text className={css.Topic} size="T200" priority="300" truncate>
               {topic}
             </Text>
           )}

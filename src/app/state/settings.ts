@@ -17,10 +17,13 @@ const SETTINGS_STORAGE_KEY = 'settings';
 
 
 
-}
 
-/** Vertical gap between messages, as a folds space token. */
-export type MessageSpacing = '0' | '100' | '200' | '300' | '400' | '500';
+
+
+
+
+
+
 
 const MESSAGE_SPACINGS: readonly MessageSpacing[] = ['0', '100', '200', '300', '400', '500'];
 
@@ -30,6 +33,7 @@ export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
 
 export type Settings = {
+  // Appearance
   /** Theme used when `useSystemTheme` is off. */
 
 
@@ -40,9 +44,6 @@ export type Settings = {
 
 
 
-  /** Send read receipts and typing notices privately. */
-  hideActivity: boolean;
-  /** Whether the members drawer is open on wide screens. */
 
 
 
@@ -54,9 +55,35 @@ export type Settings = {
 
 
 
-  /** dayjs format for dates in the timeline. */
-  dateFormatString: string;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   threadBannerCollapsed: boolean;
+
+  // Notifications
+  /** Desktop notifications for new messages. */
+
 
 
 
@@ -77,7 +104,9 @@ const DEFAULT_SETTINGS: Settings = {
 
 
 
+
   messageLayout: MessageLayout.Modern,
+
 
 
 

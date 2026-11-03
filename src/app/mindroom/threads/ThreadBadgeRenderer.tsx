@@ -42,9 +42,9 @@ export const ThreadBadgeRenderer = ({
         threadReplyCount={model.replyCount}
         threadParticipantIds={model.participantIds}
         isResolved={model.isResolved}
-
-
-
+        threadRootId={threadRootId}
+        room={room}
+        onClick={onClick}
       />
     </>
   );
