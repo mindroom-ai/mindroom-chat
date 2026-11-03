@@ -67,6 +67,11 @@
         "ignoredUserList": {
           "unblock": "Unblock"
         }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Remove"
+        }
       }
     },
     "createChat": {
