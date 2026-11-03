@@ -60,6 +60,8 @@ export default defineConfig({
     // Pre-bundling moves the JS and breaks that lookup, so serve the package as it is.
     // `vite build` emits the .wasm as a hashed asset.
     exclude: ['@matrix-org/matrix-sdk-crypto-wasm'],
+    // @novnc/novnc uses top-level await, which the default pre-bundle target rejects.
+    esbuildOptions: { target: 'es2022' },
   },
   build: {
     outDir: 'dist',

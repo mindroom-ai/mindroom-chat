@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 // The room header's schedules button; the count sits on its corner.
@@ -81,14 +81,13 @@ export const Metadata = style({
   rowGap: config.space.S100,
   margin: 0,
   minWidth: 0,
-  selectors: {
-    '& dt': { opacity: config.opacity.P400 },
-    '& dd': { margin: 0, minWidth: 0 },
-  },
   '@media': {
     '(max-width: 360px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
   },
 });
+
+globalStyle(`${Metadata} dt`, { opacity: config.opacity.P400 });
+globalStyle(`${Metadata} dd`, { margin: 0, minWidth: 0 });
 
 export const Awaiting = style({
   color: color.Warning.Main,

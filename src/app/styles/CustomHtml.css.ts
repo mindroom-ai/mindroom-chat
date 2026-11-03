@@ -175,26 +175,27 @@ export const Mention = recipe({
   },
 });
 
+// The descendant rules need globalStyle, so the recipe takes both blocks as class names.
+const SpoilerBase = style({
 
 
 
 
 
+});
+globalStyle(`${SpoilerBase} *`, { visibility: 'hidden' });
 
+const SpoilerActive = style({
+  color: 'inherit',
+  cursor: 'auto',
+});
+globalStyle(`${SpoilerActive} *`, { visibility: 'visible' });
 
-    selectors: {
-      '& *': { visibility: 'hidden' },
-    },
-  },
+export const Spoiler = recipe({
+  base: SpoilerBase,
   variants: {
     active: {
-      true: {
-        color: 'inherit',
-        cursor: 'auto',
-        selectors: {
-          '& *': { visibility: 'visible' },
-        },
-      },
+      true: SpoilerActive,
     },
   },
 });

@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 const control = {
@@ -40,8 +40,9 @@ export const MobileContainer = style({
   padding: `${config.space.S400} 0 0`,
   paddingBottom: 'env(safe-area-inset-bottom, 0px)',
   pointerEvents: 'none',
-  selectors: { '& > *': { pointerEvents: 'auto', maxHeight: '85vh', width: '100%' } },
 });
+
+globalStyle(`${MobileContainer} > *`, { pointerEvents: 'auto', maxHeight: '85vh', width: '100%' });
 
 export const Controls = style({
   display: 'flex',

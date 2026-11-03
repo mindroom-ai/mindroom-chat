@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 
@@ -23,10 +23,9 @@ export const EditorTextarea = style({
   outline: 'none',
   overflowWrap: 'anywhere',
   whiteSpace: 'pre-wrap',
-  selectors: {
-    '& p': { margin: 0 },
-  },
 });
+
+globalStyle(`${EditorTextarea} p`, { margin: 0 });
 
 export const EditorPlaceholder = style({
   position: 'absolute',
