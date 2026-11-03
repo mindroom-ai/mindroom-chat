@@ -28,6 +28,7 @@ import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { isEmptyEditor } from '../../../components/editor';
 import { Reply } from '../../../components/message';
+import { MessageAside } from '../../../components/message/layout/MessageAside';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { Reactions } from '../../../features/room/message/Reactions';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-custom-html-parser';
@@ -374,7 +375,9 @@ export const useTimelineMessageFeature = ({
         : undefined;
       if (summaryInfo && marker) {
         return (
-          <MindroomThreadSummaryMarker key={eventId} summaryInfo={summaryInfo} plan={marker} />
+          <MessageAside key={eventId}>
+            <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
+          </MessageAside>
         );
       }
 
