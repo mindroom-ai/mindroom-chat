@@ -73,7 +73,7 @@ export function SettingsPageFrame({ title, requestClose, children }: SettingsPag
   return (
     <Page>
       <PageScroll header={<FrameHeader title={title} requestClose={requestClose} />}>
-        <PageContent style={CONTENT_INSET}>
+        <PageContent style={CONTENT_INSET} data-settings-page="">
           <Box direction="Column" gap="700">
             {children}
           </Box>
