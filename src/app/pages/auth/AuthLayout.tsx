@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
+import { AuthServerProvider } from '../../hooks/useAuthServer';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 import { createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
@@ -193,9 +194,11 @@ export function AuthLayout() {
             </Text>
           )}
           {discovery.status === 'ready' && (
-            <AutoDiscoveryInfoProvider value={discovery.info}>
-              <Outlet context={{ server }} />
-            </AutoDiscoveryInfoProvider>
+            <AuthServerProvider value={server}>
+              <AutoDiscoveryInfoProvider value={discovery.info}>
+                <Outlet context={{ server }} />
+              </AutoDiscoveryInfoProvider>
+            </AuthServerProvider>
           )}
         </Box>
       </Box>

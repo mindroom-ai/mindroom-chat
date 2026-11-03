@@ -1,10 +1,11 @@
 import React, { FormEventHandler, ReactNode, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PasswordInput } from '../../../components/password-input';
 import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 import { getResetPasswordPath } from '../../pathUtils';
+import { isAddAccountSearch, withAddAccountSearchIf } from '../addAccount';
 import { FieldError } from '../FiledError';
 import {
   CustomLoginResponse,
@@ -53,6 +54,11 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
   const [error, setError] = useState<LoginError>();
   const [busy, setBusy] = useState(false);
   const storeFailed = useLoginComplete(result);
+  const [searchParams] = useSearchParams();
+  const resetLink = withAddAccountSearchIf(
+    getResetPasswordPath(server),
+    isAddAccountSearch(searchParams)
+  );
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
@@ -106,7 +112,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
           variant="Background"
         />
         <Box justifyContent="End">
-          <Text as={Link} size="T200" to={getResetPasswordPath(server)}>
+          <Text as={Link} size="T200" to={resetLink}>
             {t('sharedUi.passwordLoginForm.forgetPassword')}
           </Text>
         </Box>

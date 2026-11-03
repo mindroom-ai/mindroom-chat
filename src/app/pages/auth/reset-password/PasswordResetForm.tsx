@@ -1,9 +1,11 @@
 import React, { FormEventHandler, ReactNode, useCallback, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { MatrixError } from 'matrix-js-sdk';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
+import { useAuthServer } from '../../../hooks/useAuthServer';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { FieldError } from '../FiledError';
 
@@ -21,6 +23,8 @@ function LabeledField({ caption, children }: { caption: string; children: ReactN
 
 type PasswordResetFormProps = {
   defaultEmail?: string;
+  /** Where the Login button goes once the new password is set. */
+  loginLink?: string;
 };
 
 type EmailToken = {
@@ -34,17 +38,13 @@ type EmailToken = {
  * Resets the password through the account's email: the server sends a link,
  * and once it is opened the new password is set.
  */
-export function PasswordResetForm({ defaultEmail }: PasswordResetFormProps) {
+export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetFormProps) {
   const baseUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
+  // Named the way the user entered it in the server field.
+  const serverName = useAuthServer();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
-  const serverName = useMemo(() => {
-    try {
-      return new URL(baseUrl).host;
-    } catch {
-      return baseUrl;
-    }
-  }, [baseUrl]);
   const [mismatch, setMismatch] = useState(false);
   const [emailToken, setEmailToken] = useState<EmailToken>();
   const [done, setDone] = useState(false);
@@ -108,11 +108,18 @@ export function PasswordResetForm({ defaultEmail }: PasswordResetFormProps) {
   if (done) {
     return (
       <Box direction="Column" gap="400">
-        <Text>
+        <Text role="status">
           {t(
             'sharedUi.passwordResetForm.passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword'
           )}
         </Text>
+        {loginLink && (
+          <Button variant="Primary" size="500" onClick={() => navigate(loginLink)}>
+            <Text as="span" size="B500">
+              {t('sharedUi.passwordResetForm.login')}
+            </Text>
+          </Button>
+        )}
       </Box>
     );
   }
