@@ -29,6 +29,10 @@ vi.mock('../components/ClientConfigLoader', () => ({
   ClientConfigLoader: () => null,
 }));
 
+vi.mock('../mindroom/notices/NoticeBanners', () => ({
+  NoticeLayout: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('./ConfigConfig', () => ({
   ConfigConfigError: () => null,
   ConfigConfigLoading: () => null,

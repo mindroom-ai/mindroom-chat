@@ -11,6 +11,7 @@ import { usePageZoom } from '../hooks/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewportFix';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { applyThemeToDom } from '../theme/themeBootstrap';
+import { NoticeLayout } from '../mindroom/notices/NoticeBanners';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
 
@@ -56,23 +57,26 @@ function App() {
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>
         <QueryClientProvider client={queryClient}>
-          <ClientConfigLoader
-            fallback={() => <ConfigConfigLoading />}
-            error={(error, retry, ignore, authenticate) => (
-              <ConfigConfigError
-                error={error}
-                retry={retry}
-                ignore={ignore}
-                authenticate={authenticate}
-              />
-            )}
-          >
-            {(clientConfig) => (
-              <ClientConfigProvider value={clientConfig}>
-                <AppRouter clientConfig={clientConfig} />
-              </ClientConfigProvider>
-            )}
-          </ClientConfigLoader>
+          {/* Operator notices sit above every screen, sign-in and config loading included. */}
+          <NoticeLayout>
+            <ClientConfigLoader
+              fallback={() => <ConfigConfigLoading />}
+              error={(error, retry, ignore, authenticate) => (
+                <ConfigConfigError
+                  error={error}
+                  retry={retry}
+                  ignore={ignore}
+                  authenticate={authenticate}
+                />
+              )}
+            >
+              {(clientConfig) => (
+                <ClientConfigProvider value={clientConfig}>
+                  <AppRouter clientConfig={clientConfig} />
+                </ClientConfigProvider>
+              )}
+            </ClientConfigLoader>
+          </NoticeLayout>
         </QueryClientProvider>
       </AppTheme>
     </JotaiProvider>
