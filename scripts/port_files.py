@@ -58,7 +58,22 @@ def main() -> None:
     wave = int(sys.argv[sys.argv.index("--wave") + 1]) if "--wave" in sys.argv else 1
     suffix = "" if wave == 1 else f"-wave{wave}"
     list_file, holes_file = PROV / f"portable{suffix}.tsv", PROV / f"holes{suffix}.tsv"
-    paths = [line.split("\t")[0] for line in list_file.read_text().splitlines() if line]
+    rows = [line.split("\t") for line in list_file.read_text().splitlines() if line]
+    if verify and rows and len(rows[0]) == 2 and len(rows[0][1]) == 40:
+        # Binary wave: each row is (path, blob sha at <commit>); verify by blob hash.
+        import_commit = (PROV / "import.txt").read_text().splitlines()[wave - 1].split()[0]
+        bad = []
+        for path, sha in rows:
+            source = subprocess.run(["git", "-C", str(chat), "rev-parse", f"{commit}:{path}"], capture_output=True, text=True).stdout.strip()
+            ported_sha = subprocess.run(["git", "-C", str(REPO), "rev-parse", f"{import_commit}:{path}"], capture_output=True, text=True).stdout.strip()
+            authors = set(subprocess.run(["git", "-C", str(chat), "log", "--format=%ae", commit, "--", path], capture_output=True, text=True).stdout.split())
+            if not (sha == source == ported_sha) or authors != {"bas@nijho.lt"}:
+                bad.append(path)
+        if bad:
+            raise SystemExit("verify failed:\n" + "\n".join(bad))
+        print(f"verified {len(rows)} binary files by blob hash against {commit}")
+        return
+    paths = [row[0] for row in rows]
     with ThreadPoolExecutor(max_workers=16) as pool:
         results = list(pool.map(lambda p: (p, *ported(chat, commit, p)), paths))
     hole_rows = [f"{p}\t{n}" for p, _, holes in results for n in holes]
