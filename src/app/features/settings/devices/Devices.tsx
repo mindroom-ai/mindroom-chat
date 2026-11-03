@@ -5,6 +5,7 @@ import type { IMyDevice } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
+import { useAuthMetadata } from '../../../hooks/useAuthMetadata';
 import { SettingTile } from '../../../components/setting-tile';
 import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SettingsCard } from '../SettingsCard';
@@ -45,22 +46,8 @@ const useDeviceList = () => {
 
 /** Where the identity provider lets the person manage sessions, for delegated accounts. */
 const useDeviceDashboardUrl = (): string | undefined => {
-  const client = useMatrixClient();
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    let current = true;
-    client.getAuthMetadata().then(
-      (metadata) => {
-        if (current)
-          setUrl(getAccountManagementUrl(metadata, { action: 'org.matrix.devices_list' }));
-      },
-      () => undefined
-    );
-    return () => {
-      current = false;
-    };
-  }, [client]);
-  return url;
+  const metadata = useAuthMetadata();
+  return metadata && getAccountManagementUrl(metadata, { action: 'org.matrix.devices_list' });
 };
 
 type RenameFormProps = {

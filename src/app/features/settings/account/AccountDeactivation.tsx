@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Header, IconButton } from '../../../components/glass/GlassPrimitives';
@@ -6,6 +6,7 @@ import { SettingTile } from '../../../components/setting-tile';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
+import { useAuthMetadata } from '../../../hooks/useAuthMetadata';
 import { getActiveSession } from '../../../state/sessions';
 import { removeCurrentClientSessionAndReload } from '../../../../client/initMatrix';
 import { SettingsCard } from '../SettingsCard';
@@ -16,25 +17,8 @@ const KEY = 'featureUi.settings.account.accountDeactivation';
 
 /** The provider's deactivation page when the homeserver delegates accounts (MSC2965, MSC4191). */
 const useProviderDeactivationUrl = (): string | undefined => {
-  const client = useMatrixClient();
-  const [url, setUrl] = useState<string>();
-
-  useEffect(() => {
-    let current = true;
-    client.getAuthMetadata().then(
-      (metadata) => {
-        if (current) {
-          setUrl(getAccountManagementUrl(metadata, { action: 'org.matrix.account_deactivate' }));
-        }
-      },
-      () => undefined
-    );
-    return () => {
-      current = false;
-    };
-  }, [client]);
-
-  return url;
+  const metadata = useAuthMetadata();
+  return metadata && getAccountManagementUrl(metadata, { action: 'org.matrix.account_deactivate' });
 };
 
 type ConfirmProps = {
