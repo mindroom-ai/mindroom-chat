@@ -37,7 +37,7 @@ export const useEventTimelineLoader = (
         eventTimeline ? getEventIdAbsoluteIndex(chain, eventTimeline, eventId) : undefined;
       if (!eventTimeline || absoluteIndex === undefined) return handlersRef.current.onError();
 
-      await to(decryptAllTimelineEvent(mx, eventTimeline));
+      if (room.hasEncryptionStateEvent()) await to(decryptAllTimelineEvent(mx, eventTimeline));
       handlersRef.current.onLoad(eventId, chain, absoluteIndex);
     },
     [mx, room]
