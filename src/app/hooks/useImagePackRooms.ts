@@ -1,0 +1,38 @@
+import { useMemo } from 'react';
+import type { Room } from 'matrix-js-sdk';
+import { useMatrixClient } from './useMatrixClient';
+import { useServerEmojiRoom } from '../mindroom/server-emoji/useServerEmojiRoom';
+
+/** The room, then every space above it, nearest first. */
+const getRoomAndAncestorIds = (roomId: string, roomToParents: Map<string, Set<string>>) => {
+  const ids = [roomId];
+  const seen = new Set(ids);
+  for (let index = 0; index < ids.length; index += 1) {
+    roomToParents.get(ids[index])?.forEach((parentId) => {
+      if (seen.has(parentId)) return;
+      seen.add(parentId);
+      ids.push(parentId);
+    });
+  }
+  return ids;
+};
+
+/**
+ * The rooms whose image packs the emoji and sticker pickers offer in `roomId`: the room itself,
+ * its parent spaces, and the homeserver's shared emoji room when the account has joined it.
+ */
+
+
+
+
+
+
+
+  return useMemo(() => {
+    const ids = getRoomAndAncestorIds(roomId, roomToParents);
+    if (serverEmojiRoom && !ids.includes(serverEmojiRoom.roomId)) ids.push(serverEmojiRoom.roomId);
+    return ids
+      .map((id) => (id === serverEmojiRoom?.roomId ? serverEmojiRoom : mx.getRoom(id)))
+      .filter((room): room is Room => !!room);
+  }, [mx, roomId, roomToParents, serverEmojiRoom]);
+};

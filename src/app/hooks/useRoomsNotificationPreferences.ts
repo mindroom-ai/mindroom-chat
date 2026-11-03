@@ -1,0 +1,137 @@
+import { createContext, useContext, useMemo } from 'react';
+import { IconSrc, Icons } from 'folds';
+import {
+  ConditionKind,
+  IPushRule,
+  IPushRules,
+  MatrixClient,
+  PushRuleActionName,
+  PushRuleKind,
+  TweakName,
+} from 'matrix-js-sdk';
+import { AccountDataEvent } from '../../types/matrix/accountData';
+import { useAccountData } from './useAccountData';
+import { useMatrixClient } from './useMatrixClient';
+
+/**
+ * A room's notification setting, stored as push rules whose ID is the room ID: an override rule
+ * that does nothing mutes the room; a room rule that notifies (or does nothing) overrides the
+ * account default for every message (or leaves only mentions and keywords).
+ */
+export enum RoomNotificationMode {
+  Unset = 'unset',
+  AllMessages = 'all_messages',
+  SpecialMessages = 'special_messages',
+  Mute = 'mute',
+}
+
+export type RoomToNotificationMode = Map<string, RoomNotificationMode>;
+
+const notifies = (rule: IPushRule): boolean =>
+  rule.actions.some((action) => action === PushRuleActionName.Notify);
+
+const isRoomMuteRule = (rule: IPushRule): boolean =>
+  rule.enabled &&
+  !notifies(rule) &&
+  rule.conditions?.length === 1 &&
+  rule.conditions[0].kind === ConditionKind.EventMatch &&
+  (rule.conditions[0] as { key?: string }).key === 'room_id' &&
+  (rule.conditions[0] as { pattern?: string }).pattern === rule.rule_id;
+
+/** Every room with its own notification setting, read from the account's push rules. */
+export const getRoomsNotificationPreferences = (
+  pushRules: IPushRules | undefined
+): RoomToNotificationMode => {
+  const modes: RoomToNotificationMode = new Map();
+  const global = pushRules?.global;
+  global?.room?.forEach((rule) => {
+    if (!rule.enabled) return;
+    modes.set(
+      rule.rule_id,
+      notifies(rule) ? RoomNotificationMode.AllMessages : RoomNotificationMode.SpecialMessages
+    );
+  });
+  global?.override?.forEach((rule) => {
+    if (isRoomMuteRule(rule)) modes.set(rule.rule_id, RoomNotificationMode.Mute);
+  });
+  return modes;
+};
+
+export const getRoomNotificationMode = (
+  preferences: RoomToNotificationMode,
+  roomId: string
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  if (previousMode === RoomNotificationMode.Mute) {
+    await removeRule(mx, PushRuleKind.Override, roomId);
+  } else if (
+    previousMode === RoomNotificationMode.AllMessages ||
+    previousMode === RoomNotificationMode.SpecialMessages
+  ) {
+
+
+
+
+
+
+      actions: [],
+    });
+    return;
+  }
+  if (mode === RoomNotificationMode.AllMessages) {
+    await mx.addPushRule('global', PushRuleKind.RoomSpecific, roomId, {
+      actions: [PushRuleActionName.Notify, { set_tweak: TweakName.Sound, value: 'default' }],
+    });
+    return;
+  }
+  if (mode === RoomNotificationMode.SpecialMessages) {
+    await mx.addPushRule('global', PushRuleKind.RoomSpecific, roomId, { actions: [] });
+  }
+};
+
+/** Per-room notification settings, following push rule changes. */
+export const useRoomsNotificationPreferences = (): RoomToNotificationMode => {
+  const mx = useMatrixClient();
+  const pushRulesEvent = useAccountData(AccountDataEvent.PushRules);
+
+  return useMemo(() => {
+    const pushRules = (pushRulesEvent?.getContent() as IPushRules | undefined) ?? mx.pushRules;
+    return getRoomsNotificationPreferences(pushRules);
+  }, [mx, pushRulesEvent]);
+};
+
+const RoomsNotificationPreferencesContext = createContext<RoomToNotificationMode | null>(null);
+
+export const RoomsNotificationPreferencesProvider = RoomsNotificationPreferencesContext.Provider;
+
+export const useRoomsNotificationPreferencesContext = (): RoomToNotificationMode => {
+  const preferences = useContext(RoomsNotificationPreferencesContext);
+  if (!preferences) throw new Error('Notification preferences are not provided!');
+  return preferences;
+};
+
+/** A room's notification setting from the provided preferences. */
+export const useRoomNotificationMode = (roomId: string): RoomNotificationMode =>
+  getRoomNotificationMode(useRoomsNotificationPreferencesContext(), roomId);

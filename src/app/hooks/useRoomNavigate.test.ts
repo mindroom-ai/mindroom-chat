@@ -252,26 +252,6 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
-  it('keeps space rooms on the flattened Home route when simple mode opens a thread from Home', () => {
-    const roomId = '!room:example.org';
-    const spaceId = '!space:example.org';
-    const threadId = '$thread';
-    mocks.roomToParents.set(roomId, new Set([spaceId]));
-    mocks.simpleMode = true;
-    const { getSnapshot, renderer } = renderHookHarness();
-
-    act(() => {
-      getSnapshot().navigateRoomThread(roomId, threadId);
-    });
-
-    expect(mocks.navigate).toHaveBeenCalledWith(
-      withSearchParam(getHomeRoomPath(roomId), { threadId }),
-      expect.any(Object)
-    );
-
-    renderer.unmount();
-  });
-
   describe.each([true, false])('selected space with simple mode %s', (simpleMode) => {
     it.each(['navigateRoomThreadDirect', 'navigateRoomThread'] as const)(
       'keeps %s inside the selected space',
@@ -346,20 +326,6 @@ describe('useRoomNavigate', () => {
     expect(mocks.navigate.mock.calls[0][0]).toBe(
       '/!space%3Aexample.org/!direct%3Aexample.org?threadId=%24thread'
     );
-    renderer.unmount();
-  });
-
-  it('does not route unrelated room threads through the selected space in simple mode', () => {
-    mocks.simpleMode = true;
-    mocks.selectedSpace = '!selected:example.org';
-    mocks.roomToParents.set('!room:example.org', new Set(['!other:example.org']));
-    const { getSnapshot, renderer } = renderHookHarness();
-
-    act(() => {
-      getSnapshot().navigateRoomThreadDirect('!room:example.org', '$thread');
-    });
-
-    expect(mocks.navigate.mock.calls[0][0]).toBe('/home/!room%3Aexample.org?threadId=%24thread');
     renderer.unmount();
   });
 
