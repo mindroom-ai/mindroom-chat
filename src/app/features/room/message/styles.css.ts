@@ -19,21 +19,18 @@ export const MessageAvatarWithModel = style({
 
 
 
+    insetInlineEnd: 0,
+    zIndex: 1,
+  },
+]);
 
+/** The bar inside the options container: a tight row of icon buttons. */
+export const MessageOptionsBar = style([DefaultReset, { padding: config.space.S100 }]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-  fontSize: toRem(18),
+/** A quick-reaction emoji in the message menu; emoji read better a little larger than text. */
+export const MessageQuickReaction = style({
+  lineHeight: 1,
+  minInlineSize: toRem(32),
 
 
 
@@ -49,10 +46,11 @@ export const MessageAvatarWithModel = style({
 
 
 
+  paddingBlockStart: config.space.S100,
+});
 
-
-
-
+/** Long reactor lists wrap inside the chip's tooltip instead of stretching it. */
+export const ReactionsTooltipText = style({
   maxWidth: toRem(240),
   wordBreak: 'break-word',
 });

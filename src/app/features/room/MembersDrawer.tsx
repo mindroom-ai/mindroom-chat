@@ -47,19 +47,23 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
 
   const name = memberName(room, member);
   const avatarMxc = member.getMxcAvatarUrl?.();
+  const avatarSrc = avatarMxc
+    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 64, 64, 'crop') ?? undefined
+    : undefined;
+
+  return (
+    <button
+      type="button"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: config.space.S200,
+        width: '100%',
+        height: MEMBER_ROW_HEIGHT,
 
 
 
-
-
-
-
-
-
-
-
-
-
+        textAlign: 'start',
         background: 'none',
         border: 0,
         cursor: 'pointer',
@@ -79,109 +83,108 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          src={avatarSrc}
+          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
+        />
+      </Avatar>
+      <Text as="span" size="T400" truncate>
+        {name}
+      </Text>
+    </button>
+  );
+}
+
+const byName =
+  (room: Room) =>
+  (a: RoomMember, b: RoomMember): number =>
+    memberName(room, a).localeCompare(memberName(room, b));
+
+const matchesQuery = (room: Room, member: RoomMember, query: string): boolean =>
+  memberName(room, member).toLowerCase().includes(query) ||
+  member.userId.toLowerCase().includes(query);
+
+/**
+ * The room's people, one membership filter at a time, with a name search and the
+ * invite button. Moderators who may approve (invite) or decline (kick) also get a
+ * Requests filter for `knock` memberships; it opens there while requests wait,
+ * until the moderator picks a filter themselves.
+ */
+export function MembersDrawer({ room, members }: MembersDrawerProps) {
+  const { t } = useTranslation();
+  const myUserId = useMatrixClient().getSafeUserId();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const canInvite = permissions.action('invite', myUserId);
+  const canKick = permissions.action('kick', myUserId);
+  const reviewsRequests = canInvite || canKick;
+
+  const [selection, setSelection] = useState<FilterSelection>('auto');
+  const [query, setQuery] = useState('');
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const roomMembers = members as RoomMember[];
+  const requestCount = reviewsRequests
+    ? roomMembers.filter(MembershipFilter.filterKnocked).length
+    : 0;
+
+  const membershipFilters = useMembershipFilterMenu();
+  const requestsLabel = t('featureUi.room.membersDrawer.requestCount', { count: requestCount });
+  const filters = useMemo<MembershipFilterItem[]>(() => {
+    if (!reviewsRequests) return membershipFilters;
+    return [
+      ...membershipFilters,
+      { name: requestsLabel, filterFn: MembershipFilter.filterKnocked },
+    ];
+  }, [membershipFilters, requestsLabel, reviewsRequests]);
+  const requestsIndex = reviewsRequests ? membershipFilters.length : -1;
+  const invitedIndex = filters.findIndex(
+    (item) => item.filterFn === MembershipFilter.filterInvited
+  );
+
+  // Losing the right to review requests sends the list back to Joined for good,
+  // even if requests become reviewable again later.
+  useEffect(() => {
+    if (!reviewsRequests) setSelection(0);
+  }, [reviewsRequests]);
+
+  let wantedIndex = selection === 'auto' ? 0 : selection;
+  if (selection === 'auto' && requestCount > 0) wantedIndex = requestsIndex;
+  const selectedIndex = wantedIndex >= 0 && wantedIndex < filters.length ? wantedIndex : 0;
+  const selectedFilter = filters[selectedIndex] as MembershipFilterItem | undefined;
+  const showingRequests = selectedIndex === requestsIndex;
+
+  const joinedCount = room.getJoinedMemberCount();
+  const invitedCount = room.getInvitedMemberCount();
+
+  const visibleMembers = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const matching = roomMembers.filter(
+      (member) =>
+        (selectedFilter?.filterFn(member) ?? false) &&
+        (needle === '' || matchesQuery(room, member, needle))
+    );
+    return matching.sort(byName(room));
+  }, [query, room, roomMembers, selectedFilter]);
+
+  const virtualizer = useVirtualizer({
+    count: visibleMembers.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => (showingRequests ? REQUEST_ROW_HEIGHT : MEMBER_ROW_HEIGHT),
+    overscan: 8,
+  });
+
+  // A new filter or search starts the list from the top.
+  useEffect(() => {
+    virtualizer.scrollToOffset(0);
+  }, [selectedIndex, query, virtualizer]);
+
+  return (
+    <Box
+      className={`${css.MembersDrawer} ${ContainerColor({ variant: 'Background' })}`}
+      direction="Column"
+      shrink="No"
+    >
+      <Header className={css.MembersHeaderControl} size="600" variant="Background">
         <Box grow="Yes" alignItems="Center" gap="200">
           <Text className={css.MembersHeaderCount} size="H5" truncate>
             {t('featureUi.room.membersDrawer.memberCount', { count: joinedCount })}
@@ -237,11 +240,11 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
           <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((item) => {
               const member = visibleMembers[item.index];
-
-
-
-
-
+              if (member === undefined) return null;
+              return (
+                <div
+                  key={`${selectedIndex}:${member.userId}`}
+                  ref={virtualizer.measureElement}
                   data-index={item.index}
                   className={css.DrawerVirtualItem}
                   style={{ transform: `translateY(${item.start}px)` }}

@@ -86,72 +86,87 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
+          )}
+        </Text>
+        <Button variant="Secondary" fill="Soft" onClick={onClose}>
+          <Text size="B400">{t('sharedUi.deviceVerification.close')}</Text>
+        </Button>
+      </Box>
+    </Dialog>
+  );
+}
+
+/**
+ * Bridges the SDK's user-interactive auth callback to a prompt: `authUploadDeviceSigningKeys`
+ * first tries without auth, and each time the server answers with UIA flows it publishes a
+ * `pending` request and waits until the user completes or cancels it.
+ */
+const useCrossSigningAuthPrompt = () => {
+  const [pending, setPending] = useState<UIARequest>();
+
+  const askForAuth = useCallback(
+    (authData: IAuthData) =>
+      new Promise<AuthDict>((resolve, reject) => {
+        // Only this request may clear itself; a stale close must not hide a newer prompt.
+        const dismiss = () => setPending((current) => (current === request ? undefined : current));
+        const request: UIARequest = {
+          authData,
+          resolve: (authDict) => {
+            dismiss();
+            resolve(authDict);
+          },
+          reject: (error) => {
+            dismiss();
+            reject(error);
+          },
+        };
+        setPending(request);
+      }),
+    []
+  );
+
+  const authUploadDeviceSigningKeys = useCallback<UIAuthCallback<void>>(
+    async (makeRequest) => {
+      let auth: AuthDict | null = null;
+      // The server may want several stages; every answer without flows ends the loop.
+      for (;;) {
+        try {
+          await makeRequest(auth);
+          return;
+        } catch (error) {
+          const authData = getUIAData(error);
+          if (!authData) {
+            const unauthorized = (error as MatrixError | undefined)?.httpStatus === 401;
+            throw unauthorized ? new Error(UIA_WITHOUT_DATA) : error;
+          }
+          auth = await askForAuth(authData);
+        }
+      }
+    },
+    [askForAuth]
+  );
+
+  const cancel = () => pending?.reject(new Error(SETUP_AUTH_FAILED));
+
+  return { pending, cancel, authUploadDeviceSigningKeys };
+};
+
+type UIAPromptOverlayProps = {
+  request: UIARequest;
+  onCancel: () => void;
+};
+
+/** The auth prompt over the setup dialog; Escape or Close cancels the whole setup. */
+function UIAPromptOverlay({ request, onCancel }: UIAPromptOverlayProps) {
+  const { authData, resolve } = request;
+  const renderUnsupported = () => <UnsupportedUIA onClose={onCancel} />;
+  const trapOptions = {
+    escapeDeactivates: stopPropagation,
+    onDeactivate: onCancel,
+    clickOutsideDeactivates: false,
+    initialFocus: false as const,
+  };
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
@@ -193,6 +208,7 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
         const recoveryKey = await crypto.createRecoveryKeyFromPassphrase(passphrase);
         const { encodedPrivateKey } = recoveryKey;
         if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
+
 
 
 
@@ -258,6 +274,7 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
     </>
   );
 }
+
 
 
 

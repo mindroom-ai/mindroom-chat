@@ -128,17 +128,20 @@ const roomInSectionPath = (pattern: string, roomIdOrAlias: string, eventId?: str
     roomIdOrAlias: encodeSegment(roomIdOrAlias),
   });
 
+/** A route without parameters, such as a section root. */
+const fixedPath = (path: string) => (): string => path;
 
-
-
-
+export const getHomePath = fixedPath(HOME_PATH);
+export const getHomeCreatePath = fixedPath(HOME_CREATE_PATH);
+export const getHomeJoinPath = fixedPath(HOME_JOIN_PATH);
+export const getHomeSearchPath = fixedPath(HOME_SEARCH_PATH);
 export const getHomeRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
+  roomInSectionPath(HOME_ROOM_PATH, roomIdOrAlias, eventId);
 
-
-
-
-
-
+export const getDirectPath = fixedPath(DIRECT_PATH);
+export const getDirectCreatePath = fixedPath(DIRECT_CREATE_PATH);
+export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
+  roomInSectionPath(DIRECT_ROOM_PATH, roomIdOrAlias, eventId);
 
 export const getThreadsPath = (): string => THREADS_PATH;
 export const getCanvasesPath = (): string => CANVASES_PATH;
@@ -151,6 +154,8 @@ export const getSpaceLobbyPath = (spaceIdOrAlias: string): string =>
 export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
 
+/** A room inside a space, optionally focused on one event. */
+
 
 
 
@@ -159,13 +164,14 @@ export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
     spaceIdOrAlias: encodeSegment(spaceIdOrAlias),
     roomIdOrAlias: encodeSegment(roomIdOrAlias),
     eventId: optionalSegment(eventId),
+  });
 
+export const getExplorePath = fixedPath(EXPLORE_PATH);
+export const getExploreFeaturedPath = fixedPath(EXPLORE_FEATURED_PATH);
+/** The public room directory of another homeserver. */
+export const getExploreServerPath = (server: string): string =>
+  getServerPath(EXPLORE_SERVER_PATH, server);
 
-
-
-
-
-
-
-
-
+export const getInboxPath = fixedPath(INBOX_PATH);
+export const getInboxNotificationsPath = fixedPath(INBOX_NOTIFICATIONS_PATH);
+export const getInboxInvitesPath = fixedPath(INBOX_INVITES_PATH);

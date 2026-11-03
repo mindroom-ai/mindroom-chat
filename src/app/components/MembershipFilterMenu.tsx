@@ -26,8 +26,12 @@ export function MembershipFilterMenu({ items, selected, onSelect }: MembershipFi
     setAnchor(evt.currentTarget.getBoundingClientRect());
   const close = () => setAnchor(undefined);
 
-  return (
-    <PopOut
+  // Arrow keys walk the options; Escape and outside clicks dismiss the menu.
+  const trapOptions = {
+
+
+
+    initialFocus: false as const,
 
 
 
@@ -38,16 +42,12 @@ export function MembershipFilterMenu({ items, selected, onSelect }: MembershipFi
 
 
 
-
-
-
-
-
-
-
-
-
-
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <Menu role="menu" aria-label={selectedName}>
+            <Box style={{ padding: config.space.S100 }} gap="100" direction="Column">
+              {items.map((item, index) => (
+                <MenuItem
+                  key={item.name}
                   role="menuitemradio"
                   aria-checked={index === selected}
                   size="300"

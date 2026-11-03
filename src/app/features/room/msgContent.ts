@@ -89,15 +89,16 @@ const uploadThumbnail = async (
     };
   }
   const { content_uri: contentUri } = await mx.uploadContent(thumbnail);
+  return { thumbnail_url: contentUri, thumbnail_info: thumbnailInfo };
+};
+
+/** Image content with its size, dimensions, and blurhash when the browser can decode it. */
+export const getImageMsgContent = async (
+  _mx: MatrixClient,
 
 
 
-
-
-
-
-
-
+  const { originalFile } = item;
   const name = fileName(item);
   let info: IImageInfo = { mimetype: originalFile.type, size: originalFile.size };
   const objectUrl = URL.createObjectURL(originalFile);
@@ -119,6 +120,7 @@ const uploadThumbnail = async (
     body: name,
     info,
   };
+
 
 
 

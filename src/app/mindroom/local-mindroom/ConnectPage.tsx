@@ -54,19 +54,19 @@ const getPairingErrorMessage = (error: unknown, t: TFunction): string => {
 };
 
 function ConnectCard({ children }: { children: React.ReactNode }) {
+  const persistentParticle = usePersistentParticleBackground();
 
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
+      <Box
+        className={classNames(
+          css.AuthLayout,
+          persistentParticle && css.AuthLayoutPersistentParticle
+        )}
+        direction="Column"
+        alignItems="Center"
+        justifyContent="Center"
+      >
         <ParticleBackgroundSurface />
         <Box className={css.AuthCard} direction="Column">
           <Header className={css.AuthHeader} size="600" variant="Surface" appearance="plain">
@@ -287,28 +287,28 @@ export function ConnectPage() {
           </Text>
         ) : (
           <>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            {device && !alreadyApproved && (
+              <Text size="T300" style={{ color: color.Warning.Main }}>
+                {t('mindroomUi.local-mindroom.connect.warning')}
+              </Text>
+            )}
+            {alreadyApproved && (
+              <Text size="T300" priority="300">
+                {t('mindroomUi.local-mindroom.connect.codeAlreadyApproved')}
+              </Text>
+            )}
+            {pairState.status === 'error' && (
+              <>
+                <Text size="T300" style={{ color: color.Critical.Main }}>
+                  {getPairingErrorMessage(pairError, t)}
+                </Text>
+                {isExpiredOrNotFoundError(pairError) && (
+                  <>
+                    <Text size="T300" priority="300">
+                      {t('mindroomUi.local-mindroom.connect.enterNewCode')}
+                    </Text>
+                    <PairCodeForm
+                      onSubmit={(code) => navigate(getConnectPath(code), { replace: true })}
                     />
                   </>
                 )}

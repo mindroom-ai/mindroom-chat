@@ -108,19 +108,19 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
 
 
 
-
+                    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 64, 64, 'crop') ?? undefined
                     : undefined;
                   return (
-
-
-
-
-
-
-
-
-
-
+                    <Box key={userId} gap="200" alignItems="Center">
+                      <Avatar radii="400" size="200">
+                        <UserAvatar
+                          alt={name}
+                          userId={userId}
+                          src={avatarSrc}
+                          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
+                        />
+                      </Avatar>
+                      <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
                         <Text size="T300" truncate>
                           {name}
                         </Text>

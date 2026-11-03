@@ -84,24 +84,25 @@ export function Reactions({
         const shortcode = reactionShortcode(events);
         return (
           <TooltipProvider
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            key={key}
+            delay={500}
+            offset={4}
+            position="Top"
+            tooltip={
+              <Tooltip>
+                <Text className={css.ReactionsTooltipText} size="T300">
+                  <ReactionTooltipMsg room={room} reaction={key} events={events} />
+                </Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <Reaction
+                ref={triggerRef}
+                aria-pressed={mine}
+                mx={mx}
+                useAuthentication={useAuthentication}
+                reaction={key}
                 count={events.length}
                 label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
                 onClick={

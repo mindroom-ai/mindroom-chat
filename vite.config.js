@@ -46,6 +46,9 @@ export default defineConfig({
 
 
 
+
+
+        rollupFormat: 'iife',
         injectionPoint: 'self.__WB_MANIFEST',
         // The Rust crypto wasm module is several MiB and belongs in the precache.
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,

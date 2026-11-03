@@ -261,21 +261,16 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
       requestClose={requestClose}
     >
       <Box direction="Column" gap="100">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.localMindroom')}</Text>
+        <SequenceCard className={SequenceCardStyle} direction="Column" gap="400">
+          <SettingTile
+            title={t(
+              'mindroomUi.local-mindroom.localMindroom.pairThisChatAccountWithYourLocalMindroomProcess'
+            )}
+            description={t('mindroomUi.local-mindroom.localMindroom.enterCodeDescription', {
+              command: RUN_COMMAND,
+            })}
+          />
           <PairCodeForm
             onSubmit={(code) => {
               navigate(getConnectPath(code));

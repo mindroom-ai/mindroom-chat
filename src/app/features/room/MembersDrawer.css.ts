@@ -1,9 +1,10 @@
 import { style } from '@vanilla-extract/css';
-import { color, config, toRem } from 'folds';
+import { color, config } from 'folds';
 
-
-
-
+// Fills the resizable members panel around it, which owns the width.
+export const MembersDrawer = style({
+  inlineSize: '100%',
+  blockSize: '100%',
   minHeight: 0,
   borderInlineStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
 });

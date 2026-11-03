@@ -84,17 +84,17 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
   }
 
   return (
-
-
-
-
-
-
-
-
-
-
-
+    <Box className={css.JoinRequestItem} direction="Column" gap="100">
+      <Box gap="200" alignItems="Center">
+        <Avatar radii="400" size="300">
+          <UserAvatar
+            alt={name}
+            userId={userId}
+            src={avatarUrl}
+            renderFallback={() => <Icon filled size="100" src={Icons.User} />}
+          />
+        </Avatar>
+        <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
           <Text size="T300" truncate>
             {name}
           </Text>

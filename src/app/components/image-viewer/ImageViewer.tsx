@@ -52,12 +52,12 @@ const DOWNLOAD_LABEL_KEY = {
 } as const satisfies Record<DownloadState, string>;
 
 /** Highlights a zoom control while the image is zoomed in its direction. */
+const zoomTone = (active: boolean): 'Success' | 'Surface' => (active ? 'Success' : 'Surface');
 
-
-
-
-
-
+/** Shows an image full size with zoom, pan, and a download that can be retried. */
+export const ImageViewer = as<'div', ImageViewerProps>(
+  ({ requestClose, alt, src, className, ...props }, ref) => {
+    const { t } = useTranslation();
     const [downloadState, download] = useSaveMedia(src, alt);
     const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
     const panning = usePan(zoom !== 1);

@@ -4,6 +4,8 @@ import type { MatrixClient } from 'matrix-js-sdk';
 /** The homeserver's media configuration (`GET /_matrix/client/v1/media/config`). */
 export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
 
+// ClientRoot provides the loaded configuration; an empty object means no limits are known.
+const MediaConfigContext = createContext<MediaConfig>({});
 
 
 
@@ -11,6 +13,4 @@ export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
 
 
 
-
-  return mediaConfig;
 }
