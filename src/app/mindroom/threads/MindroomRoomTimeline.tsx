@@ -373,9 +373,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // References the controllers share.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  // folds' Scroll hands React a new ref callback on every render, so each commit detaches the
+  // element (null) and attaches it again. Only a different element, or none left after the
+  // commit, changes the state. Even an equal update re-renders the timeline while slower
+  // updates wait on it, and that render attaches the element again, without end.
+  const publishedScrollRef = useRef<HTMLDivElement | null>(null);
   const attachScroll = useCallback((element: HTMLDivElement | null) => {
     scrollRef.current = element;
-    setScrollElement(element);
+    const publishAttached = () => {
+      const attached = scrollRef.current;
+      if (attached === publishedScrollRef.current) return;
+      publishedScrollRef.current = attached;
+      setScrollElement(attached);
+    };
+    if (element) publishAttached();
+    else queueMicrotask(publishAttached);
   }, []);
   // A new identity once the scroll area mounts, so observers built on it start over (the
   // compact view has none, and switching to the timeline mounts it later).
