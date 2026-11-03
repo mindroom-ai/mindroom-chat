@@ -29,6 +29,7 @@ import {
   type RectCords,
 } from 'folds';
 import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { IconTooltip } from '../tooltip/IconTooltip';
 import { EmojiBoard } from '../../components/emoji-board';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import {
@@ -108,6 +109,34 @@ function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItem
         {label}
       </Text>
     </MenuItem>
+  );
+}
+
+type ToolbarActionProps = {
+  label: string;
+  icon: MenuItemProps['icon'];
+  onClick: MouseEventHandler<HTMLButtonElement>;
+  /** For buttons that open something: whether it is open. */
+  pressed?: boolean;
+};
+
+/** An icon button of the hover toolbar, which shows its name in a tooltip above it. */
+function ToolbarAction({ label, icon, onClick, pressed }: ToolbarActionProps) {
+  return (
+    <IconTooltip label={label} position="Top">
+      {(tooltipRef) => (
+        <IconButton
+          ref={tooltipRef}
+          size="300"
+          radii="300"
+          aria-label={label}
+          aria-pressed={pressed}
+          onClick={onClick}
+        >
+          <Icon src={icon} size="100" />
+        </IconButton>
+      )}
+    </IconTooltip>
   );
 }
 
@@ -681,12 +710,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       // The name on the left; the reply details button and the time on the right.
       const header = (
         <Box gap="300" justifyContent="SpaceBetween" alignItems="Center" grow="Yes">
-          <Username
-            as="button"
-            data-user-id={senderId}
-            tone={nameTone}
-            onClick={onUsernameClick}
-          >
+          <Username as="button" data-user-id={senderId} tone={nameTone} onClick={onUsernameClick}>
             <Text as="span" size="T400" truncate>
               <UsernameBold>{senderDisplayName}</UsernameBold>
             </Text>
@@ -850,56 +874,41 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>
             <Box gap="100">
               {canSendReaction && confirmed && onReactionToggle && (
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={t('mindroomUi.messages.mindroomMessage.addReaction')}
-                  aria-pressed={!!emojiAnchor}
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                  icon={Icons.SmilePlus}
+                  pressed={!!emojiAnchor}
                   onClick={(evt: MouseEvent<HTMLButtonElement>) => setEmojiAnchor(getAnchor(evt))}
-                >
-                  <Icon src={Icons.SmilePlus} size="100" />
-                </IconButton>
+                />
               )}
               {confirmed && onReplyClick && (
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={t('mindroomUi.messages.mindroomMessage.reply')}
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessage.reply')}
+                  icon={Icons.ReplyArrow}
                   onClick={() => onReplyClick(eventId)}
-                >
-                  <Icon src={Icons.ReplyArrow} size="100" />
-                </IconButton>
+                />
               )}
               {confirmed && onReplyClick && (
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                  icon={Icons.ThreadPlus}
                   onClick={() => onReplyClick(eventId, true)}
-                >
-                  <Icon src={Icons.ThreadPlus} size="100" />
-                </IconButton>
+                />
               )}
               {canEdit && (
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                  icon={Icons.Pencil}
                   onClick={startEdit}
-                >
-                  <Icon src={Icons.Pencil} size="100" />
-                </IconButton>
+                />
               )}
               <PopOut anchor={menuAnchor} position="Bottom" align="End" offset={4} content={menu}>
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
-                  aria-pressed={!!menuAnchor}
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+                  icon={Icons.VerticalDots}
+                  pressed={!!menuAnchor}
                   onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
-                >
-                  <Icon src={Icons.VerticalDots} size="100" />
-                </IconButton>
+                />
               </PopOut>
             </Box>
           </Menu>
