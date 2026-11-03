@@ -41,7 +41,7 @@ function HeaderMenuEntry({ icon, label, onSelect, critical }: EntryProps) {
       after={<Icon size="100" src={icon} />}
       onClick={onSelect}
     >
-      <Text as="span" size="T300" truncate style={entryLabelStyle}>
+      <Text as="span" size="T300" align="Left" truncate style={entryLabelStyle}>
         {label}
       </Text>
     </MenuItem>
