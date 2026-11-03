@@ -1,4 +1,4 @@
-import en from '../locales/en.json';
+import en from '../englishResources';
 
 type LocaleTree = { [key: string]: string | LocaleTree };
 

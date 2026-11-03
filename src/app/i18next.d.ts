@@ -1,4 +1,4 @@
-import en from './locales/en.json';
+import en from './englishResources';
 
 // Typed translation keys: a typo in a t('…') key fails `npm run typecheck`
 // instead of silently rendering the raw key. en.json is the schema; the

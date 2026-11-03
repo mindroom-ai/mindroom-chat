@@ -5,7 +5,7 @@ import i18n, {
   type ResourceKey,
 } from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import en from './locales/en.json';
+import en from './englishResources';
 import { syncDayjsLocale } from './appLocale';
 import {
   APP_LANGUAGE_CODES,

@@ -1,7 +1,7 @@
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { vi } from 'vitest';
-import en from './app/locales/en.json';
+import en from './app/englishResources';
 
 // Component tests do not transform vanilla-extract files. Browser coverage
 // exercises the real material recipe; unit tests only need its composed class.
