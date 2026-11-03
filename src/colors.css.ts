@@ -153,10 +153,11 @@ const darkAccents = {
     OnContainer: '#ECECEF',
   },
   Success: {
-    Main: '#5EA87B',
-    MainHover: '#6BB287',
-    MainActive: '#78BC93',
-    MainLine: '#85C59F',
+    // room-dark.png: "Resolved by" and the streaming dot.
+    Main: '#81D39F',
+    MainHover: '#8DD8A8',
+    MainActive: '#99DDB1',
+    MainLine: '#A5E2BA',
     OnMain: '#0B2416',
     Container: '#0D4326',
     ContainerHover: '#124D2D',
