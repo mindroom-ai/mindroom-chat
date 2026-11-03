@@ -52,7 +52,13 @@ const serviceWorkerPlugin = VitePWA({
 // The app's own sources: JSX through the React plugin, `.css.ts` files through vanilla-extract.
 const sourcePlugins = [react(), vanillaExtractPlugin()];
 
+// A slot dev server (scripts/e2e-slot.sh sets E2E_APP_PORT) pre-bundles into its own directory:
+// a server sharing node_modules/.vite rewrites the chunks the others still serve, and pages then
+// fail with "Failed to fetch dynamically imported module".
+const slotPort = process.env.E2E_APP_PORT;
+
 export default defineConfig({
+  ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
     // Only active when Playwright starts the dev server (see playwright.config.ts).
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
