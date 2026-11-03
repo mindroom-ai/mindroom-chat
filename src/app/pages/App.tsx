@@ -7,6 +7,7 @@ import { ClientConfigProvider, type ClientConfig } from '../hooks/useClientConfi
 import { ScreenSizeProvider, useScreenSize } from '../hooks/useScreenSize';
 import { useActiveSession } from '../hooks/useSessionStore';
 import { ThemeContextProvider, useSystemDefaultTheme, useTheme } from '../hooks/useTheme';
+import { usePageZoom } from '../hooks/usePageZoom';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { applyThemeToDom } from '../theme/themeBootstrap';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
@@ -25,6 +26,7 @@ export function AppTheme({ children }: { children: ReactNode }) {
   const settingsTheme = useTheme();
   const systemTheme = useSystemDefaultTheme();
   const theme = signedIn ? settingsTheme : systemTheme;
+  usePageZoom();
 
   useEffect(() => {
     applyThemeToDom(theme);
