@@ -47,7 +47,7 @@ export const MidnightTheme: Theme = {
 
 export const THEMES: Theme[] = [LightTheme, SilverTheme, DarkTheme, MidnightTheme, ButterTheme];
 
-export const getThemeById = (themeId: string | undefined): Theme | undefined =>
+const getThemeById = (themeId: string | undefined): Theme | undefined =>
   THEMES.find((theme) => theme.id === themeId);
 
 const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)';
@@ -60,7 +60,7 @@ const readSystemThemeKind = (): ThemeKind =>
     : ThemeKind.Light;
 
 /** The operating system's light or dark preference, following changes. */
-export const useSystemThemeKind = (): ThemeKind => {
+const useSystemThemeKind = (): ThemeKind => {
   const [kind, setKind] = useState(readSystemThemeKind);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export const useSystemThemeKind = (): ThemeKind => {
  * The theme the settings select: the fixed theme, or with "use system theme" the light or dark
  * theme picked for the system's current preference.
  */
-export const useActiveTheme = (): Theme => {
+const useActiveTheme = (): Theme => {
   const systemKind = useSystemThemeKind();
   const [themeId] = useSetting(settingsAtom, 'themeId');
   const [useSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');

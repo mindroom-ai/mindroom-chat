@@ -1,9 +1,3 @@
-import { useMemo } from 'react';
-import type { Room } from 'matrix-js-sdk';
-import { StateEvent } from '../../types/matrix/room';
-import { IPowerLevels } from './usePowerLevels';
-import { useStateEvent } from './useStateEvent';
-
 /** An emoji, or the `mxc://` URL of an image. */
 
 
@@ -15,12 +9,6 @@ import { useStateEvent } from './useStateEvent';
 
 
 
-
-
-  100: { name: 'Admin' },
-  50: { name: 'Moderator' },
-  0: { name: 'Member' },
-};
 
 const readTag = (value: unknown): PowerLevelTag | undefined => {
   if (!value || typeof value !== 'object') return undefined;
@@ -34,6 +22,7 @@ const readTag = (value: unknown): PowerLevelTag | undefined => {
   return tag;
 };
 
+/** The valid tags of a power level tags state event's content; anyone may write it. */
 export const readPowerLevelTags = (content: unknown): PowerLevelTags => {
   const tags: PowerLevelTags = {};
   if (!content || typeof content !== 'object') return tags;
@@ -42,34 +31,5 @@ export const readPowerLevelTags = (content: unknown): PowerLevelTags => {
     const tag = readTag(value);
     if (Number.isFinite(powerLevel) && tag) tags[powerLevel] = tag;
   });
-
-
-
-
-
-
-
-
-
-
-  return useMemo(() => {
-    const tags: PowerLevelTags = {
-      ...DEFAULT_POWER_LEVEL_TAGS,
-      ...readPowerLevelTags(tagsEvent?.getContent()),
-    };
-    Object.values(powerLevels.users ?? {}).forEach((level) => {
-      if (!(level in tags)) tags[level] = { name: `Level ${level}` };
-    });
-    return tags;
-  }, [tagsEvent, powerLevels]);
-};
-
-/** The tag of the highest level at or below `powerLevel`. */
-export const getPowerLevelTag = (tags: PowerLevelTags, powerLevel: number): PowerLevelTag => {
-  const levels = Object.keys(tags)
-    .map(Number)
-    .filter((level) => level <= powerLevel)
-    .sort((a, b) => b - a);
-  const level = levels[0];
-  return level === undefined ? { name: `Level ${powerLevel}` } : tags[level];
+  return tags;
 };

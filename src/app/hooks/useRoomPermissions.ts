@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { IPowerLevels, PowerLevelAction, readPowerLevel } from './usePowerLevels';
 
-export type RoomPermissionsAPI = {
+type RoomPermissionsAPI = {
   /** Whether `userId` may send a message event of `eventType`. */
   event: (eventType: string, userId: string) => boolean;
   /** Whether `userId` may send a state event of `eventType`. */

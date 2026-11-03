@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-export type ThrottleOptions = {
+type ThrottleOptions = {
   /** Milliseconds between runs. */
   wait?: number;
   /** Run on the first call instead of only at the end of the interval. */

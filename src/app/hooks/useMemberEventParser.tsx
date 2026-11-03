@@ -5,12 +5,12 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../../types/matrix/room';
 import { getMxIdLocalPart } from '../utils/matrix';
 
-export type ParsedMemberEvent = {
+type ParsedMemberEvent = {
   icon: IconSrc;
   body: ReactNode;
 };
 
-export type MemberEventParser = (event: MatrixEvent) => ParsedMemberEvent;
+type MemberEventParser = (event: MatrixEvent) => ParsedMemberEvent;
 
 type MemberContent = {
   membership?: string;
@@ -35,73 +35,67 @@ const readMemberContent = (content: unknown): MemberContent => {
   };
 };
 
+/** A membership change, named like its sentence in `sharedUi.memberEvents`. */
 type MemberEventKind =
   | 'joined'
   | 'invited'
-  | 'rejectedInvite'
-  | 'revokedInvite'
+  | 'acceptedRequest'
+  | 'requested'
+  | 'rejectedInvitation'
+  | 'revokedInvitation'
+  | 'withdrewRequest'
+  | 'rejectedRequest'
   | 'left'
   | 'kicked'
   | 'banned'
   | 'unbanned'
-  | 'requestedToJoin'
-  | 'withdrewJoinRequest'
-  | 'rejectedJoinRequest'
   | 'changedName'
-  | 'setName'
   | 'removedName'
   | 'changedAvatar'
   | 'removedAvatar'
-  | 'noChange';
+  | 'unchanged'
+  | 'broken';
 
 const KEYS = {
   joined: 'sharedUi.memberEvents.joined',
   invited: 'sharedUi.memberEvents.invited',
-  rejectedInvite: 'sharedUi.memberEvents.rejectedInvite',
-  revokedInvite: 'sharedUi.memberEvents.revokedInvite',
+  acceptedRequest: 'sharedUi.memberEvents.acceptedRequest',
+  requested: 'sharedUi.memberEvents.requested',
+  rejectedInvitation: 'sharedUi.memberEvents.rejectedInvitation',
+  revokedInvitation: 'sharedUi.memberEvents.revokedInvitation',
+  withdrewRequest: 'sharedUi.memberEvents.withdrewRequest',
+  rejectedRequest: 'sharedUi.memberEvents.rejectedRequest',
   left: 'sharedUi.memberEvents.left',
   kicked: 'sharedUi.memberEvents.kicked',
   banned: 'sharedUi.memberEvents.banned',
   unbanned: 'sharedUi.memberEvents.unbanned',
-  requestedToJoin: 'sharedUi.memberEvents.requestedToJoin',
-  withdrewJoinRequest: 'sharedUi.memberEvents.withdrewJoinRequest',
-  rejectedJoinRequest: 'sharedUi.memberEvents.rejectedJoinRequest',
   changedName: 'sharedUi.memberEvents.changedName',
-  setName: 'sharedUi.memberEvents.setName',
   removedName: 'sharedUi.memberEvents.removedName',
   changedAvatar: 'sharedUi.memberEvents.changedAvatar',
   removedAvatar: 'sharedUi.memberEvents.removedAvatar',
-  noChange: 'sharedUi.memberEvents.noChange',
-} as const;
-
-// Leaving, removal and bans show the reason the member or moderator gave.
-const REASON_KEYS = {
-  left: 'sharedUi.memberEvents.leftWithReason',
-  kicked: 'sharedUi.memberEvents.kickedWithReason',
-  banned: 'sharedUi.memberEvents.bannedWithReason',
-} as const;
-
-const getMessageKey = (kind: MemberEventKind, hasReason: boolean) =>
-  hasReason && kind in REASON_KEYS ? REASON_KEYS[kind as keyof typeof REASON_KEYS] : KEYS[kind];
+  unchanged: 'sharedUi.memberEvents.unchanged',
+  broken: 'sharedUi.memberEvents.broken',
+} as const satisfies Record<MemberEventKind, string>;
 
 const ICONS: Record<MemberEventKind, IconSrc> = {
   joined: Icons.ArrowGoRight,
   invited: Icons.ArrowGoRightPlus,
-  rejectedInvite: Icons.ArrowGoRightCross,
-  revokedInvite: Icons.ArrowGoRightCross,
+  acceptedRequest: Icons.ArrowGoRightPlus,
+  requested: Icons.ArrowGoRightPlus,
+  rejectedInvitation: Icons.ArrowGoRightCross,
+  revokedInvitation: Icons.ArrowGoRightCross,
+  withdrewRequest: Icons.ArrowGoRightCross,
+  rejectedRequest: Icons.ArrowGoRightCross,
   left: Icons.ArrowGoLeft,
   kicked: Icons.ArrowGoLeft,
   banned: Icons.ArrowGoLeft,
   unbanned: Icons.ArrowGoRight,
-  requestedToJoin: Icons.ArrowGoRightPlus,
-  withdrewJoinRequest: Icons.ArrowGoRightCross,
-  rejectedJoinRequest: Icons.ArrowGoRightCross,
   changedName: Icons.Mention,
-  setName: Icons.Mention,
   removedName: Icons.Mention,
   changedAvatar: Icons.User,
   removedAvatar: Icons.User,
-  noChange: Icons.User,
+  unchanged: Icons.User,
+  broken: Icons.User,
 };
 
 /** Classifies a membership change by the Matrix specification's membership transitions. */
@@ -110,35 +104,37 @@ const getMemberEventKind = (
   previous: MemberContent,
   selfChange: boolean
 ): MemberEventKind => {
-  const membership = current.membership;
+  const { membership } = current;
   const prevMembership = previous.membership;
 
   if (membership === Membership.Join) {
     if (prevMembership !== Membership.Join) return 'joined';
     if (current.displayname !== previous.displayname) {
-      if (!current.displayname) return 'removedName';
-      return previous.displayname ? 'changedName' : 'setName';
+      return current.displayname ? 'changedName' : 'removedName';
     }
     if (current.avatar_url !== previous.avatar_url) {
       return current.avatar_url ? 'changedAvatar' : 'removedAvatar';
     }
-    return 'noChange';
+    return 'unchanged';
   }
-  if (membership === Membership.Invite) return 'invited';
-  if (membership === Membership.Knock) return 'requestedToJoin';
+  // Approving a join request invites the member who knocked.
+  if (membership === Membership.Invite) {
+    return prevMembership === Membership.Knock ? 'acceptedRequest' : 'invited';
+  }
+  if (membership === Membership.Knock) return 'requested';
   if (membership === Membership.Ban) return 'banned';
   if (membership === Membership.Leave) {
     if (selfChange) {
-      if (prevMembership === Membership.Invite) return 'rejectedInvite';
-      if (prevMembership === Membership.Knock) return 'withdrewJoinRequest';
+      if (prevMembership === Membership.Invite) return 'rejectedInvitation';
+      if (prevMembership === Membership.Knock) return 'withdrewRequest';
       return 'left';
     }
-    if (prevMembership === Membership.Invite) return 'revokedInvite';
-    if (prevMembership === Membership.Knock) return 'rejectedJoinRequest';
+    if (prevMembership === Membership.Invite) return 'revokedInvitation';
+    if (prevMembership === Membership.Knock) return 'rejectedRequest';
     if (prevMembership === Membership.Ban) return 'unbanned';
     return 'kicked';
   }
-  return 'noChange';
+  return 'broken';
 };
 
 const nameOf = (userId: string | undefined, displayName: string | undefined): string =>
@@ -162,22 +158,20 @@ const nameOf = (userId: string | undefined, displayName: string | undefined): st
       const selfChange = !!senderId && senderId === targetId;
       const kind = getMemberEventKind(current, previous, selfChange);
 
-      const senderMember = senderId ? event.sender : undefined;
       const userName = nameOf(targetId, current.displayname ?? previous.displayname);
+      const prevUserName = nameOf(targetId, previous.displayname);
       const senderName = selfChange
         ? userName
-        : nameOf(senderId, senderMember?.rawDisplayName || undefined);
-      const previousName = nameOf(targetId, previous.displayname);
-      const reason = current.reason;
-      const key = getMessageKey(kind, !!reason);
+        : nameOf(senderId, event.sender?.rawDisplayName || undefined);
+      const reason = current.reason ? `(${current.reason})` : '';
 
       return {
         icon: ICONS[kind],
         body: (
           <Trans
             t={t}
-            i18nKey={key}
-            values={{ userName, senderName, previousName, reason }}
+            i18nKey={KEYS[kind]}
+            values={{ userName, prevUserName, senderName, reason }}
             components={{ b: <b /> }}
             tOptions={{ interpolation: { escapeValue: true } }}
             shouldUnescape

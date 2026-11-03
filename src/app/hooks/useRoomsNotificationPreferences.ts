@@ -1,5 +1,4 @@
 import { createContext, useContext, useMemo } from 'react';
-import { IconSrc, Icons } from 'folds';
 import {
   ConditionKind,
   IPushRule,
@@ -25,7 +24,7 @@ export enum RoomNotificationMode {
   Mute = 'mute',
 }
 
-export type RoomToNotificationMode = Map<string, RoomNotificationMode>;
+type RoomToNotificationMode = Map<string, RoomNotificationMode>;
 
 const notifies = (rule: IPushRule): boolean =>
   rule.actions.some((action) => action === PushRuleActionName.Notify);
@@ -39,7 +38,7 @@ const isRoomMuteRule = (rule: IPushRule): boolean =>
   (rule.conditions[0] as { pattern?: string }).pattern === rule.rule_id;
 
 /** Every room with its own notification setting, read from the account's push rules. */
-export const getRoomsNotificationPreferences = (
+const getRoomsNotificationPreferences = (
   pushRules: IPushRules | undefined
 ): RoomToNotificationMode => {
   const modes: RoomToNotificationMode = new Map();
@@ -60,16 +59,9 @@ export const getRoomsNotificationPreferences = (
 export const getRoomNotificationMode = (
   preferences: RoomToNotificationMode,
   roomId: string
+): RoomNotificationMode => preferences.get(roomId) ?? RoomNotificationMode.Unset;
 
-
-
-
-
-
-
-
-
-
+const removeRule = (mx: MatrixClient, kind: PushRuleKind, roomId: string) =>
 
 
 
@@ -131,7 +123,3 @@ export const useRoomsNotificationPreferencesContext = (): RoomToNotificationMode
   if (!preferences) throw new Error('Notification preferences are not provided!');
   return preferences;
 };
-
-/** A room's notification setting from the provided preferences. */
-export const useRoomNotificationMode = (roomId: string): RoomNotificationMode =>
-  getRoomNotificationMode(useRoomsNotificationPreferencesContext(), roomId);

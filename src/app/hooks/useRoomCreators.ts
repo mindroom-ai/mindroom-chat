@@ -8,7 +8,7 @@ import { useForceUpdate } from './useForceUpdate';
 // they outrank every power level and cannot be demoted.
 const PRIVILEGED_CREATOR_ROOM_VERSIONS = new Set(['org.matrix.hydra.11']);
 
-export const roomVersionHasPrivilegedCreators = (roomVersion: string | undefined): boolean => {
+const roomVersionHasPrivilegedCreators = (roomVersion: string | undefined): boolean => {
   if (!roomVersion) return false;
   if (PRIVILEGED_CREATOR_ROOM_VERSIONS.has(roomVersion)) return true;
   return /^\d+$/.test(roomVersion) && Number(roomVersion) >= 12;

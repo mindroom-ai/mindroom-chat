@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMatrixClient } from './useMatrixClient';
 import { useAlive } from './useAlive';
 
-export type EmailNotificationsState = {
+type EmailNotificationsState = {
   /** The account's first email address, if it has one. */
   email?: string;
   /** Whether an email pusher sends notifications to that address. */

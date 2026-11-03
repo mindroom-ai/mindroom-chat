@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
 import type { ValidatedAuthMetadata } from 'matrix-js-sdk';
 
 /** Account management actions from MSC4191. */
-export type AccountManagementAction =
+type AccountManagementAction =
   | 'org.matrix.profile'
   | 'org.matrix.devices_list'
   | 'org.matrix.device_view'
@@ -10,7 +9,7 @@ export type AccountManagementAction =
   | 'org.matrix.account_deactivate'
   | 'org.matrix.cross_signing_reset';
 
-export type AccountManagementParams = {
+type AccountManagementParams = {
   action: AccountManagementAction | string;
   device_id?: string;
 };
@@ -39,19 +38,4 @@ export const getAccountManagementUrl = (
     if (value !== undefined) url.searchParams.set(key, value);
   });
   return url.toString();
-};
-
-/** The account management URL for `params`, when the homeserver delegates auth to OIDC. */
-export const useAccountManagementUrl = (
-  authMetadata: ValidatedAuthMetadata | undefined,
-  params: AccountManagementParams
-): string | undefined => {
-  const { action, device_id: deviceId } = params;
-  return useMemo(
-    () =>
-      authMetadata
-        ? getAccountManagementUrl(authMetadata, { action, device_id: deviceId })
-        : undefined,
-    [authMetadata, action, deviceId]
-  );
 };

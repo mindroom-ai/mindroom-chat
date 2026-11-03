@@ -1,9 +1,7 @@
 import { MouseEventHandler, useCallback } from 'react';
 
 /** The actions the closed-navigation-categories atom accepts. */
-export type CategoryAction =
-  | { type: 'PUT'; categoryId: string }
-  | { type: 'DELETE'; categoryId: string };
+type CategoryAction = { type: 'PUT'; categoryId: string } | { type: 'DELETE'; categoryId: string };
 
 /**
  * A click handler for collapsible navigation categories: reads the category ID from the

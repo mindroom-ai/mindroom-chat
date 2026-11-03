@@ -60,7 +60,7 @@ export const useRoomImagePacks = (room: Room): ImagePack[] =>
   useRoomsImagePacks(useMemo(() => [room], [room]));
 
 /** The account's own pack (`im.ponies.user_emotes`). */
-export const useUserImagePack = (): ImagePack | undefined => {
+const useUserImagePack = (): ImagePack | undefined => {
   const mx = useMatrixClient();
   const userPackEvent = useAccountData(AccountDataEvent.PoniesUserEmotes);
 
@@ -71,7 +71,7 @@ export const useUserImagePack = (): ImagePack | undefined => {
 };
 
 /** Room packs the account enabled everywhere (`im.ponies.emote_rooms`). */
-export const useGlobalImagePacks = (): ImagePack[] => {
+const useGlobalImagePacks = (): ImagePack[] => {
   const mx = useMatrixClient();
   const emoteRoomsEvent = useAccountData(AccountDataEvent.PoniesEmoteRooms);
   const roomIds = useMemo(() => {

@@ -19,8 +19,7 @@ export type IPowerLevels = {
 
 
 
-
-export type PowerLevelNotificationsAction = 'room';
+export type PowerLevelAction = 'invite' | 'redact' | 'kick' | 'ban' | 'historical';
 
 const DEFAULT_ACTION_LEVEL: Record<PowerLevelAction, number> = {
 

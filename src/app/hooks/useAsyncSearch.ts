@@ -6,19 +6,19 @@ export const SEARCH_NOW_SCAN_LIMIT = 50;
 /** Items the search checks per slice before yielding to the browser. */
 const SEARCH_SLICE_SIZE = 200;
 
-export type AsyncSearchResult<T> = {
+type AsyncSearchResult<T> = {
   query: string;
   items: T[];
 };
 
-export type AsyncSearchOptions = {
+type AsyncSearchOptions = {
   /** Most results to return. */
   limit?: number;
 };
 
-export type SearchItemStrGetter<T> = (item: T) => string | string[];
+type SearchItemStrGetter<T> = (item: T) => string | string[];
 
-export const normalizeSearchString = (value: string): string =>
+const normalizeSearchString = (value: string): string =>
   value.normalize('NFKC').toLocaleLowerCase().trim();
 
 const toStrings = (value: string | string[]): string[] => (Array.isArray(value) ? value : [value]);

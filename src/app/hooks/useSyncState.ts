@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ClientEvent, MatrixClient, SyncState, SyncStateData } from 'matrix-js-sdk';
 
-export type SyncStateCallback = (
+type SyncStateCallback = (
   state: SyncState,
   previousState: SyncState | null,
   data?: SyncStateData

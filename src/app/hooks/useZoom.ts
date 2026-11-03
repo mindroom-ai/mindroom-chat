@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const ZOOM_MIN = 0.1;
-export const ZOOM_MAX = 5;
+const ZOOM_MIN = 0.1;
+const ZOOM_MAX = 5;
 
 const clampZoom = (zoom: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, zoom));

@@ -1,8 +1,8 @@
 import { PointerEvent, PointerEventHandler, useCallback, useEffect, useRef, useState } from 'react';
 
-
-
-
+type Pan = {
+  translateX: number;
+  translateY: number;
 };
 
 type Point = { x: number; y: number };

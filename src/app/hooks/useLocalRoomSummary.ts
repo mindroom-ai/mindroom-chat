@@ -31,7 +31,7 @@ const readString = (event: MatrixEvent | null | undefined, key: string): string 
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 };
 
-export const getLocalRoomSummary = (room: Room): LocalRoomSummary => {
+const getLocalRoomSummary = (room: Room): LocalRoomSummary => {
   const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
   const stateEvent = (type: StateEvent) => state?.getStateEvents(type, '');
   return {

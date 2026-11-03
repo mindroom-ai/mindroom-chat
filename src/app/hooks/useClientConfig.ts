@@ -25,6 +25,11 @@ import { createContext, useContext } from 'react';
     requireAppleProvider?: boolean;
     /** Hide the homeserver picker when the list holds a single homeserver. */
     hideServerPickerWhenSingle?: boolean;
+    /** Credits under the sign-in card; an empty list hides the credit line. */
+    poweredBy?: { label: string; url: string }[];
+    supportUrl?: string;
+    privacyUrl?: string;
+    termsUrl?: string;
 
 
 
@@ -35,12 +40,14 @@ import { createContext, useContext } from 'react';
 
 
 
-
+  sidebar?: {
     showThreads?: boolean;
     showExploreCommunity?: boolean;
     showExploreCommunityInSimpleMode?: boolean;
     /** The Local MindRoom tab; on unless set to false. */
     showMindRoom?: boolean;
+    /** Where the Local MindRoom tab links for more about MindRoom. */
+    mindRoomUrl?: string;
     /** Provisioning service the Local MindRoom pairing flow talks to. */
     mindRoomProvisioningUrl?: string;
   };

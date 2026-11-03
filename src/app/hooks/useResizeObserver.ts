@@ -1,15 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-
-
-
-
-
-
-
-
-
-
+/**
+ * Observes the element(s) `getElement` returns and calls `onResize` with each batch of entries.
+ * The observer follows `getElement` when its identity changes.
+ */
+export const useResizeObserver = (
   onResize: (entries: ResizeObserverEntry[]) => void,
   getElement: () => Element | Element[] | null | undefined
 ): void => {

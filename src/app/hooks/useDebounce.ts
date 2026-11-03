@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-export type DebounceOptions = {
+type DebounceOptions = {
   /** Milliseconds without a call before the callback runs. */
   wait?: number;
   /** Run on the first call of a burst instead of after it. */

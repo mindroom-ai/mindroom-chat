@@ -7,9 +7,9 @@ export type ItemRange = {
   end: number;
 };
 
-export type ScrollAlign = 'start' | 'center' | 'end';
+type ScrollAlign = 'start' | 'center' | 'end';
 
-export type ScrollToOptions = {
+type ScrollToOptions = {
   behavior?: ScrollBehavior;
   align?: ScrollAlign;
   /** Extra pixels below the aligned position (negative: above). */
@@ -51,7 +51,7 @@ export type RetryPaginationOptions = {
   deferAutomaticPagination?: (retry: () => boolean) => boolean;
 };
 
-export type VirtualPaginator = {
+
 
 
 
@@ -61,7 +61,7 @@ export type VirtualPaginator = {
   observeFrontAnchor: (element: HTMLElement | null) => void;
 };
 
-export const PAGINATOR_ANCHOR_ATTRIBUTE = 'data-paginator-anchor';
+const PAGINATOR_ANCHOR_ATTRIBUTE = 'data-paginator-anchor';
 const BACK_ANCHOR = 'B';
 const FRONT_ANCHOR = 'F';
 

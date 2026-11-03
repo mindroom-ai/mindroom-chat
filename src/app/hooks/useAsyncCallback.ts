@@ -5,11 +5,11 @@ import { Dispatch, SetStateAction, useCallback, useLayoutEffect, useRef, useStat
 
 
 
+}
 
-
-
-export type AsyncLoading = { status: AsyncStatus.Loading };
-export type AsyncSuccess<D> = { status: AsyncStatus.Success; data: D };
+type AsyncIdle = { status: AsyncStatus.Idle };
+type AsyncLoading = { status: AsyncStatus.Loading };
+type AsyncSuccess<D> = { status: AsyncStatus.Success; data: D };
 
 
 
@@ -19,7 +19,7 @@ export type AsyncSuccess<D> = { status: AsyncStatus.Success; data: D };
 /** Releases a result nobody will own, such as a blob URL whose state never committed. */
 export type AsyncDiscardCallback<D> = (data: D) => void;
 
-export const REQUEST_REPLACED_ERROR = 'AsyncCallbackHook: Request replaced!';
+const REQUEST_REPLACED_ERROR = 'AsyncCallbackHook: Request replaced!';
 
 type PendingPublication<D> = {
   state: AsyncSuccess<D>;

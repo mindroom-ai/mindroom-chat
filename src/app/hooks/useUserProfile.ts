@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { MatrixEvent, User, UserEvent } from 'matrix-js-sdk';
 import { useMatrixClient } from './useMatrixClient';
 
-export type UserProfile = {
+type UserProfile = {
   displayName?: string;
   /** The `mxc://` avatar URL. */
   avatarUrl?: string;
