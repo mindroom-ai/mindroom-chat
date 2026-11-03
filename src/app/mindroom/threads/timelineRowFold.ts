@@ -40,6 +40,20 @@ const groupKind = (event: MatrixEvent): string => {
 export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
   reactionOrEditEvent(event) || !!event.isRedaction?.();
 
+/** Whether `event` continues the group of the row above it: same sender, kind, day, and soon after. */
+const continuesGroup = (above: MatrixEvent, event: MatrixEvent): boolean =>
+  inSameDay(above.getTs(), event.getTs()) &&
+  above.getSender() === event.getSender() &&
+  groupKind(above) === groupKind(event) &&
+  minuteDifference(above.getTs(), event.getTs()) < GROUP_MINUTES;
+
+/**
+ * Whether a message right after `above` shows its own author line. An edit or reaction above
+ * ends the group, as it does in the fold below.
+ */
+export const startsAuthorGroup = (above: MatrixEvent | undefined, event: MatrixEvent): boolean =>
+  !above || isRowlessTimelineEvent(above) || !continuesGroup(above, event);
+
 type FoldOptions = {
   /** The virtual indexes that render, ascending. */
   indexes: readonly number[];
@@ -82,13 +96,7 @@ export const foldTimelineRowContexts = ({
       const hasRow = !isRowlessTimelineEvent(event);
       const absoluteIndex = getAbsoluteIndex?.(index);
       const groupsWithAbove =
-        hasRow &&
-        aboveHasRow &&
-        !dayChanged &&
-        !!above &&
-        above.getSender() === event.getSender() &&
-        groupKind(above) === groupKind(event) &&
-        minuteDifference(above.getTs(), event.getTs()) < GROUP_MINUTES;
+        hasRow && aboveHasRow && !dayChanged && !!above && continuesGroup(above, event);
       const unreadDivider =
         hasRow &&
         shouldRenderUnreadDividerAt({

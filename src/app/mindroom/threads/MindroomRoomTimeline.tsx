@@ -127,7 +127,8 @@ import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from './useThreadApprovalTimeline';
-import { estimateThreadEventRowHeight, shouldAutoPaginateThreadBack } from './threadRenderUtils';
+import { shouldAutoPaginateThreadBack } from './threadRenderUtils';
+import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { isScrollNearBottom, isTimelineAtLiveEnd } from './timelineScrollUtils';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 import {
@@ -163,8 +164,11 @@ const EMPTY_EVENTS: MatrixEvent[] = [];
 const EMPTY_ENTRIES: TimelineEventEntry[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
-/** Room rows are priced at one height until measured; thread rows estimate their content. */
-const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 120 } as const;
+/**
+ * Rows are priced by their content until measured (timelineRowEstimate). The Compact layout
+ * prices room rows at one height, and a row the window does not know takes the comfortable one.
+ */
+const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
 const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 
 /** Gestures and keys that hand the scroll position over to the reader. */
@@ -877,7 +881,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         let foldPx = 0;
         for (let index = next.start; index < Math.min(current.start, next.end); index += 1) {
           const key = roomRowsRef.current[index]?.getId() ?? index;
-          foldPx += roomFoldPriceRef.current(key, index - next.start);
+          // Priced by its place in the window still mounted, which the estimate reads.
+          foldPx += roomFoldPriceRef.current(key, index - current.start);
         }
         pendingRoomFoldPxRef.current += foldPx;
       }
@@ -914,9 +919,14 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // The virtual list and its offset ledger.
   const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
+  // Room indexes count from the window's first row; a fold prices rows above it (negative).
   const estimateSize = (index?: number): number => {
     if (!threadId) {
-      return compactLayout ? ROOM_ROW_ESTIMATE_PX.compact : ROOM_ROW_ESTIMATE_PX.comfortable;
+      if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact;
+      const position = index === undefined ? undefined : activeTimelineRange.start + index;
+      const event = position === undefined ? undefined : roomRows[position];
+      if (!event || position === undefined) return ROOM_ROW_ESTIMATE_PX.comfortable;
+      return estimateRoomRowHeight(event, roomRows[position - 1]);
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {
@@ -924,7 +934,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
         : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
     }
-    return estimateThreadEventRowHeight(event, { compact: compactLayout });
+    return estimateMessageRowHeight(event, { compact: compactLayout });
   };
   const getItemKey = (index: number): string | number => {
     const event = threadId ? threadEvents[index] : roomWindowRows[index];
