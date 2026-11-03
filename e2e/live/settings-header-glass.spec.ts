@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Settings pages share one session and must open sequentially. */
 import { expect, test, type Locator } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
@@ -18,10 +18,8 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
     );
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-    let restoreSettings: (() => Promise<unknown>) | undefined;
     let roomId: string | undefined;
     try {
-      restoreSettings = await setFullInterfaceModeForSession(homeserver, session);
       roomId = await createPrivateRoom(homeserver, session.accessToken, {
         name: 'Design studio',
         topic: 'Shared projects and creative ideas',
@@ -174,7 +172,6 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       }
     } finally {
       const cleanup = await Promise.allSettled([
-        restoreSettings?.(),
         (async () => {
           if (!roomId) return;
           await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {

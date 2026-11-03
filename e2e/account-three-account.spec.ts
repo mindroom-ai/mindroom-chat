@@ -10,7 +10,6 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -29,12 +28,6 @@ test('supports three stored accounts with route restore across switches', async 
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, thirdCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,

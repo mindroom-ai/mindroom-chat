@@ -8,7 +8,6 @@ import {
 import {
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -29,11 +28,6 @@ test('propagates active-account switches across tabs without crashing', async ({
   const pageOneDiagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,
@@ -82,11 +76,6 @@ test('propagates logout fallback across tabs without crashing', async ({ page, c
   const pageOneDiagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,

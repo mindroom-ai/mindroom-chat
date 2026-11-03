@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 
 const REPLY = 'The tooltip names this button.';
@@ -28,12 +28,8 @@ test('icon buttons in the composer and the message toolbar show their names', as
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  const restoreSettings = await setFullInterfaceModeForSession(homeserver, session);
   const roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: 'Tooltips',
-  }).catch(async (error) => {
-    await restoreSettings();
-    throw error;
   });
   try {
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
@@ -94,6 +90,5 @@ test('icon buttons in the composer and the message toolbar show their names', as
       accessToken: session.accessToken,
       body: '{}',
     }).catch(() => undefined);
-    await restoreSettings();
   }
 });

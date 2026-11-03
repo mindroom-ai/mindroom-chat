@@ -6,6 +6,7 @@ import {
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
 import { createThreadFixture, loginToMatrix, seedRoomOverviewState } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -13,18 +14,15 @@ const getFocusedRoomPath = (roomId: string, eventId: string) =>
   `/home/${encodeURIComponent(roomId)}/${encodeURIComponent(eventId)}?focusEvent=1`;
 
 const waitForOverviewToolbar = async (page: Page) => {
-  await expect(page.locator('[data-room-thread-overview="true"]')).toBeVisible({
+  await expect(roomViewSwitch(page)).toBeVisible({
     timeout: 30_000,
   });
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
-const getRoomViewModeButton = (page: Page, mode: 'compact' | 'threaded') =>
-  page.getByRole('group', { name: 'Room view mode' }).locator(`button[data-view-mode="${mode}"]`);
-
 const expectExpandedFocusedTimeline = async (page: Page, rootBody: string) => {
   await waitForOverviewToolbar(page);
-  await expect(getRoomViewModeButton(page, 'threaded')).toHaveAttribute('aria-pressed', 'true');
+  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
   await expect(
     page.getByTestId('room-virtual-inner').getByText(rootBody, { exact: true })
   ).toBeVisible({ timeout: 30_000 });
@@ -78,13 +76,13 @@ test.describe('live issue-031 focused room view', () => {
     await page.goto(getFocusedRoomPath(fixture.roomId, fixture.rootId));
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
-    await getRoomViewModeButton(page, 'compact').click();
-    await expect(getRoomViewModeButton(page, 'compact')).toHaveAttribute('aria-pressed', 'true');
+    await roomViewSwitch(page).click();
+    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible();
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toBeVisible();
     await expect(page.locator('[data-message-item]', { hasText: fixture.rootBody })).toHaveCount(0);
 
-    await getRoomViewModeButton(page, 'threaded').click();
+    await roomViewSwitch(page).click();
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-031-focused-toggle');

@@ -67,7 +67,7 @@ test.describe('live threads', () => {
     test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
 
     // Look for thread overview panel or thread indicators in the room
-    const threadOverview = page.locator('[data-room-thread-overview="true"]');
+    const threadOverview = page.locator('[data-compact-room-view="true"]');
     const threadIndicators = page.locator('[class*="thread"], [class*="Thread"]');
 
     // Either the overview panel or thread indicators should be visible

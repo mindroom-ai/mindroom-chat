@@ -5,7 +5,7 @@ import {
   getSecondaryCredentials,
   hasPrimaryCredentials,
 } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
   joinRoom,
@@ -36,10 +36,8 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
     invite: [reader.userId],
   });
   const roomPath = (path: string) => `/rooms/${encodeURIComponent(roomId)}${path}`;
-  let restoreSettings: (() => Promise<unknown>) | undefined;
 
   try {
-    restoreSettings = await setFullInterfaceModeForSession(homeserver, author);
     await joinRoom(homeserver, reader.accessToken, roomId);
     await matrixFetch(
       homeserver,
@@ -106,7 +104,6 @@ test('typing is still shown after a gappy sync', async ({ page }) => {
     await expect(typing).toHaveCount(0, { timeout: 40_000 });
   } finally {
     const results = await Promise.allSettled([
-      restoreSettings?.(),
       ...[reader, author].map(async ({ accessToken }) => {
         await matrixFetch(homeserver, roomPath('/leave'), {
           method: 'POST',

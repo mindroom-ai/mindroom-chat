@@ -11,6 +11,7 @@ import {
   seedRoomOverviewState,
   setAccountData,
 } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -51,19 +52,19 @@ test.describe('live issue-076 classic room timeline', () => {
     await expect(roomTimeline.getByText(fixture.rootBody, { exact: true })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.locator('[data-room-thread-overview="true"]')).toBeVisible({
+    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', {
       timeout: 30_000,
     });
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toBeVisible({
       timeout: 30_000,
     });
 
-    await page
-      .getByRole('group', { name: 'Room view mode' })
-      .getByRole('button', { name: 'Classic', exact: true })
-      .click();
+    // The header switch moves between Compact and Classic, so Threaded reaches Classic through Compact.
+    await roomViewSwitch(page).click();
+    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+    await roomViewSwitch(page).click();
 
-    await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
+    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toHaveCount(0);
     await expect(roomTimeline.getByText(fixture.replyBody, { exact: true })).toBeVisible({
       timeout: 30_000,

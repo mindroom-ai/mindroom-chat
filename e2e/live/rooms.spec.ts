@@ -8,7 +8,7 @@ import {
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 const roomLinkSelector = 'a[href^="/home/!"], a[href^="/home/%23"]';
-const roomSurfaceSelector = '[data-room-thread-overview="true"], [data-message-id], [data-message-item]';
+const roomSurfaceSelector = '[data-compact-room-view="true"], [data-message-id], [data-message-item]';
 
 test.describe('live rooms', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');

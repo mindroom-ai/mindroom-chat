@@ -14,6 +14,7 @@ import {
   sendRoomMessage,
   setDirectAccountData,
 } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -92,7 +93,7 @@ test.describe('live issue-034 direct room timeline', () => {
       timeout: 30_000,
     });
     await expect(page.locator('[data-compact-room-view="true"]')).toHaveCount(0);
-    await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
+    await expect(roomViewSwitch(page)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Open thread: ISSUE-034 direct/ })).toHaveCount(
       0
     );

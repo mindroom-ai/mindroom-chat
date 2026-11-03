@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import { pressTab } from '../helpers/keyboard';
@@ -22,7 +22,6 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
     const runId = randomUUID().slice(0, 8);
     const registered: Array<{ access_token: string; user_id: string; password: string }> = [];
     let roomId: string | undefined;
-    let restoreSettings: (() => Promise<unknown>) | undefined;
     try {
       // Wait for every registration before teardown, including partially failed setup.
       const registrations = await Promise.allSettled(
@@ -64,7 +63,6 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         topic: 'Shared projects and creative ideas',
         invite: people.map((person) => person.user_id),
       });
-      restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
       const joins = await Promise.allSettled(
         people.slice(0, -1).map((person) => joinRoom(homeserver, person.access_token, roomId!))
       );
@@ -236,7 +234,6 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await expect(header).toHaveCount(0);
     } finally {
       const cleanup = await Promise.allSettled([
-        restoreSettings?.(),
         (async () => {
           if (!roomId) return;
           await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {

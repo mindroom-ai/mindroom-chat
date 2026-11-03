@@ -3,7 +3,6 @@ import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from '.
 import {
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -88,10 +87,6 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
     secondaryCredentials!.username,
     secondaryCredentials!.password
   );
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials!),
-  ]);
 
   // The room an operator creates for a homeserver: typed, local, with an empty pack that
   // everyone may add to, and posting limited to moderators. Its other power levels are read

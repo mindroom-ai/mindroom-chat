@@ -1,5 +1,6 @@
 e2e/helpers/threadOverview.ts	1	thread filter bar
 e2e/live/thread-filter-persistence.spec.ts	1	thread filter bar
+e2e/live/narrow-toolbar.spec.ts	1	thread filter bar
 src/app/components/CallEmbedHost.test.tsx	1	Element Call
 src/app/components/CallEmbedHost.tsx	1	Element Call
 src/app/components/CallIframeBackground.test.tsx	1	Element Call

@@ -5,7 +5,6 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -25,11 +24,6 @@ test('falls back to the remaining account on logout, then returns to auth after 
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,

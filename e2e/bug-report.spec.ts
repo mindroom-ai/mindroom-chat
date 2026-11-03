@@ -3,7 +3,6 @@ import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from '.
 import {
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -70,10 +69,6 @@ test('one click sends a bug report the administrator receives without accepting 
     adminCredentials!.username,
     adminCredentials!.password
   );
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, reporterCredentials),
-    setFullInterfaceModeForCredentials(homeserver, adminCredentials!),
-  ]);
 
   // A private room the administrator is NOT in: the report must still reach them.
   const marker = `bug report e2e ${Date.now()}`;

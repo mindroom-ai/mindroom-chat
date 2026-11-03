@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Dialogs share a session and open sequentially. */
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar, expectScrollbarBounds } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch, sendStateEvent } from '../helpers/matrix';
@@ -19,9 +19,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
     let roomId: string | undefined;
-    let restoreSettings: (() => Promise<unknown>) | undefined;
     try {
-      restoreSettings = await setFullInterfaceModeForSession(homeserver, session);
       roomId = await createPrivateRoom(homeserver, session.accessToken, {
         name: 'Design studio',
         topic: 'Shared projects',
@@ -153,7 +151,6 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await page.screenshot({ path: testInfo.outputPath('room-packs.png'), scale: 'css' });
     } finally {
       const cleanup = await Promise.allSettled([
-        restoreSettings?.(),
         (async () => {
           if (!roomId) return;
           await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {

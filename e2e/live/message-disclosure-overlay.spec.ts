@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForCredentials } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import {
   createThreadFixture,
   loginToMatrix,
@@ -20,9 +20,6 @@ for (const surface of ['room', 'thread'] as const) {
         'Local fixture only'
       );
       const credentials = getPrimaryCredentials();
-      if (surface === 'room') {
-        await setFullInterfaceModeForCredentials(homeserver, credentials);
-      }
       const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
       const body = Array.from(
         { length: 40 },

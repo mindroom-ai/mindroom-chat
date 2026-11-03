@@ -9,7 +9,6 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -29,11 +28,6 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,

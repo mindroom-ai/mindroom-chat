@@ -5,7 +5,7 @@ import {
   getSecondaryCredentials,
   hasPrimaryCredentials,
 } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
   joinRoom,
@@ -44,10 +44,8 @@ test('older rows loaded above a reader at the top keep them there', async ({ pag
     invite: [other.userId],
   });
   const roomPath = (path: string) => `/rooms/${encodeURIComponent(roomId)}${path}`;
-  let restoreSettings: (() => Promise<unknown>) | undefined;
 
   try {
-    restoreSettings = await setFullInterfaceModeForSession(homeserver, author);
     await joinRoom(homeserver, other.accessToken, roomId);
     for (let index = 1; index <= 9; index += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -90,7 +88,6 @@ test('older rows loaded above a reader at the top keep them there', async ({ pag
     await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible();
   } finally {
     const results = await Promise.allSettled([
-      restoreSettings?.(),
       ...[other, author].map(async ({ accessToken }) => {
         await matrixFetch(homeserver, roomPath('/leave'), {
           method: 'POST',

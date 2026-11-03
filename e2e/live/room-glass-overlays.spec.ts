@@ -12,6 +12,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 for (const width of [390, 1280]) {
   test(`room controls overlay cards at ${width}px`, async ({ page }, testInfo) => {
@@ -108,7 +109,6 @@ for (const width of [390, 1280]) {
       await page.goto(`/home/${encodeURIComponent(roomId)}`);
       const scroll = page.locator('[data-compact-room-view="true"]');
       const header = page.locator('header').filter({ hasText: 'Project notes' });
-      const filters = page.locator('[data-room-thread-overview="true"]');
       const footer = page.locator('[data-room-footer="true"]');
       const following = page.locator('[data-room-following="true"]');
       const cards = scroll.locator('button[data-thread-root-id]');
@@ -121,12 +121,8 @@ for (const width of [390, 1280]) {
         })
       ).toEqual(['0px', '0px', 'none', 'none']);
       await expect(header).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
-      await expect(filters.locator('[data-view-mode="compact"]')).toHaveAttribute(
-        'aria-pressed',
-        'true'
-      );
+      await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
       const headerBox = (await header.boundingBox())!;
-      const filtersBox = (await filters.boundingBox())!;
       const footerBox = (await footer.boundingBox())!;
       const scrollBox = (await scroll.boundingBox())!;
       expect(scrollBox.y).toBeLessThanOrEqual(headerBox.y);
@@ -134,14 +130,14 @@ for (const width of [390, 1280]) {
         footerBox.y + footerBox.height - 1
       );
       expect((await cards.first().boundingBox())!.y).toBeGreaterThanOrEqual(
-        filtersBox.y + filtersBox.height
+        headerBox.y + headerBox.height
       );
-      await expectInsetScrollbar(page, scroll, filters, footer);
+      await expectInsetScrollbar(page, scroll, header, footer);
       // Scroll beyond the first cards: content must exist behind every surface.
       await scroll.evaluate((element) => {
         element.scrollTop = 400;
       });
-      for (const surface of [header, filters, footer, following]) {
+      for (const surface of [header, footer, following]) {
         const box = (await surface.boundingBox())!;
         expect(
           await cards.evaluateAll(
@@ -155,7 +151,6 @@ for (const width of [390, 1280]) {
         ).toBe(true);
       }
       expect((await header.boundingBox())!.y).toBeCloseTo(headerBox.y, 0);
-      expect((await filters.boundingBox())!.y).toBeCloseTo(filtersBox.y, 0);
       expect((await footer.boundingBox())!.y).toBeCloseTo(footerBox.y, 0);
       await page.mouse.move(0, 0);
       await expect(page.getByRole('tooltip')).toHaveCount(0);
@@ -170,7 +165,7 @@ for (const width of [390, 1280]) {
             const rect = element.getBoundingClientRect();
             return rect.top >= area.top && rect.bottom <= area.bottom;
           }),
-        { top: filtersBox.y + filtersBox.height, bottom: footerBox.y }
+        { top: headerBox.y + headerBox.height, bottom: footerBox.y }
       );
       expect(visibleIndex).toBeGreaterThanOrEqual(0);
       await cards.nth(visibleIndex).click();
@@ -198,38 +193,21 @@ for (const width of [390, 1280]) {
       // Native focus scrolling must also respect the controls' measured insets.
       await cards.first().evaluate((element) => element.scrollIntoView({ block: 'start' }));
       expect((await cards.first().boundingBox())!.y).toBeGreaterThanOrEqual(
-        (await filters.boundingBox())!.y + filtersBox.height
+        (await header.boundingBox())!.y + headerBox.height
       );
-      await filters.locator('[data-preset-button]').click();
-      const presets = filters.locator('[data-preset-dropdown]');
-      await expect(presets).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(presets).not.toBeVisible();
-      const sort = filters.locator('[data-sort-by]');
-      const previousSort = await sort.getAttribute('data-sort-direction');
-      await sort.click();
-      await expect(sort).not.toHaveAttribute('data-sort-direction', previousSort!);
 
-      for (const mode of ['threaded', 'classic']) {
+      // The header switch leads from Compact to Classic only.
+      for (const mode of ['classic']) {
         // eslint-disable-next-line no-await-in-loop
-        await filters.locator(`[data-view-mode="${mode}"]`).click();
+        await roomViewSwitch(page).click();
         const messages = page.getByTestId('room-virtual-inner');
         const messageScroll = messages.locator('xpath=../..');
         // eslint-disable-next-line no-await-in-loop
         await expect(messages).toBeVisible();
         // eslint-disable-next-line no-await-in-loop
-        await expectInsetScrollbar(
-          page,
-          messageScroll,
-          mode === 'classic' ? header : filters,
-          footer
-        );
+        await expectInsetScrollbar(page, messageScroll, header, footer);
         // eslint-disable-next-line no-await-in-loop
         expect((await messageScroll.boundingBox())!.y).toBeLessThanOrEqual(headerBox.y);
-        if (mode === 'classic') {
-          // eslint-disable-next-line no-await-in-loop
-          await expect(filters).toHaveCount(0);
-        }
         // eslint-disable-next-line no-await-in-loop
         await messageScroll.evaluate((element) => {
           element.scrollTop = 350;
@@ -254,7 +232,7 @@ for (const width of [390, 1280]) {
         // eslint-disable-next-line no-await-in-loop
         await expect
           .poll(async () => {
-            const top = mode === 'classic' ? header : filters;
+            const top = header;
             const topBox = (await top.boundingBox())!;
             const rowBox = await messages.locator('[data-message-item]').first().boundingBox();
             return rowBox ? rowBox.y - topBox.y - topBox.height : -1;

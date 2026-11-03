@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
 import { alignUiActionSync } from './helpers/uiActionSync';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from './helpers/matrix';
+import { roomViewSwitch } from './helpers/roomViewSwitch';
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
@@ -225,7 +226,7 @@ test('agent requests open the active conversation and leave passive history butt
   const overviewSync = waitForLiveSync();
   await page.goto(overviewUrl);
   await overviewSync;
-  await expect(page.getByRole('toolbar', { name: 'Thread filters' })).toBeVisible();
+  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(page).toHaveURL(overviewUrl);
   await expect(panel).toHaveCount(0);
   expect(sessions).toHaveLength(4);

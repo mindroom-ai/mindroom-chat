@@ -9,7 +9,6 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -25,8 +24,6 @@ test('re-logging the same account through Add account does not create duplicates
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await setFullInterfaceModeForCredentials(homeserver, primaryCredentials);
 
   await loginWithPassword(page, {
     homeserver,

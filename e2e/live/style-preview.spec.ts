@@ -50,9 +50,7 @@ test('capture styling screenshots', async ({ page }) => {
     if (await view.isVisible().catch(() => false)) {
       await view.click();
     }
-    await page
-      .waitForSelector('[data-room-thread-overview="true"]', { timeout: 20000 })
-      .catch(() => {});
+    await page.waitForSelector('[data-room-view-switch]', { timeout: 20000 }).catch(() => {});
     // Settle: avatars/fonts finish painting before capture.
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `${OUT}/${PREFIX}-room-${c.name}.png` });

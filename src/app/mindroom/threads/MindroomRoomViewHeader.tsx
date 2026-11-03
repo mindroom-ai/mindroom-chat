@@ -93,6 +93,7 @@ export function RoomViewHeader({
             aria-label={switchLabel}
             title={switchLabel}
             aria-pressed={compact}
+            data-room-view-switch=""
             onClick={() => setViewMode(compact ? fullMode : 'compact')}
           >
             <Icon size="200" src={compact ? Icons.Message : Icons.Category} />

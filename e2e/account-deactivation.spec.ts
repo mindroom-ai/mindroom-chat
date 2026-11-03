@@ -9,7 +9,6 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
-  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -29,11 +28,6 @@ test('deactivating the active account removes only that account and leaves the o
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
-
-  await Promise.all([
-    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
-    setFullInterfaceModeForCredentials(homeserver, deactivationCredentials),
-  ]);
 
   await loginWithPassword(page, {
     homeserver,

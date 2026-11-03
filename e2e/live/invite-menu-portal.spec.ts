@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -190,22 +190,11 @@ async function verifyPortaledInviteMenu(page: Page, surface: string, mindUserId:
 
 test.describe('ISSUE-217 invite menu portal', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
-  let restoreSettings: (() => Promise<void>) | undefined;
-
-  test.afterEach(async () => {
-    const restore = restoreSettings;
-    restoreSettings = undefined;
-    await restore?.();
-  });
-
   test('menu escapes host clipping on each invite surface', async ({ page }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const viewer = await loginToMatrix(homeserver, username, password);
     const fixture = await seedPortalFixture(homeserver, viewer);
-
-    // Full navigation is required here, but the shared account's preferences survive the run.
-    restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
 
     // Tuwunel returns the first `limit` directory matches to finish, not the
     // best, so other runs' users can crowd out this run's Mind. Searching for

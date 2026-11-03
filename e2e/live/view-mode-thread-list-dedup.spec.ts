@@ -16,6 +16,7 @@ import {
   seedRoomOverviewState,
   setAccountData,
 } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 type ViewMode = 'compact' | 'threaded' | 'classic';
 type SortMode = {
@@ -98,7 +99,7 @@ test.describe('live room view-mode thread-list load ownership', () => {
 
     await setViewAndSort('threaded', naturalSort);
     await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-    await expect(page.locator('[data-room-thread-overview="true"]')).toBeVisible({
+    await expect(roomViewSwitch(page)).toBeVisible({
       timeout: 30_000,
     });
 
@@ -116,15 +117,10 @@ test.describe('live room view-mode thread-list load ownership', () => {
       ];
       for (const [viewMode, sortMode] of transitions) {
         await setViewAndSort(viewMode, sortMode);
-        if (viewMode === 'classic') {
-          await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
-        } else {
-          await expect(
-            page.locator(
-              `[data-room-thread-overview="true"] [data-view-mode="${viewMode}"][aria-pressed="true"]`
-            )
-          ).toBeVisible();
-        }
+        await expect(roomViewSwitch(page)).toHaveAttribute(
+          'aria-pressed',
+          viewMode === 'compact' ? 'true' : 'false'
+        );
       }
 
       await page.evaluate(

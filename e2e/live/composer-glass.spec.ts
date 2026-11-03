@@ -15,6 +15,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
+import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
 for (const [themeId, width] of [
   ['dark-theme', 390],
@@ -113,7 +114,7 @@ for (const [themeId, width] of [
       await page.goto(roomPath);
       await expect.poll(() => new URL(page.url()).pathname).toBe(roomPath);
       await expect(page.getByTestId('room-virtual-inner')).toBeVisible();
-      await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
+      await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
       await expect(page.getByText(firstBody, { exact: true })).toBeVisible();
       // Initial catchup may need another 30-second Matrix long-poll cycle.
       await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0, {

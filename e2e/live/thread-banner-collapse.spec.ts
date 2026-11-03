@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
   loginToMatrix,
@@ -62,12 +62,8 @@ for (const viewport of [
       const homeserver = getHomeserver();
       const credentials = getPrimaryCredentials();
       const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-      const restoreSettings = await setFullInterfaceModeForSession(homeserver, session);
       const roomId = await createPrivateRoom(homeserver, session.accessToken, {
         name: ROOM_NAME,
-      }).catch(async (error) => {
-        await restoreSettings();
-        throw error;
       });
       try {
         const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
@@ -223,7 +219,6 @@ for (const viewport of [
           accessToken: session.accessToken,
           body: '{}',
         }).catch(() => undefined);
-        await restoreSettings();
       }
     });
   });
