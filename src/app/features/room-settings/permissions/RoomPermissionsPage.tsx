@@ -9,7 +9,7 @@ import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { SettingTile } from '../../../components/setting-tile';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { RoomProvider } from '../../../hooks/useRoom';
-import { type IPowerLevels, readPowerLevel, usePowerLevels } from '../../../hooks/usePowerLevels';
+import { readPowerLevel, usePowerLevels } from '../../../hooks/usePowerLevels';
 import { usePowerLevelTags } from '../../../hooks/usePowerLevelTags';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
@@ -18,18 +18,11 @@ import { StateEvent } from '../../../../types/matrix/room';
 import { PowersEditor } from '../../common-settings/permissions/PowersEditor';
 import { SettingsCard } from '../../settings/SettingsCard';
 import { SettingsPageFrame } from '../../settings/SettingsPageFrame';
+import { type LevelSlot, levelIn, withLevel } from './permissionLevels';
 
 const PERMISSIONS = 'featureUi.roomSettings.permissions';
 const POWERS = 'featureUi.commonSettings.permissions.powers';
 const GROUPS = 'featureUi.commonSettings.permissions.permissionGroups';
-
-/** Where in `m.room.power_levels` a permission keeps its level. */
-type LevelSlot =
-  | { kind: 'event'; type: string }
-  | { kind: 'state'; type: string }
-  | { kind: 'action'; action: 'invite' | 'kick' | 'ban' | 'redact' }
-  | { kind: 'notification'; key: string }
-  | { kind: 'field'; field: 'events_default' | 'state_default' | 'users_default' };
 
 /** A permission: the translation key of its name and where its level lives. */
 type Permission = { labelKey: string; slot: LevelSlot };
@@ -93,35 +86,6 @@ const PERMISSION_GROUPS: Array<{ group: string; items: Permission[] }> = [
     ],
   },
 ];
-
-const levelIn = (levels: IPowerLevels, slot: LevelSlot): number => {
-  switch (slot.kind) {
-    case 'event':
-      return readPowerLevel.event(levels, slot.type);
-    case 'state':
-      return readPowerLevel.state(levels, slot.type);
-    case 'action':
-      return readPowerLevel.action(levels, slot.action);
-    case 'notification':
-      return readPowerLevel.notification(levels, slot.key);
-    default:
-      return levels[slot.field] ?? (slot.field === 'state_default' ? 50 : 0);
-  }
-};
-
-/** The power levels content with one slot moved to `level`, keeping everything else as stored. */
-const withLevel = (content: Record<string, unknown>, slot: LevelSlot, level: number) => {
-  const next: Record<string, unknown> = { ...content };
-  const nested = (key: 'events' | 'notifications', name: string) => {
-    const map = next[key];
-    next[key] = { ...(map && typeof map === 'object' ? map : {}), [name]: level };
-  };
-  if (slot.kind === 'event' || slot.kind === 'state') nested('events', slot.type);
-  else if (slot.kind === 'notification') nested('notifications', slot.key);
-  else if (slot.kind === 'action') next[slot.action] = level;
-  else next[slot.field] = level;
-  return next;
-};
 
 // The levels menu closes on Escape, which stays inside the dialog, or on a click beside it.
 const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
