@@ -38,6 +38,8 @@ import 'prismjs/components/prism-lua';
 import 'prismjs/components/prism-r';
 import 'prismjs/components/prism-haskell';
 import 'prismjs/components/prism-elixir';
+// Token colors for the light and dark themes.
+import './codeTokenColors.css';
 
 /** Prism's grammar for a language name or alias, such as `ts` or `sh`. */
 export const getPrismGrammar = (language: string | undefined): Prism.Grammar | undefined => {
