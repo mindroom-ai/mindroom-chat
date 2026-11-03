@@ -412,7 +412,12 @@ export const useTimelineMessageFeature = ({
         : undefined;
       if (summaryInfo && marker) {
         return (
-          <MessageAside key={eventId} data-message-id={eventId} spaced>
+          <MessageAside
+            key={eventId}
+            data-message-id={eventId}
+            data-message-item={row.index}
+            spaced
+          >
             <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
           </MessageAside>
         );
@@ -480,6 +485,7 @@ export const useTimelineMessageFeature = ({
         <React.Fragment key={eventId}>
           <Message
             data-message-id={eventId}
+            data-message-item={row.index}
             room={room}
             mEvent={event}
             collapse={collapse}
@@ -585,6 +591,7 @@ export const useTimelineMessageFeature = ({
           <Event
             key={eventId}
             data-message-id={eventId}
+            data-message-item={row.index}
             room={room}
             mEvent={event}
             highlight={highlighted}
