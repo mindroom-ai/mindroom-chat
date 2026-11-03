@@ -35,6 +35,7 @@ import {
 } from 'matrix-js-sdk';
 import { Header, IconButton, Menu, MenuItem } from '../glass/GlassPrimitives';
 import { PageScroll } from '../page';
+import { scrollHeaderHeight } from '../page/scrollHeaderInset';
 import { readImagePackUpload } from './imagePackUpload';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -261,10 +262,10 @@ type ImagePackViewProps = {
 
 const warning = color.Warning;
 
-/** The bar that sticks to the top while edits wait to be applied. */
+/** The bar that sticks below the scrolling title while edits wait to be applied. */
 const PENDING_BAR_STYLE: CSSProperties = {
   position: 'sticky',
-  top: config.space.S100,
+  top: `calc(${scrollHeaderHeight} + ${config.space.S100})`,
   paddingBlock: config.space.S200,
   paddingInline: config.space.S300,
   zIndex: 1,
@@ -398,41 +399,45 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
       >
         <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
           {changed && (
-            <Box alignItems="Center" gap="200" wrap="Wrap" style={PENDING_BAR_STYLE}>
-              <Box grow="Yes">
-                <Text size="T300">{t('sharedUi.imagePackContent.changesSavedApplyWhenReady')}</Text>
-              </Box>
-              <Box gap="200">
-                <Button
-                  type="button"
-                  size="300"
-                  variant="Warning"
-                  fill="Soft"
-                  radii="300"
-                  disabled={saving}
-                  onClick={() => setDraft(undefined)}
-                >
-                  <Text as="span" size="B300">
-                    {t('sharedUi.imagePackContent.reset')}
+            <div style={PENDING_BAR_STYLE}>
+              <Box alignItems="Center" gap="200" wrap="Wrap">
+                <Box grow="Yes">
+                  <Text size="T300">
+                    {t('sharedUi.imagePackContent.changesSavedApplyWhenReady')}
                   </Text>
-                </Button>
-                <Button
-                  type="button"
-                  size="300"
-                  variant="Success"
-                  radii="300"
-                  disabled={saving}
-                  onClick={handleApply}
-                  before={
-                    saving ? <Spinner size="100" variant="Success" fill="Solid" /> : undefined
-                  }
-                >
-                  <Text as="span" size="B300">
-                    {t('sharedUi.imagePackContent.applyChanges')}
-                  </Text>
-                </Button>
+                </Box>
+                <Box gap="200">
+                  <Button
+                    type="button"
+                    size="300"
+                    variant="Warning"
+                    fill="Soft"
+                    radii="300"
+                    disabled={saving}
+                    onClick={() => setDraft(undefined)}
+                  >
+                    <Text as="span" size="B300">
+                      {t('sharedUi.imagePackContent.reset')}
+                    </Text>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="300"
+                    variant="Success"
+                    radii="300"
+                    disabled={saving}
+                    onClick={handleApply}
+                    before={
+                      saving ? <Spinner size="100" variant="Success" fill="Solid" /> : undefined
+                    }
+                  >
+                    <Text as="span" size="B300">
+                      {t('sharedUi.imagePackContent.applyChanges')}
+                    </Text>
+                  </Button>
+                </Box>
               </Box>
-            </Box>
+            </div>
           )}
           {error && (
             <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
