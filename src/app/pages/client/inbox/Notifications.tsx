@@ -9,6 +9,13 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeader,
+  PageScroll,
+} from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
@@ -164,81 +171,100 @@ export function Notifications() {
   ];
 
   return (
-    <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-      <Text size="H4">{t('sharedUi.notifications.notificationMessages')}</Text>
-      <Box gap="200" role="group" aria-label={t('sharedUi.notifications.filter')}>
-        {filters.map(([value, label]) => (
-          <Chip
-            key={value}
-            radii="Pill"
-            variant={filter === value ? 'Primary' : 'SurfaceVariant'}
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
-          >
-            <Text size="T200">{label}</Text>
-          </Chip>
-        ))}
-      </Box>
-      {shouldRenderNotificationLoadingPlaceholders(status, groups.length) && (
-        <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
-          <Spinner variant="Secondary" size="400" />
-        </Box>
-      )}
-      {status !== AsyncStatus.Loading && groups.length === 0 && (
-        <Box direction="Column" gap="100">
-          <Text size="H5">{t('sharedUi.notifications.noNotifications')}</Text>
-          <Text size="T300" priority="300">
-            {t('sharedUi.notifications.youDonTHaveAnyNewNotificationsToDisplayYet')}
+    <Page>
+      <PageHeader balance>
+        <Box grow="Yes" alignItems="Center" justifyContent="SpaceBetween" gap="200">
+          <Text size="H4" truncate>
+            {t('sharedUi.notifications.notificationMessages')}
           </Text>
-        </Box>
-      )}
-      {groups.map(({ room, notifications: roomNotifications }) => (
-        <Box
-          key={`${room.roomId}:${roomNotifications[0].event.event_id}`}
-          direction="Column"
-          gap="200"
-        >
-          <Box alignItems="Center" gap="200">
-            <Avatar size="200">
-              <RoomAvatar
-                roomId={room.roomId}
-                src={getRoomAvatarUrl(client, room, 64, useAuthentication)}
-                alt={room.name}
-                renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
-              />
-            </Avatar>
-            <Text size="H5" truncate style={{ flexGrow: 1 }}>
-              {room.name}
-            </Text>
-            {roomNotifications.some((notification) => !notification.read) && (
-              <MindroomMarkRoomReadChip roomId={room.roomId} />
-            )}
-          </Box>
-          <SequenceCard direction="Column" style={{ color: color.SurfaceVariant.OnContainer }}>
-            {roomNotifications.map((notification) => (
-              <NotificationRow
-                key={notification.event.event_id}
-                room={room}
-                notification={notification}
-                onOpen={(eventId) => navigateRoom(room.roomId, eventId)}
-              />
+          <Box shrink="No" gap="200" role="group" aria-label={t('sharedUi.notifications.filter')}>
+            {filters.map(([value, label]) => (
+              <Chip
+                key={value}
+                radii="Pill"
+                variant={filter === value ? 'Primary' : 'SurfaceVariant'}
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                <Text size="T200">{label}</Text>
+              </Chip>
             ))}
-          </SequenceCard>
+          </Box>
         </Box>
-      ))}
-      {nextToken && (
-        <Button
-          variant="Secondary"
-          fill="Soft"
-          size="300"
-          radii="300"
-          disabled={status === AsyncStatus.Loading}
-          onClick={loadOlder}
-          style={{ alignSelf: 'center' }}
-        >
-          <Text size="B300">{t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}</Text>
-        </Button>
-      )}
-    </Box>
+      </PageHeader>
+      <PageScroll>
+        <PageContent>
+          <PageContentCenter>
+            <Box direction="Column" gap="400">
+              {shouldRenderNotificationLoadingPlaceholders(status, groups.length) && (
+                <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
+                  <Spinner variant="Secondary" size="400" />
+                </Box>
+              )}
+              {status !== AsyncStatus.Loading && groups.length === 0 && (
+                <Box direction="Column" gap="100">
+                  <Text size="H5">{t('sharedUi.notifications.noNotifications')}</Text>
+                  <Text size="T300" priority="300">
+                    {t('sharedUi.notifications.youDonTHaveAnyNewNotificationsToDisplayYet')}
+                  </Text>
+                </Box>
+              )}
+              {groups.map(({ room, notifications: roomNotifications }) => (
+                <Box
+                  key={`${room.roomId}:${roomNotifications[0].event.event_id}`}
+                  direction="Column"
+                  gap="200"
+                >
+                  <Box alignItems="Center" gap="200">
+                    <Avatar size="200">
+                      <RoomAvatar
+                        roomId={room.roomId}
+                        src={getRoomAvatarUrl(client, room, 64, useAuthentication)}
+                        alt={room.name}
+                        renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
+                      />
+                    </Avatar>
+                    <Text size="H5" truncate style={{ flexGrow: 1 }}>
+                      {room.name}
+                    </Text>
+                    {roomNotifications.some((notification) => !notification.read) && (
+                      <MindroomMarkRoomReadChip roomId={room.roomId} />
+                    )}
+                  </Box>
+                  <SequenceCard
+                    direction="Column"
+                    style={{ color: color.SurfaceVariant.OnContainer }}
+                  >
+                    {roomNotifications.map((notification) => (
+                      <NotificationRow
+                        key={notification.event.event_id}
+                        room={room}
+                        notification={notification}
+                        onOpen={(eventId) => navigateRoom(room.roomId, eventId)}
+                      />
+                    ))}
+                  </SequenceCard>
+                </Box>
+              ))}
+              {nextToken && (
+                <Button
+                  variant="Secondary"
+                  fill="Soft"
+                  size="300"
+                  radii="300"
+                  disabled={status === AsyncStatus.Loading}
+                  onClick={loadOlder}
+                  style={{ alignSelf: 'center' }}
+                >
+                  <Text size="B300">
+                    {t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+                  </Text>
+                </Button>
+              )}
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
+    </Page>
   );
 }
