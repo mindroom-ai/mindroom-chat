@@ -11,6 +11,8 @@ import * as css from './VoiceVolumeButton.css';
 // The library positions the 16 px thumb from the top of the 24 px hit area; pulling it up by
 // its own height puts its center on the 6 px line.
 const THUMB_CENTERING_OFFSET = -16;
+// Each arrow key press moves the volume by 5 %.
+const VOLUME_STEP = 0.05;
 
 /** Volume for every voice message player, in a small slider popover. */
 export function VoiceVolumeButton() {
@@ -63,7 +65,7 @@ export function VoiceVolumeButton() {
               <Range
                 min={0}
                 max={1}
-                step={0.01}
+                step={VOLUME_STEP}
                 values={[volume]}
                 onChange={([value]) => setVolume(value)}
                 renderTrack={({ props, children }) => (

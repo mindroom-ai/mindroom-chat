@@ -177,6 +177,8 @@ export function VoiceAudioContent({
   const [browserDuration, setBrowserDuration] = useState<number>();
   const [autoPlay, setAutoPlay] = useState(false);
   const [playbackFailed, setPlaybackFailed] = useState(false);
+  // Once played or seeked, the timer shows the position, even when that is back at 0:00.
+  const [engaged, setEngaged] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<RectCords>();
   const pendingSeekRef = useRef<number>();
   const loadRequestRef = useRef<string>();
@@ -196,6 +198,7 @@ export function VoiceAudioContent({
     setBrowserDuration(undefined);
     setAutoPlay(false);
     setPlaybackFailed(false);
+    setEngaged(false);
   }, [mediaIdentity]);
 
   const { playing, setPlaying } = useMediaPlay(getAudio);
@@ -243,6 +246,7 @@ export function VoiceAudioContent({
   }, [loadSrc, mediaIdentity, srcState.status]);
 
   const handlePlay = () => {
+    setEngaged(true);
     if (src) {
       setPlaying(!playing);
       return;
@@ -253,6 +257,7 @@ export function VoiceAudioContent({
 
   const seekTo = (progress: number) => {
     const target = progress * duration;
+    setEngaged(true);
     setCurrentTime(target);
     const audio = audioRef.current;
     if (src && audio && audio.readyState >= HAVE_METADATA) {
@@ -295,7 +300,7 @@ export function VoiceAudioContent({
   };
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
-  const started = playing || currentTime > 0;
+  const started = playing || engaged || currentTime > 0;
   const timeText = `${formatTime(currentTime)} / ${formatTime(duration)}`;
   const sourceFailed = srcState.status === AsyncStatus.Error;
   const loadingSource = srcState.status === AsyncStatus.Loading || (!!src && buffering && playing);
@@ -308,7 +313,7 @@ export function VoiceAudioContent({
   return (
     <div className={css.Root}>
       {!isVoiceMessage && filename && (
-        <Text as="div" size="T300" className={css.Title} truncate title={filename}>
+        <Text as="div" size="T200" className={css.Title} truncate title={filename}>
           {filename}
         </Text>
       )}
@@ -379,6 +384,22 @@ export function VoiceAudioContent({
             {errorMessage}
           </Text>
         )}
+        {/* Hidden beside the controls it drives. Voice messages have no caption track; the
+            waveform and time stand in for one. */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <audio
+          ref={audioRef}
+          key={audioKey}
+          autoPlay={autoPlay}
+          preload="metadata"
+          controls={false}
+          className={css.Audio}
+          onError={markPlaybackFailed}
+          onPlay={handleMediaPlay}
+          onLoadedMetadata={handleLoadedMetadata}
+        >
+          {src ? <source type={mimeType} src={src} onError={markPlaybackFailed} /> : null}
+        </audio>
       </div>
       <PopOut
         anchor={moreAnchor}
@@ -399,21 +420,6 @@ export function VoiceAudioContent({
           />
         }
       />
-      {/* Voice messages have no caption track; the waveform and time stand in for one. */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio
-        ref={audioRef}
-        key={audioKey}
-        autoPlay={autoPlay}
-        preload="metadata"
-        controls={false}
-        className={css.Audio}
-        onError={markPlaybackFailed}
-        onPlay={handleMediaPlay}
-        onLoadedMetadata={handleLoadedMetadata}
-      >
-        {src ? <source type={mimeType} src={src} onError={markPlaybackFailed} /> : null}
-      </audio>
     </div>
   );
 }
