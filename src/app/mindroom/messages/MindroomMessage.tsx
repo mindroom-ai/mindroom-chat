@@ -550,6 +550,19 @@ const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
   return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
 };
 
+// Links, fields and selected text keep the browser's own menu, to open a link or copy a selection.
+const wantsBrowserMenu = (evt: MouseEvent<HTMLElement>): boolean =>
+  !!(evt.target as Element).closest('a, input, textarea, [contenteditable="true"]') ||
+  (document.getSelection()?.toString() ?? '') !== '';
+
+/** A zero-size anchor at one viewport point, so a pop-out opens next to the pointer. */
+const pointRect = (left: number, top: number): RectCords => ({
+  x: left,
+  y: top,
+  width: 0,
+  height: 0,
+});
+
 /** One message in the timeline: avatar, sender, body, hover toolbar and context menu. */
 export const Message = forwardRef<HTMLDivElement, MessageProps>(
   (
@@ -620,6 +633,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const startEdit = () => onEditId?.(eventId);
     const copyState = getMindroomMessageCopyTextState(extensionState);
     const dismissMenu = () => setMenuAnchor(undefined);
+    // A right click opens the message's menu where the pointer is.
+    const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
+      if (edit || wantsBrowserMenu(evt)) return;
+      evt.preventDefault();
+      setMenuAnchor(pointRect(evt.clientX, evt.clientY));
+    };
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -912,6 +931,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           collapse={collapse}
           space={messageSpacing}
           selected={!!menuAnchor || edit}
+          onContextMenu={openMenuAtPointer}
           {...hoverProps}
           {...focusWithinProps}
           {...props}
