@@ -1,11 +1,12 @@
 import React, { ComponentProps, ReactNode, RefObject } from 'react';
 import classNames from 'classnames';
-import { Box, Line, Scroll, Text, as, color, config } from 'folds';
+import { Box, Line, Text, as, color, config } from 'folds';
 import { Header } from '../glass/GlassPrimitives';
 import { useSurfaceContext } from '../glass/SurfaceContext';
 import { inheritSurface } from '../glass/Surface.css';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
+import { PageScroll } from './PageScroll';
 import * as css from './style.css';
 
 const NAV_HEADER_OUTLINE = `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`;
@@ -48,8 +49,9 @@ export function PageNav({ size, children }: { size?: '400' | '300'; children: Re
 }
 
 /**
- * The title bar of a navigation column. `scroll` keeps it pinned while the list scrolls under it;
- * `outlined` draws a line between it and the list (the reference screens have none by default).
+ * The title bar of a navigation column: flat frosted chrome, also inside a glass dialog, where it
+ * only blurs what passes beneath it. `scroll` keeps it pinned when it sits in the scrolling list
+ * itself; `outlined` draws a line under it (the reference screens have none by default).
  */
 export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean }>(
   ({ scroll, outlined, className, style, ...props }, ref) => (
@@ -57,6 +59,7 @@ export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean
       as="header"
       variant="Background"
       size="600"
+      flat
       {...props}
       ref={ref}
       style={outlined ? { ...style, borderBottom: NAV_HEADER_OUTLINE } : style}
@@ -67,25 +70,21 @@ export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean
 
 type PageNavContentProps = {
   scrollRef?: RefObject<HTMLDivElement>;
+  /** The column's title (a `PageNavHeader`), which the list scrolls beneath. */
+  header?: ReactNode;
   children: ReactNode;
 };
 
-/** The scrolling list under a navigation header; the scrollbar shows on hover only. */
-export function PageNavContent({ scrollRef, children }: PageNavContentProps) {
-  const list = <div className={css.PageNavContent}>{children}</div>;
+/**
+ * The scrolling list of a navigation column, under its title. Rows pass beneath the title's glass;
+ * the inset scrollbar runs from below the title to the bottom and shows while scrolling or hovered.
+ * Short content (an empty list's message) fills the column under the title.
+ */
+export function PageNavContent({ scrollRef, header, children }: PageNavContentProps) {
   return (
-    <Box style={{ minHeight: 0 }} direction="Column" grow="Yes">
-      <Scroll
-        ref={scrollRef}
-        hideTrack
-        visibility="Hover"
-        size="300"
-        direction="Vertical"
-        variant="Background"
-      >
-        {list}
-      </Scroll>
-    </Box>
+    <PageScroll header={header} scrollRef={scrollRef} contentClassName={css.PageNavContent}>
+      {children}
+    </PageScroll>
   );
 }
 

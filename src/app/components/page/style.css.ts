@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeaderInset';
 
 // Measured from docs/design/reference/home.png and room-light.png (1440x900 at 1x): the
 // navigation column runs from the 66 px rail to the divider at x = 321, so it is 256 px wide; its
@@ -44,7 +45,8 @@ export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex
 
 // Top S200, flush right against the scrollbar, room at the bottom, rows S200 from the rail.
 export const PageNavContent = style({
-  minHeight: '100%',
+  display: 'flex',
+  flexDirection: 'column',
   paddingBlock: `${config.space.S200} ${config.space.S700}`,
   paddingLeft: config.space.S200,
 });
@@ -85,3 +87,46 @@ export const PageHeroSection = style([
   DefaultReset,
   { padding: `${config.space.S700} 0`, ...centeredColumn(toRem(360)) },
 ]);
+
+// PageScroll: the frame is the scrollbar's positioning box. The viewport inside it stays
+// unpositioned, so the track, which sits in the viewport for its accessibility tree, does not
+// scroll with the content.
+export const PageScroll = style({
+  // A nested frame without a title must not inherit its parent's inset.
+  vars: { [SCROLL_HEADER_HEIGHT_PROPERTY]: '0px' },
+  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minHeight: 0,
+  maxHeight: '100%',
+});
+
+export const PageScrollViewport = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minHeight: 0,
+  // Focus and scrollIntoView keep their target clear of the title.
+  scrollPaddingTop: scrollHeaderHeight,
+});
+
+// Above the content and below the scrollbar track.
+export const PageScrollHeader = style({
+  position: 'sticky',
+  insetBlockStart: 0,
+  zIndex: 1,
+  flexShrink: 0,
+});
+
+// Short content still fills the viewport, without adding the title's height to the scroll range.
+export const PageScrollContent = style({
+  flex: '1 0 auto',
+  minWidth: 0,
+});
+
+export const PageScrollbar = style({
+  top: `calc(${scrollHeaderHeight} + ${toRem(4)})`,
+  bottom: toRem(4),
+  zIndex: 2,
+});
