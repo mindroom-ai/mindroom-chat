@@ -20,7 +20,11 @@ import { bytesToSize } from '../../../utils/common';
 import { getFileNameExt, getMimeTypeBase } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
 import type { IFileInfo } from '../../../../types/matrix/common';
-import { useAttachmentAction, useAttachmentSave } from '../attachmentDownload';
+import {
+  type AttachmentActionStatus,
+  useAttachmentAction,
+  useAttachmentSave,
+} from '../attachmentDownload';
 
 const TEXT_MIME_TYPES = new Set([
   'application/json',
@@ -89,274 +93,289 @@ type ButtonOptions = {
   buttonSize?: '300' | '400';
 };
 
+// Text and PDF viewers get most of the window, past the modal's usual size cap.
+const VIEWER_BOX = { width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' };
+
+/** A viewer in a modal over the page, closed by Escape or a click outside. */
 function ViewerOverlay({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  onClose,
+  children,
+}: {
+  /** Escape, a click outside, or the viewer closing itself. */
+
+
+
+
+
+
+
+
+
+
+
+            onDeactivate: onClose,
+          }}
+        >
+          <Modal
+            size="500"
+            style={VIEWER_BOX}
+            // The message under the viewer has its own context menu; keep right-clicks here.
+            onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
+          >
+            {children}
+          </Modal>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
+type OpenButtonProps = ButtonOptions & {
+  body: string;
+  status: AttachmentActionStatus;
+  /** The label without `buttonText`, such as "Open File". */
+  defaultText: string;
+  iconOnly?: boolean;
+  onOpen: () => void;
+};
+
+/** Opens a viewer; shows a spinner while the file loads and turns red when that failed. */
+function OpenButton({
+  body,
+  status,
+  defaultText,
+  iconOnly,
+  onOpen,
+  buttonText,
+  errorButtonText,
+  buttonSize = '400',
+}: OpenButtonProps) {
+  const { t } = useTranslation();
+  const busy = status === 'loading';
+  const failed = status === 'error';
+  const icon = busy ? (
+    <Spinner size="100" variant="Secondary" />
+  ) : (
+    <Icon size="100" src={failed ? Icons.Warning : Icons.Eye} />
+  );
+
+  if (iconOnly) {
+    return (
+      <IconButton
+        size="300"
+        radii="300"
+        variant={failed ? 'Critical' : 'SurfaceVariant'}
+        aria-label={t('sharedUi.fileContent.openValue1', { value1: body })}
+        disabled={busy}
+        onClick={onOpen}
+      >
+        {icon}
+      </IconButton>
+    );
+  }
+
+  const label = failed
+    ? errorButtonText ?? t('sharedUi.fileContent.loadFailed')
+    : buttonText ?? defaultText;
+  return (
+    <Button
+      size={buttonSize}
+      radii="300"
+      variant={failed ? 'Critical' : 'Secondary'}
+      fill="Soft"
+      before={icon}
+      disabled={busy}
+      onClick={onOpen}
+    >
+      <Text size="B300">{label}</Text>
+    </Button>
+  );
+}
+
+/** What a text viewer is rendered with; matches the TextViewer component's props. */
+export type RenderTextViewerProps = {
+  name: string;
+  text: string;
+  langName: string;
+  requestClose: () => void;
+};
+
+type ReadTextFileProps = AttachmentProps &
+  ButtonOptions & {
+    iconOnly?: boolean;
+    renderViewer: (props: RenderTextViewerProps) => ReactNode;
+  };
+
+/** Loads a text attachment and shows it in a viewer, with syntax highlighting by file type. */
+export function ReadTextFile({
+  body,
+  mimeType,
+  url,
+  encInfo,
+  owner,
+  iconOnly,
+  renderViewer,
+  ...buttonOptions
+}: ReadTextFileProps) {
+  const { t } = useTranslation();
+  const [text, setText] = useState<string>();
+  const readText = useCallback((blob: Blob) => blob.text(), []);
+  const [status, read] = useAttachmentAction({ owner, url, mimeType, encInfo }, readText);
+  const close = useCallback(() => setText(undefined), []);
+
+  // The file is fetched once; opening it again reads the kept bytes.
+  const open = () => {
+    read().then(
+      (loaded) => {
+        if (loaded !== undefined) setText(loaded);
+      },
+      () => undefined
+    );
+  };
+
+  return (
+    <>
+      {text !== undefined && (
+        <ViewerOverlay onClose={close}>
+          {renderViewer({
+            name: body,
+            text,
+            langName: getFileLanguageName(body, mimeType),
+            requestClose: close,
+          })}
+        </ViewerOverlay>
+      )}
+      <OpenButton
+        {...buttonOptions}
+        body={body}
+        status={status}
+        defaultText={t('sharedUi.fileContent.openFile')}
+        iconOnly={iconOnly}
+        onOpen={open}
+      />
+    </>
+  );
+}
+
+/** What a PDF viewer is rendered with; matches the PdfViewer component's props. */
+export type RenderPdfViewerProps = {
+  name: string;
+  /** A `blob:` URL of the file, typed as PDF. */
+  src: string;
+  requestClose: () => void;
+};
+
+type ReadPdfFileProps = AttachmentProps &
+  ButtonOptions & {
+    iconOnly?: boolean;
+    renderViewer: (props: RenderPdfViewerProps) => ReactNode;
+  };
+
+// The viewer frame renders whatever the URL serves, so the bytes are always typed as PDF,
+// whatever type the sender declared: a blob claiming to be HTML would run in this origin.
+const toPdfObjectUrl = async (blob: Blob): Promise<string> =>
+  URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+
+/** Loads a PDF attachment into an object URL and shows it in a viewer until it closes. */
+export function ReadPdfFile({
+  body,
+  mimeType,
+  url,
+  encInfo,
+  owner,
+  iconOnly,
+  renderViewer,
+  ...buttonOptions
+}: ReadPdfFileProps) {
+  const { t } = useTranslation();
+  const [src, setSrc] = useState<string>();
+  const [status, load] = useAttachmentAction({ owner, url, mimeType, encInfo }, toPdfObjectUrl);
+  const close = useCallback(() => setSrc(undefined), []);
+
+  // Each opened URL is released when the viewer closes or the attachment unmounts.
+  useEffect(
+    () => () => {
+      if (src) URL.revokeObjectURL(src);
+    },
+    [src]
+  );
+
+  const open = () => {
+    load().then(
+      (objectUrl) => {
+        if (objectUrl) setSrc(objectUrl);
+      },
+      () => undefined
+    );
+  };
+
+  return (
+    <>
+      {src && (
+        <ViewerOverlay onClose={close}>
+          {renderViewer({ name: body, src, requestClose: close })}
+        </ViewerOverlay>
+      )}
+      <OpenButton
+        {...buttonOptions}
+        body={body}
+        status={status}
+        defaultText={t('sharedUi.fileContent.openPdf')}
+        iconOnly={iconOnly}
+        onOpen={open}
+      />
+    </>
+  );
+}
+
+type DownloadFileProps = AttachmentProps &
+  ButtonOptions & {
+    /** The event's `info`; its `size` is shown on the button. */
+    info: IFileInfo;
+  };
+
+/** A labelled save button with the file size; a failed save turns it into a retry. */
+export function DownloadFile({
+  body,
+  mimeType,
+  url,
+  encInfo,
+  owner,
+  info,
+  buttonText,
+  errorButtonText,
+  buttonSize = '400',
+}: DownloadFileProps) {
+  const { t } = useTranslation();
+  const [status, save] = useAttachmentSave({ owner, url, mimeType, encInfo }, body);
+  const size = bytesToSize(info.size ?? 0);
+  const busy = status === 'loading';
+  const failed = status === 'error';
+
+  return (
+    <Button
+      size={buttonSize}
+      radii="300"
+      variant={failed ? 'Critical' : 'Secondary'}
+      fill="Soft"
+      before={
+        busy ? (
+          <Spinner size="100" variant="Secondary" />
+        ) : (
+          <Icon size="100" src={failed ? Icons.Warning : Icons.Download} />
+        )
+      }
+      disabled={busy}
+      onClick={() => {
+        save().catch(() => undefined);
+      }}
     >
       <Text size="B300">
         {failed
           ? errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size })
-
+          : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
+      </Text>
+    </Button>
 
 
 

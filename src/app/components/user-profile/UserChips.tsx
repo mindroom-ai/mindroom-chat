@@ -32,6 +32,10 @@ type ChipMenuProps = {
 function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
   return (
     <PopOut
+      anchor={anchor}
+      position="Bottom"
+      align="Start"
+      offset={4}
 
 
 
@@ -44,11 +48,7 @@ function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
 
 
 
-
-
-
-
-
+            {menu}
           </Menu>
         </FocusTrap>
       }
@@ -104,17 +104,17 @@ function ChipMenuItem({ onClick, children }: { onClick: () => void; children: Re
         radii="Pill"
         aria-pressed={!!anchor}
         before={<Icon size="50" src={copied ? Icons.Check : Icons.Server} />}
-        onClick={open}
-      >
-        <Text size="B300" truncate>
-          {server}
-        </Text>
-      </Chip>
-    </ChipMenu>
-  );
-}
 
-/** Copies the user's ID or matrix.to link. */
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -117,13 +117,13 @@ function AutoOpenImage({
   onClick,
   ...props
 }: {
-
-
-
-
-
-
-
+  onClick: () => void;
+  onKeyDown: (evt: React.KeyboardEvent<HTMLElement>) => void;
+  onLoad: () => void;
+  onError: () => void;
+  src: string;
+  alt: string;
+  tabIndex: number;
 }) {
   const openedRef = React.useRef(false);
 

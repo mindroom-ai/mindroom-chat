@@ -13,13 +13,14 @@ export const useAccountData = (type: string): MatrixEvent | undefined => {
   useEffect(() => {
     setEvent(mx.getAccountData(type as keyof AccountDataEvents));
     const handleAccountData = (accountEvent: MatrixEvent) => {
-
-
-
-
-
-
-
+      if (accountEvent.getType() !== type) return;
+      setEvent(accountEvent);
+    };
+    mx.on(ClientEvent.AccountData, handleAccountData);
+    return () => {
+      mx.off(ClientEvent.AccountData, handleAccountData);
+    };
+  }, [mx, type]);
 
   return event;
 };

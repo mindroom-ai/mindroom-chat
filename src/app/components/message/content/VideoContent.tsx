@@ -26,6 +26,7 @@ type VideoContentProps = {
 
 
 
+
 };
 
 /** An `m.video` attachment: a thumbnail until the video is loaded, then the player. */

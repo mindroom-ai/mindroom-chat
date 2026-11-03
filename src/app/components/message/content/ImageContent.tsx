@@ -109,30 +109,33 @@ type ImageContentProps = {
   autoPlay?: boolean;
   markedAsSpoiler?: boolean;
   renderImage: (props: RenderImageContentProps) => ReactNode;
+  renderViewer: (props: RenderImageViewerProps) => ReactNode;
+};
 
-
-
-
-
-
-
-
-
-
-
-
-
+/**
+ * An `m.image` attachment: loads the image (right away, or on "View" without `autoPlay`), keeps
+ * a spoiler blurred until it is revealed, and opens the full viewer on click or Enter.
+ */
+export const ImageContent = as<'div', ImageContentProps>(
+  (
+    {
+      body,
+      url,
+      mimeType,
+      info,
+      encInfo,
       owner,
       autoPlay = true,
-
-
-
-
-
-
-
-
-
+      markedAsSpoiler = false,
+      renderImage,
+      renderViewer,
+      className,
+      ...props
+    },
+    ref
+  ) => {
+    const { t } = useTranslation();
+    const mx = useMatrixClient();
     const setImageViewerOpen = useSetAtom(imageViewerOpenAtom);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -248,13 +251,13 @@ type ImageContentProps = {
           </Box>
         )}
         {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
+          (spoilerRevealed || !src) && (
+            <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+              <Spinner variant="Secondary" size="400" />
+            </Box>
+          )}
 
 
-
-
-
-
-          <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
             <Button
               variant="Critical"
               fill="Soft"

@@ -10,6 +10,7 @@ const variant = (name: 'Background' | 'Surface' | 'SurfaceVariant' | 'Primary' |
   },
 });
 
+// A sidebar row. Its action (NavButton or NavLink) fills it; NavItemOptions sit at its end.
 
 
 
@@ -85,33 +86,32 @@ export const NavItemContent = style([
 
 
 
+    paddingInline: config.space.S200,
+  },
+]);
 
 
 
 
 
 
-
-
-
+  paddingInlineEnd: config.space.S100,
 });
 
 export const NavCategory = style([DefaultReset, { position: 'relative' }]);
 
-export const NavEmptyCenter = style({
+// An empty list's message stands in the middle of the space the list would fill.
+const centeredColumn = {
   display: 'flex',
 
 
 
 
-});
+} as const;
 
-export const NavEmptyLayout = style({
-  display: 'flex',
+export const NavEmptyCenter = style(centeredColumn);
 
-
-
-
-
-  textAlign: 'center',
-});
+export const NavEmptyLayout = style([
+  centeredColumn,
+  { gap: config.space.S400, padding: config.space.S500, textAlign: 'center' },
+]);

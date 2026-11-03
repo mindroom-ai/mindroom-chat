@@ -10,6 +10,8 @@
 
 
 
+
+
 const readTag = (value: unknown): PowerLevelTag | undefined => {
   if (!value || typeof value !== 'object') return undefined;
   const { name, color, icon } = value as Record<string, unknown>;

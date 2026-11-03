@@ -12,6 +12,9 @@ export type DirectCreateSearchParams = {
 };
 
 export type SearchPathSearchParams = {
+  /** `true` to search every room the user is in. */
+
+
 
 
 

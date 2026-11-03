@@ -12,11 +12,13 @@ export function MindroomMarkRoomReadChip({ roomId }: { roomId: string }) {
 
 
 
+  const checkIcon = <Icon size="50" src={Icons.CheckTwice} />;
 
-
-
-
-
+  return (
+    <Chip
+      before={checkIcon}
+      radii="Pill"
+      variant="SurfaceVariant"
       onClick={() => markRoomAndThreadsAsRead(mx, roomId, hideActivity)}
     >
       <Text size="L400">{t('mindroomUi.notifications.mindroomMarkRoomReadChip.markAsRead')}</Text>

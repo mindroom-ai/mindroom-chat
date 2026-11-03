@@ -18,10 +18,12 @@ export const Track = style({
   right: toRem(2),
   width: toRem(12),
   display: 'flex',
-
-
-
-
+  // The thumb is absolutely positioned; centering puts its static position mid-track.
+  justifyContent: 'center',
+  // Hidden until scrolling, hovering, dragging or keyboard focus reveals it.
+  opacity: 0,
+  cursor: 'default',
+  userSelect: 'none',
   touchAction: 'none',
   transition: 'opacity 200ms ease',
   outline: 'none',

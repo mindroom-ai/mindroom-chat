@@ -119,9 +119,9 @@ function VoiceDetailsMenu({
         <div className={css.MoreMenuAction}>
           <VoiceVolumeButton />
           <FileDownloadButton
-
-
-
+            encInfo={encInfo}
+            url={url}
+            mimeType={mimeType}
             owner={owner}
             filename={filename ?? subject}
           />
@@ -388,10 +388,10 @@ export function VoiceAudioContent({
         content={
           <VoiceDetailsMenu
             subject={subject}
-
-
-
-
+            encInfo={encInfo}
+            url={url}
+            mimeType={mimeType}
+            filename={filename}
             owner={owner}
             info={info}
             duration={duration}

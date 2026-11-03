@@ -18,27 +18,26 @@ export const NavItem = as<'div', NavItemProps>(
   ({ as: AsNavItem = 'div', className, variant, radii, highlight, ...props }, ref) => (
     <AsNavItem
       className={classNames(css.NavItem({ variant, radii, highlight }), className)}
+      {...props}
+      ref={ref}
+    />
+  )
+);
 
-
-
-
-
-
-
-
-
+/** The row's main action as a button; it takes the row's full width up to the options. */
+export const NavButton = as<'button'>(({ as: AsButton = 'button', className, ...props }, ref) => (
   <AsButton className={classNames(css.NavAction, className)} {...props} ref={ref} />
 ));
 
 type NavLinkProps = ComponentProps<typeof Link>;
 
 /** The row's main action as a router link. */
-
-
-
-
-
-
+export const NavLink = React.forwardRef<HTMLAnchorElement, NavLinkProps>(function NavLink(
+  { className, ...linkProps },
+  ref
+) {
+  return <Link {...linkProps} ref={ref} className={classNames(css.NavAction, className)} />;
+});
 
 /** Icon and label inside a row's action. */
 export const NavItemContent = as<'div'>(({ as: AsContent = 'div', className, ...props }, ref) => (
@@ -46,8 +45,8 @@ export const NavItemContent = as<'div'>(({ as: AsContent = 'div', className, ...
 ));
 
 /** Trailing controls of a row, outside its main action. */
-
-
+export const NavItemOptions = as<'div'>(({ as: Options = 'div', className, ...rest }, ref) => (
+  <Options {...rest} ref={ref} className={classNames(css.NavItemOptions, className)} />
 ));
 
 /** A group of rows under a NavCategoryHeader. */
@@ -55,9 +54,11 @@ export const NavCategory = as<'div'>(({ as: AsCategory = 'div', className, ...pr
   <AsCategory className={classNames(css.NavCategory, className)} {...props} ref={ref} />
 ));
 
-
-
+/** Centers its children in the space a list would take. */
+export const NavEmptyCenter = as<'div'>(({ as: Center = 'div', className, ...rest }, ref) => (
+  <Center {...rest} ref={ref} className={classNames(css.NavEmptyCenter, className)} />
 ));
+
 
 
 
