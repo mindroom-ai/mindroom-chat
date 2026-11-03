@@ -51,11 +51,10 @@ export const getMicrophoneAccessErrorMessage = (error: unknown): string => {
 };
 
 /**
- * Request microphone access in the top-level app before an embedded call is
- * created. In WKWebView this makes the native permission prompt happen as a
- * direct consequence of the user's Call tap instead of later in the hidden
- * Element Call iframe. The short-lived stream is only a permission preflight;
- * Element Call opens the stream it publishes to the call.
+ * Request microphone access in the top-level app before a call starts. In
+ * WKWebView this makes the native permission prompt happen as a direct
+ * consequence of the user's Call tap. The short-lived stream is only a
+ * permission preflight; the call opens the stream it publishes.
  */
 export const requestMicrophoneAccess = async (): Promise<void> => {
   if (!navigator.mediaDevices?.getUserMedia) {

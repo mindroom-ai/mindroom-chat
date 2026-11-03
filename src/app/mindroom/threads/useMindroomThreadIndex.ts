@@ -493,9 +493,6 @@ export const useMindroomThreadIndex = ({
     cachedMetadata.compactRootSourceTsMap,
   ]);
 
-  // Typed-input debouncing (free text AND structured tokens) happens at the
-  // source in useRoomViewThreadState.handleSearchQueryChange — by the time a
-  // typed query lands in requestedThreadFilterState it is already settled.
   const threadSortControlSignature = useMemo(
     () =>
       createThreadSortControlSignature({

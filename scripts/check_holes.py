@@ -104,8 +104,9 @@ def main() -> int:
             print(f"{path}:0: not listed in docs/provenance/{HOLE_FILES[args.wave]}")
         return 1
 
-    dropped = [p for p in paths if p in read_dropped()]
-    paths = [p for p in paths if p not in dropped]
+    dropped_paths = read_dropped()
+    dropped = [p for p in paths if p in dropped_paths]
+    paths = [p for p in paths if p not in dropped_paths]
 
     found = []
     for path in paths:
