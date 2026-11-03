@@ -121,6 +121,9 @@ export function AccountSwitcher({
   return (
     <Box direction="Column" gap="200" style={{ padding: config.space.S400 }}>
       <Text size="H4">{t('accountSwitcher.title')}</Text>
+      <Text size="T300" priority="300">
+        {t('accountSwitcher.description')}
+      </Text>
       {error && (
         <Text size="T200" role="alert">
           {error}
