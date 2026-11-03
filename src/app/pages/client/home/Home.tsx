@@ -234,8 +234,7 @@ export function Home() {
             options={roomActions}
           />
         ) : (
-          // Rows stop short of the panel edge, leaving room for the scrollbar (home.png).
-          <Box direction="Column" gap="300" style={{ paddingRight: config.space.S500 }}>
+          <Box direction="Column" gap="300">
             {roomActions}
             <NavCategory data-testid="room-nav-category">
               <NavCategoryHeader>

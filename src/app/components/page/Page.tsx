@@ -39,7 +39,10 @@ export function PageRoot({ nav, children }: PageRootProps) {
 /** The navigation column; on mobile it takes the whole width instead of a fixed size. */
 export function PageNav({ size, children }: { size?: '400' | '300'; children: ReactNode }) {
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const columnClass = css.PageNav(isMobile ? undefined : { size });
+  const columnClass = classNames(
+    css.PageNav(isMobile ? undefined : { size }),
+    size === '300' && css.PageNavDense
+  );
 
   return (
     <Box direction="Column" className={columnClass} grow={isMobile ? 'Yes' : undefined}>

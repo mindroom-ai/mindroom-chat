@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeaderInset';
@@ -8,6 +8,13 @@ import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeade
 // header is folds Header size 600 (3.375rem, 54 px) with the title 12 px in (S300) and the menu
 // button 16 px from the divider (S400); rows start 8 px below the header and 8 px from the rail
 // (S200) and are 36 px apart (the row component). Everything else uses folds spacing tokens.
+
+/**
+ * How far list rows stop short of the column's right edge, leaving the inset scrollbar its lane:
+ * 28 px in the room lists (the selected room of room-light.png spans 74 to 294 in a column that
+ * ends at 322). Dense columns, the settings dialogs, keep 8 px and inset their menu themselves.
+ */
+const pageNavRowInset = createVar();
 
 export const PageNav = recipe({
   base: {
@@ -43,12 +50,16 @@ export const PageNavHeaderScroll = style({ position: 'sticky', top: 0, zIndex: 1
 /** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
 export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex: 2 });
 
-// Top S200, flush right against the scrollbar, room at the bottom, rows S200 from the rail.
+/** A dense navigation column (settings.png: menu rows end 20 px before the divider). */
+export const PageNavDense = style({ vars: { [pageNavRowInset]: config.space.S200 } });
+
+// Top S200, room at the bottom, rows S200 from the rail and short of the scrollbar on the right.
 export const PageNavContent = style({
   display: 'flex',
   flexDirection: 'column',
   paddingBlock: `${config.space.S200} ${config.space.S700}`,
   paddingLeft: config.space.S200,
+  paddingRight: fallbackVar(pageNavRowInset, `calc(${config.space.S500} + ${config.space.S200})`),
 });
 
 /** Page headers sit S400 in on the title side and S200 at the actions; `balance` evens both. */
