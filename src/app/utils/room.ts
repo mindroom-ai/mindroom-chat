@@ -12,6 +12,7 @@ import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { MessageEvent, MsgType, RoomType, StateEvent } from '../../types/matrix/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
+import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editResolution';
 import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 
@@ -130,42 +131,27 @@ export const getLatestEdit = (
     return !latest || isEventOrderedAfter(candidate, latest) ? candidate : latest;
   }, undefined);
 
-// Keys MindRoom puts on its messages (stream status, tool trace, run metadata, extras). The
-// long-text marker describes how one edit's own content is stored, so it never carries over.
-const isMindroomMetadataKey = (key: string): boolean =>
-  (key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.')) &&
-  key !== 'io.mindroom.long_text';
-
 const getNewContent = (edit: MatrixEvent): Record<string, unknown> | undefined => {
   const newContent = edit.getContent()['m.new_content'];
   return isRecord(newContent) ? newContent : undefined;
 };
 
-const metadataOf = (edit: MatrixEvent, key: string): unknown => {
-  const newContent = getNewContent(edit);
-  if (newContent && newContent[key] !== undefined) return newContent[key];
-  return edit.getContent()[key];
-};
-
 /**
  * A large streamed reply may leave its tool trace in an earlier edit (later ones carry it only in
- * a sidecar), so the newest edit borrows MindRoom metadata it lacks from the sender's older edits.
+ * a sidecar), so the newest edit borrows MindRoom metadata it lacks from the sender's older edits,
+ * newest first. What the newest edit's wrapper carries already stays as it is.
  */
 const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): void => {
   const newContent = getNewContent(latest);
   if (!newContent || older.length === 0) return;
-  const wrapper = latest.getContent();
-  const keys = new Set(
-    older.flatMap((edit) => [
-      ...Object.keys(edit.getContent()),
-      ...Object.keys(getNewContent(edit) ?? {}),
-    ])
+  const borrowed: Record<string, unknown> = {};
+  copyMindroomResolvedEditMetadata(
+    borrowed,
+    older.map((edit) => edit.getContent())
   );
-  keys.forEach((key) => {
-    if (!isMindroomMetadataKey(key)) return;
-    if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
-    const source = older.find((edit) => metadataOf(edit, key) !== undefined);
-    if (source) newContent[key] = metadataOf(source, key);
+  const wrapper = latest.getContent();
+  Object.entries(borrowed).forEach(([key, value]) => {
+    if (newContent[key] === undefined && wrapper[key] === undefined) newContent[key] = value;
   });
 };
 
@@ -228,9 +214,8 @@ export const getLatestMessageContent = (
   if (!newContent) return targetEvent.getContent();
 
   const content: IContent = { ...newContent };
-  Object.entries(editedEvent.getContent()).forEach(([key, value]) => {
-    if (isMindroomMetadataKey(key) && content[key] === undefined) content[key] = value;
-  });
+  // MindRoom metadata the edit carries beside `m.new_content` belongs to the shown content too.
+  copyMindroomResolvedEditMetadata(content, [editedEvent.getContent()]);
   return content;
 };
 
