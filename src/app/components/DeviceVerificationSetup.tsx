@@ -1,6 +1,7 @@
 import React, { FormEventHandler, useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
+import FocusTrap from 'focus-trap-react';
 import { AuthDict, IAuthData, MatrixError, UIAuthCallback } from 'matrix-js-sdk';
 import {
   Box,
@@ -25,6 +26,7 @@ import { useAlive } from '../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { clearSecretStorageKeys } from '../../client/secretStorageKeys';
 import { copyToClipboard } from '../utils/dom';
+import { stopPropagation } from '../utils/keyboard';
 import { ContainerColor } from '../styles/ContainerColor.css';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
@@ -58,6 +60,37 @@ type UIARequest = {
 
 const getUIAData = (error: unknown): IAuthData | undefined => {
   const data = (error as MatrixError | undefined)?.data as IAuthData | undefined;
+  return data?.flows ? data : undefined;
+};
+
+type UnsupportedUIAProps = {
+  onClose: () => void;
+};
+
+/** Says the server asks for auth stages this client cannot complete, and lets the user back out. */
+function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
+  const { t } = useTranslation();
+  return (
+    <Dialog variant="Surface" role="dialog" aria-modal="true">
+      <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
+        <Box grow="Yes" />
+        <IconButton
+          size="300"
+          radii="300"
+          onClick={onClose}
+          aria-label={t('sharedUi.deviceVerification.close')}
+        >
+          <Icon src={Icons.Cross} />
+        </IconButton>
+      </Header>
+      <Box direction="Column" style={{ padding: config.space.S400 }}>
+        <Text size="T300" style={{ color: color.Critical.Main }}>
+          {t(
+            'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
+          )}
+        </Text>
+      </Box>
+    </Dialog>
 
 
 
@@ -113,15 +146,16 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
         });
         if (alive()) onComplete(encodedPrivateKey);
       },
+      [mx, alive, authUploadDeviceSigningKeys, onComplete]
+    )
+  );
+  const loading = setupState.status === AsyncStatus.Loading;
+  const cancelUIA = () => uiaRequest?.reject(new Error(SETUP_AUTH_FAILED));
 
 
 
 
-
-
-
-
-
+    const { passphraseInput } = evt.target as HTMLFormElement & {
       passphraseInput?: HTMLInputElement;
     };
     const passphrase = passphraseInput?.value.trim();
@@ -134,6 +168,16 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
         <Text size="T300">
           <Trans
             i18nKey="sharedUi.deviceVerificationSetup.recoveryDescription"
+            components={{ b: <b /> }}
+          />
+        </Text>
+        <Box direction="Column" gap="100">
+          <Text size="L400">{t('sharedUi.deviceVerificationSetup.passphraseOptional')}</Text>
+          <PasswordInput
+            name="passphraseInput"
+            variant="Background"
+            size="400"
+            outlined
 
 
 
@@ -148,42 +192,38 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          </Text>
+        )}
+      </Box>
+      {/* The password stage has its own form, so the dialog sits beside this one. Cancelling
+          rejects the pending request, which fails the setup and stops its spinner; a reject after
+          the request resolved (the trap deactivates on unmount) does nothing. */}
+      {uiaRequest && (
+        <Overlay open backdrop={<OverlayBackdrop />}>
           <OverlayCenter>
-            <ActionUIAFlowsLoader
-              authData={uiaRequest.authData}
-              unsupported={() => (
-                <Text size="T200" style={{ color: color.Critical.Main }}>
-                  {t(
-                    'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
-                  )}
-                </Text>
-              )}
+            <FocusTrap
+              focusTrapOptions={{
+                initialFocus: false,
+                onDeactivate: cancelUIA,
+                escapeDeactivates: stopPropagation,
+              }}
             >
-              {(ongoingFlow) => (
-                <ActionUIA
-                  authData={uiaRequest.authData}
-                  ongoingFlow={ongoingFlow}
-                  action={uiaRequest.resolve}
-                  onCancel={() => uiaRequest.reject(new Error(SETUP_AUTH_FAILED))}
-                />
-              )}
-            </ActionUIAFlowsLoader>
+              <div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            </FocusTrap>
           </OverlayCenter>
         </Overlay>
       )}
