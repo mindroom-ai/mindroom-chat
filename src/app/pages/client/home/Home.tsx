@@ -16,6 +16,7 @@ import {
   NavEmptyLayout,
   NavItem,
   NavItemContent,
+  NavLink,
 } from '../../../components/nav';
 import { VirtualTile } from '../../../components/virtualizer';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
@@ -119,25 +120,33 @@ type RoomActionProps = {
   icon: IconSrc;
   label: string;
   selected?: boolean;
-  onSelect: () => void;
-};
+} & ({ onSelect: () => void; to?: undefined } | { to: string; onSelect?: undefined });
 
-/** One of the shortcuts above the room list. */
-function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps) {
+/** One of the shortcuts above the room list: a link when it opens a page, else a button. */
+function RoomAction({ action, icon, label, selected, onSelect, to }: RoomActionProps) {
+  const content = (
+    <NavItemContent>
+      <Box as="span" alignItems="Center" gap="200" grow="Yes">
+        <Avatar radii="400" size="200">
+          <Icon size="100" src={icon} />
+        </Avatar>
+        <Text as="span" size="Inherit" truncate>
+          {label}
+        </Text>
+      </Box>
+    </NavItemContent>
+  );
   return (
     <NavItem aria-selected={selected} radii="400" variant="Background">
-      <NavButton data-home-room-action={action} onClick={onSelect}>
-        <NavItemContent>
-          <Box as="span" alignItems="Center" gap="200" grow="Yes">
-            <Avatar radii="400" size="200">
-              <Icon size="100" src={icon} />
-            </Avatar>
-            <Text as="span" size="Inherit" truncate>
-              {label}
-            </Text>
-          </Box>
-        </NavItemContent>
-      </NavButton>
+      {to === undefined ? (
+        <NavButton data-home-room-action={action} onClick={onSelect}>
+          {content}
+        </NavButton>
+      ) : (
+        <NavLink data-home-room-action={action} to={to}>
+          {content}
+        </NavLink>
+      )}
     </NavItem>
   );
 }
@@ -207,7 +216,7 @@ export function Home() {
         icon={Icons.Search}
         label={t('nav.messageSearch')}
         selected={searchSelected}
-        onSelect={() => navigate(getHomeSearchPath())}
+        to={getHomeSearchPath()}
       />
     </NavCategory>
   );
