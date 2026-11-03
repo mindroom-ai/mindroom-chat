@@ -60,9 +60,9 @@ export function MessageSearch({
   allowGlobal = true,
   scrollRef,
   renderBody,
-
-
-
+}: MessageSearchProps) {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term')?.trim() ?? '';
@@ -166,7 +166,7 @@ export function MessageSearch({
   const renderRow = (index: number) => {
     const row = rows[index];
     if (!row) return null;
-    const room = mx.getRoom(row.roomId);
+    const room = client.getRoom(row.roomId);
     if (row.kind === 'room-header') {
       return (
         <Box style={{ paddingTop: config.space.S400 }}>

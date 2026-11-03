@@ -2,11 +2,14 @@
 // URI-encoded Matrix room IDs or aliases; the optional event segment
 // focuses a timeline event.
 
+// The signed-out screens take the homeserver as an optional first segment.
+const signedOutPath = (screen: string): string => `/${screen}/:server?/`;
 
+export const ROOT_PATH = '/';
 
-
-
-
+export const LOGIN_PATH = signedOutPath('login');
+export const REGISTER_PATH = signedOutPath('register');
+export const RESET_PASSWORD_PATH = signedOutPath('reset-password');
 
 export const CONNECT_PATH = '/connect/';
 export const CONNECTIONS_PATH = '/connections/';

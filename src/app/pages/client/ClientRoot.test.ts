@@ -217,10 +217,10 @@ const toBootstrapSession = (session: {
   refreshToken?: string;
 }) => ({
   sessionId: session.sessionId,
-
-
-
-
+  accessToken: session.accessToken,
+  baseUrl: session.baseUrl,
+  deviceId: session.deviceId, // restoring a login needs the device it was issued to
+  userId: session.userId,
   refreshToken: session.refreshToken,
 });
 

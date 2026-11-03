@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import React, { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -50,15 +50,15 @@ import { SyncStatus } from './SyncStatus';
 
 type ClientBootstrapSession = Parameters<typeof initClient>[0];
 
-const toBootstrapSession = (session: StoredSession): ClientBootstrapSession =>
-  ({
-    sessionId: session.sessionId,
-
-
-
-
-    refreshToken: session.refreshToken,
-  } as ClientBootstrapSession);
+const toBootstrapSession = ({
+  sessionId,
+  accessToken,
+  baseUrl,
+  deviceId,
+  userId,
+  refreshToken,
+}: StoredSession): ClientBootstrapSession =>
+  ({ sessionId, accessToken, baseUrl, deviceId, userId, refreshToken } as ClientBootstrapSession);
 
 /**
  * Whether the client restored rooms from its store, so the shell can render
@@ -133,6 +133,14 @@ function useRecoveryAction() {
   return { running, run };
 }
 
+/** The recovery menu closes on an outside click or Escape and leaves focus where it landed. */
+const MENU_FOCUS_TRAP = {
+  clickOutsideDeactivates: true,
+  escapeDeactivates: true,
+  returnFocusOnDeactivate: false,
+  initialFocus: false,
+} as const;
+
 function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
   const { t } = useTranslation();
   const session = useActiveSession();
@@ -183,6 +191,12 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
     </Menu>
   );
 
+  const recoveryMenu = (
+    <FocusTrap focusTrapOptions={{ ...MENU_FOCUS_TRAP, onDeactivate: hideMenu }}>
+      {recoveryItems}
+    </FocusTrap>
+  );
+
   return (
     <Box
       style={{
@@ -191,25 +205,7 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
         insetBlockStart: `calc(${config.space.S400} + env(safe-area-inset-top, 0px))`,
       }}
     >
-      <PopOut
-
-
-
-
-
-
-
-
-
-
-              escapeDeactivates: true,
-              onDeactivate: hideMenu,
-            }}
-          >
-            {recoveryItems}
-          </FocusTrap>
-        }
-      >
+      <PopOut anchor={menuAnchor} align="End" position="Bottom" offset={4} content={recoveryMenu}>
         <IconButton
           aria-label={t('sharedUi.clientRoot.startupRecoveryOptions')}
           aria-haspopup="menu"
@@ -309,21 +305,23 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
   );
 }
 
+const CATCHING_UP_STYLE: CSSProperties = {
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+  paddingBlock: config.space.S100,
+};
+
 /** Shown above a shell rendered from the store until the sync loop reports its first state. */
 function CatchingUpBar() {
-
-
-
-
-
-
-
-
-
-
-
-        paddingBlock: config.space.S100,
-      }}
+  const { t } = useTranslation();
+  return (
+    <Box
+      data-testid="client-sync-status"
+      role="status"
+      shrink="No"
+      alignItems="Center"
+      justifyContent="Center"
+      style={CATCHING_UP_STYLE}
     >
       <Text size="L400">{t('sharedUi.clientRoot.catchingUp')}</Text>
     </Box>

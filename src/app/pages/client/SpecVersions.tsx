@@ -62,17 +62,15 @@ const RecoveryLabel = ({ children }: { children: string }) => (
   </Text>
 );
 
-/** The homeserver did not answer `/versions`: retry, go on without it, or start from scratch. */
-function ConnectionError({
-  baseUrl,
-  retry,
-  ignore,
-}: {
+type ConnectionErrorProps = {
   baseUrl: string;
+  onRetry: () => void;
+  onContinue: () => void;
+};
 
-
-
-
+/** The homeserver did not answer `/versions`: retry, go on without it, or start from scratch. */
+function ConnectionError({ baseUrl, onRetry, onContinue }: ConnectionErrorProps) {
+  const { t } = useTranslation();
   const [clearing, setClearing] = useState(false);
 
   const clearCacheOnce = () => {
@@ -94,10 +92,10 @@ function ConnectionError({
         <Dialog>
           <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
             <Text>{problem}</Text>
-            <Button variant="Critical" onClick={retry}>
+            <Button variant="Critical" onClick={onRetry}>
               <RecoveryLabel>{t('sharedUi.specVersions.retry')}</RecoveryLabel>
             </Button>
-            <Button variant="Secondary" fill="Soft" onClick={ignore}>
+            <Button variant="Secondary" fill="Soft" onClick={onContinue}>
               <RecoveryLabel>{t('sharedUi.specVersions.continue')}</RecoveryLabel>
             </Button>
             <Button
@@ -198,7 +196,7 @@ export function SpecVersions({ baseUrl, allowCachedContent = false, children }: 
       fetchFn={request}
       fallback={() => <ConnectingSplash onCancel={handleCancel} />}
       error={(_error: unknown, retry: () => void, ignore: () => void) => (
-        <ConnectionError baseUrl={baseUrl} retry={retry} ignore={ignore} />
+        <ConnectionError baseUrl={baseUrl} onRetry={retry} onContinue={ignore} />
       )}
     >
       {(versions: ServerSpecVersions) => (

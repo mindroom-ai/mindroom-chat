@@ -79,13 +79,15 @@ export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] =>
   return results.filter((result) => kept.has(result));
 };
 
-
-
-
-    const item = { rank, event: result, context };
-    const last = groups[groups.length - 1];
-    if (last && last.roomId === result.room_id) last.items.push(item);
-    else groups.push({ roomId: result.room_id, items: [item] });
+/** Starts a new group whenever the room changes, so the order of the results is kept. */
+const groupByRoom = (results: readonly ISearchResult[]): ResultGroup[] => {
+  const groups: ResultGroup[] = [];
+  results.forEach((hit) => {
+    const roomId = hit.result.room_id;
+    const item = { rank: hit.rank, event: hit.result, context: hit.context };
+    const group = groups.at(-1);
+    if (group?.roomId === roomId) group.items.push(item);
+    else groups.push({ roomId, items: [item] });
   });
   return groups;
 };

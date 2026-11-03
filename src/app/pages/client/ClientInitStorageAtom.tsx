@@ -12,15 +12,18 @@ import { RECENTLY_OPENED_NAV_CATEGORY_ID } from '../../mindroom/recent-threads/r
  */
 export function ClientInitStorageAtom({ children }: { children: ReactNode }) {
   const userId = useMatrixClient().getSafeUserId();
-  const closedNavCategoriesAtom = useMemo(
-    () => makeClosedNavCategoriesAtom(userId, [RECENTLY_OPENED_NAV_CATEGORY_ID]),
+  // Both atoms belong to one account, so they are rebuilt together when the account changes.
+  const stored = useMemo(
+    () => ({
+      closedCategories: makeClosedNavCategoriesAtom(userId, [RECENTLY_OPENED_NAV_CATEGORY_ID]),
+      lastPaths: makeNavToActivePathAtom(userId),
+    }),
+    [userId]
+  );
 
-
-
-
-
-
-      <NavToActivePathProvider value={navToActivePathAtom}>{children}</NavToActivePathProvider>
+  return (
+    <ClosedNavCategoriesProvider value={stored.closedCategories}>
+      <NavToActivePathProvider value={stored.lastPaths}>{children}</NavToActivePathProvider>
     </ClosedNavCategoriesProvider>
   );
 }

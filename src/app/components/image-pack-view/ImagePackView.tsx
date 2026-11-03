@@ -1,4 +1,5 @@
 import React, {
+  CSSProperties,
   MouseEventHandler,
   ReactNode,
   useCallback,
@@ -127,6 +128,13 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
     onChange(option);
   };
   const closeMenu = () => setAnchor(undefined);
+  const trapOptions = {
+    clickOutsideDeactivates: true,
+    escapeDeactivates: stopPropagation,
+    onDeactivate: closeMenu,
+    returnFocusOnDeactivate: false,
+    initialFocus: false,
+  } as const;
 
   return (
     <PopOut
@@ -134,16 +142,8 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
       offset={4}
       align="End"
       position="Bottom"
-
-
-
-
-
-
-
-            onDeactivate: closeMenu,
-          }}
-        >
+      content={
+        <FocusTrap focusTrapOptions={trapOptions}>
           <Menu>
             <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
               {(Object.keys(labels) as UsageOption[]).map((option) => (
@@ -208,6 +208,35 @@ function SettingRow({
   );
 }
 
+/** Calls `onChange` when the event that holds the pack changes; returns how to stop listening. */
+const watchPack = (
+  client: MatrixClient,
+  address: ImagePackAddress | undefined,
+  onChange: () => void
+): (() => void) | undefined => {
+  if (!address) {
+    const onAccountData = (event: MatrixEvent) => {
+      if (event.getType() === AccountDataEvent.PoniesUserEmotes) onChange();
+    };
+    client.on(ClientEvent.AccountData, onAccountData);
+    return () => {
+      client.off(ClientEvent.AccountData, onAccountData);
+    };
+  }
+
+  const state = client.getRoom(address.roomId)?.getLiveTimeline().getState(EventTimeline.FORWARDS);
+  if (!state) return undefined;
+  const onStateEvent = (event: MatrixEvent) => {
+    const isThisPack =
+      event.getType() === StateEvent.PoniesRoomEmotes && event.getStateKey() === address.stateKey;
+    if (isThisPack) onChange();
+  };
+  state.on(RoomStateEvent.Events, onStateEvent);
+  return () => {
+    state.off(RoomStateEvent.Events, onStateEvent);
+  };
+};
+
 /**
  * The pack as the client has it now. It reads again whenever sync brings a new version of the
  * personal pack (account data) or of this room pack (state event), so applied edits and edits
@@ -216,34 +245,7 @@ function SettingRow({
 const useSavedPack = (mx: MatrixClient, address: ImagePackAddress | undefined): PackDraft => {
   const [version, setVersion] = useState(0);
 
-  useEffect(() => {
-    if (!address) {
-      const handleAccountData = (event: MatrixEvent) => {
-        if (event.getType() !== AccountDataEvent.PoniesUserEmotes) return;
-
-
-
-
-
-
-
-
-    const room = mx.getRoom(address.roomId);
-    const state = room?.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    if (!state) return undefined;
-    const handleStateEvent = (event: MatrixEvent) => {
-      if (
-        event.getType() === StateEvent.PoniesRoomEmotes &&
-        event.getStateKey() === address.stateKey
-      ) {
-        setVersion((v) => v + 1);
-      }
-    };
-    state.on(RoomStateEvent.Events, handleStateEvent);
-    return () => {
-      state.removeListener(RoomStateEvent.Events, handleStateEvent);
-    };
-  }, [mx, address]);
+  useEffect(() => watchPack(mx, address, () => setVersion((count) => count + 1)), [mx, address]);
 
   return useMemo(() => {
     void version;
@@ -253,18 +255,33 @@ const useSavedPack = (mx: MatrixClient, address: ImagePackAddress | undefined): 
 
 type ImagePackViewProps = {
   /** A room pack, or undefined for the user's personal pack. */
+  address: ImagePackAddress | undefined;
+  requestClose: () => void;
+};
 
+const warning = color.Warning;
 
+/** The bar that sticks to the top while edits wait to be applied. */
+const PENDING_BAR_STYLE: CSSProperties = {
+  position: 'sticky',
+  top: config.space.S100,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  zIndex: 1,
+  borderRadius: config.radii.R400,
+  color: warning.OnContainer,
+  background: warning.Container,
+  border: `${config.borderWidth.B300} solid ${warning.ContainerLine}`,
+};
 
-
-
-
-
-
-
-
-  const canEdit = canEditPack(mx, address);
-  const saved = useSavedPack(mx, address);
+/** Shows an emoji and sticker pack and lets an editor change usage, remove and add images. */
+export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const canEdit = canEditPack(client, address);
+  const saved = useSavedPack(client, address);
+  const alive = useAlive();
+  const useAuthentication = useMediaAuthentication();
   const [draft, setDraft] = useState<PackDraft>();
   // An applied pack shows until sync brings the saved one back, so the view never reverts.
   const [applied, setApplied] = useState<PackDraft>();
@@ -305,7 +322,7 @@ type ImagePackViewProps = {
     try {
       const uploaded = await Promise.all(
         files.map(async (file) => {
-          const { content_uri: mxc } = await mx.uploadContent(file, {
+          const { content_uri: mxc } = await client.uploadContent(file, {
             name: file.name,
             type: file.type,
           });
@@ -334,14 +351,14 @@ type ImagePackViewProps = {
     setError(undefined);
     try {
       if (address) {
-        await mx.sendStateEvent(
+        await client.sendStateEvent(
           address.roomId,
           StateEvent.PoniesRoomEmotes as never,
           draft as never,
           address.stateKey
         );
       } else {
-        await mx.setAccountData(AccountDataEvent.PoniesUserEmotes as never, draft as never);
+        await client.setAccountData(AccountDataEvent.PoniesUserEmotes as never, draft as never);
       }
       if (!alive()) return;
       setApplied(draft);
@@ -354,7 +371,7 @@ type ImagePackViewProps = {
   };
 
   const avatarUrl = current.pack?.avatar_url
-    ? mxcUrlToHttp(mx, current.pack.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+    ? mxcUrlToHttp(client, current.pack.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
 
   return (
@@ -381,21 +398,7 @@ type ImagePackViewProps = {
       >
         <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
           {changed && (
-            <Box
-              alignItems="Center"
-              gap="200"
-              wrap="Wrap"
-              style={{
-
-
-
-
-
-
-
-
-              }}
-            >
+            <Box alignItems="Center" gap="200" wrap="Wrap" style={PENDING_BAR_STYLE}>
               <Box grow="Yes">
                 <Text size="T300">{t('sharedUi.imagePackContent.changesSavedApplyWhenReady')}</Text>
               </Box>
@@ -507,7 +510,9 @@ type ImagePackViewProps = {
                 style={{ padding: `${config.space.S200} 0`, minHeight: toRem(48) }}
               >
                 <img
-                  src={mxcUrlToHttp(mx, image.url, useAuthentication, 64, 64, 'scale') ?? undefined}
+                  src={
+                    mxcUrlToHttp(client, image.url, useAuthentication, 64, 64, 'scale') ?? undefined
+                  }
                   alt={shortcode}
                   style={{ width: toRem(32), height: toRem(32), objectFit: 'contain' }}
                   loading="lazy"

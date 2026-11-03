@@ -9,11 +9,11 @@ import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from '
 import { toMatrixUploadError, uploadContent, type TUploadContent } from '../utils/matrix';
 
 /** Where one file's upload stands. String values keep logged and stored states readable. */
-
-
-
-
-
+export enum UploadStatus {
+  Idle = 'idle', // not started, or cancelled
+  Loading = 'loading', // the request is in flight
+  Success = 'success', // the homeserver returned a content URI
+  Error = 'error', // the request failed or returned no content URI
 }
 
 /** The fields each status adds to the file and the status itself. */
@@ -132,9 +132,9 @@ export type BoundUpload = {
 };
 
 /** Connects an upload atom to the media repository: start, progress, result, and cancel. */
-
-
-
+export const useBindUploadAtom = (
+  client: MatrixClient,
+  uploadAtom: TUploadAtom,
   { hideFilename, blockUploadError }: BindUploadOptions = {}
 ): BoundUpload => {
   const store = useStore();
@@ -159,7 +159,7 @@ export type BoundUpload = {
     const { file } = current;
     let request: Promise<UploadResponse> | undefined;
     const isCurrent = () => request !== undefined && requestRef.current === request;
-    await uploadContent(mx, file, {
+    await uploadContent(client, file, {
       name: file instanceof File ? file.name : undefined,
       fileType: file.type || undefined,
       hideFilename,
@@ -178,15 +178,15 @@ export type BoundUpload = {
         if (isCurrent()) store.set(uploadAtom, { error });
       },
     });
-  }, [mx, store, uploadAtom, hideFilename, blockUploadError]);
+  }, [client, store, uploadAtom, hideFilename, blockUploadError]);
 
   const cancelUpload = useCallback(async (): Promise<void> => {
     const current = store.get(uploadAtom);
     requestRef.current = undefined;
     if (current.status !== UploadStatus.Loading) return;
     store.set(uploadAtom, { status: UploadStatus.Idle });
-    mx.cancelUpload(current.promise);
-  }, [mx, store, uploadAtom]);
+    client.cancelUpload(current.promise);
+  }, [client, store, uploadAtom]);
 
   return { upload, startUpload, cancelUpload };
 };

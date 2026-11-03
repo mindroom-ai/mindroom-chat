@@ -10,17 +10,17 @@ type ClientBindAtomsProps = { children: ReactNode };
  * active Matrix client. Children render only once the seeding effects of that
  * client ran, so no page ever reads atoms that still hold another account.
  */
+export function ClientBindAtoms({ children }: ClientBindAtomsProps) {
+  const client = useMatrixClient();
+  useBindAtoms(client);
 
-
-
-
-  const [boundClient, setBoundClient] = useState<MatrixClient | undefined>(undefined);
+  const [seededFor, setSeededFor] = useState<MatrixClient | undefined>(undefined);
 
   // Declared after the binding hooks, so it runs after their effects seeded the atoms.
   useEffect(() => {
-    setBoundClient(mx);
-  }, [mx]);
+    setSeededFor(client);
+  }, [client]);
 
-  if (boundClient !== mx) return null;
+  if (seededFor !== client) return null;
   return React.createElement(React.Fragment, null, children);
 }

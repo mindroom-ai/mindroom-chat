@@ -51,10 +51,12 @@ import {
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
 
+/** Links that leave the app open in a new tab and do not hand it their opener. */
+const NEW_TAB_LINK = { rel: 'noreferrer noopener', target: '_blank' } as const;
+
 /** Linkify options for message text: links with a scheme, or starting with `www.`. */
-
-
-
+export const LINKIFY_OPTS: LinkifyOpts = {
+  ...NEW_TAB_LINK,
   defaultProtocol: 'https',
   // A bare domain such as `example.com` stays text.
   validate: {
@@ -128,11 +130,7 @@ export const renderTextWithLatex = (
 /** Props for a mention link: it opens in a new tab unless the click handler handles it. */
 export const makeMentionCustomProps = (
   handleMentionClick?: MouseEventHandler<HTMLElement>
-
-
-
-
-});
+): ComponentPropsWithoutRef<'a'> => ({ ...NEW_TAB_LINK, onClick: handleMentionClick });
 
 const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
   const roomId = roomIdOrAlias.startsWith('#')
@@ -143,28 +141,28 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
 };
 
 /**
- * A Matrix permalink as a mention: a user as `@display name` (the name in `currentRoomId`), a
+ * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`, else
  * the URL) but opens the event. Mentions carry the ID in `data-mention-id` and an event in
  * `data-mention-event-id`, for the mention click handler. Undefined for other links.
  */
-
-
-
-
-
+export const renderMatrixMention = (
+  client: MatrixClient,
+  viewedRoomId: string | undefined,
+  href: string,
+  customProps: ComponentPropsWithoutRef<'a'>,
   content?: ReactNode
 ): JSX.Element | undefined => {
   const userId = parseMatrixToUser(href);
   if (userId) {
-    const room = currentRoomId ? mx.getRoom(currentRoomId) : null;
+    const room = viewedRoomId ? client.getRoom(viewedRoomId) : null;
     const name = room ? getMemberDisplayName(room, userId) : undefined;
     return (
       <a
         {...customProps}
         href={href}
         className={classNames(
-          css.Mention({ highlight: mx.getUserId() === userId }),
+          css.Mention({ highlight: client.getUserId() === userId }),
           customProps.className
         )}
         data-mention-id={userId}
@@ -192,20 +190,20 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
   const roomLink = parseMatrixToRoom(href);
   if (roomLink) {
     const roomId = roomLink.roomIdOrAlias.startsWith('#')
-      ? getCanonicalAliasRoomId(mx, roomLink.roomIdOrAlias)
+      ? getCanonicalAliasRoomId(client, roomLink.roomIdOrAlias)
       : roomLink.roomIdOrAlias;
     return (
       <a
         {...customProps}
         href={href}
         className={classNames(
-          css.Mention({ highlight: !!roomId && roomId === currentRoomId }),
+          css.Mention({ highlight: !!roomId && roomId === viewedRoomId }),
           customProps.className
         )}
         data-mention-id={roomLink.roomIdOrAlias}
         data-mention-via={roomLink.viaServers?.join(',') || undefined}
       >
-        {roomName(mx, roomLink.roomIdOrAlias)}
+        {roomName(client, roomLink.roomIdOrAlias)}
       </a>
     );
   }
@@ -489,9 +487,9 @@ export const getReactCustomHtmlParser = (
   mx: MatrixClient,
   roomId: string | undefined,
   params: ReactCustomHtmlParserParams
-
-
-
+): HTMLReactParserOptions => {
+  const parserOptions: HTMLReactParserOptions = {
+    replace: (domNode) => {
       if (isText(domNode)) {
         // Whitespace keeps html-react-parser's handling, which drops it inside table structure.
         if (domNode.data.trim() === '' || hasAncestor(domNode, ['code', 'pre'])) return undefined;
@@ -514,13 +512,18 @@ export const getReactCustomHtmlParser = (
         const inner = withoutAttribute(attribs, 'data-mx-spoiler');
         return (
           <Spoiler reason={attribs['data-mx-spoiler'] || undefined}>
-            {renderMindroomCustomHtmlElement(name, inner, children, opts) ??
-              domToReact(children, opts)}
+            {renderMindroomCustomHtmlElement(name, inner, children, parserOptions) ??
+              domToReact(children, parserOptions)}
           </Spoiler>
         );
       }
 
-      const mindroomElement = renderMindroomCustomHtmlElement(name, attribs, children, opts);
+      const mindroomElement = renderMindroomCustomHtmlElement(
+        name,
+        attribs,
+        children,
+        parserOptions
+      );
       if (mindroomElement) return mindroomElement;
 
       const props = attributesToProps(attribs);
@@ -532,7 +535,7 @@ export const getReactCustomHtmlParser = (
             size={HEADING_SIZES[name]}
             className={classNames(css.Heading, css.MarginSpaced, props.className)}
           >
-            {domToReact(children, opts)}
+            {domToReact(children, parserOptions)}
           </Text>
         );
       }
@@ -541,7 +544,7 @@ export const getReactCustomHtmlParser = (
         case 'p':
           return (
             <p {...props} className={classNames(css.Paragraph, css.MarginSpaced, props.className)}>
-              {domToReact(children, opts)}
+              {domToReact(children, parserOptions)}
             </p>
           );
         case 'blockquote':
@@ -550,24 +553,24 @@ export const getReactCustomHtmlParser = (
               {...props}
               className={classNames(css.BlockQuote, css.MarginSpaced, props.className)}
             >
-              {domToReact(children, opts)}
+              {domToReact(children, parserOptions)}
             </blockquote>
           );
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
-              {domToReact(children, opts)}
+              {domToReact(children, parserOptions)}
             </ul>
           );
         case 'ol':
           return (
             <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
-              {domToReact(children, opts)}
+              {domToReact(children, parserOptions)}
             </ol>
           );
         case 'pre':
           return (
-            <CodeBlock opts={opts} highlightRegex={params.highlightRegex}>
+            <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
               {children}
             </CodeBlock>
           );
@@ -579,7 +582,7 @@ export const getReactCustomHtmlParser = (
           );
         case 'a': {
           const { href } = attribs;
-          const content = domToReact(children, opts);
+          const content = domToReact(children, parserOptions);
           if (href && testMatrixTo(href)) {
             const mention = renderMatrixMention(
               mx,
@@ -624,5 +627,5 @@ export const getReactCustomHtmlParser = (
       }
     },
   };
-  return opts;
+  return parserOptions;
 };

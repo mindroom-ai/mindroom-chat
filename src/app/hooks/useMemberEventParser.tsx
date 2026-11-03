@@ -140,38 +140,51 @@ const getMemberEventKind = (
 const nameOf = (userId: string | undefined, displayName: string | undefined): string =>
   displayName ?? (userId ? getMxIdLocalPart(userId) ?? userId : '');
 
+type MemberEventFacts = {
+  kind: MemberEventKind;
+  userName: string;
+  prevUserName: string;
+  senderName: string;
+  reason: string;
+};
+
+/** Reads who did what to whom from a member event; the sentence is chosen by `kind`. */
+const describeMemberEvent = (event: MatrixEvent): MemberEventFacts => {
+  const current = readMemberContent(event.getContent());
+  const previous = readMemberContent(event.getPrevContent());
+  const senderId = event.getSender();
+  const targetId = event.getStateKey() ?? undefined;
+  const selfChange = !!senderId && senderId === targetId;
+
+  const userName = nameOf(targetId, current.displayname ?? previous.displayname);
+  return {
+    kind: getMemberEventKind(current, previous, selfChange),
+    userName,
+    prevUserName: nameOf(targetId, previous.displayname),
+    senderName: selfChange ? userName : nameOf(senderId, event.sender?.rawDisplayName || undefined),
+    reason: current.reason ? `(${current.reason})` : '',
+  };
+};
+
 /**
  * Turns `m.room.member` events into an icon and a localized sentence, such as "Lee joined the
  * room". Names render bold; the sentence follows language changes. Names are escaped before the
  * sentence's markup is parsed and unescaped in the rendered text, so a name such as `<3` stays
  * text.
  */
+export function useMemberEventParser(): MemberEventParser {
+  const { t: translate } = useTranslation();
 
-
-
-
-    (event: MatrixEvent): ParsedMemberEvent => {
-      const current = readMemberContent(event.getContent());
-      const previous = readMemberContent(event.getPrevContent());
-      const senderId = event.getSender();
-      const targetId = event.getStateKey() ?? undefined;
-      const selfChange = !!senderId && senderId === targetId;
-      const kind = getMemberEventKind(current, previous, selfChange);
-
-      const userName = nameOf(targetId, current.displayname ?? previous.displayname);
-      const prevUserName = nameOf(targetId, previous.displayname);
-      const senderName = selfChange
-        ? userName
-        : nameOf(senderId, event.sender?.rawDisplayName || undefined);
-      const reason = current.reason ? `(${current.reason})` : '';
-
+  return useCallback(
+    (event) => {
+      const { kind, ...values } = describeMemberEvent(event);
       return {
         icon: ICONS[kind],
         body: (
           <Trans
-            t={t}
+            t={translate}
             i18nKey={KEYS[kind]}
-            values={{ userName, prevUserName, senderName, reason }}
+            values={values}
             components={{ b: <b /> }}
             tOptions={{ interpolation: { escapeValue: true } }}
             shouldUnescape
@@ -179,6 +192,6 @@ const nameOf = (userId: string | undefined, displayName: string | undefined): st
         ),
       };
     },
-    [t]
+    [translate]
   );
-};
+}

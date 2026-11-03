@@ -1,21 +1,22 @@
 import { Dispatch, SetStateAction, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 /** Where an async request stands; `useAsyncCallback` holds the latest outcome. */
-
-
-
-
-
+export enum AsyncStatus {
+  Idle = 'idle', // no request has run yet
+  Loading = 'loading', // a request is in flight
+  Error = 'error', // the latest request rejected
+  Success = 'success', // the latest request resolved
 }
 
-type AsyncIdle = { status: AsyncStatus.Idle };
-type AsyncLoading = { status: AsyncStatus.Loading };
 type AsyncSuccess<D> = { status: AsyncStatus.Success; data: D };
 
+export type AsyncState<D, E = unknown> =
+  | { status: AsyncStatus.Idle }
+  | { status: AsyncStatus.Loading }
+  | AsyncSuccess<D>
+  | { status: AsyncStatus.Error; error: E };
 
-
-
-
+export type AsyncCallback<A extends unknown[], D> = (...args: A) => Promise<D>;
 
 /** Releases a result nobody will own, such as a blob URL whose state never committed. */
 export type AsyncDiscardCallback<D> = (data: D) => void;

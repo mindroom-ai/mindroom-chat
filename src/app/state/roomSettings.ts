@@ -9,12 +9,8 @@ export enum RoomSettingsPage {
   DeveloperToolsPage = 'developer-tools',
 }
 
+/** The room to show; `spaceId` is the Space it was opened from, for navigating in the dialog. */
+export type RoomSettingsState = { roomId: string; spaceId?: string; page?: RoomSettingsPage };
 
-
-
-
-
-
-
-
-
+/** The room whose settings dialog is open, if any. */
+export const roomSettingsAtom = atom<RoomSettingsState | undefined>(undefined);
