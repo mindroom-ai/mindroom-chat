@@ -200,7 +200,14 @@ function ThreadNavItemRow({
           >
             <NavItemContent as="span">
               <Box as="span" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-                <Text as="span" size="T300" truncate className={css.EntrySummary} ref={shownRef}>
+                <Text
+                  as="span"
+                  size="T300"
+                  priority={entry.isUnread ? '500' : '300'}
+                  truncate
+                  className={css.EntrySummary}
+                  ref={shownRef}
+                >
                   {title}
                 </Text>
                 {entry.isUnread && <span className={css.EntryUnreadDot} aria-hidden="true" />}
