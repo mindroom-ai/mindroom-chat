@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, IconSrc, Icons, Text, as, color, config } from 'folds';
+import { Box, Icon, type IconSrc, Icons, Text, as, color, config } from 'folds';
 
 type FallbackLineProps = {
   icon?: IconSrc;
@@ -39,7 +39,7 @@ export function MessageDeletedContent({ reason }: { reason?: string }) {
     <FallbackLine icon={Icons.Delete}>
       {reason
         ? t('sharedUi.fallbackContent.deletedWithReason', { reason })
-        : t('sharedUi.fallbackContent.deleted')}
+        : t('sharedUi.fallbackContent.thisMessageHasBeenDeleted')}
     </FallbackLine>
   );
 }
@@ -47,7 +47,9 @@ export function MessageDeletedContent({ reason }: { reason?: string }) {
 export function MessageUnsupportedContent() {
   const { t } = useTranslation();
   return (
-    <FallbackLine icon={Icons.Warning}>{t('sharedUi.fallbackContent.unsupported')}</FallbackLine>
+    <FallbackLine icon={Icons.Warning}>
+      {t('sharedUi.fallbackContent.unsupportedMessage')}
+    </FallbackLine>
   );
 }
 
@@ -55,7 +57,7 @@ export function MessageFailedContent() {
   const { t } = useTranslation();
   return (
     <FallbackLine icon={Icons.Warning} critical>
-      {t('sharedUi.fallbackContent.failed')}
+      {t('sharedUi.fallbackContent.failedToLoadMessage')}
     </FallbackLine>
   );
 }
@@ -63,14 +65,18 @@ export function MessageFailedContent() {
 export function MessageBadEncryptedContent() {
   const { t } = useTranslation();
   return (
-    <FallbackLine icon={Icons.Lock}>{t('sharedUi.fallbackContent.badEncrypted')}</FallbackLine>
+    <FallbackLine icon={Icons.Lock}>
+      {t('sharedUi.fallbackContent.couldnTDecryptThisMessageTheEncryptionKeyIsnTAvailable')}
+    </FallbackLine>
   );
 }
 
 export function MessageNotDecryptedContent() {
   const { t } = useTranslation();
   return (
-    <FallbackLine icon={Icons.Lock}>{t('sharedUi.fallbackContent.notDecrypted')}</FallbackLine>
+    <FallbackLine icon={Icons.Lock}>
+      {t('sharedUi.fallbackContent.thisMessageIsNotDecryptedYet')}
+    </FallbackLine>
   );
 }
 
@@ -78,21 +84,21 @@ export function MessageBrokenContent() {
   const { t } = useTranslation();
   return (
     <FallbackLine icon={Icons.Warning} critical>
-      {t('sharedUi.fallbackContent.broken')}
+      {t('sharedUi.fallbackContent.brokenMessage')}
     </FallbackLine>
   );
 }
 
 export function MessageEmptyContent() {
   const { t } = useTranslation();
-  return <FallbackLine>{t('sharedUi.fallbackContent.empty')}</FallbackLine>;
+  return <FallbackLine>{t('sharedUi.fallbackContent.emptyMessage')}</FallbackLine>;
 }
 
-/** The "(edited)" marker after a message body. */
+/** The " (edited)" marker after a message body; the string carries its leading space. */
 export function MessageEditedContent() {
   const { t } = useTranslation();
   return (
-    <Text as="span" size="T200" priority="300" style={{ marginInlineStart: config.space.S100 }}>
+    <Text as="span" size="T200" priority="300">
       {t('sharedUi.fallbackContent.edited')}
     </Text>
   );

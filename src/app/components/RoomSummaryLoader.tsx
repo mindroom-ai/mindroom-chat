@@ -1,8 +1,9 @@
 import { ReactNode, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MatrixClient, RoomSummary } from 'matrix-js-sdk';
+import type { MatrixClient, Room, RoomSummary } from 'matrix-js-sdk';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../hooks/useAsyncCallback';
+import { type LocalRoomSummary, useLocalRoomSummary } from '../hooks/useLocalRoomSummary';
 import { isRoomAlias } from '../utils/matrix';
 
 export type RoomSummaryState = AsyncState<RoomSummary, unknown>;
@@ -45,6 +46,8 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
 
   const summaryQuery = useQuery({
     queryKey: ['room-summary', roomIdOrAlias, viaServers],
+    // A failed summary is a result the card shows (with its own retry), not a request to repeat.
+    retry: false,
     queryFn: async () => {
       let roomId = roomIdOrAlias;
       let servers = viaServers;
@@ -79,4 +82,15 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
   }
 
   return children(state, retry, servers, roomId);
+}
+
+type LocalRoomSummaryLoaderProps = {
+  room: Room;
+  children: (summary: LocalRoomSummary) => ReactNode;
+};
+
+/** The summary of a room the client already has, from its synced state; follows changes. */
+export function LocalRoomSummaryLoader({ room, children }: LocalRoomSummaryLoaderProps) {
+  const summary = useLocalRoomSummary(room);
+  return children(summary);
 }

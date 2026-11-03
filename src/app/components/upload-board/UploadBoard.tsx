@@ -73,11 +73,17 @@ export function UploadBoard({ header, children }: UploadBoardProps) {
         >
           <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronRight} />
           <Text as="span" size="H6">
-            {t('sharedUi.uploadBoard.files', { count: uploads.length })}
+            {`${uploads.length} ${t('sharedUi.uploadBoard.files')}`}
           </Text>
           {loading > 0 && <Spinner size="100" variant="Secondary" />}
           {failed > 0 && (
-            <Badge variant="Critical" fill="Solid" radii="Pill" size="400">
+            <Badge
+              variant="Critical"
+              fill="Solid"
+              radii="Pill"
+              size="400"
+              title={t('sharedUi.uploadBoard.uploadFailed')}
+            >
               <Text as="span" size="L400">
                 {failed}
               </Text>

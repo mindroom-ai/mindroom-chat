@@ -1,0 +1,111 @@
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Avatar, Box, Icon, Icons, Text, config } from 'folds';
+import { type Room, RoomEvent } from 'matrix-js-sdk';
+import { Header, IconButton, MenuItem } from '../glass/GlassPrimitives';
+import { PageScroll } from '../page';
+import { UserAvatar } from '../user-avatar/UserAvatar';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
+
+/** Everyone whose read receipt is at or after the event, the sender excluded. */
+const getEventReaders = (room: Room, eventId: string): string[] => {
+  const event = room.findEventById(eventId);
+  if (!event) return [];
+  const sender = event.getSender();
+  return room.getUsersReadUpTo(event).filter((userId) => userId !== sender);
+};
+
+/** Who has read up to the event, following new receipts. */
+const useEventReaders = (room: Room, eventId: string): string[] => {
+  const [readers, setReaders] = useState(() => getEventReaders(room, eventId));
+
+  useEffect(() => {
+    const refresh = () => setReaders(getEventReaders(room, eventId));
+    refresh();
+    room.on(RoomEvent.Receipt, refresh);
+    return () => {
+      room.removeListener(RoomEvent.Receipt, refresh);
+    };
+  }, [room, eventId]);
+
+  return readers;
+};
+
+type EventReadersProps = {
+  room: Room;
+  eventId: string;
+  requestClose: () => void;
+};
+
+/** The list of people who have seen a message, for its read receipts dialog. */
+export function EventReaders({ room, eventId, requestClose }: EventReadersProps) {
+
+
+
+  const readers = useEventReaders(room, eventId);
+
+  return (
+    <Box direction="Column" style={{ height: '100%', minHeight: 0 }}>
+      <PageScroll
+        style={{ flexGrow: 1, minHeight: 0 }}
+        header={
+          <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+            <Box grow="Yes">
+              <Text size="H4">{t('sharedUi.eventReaders.seenBy')}</Text>
+            </Box>
+            <IconButton
+              size="300"
+              radii="300"
+              onClick={requestClose}
+              aria-label={t('sharedUi.eventReaders.close')}
+            >
+              <Icon src={Icons.Cross} />
+            </IconButton>
+          </Header>
+        }
+      >
+        <Box direction="Column" style={{ padding: config.space.S200 }}>
+          {readers.map((userId) => {
+
+
+
+
+              : undefined;
+            return (
+              <MenuItem
+                key={userId}
+                as="div"
+                radii="400"
+
+
+
+
+
+
+
+
+
+
+
+
+
+                  <Text size="T300" truncate>
+                    {name}
+                  </Text>
+                  {name !== userId && (
+                    <Text size="T200" priority="300" truncate>
+                      {userId}
+                    </Text>
+                  )}
+                </Box>
+              </MenuItem>
+            );
+          })}
+        </Box>
+      </PageScroll>
+    </Box>
+  );
+}

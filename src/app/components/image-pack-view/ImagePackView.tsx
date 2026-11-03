@@ -1,4 +1,11 @@
-import React, { MouseEventHandler, useCallback, useMemo, useState } from 'react';
+import React, {
+  MouseEventHandler,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -18,7 +25,13 @@ import {
   config,
   toRem,
 } from 'folds';
-import { EventTimeline, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  EventTimeline,
+  type MatrixClient,
+  type MatrixEvent,
+  RoomStateEvent,
+} from 'matrix-js-sdk';
 import { Header, IconButton, Menu, MenuItem } from '../glass/GlassPrimitives';
 import { PageScroll } from '../page';
 import { readImagePackUpload } from './imagePackUpload';
@@ -102,9 +115,9 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
   const labels: Record<UsageOption, string> = {
-    emoticon: t('sharedUi.imagePackView.usageEmoji'),
-    sticker: t('sharedUi.imagePackView.usageSticker'),
-    both: t('sharedUi.imagePackView.usageBoth'),
+    emoticon: t('sharedUi.imageUsage.emoji'),
+    sticker: t('sharedUi.imageUsage.sticker'),
+    both: t('sharedUi.imageUsage.both'),
   };
 
   const open: MouseEventHandler<HTMLButtonElement> = (evt) =>
@@ -166,6 +179,72 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
   );
 }
 
+/** A titled row: label and description on the left, its control on the right. */
+function SettingRow({
+  title,
+  description,
+  after,
+}: {
+  title: string;
+  description?: string;
+  after?: ReactNode;
+}) {
+  return (
+    <Box alignItems="Center" gap="300">
+      <Box grow="Yes" direction="Column" gap="100" style={{ minWidth: 0 }}>
+        <Text size="T300">{title}</Text>
+        {description && (
+          <Text size="T200" priority="300">
+            {description}
+          </Text>
+        )}
+      </Box>
+      {after}
+    </Box>
+  );
+}
+
+/**
+ * The pack as the client has it now. It reads again whenever sync brings a new version of the
+ * personal pack (account data) or of this room pack (state event), so applied edits and edits
+ * from other devices show up.
+ */
+const useSavedPack = (mx: MatrixClient, address: ImagePackAddress | undefined): PackDraft => {
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (!address) {
+      const handleAccountData = (event: MatrixEvent) => {
+
+
+
+
+
+
+
+    const room = mx.getRoom(address.roomId);
+    const state = room?.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    if (!state) return undefined;
+    const handleStateEvent = (event: MatrixEvent) => {
+      if (
+        event.getType() === StateEvent.PoniesRoomEmotes &&
+        event.getStateKey() === address.stateKey
+      ) {
+        setVersion((v) => v + 1);
+      }
+    };
+    state.on(RoomStateEvent.Events, handleStateEvent);
+    return () => {
+      state.removeListener(RoomStateEvent.Events, handleStateEvent);
+    };
+  }, [mx, address]);
+
+  return useMemo(() => {
+    void version;
+    return readPack(mx, address);
+  }, [mx, address, version]);
+};
+
 type ImagePackViewProps = {
   /** A room pack, or undefined for the user's personal pack. */
   address: ImagePackAddress | undefined;
@@ -179,38 +258,31 @@ type ImagePackViewProps = {
 
 
   const canEdit = canEditPack(mx, address);
-  const saved = useMemo(() => readPack(mx, address), [mx, address]);
+  const saved = useSavedPack(mx, address);
   const [draft, setDraft] = useState<PackDraft>();
+  // An applied pack shows until sync brings the saved one back, so the view never reverts.
+  const [applied, setApplied] = useState<PackDraft>();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>();
 
-  const current = draft ?? saved;
+  useEffect(() => {
+    setApplied(undefined);
+  }, [saved]);
+
+  const base = applied ?? saved;
+  const current = draft ?? base;
   const images = Object.entries(current.images ?? {});
   const changed = draft !== undefined;
-  const packName =
-    current.pack?.display_name ||
-    (address ? t('sharedUi.imagePackView.roomPack') : t('sharedUi.imagePackView.personalPack'));
+  const packName = current.pack?.display_name || t('sharedUi.packMeta.unknown');
 
   const edit = useCallback(
-    (change: (pack: PackDraft) => PackDraft) => setDraft((previous) => change(previous ?? saved)),
-    [saved]
+    (change: (pack: PackDraft) => PackDraft) => setDraft((previous) => change(previous ?? base)),
+    [base]
   );
 
   const setPackUsage = (option: UsageOption) =>
     edit((pack) => ({ ...pack, pack: { ...pack.pack, usage: optionToUsage(option) } }));
-
-  const setImageUsage = (shortcode: string, option: UsageOption) =>
-    edit((pack) => ({
-      ...pack,
-      images: {
-        ...pack.images,
-        [shortcode]: {
-          ...(pack.images?.[shortcode] as PackImageDraft),
-          usage: optionToUsage(option),
-        },
-      },
-    }));
 
   const removeImage = (shortcode: string) =>
     edit((pack) => {
@@ -244,7 +316,7 @@ type ImagePackViewProps = {
         return { ...pack, images: next };
       });
     } catch {
-      if (alive()) setError(t('sharedUi.imagePackView.uploadFailed'));
+      if (alive()) setError(t('sharedUi.imagePackContent.uploadFailed'));
     } finally {
       if (alive()) setUploading(false);
     }
@@ -265,9 +337,11 @@ type ImagePackViewProps = {
       } else {
         await mx.setAccountData(AccountDataEvent.PoniesUserEmotes as never, draft as never);
       }
-      if (alive()) setDraft(undefined);
+      if (!alive()) return;
+      setApplied(draft);
+      setDraft(undefined);
     } catch {
-      if (alive()) setError(t('sharedUi.imagePackView.saveFailed'));
+      if (alive()) setError(t('sharedUi.imagePackContent.failedToApplyChangesPleaseTryAgain'));
     } finally {
       if (alive()) setSaving(false);
     }
@@ -285,7 +359,7 @@ type ImagePackViewProps = {
           <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
             <Box grow="Yes" style={{ minWidth: 0 }}>
               <Text size="H4" truncate>
-                {packName}
+                {t('sharedUi.imagePackView.emojisStickers')}
               </Text>
             </Box>
             <IconButton
@@ -316,7 +390,7 @@ type ImagePackViewProps = {
               }}
             >
               <Box grow="Yes">
-                <Text size="T300">{t('sharedUi.imagePackView.unsavedChanges')}</Text>
+                <Text size="T300">{t('sharedUi.imagePackContent.changesSavedApplyWhenReady')}</Text>
               </Box>
               <Box gap="200">
                 <Button
@@ -329,7 +403,7 @@ type ImagePackViewProps = {
                   onClick={() => setDraft(undefined)}
                 >
                   <Text as="span" size="B300">
-                    {t('sharedUi.imagePackView.reset')}
+                    {t('sharedUi.imagePackContent.reset')}
                   </Text>
                 </Button>
                 <Button
@@ -344,49 +418,61 @@ type ImagePackViewProps = {
                   }
                 >
                   <Text as="span" size="B300">
-                    {t('sharedUi.imagePackView.applyChanges')}
+                    {t('sharedUi.imagePackContent.applyChanges')}
                   </Text>
                 </Button>
               </Box>
             </Box>
           )}
-          <Box alignItems="Center" gap="300">
-            <Avatar size="500" radii="300">
-              {avatarUrl ? (
-                <AvatarImage src={avatarUrl} alt={packName} />
-              ) : (
-                <AvatarFallback>
-                  <Icon src={Icons.Sticker} />
-                </AvatarFallback>
-              )}
-            </Avatar>
-            <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-              <Text size="H5" truncate>
-                {packName}
-              </Text>
-              {current.pack?.attribution && (
-                <Text size="T200" priority="300">
-                  {current.pack.attribution}
-                </Text>
-              )}
-            </Box>
-            <UsageSelector
-              value={usageToOption(current.pack?.usage)}
-              disabled={!canEdit}
-              onChange={setPackUsage}
-            />
-          </Box>
           {error && (
             <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
               {error}
             </Text>
           )}
-          <Box direction="Column" gap="100">
-            <Box alignItems="Center" justifyContent="SpaceBetween">
-              <Text size="L400">
-                {t('sharedUi.imagePackView.images', { count: images.length })}
-              </Text>
-              {canEdit && (
+          <Box direction="Column" gap="200">
+            <Text size="L400">{t('sharedUi.imagePackContent.pack')}</Text>
+            <Box alignItems="Center" gap="300">
+              <Avatar size="500" radii="300">
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt={packName} />
+                ) : (
+                  <AvatarFallback>
+                    <Icon src={Icons.Sticker} />
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+                <Text size="H5" truncate>
+                  {packName}
+                </Text>
+                {current.pack?.attribution && (
+                  <Text size="T200" priority="300">
+                    {current.pack.attribution}
+                  </Text>
+                )}
+              </Box>
+            </Box>
+            <SettingRow
+              title={t('sharedUi.imagePackContent.imagesUsage')}
+              description={t(
+                'sharedUi.imagePackContent.selectHowTheImagesAreBeingUsedAsEmojisAsStickersOr'
+              )}
+              after={
+                <UsageSelector
+                  value={usageToOption(current.pack?.usage)}
+                  disabled={!canEdit}
+                  onChange={setPackUsage}
+                />
+              }
+            />
+          </Box>
+          {canEdit && (
+            <SettingRow
+              title={t('sharedUi.imagePackContent.uploadImages')}
+              description={t(
+                'sharedUi.imagePackContent.selectImagesFromYourStorageToUploadThemInPack'
+              )}
+              after={
                 <Button
                   type="button"
                   size="300"
@@ -395,25 +481,17 @@ type ImagePackViewProps = {
                   radii="300"
                   disabled={uploading}
                   onClick={handleUpload}
-                  before={
-                    uploading ? (
-                      <Spinner size="100" variant="Secondary" />
-                    ) : (
-                      <Icon size="50" src={Icons.Plus} />
-                    )
-                  }
+                  before={uploading ? <Spinner size="100" variant="Secondary" /> : undefined}
                 >
                   <Text as="span" size="B300">
-                    {t('sharedUi.imagePackView.upload')}
+                    {t('sharedUi.imagePackContent.select')}
                   </Text>
                 </Button>
-              )}
-            </Box>
-            {images.length === 0 && (
-              <Text size="T300" priority="300">
-                {t('sharedUi.imagePackView.noImages')}
-              </Text>
-            )}
+              }
+            />
+          )}
+          <Box direction="Column" gap="100">
+            <Text size="L400">{t('sharedUi.imagePackContent.images')}</Text>
             {images.map(([shortcode, image]) => (
               <Box
                 key={shortcode}
@@ -435,18 +513,13 @@ type ImagePackViewProps = {
                     </Text>
                   )}
                 </Box>
-                <UsageSelector
-                  value={usageToOption(image.usage ?? current.pack?.usage)}
-                  disabled={!canEdit}
-                  onChange={(option) => setImageUsage(shortcode, option)}
-                />
                 {canEdit && (
                   <IconButton
                     size="300"
                     radii="300"
                     variant="Critical"
                     onClick={() => removeImage(shortcode)}
-                    aria-label={t('sharedUi.imagePackView.removeImage', { shortcode })}
+                    aria-label={t('sharedUi.imageTile.remove')}
                   >
                     <Icon size="50" src={Icons.Delete} />
                   </IconButton>

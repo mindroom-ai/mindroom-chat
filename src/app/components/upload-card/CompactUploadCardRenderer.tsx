@@ -65,7 +65,7 @@ type CompactUploadCardRendererProps = {
             type="button"
             size="300"
             radii="Pill"
-            aria-label={t('sharedUi.uploadCard.removeFile', { name })}
+            aria-label={t('sharedUi.compactUploadCardRenderer.cancelUpload')}
 
 
 
@@ -79,6 +79,7 @@ type CompactUploadCardRendererProps = {
           uploadKind={uploadKind}
           maxUploadSize={maxUploadSize}
           onRetry={startUpload}
+          retryLabel={t('sharedUi.compactUploadCardRenderer.retry')}
         />
       }
     >

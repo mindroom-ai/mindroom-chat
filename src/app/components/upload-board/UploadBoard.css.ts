@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, color, config, toRem } from 'folds';
+import { DefaultReset, color, config } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 // The staged-uploads panel that floats above the composer.
@@ -18,7 +18,7 @@ import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 
 
-
+    display: 'flex',
     justifyContent: 'flex-end',
   },
 ]);
@@ -29,7 +29,9 @@ export const UploadBoard = style([
   glassFloating,
   {
     width: '100%',
-    maxWidth: toRem(400),
+    // As wide as a folds dialog (size.DialogWidth, 23.75rem); at most half the viewport tall,
+    // so the newest messages stay visible above it while files upload.
+    maxWidth: config.size.DialogWidth,
     maxHeight: '50vh',
     display: 'flex',
 

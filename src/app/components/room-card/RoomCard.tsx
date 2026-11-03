@@ -16,12 +16,23 @@ import {
   as,
 } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
-import { RoomAvatar, RoomIcon } from '../room-avatar';
+import { RoomAvatar } from '../room-avatar';
 import { RoomAccessControl, type RoomAccessJoinRule } from '../room-access';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { isRoomId } from '../../utils/matrix';
 import { stopPropagation } from '../../utils/keyboard';
 import * as css from './style.css';
+
+/** The icon for a room or space without an avatar, by how it can be joined. */
+const getRoomCardIcon = (space: boolean, joinRule: string | undefined) => {
+  const restricted = joinRule === JoinRule.Invite || joinRule === JoinRule.Knock;
+  if (space) {
+    if (joinRule === JoinRule.Public) return Icons.SpaceGlobe;
+    return restricted ? Icons.SpaceLock : Icons.Space;
+  }
+  if (joinRule === JoinRule.Public) return Icons.HashGlobe;
+  return restricted ? Icons.HashLock : Icons.Hash;
+};
 
 
 
@@ -43,7 +54,7 @@ type RoomCardProps = {
 
 
 
-
+  /** The access rule the room summary reported. */
   joinRule?: RoomAccessJoinRule;
   /** State of the summary request that `joinRule` came from. */
   accessStatus?: AsyncStatus;
@@ -84,11 +95,12 @@ type RoomCardProps = {
     const space = roomType === 'm.space';
     const roomName = name || roomIdOrAlias;
 
-    // A summary without a rule means a public room; while loading, no rule is known yet.
-    const knownJoinRule: RoomAccessJoinRule | undefined =
-      accessStatus === AsyncStatus.Loading
-        ? undefined
-        : joinRule ?? (accessStatus === AsyncStatus.Success ? JoinRule.Public : undefined);
+    // Only a summary that answered gives a rule (none in it means public). While it loads, or
+    // after it failed, any rule passed in is unconfirmed, so access waits for a retry unless
+    // the user's own membership (invite, knock) grants it.
+    let knownJoinRule: RoomAccessJoinRule | undefined;
+    if (accessStatus === AsyncStatus.Success) knownJoinRule = joinRule ?? JoinRule.Public;
+    else if (accessStatus === undefined) knownJoinRule = joinRule;
 
     const fallback =
       accessStatus === AsyncStatus.Loading ? (
@@ -111,22 +123,22 @@ type RoomCardProps = {
             {t('sharedUi.roomCard.retryRoomInfo')}
           </Text>
         </Button>
+      ) : null;
+
+    return (
+      <RoomCardBase {...props} ref={ref}>
+        <Box gap="200" justifyContent="SpaceBetween">
+          <Avatar size="500">
+            <RoomAvatar
+              roomId={verifiedRoomId ?? roomIdOrAlias}
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+                <Icon size="400" src={getRoomCardIcon(space, knownJoinRule)} filled />
+              )}
+            />
+          </Avatar>
+        </Box>
         <Box grow="Yes" direction="Column" gap="100">
           <Text size="H5" truncate>
             {roomName}
@@ -198,11 +210,16 @@ type RoomCardProps = {
                   before={access.loading ? <Spinner size="100" variant="Primary" /> : undefined}
                 >
                   <Text size="B300" truncate>
-                    {access.requested
-                      ? t('sharedUi.roomCard.requestSent')
-                      : access.kind === 'knock'
-                      ? t('sharedUi.roomCard.requestToJoin')
-                      : t('sharedUi.roomCard.join')}
+                    {access.loading &&
+                      (access.kind === 'knock'
+                        ? t('sharedUi.roomCard.sendingRequest')
+                        : t('sharedUi.roomCard.joining'))}
+                    {!access.loading &&
+                      (access.requested
+                        ? t('sharedUi.roomCard.requestSent')
+                        : access.kind === 'knock'
+                        ? t('sharedUi.roomCard.requestToJoin')
+                        : t('sharedUi.roomCard.join'))}
                   </Text>
                 </Button>
               )}

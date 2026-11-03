@@ -53,7 +53,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     if (inviting) return;
     const target = userId.trim();
     if (!isUserId(target)) {
-      setError(t('sharedUi.inviteUserPrompt.invalidUserId'));
+      setError(t('featureUi.createChat.pleaseEnterAValidUserId'));
       return;
     }
     const reason = (evt.target as InviteFormTarget).reasonInput?.value.trim() || undefined;
@@ -68,7 +68,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       setError(
         inviteError instanceof Error && inviteError.message
           ? inviteError.message
-          : t('sharedUi.inviteUserPrompt.inviteFailed')
+          : String(inviteError)
       );
 
 
@@ -93,20 +93,21 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
               maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
             }}
           >
-
-
-
-
-
-
-
-                    {t('sharedUi.inviteUserPrompt.title')}
+            <Box direction="Column">
+              <Header
+                size="500"
+                style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}
+              >
+                <Box grow="Yes">
+                  <Text id="invite-user-prompt-title" size="H4">
+                    {t('sharedUi.inviteUserPrompt.invite')}
                   </Text>
                 </Box>
                 <IconButton
                   size="300"
                   radii="300"
                   onClick={requestClose}
+                  aria-label={t('sharedUi.inviteUserPrompt.close')}
 
 
 
@@ -118,11 +119,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
 
 
-
-
-
-
-
+                <Box direction="Column" gap="100">
+                  <Text size="L400">{t('sharedUi.inviteUserPrompt.userId')}</Text>
+                  <InviteUserAutocomplete
+                    ref={inputRef}
                     room={room}
                     inputValue={userId}
                     onInputChange={handleInputChange}
@@ -132,7 +132,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   />
                 </Box>
                 <Box direction="Column" gap="100">
-                  <Text size="L400">{t('sharedUi.inviteUserPrompt.reason')}</Text>
+                  <Text size="L400">{t('sharedUi.inviteUserPrompt.reasonOptional')}</Text>
                   <Input
                     name="reasonInput"
                     size="500"
@@ -156,11 +156,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                     inviting ? <Spinner fill="Solid" variant="Primary" size="200" /> : undefined
                   }
                 >
-                  <Text size="B500">
-                    {inviting
-                      ? t('sharedUi.inviteUserPrompt.inviting')
-                      : t('sharedUi.inviteUserPrompt.invite')}
-                  </Text>
+                  <Text size="B500">{t('sharedUi.inviteUserPrompt.invite')}</Text>
                 </Button>
               </Box>
             </Box>

@@ -71,7 +71,7 @@ export const useSaveMedia = (src: string, fileName: string) => {
 
 
 
-
+            <IconButton
               size="300"
               radii="300"
               onClick={requestClose}
@@ -100,7 +100,6 @@ export const useSaveMedia = (src: string, fileName: string) => {
               size="300"
               radii="Pill"
               onClick={() => setZoom(1)}
-              aria-label={t('sharedUi.imageViewer.resetZoom')}
             >
               <Text as="span" size="B300">{`${Math.round(zoom * 100)}%`}</Text>
             </Button>
@@ -130,9 +129,9 @@ export const useSaveMedia = (src: string, fileName: string) => {
               }
             >
               <Text as="span" size="B300">
-                {failed
-                  ? t('sharedUi.imageViewer.retryDownload')
-                  : t('sharedUi.imageViewer.download')}
+                {downloadState === 'saving' && t('sharedUi.imageViewer.saving')}
+                {downloadState === 'failed' && t('sharedUi.imageViewer.retryDownload')}
+                {downloadState === 'idle' && t('sharedUi.imageViewer.download')}
               </Text>
             </Button>
           </Box>

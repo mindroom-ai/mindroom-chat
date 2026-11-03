@@ -139,13 +139,15 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   let message: string | undefined;
   let critical = false;
   if (gifTooLarge) {
-    message = t('sharedUi.addCustomEmoji.gifTooLarge');
+    message = t('sharedUi.emojiBoard.addCustomEmojiTooLarge', {
+      limit: `${MAX_ANIMATED_EMOJI_BYTES / 1024} KB`,
+    });
     critical = true;
   } else if (taken) {
-    message = t('sharedUi.addCustomEmoji.nameTaken');
+    message = t('sharedUi.emojiBoard.addCustomEmojiNameTaken');
     critical = true;
   } else if (failed) {
-    message = t('sharedUi.addCustomEmoji.addFailed');
+    message = t('sharedUi.emojiBoard.addCustomEmojiFailed');
     critical = true;
   }
 
@@ -154,16 +156,16 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
       <Box alignItems="Center" gap="300">
         {previewUrl && <img className={css.AddCustomEmojiPreview} src={previewUrl} alt="" />}
         <Box direction="Column" gap="100" grow="Yes">
-          <Text size="H5">{t('sharedUi.addCustomEmoji.title')}</Text>
+          <Text size="H5">{t('sharedUi.emojiBoard.addCustomEmoji')}</Text>
           <Text size="T200" priority="300">
             {targetRoom
-              ? t('sharedUi.addCustomEmoji.serverDescription', { server })
-              : t('sharedUi.addCustomEmoji.personalDescription')}
+              ? t('sharedUi.emojiBoard.addCustomEmojiServerDescription', { server })
+              : t('sharedUi.emojiBoard.addCustomEmojiDescription')}
           </Text>
         </Box>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('sharedUi.addCustomEmoji.name')}</Text>
+        <Text size="L400">{t('sharedUi.emojiBoard.addCustomEmojiName')}</Text>
         <Input
           name="shortcodeInput"
           value={name}
@@ -197,7 +199,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
       </Box>
       <Box gap="200" justifyContent="End">
         <Button type="button" variant="Secondary" fill="Soft" size="300" onClick={onCancel}>
-          <Text size="B300">{t('sharedUi.addCustomEmoji.cancel')}</Text>
+          <Text size="B300">{t('sharedUi.emojiBoard.cancel')}</Text>
         </Button>
         <Button
           type="submit"
@@ -206,7 +208,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
           disabled={!canSubmit}
           before={busy ? <Spinner size="100" variant="Primary" fill="Solid" /> : undefined}
         >
-          <Text size="B300">{t('sharedUi.addCustomEmoji.add')}</Text>
+          <Text size="B300">{t('sharedUi.emojiBoard.add')}</Text>
         </Button>
       </Box>
     </Box>

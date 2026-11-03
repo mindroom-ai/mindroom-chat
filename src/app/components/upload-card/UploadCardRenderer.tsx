@@ -44,6 +44,8 @@ type UploadStatusLineProps = {
   uploadKind?: 'file' | 'avatar';
   maxUploadSize?: number;
   onRetry?: () => void;
+  /** Text of the retry action. */
+  retryLabel?: string;
 };
 
 /** Progress, error, or nothing, for the bottom of an upload card. */
@@ -53,8 +55,8 @@ export function UploadStatusLine({
   uploadKind,
   maxUploadSize,
   onRetry,
+  retryLabel,
 }: UploadStatusLineProps) {
-  const { t } = useTranslation();
   const error = blockedError ?? (upload.status === UploadStatus.Error ? upload.error : undefined);
 
   if (error) {
@@ -69,7 +71,7 @@ export function UploadStatusLine({
         {!blockedError && onRetry && (
           <Chip type="button" variant="Critical" radii="Pill" onClick={onRetry}>
             <Text as="span" size="B300">
-              {t('sharedUi.uploadCard.retry')}
+              {retryLabel}
             </Text>
           </Chip>
         )}
@@ -158,7 +160,7 @@ export function UploadStatusLine({
               radii="Pill"
               variant={metadata.markedAsSpoiler ? 'Warning' : 'SurfaceVariant'}
               aria-pressed={metadata.markedAsSpoiler}
-              aria-label={t('sharedUi.uploadCard.markAsSpoiler')}
+              aria-label={t('sharedUi.uploadCardRenderer.spoiler')}
               onClick={() =>
                 setMetadata(fileItem, { ...metadata, markedAsSpoiler: !metadata.markedAsSpoiler })
               }
@@ -170,7 +172,7 @@ export function UploadStatusLine({
             type="button"
             size="300"
             radii="Pill"
-            aria-label={t('sharedUi.uploadCard.removeFile', { name })}
+            aria-label={t('sharedUi.uploadCardRenderer.cancelUpload')}
 
 
 
@@ -183,6 +185,7 @@ export function UploadStatusLine({
           blockedError={blocked}
           maxUploadSize={maxUploadSize}
           onRetry={startUpload}
+          retryLabel={t('sharedUi.uploadCardRenderer.retry')}
         />
       }
     >

@@ -30,8 +30,8 @@ type ChipMenuProps = {
 
 /** A chip that opens a small menu of actions below it. */
 function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
-
-
+  return (
+    <PopOut
 
 
 
@@ -152,9 +152,7 @@ function ChipMenuItem({ onClick, children }: { onClick: () => void; children: Re
         before={<Icon size="50" src={Icons.Link} />}
         onClick={open}
       >
-        <Text size="B300">
-          {copied ? t('sharedUi.userChips.copied') : t('sharedUi.userChips.share')}
-        </Text>
+        <Text size="B300">{t('sharedUi.userChips.share')}</Text>
       </Chip>
     </ChipMenu>
   );

@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
@@ -137,24 +137,40 @@ type ImageContentProps = {
     const [failed, setFailed] = useState(false);
     const [spoilerRevealed, setSpoilerRevealed] = useState(!markedAsSpoiler);
 
+    // Callers rebuild the owner and file objects on each render; the load follows what they
+    // identify (the event revision and the file), not their identity.
+    const ownerRef = useRef(owner);
+    ownerRef.current = owner;
+    const encInfoRef = useRef(encInfo);
+    encInfoRef.current = encInfo;
+    const ownerKey = owner ? `${owner.roomId}|${owner.eventId}|${owner.revisionTs}` : '';
+    const encKey = encInfo ? `${encInfo.iv}|${encInfo.hashes?.sha256 ?? ''}` : '';
+
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
+        const file = encInfoRef.current;
         const blob = await downloadCachedAttachment(mx, {
-          owner,
+          owner: ownerRef.current,
           mxcUri: url,
-          encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+          encryptedFile: file ? { ...file, url } : undefined,
           // A type the browser would run (SVG) is loaded as plain bytes instead.
           mimeType: getBlobSafeMimeType(mimeType ?? FALLBACK_MIMETYPE),
         });
         return URL.createObjectURL(blob);
-      }, [mx, owner, url, encInfo, mimeType]),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [mx, ownerKey, url, encKey, mimeType]),
       revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);
 
+    // The failure shows through `srcState`; a replaced request needs nothing.
+    const load = useCallback(() => {
+      Promise.resolve(loadSrc()).catch(() => undefined);
+    }, [loadSrc]);
+
     useEffect(() => {
-      if (autoPlay) loadSrc();
-    }, [autoPlay, loadSrc]);
+      if (autoPlay) load();
+    }, [autoPlay, load]);
 
     const closeViewer = useCallback(() => setViewerOpen(false), []);
     useViewerHistoryEntry(viewerOpen, closeViewer);
@@ -219,18 +235,18 @@ type ImageContentProps = {
         )}
         {srcState.status === AsyncStatus.Idle && !autoPlay && (
           <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
-            <Button variant="Secondary" fill="Solid" radii="300" size="300" onClick={loadSrc}>
+            <Button variant="Secondary" fill="Solid" radii="300" size="300" onClick={load}>
               <Text size="B300">{t('sharedUi.imageContent.view')}</Text>
             </Button>
           </Box>
         )}
         {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
-
-
-
-
-
-
+          spoilerRevealed && (
+            <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
+              <Spinner variant="Secondary" />
+            </Box>
+          )}
+        {(srcState.status === AsyncStatus.Error || failed) && (
           <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
             <Button
               variant="Critical"
@@ -240,7 +256,7 @@ type ImageContentProps = {
               onClick={() => {
                 setFailed(false);
                 setLoaded(false);
-                loadSrc();
+                load();
               }}
               before={<Icon size="50" src={Icons.Warning} />}
             >

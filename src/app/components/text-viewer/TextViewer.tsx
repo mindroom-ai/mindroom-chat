@@ -42,20 +42,18 @@ import * as css from './TextViewer.css';
 
 
 
-
-
-
-
-
-
-
+            <Text size="H4" truncate title={name}>
+              {name}
+            </Text>
+          </Box>
+          <Box shrink="No" alignItems="Center" gap="200">
+            <Chip
+              variant={copied ? 'Success' : 'Primary'}
               radii="300"
               onClick={handleCopy}
               before={copied ? <Icon size="50" src={Icons.Check} /> : undefined}
             >
-              <Text size="B300">
-                {copied ? t('sharedUi.textViewer.copied') : t('sharedUi.textViewer.copyAll')}
-              </Text>
+              <Text size="B300">{t('sharedUi.textViewer.copyAll')}</Text>
             </Chip>
             <IconButton
               size="300"

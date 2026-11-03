@@ -113,12 +113,16 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
           : undefined;
         return (
           <MenuItem
-            key={member.userId}
-            as="button"
-            type="button"
-            radii="300"
-            onKeyDown={(evt: ReactKeyboardEvent<HTMLButtonElement>) =>
-              onTabPress(evt, () => handleSelect(member))
+
+
+
+
+
+
+                // The window listener would insert the first suggestion as well.
+                evt.stopPropagation();
+                handleSelect(member);
+              })
             }
             onClick={() => handleSelect(member)}
 
@@ -132,12 +136,12 @@ const memberMatches = (member: RoomMember, query: string): boolean => {
 
 
 
-
-
-
-
-
-
+              <Text size="T200" priority="300" truncate>
+                {member.userId}
+              </Text>
+            }
+          >
+            <Text style={{ flexGrow: 1 }} size="B400" truncate>
               {name}
             </Text>
           </MenuItem>

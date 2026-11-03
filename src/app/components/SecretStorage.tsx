@@ -58,12 +58,12 @@ function RecoveryForm({ label, inputName, loading, errorText, onValue }: Recover
     ];
     const value = input?.value.trim();
     if (!value || loading) return;
+    onValue(value);
+  };
 
-
-
-
-
-
+  return (
+    <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
+      <Box direction="Column" gap="100">
         <Text size="L400">{label}</Text>
         <PasswordInput
           name={inputName}
@@ -87,7 +87,7 @@ function RecoveryForm({ label, inputName, loading, errorText, onValue }: Recover
         before={loading ? <Spinner size="200" variant="Primary" fill="Solid" /> : undefined}
       >
         <Text as="span" size="B400">
-          {t('sharedUi.secretStorage.continue')}
+          {t('sharedUi.secretStorage.verify')}
         </Text>
       </Button>
     </Box>

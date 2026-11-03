@@ -47,7 +47,7 @@ import { stopPropagation } from '../../utils/keyboard';
 
 
 
-
+}
 
 
 
@@ -61,14 +61,14 @@ import { stopPropagation } from '../../utils/keyboard';
 
 
 const EMOJI_GROUP_LABEL_KEYS = {
-  [EmojiGroupId.People]: 'sharedUi.emojiBoard.groups.people',
-  [EmojiGroupId.Nature]: 'sharedUi.emojiBoard.groups.nature',
-  [EmojiGroupId.Food]: 'sharedUi.emojiBoard.groups.food',
-  [EmojiGroupId.Activity]: 'sharedUi.emojiBoard.groups.activities',
-  [EmojiGroupId.Travel]: 'sharedUi.emojiBoard.groups.travel',
-  [EmojiGroupId.Object]: 'sharedUi.emojiBoard.groups.objects',
-  [EmojiGroupId.Symbol]: 'sharedUi.emojiBoard.groups.symbols',
-  [EmojiGroupId.Flag]: 'sharedUi.emojiBoard.groups.flags',
+  [EmojiGroupId.People]: 'sharedUi.emojiGroups.smileysPeople',
+  [EmojiGroupId.Nature]: 'sharedUi.emojiGroups.animalsNature',
+  [EmojiGroupId.Food]: 'sharedUi.emojiGroups.foodDrinks',
+  [EmojiGroupId.Activity]: 'sharedUi.emojiGroups.activity',
+  [EmojiGroupId.Travel]: 'sharedUi.emojiGroups.travelPlaces',
+  [EmojiGroupId.Object]: 'sharedUi.emojiGroups.objects',
+  [EmojiGroupId.Symbol]: 'sharedUi.emojiGroups.symbols',
+  [EmojiGroupId.Flag]: 'sharedUi.emojiGroups.flags',
 } as const;
 
 type BoardItem =
@@ -176,7 +176,7 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
 
 
 
-
+  /** Keep the board open after a pick (as reactions do with Shift or Alt held). */
 
 
 
@@ -211,7 +211,11 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
       const images = pack.getImages(usage);
       return {
         id: `pack-${pack.id}`,
-        label: pack.meta.name ?? t('sharedUi.emojiBoard.pack'),
+        label:
+          pack.meta.name ??
+          (pack.address
+            ? t('sharedUi.emojiBoard.unknownPack')
+            : t('sharedUi.emojiBoard.personalPack')),
         avatarMxc: pack.meta.avatar ?? images[0]?.url,
         items: images.map((image) => toImageItem(image, imageType)),
       };
@@ -297,6 +301,8 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
     addRecentEmoji(mx, mxc);
   };
 
+  const noStickerPacks = stickerTab && groups.length === 0;
+
   let content: ReactNode;
   if (addFile) {
     content = (
@@ -319,8 +325,8 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
                 >
                   <Text as="span" size="B300">
                     {option === EmojiBoardTab.Emoji
-                      ? t('sharedUi.emojiBoard.emoji')
-                      : t('sharedUi.emojiBoard.stickers')}
+                      ? t('sharedUi.tabs.emoji')
+                      : t('sharedUi.tabs.sticker')}
                   </Text>
                 </Chip>
               ))}
@@ -330,15 +336,37 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
             variant="SurfaceVariant"
             size="400"
             radii="400"
-            placeholder={t('sharedUi.emojiBoard.search')}
-            aria-label={t('sharedUi.emojiBoard.search')}
+            placeholder={t('sharedUi.searchInput.search')}
+            aria-label={t('sharedUi.searchInput.search')}
             value={query}
             onChange={handleQueryChange}
             autoFocus={!mobileOrTablet()}
             before={<Icon src={Icons.Search} size="50" />}
           />
         </Box>
-        <Scroll ref={scrollRef} size="400" visibility="Hover" hideTrack style={{ flexGrow: 1 }}>
+        {noStickerPacks && (
+          <Box
+            direction="Column"
+            alignItems="Center"
+            justifyContent="Center"
+            gap="200"
+            grow="Yes"
+            style={{ padding: config.space.S400, textAlign: 'center' }}
+          >
+            <Icon size="600" src={Icons.Sticker} />
+            <Text size="H6">{t('sharedUi.noStickerPacks.noStickerPacks')}</Text>
+            <Text size="T200" priority="300">
+              {t('sharedUi.noStickerPacks.addStickersFromUserRoomOrSpaceSettings')}
+            </Text>
+          </Box>
+        )}
+        <Scroll
+          ref={scrollRef}
+          size="400"
+          visibility="Hover"
+          hideTrack
+          style={{ flexGrow: 1, display: noStickerPacks ? 'none' : undefined }}
+        >
           {/* Items are buttons; this list reads which one was clicked or hovered. */}
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
           <div
@@ -361,7 +389,7 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
                     <div className={css.EmojiGroupContent}>
                       {group.items.length === 0 ? (
                         <Text size="T300" priority="300" style={{ padding: config.space.S200 }}>
-                          {t('sharedUi.emojiBoard.noResults')}
+                          {t('sharedUi.emojiBoard.noResultsFound')}
                         </Text>
                       ) : (
                         group.items.map((item) => (
