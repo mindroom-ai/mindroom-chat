@@ -29,13 +29,13 @@ export const useBindMindroomAccountSettings = (mx: MatrixClient): void => {
     setContent(settingsContent(mx));
     const handleAccountData = (event: MatrixEvent) => {
       if (event.getType() !== MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE) return;
-
-
-
-
-
-
+      setContent(event.getContent());
     };
+    const stopListening = (): void => {
+      mx.off(ClientEvent.AccountData, handleAccountData);
+    };
+    mx.on(ClientEvent.AccountData, handleAccountData);
+    return stopListening;
   }, [mx, setContent]);
 };
 

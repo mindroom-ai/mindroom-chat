@@ -13,16 +13,16 @@ export const Badge = style({
 
 
 
-
+  backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 92%, transparent)`,
+  borderRadius: config.radii.Pill,
   fontWeight: 500,
   lineHeight: toRem(16),
   whiteSpace: 'nowrap',
 });
 
 export const Icon = style({
-
-
-
+  display: 'block',
+  flexShrink: 0,
 });
 
 export const Label = style({

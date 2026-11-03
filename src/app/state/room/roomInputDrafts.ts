@@ -35,9 +35,10 @@ export type TUploadMetadata = {
 
 
 
-  /** Present when `file` is the encrypted form of `originalFile`. */
-  encInfo: EncryptedAttachmentInfo | undefined;
-  metadata: TUploadMetadata;
+
+
+
+
   /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
   prepError?: MatrixError;
 };

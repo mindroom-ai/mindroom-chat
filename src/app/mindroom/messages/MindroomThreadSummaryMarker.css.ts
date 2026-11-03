@@ -6,18 +6,18 @@ export const Marker = style({
 });
 
 export const MarkerTrigger = style({
-
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  minWidth: 0,
+  border: 0,
+  borderRadius: config.radii.R300,
   padding: `${toRem(1)} ${config.space.S100}`,
   marginInlineStart: `calc(-1 * ${config.space.S100})`,
-
-
-
-
+  background: 'transparent',
+  color: 'inherit',
+  textAlign: 'start',
+  transition: 'opacity 120ms ease, color 120ms ease, background-color 120ms ease',
   // folds' muted text level, which keeps 12px text above WCAG AA contrast.
   opacity: config.opacity.P300,
   font: 'inherit',

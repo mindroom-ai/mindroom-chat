@@ -37,28 +37,26 @@ export type IImageInfo = IThumbnailInfo & {
   'xyz.amorgan.blurhash'?: string;
 };
 
+/** `info` of an `m.video` event: the image fields plus the length in milliseconds. */
+export type IVideoInfo = IImageInfo & { duration?: number };
 
+/** `info` of an `m.audio` event. */
+export type IAudioInfo = {
+  size?: number;
+  mimetype?: string;
+  duration?: number;
+};
 
-
-
-
-
-
-
-
-
-
+/** `info` of an `m.file` event; a file may carry a preview thumbnail. */
+export type IFileInfo = IThumbnailContent & {
   mimetype?: string;
   size?: number;
-  thumbnail_info?: IThumbnailInfo;
+};
+
+/** The thumbnail fields of a media `info` object: a plain URL or an encrypted file. */
+export type IThumbnailContent = {
   thumbnail_url?: string;
-
-
-
-
-
-
-
+  thumbnail_file?: IEncryptedFile;
   thumbnail_info?: IThumbnailInfo;
 };
 

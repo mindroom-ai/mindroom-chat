@@ -76,9 +76,9 @@ export const Title = style({
 export const Detail = style({
   minWidth: 0,
   overflow: 'hidden',
-
-
-
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  opacity: 0.72,
 });
 
 export const Chevron = style({
@@ -88,10 +88,10 @@ export const Chevron = style({
 });
 
 export const Panel = style({
-
-
-
-
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  marginBlockStart: config.space.S100,
+  borderRadius: config.radii.R400,
+  backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container} 60%, transparent)`,
   overflow: 'hidden',
 });
 
@@ -124,9 +124,9 @@ export const OutputLabel = style({
   color: color.Surface.OnContainer,
   fontFamily: 'var(--font-mono)',
   fontSize: toRem(12),
-
-
-
+  opacity: 0.75,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 // Rows in the panel are separated by quiet dividers, not nested boxes.
@@ -176,11 +176,11 @@ export const Result = style([
     fontSize: toRem(12),
     lineHeight: 1.5,
     textAlign: 'start',
-
-
-
-
-
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    opacity: 0.75,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
     selectors: {
       '&[aria-expanded="true"]': { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
       '&:focus-visible': {

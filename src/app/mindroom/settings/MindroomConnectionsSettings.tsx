@@ -18,12 +18,12 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
 
   // The window must open inside the click itself, so nothing here awaits before the call.
   const open = (backendUrl: string) => {
+    setBlocked(openPortal(backendUrl) === 'blocked');
+  };
 
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{t('settings.general.connections.sectionTitle')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         <SettingTile
           title={t('settings.general.connections.title')}

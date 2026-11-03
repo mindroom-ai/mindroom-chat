@@ -23,12 +23,12 @@ export const Header = style([
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-
-
-
-
-
-
+    gap: config.space.S200,
+    color: 'inherit',
+    paddingBlock: toRem(6),
+    background: 'transparent',
+    cursor: 'pointer',
+    paddingInline: config.space.S300,
     textAlign: 'start',
     fontSize: toRem(12),
     fontWeight: config.fontWeight.W500,

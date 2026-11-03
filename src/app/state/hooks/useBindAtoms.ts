@@ -7,6 +7,8 @@ import { roomToUnreadAtom, useBindRoomToUnreadAtom } from '../room/roomToUnread'
 import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../typingMembers';
 
 /** Connects the account-wide atoms to the Matrix client; each resets for a new client. */
+export function useBindAtoms(mx: MatrixClient): void {
+  // Room lists come first: the sidebar and the unread counts start from them.
 
 
 
@@ -15,3 +17,4 @@ import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../
 
 
 
+}

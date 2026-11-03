@@ -269,10 +269,10 @@ export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
     allowedSchemesByTag: {
       a: ['http', 'https', 'mailto'],
     },
-
-
-
-
+    parseStyleAttributes: false,
+    allowProtocolRelative: false,
+    allowedClasses: {
+      code: [/^language-[\w-]+$/],
       pre: ['language-*'],
       ...allowedSvgClasses,
     },

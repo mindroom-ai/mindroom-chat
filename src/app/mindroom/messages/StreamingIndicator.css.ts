@@ -7,19 +7,19 @@ const pulse = keyframes({
 });
 
 export const Container = style({
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.2em',
   marginInlineStart: toRem(4),
   verticalAlign: 'baseline',
 });
 
 const dotBase = style({
-
-
-
-
-
+  display: 'inline-block',
+  inlineSize: toRem(5),
+  blockSize: toRem(5),
+  borderRadius: '50%',
+  backgroundColor: 'currentColor',
   animation: `${pulse} 1.4s ease-in-out infinite`,
   animationFillMode: 'both',
   '@media': {

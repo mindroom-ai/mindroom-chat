@@ -14,15 +14,16 @@ const isSectionRoot = (pathname: string): boolean =>
  * room instead, so the next visit returns to that room rather than the bare list.
  */
 export const useNavToActivePathMapper = (navId: string, preserveMobileContent = false): void => {
+  const location = useLocation();
+  // On a phone a section's root page is its room list.
+  const onPhone = useScreenSizeContext() === ScreenSize.Mobile;
+  const setNavToActivePath = useSetAtom(useNavToActivePathAtom());
 
-
-
-
-
-
-
+  useEffect(() => {
+    const { hash, pathname, search } = location;
+    if (preserveMobileContent && onPhone && isSectionRoot(pathname)) {
       return;
     }
     setNavToActivePath({ type: 'PUT', navId, path: { pathname, search, hash } });
-  }, [location, navId, preserveMobileContent, screenSize, setNavToActivePath]);
+  }, [location, navId, onPhone, preserveMobileContent, setNavToActivePath]);
 };

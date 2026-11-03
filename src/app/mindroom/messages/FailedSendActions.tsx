@@ -14,9 +14,9 @@ type FailedSendActionsProps = {
 };
 
 export function FailedSendActions({ room, event, style, message }: FailedSendActionsProps) {
-
-
-
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
+  const handleRetry = (): void => {
     if (!isFailedLocalEchoEvent(event)) return;
     // The SDK reuses the transaction ID, so the server drops a copy that already arrived.
     // A failed retry marks the event unsent again, which brings these actions back.

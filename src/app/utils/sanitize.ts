@@ -10,51 +10,30 @@ export const sanitizeText = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-// The Matrix specification's recommended tags and attributes for `org.matrix.custom.html`
-// ("m.room.message msgtypes"), plus `data-md`, which records the Markdown that produced an
-// element so the composer can turn a message back into Markdown when editing.
+// The tags and attributes the Matrix specification recommends for `org.matrix.custom.html`
+// (client-server API, "m.room.message msgtypes"), grouped by role and alphabetical inside a
+// group. `strike` and `font` are deprecated there but still arrive from older clients. The
+// attributes add `data-md`, which records the Markdown that produced an element so the composer
+// can turn a message back into Markdown when editing.
+const INLINE_TAGS = ['b', 'code', 'del', 'em', 'font', 'i', 's', 'span', 'strike', 'strong', 'u'];
+const SCRIPT_TAGS = ['sub', 'sup'];
+const BLOCK_TAGS = ['blockquote', 'br', 'details', 'div', 'hr', 'p', 'pre', 'summary'];
+const HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+const LIST_TAGS = ['li', 'ol', 'ul'];
+const TABLE_TAGS = ['caption', 'table', 'tbody', 'td', 'th', 'thead', 'tr'];
+const EMBED_TAGS = ['a', 'img'];
 const FORMATTING_TAGS = [
-  'font',
-  'del',
-  's',
+  ...INLINE_TAGS,
+  ...SCRIPT_TAGS,
+  ...BLOCK_TAGS,
+  ...HEADING_TAGS,
+  ...LIST_TAGS,
+  ...TABLE_TAGS,
+  ...EMBED_TAGS,
+];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Colour attributes of `font` and `span`; `colorToStyle` turns them into inline CSS.
+const MATRIX_COLOR_ATTRIBUTES = ['data-mx-bg-color', 'data-mx-color'];
 
 const PERMITTED_URL_SCHEMES = ['https', 'http', 'ftp', 'mailto', 'magnet'];
 // Schemes a deployment may never add: they run script, read local files or embed documents.
@@ -80,10 +59,11 @@ const BASE_ATTRIBUTES: Record<string, string[]> = {
   ...withDataMd(['b', 'i', 'u', 'strong', 'em', 'del', 's', 'strike', 'code', 'pre', 'blockquote']),
   ...withDataMd(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'p', 'hr']),
   font: [...MATRIX_COLOR_ATTRIBUTES, 'color', 'style', 'data-md'],
-
-
-
-
+  span: [...MATRIX_COLOR_ATTRIBUTES, 'data-md', 'data-mx-spoiler', 'style'],
+  // `rel` and `target` are kept for the values `linkInNewTab` writes.
+  a: ['data-md', 'href', 'name', 'rel', 'target'],
+  img: ['alt', 'data-mx-emoticon', 'height', 'src', 'title', 'width'],
+  ol: ['data-md', 'start'],
   // `data-label` names a code block (the label row above it).
   code: ['class', 'data-md', 'data-label'],
   div: ['data-md'],

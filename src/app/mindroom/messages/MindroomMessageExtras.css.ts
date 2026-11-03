@@ -4,10 +4,10 @@ import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
 export const Extras = style({
   display: 'flex',
-
-
-
-
+  flexDirection: 'column',
+  gap: config.space.S100,
+  marginBlockStart: config.space.S100,
+  minWidth: 0,
 });
 
 export const Section = style([

@@ -10,6 +10,7 @@ import { getCanonicalAliasOrRoomId } from '../utils/matrix';
 import {
   getDirectRoomPath,
   getHomeRoomPath,
+  getSpacePath,
   getSpaceRoomPath,
   withSearchParam,
 } from '../pages/pathUtils';
@@ -81,17 +82,19 @@ const getRoomPath = (
  * Navigation to rooms, threads and events. A room opens in the selected space when it is part
  * of it, as a direct room when it is one, in its space otherwise, and on Home last.
  */
+export const useRoomNavigate = () => {
+  // Where each room sits and which rooms are direct chats decide the section a room opens in.
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const directChats = useAtomValue(mDirectAtom);
+  // Paths name rooms and spaces by their canonical alias when they have one.
 
 
 
-
-
-  const selectedSpaceId = useSelectedSpace();
 
   const roomPath = useCallback(
     (roomId: string, eventId?: string) =>
-      getRoomPath(mx, roomToParents, directRooms, selectedSpaceId, roomId, eventId),
-    [mx, roomToParents, directRooms, selectedSpaceId]
+      getRoomPath(mx, roomToParents, directChats, selectedSpaceId, roomId, eventId),
+    [mx, roomToParents, directChats, selectedSpaceId]
   );
 
   /** Opens an app path as it is, such as a path recorded earlier. */
@@ -102,18 +105,20 @@ const getRoomPath = (
     [navigate]
   );
 
-  const navigateSpace = useCallback(
-    (spaceId: string, opts?: NavigateOptions) => {
-
-
-
-
-
-
-
-
+  /** Opens a room, at `eventId` when given, in the section `roomPath` picks for it. */
+  const navigateRoom = useCallback(
+    (roomId: string, eventId?: string, opts?: NavigateOptions): void => {
+      navigate(roomPath(roomId, eventId), opts);
     },
     [navigate, roomPath]
+  );
+
+  /** Opens a space's own page, addressed by its canonical alias when it has one. */
+  const navigateSpace = useCallback(
+    (spaceId: string, opts?: NavigateOptions) => {
+      navigate(getSpacePath(getCanonicalAliasOrRoomId(mx, spaceId)), opts);
+    },
+    [mx, navigate]
   );
 
   /** Opens the room focused on `eventId`, without opening its thread. */

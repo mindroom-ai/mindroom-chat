@@ -13,9 +13,9 @@ export const Bar = style([
     gap: 8,
     padding: '8px 12px',
     margin: `0 ${config.space.S400} ${config.space.S200}`,
-
-
-
+    minWidth: 0,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
   },
 ]);
 export const BarTitle = style({ fontWeight: config.fontWeight.W600 });
@@ -201,10 +201,10 @@ export const SectionTool = style({
   minWidth: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: '0.75rem',
-
-
-
-
+  opacity: 0.75,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 // Details line up with the title, past the icon tile; phones use the full width.
 export const SectionBody = style({
@@ -223,10 +223,10 @@ export const StatusChip = style({
   padding: '2px 10px',
   borderRadius: config.radii.Pill,
   fontSize: 12,
-
-
-
-
+  fontWeight: 500,
+  backgroundColor: color.SurfaceVariant.Container,
+  lineHeight: 1.4,
+  color: color.SurfaceVariant.OnContainer,
 });
 export const StatusChipAttention = style({
   backgroundColor: color.Warning.Container,
@@ -239,10 +239,10 @@ export const StatusChipDone = style({
 export const Durations = style({ display: 'flex', flexDirection: 'column', gap: 6 });
 export const DurationRow = style({
   display: 'flex',
-
-
-
-
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
 });
 // Solid segments: on a glass sheet, see-through buttons read as disabled.
 export const Segmented = style({
@@ -276,9 +276,9 @@ export const SingleCall = style({ display: 'flex', flexDirection: 'column', gap:
 export const CallsToggle = style({ alignSelf: 'flex-start' });
 export const DenyRow = style({
   display: 'flex',
-
-
-
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 8,
 });
 // The reason field fills the row; the confirm and cancel buttons wrap below when narrow.
 globalStyle(`${DenyRow} > :first-child`, { flex: '1 1 12rem', minWidth: 0 });

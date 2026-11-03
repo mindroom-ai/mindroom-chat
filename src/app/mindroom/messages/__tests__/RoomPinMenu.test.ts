@@ -200,11 +200,11 @@ vi.mock('../../../components/RenderMessageContent', () => ({
   RenderMessageContent: ({
     edited,
     eventType,
-
-
-
-
-
+    getContent,
+    mEvent,
+    urlPreview,
+  }: {
+    edited?: boolean | undefined;
     eventType?: string;
     getContent?: () => Record<string, unknown>;
     mEvent?: unknown;

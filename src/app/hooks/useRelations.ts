@@ -2,13 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 
 /**
- * Reads `getRelations(relations)` and reads it again when a relation is added, removed or
+ * Reads `select(relations)` and reads it again when a relation is added, removed or
  * redacted, or when the caller passes another relations object.
  */
-
-
-
-): T => {
+export const useRelations = <T>(relations: Relations, select: (relations: Relations) => T): T => {
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -25,6 +22,6 @@ import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 
   return useMemo(() => {
     void version;
-    return getRelations(relations);
-  }, [relations, getRelations, version]);
+    return select(relations);
+  }, [relations, select, version]);
 };

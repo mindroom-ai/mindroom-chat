@@ -9,24 +9,24 @@ export const ThreadSummaryCard = style([
     width: 'fit-content',
     minWidth: 0,
     maxWidth: `min(100%, ${toRem(420)})`,
-
-
-
+    padding: `${toRem(10)} ${toRem(14)}`,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
   },
 ]);
 
 export const ThreadSummaryHeader = style({
   display: 'flex',
-
-
-
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: `${toRem(4)} ${config.space.S200}`,
 });
 
 export const ThreadSummaryLabel = style({
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  minWidth: 0,
   opacity: 0.72,
 });
 

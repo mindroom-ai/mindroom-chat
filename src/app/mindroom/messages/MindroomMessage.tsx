@@ -109,20 +109,19 @@ function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItem
   );
 }
 
-/** Edits a text message in place and sends the edit as an `m.replace` event. */
-function MessageInlineEditor({
-  room,
-  mEvent,
-  content,
-  onDone,
-}: {
+type InlineEditorProps = {
   room: Room;
+  mEvent: MatrixEvent;
+  /** What the row shows now; the edit starts from its body. */
+  content: Record<string, unknown>;
+  /** Closes the editor, after a saved edit or on cancel. */
+  onDone: () => void;
+};
 
-
-
-
-
-
+/** Edits a text message in place and sends the edit as an `m.replace` event. */
+function MessageInlineEditor({ room, mEvent, content, onDone }: InlineEditorProps) {
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
   const [text, setText] = useState(typeof content.body === 'string' ? content.body : '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -457,18 +456,17 @@ export function MessagePinItem({
 
 type ActionState = { busy: boolean; error?: string; done?: string };
 
-/** "Delete": redacts the message after a confirmation, with an optional reason. */
-export function MessageDeleteItem({
-  room,
-  mEvent,
-  onClose,
-}: {
+/** A message menu entry that acts on one event and closes the menu when it is done. */
+type EventActionItemProps = {
   room: Room;
+  mEvent: MatrixEvent;
+  onClose?: () => void;
+};
 
-
-
-
-
+/** "Delete": redacts the message after a confirmation, with an optional reason. */
+export function MessageDeleteItem({ room, mEvent, onClose }: EventActionItemProps) {
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<ActionState>({ busy: false });
   const eventId = mEvent.getId();
@@ -522,17 +520,9 @@ export function MessageDeleteItem({
 }
 
 /** "Report Message": reports the message to the homeserver with a reason. */
-export function MessageReportItem({
-  room,
-  mEvent,
-  onClose,
-}: {
-  room: Room;
-
-
-
-
-
+export function MessageReportItem({ room, mEvent, onClose }: EventActionItemProps) {
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<ActionState>({ busy: false });
   const eventId = mEvent.getId();
@@ -595,6 +585,7 @@ export function MessageReportItem({
 
 
 
+  onEditId?: (eventId: string | undefined) => void;
 
 
 
@@ -602,15 +593,20 @@ export function MessageReportItem({
 
 
 
-
+  messageLayout?: MessageLayout;
+  messageSpacing?: MessageSpacing;
+  onUserClick?: MouseEventHandler<HTMLButtonElement>;
+  onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
   /** Reply to this message, or start (or continue) its thread. */
   onReplyClick?: (eventId: string, startThread?: boolean) => void;
   onReactionToggle?: ReactionHandler;
+  /** The quoted message this one replies to, shown above the body. */
 
 
 
 
-
+  hour24Clock?: boolean;
+  dateFormatString?: string;
   /** Content after edits and long-text hydration, used by the controls. */
   resolvedMessageContent?: Record<string, unknown>;
   children?: ReactNode;
@@ -631,25 +627,29 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       room,
       mEvent,
       collapse,
-
-
-
-
-
-
+      highlight,
+      // Editing and what the viewer may do with the message.
+      edit,
+      onEditId,
+      canDelete = false,
+      canSendReaction = false,
+      canPinEvent = false,
       imagePackRooms = [],
       relations,
-
-
-
-
-
-
-
-
-
-
-
+      // Presentation.
+      messageLayout = MessageLayout.Modern,
+      messageSpacing = '400',
+      hideReadReceipts = false,
+      hour24Clock = false,
+      dateFormatString,
+      reply,
+      reactions,
+      // Clicks on the avatar and the name.
+      onUserClick,
+      onUsernameClick,
+      // Replying and reacting.
+      onReplyClick,
+      onReactionToggle,
       resolvedMessageContent,
       children,
       ...props
@@ -660,10 +660,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
 
 
 
-
-
-
-
+    const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+    // The hover toolbar shows while the pointer or the keyboard focus is inside the row.
+    const [pointerInside, setPointerInside] = useState(false);
+    const [focusInside, setFocusInside] = useState(false);
+    const { hoverProps } = useHover({ onHoverChange: setPointerInside });
+    const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setFocusInside });
+    const useAuthentication = useMediaAuthentication();
     const baseRef = useRef<HTMLDivElement | null>(null);
     const setBaseRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -692,17 +695,18 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
       : undefined;
 
+    const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
     const renderAvatar = (withModel: boolean) => {
       const avatar = (
         <Avatar size="300" data-user-id={senderId} onClick={onUserClick as never}>
           <UserAvatar
-
-
-
-
-
-
-
+            alt={senderDisplayName}
+            renderFallback={avatarFallback}
+            src={avatarUrl}
+            userId={senderId}
+          />
+        </Avatar>
+      );
       if (!withModel || !extensionState.aiRunInfo) return <AvatarBase>{avatar}</AvatarBase>;
       return (
         <AvatarBase>
@@ -714,6 +718,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       );
     };
 
+    const compactLayout = messageLayout === MessageLayout.Compact;
     const renderBody = (controls?: { open: boolean; openDetails: () => void }) => {
       const openAiRun = () => {
         closeMenu();
@@ -730,21 +735,23 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             <MindroomMessageHeaderExtensions controls={controls as never} onOpenAiRun={openAiRun} />
           </Box>
           <Time
-
-
-
-
-
-
-
-
+            ts={mEvent.getTs()}
+            compact={compactLayout}
+            hour24Clock={hour24Clock}
+            dateFormatString={dateFormatString}
+          />
+        </Box>
+      );
+      // The quoted reply, then the editor or the content, then the reaction chips.
+      const body = (
         <>
           {reply}
-
-
-
-
-
+          {onEditId && edit ? (
+            <MessageInlineEditor
+              room={room}
+              mEvent={mEvent}
+              // The edit starts from the content shown, earlier edits included.
+              content={content}
               onDone={() => onEditId(undefined)}
             />
           ) : (
@@ -871,11 +878,14 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           }
         />
       );
-
-
-
-
-
+      // The inline editor has its own buttons, so the toolbar stays away while it is open.
+      const toolbarVisible =
+        !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
+      const options = (
+        <div className={css.MessageOptionsBase}>
+          <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>
+            <Box gap="100">
+              {canSendReaction && confirmed && onReactionToggle && (
                 <IconButton
                   size="300"
                   radii="300"
@@ -941,17 +951,17 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       return (
         <MessageBase
           ref={setBaseRef}
-          className={css.MessageBase}
           tabIndex={0}
-
-
-
+          highlight={highlight}
+          className={css.MessageBase}
+          collapse={collapse}
+          space={messageSpacing}
           selected={!!menuAnchor || edit}
+          {...hoverProps}
+          {...focusWithinProps}
           {...props}
-
-
-
-
+        >
+          {toolbarVisible && options}
           {emojiBoard}
           {layout}
         </MessageBase>
@@ -965,6 +975,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     );
   }
 );
+
 
 
 
@@ -1014,10 +1025,9 @@ export const Event = forwardRef<HTMLDivElement, EventProps>(
       <MessageBase
         ref={ref}
         className={css.MessageBase}
+        highlight={highlight}
         autoCollapse
-
-
-
+        space={messageSpacing}
         {...props}
       >
         {children ?? <StateEventLine room={room} mEvent={mEvent} />}

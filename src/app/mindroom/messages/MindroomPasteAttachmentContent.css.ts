@@ -5,13 +5,13 @@ import { glassOutline, glassSurface } from '../../styles/Glass.css';
 export const Card = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   {
-
-
-
+    display: 'flex',
+    flexDirection: 'column',
+    gap: config.space.S200,
     maxWidth: 'min(100%, 28rem)',
-
-
-
+    padding: `${config.space.S300} ${toRem(14)}`,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
     boxSizing: 'border-box',
   },
 ]);
@@ -43,17 +43,17 @@ export const FileName = style({
 
 export const Details = style({
   display: 'flex',
-
-
-
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: `${toRem(4)} ${config.space.S200}`,
   minWidth: 0,
 });
 
 export const Actions = style({
   display: 'flex',
-
-
-
+  flexShrink: 0,
+  gap: config.space.S100,
+  marginInlineStart: 'auto',
 });
 
 globalStyle(`${Actions} > button`, {

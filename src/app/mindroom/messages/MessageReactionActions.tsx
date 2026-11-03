@@ -64,6 +64,8 @@ export function MessageQuickReactions({
 
 
 
+
+
   const packs = useRelevantImagePacks(ImageUsage.Emoticon, imagePackRooms);
   const recent = useRecentEmoji(mx, QUICK_REACTION_COUNT, packs);
 

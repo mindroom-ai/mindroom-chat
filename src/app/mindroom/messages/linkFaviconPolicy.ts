@@ -4,9 +4,9 @@ import type { Settings } from '../../state/settings';
 
 export const shouldShowLinkFavicons = (
   {
-
-
-
+    mediaAutoLoad = false,
+    urlPreview = false,
+    encUrlPreview = false,
   }: Partial<Pick<Settings, 'mediaAutoLoad' | 'urlPreview' | 'encUrlPreview'>>,
   encrypted: boolean
 ): boolean => mediaAutoLoad === true && (encrypted ? encUrlPreview === true : urlPreview === true);

@@ -101,11 +101,11 @@ const reducedMotion = {
 };
 
 export const Placeholder = style({
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.4em',
+  maxWidth: '100%',
+  paddingInlineEnd: config.space.S100,
   font: 'inherit',
   fontWeight: 700,
   verticalAlign: 'baseline',

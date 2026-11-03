@@ -4,20 +4,20 @@ import { DefaultReset, toRem } from 'folds';
 export const AiRunInfoButton = style([
   DefaultReset,
   {
-
-
-
-
-
+    display: 'inline-flex',
+    alignItems: 'center',
+    inlineSize: toRem(18),
+    blockSize: toRem(18),
+    justifyContent: 'center',
     border: 0,
     borderRadius: toRem(999),
     padding: 0,
     color: 'inherit',
     opacity: 0.75,
-
-
-
-
+    cursor: 'pointer',
+    selectors: {
+      '&:hover, &[aria-expanded="true"]': {
+        opacity: 1,
       },
       '&:focus-visible': {
         opacity: 1,

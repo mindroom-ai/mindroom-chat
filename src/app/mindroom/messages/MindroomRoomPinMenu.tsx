@@ -33,19 +33,19 @@ const getLoadedDecryptedEvent = (room: Room, event: MatrixEvent) => {
 };
 
 function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
-
-
-
-
-
-
-
+  const event = useMindroomPinnedEvent(room, eventId);
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  // Encrypted rooms have a URL preview setting of their own.
+  const previewSetting = room.hasEncryptionStateEvent() ? 'encUrlPreview' : 'urlPreview';
+  const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
+  const { t } = useTranslation();
   const htmlReactParserOptions = useMemo(
     () =>
       getReactCustomHtmlParser(mx, room.roomId, { linkifyOpts: LINKIFY_OPTS, useAuthentication }),
     [mx, room.roomId, useAuthentication]
   );
-  const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
+  const [showUrlPreview] = useSetting(settingsAtom, previewSetting);
 
   if (event === undefined) {
     return (
@@ -120,10 +120,10 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
 }
 
 /** The room's pinned messages, newest first. */
-
-
-
-
+export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
+  ({ requestClose, room }, ref) => {
+    const pinnedEvents = useRoomPinnedEvents(room);
+    const { t } = useTranslation();
     const eventIds = useMemo(() => [...pinnedEvents].reverse(), [pinnedEvents]);
 
     return (

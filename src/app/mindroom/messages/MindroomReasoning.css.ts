@@ -10,20 +10,20 @@ export const Reasoning = style({
 });
 
 export const Toggle = style({
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  columnGap: '0.25rem',
   alignSelf: 'flex-start',
   padding: `${toRem(2)} 0`,
-
-
-
+  color: 'inherit',
+  background: 'none',
+  border: 'none',
   font: 'inherit',
   opacity: 0.7,
-
-
-
-
+  cursor: 'pointer',
+  selectors: {
+    '&:hover, &:focus-visible, &[aria-expanded="true"]': {
+      opacity: 1,
     },
   },
 });

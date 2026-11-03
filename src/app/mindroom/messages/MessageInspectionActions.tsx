@@ -18,27 +18,26 @@ type MenuDialogItemProps = {
 /** A message menu item that opens a modal; closing the modal also closes the menu. */
 function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemProps) {
   const [open, setOpen] = useState(false);
+  // Leaving the dialog also dismisses the menu that opened it.
+  const close = () => {
+    onClose?.();
+    setOpen(false);
+  };
+  const deactivateAndClose = () => {
+    close();
+    return true;
+  };
 
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <>
+      <Overlay backdrop={<OverlayBackdrop />} open={open}>
+        <OverlayCenter>
+          <FocusTrap
+            focusTrapOptions={{
               returnFocusOnDeactivate: false,
-              clickOutsideDeactivates: () => {
-                close();
-                return true;
-              },
-              escapeDeactivates: () => {
-                close();
-                return true;
-              },
+              initialFocus: false,
+              escapeDeactivates: deactivateAndClose,
+              clickOutsideDeactivates: deactivateAndClose,
             }}
           >
             <Modal variant="Surface" size="500">
@@ -83,6 +82,7 @@ export function MessageSourceCodeItem({
   onClose,
 }: {
   room: Room;
+
 
 
 

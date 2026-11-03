@@ -13,11 +13,11 @@ const pulse = keyframes({
 });
 
 export const Placeholder = style({
-
-
-
-
-
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.4em',
+  maxWidth: '100%',
+  paddingInlineEnd: config.space.S100,
   font: 'inherit',
   verticalAlign: 'baseline',
 });

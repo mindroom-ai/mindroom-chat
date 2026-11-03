@@ -13,6 +13,7 @@ export { getRoomIconSrc };
 
 
 
+  className?: string;
 };
 
 /** A room's avatar image, or a colored fallback while there is none or it fails to load. */
