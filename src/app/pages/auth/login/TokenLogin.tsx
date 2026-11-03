@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
@@ -22,18 +22,28 @@ const TOKEN_ERROR_KEYS = {
   [LoginError.Unknown]: 'sharedUi.tokenLogin.failedToLoginUnknownReason',
 } as const;
 
+/** The message for a login token the homeserver did not accept. */
+export function TokenLoginError({ error }: { error: LoginError }) {
+  const { t } = useTranslation();
+  return <FieldError message={t(TOKEN_ERROR_KEYS[error])} />;
+}
+
 type TokenLoginProps = {
   baseUrl: string;
   /** The `loginToken` the homeserver's SSO redirect handed back. */
   token: string;
+  /** Takes over when the exchange fails; without it the error shows here. */
+  onFailure?: (error: LoginError) => void;
 };
 
 /** Exchanges the login token from an SSO redirect for a session. */
-export function TokenLogin({ baseUrl, token }: TokenLoginProps) {
+export function TokenLogin({ baseUrl, token, onFailure }: TokenLoginProps) {
   const { t } = useTranslation();
   const [result, setResult] = useState<CustomLoginResponse>();
   const [error, setError] = useState<LoginError>();
   const storeFailed = useLoginComplete(result);
+  const failureRef = useRef(onFailure);
+  failureRef.current = onFailure;
 
   useEffect(() => {
     let cancelled = false;
@@ -47,16 +57,17 @@ export function TokenLogin({ baseUrl, token }: TokenLoginProps) {
         if (!cancelled) setResult(response);
       })
       .catch((loginError: unknown) => {
-        if (!cancelled) {
-          setError(loginError instanceof LoginFailure ? loginError.code : LoginError.Unknown);
-        }
+        if (cancelled) return;
+        const code = loginError instanceof LoginFailure ? loginError.code : LoginError.Unknown;
+        if (failureRef.current) failureRef.current(code);
+        else setError(code);
       });
     return () => {
       cancelled = true;
     };
   }, [baseUrl, token]);
 
-  if (error) return <FieldError message={t(TOKEN_ERROR_KEYS[error])} />;
+  if (error) return <TokenLoginError error={error} />;
   if (storeFailed) {
     return (
       <FieldError

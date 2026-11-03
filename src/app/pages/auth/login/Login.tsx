@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Box, Text } from 'folds';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
@@ -17,7 +17,8 @@ import { SSOLogin } from '../SSOLogin';
 import { FieldError } from '../FiledError';
 import { hasAppleIdentityProvider } from '../ssoProviders';
 import { PasswordLoginForm } from './PasswordLoginForm';
-import { TokenLogin } from './TokenLogin';
+import { TokenLogin, TokenLoginError } from './TokenLogin';
+import type { LoginError } from './loginUtil';
 
 type ParsedLoginFlows = {
   password: boolean;
@@ -95,9 +96,27 @@ export function Login() {
   const { server } = useOutletContext<{ server: string }>();
   const baseUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
   const { hashRouter, auth } = useClientConfig();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const loginToken = searchParams.get('loginToken');
   const addAccount = isAddAccountSearch(searchParams);
+  const [tokenError, setTokenError] = useState<LoginError>();
+
+  // A rejected token leaves the address, so a reload does not try it again, and the
+  // sign-in methods come back under the explanation.
+  const handleTokenFailure = useCallback(
+    (error: LoginError) => {
+      setTokenError(error);
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete('loginToken');
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   // The homeserver sends the browser (or, in the native app, the app link) back here.
   const ssoRedirectUrl = useMemo(
@@ -113,8 +132,9 @@ export function Login() {
       <Text as="h1" size="H2" priority="400">
         {t('sharedUi.login.login')}
       </Text>
+      {tokenError && !loginToken && <TokenLoginError error={tokenError} />}
       {loginToken ? (
-        <TokenLogin baseUrl={baseUrl} token={loginToken} />
+        <TokenLogin baseUrl={baseUrl} token={loginToken} onFailure={handleTokenFailure} />
       ) : (
         <AuthFlowsLoader>
           {({ loginFlows }) => (

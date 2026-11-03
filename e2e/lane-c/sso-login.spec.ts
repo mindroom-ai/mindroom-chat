@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
-import { accountRailButtonSelector, waitForLoggedInShell } from '../helpers/auth';
+import {
+  accountRailButtonSelector,
+  activeAccountButtonNamePattern,
+  waitForLoggedInShell,
+} from '../helpers/auth';
 
 // Single sign-on against the disposable homeserver of `just hs-up`. The test homeserver has no
 // identity provider, so two requests are answered here: the login flows gain an `m.login.sso`
@@ -92,6 +96,14 @@ const stubIdentityProvider = async (
   return stub;
 };
 
+/** The signed-in shell; a first sync on a busy machine can outlast the shared helper's wait. */
+const waitForShell = async (page: Page) => {
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+    timeout: 90_000,
+  });
+  await waitForLoggedInShell(page);
+};
+
 const loginPath = (search = '') => `/login/${encodeURIComponent(HOMESERVER)}${search}`;
 
 const expectActiveUser = async (page: Page, username: string) => {
@@ -120,7 +132,7 @@ test('signs in through an identity provider and returns with a login token', asy
   await expect(page.locator('input[name="passwordInput"]')).toBeVisible();
   await providerButton.click();
 
-  await waitForLoggedInShell(page);
+  await waitForShell(page);
   await expectActiveUser(page, username);
   // The provider was asked to come back to this server's login page, and the token is gone.
   expect(stub.redirectUrls).toHaveLength(1);
@@ -129,7 +141,7 @@ test('signs in through an identity provider and returns with a login token', asy
 
   // The session survives a reload like a password session does.
   await page.reload();
-  await waitForLoggedInShell(page);
+  await waitForShell(page);
   await expectActiveUser(page, username);
 });
 
@@ -144,14 +156,14 @@ test('adds a second account through single sign-on', async ({ page }) => {
 
   await page.goto(loginPath());
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
-  await waitForLoggedInShell(page);
+  await waitForShell(page);
   await expectActiveUser(page, first);
 
   await page.getByRole('button', { name: 'Add account' }).click();
   await expect(page).toHaveURL(/addAccount=1/);
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
 
-  await waitForLoggedInShell(page);
+  await waitForShell(page);
   await expectActiveUser(page, second);
   // The return address kept the add-account flow, so the first account stayed signed in.
   expect(new URL(stub.redirectUrls[1]).searchParams.get('addAccount')).toBe('1');
@@ -167,4 +179,8 @@ test('explains a login token the homeserver rejects', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('Invalid login token.', { timeout: 30_000 });
   const store = await readSessionStore(page);
   expect(store.sessions).toHaveLength(0);
+  // The rejected token leaves the address, and signing in again is one click away.
+  await expect(page).not.toHaveURL(/loginToken=/);
+  await expect(page.getByRole('link', { name: `Continue with ${PROVIDER.name}` })).toBeVisible();
+  await expect(page.locator('input[name="passwordInput"]')).toBeVisible();
 });
