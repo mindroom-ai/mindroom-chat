@@ -136,7 +136,6 @@
   .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
   .hd b { font-size: 14px; font-weight: 650; }
   .hd time { font-size: 11.5px; color: var(--text-3); }
-  .model { font: 500 11px var(--mono); color: var(--text-2); padding: 2px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
   .body { font-size: 14.5px; line-height: 1.62; }
   .body p { margin: 0 0 8px; } .body p:last-child { margin-bottom: 0; }
   .mention { color: var(--accent); font-weight: 600; background: var(--accent-soft); padding: 1px 5px; border-radius: 6px; }
@@ -174,23 +173,9 @@
   .streaming .agentcard { border-color: color-mix(in oklab, var(--a2) 35%, var(--line)); }
   .midnight .streaming .agentcard { box-shadow: 0 0 0 1px rgba(45,212,191,.15), 0 0 40px -10px rgba(45,212,191,.35); }
 
-  /* tool calls: one collapsible group per message */
-  .tg { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; font-weight: 550; color: var(--text-2);
-    background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 10px; }
-  .tg.run { color: var(--text); border-color: color-mix(in oklab, var(--a2) 45%, var(--line)); background: color-mix(in oklab, var(--a2) 9%, var(--surface)); }
-  .tg .nm { font-family: var(--mono); font-weight: 500; }
-  .tg .dur { color: var(--text-3); font-weight: 500; }
   .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--a2) 30%, transparent); border-top-color: var(--a2); animation: rot .8s linear infinite; }
   .studio .spin { border-color: #ccc; border-top-color: #0a0a0a; }
   @keyframes rot { to { transform: rotate(360deg); } }
-  .tlist { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: -2px 0 12px; background: var(--surface); }
-  .trow { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: start; padding: 9px 12px; border-bottom: 1px solid var(--line); }
-  .trow:last-child { border-bottom: 0; }
-  .trow .ok { color: var(--ok); margin-top: 2px; }
-  .trow .nm { font: 500 12.5px var(--mono); }
-  .trow .io { margin-top: 3px; font: 400 11.5px/1.5 var(--mono); color: var(--text-2); }
-  .trow .io span { color: var(--text-3); }
-  .trow .dur { font: 500 11px var(--mono); color: var(--text-3); }
 
   /* approval card */
   .appr { max-width: 420px; border-radius: 14px; padding: 12px 14px; border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--line)); background: color-mix(in oklab, var(--accent) 5%, var(--surface)); }
@@ -205,23 +190,6 @@
   .btn.ok { background: var(--ok-btn); color: #fff; border-color: transparent; }
   .studio .btn.ok { color: #d4ff3a; }
 
-  /* ---------- compact room view ---------- */
-  .clist { display: flex; flex-direction: column; gap: 8px; }
-  .conv { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: start; padding: 12px 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
-  .midnight .conv { background: rgba(255,255,255,.025); }
-  .studio .conv { box-shadow: none; }
-  .conv.unread { border-color: color-mix(in oklab, var(--accent) 40%, var(--line)); }
-  .conv .ttl { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
-  .conv .ask { margin-top: 2px; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .conv .last { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); min-width: 0; }
-  .conv .last b { color: var(--text); font-weight: 600; }
-  .conv .last .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .conv .side-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
-  .conv .n { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--text-2); }
-  .conv .udot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-  .plain { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 4px 14px; font-size: 13.5px; color: var(--text-2); }
-  .plain b { color: var(--text); font-weight: 600; margin-right: 6px; }
-  .plain time { font-size: 11.5px; color: var(--text-3); }
 
   /* ---------- thread view ---------- */
   .thbar { flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; height: 64px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -249,8 +217,6 @@
   .tc b { font-weight: 650; white-space: nowrap; }
   .tc .names { font: 500 12px/1.7 var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .tc .chev { margin-left: auto; color: var(--text-3); }
-  .tc.open { border-radius: 10px 10px 0 0; margin-bottom: 0; border-bottom: 0; }
-  .tc.open + .tlist { border-radius: 0 0 12px 12px; margin-top: 0; }
   /* model badge under the agent avatar */
   .avc { display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .mb { font: 600 10px/1.5 var(--font); padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); white-space: nowrap; }
