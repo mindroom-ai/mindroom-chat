@@ -21,7 +21,8 @@ const RECOVERY_BLOCKED_MESSAGE =
 
 const DEFAULT_BASE_PATH = trimTrailingSlash(import.meta.env.BASE_URL ?? '/');
 
-const cacheKey = (basePath: string) => `mindroom.client-config:${basePath || '/'}`;
+// Named after the URL it caches; the end-to-end specs clear this key to load a new policy.
+const cacheKey = (basePath: string) => `io.mindroom.client-config:${basePath}/config.json`;
 
 const isConfigObject = (value: unknown): value is ClientConfig =>
   !!value && typeof value === 'object' && !Array.isArray(value);
