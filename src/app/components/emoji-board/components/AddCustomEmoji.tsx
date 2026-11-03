@@ -31,13 +31,17 @@ import * as css from './styles.css';
 export const toShortcode = (name: string): string =>
   name.trim().replace(/:/g, '').replace(/\s+/g, '-');
 
-const getPersonalPackContent = (mx: MatrixClient): PackContent =>
-  getAccountData(mx, AccountDataEvent.PoniesUserEmotes)?.getContent<PackContent>() ?? {};
+const getPersonalPackContent = (client: MatrixClient): PackContent =>
+  getAccountData(client, AccountDataEvent.PoniesUserEmotes)?.getContent<PackContent>() ?? {};
 
 /** Whether the pack the emoji would go to (the server room's packs, or the personal pack) has the name. */
-const isShortcodeTaken = (mx: MatrixClient, serverRoom: Room | undefined, shortcode: string) => {
+const isShortcodeTaken = (
+  client: MatrixClient,
+  serverRoom: Room | undefined,
+  shortcode: string
+) => {
   if (serverRoom) return packsHaveShortcode(getRoomImagePacks(serverRoom), shortcode);
-  const personal = getUserImagePack(mx);
+  const personal = getUserImagePack(client);
   return personal ? packsHaveShortcode([personal], shortcode) : false;
 };
 
@@ -63,9 +67,9 @@ type AddCustomEmojiProps = {
  * are refused.
  */
 export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
-
-
-
+  const client = useMatrixClient();
+  const alive = useAlive();
+  const { t } = useTranslation();
   const previewUrl = useObjectURL(file);
   const serverRoom = useServerEmojiRoom();
   const [name, setName] = useState(() => toShortcode(getFileNameWithoutExt(file.name)));
@@ -74,7 +78,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const [takenShortcode, setTakenShortcode] = useState<string>();
 
   // The pack this render describes is the one a submit adds to, even if power levels change.
-  const targetRoom = serverRoom && canAddServerEmoji(mx, serverRoom) ? serverRoom : undefined;
+  const targetRoom = serverRoom && canAddServerEmoji(client, serverRoom) ? serverRoom : undefined;
   const targetRef = useRef(targetRoom);
   targetRef.current = targetRoom;
 
@@ -82,9 +86,9 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   const gifTooLarge = file.type === 'image/gif' && file.size > MAX_ANIMATED_EMOJI_BYTES;
   const taken =
     shortcode.length > 0 &&
-    (takenShortcode === shortcode || isShortcodeTaken(mx, targetRoom, shortcode));
+    (takenShortcode === shortcode || isShortcodeTaken(client, targetRoom, shortcode));
   const canSubmit = !busy && !gifTooLarge && !taken && shortcode.length > 0;
-  const server = getMxIdServer(mx.getSafeUserId());
+  const server = getMxIdServer(client.getSafeUserId());
 
   const handleNameChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
     setName(evt.target.value);
@@ -97,7 +101,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
     if (!canSubmit) return;
     const target = targetRef.current;
     // Another device may have taken the name since this form rendered.
-    if (isShortcodeTaken(mx, target, shortcode)) {
+    if (isShortcodeTaken(client, target, shortcode)) {
       setTakenShortcode(shortcode);
       return;
     }
@@ -106,16 +110,16 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
     setFailed(false);
     try {
       const prepared = await prepareEmojiImage(file, await loadImage(file));
-      const { content_uri: mxc } = await mx.uploadContent(prepared.file, {
+      const { content_uri: mxc } = await client.uploadContent(prepared.file, {
         name: prepared.file.name,
         type: prepared.file.type,
       });
       const image = { url: mxc, info: prepared.info };
       if (target) {
-        await addToServerPack(mx, target, shortcode, image);
+        await addToServerPack(client, target, shortcode, image);
       } else {
-        const pack = getPersonalPackContent(mx);
-        await mx.setAccountData(
+        const pack = getPersonalPackContent(client);
+        await client.setAccountData(
           AccountDataEvent.PoniesUserEmotes as never,
           { ...pack, images: { ...pack.images, [shortcode]: image } } as never
         );

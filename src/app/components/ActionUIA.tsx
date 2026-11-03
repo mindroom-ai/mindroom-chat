@@ -29,19 +29,16 @@ export const pickUIAFlow = (flows: UIAFlow[]): UIAFlow | undefined =>
 const isFlowSupported = (flow: UIAFlow) =>
   flow.stages.every((stage) => SUPPORTED_STAGES.has(stage));
 
-
-
-
-
+type FlowsLoaderProps = {
+  /** Rendered with the chosen flow. */
   children: (flow: UIAFlow) => ReactNode;
+  /** Shown when no flow the server offers consists only of stages this client can do. */
+  unsupported: () => ReactNode;
+  authData: IAuthData;
 };
 
 /** Chooses the flow to authenticate with among those this client can complete. */
-export function ActionUIAFlowsLoader({
-  authData,
-  unsupported,
-  children,
-}: ActionUIAFlowsLoaderProps) {
+export function ActionUIAFlowsLoader({ authData, unsupported, children }: FlowsLoaderProps) {
   const flow = pickUIAFlow((authData.flows ?? []).filter(isFlowSupported));
 
   return <>{flow ? children(flow) : unsupported()}</>;
@@ -130,20 +127,20 @@ function DummyStage({ session, action }: StageProps) {
   return null;
 }
 
+type ActionUIAProps = Pick<StageProps, 'action'> & {
+  /** The flow chosen by `ActionUIAFlowsLoader`. */
+  ongoingFlow: UIAFlow;
+  authData: IAuthData;
+  /** Closes the dialog without authenticating. */
+  onCancel(): void;
+};
 
-
-
-
-
-
-
-
-
-
-
-
+/** A dialog for the first stage of `ongoingFlow` the server has not marked completed. */
+export function ActionUIA(props: ActionUIAProps) {
+  const { authData, ongoingFlow, action, onCancel } = props;
+  const { t } = useTranslation();
+  const { session, completed = [] } = authData;
   const stage = ongoingFlow.stages.find((candidate) => !completed.includes(candidate));
-  const { session } = authData;
 
   let body: ReactNode;
   let title: string | undefined;

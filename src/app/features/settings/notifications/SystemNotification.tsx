@@ -19,42 +19,37 @@ import { SequenceCardStyle } from '../styles.css';
 const EMAIL_PUSHER_APP_ID = 'm.email';
 
 /** Whether the homeserver emails notifications to the account's address (an `email` pusher). */
-
-
-
+function EmailNotification() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
   const lang = useAppLanguageCode();
   const [result, refresh] = useEmailNotifications();
 
   // Matrix spec, client-server API, `POST /pushers/set`: an email pusher has kind `email` and the
   // address as its push key; kind `null` deletes the pusher.
-
-
-
-
-
-
-            app_id: EMAIL_PUSHER_APP_ID,
-            pushkey: email,
-            app_display_name: t(
-              'featureUi.settings.notifications.systemNotification.emailNotification'
-            ),
-            device_display_name: email,
-            lang,
-            data: getMindroomEmailNotificationPusherData(),
-            append: true,
-          });
-        } else {
-          await mx.setPusher({
-            kind: null,
-            app_id: EMAIL_PUSHER_APP_ID,
-            pushkey: email,
-          } as never);
-        }
-        refresh();
-      },
-      [mx, lang, refresh, t]
-    )
+  const updatePusher = useCallback(
+    async (email: string, enable: boolean) => {
+      await client.setPusher(
+        enable
+          ? {
+              kind: 'email',
+              app_id: EMAIL_PUSHER_APP_ID,
+              pushkey: email,
+              app_display_name: t(
+                'featureUi.settings.notifications.systemNotification.emailNotification'
+              ),
+              device_display_name: email,
+              lang,
+              data: getMindroomEmailNotificationPusherData(),
+              append: true,
+            }
+          : ({ kind: null, app_id: EMAIL_PUSHER_APP_ID, pushkey: email } as never)
+      );
+      refresh();
+    },
+    [client, lang, refresh, t]
   );
+  const [setState, setEnabled] = useAsyncCallback(updatePusher);
 
   let description: React.ReactNode;
   if (result === undefined) {

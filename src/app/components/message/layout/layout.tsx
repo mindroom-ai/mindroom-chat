@@ -63,12 +63,12 @@ export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode }>(
         </div>
       </div>
     </Box>
+  )
+);
 
-
-
-
-
-
+/** The sender name in a message header; callers render it as a button that opens the profile. */
+export const Username = as<'span'>(({ as: Tag = 'span', className, ...props }, ref) => (
+  <Tag ref={ref} {...props} className={classNames(css.Username, className)} />
 ));
 
 /** The bold part of a sender name. */
@@ -100,13 +100,8 @@ export const MessageTextBody = as<'div', MessageTextBodyProps>(
   }
 );
 
-
-
-
-
-
-
-
+/** A quoted message line: `username`, the quoted sender, then the quoted text. */
+export const ReplyLayout = as<'div', { username?: ReactNode }>(
   ({ username, children, className, ...props }, ref) => (
     <Box
       alignItems="Center"

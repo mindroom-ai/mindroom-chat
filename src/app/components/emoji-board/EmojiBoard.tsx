@@ -1,5 +1,6 @@
 import React, {
   ChangeEventHandler,
+  ComponentProps,
   MouseEvent as ReactMouseEvent,
   ReactNode,
   useCallback,
@@ -39,49 +40,35 @@ import { mobileOrTablet } from '../../utils/user-agent';
 import { stopPropagation } from '../../utils/keyboard';
 
 /** The two boards of the picker; only callers that take stickers offer the switch. */
+export const EmojiBoardTab = { Emoji: 'Emoji', Sticker: 'Sticker' } as const;
+export type EmojiBoardTab = (typeof EmojiBoardTab)[keyof typeof EmojiBoardTab];
 
-
-
-
-
-
-
-
-
-
-
-
-// Rail icons of the unicode groups, in the alphabetical order of their IDs.
-const EMOJI_GROUP_ICONS: Record<EmojiGroupId, IconSrc> = {
-
-
-
-
-
-
-
-  [EmojiGroupId.Travel]: Icons.Globe,
-};
-
-const EMOJI_GROUP_LABEL_KEYS = {
-  [EmojiGroupId.People]: 'sharedUi.emojiGroups.smileysPeople',
-  [EmojiGroupId.Nature]: 'sharedUi.emojiGroups.animalsNature',
-  [EmojiGroupId.Food]: 'sharedUi.emojiGroups.foodDrinks',
-  [EmojiGroupId.Activity]: 'sharedUi.emojiGroups.activity',
-  [EmojiGroupId.Travel]: 'sharedUi.emojiGroups.travelPlaces',
-  [EmojiGroupId.Object]: 'sharedUi.emojiGroups.objects',
-  [EmojiGroupId.Symbol]: 'sharedUi.emojiGroups.symbols',
-  [EmojiGroupId.Flag]: 'sharedUi.emojiGroups.flags',
+/** What a board item inserts, kept in each item button's `data-emoji-type`. */
+export const EmojiType = {
+  Emoji: 'emoji',
+  CustomEmoji: 'customEmoji',
+  Sticker: 'sticker',
 } as const;
+export type EmojiType = (typeof EmojiType)[keyof typeof EmojiType];
 
-type BoardItem =
-  | { type: EmojiType.Emoji; data: string; shortcode: string; label: string }
-  | {
-      type: EmojiType.CustomEmoji | EmojiType.Sticker;
-      data: string;
-      shortcode: string;
-      label: string;
-    };
+/** How each unicode group appears in the board: its rail icon and the key of its section title. */
+const EMOJI_GROUP_PRESENTATION = {
+  [EmojiGroupId.People]: { icon: Icons.Smile, labelKey: 'sharedUi.emojiGroups.smileysPeople' },
+  [EmojiGroupId.Nature]: { icon: Icons.Leaf, labelKey: 'sharedUi.emojiGroups.animalsNature' },
+  [EmojiGroupId.Food]: { icon: Icons.Cup, labelKey: 'sharedUi.emojiGroups.foodDrinks' },
+  [EmojiGroupId.Activity]: { icon: Icons.Ball, labelKey: 'sharedUi.emojiGroups.activity' },
+  [EmojiGroupId.Travel]: { icon: Icons.Globe, labelKey: 'sharedUi.emojiGroups.travelPlaces' },
+  [EmojiGroupId.Object]: { icon: Icons.Bulb, labelKey: 'sharedUi.emojiGroups.objects' },
+  [EmojiGroupId.Symbol]: { icon: Icons.Peace, labelKey: 'sharedUi.emojiGroups.symbols' },
+  [EmojiGroupId.Flag]: { icon: Icons.Flag, labelKey: 'sharedUi.emojiGroups.flags' },
+} as const satisfies Record<EmojiGroupId, { icon: IconSrc; labelKey: string }>;
+
+type BoardItem = {
+  type: EmojiType;
+  data: string;
+  shortcode: string;
+  label: string;
+};
 
 type BoardGroup = {
   id: string;
@@ -98,10 +85,7 @@ const toUnicodeItem = (emoji: IEmoji): BoardItem => ({
   label: emoji.label || emoji.shortcode,
 });
 
-const toImageItem = (
-  image: PackImageReader,
-  type: EmojiType.CustomEmoji | EmojiType.Sticker
-): BoardItem => ({
+const toImageItem = (image: PackImageReader, type: EmojiType): BoardItem => ({
   type,
   data: image.url,
   shortcode: image.shortcode,
@@ -131,16 +115,16 @@ const getItemFromEvent = (evt: ReactMouseEvent): BoardItem | undefined => {
   return { type, data, shortcode, label: button.getAttribute('title') ?? shortcode } as BoardItem;
 };
 
-const imageSrc = (mx: MatrixClient, mxc: string, useAuthentication: boolean, size: number) =>
-  mxcUrlToHttp(mx, mxc, useAuthentication, size, size, 'scale') ?? undefined;
+const imageSrc = (client: MatrixClient, mxc: string, authMedia: boolean, size: number) =>
+  mxcUrlToHttp(client, mxc, authMedia, size, size, 'scale') ?? undefined;
 
 type ItemButtonProps = {
   item: BoardItem;
-  mx: MatrixClient;
-  useAuthentication: boolean;
+  client: MatrixClient;
+  authMedia: boolean;
 };
 
-function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
+function ItemButton({ item, client, authMedia }: ItemButtonProps) {
   const common = {
     type: 'button' as const,
     title: item.label,
@@ -161,7 +145,7 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
     <button className={sticker ? css.StickerItem : css.EmojiItem} {...common}>
       <img
         className={sticker ? css.StickerImg : css.CustomEmojiImg}
-        src={imageSrc(mx, item.data, useAuthentication, sticker ? 160 : 64)}
+        src={imageSrc(client, item.data, authMedia, sticker ? 160 : 64)}
         alt={item.shortcode}
         loading="lazy"
       />
@@ -169,45 +153,63 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
   );
 }
 
-/** Picks report the image's `mxc://` URI and shortcode; unicode picks the character itself. */
+/** Reports a unicode pick: the character itself and its shortcode. */
+type UnicodePick = (unicode: string, shortcode: string) => void;
+
+/** Reports an image pick: the image's `mxc://` URI and its shortcode. */
+type ImagePick = (mxc: string, shortcode: string) => void;
+
 type EmojiPickHandlers = {
-
-
-
-
+  onEmojiSelect?: UnicodePick;
+  onCustomEmojiSelect?: ImagePick;
+  /** `label` is the sticker's description, sent as the body of the sticker event. */
+  onStickerSelect?: (mxc: string, shortcode: string, label: string) => void;
 };
 
 type EmojiBoardProps = EmojiPickHandlers & {
   /** Rooms whose emoji and sticker packs the board offers. */
-
-
-
-
+  imagePackRooms: Room[];
+  /** The board shown; the emoji board unless a caller that takes stickers picks one. */
+  tab?: EmojiBoardTab;
+  onTabChange?: (next: EmojiBoardTab) => void;
   /** Keep the board open after a pick (as reactions do with Shift or Alt held). */
   keepOpenOnSelect?: boolean;
   returnFocusOnDeactivate?: boolean;
+  requestClose: () => void;
+};
 
+type TrapOptions = NonNullable<ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
 
+/** Options of the focus trap around the board: leaving the trap closes the board. */
+const makeTrapOptions = (close: () => void, returnFocus?: boolean): TrapOptions => ({
+  initialFocus: false,
+  clickOutsideDeactivates: true,
+  returnFocusOnDeactivate: returnFocus,
+  // Escape typed in the search field stays with the field; anywhere else it closes the board.
+  escapeDeactivates: stopPropagation,
+  onDeactivate: close,
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Emoji and sticker picker with search, recent emoji, custom packs, and adding a custom emoji. */
+export function EmojiBoard(props: EmojiBoardProps) {
+  const {
+    imagePackRooms,
+    tab = EmojiBoardTab.Emoji,
+    onTabChange,
+    onEmojiSelect,
+    onCustomEmojiSelect,
+    onStickerSelect,
+    keepOpenOnSelect,
+    returnFocusOnDeactivate,
+    requestClose,
+  } = props;
+  const client = useMatrixClient();
+  const authMedia = useMediaAuthentication();
+  const { t } = useTranslation();
+  const stickerTab = tab === EmojiBoardTab.Sticker;
   const usage = stickerTab ? ImageUsage.Sticker : ImageUsage.Emoticon;
   const packs: ImagePack[] = useRelevantImagePacks(usage, imagePackRooms);
-  const recentEmoji = useRecentEmoji(mx, 21, packs);
+  const recentEmoji = useRecentEmoji(client, 21, packs);
   const [query, setQuery] = useState('');
   const [hovered, setHovered] = useState<BoardItem>();
   const [addFile, setAddFile] = useState<File>();
@@ -249,8 +251,8 @@ type EmojiBoardProps = EmojiPickHandlers & {
         : [];
     const unicodeGroups: BoardGroup[] = emojiGroups.map((group) => ({
       id: `emoji-${group.id}`,
-      label: t(EMOJI_GROUP_LABEL_KEYS[group.id]),
-      icon: EMOJI_GROUP_ICONS[group.id],
+      label: t(EMOJI_GROUP_PRESENTATION[group.id].labelKey),
+      icon: EMOJI_GROUP_PRESENTATION[group.id].icon,
       items: group.emojis.map(toUnicodeItem),
     }));
 
@@ -277,16 +279,16 @@ type EmojiBoardProps = EmojiPickHandlers & {
     (item: BoardItem, keepOpen: boolean) => {
       if (item.type === EmojiType.Emoji) {
         onEmojiSelect?.(item.data, item.shortcode);
-        addRecentEmoji(mx, item.data);
+        addRecentEmoji(client, item.data);
       } else if (item.type === EmojiType.CustomEmoji) {
         onCustomEmojiSelect?.(item.data, item.shortcode);
-        addRecentEmoji(mx, item.data);
+        addRecentEmoji(client, item.data);
       } else {
         onStickerSelect?.(item.data, item.shortcode, item.label);
       }
       if (!keepOpen && !keepOpenOnSelect) requestClose();
     },
-    [mx, onEmojiSelect, onCustomEmojiSelect, onStickerSelect, keepOpenOnSelect, requestClose]
+    [client, onEmojiSelect, onCustomEmojiSelect, onStickerSelect, keepOpenOnSelect, requestClose]
   );
 
   const handleItemClick = (evt: ReactMouseEvent) => {
@@ -307,7 +309,7 @@ type EmojiBoardProps = EmojiPickHandlers & {
   const handleAdded = (mxc: string, shortcode: string) => {
     setAddFile(undefined);
     onCustomEmojiSelect?.(mxc, shortcode);
-    addRecentEmoji(mx, mxc);
+    addRecentEmoji(client, mxc);
   };
 
   const noStickerPacks = stickerTab && groups.length === 0;
@@ -405,8 +407,8 @@ type EmojiBoardProps = EmojiPickHandlers & {
                           <ItemButton
                             key={`${item.type}-${item.data}-${item.shortcode}`}
                             item={item}
-                            mx={mx}
-                            useAuthentication={useAuthentication}
+                            client={client}
+                            authMedia={authMedia}
                           />
                         ))
                       )}
@@ -424,7 +426,7 @@ type EmojiBoardProps = EmojiPickHandlers & {
           {hovered && hovered.type !== EmojiType.Emoji && (
             <img
               className={css.PreviewImg}
-              src={imageSrc(mx, hovered.data, useAuthentication, 64)}
+              src={imageSrc(client, hovered.data, authMedia, 64)}
               alt={hovered.shortcode}
             />
           )}
@@ -437,16 +439,7 @@ type EmojiBoardProps = EmojiPickHandlers & {
   }
 
   return (
-    <FocusTrap
-      focusTrapOptions={{
-        initialFocus: false,
-        returnFocusOnDeactivate,
-
-
-
-
-      }}
-    >
+    <FocusTrap focusTrapOptions={makeTrapOptions(requestClose, returnFocusOnDeactivate)}>
       <Box className={css.Base}>
         <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
           {content}
@@ -472,7 +465,7 @@ type EmojiBoardProps = EmojiPickHandlers & {
                   {group.avatarMxc ? (
                     <img
                       className={css.SidebarBtnImg}
-                      src={imageSrc(mx, group.avatarMxc, useAuthentication, 48)}
+                      src={imageSrc(client, group.avatarMxc, authMedia, 48)}
                       alt=""
                     />
                   ) : (

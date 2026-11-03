@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
 import { useSetting } from '../../../state/hooks/settings';
-import { settingsAtom } from '../../../state/settings';
+import { type Settings, settingsAtom } from '../../../state/settings';
 import { THEMES } from '../../../hooks/useTheme';
 import { APP_LANGUAGES } from '../../../i18nLanguages';
 import { useAppLanguageCode } from '../../../hooks/useAppLanguageCode';
@@ -26,6 +26,13 @@ const THEME_LABEL_KEYS = {
 
 const selectStyle: React.CSSProperties = { minWidth: '10rem' };
 
+const CARD_PROPS = {
+  className: SequenceCardStyle,
+  variant: 'SurfaceVariant',
+  direction: 'Column',
+  gap: '400',
+} as const;
+
 type SectionProps = {
   title: string;
   children: ReactNode;
@@ -38,21 +45,14 @@ function Section({ title, children, footer }: SectionProps) {
   return (
     <Box direction="Column" gap="100">
       <Text size="L400">{title}</Text>
-      <SequenceCard
+      <SequenceCard {...CARD_PROPS}>{children}</SequenceCard>
+      {footer}
+    </Box>
+  );
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+function AppearanceSettings() {
+  const { t } = useTranslation();
   const [useSystemTheme, setUseSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');
   const [themeId, setThemeId] = useSetting(settingsAtom, 'themeId');
   const [twitterEmoji, setTwitterEmoji] = useSetting(settingsAtom, 'twitterEmoji');
@@ -98,7 +98,7 @@ function Section({ title, children, footer }: SectionProps) {
   );
 }
 
-function Language() {
+function LanguageSettings() {
   const { t, i18n } = useTranslation();
   const languageCode = useAppLanguageCode();
 
@@ -127,38 +127,47 @@ function Language() {
   );
 }
 
+type SwitchSetting = {
+  [K in keyof Settings]-?: Settings[K] extends boolean ? K : never;
+}[keyof Settings];
+
+type SwitchTileProps = {
+  setting: SwitchSetting;
+  title: string;
+  description?: string;
+};
+
+/** A setting tile whose switch turns one boolean setting on or off. */
+function SwitchTile({ setting, title, description }: SwitchTileProps) {
+  const [enabled, setEnabled] = useSetting(settingsAtom, setting);
+
+  return (
+    <SettingTile
+      title={title}
+      description={description}
+      after={<Switch variant="Primary" value={enabled} onChange={setEnabled} />}
+    />
+  );
+}
+
 /** Composer keys and formatting, the clock, link previews, and MindRoom's prefetch options. */
-
-
-
-
-
-
+function EditorSettings() {
+  const { t } = useTranslation();
+  const sendKey = isMacOS() ? 'Cmd' : 'Ctrl';
 
   return (
     <Section
       title={t('settings.general.editor.sectionTitle')}
       footer={<MindroomGeneralMessageSettings className={SequenceCardStyle} />}
     >
-      <SettingTile
+      <SwitchTile
+        setting="enterForNewline"
         title={t('settings.general.editor.enterForNewline')}
-        description={t('settings.general.editor.enterForNewlineDescription', {
-          sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
-        })}
-        after={<Switch variant="Primary" value={enterForNewline} onChange={setEnterForNewline} />}
+        description={t('settings.general.editor.enterForNewlineDescription', { sendKey })}
       />
-      <SettingTile
-        title={t('settings.general.editor.markdownFormatting')}
-        after={<Switch variant="Primary" value={isMarkdown} onChange={setIsMarkdown} />}
-      />
-      <SettingTile
-        title={t('settings.general.dateTime.hour24Clock')}
-        after={<Switch variant="Primary" value={hour24Clock} onChange={setHour24Clock} />}
-      />
-      <SettingTile
-        title={t('settings.general.messages.urlPreview')}
-        after={<Switch variant="Primary" value={urlPreview} onChange={setUrlPreview} />}
-      />
+      <SwitchTile setting="isMarkdown" title={t('settings.general.editor.markdownFormatting')} />
+      <SwitchTile setting="hour24Clock" title={t('settings.general.dateTime.hour24Clock')} />
+      <SwitchTile setting="urlPreview" title={t('settings.general.messages.urlPreview')} />
     </Section>
   );
 }
@@ -169,10 +178,10 @@ export function General({ requestClose }: SettingsPageProps) {
 
   return (
     <SettingsPageFrame title={t('settings.nav.general')} requestClose={requestClose}>
-      <Appearance />
-      <Language />
+      <AppearanceSettings />
+      <LanguageSettings />
       <MindroomInterfaceSettings className={SequenceCardStyle} />
-      <Editor />
+      <EditorSettings />
     </SettingsPageFrame>
   );
 }

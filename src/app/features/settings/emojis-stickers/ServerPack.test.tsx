@@ -147,12 +147,12 @@ describe('ServerPack', () => {
           `$${room.roomId}`,
           { pack: { display_name: room.roomId }, images: {} },
           {
-
-
-
-
-
-
+            // The pack of the room itself: its state event has the empty state key.
+            roomId: room.roomId, stateKey: '',
+          }
+        ),
+      ]);
+      return packs;
     });
     const { onViewPack, rerender } = renderSection();
 

@@ -301,9 +301,9 @@ function AppIdentity() {
 }
 
 /** App version, cache and diagnostics tools, and credits. */
-
-
-
+export function About({ requestClose }: AboutProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
   const nativeDiagnostics = isNativeIOS();
 
   const header = (
@@ -334,7 +334,7 @@ function AppIdentity() {
       variant="Secondary"
       fill="Soft"
       outlined
-      onClick={() => clearAllCacheAndReload(mx)}
+      onClick={() => clearAllCacheAndReload(client)}
     >
       <Text size="B300">{t('featureUi.settings.about.clearCache')}</Text>
     </Button>

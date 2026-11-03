@@ -137,9 +137,9 @@ export const getOrFetchAgentTrust = (
  * false.
  */
 export const useAgentDeviceCrossSigned = (userId: string): boolean => {
-
-
-
+  const mx = useMatrixClient();
+  const crypto: CryptoApi | undefined = mx.getCrypto();
+  const alive = useAlive();
   const generationRef = useRef(0);
   const [trustState, setTrustState] = useState<{
     crypto?: CryptoApi;

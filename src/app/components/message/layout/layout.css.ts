@@ -61,18 +61,21 @@ export const LayoutContent = style({
   flexBasis: 0,
 });
 
+const bubbleColors = color.SurfaceVariant;
+
 // A bubble only as wide as its content, up to the content column.
 export const BubbleContent = style({
   width: 'fit-content',
   minWidth: 0,
   maxWidth: '100%',
   display: 'flex',
-
-
-
-
-
-
+  flexDirection: 'column',
+  rowGap: config.space.S100,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.R500,
+  backgroundColor: bubbleColors.Container,
+  color: bubbleColors.OnContainer,
 });
 
 export const Username = style([

@@ -15,10 +15,10 @@ const CARD_PROPS = {
 } as const;
 
 /** Display name editor for the signed-in account. */
-
-
-
-  const { displayName: savedName } = useUserProfile(mx.getSafeUserId());
+export function Profile() {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { displayName: savedName } = useUserProfile(client.getSafeUserId());
   const [draft, setDraft] = useState(savedName ?? '');
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -34,7 +34,8 @@ const CARD_PROPS = {
     if (!canSave) return;
     setFailed(false);
     setSaving(true);
-    mx.setDisplayName(nextName)
+    client
+      .setDisplayName(nextName)
       .catch(() => setFailed(true))
       .finally(() => setSaving(false));
   };

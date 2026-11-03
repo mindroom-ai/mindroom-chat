@@ -4,6 +4,9 @@ import { StateEvent } from '../../types/matrix/room';
 import { useStateEventCallback } from './useStateEventCallback';
 import { useForceUpdate } from './useForceUpdate';
 
+/** Levels keyed by event type, user ID or notification key. */
+type LevelMap = Record<string, number>;
+
 /** `m.room.power_levels` content; absent fields take the defaults of the Matrix specification. */
 export type IPowerLevels = {
   users_default?: number;
@@ -12,33 +15,35 @@ export type IPowerLevels = {
   ban?: number;
   kick?: number;
   redact?: number;
-
-
-
-
-
-
-
-
+  invite?: number;
+  /** Per event type levels for sending message and state events. */
+  events?: LevelMap;
+  /** Per user levels; everyone else has `users_default`. */
+  users?: LevelMap;
+  /** Levels for notification keys such as `room` (the `@room` mention). */
+  notifications?: LevelMap;
+};
 
 /** The top-level power levels that gate an action on other users or their events. */
 export type PowerLevelAction = 'ban' | 'invite' | 'kick' | 'redact';
 
-// Matrix spec, client-server API, `m.room.power_levels`: `invite` defaults to 0 and the other
-// actions to 50 when the event leaves them out.
+// Matrix spec, client-server API, `m.room.power_levels`: most levels default to 50 when the
+// event leaves them out; `invite` defaults to 0.
+const MODERATOR_LEVEL = 50;
+
 const DEFAULT_ACTION_LEVEL: Record<PowerLevelAction, number> = {
-
-
-
-  redact: 50,
+  invite: 0,
+  ban: MODERATOR_LEVEL,
+  kick: MODERATOR_LEVEL,
+  redact: MODERATOR_LEVEL,
 };
 
-const DEFAULT_NOTIFICATION_LEVEL: Record<string, number> = { room: 50 };
+const DEFAULT_NOTIFICATION_LEVEL: LevelMap = { room: MODERATOR_LEVEL };
 
 const isLevel = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
-const readLevelMap = (value: unknown): Record<string, number> | undefined => {
+const readLevelMap = (value: unknown): LevelMap | undefined => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).filter((entry): entry is [string, number] =>
@@ -77,12 +82,12 @@ export const readPowerLevel = {
   },
   state: (powerLevels: IPowerLevels | undefined, eventType: string | undefined): number => {
     const eventLevel = eventType ? powerLevels?.events?.[eventType] : undefined;
-    return eventLevel ?? powerLevels?.state_default ?? 50;
+    return eventLevel ?? powerLevels?.state_default ?? MODERATOR_LEVEL;
   },
   action: (powerLevels: IPowerLevels | undefined, action: PowerLevelAction): number =>
     powerLevels?.[action] ?? DEFAULT_ACTION_LEVEL[action],
   notification: (powerLevels: IPowerLevels | undefined, key: string): number =>
-    powerLevels?.notifications?.[key] ?? DEFAULT_NOTIFICATION_LEVEL[key] ?? 50,
+    powerLevels?.notifications?.[key] ?? DEFAULT_NOTIFICATION_LEVEL[key] ?? MODERATOR_LEVEL,
 };
 
 const getPowerLevelsEvent = (room: Room): MatrixEvent | undefined =>

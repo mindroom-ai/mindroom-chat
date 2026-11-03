@@ -188,10 +188,10 @@ export const Actions = style({
 });
 
 export const AgentSelect = style({
-
-
-
-
+  backgroundColor: color.SurfaceVariant.Container,
+  border: `solid ${color.SurfaceVariant.ContainerLine} ${config.borderWidth.B300}`,
+  borderRadius: config.radii.R300,
+  color: color.SurfaceVariant.OnContainer,
   font: 'inherit',
   maxWidth: '100%',
   padding: `${config.space.S200} ${config.space.S300}`,

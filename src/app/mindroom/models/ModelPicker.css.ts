@@ -1,26 +1,77 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { type StyleRule, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-const control = {
-  margin: 0,
-  border: 0,
+const blend = {
   color: 'inherit',
   background: 'transparent',
   font: 'inherit',
+} as const;
+
+const control = {
+  ...blend,
+  margin: 0,
+  border: 0,
   cursor: 'pointer',
 } as const;
 
-// The desktop popover above the composer's model trigger.
-export const Panel = style({
-  display: 'flex',
-  flexDirection: 'column',
-  width: toRem(360),
-  maxWidth: 'calc(100vw - 2rem)',
-  height: `min(${toRem(480)}, 70vh)`,
-  borderRadius: config.radii.R500,
-  overflow: 'hidden',
-  boxShadow: config.shadow.E300,
+// Secondary text: dimmed rather than recolored, so it follows the surface it sits on.
+const muted: StyleRule = { opacity: config.opacity.P400 };
+
+const hairline = (tone: string) => `${config.borderWidth.B300} solid ${tone}`;
+
+const column: StyleRule = { display: 'flex', flexDirection: 'column' };
+
+const centeredRow = (gap: string, display: 'flex' | 'inline-flex' = 'flex'): StyleRule => ({
+  display,
+  alignItems: 'center',
+  gap,
 });
+
+const ellipsis: StyleRule = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+// The font size and the line height of one folds type scale step.
+const typeScale = (step: keyof typeof config.fontSize): StyleRule => ({
+  fontSize: config.fontSize[step],
+  lineHeight: config.lineHeight[step],
+});
+
+// A small square that centers its icon, for icon buttons and the icon of an option.
+const tile: StyleRule = {
+  flexShrink: 0,
+  display: 'inline-grid',
+  placeItems: 'center',
+  width: toRem(28),
+  height: toRem(28),
+  borderRadius: config.radii.R300,
+};
+
+const outlined = {
+  color: color.SurfaceVariant.OnContainer,
+  border: hairline(color.SurfaceVariant.ContainerLine),
+} as const;
+
+// Text fields and selects of the picker.
+const field = { ...outlined, backgroundColor: color.SurfaceVariant.Container } as const;
+
+// A hover fill and a focus ring in the colors of the control's tone.
+const hoverAndFocus = (fill: string, ring: string, focusExtras: StyleRule = {}) =>
+  ({
+    '&:hover': { backgroundColor: fill },
+    '&:focus-visible': { outline: `2px solid ${ring}`, ...focusExtras },
+  } as const);
+
+// The desktop popover above the composer's model trigger.
+export const Panel = style([
+  column,
+  {
+    width: toRem(360),
+    maxWidth: 'calc(100vw - 2rem)',
+    height: `min(${toRem(480)}, 70vh)`,
+    borderRadius: config.radii.R500,
+    overflow: 'hidden',
+    boxShadow: config.shadow.E300,
+  },
+]);
 
 // On phones the panel fills the bottom sheet instead of floating.
 export const MobilePanel = style({
@@ -45,15 +96,16 @@ export const MobileContainer = style({
 
 globalStyle(`${MobileContainer} > *`, { pointerEvents: 'auto', maxHeight: '85vh', width: '100%' });
 
-export const Controls = style({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'stretch',
-
-
-
-  borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
-});
+export const Controls = style([
+  column,
+  {
+    alignItems: 'stretch',
+    flex: 'none',
+    rowGap: config.space.S200,
+    padding: config.space.S300,
+    borderBottom: hairline(color.Surface.ContainerLine),
+  },
+]);
 
 export const Header = style({
   display: 'flex',
@@ -61,110 +113,100 @@ export const Header = style({
   gap: config.space.S200,
 });
 
-export const HeaderText = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minWidth: 0,
-  gap: config.space.S100,
-});
+export const HeaderText = style([
+  column,
+  {
+    flex: '1 1 auto',
+    minWidth: 0,
+    gap: config.space.S100,
+  },
+]);
 
 export const Title = style({
-  fontSize: config.fontSize.H6,
+  ...typeScale('H6'),
   fontWeight: config.fontWeight.W600,
-  lineHeight: config.lineHeight.H6,
 });
 
 export const Subtitle = style({
-  fontSize: config.fontSize.T200,
-  lineHeight: config.lineHeight.T200,
-  opacity: config.opacity.P400,
+  ...typeScale('T200'),
+  ...muted,
 });
 
 export const IconButton = style([
   control,
+  tile,
   {
+    selectors: hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main),
+  },
+]);
 
-
-
-
-    width: toRem(28),
-    height: toRem(28),
-    borderRadius: config.radii.R300,
+export const SearchRow = style([
+  centeredRow(config.space.S200),
+  field,
+  {
+    padding: `0 ${config.space.S200}`,
+    borderRadius: config.radii.R400,
     selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-      '&:focus-visible': { outline: `2px solid ${color.Primary.Main}` },
+      '&:focus-within': { borderColor: color.Primary.Main },
     },
   },
 ]);
 
-export const SearchRow = style({
-  display: 'flex',
-
-
-
-
-
-
-
-  selectors: {
-    '&:focus-within': { borderColor: color.Primary.Main },
-  },
-});
-
 export const SearchInput = style({
+  ...blend,
   flex: '1 1 auto',
   minWidth: 0,
-
-
-
+  border: 'none',
   outline: 'none',
-  font: 'inherit',
   fontSize: config.fontSize.T300,
   padding: `${config.space.S100} 0`,
 });
 
-export const RuntimeRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  fontSize: config.fontSize.T200,
-});
+export const RuntimeRow = style([
+  centeredRow(config.space.S200),
+  {
+    fontSize: config.fontSize.T200,
+  },
+]);
 
 export const RuntimeLabel = style({
   flexShrink: 0,
-  opacity: config.opacity.P400,
+  ...muted,
 });
 
-export const RuntimeSelect = style({
-  flex: '1 1 auto',
-  minWidth: 0,
-  font: 'inherit',
+export const RuntimeSelect = style([
+  field,
+  {
+    flex: '1 1 auto',
+    minWidth: 0,
+    font: 'inherit',
+    padding: `${config.space.S100} ${config.space.S200}`,
+    borderRadius: config.radii.R300,
+  },
+]);
 
+export const StatusRow = style([
+  centeredRow(config.space.S200),
+  {
+    fontSize: config.fontSize.T200,
+    ...muted,
+  },
+]);
 
+const danger = color.Critical;
 
-
-
-});
-
-export const StatusRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  fontSize: config.fontSize.T200,
-  opacity: config.opacity.P400,
-});
-
-export const Error = style({
-  display: 'flex',
-
-
-
-
-
-
-  fontSize: config.fontSize.T200,
-});
+export const Error = style([
+  column,
+  {
+    gap: config.space.S100,
+    paddingBlock: config.space.S200,
+    paddingInline: config.space.S300,
+    color: danger.OnContainer,
+    backgroundColor: danger.Container,
+    borderRadius: config.radii.R400,
+    fontSize: config.fontSize.T200,
+  },
+]);
 
 export const ErrorActions = style({
   display: 'flex',
@@ -174,13 +216,11 @@ export const ErrorActions = style({
 export const TextButton = style([
   control,
   {
-
-
-
-    selectors: {
-      '&:hover': { backgroundColor: color.Critical.ContainerHover },
-      '&:focus-visible': { outline: `2px solid ${color.Critical.Main}` },
-    },
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
+    borderRadius: config.radii.R300,
+    fontWeight: config.fontWeight.W500,
+    selectors: hoverAndFocus(color.Critical.ContainerHover, color.Critical.Main),
   },
 ]);
 
@@ -200,7 +240,7 @@ export const GroupTitle = style({
   fontWeight: config.fontWeight.W500,
   letterSpacing: '0.04em',
   textTransform: 'uppercase',
-  opacity: config.opacity.P400,
+  ...muted,
 });
 
 export const Option = style({
@@ -217,16 +257,7 @@ export const Option = style({
   },
 });
 
-export const OptionIcon = style({
-
-
-
-
-  width: toRem(28),
-  height: toRem(28),
-  borderRadius: config.radii.R300,
-  overflow: 'hidden',
-});
+export const OptionIcon = style([tile, { overflow: 'hidden' }]);
 
 export const IconImage = style({
   display: 'block',
@@ -234,30 +265,29 @@ export const IconImage = style({
   borderRadius: config.radii.R300,
 });
 
-export const OptionText = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minWidth: 0,
-});
+export const OptionText = style([
+  column,
+  {
+    flex: '1 1 auto',
+    minWidth: 0,
+  },
+]);
 
-export const OptionTitle = style({
-  fontSize: config.fontSize.T300,
-  lineHeight: config.lineHeight.T300,
+export const OptionTitle = style([
+  ellipsis,
+  {
+    ...typeScale('T300'),
+    fontWeight: config.fontWeight.W500,
+  },
+]);
 
-
-
-
-});
-
-export const OptionDetail = style({
-  fontSize: config.fontSize.T200,
-
-
-
-
-
-});
+export const OptionDetail = style([
+  ellipsis,
+  {
+    ...typeScale('T200'),
+    ...muted,
+  },
+]);
 
 export const Check = style({
   flexShrink: 0,
@@ -268,54 +298,52 @@ export const Empty = style({
   padding: config.space.S400,
   textAlign: 'center',
   fontSize: config.fontSize.T300,
+  ...muted,
+});
 
-
-
-
-
-
-
+// Under the results: which models the room inherits, or that the choice applies to new replies.
+export const Footer = style({
+  flex: 'none',
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-  borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  borderTop: hairline(color.Surface.ContainerLine),
 });
 
 export const FooterText = style({
   fontSize: config.fontSize.T200,
-  opacity: config.opacity.P400,
+  ...muted,
 });
 
 // The composer's row above the editor that names the thread's model.
-export const ComposerRow = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  minWidth: 0,
-  padding: `${config.space.S100} ${config.space.S200} 0`,
-});
+export const ComposerRow = style([
+  centeredRow(config.space.S200),
+  {
+    minWidth: 0,
+    padding: `${config.space.S100} ${config.space.S200} 0`,
+  },
+]);
 
 export const ScopeLabel = style({
   flexShrink: 0,
   fontSize: config.fontSize.T200,
-  opacity: config.opacity.P400,
+  ...muted,
 });
 
 export const Trigger = style([
   control,
+  outlined,
+  centeredRow(config.space.S100, 'inline-flex'),
+  typeScale('T200'),
   {
-
-
-
     minWidth: 0,
     maxWidth: '100%',
     padding: `${toRem(2)} ${config.space.S200}`,
-
-
-
-
-    fontSize: config.fontSize.T200,
+    borderRadius: config.radii.Pill,
     selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-      '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 1 },
+      ...hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main, {
+        outlineOffset: 1,
+      }),
       '&[aria-expanded="true"]': { backgroundColor: color.SurfaceVariant.ContainerActive },
     },
   },
@@ -325,9 +353,4 @@ export const TriggerIcon = style({
   flexShrink: 0,
 });
 
-export const TriggerLabel = style({
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-});
+export const TriggerLabel = style([ellipsis, { minWidth: 0 }]);

@@ -22,9 +22,9 @@ const sendBatch = async (
   devices: ModelRuntime[],
   content: Record<string, unknown>,
   signal: AbortSignal
-
-
-
+): Promise<void> => {
+  const crypto = mx.getCrypto();
+  if (crypto === undefined) return;
   let remaining = devices;
   for (const delay of [0, 250, 1000]) {
     if (signal.aborted || remaining.length === 0) return;

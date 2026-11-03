@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactNode, useState } from 'react';
+import React, { CSSProperties, ImgHTMLAttributes, ReactNode, useState } from 'react';
 import classNames from 'classnames';
 import { AvatarFallback, AvatarImage, color } from 'folds';
 import * as css from './UserAvatar.css';
@@ -41,36 +41,34 @@ export const useImageFailed = (src: string | undefined): [boolean, () => void] =
   return [failed, () => setState({ src, failed: true })];
 };
 
+/** The image attributes the avatar takes; without a `src` (an HTTP URL) the fallback shows. */
+type AvatarImageProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'className'>;
 
-
-
-
-
-
-
-
+type UserAvatarProps = AvatarImageProps & {
+  userId: string;
+  /** Fallback content, usually the first letter of the name. */
+  renderFallback: () => ReactNode;
 };
 
 /** A user's avatar image, or a colored fallback while there is none or it fails to load. */
 export function UserAvatar({ userId, src, alt, className, renderFallback }: UserAvatarProps) {
   const [failed, setFailed] = useImageFailed(src);
-  const showImage = !!src && !failed;
 
-  if (!showImage) {
+  if (src && !failed) {
     return (
+      <AvatarImage
+        src={src}
+        alt={alt}
+        className={classNames(css.UserAvatar, className)}
+        draggable={false}
+        onError={() => setFailed()}
+      />
+    );
+  }
 
-
-
-
-
-
-
-
-
-
-
-
-
-    />
+  return (
+    <AvatarFallback className={className} style={getAvatarFallbackStyle(userId)}>
+      {renderFallback()}
+    </AvatarFallback>
   );
 }

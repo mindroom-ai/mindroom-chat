@@ -159,20 +159,20 @@ function LogoutButton() {
 }
 
 /** The settings dialog: account header and page menu beside the selected page. */
-
-
-
+export function Settings({ initialPage, requestClose }: SettingsProps) {
+  const { t } = useTranslation();
+  const viewport = useScreenSizeContext();
   const showLocalMindroom = useShowLocalMindroom();
   const { userId, displayName, avatarUrl } = useOwnProfile();
   const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
-    resolveSettingsInitialPage(initialPage, screenSize, showLocalMindroom)
+    resolveSettingsInitialPage(initialPage, viewport, showLocalMindroom)
   );
 
   const menuItems = useMemo(
     () => getSettingsMenuItems(showLocalMindroom, t),
     [showLocalMindroom, t]
   );
-  const isMobile = screenSize === ScreenSize.Mobile;
+  const isMobile = viewport === ScreenSize.Mobile;
 
   // On mobile a page closes back to the menu; on desktop it closes the dialog.
   const handlePageRequestClose = useCallback(

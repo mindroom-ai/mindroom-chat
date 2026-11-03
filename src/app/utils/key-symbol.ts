@@ -1,17 +1,19 @@
 /** Symbols for modifier and special keys, as macOS menus and keyboard hints write them. */
+export const KeySymbol = {
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  ArrowUp: '↑',
+  Backspace: '⌫',
+  CapsLock: '⇪',
+  Command: '⌘',
+  Control: '⌃',
+  Delete: '⌦',
+  Enter: '↵',
+  Escape: '⎋',
+  Option: '⌥',
+  Shift: '⇧',
+  Tab: '⇥',
+} as const;
 
-
-
-
-
-  CapsLock = '⇪',
-  Enter = '↵',
-  Escape = '⎋',
-  Backspace = '⌫',
-  Delete = '⌦',
-  Tab = '⇥',
-  ArrowUp = '↑',
-  ArrowDown = '↓',
-  ArrowLeft = '←',
-  ArrowRight = '→',
-}
+export type KeySymbol = (typeof KeySymbol)[keyof typeof KeySymbol];

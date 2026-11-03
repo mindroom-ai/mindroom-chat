@@ -50,9 +50,9 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 export const getStoredSessionCleanupContexts = (): SessionCleanupContext[] =>
   listSessions().map((session) => ({
     sessionId: session.sessionId,
-
-
-
+    // The other fields name the account and device; tokens are deliberately left out.
+    baseUrl: session.baseUrl, userId: session.userId,
+    deviceId: session.deviceId,
   }));
 
 export const mergeSessionCleanupContexts = (
