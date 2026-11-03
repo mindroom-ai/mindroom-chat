@@ -3,6 +3,7 @@ import { EventTimeline, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
 import { useStateEventCallback } from './useStateEventCallback';
 import { useForceUpdate } from './useForceUpdate';
+import { useStateEvent } from './useStateEvent';
 
 const readStateEvent = (room: Room, type: StateEvent): MatrixEvent | undefined =>
   room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, '') ?? undefined;
@@ -48,3 +49,10 @@ export const useRoomAvatar = (room: Room, dm?: boolean): string | undefined => {
   const url = readStateEvent(room, StateEvent.RoomAvatar)?.getContent().url;
   return typeof url === 'string' && url.length > 0 ? url : undefined;
 };
+
+/** The text of the room's `m.room.topic`, kept current; undefined for a missing or blank topic. */
+export function useRoomTopic(room: Room): string | undefined {
+  const text: unknown = useStateEvent(room, StateEvent.RoomTopic)?.getContent().topic;
+  if (typeof text !== 'string' || text.trim() === '') return undefined;
+  return text;
+}
