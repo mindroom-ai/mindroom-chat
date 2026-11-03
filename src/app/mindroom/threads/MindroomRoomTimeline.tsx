@@ -1368,7 +1368,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // The newest room row, while a request for it holds.
   const latestRowRequestRef = useLatestRowRequest({
-    initiallyActive: !eventId,
+    // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
+    initiallyActive: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
     scrollElement,
     scrollToBottomCount: scrollToBottomRef.current.count,
     committedView: `${viewKey}|${effectiveViewMode}`,
