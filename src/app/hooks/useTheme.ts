@@ -75,6 +75,10 @@ const useSystemThemeKind = (): ThemeKind => {
   return kind;
 };
 
+/** The default light or dark theme for the system's current preference, following changes. */
+export const useSystemDefaultTheme = (): Theme =>
+  useSystemThemeKind() === ThemeKind.Dark ? DarkTheme : LightTheme;
+
 /**
  * The theme the settings select: the fixed theme, or with "use system theme" the light or dark
  * theme picked for the system's current preference.
