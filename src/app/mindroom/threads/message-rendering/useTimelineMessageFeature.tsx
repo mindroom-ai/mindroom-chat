@@ -34,7 +34,14 @@ import { Reply } from '../../../components/message';
 import { MessageAside } from '../../../components/message/layout/MessageAside';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { Reactions } from '../../../features/room/message/Reactions';
-import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-custom-html-parser';
+import {
+  factoryRenderLinkifyWithMention,
+  getReactCustomHtmlParser,
+  LINKIFY_OPTS,
+  makeMentionCustomProps,
+  renderMatrixMention,
+} from '../../../plugins/react-custom-html-parser';
+import { useMentionClickHandler } from '../../../hooks/useMentionClickHandler';
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom, type Settings } from '../../../state/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
@@ -360,13 +367,26 @@ export const useTimelineMessageFeature = ({
   // Encrypted rooms preview links only when the user allows it: the preview request reveals the
   // link to the homeserver.
   const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
+  // Matrix permalinks in a message open in the app: a person's profile card, or the room and
+  // event (its thread, where the room shows threads) instead of matrix.to in a new tab.
+  const handleMentionClick = useMentionClickHandler(room.roomId);
+  const linkifyOpts = useMemo(
+    () => ({
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention((href) =>
+        renderMatrixMention(client, room.roomId, href, makeMentionCustomProps(handleMentionClick))
+      ),
+    }),
+    [client, handleMentionClick, room.roomId]
+  );
   const htmlReactParserOptions = useMemo(
     () =>
       getReactCustomHtmlParser(client, room.roomId, {
-        linkifyOpts: LINKIFY_OPTS,
+        linkifyOpts,
+        handleMentionClick,
         useAuthentication,
       }),
-    [client, room.roomId, useAuthentication]
+    [client, handleMentionClick, linkifyOpts, room.roomId, useAuthentication]
   );
 
   const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));
@@ -391,9 +411,14 @@ export const useTimelineMessageFeature = ({
   const handleSenderClick = useCallback(
     (evt: React.MouseEvent<HTMLElement>) => {
       const senderId = evt.currentTarget.getAttribute('data-user-id');
-      if (!senderId) return;
-      evt.stopPropagation();
-      openUserProfile(room.roomId, spaceRoomId, senderId, evt.currentTarget.getBoundingClientRect());
+
+
+
+
+
+
+
+      );
     },
     [openUserProfile, room.roomId, spaceRoomId]
   );
@@ -474,7 +499,7 @@ export const useTimelineMessageFeature = ({
         mediaAutoLoad: !!mediaAutoLoad,
         urlPreview: !!showUrlPreview,
         htmlReactParserOptions,
-        linkifyOpts: LINKIFY_OPTS,
+        linkifyOpts,
       };
       const relations = getEventReactions(row.timelineSet, eventId);
       const canDelete =
@@ -585,6 +610,7 @@ export const useTimelineMessageFeature = ({
       hideActivity,
       hour24Clock,
       htmlReactParserOptions,
+      linkifyOpts,
       liveExpansionIds,
       mediaAutoLoad,
       messageLayout,
