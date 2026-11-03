@@ -2,6 +2,7 @@ import React, { useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
+import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import {
   Avatar,
@@ -18,6 +19,7 @@ import {
   type RectCords,
 } from 'folds';
 import { PageHeader } from '../../components/page';
+import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
@@ -57,6 +59,7 @@ import { useRoomViewMode } from './useRoomViewMode';
 import type { RoomViewMode } from './roomViewMode';
 import { RoomHeaderMenu } from './RoomHeaderMenu';
 import { CompactViewIcon } from './roomViewSwitchIcon';
+import { HeaderTopic } from '../../features/room/RoomViewHeader.css';
 import * as css from './MindroomRoomViewHeader.css';
 
 export type RoomViewHeaderProps = {
@@ -211,6 +214,7 @@ export function RoomViewHeader({
     : undefined;
   const roomName = useRoomName(room);
   const topic = useRoomTopic(room);
+  const [topicOpen, setTopicOpen] = useState(false);
 
   // Canvas and computer take the side panel's place, so the members panel is hidden behind them.
   const sidePanelTaken = !!computerOpen || !!canvasOpen;
@@ -282,9 +286,22 @@ export function RoomViewHeader({
             {roomName}
           </Text>
           {topic && (
-            <Text className={css.Topic} size="T200" priority="300" truncate title={topic}>
-              {topic}
-            </Text>
+            <button
+              type="button"
+              className={classNames(HeaderTopic, css.Topic)}
+              onClick={() => setTopicOpen(true)}
+            >
+              <Text as="span" size="T200" priority="300" truncate>
+                {topic}
+              </Text>
+            </button>
+          )}
+          {topic && topicOpen && (
+            <RoomTopicViewer
+              name={roomName}
+              topic={topic}
+              requestClose={() => setTopicOpen(false)}
+            />
           )}
         </Box>
       </Box>
