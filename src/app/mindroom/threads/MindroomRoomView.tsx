@@ -62,7 +62,7 @@ export function RoomView({
 
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
 
-  const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
+  const threadState = useRoomViewThreadState({ room, threadId, eventId });
   const effectiveThreadId = threadState.effectiveThreadId;
   const focusConversation = useCallback(() => {
     roomInputRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();

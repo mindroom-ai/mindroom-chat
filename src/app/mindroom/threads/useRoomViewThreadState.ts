@@ -16,11 +16,7 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   withRoomThreadExitTargetState,
 } from './roomNavigateState';
-import {
-  simplifyAgentlessThreadFilterState,
-  type ThreadFilterState,
-} from './roomThreadOverviewModel';
-import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
+import { createDefaultThreadFilterState, type ThreadFilterState } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
@@ -29,10 +25,12 @@ import { useRoomViewMode } from './useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
-  hasMindroomAgents?: boolean;
   room: Room;
   threadId?: string;
 };
+
+// The room has no thread filter controls, so a filter stored by an earlier build never applies.
+const NO_THREAD_FILTER: ThreadFilterState = createDefaultThreadFilterState();
 
 export type RoomViewThreadState = {
   effectiveThreadId?: string;
@@ -49,7 +47,6 @@ export type RoomViewThreadState = {
 
 export const useRoomViewThreadState = ({
   eventId,
-  hasMindroomAgents = true,
   room,
   threadId,
 }: UseRoomViewThreadStateOptions): RoomViewThreadState => {
@@ -62,20 +59,6 @@ export const useRoomViewThreadState = ({
     useRoomNavigate();
 
   const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
-  const threadFilterAtom = useMemo(
-    () => roomThreadFilterAtomFamily(userId, roomId),
-    [roomId, userId]
-  );
-  const threadFilterState = useAtomValue(threadFilterAtom);
-  // Project stored filters onto the controls that are currently visible.
-  // Persisted advanced filters must not keep hiding threads with no visible
-  // cause, but remain stored so they can be restored when those controls
-  // become available again.
-  const effectiveThreadFilterState = useMemo(() => {
-    return hasMindroomAgents
-      ? threadFilterState
-      : simplifyAgentlessThreadFilterState(threadFilterState);
-  }, [hasMindroomAgents, threadFilterState]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
@@ -226,7 +209,7 @@ export const useRoomViewThreadState = ({
     handleViewModeChange,
     storeThreadSummary,
     summaryMap,
-    threadFilterState: effectiveThreadFilterState,
+    threadFilterState: NO_THREAD_FILTER,
     threadSummaryInfo,
     viewMode: effectiveViewMode,
   };
