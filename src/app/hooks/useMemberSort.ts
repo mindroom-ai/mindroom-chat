@@ -40,7 +40,5 @@ export const useMemberSortMenu = (): MemberSortItem[] => {
 };
 
 /** The order at `index` of the menu, or its first entry when the index is out of range. */
-export const useMemberSort = (
-  index: number,
-  items: MemberSortItem[]
-): MemberSortItem | undefined => items[index] ?? items[0];
+export const useMemberSort = (index: number, items: MemberSortItem[]): MemberSortItem | undefined =>
+  items[index] ?? items[0];

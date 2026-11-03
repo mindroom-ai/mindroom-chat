@@ -103,9 +103,18 @@ type ListEntry =
 const memberName = (room: Room, member: RoomMember): string =>
   getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
 
-const matchesQuery = (room: Room, member: RoomMember, query: string): boolean =>
-  memberName(room, member).toLowerCase().includes(query) ||
-  member.userId.toLowerCase().includes(query);
+/**
+ * Whether a lowercase search matches the member's name or user name. The server part of the user
+ * ID only counts once the search includes a `:`, since every local member shares it.
+ */
+const matchesQuery = (room: Room, member: RoomMember, query: string): boolean => {
+  const userId = member.userId.toLowerCase();
+  const searched = query.includes(':') ? userId : getMxIdLocalPart(userId) ?? userId;
+  return (
+    memberName(room, member).toLowerCase().includes(query) ||
+    searched.includes(query.replace(/^@/, ''))
+  );
+};
 
 const isMember = (item: MemberPowerTag | RoomMember): item is RoomMember => 'userId' in item;
 

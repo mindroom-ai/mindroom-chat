@@ -53,7 +53,7 @@ export function ChoiceMenu({ label, choices, current, onChoose, onDismiss }: Cho
                 after={chosen ? <Icon size="50" src={Icons.Check} /> : undefined}
                 onClick={() => onChoose(index)}
               >
-                <Text size="T300" style={{ flexGrow: 1 }}>
+                <Text size="T300" style={{ flexGrow: 1, textAlign: 'start' }}>
                   {choice.name}
                 </Text>
               </MenuItem>
