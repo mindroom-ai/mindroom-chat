@@ -34,6 +34,7 @@ import {
 } from './longTextDownload';
 import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
 import { MindroomReplyDetails } from './MindroomReplyDetails';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import * as css from './MindroomMessageControls.css';
 
 /** What a message hands to its header and menu so both open the same reply details. */
@@ -53,7 +54,16 @@ export const useMindroomMessageControls = (
   menuOpen: boolean,
   mEvent?: MatrixEvent
 ) => {
-  const aiRunInfo = useMemo(() => getMindroomAiRunInfo(content), [content]);
+  const viewerId = useMatrixClient().getUserId() ?? undefined;
+  const sender = mEvent?.getSender();
+  const aiRunInfo = useMemo(() => {
+    const info = getMindroomAiRunInfo(content);
+    // Anyone can write the run keys; a cost counts only from MindRoom's own accounts.
+    if (!info || info.costUsd === undefined) return info;
+    return isMindroomAgentUserIdForViewer(sender, viewerId)
+      ? info
+      : { ...info, costUsd: undefined };
+  }, [content, sender, viewerId]);
   const longTextSource = useMemo(() => getMindroomLongTextSource(content), [content]);
   const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
 

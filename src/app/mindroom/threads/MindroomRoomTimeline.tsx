@@ -120,6 +120,10 @@ import { useThreadEditBackfillController } from './threadEditBackfillController'
 import { useThreadSummaryPublishController } from './threadSummaryPublishController';
 import { useThreadSummaryTimeline } from './useThreadSummaryTimeline';
 import {
+  ThreadConversationCostProvider,
+  useThreadConversationCostSummary,
+} from './useThreadConversationCost';
+import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from './useThreadApprovalTimeline';
@@ -802,6 +806,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
     routeId: threadId ? eventId : undefined,
     focusId: threadId ? focusItem?.eventId : undefined,
   });
+  // What each agent reply of the open thread and the thread so far cost, for Reply details.
+  const threadConversationCost = useThreadConversationCostSummary(
+    threadId ? threadEvents : undefined,
+    {
+      history: {
+        sdkLoaded: session.snapshot.open.sdkReady,
+        canPaginateBack: threadState.canPaginateThreadBack,
+        hasMoreCachedBack: threadHasMoreCachedBack,
+      },
+      getContent: getRowContent,
+      ignoredUserIds: ignoredUsersSet,
+      viewerId: mx.getUserId() ?? undefined,
+    }
+  );
   const approvalTimeline = useThreadApprovalTimeline(
     threadId ? threadEvents : roomRows,
     ignoredUsersSet,
@@ -1603,20 +1621,22 @@ export function RoomTimeline(props: RoomTimelineProps) {
               {expandAllToggle}
             </>
           )}
-          {feature.wrapExpansion(
-            <div
-              ref={ledger.virtualInnerRef}
-              data-thread-count={threadId ? threadEvents.length : undefined}
-              data-testid={threadId ? undefined : 'room-virtual-inner'}
-              style={{
-                position: 'relative',
-                height: virtualizer.getTotalSize(),
-                visibility: automaticFill.hideInitialRows ? 'hidden' : undefined,
-              }}
-            >
-              {virtualItems.map(renderTile)}
-            </div>
-          )}
+          <ThreadConversationCostProvider value={threadConversationCost}>
+            {feature.wrapExpansion(
+              <div
+                ref={ledger.virtualInnerRef}
+                data-thread-count={threadId ? threadEvents.length : undefined}
+                data-testid={threadId ? undefined : 'room-virtual-inner'}
+                style={{
+                  position: 'relative',
+                  height: virtualizer.getTotalSize(),
+                  visibility: automaticFill.hideInitialRows ? 'hidden' : undefined,
+                }}
+              >
+                {virtualItems.map(renderTile)}
+              </div>
+            )}
+          </ThreadConversationCostProvider>
           {showRoomFrontSentinel && (
             <div ref={paginator.observeFrontAnchor} style={{ height: 1 }} />
           )}
