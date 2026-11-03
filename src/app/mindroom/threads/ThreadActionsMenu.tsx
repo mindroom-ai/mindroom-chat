@@ -391,9 +391,11 @@ export function ThreadActionsMenu({
   }
 
   // Escape and outside clicks wait for a resolve or pin save, so its result shows in the menu.
+  // The menu closes once the trap has let go of focus, which the caller may then hand back to
+  // the trigger; while the trap still holds, it would pull that focus back into the menu.
   const closeMenu = () => {
     if (savingRef.current) return false;
-    onCloseRef.current();
+    queueMicrotask(() => onCloseRef.current());
     return true;
   };
 
