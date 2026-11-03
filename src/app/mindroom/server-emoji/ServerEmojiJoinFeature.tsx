@@ -52,6 +52,7 @@ export function ServerEmojiJoinFeature() {
   useEffect(() => {
     if (!roomId || hasRoomOverride(mx, roomId)) return;
     if (!firstTime(muteAttempts, mx, roomId)) return;
+    // An override rule without actions keeps every event in the room silent (spec: push rules).
 
 
       actions: [],

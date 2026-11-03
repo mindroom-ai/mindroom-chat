@@ -21,7 +21,8 @@ export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLEl
       const target = event.currentTarget;
       const mentionId = target.getAttribute('data-mention-id');
       if (!mentionId) return;
-      event.preventDefault();
+
+
 
 
 

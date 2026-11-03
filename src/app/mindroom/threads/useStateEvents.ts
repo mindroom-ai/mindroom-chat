@@ -8,6 +8,7 @@ import {
   type RoomStateEventHandlerMap,
 } from 'matrix-js-sdk';
 
+/** The current state events of `eventType`, one per state key; empty when there are none. */
 
 
 

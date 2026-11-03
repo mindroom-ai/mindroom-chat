@@ -2,19 +2,19 @@ import { useCallback, useEffect, useRef } from 'react';
 import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from './threadRouteUtils';
 
+/** Calls `onRefresh` whenever the SDK rebuilds the room's live timeline. */
+const useLiveTimelineRefresh = (room: Room, onRefresh: () => void): void => {
+  useEffect(() => {
+    const handleRefresh: RoomEventHandlerMap[RoomEvent.TimelineRefresh] = (refreshedRoom) => {
+      if (refreshedRoom.roomId === room.roomId) onRefresh();
+    };
 
-
-
-
-
-
-
-
-
-
-
-
-
+    room.on(RoomEvent.TimelineRefresh, handleRefresh);
+    return () => {
+      room.removeListener(RoomEvent.TimelineRefresh, handleRefresh);
+    };
+  }, [room, onRefresh]);
+};
 
 type UseThreadAwareTimelineRefresh = {
   liveTimelineLinked: boolean;

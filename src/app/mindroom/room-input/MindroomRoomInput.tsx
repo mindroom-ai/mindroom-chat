@@ -460,9 +460,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ) : (
         autocompleteQuery.prefix === AutocompletePrefix.UserMention && (
           <UserMentionAutocomplete
-
-
-
+            room={room}
+            editor={editor}
+            query={autocompleteQuery}
             requestClose={closeAutocomplete}
             onSuggestionsChange={handleMentionSuggestions}
           />

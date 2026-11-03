@@ -18,23 +18,19 @@ const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto object not found.';
 const INTERNAL_ERRORS: ReadonlySet<string> = new Set([CRYPTO_NOT_FOUND]);
 
 enum VerificationMethod {
+  RecoveryKey = 'recovery-key',
+  RecoveryPassphrase = 'recovery-passphrase',
+}
 
-
-
-
-
+type MethodSwitcherProps = {
   value: VerificationMethod;
   hasPassphrase: boolean;
   onChange: (method: VerificationMethod) => void;
 };
 
-function ManualVerificationMethodSwitcher({
-  value,
-  hasPassphrase,
-  onChange,
-
-
-
+function ManualVerificationMethodSwitcher({ value, hasPassphrase, onChange }: MethodSwitcherProps) {
+  const { t } = useTranslation();
+  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const label = (method: VerificationMethod) =>
     method === VerificationMethod.RecoveryKey
       ? t('sharedUi.manualVerification.recoveryKey')
@@ -75,7 +71,11 @@ function ManualVerificationMethodSwitcher({
 
 
 
-
+              // Escape closes only the menu, not a dialog the tile sits in.
+              escapeDeactivates: (evt: KeyboardEvent) => {
+                evt.stopPropagation();
+                return true;
+              },
             }}
           >
             <Menu role="menu">
@@ -92,6 +92,14 @@ function ManualVerificationMethodSwitcher({
                     <Text size="T300">{label(method)}</Text>
                   </MenuItem>
                 ))}
+              </Box>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+    </>
+  );
+}
 
 
 
@@ -99,14 +107,6 @@ function ManualVerificationMethodSwitcher({
 
 
 
-
-
-
-
-
-
-
-/** Verifies this device by unlocking secret storage with the recovery key or passphrase. */
 
 
 
@@ -143,11 +143,17 @@ function ManualVerificationMethodSwitcher({
       : message;
   };
 
+  const passphraseChosen = method === VerificationMethod.RecoveryPassphrase && !!passphraseContent;
+
   return (
     <Box direction="Column" gap="200">
       <SettingTile
         title={t('sharedUi.manualVerification.verifyManually')}
-        description={t('sharedUi.manualVerification.selectAVerificationMethod')}
+        description={
+          passphraseContent
+            ? t('sharedUi.manualVerification.selectAVerificationMethod')
+            : t('sharedUi.manualVerification.provideRecoveryKey')
+        }
         after={
           <ManualVerificationMethodSwitcher
             value={method}
@@ -162,10 +168,10 @@ function ManualVerificationMethodSwitcher({
         </Text>
       ) : (
         <>
-          {method === VerificationMethod.RecoveryPassphrase && passphraseContent ? (
+          {passphraseChosen && passphraseContent ? (
             <SecretStorageRecoveryPassphrase
-              keyContent={secretStorageKeyContent}
-              passphraseContent={passphraseContent}
+
+
 
 
 
@@ -174,6 +180,10 @@ function ManualVerificationMethodSwitcher({
 
             />
           )}
+          {verifyState.status === AsyncStatus.Loading && (
+            <Box alignItems="Center" gap="200">
+              <Spinner size="100" variant="Secondary" />
+            </Box>
 
 
 

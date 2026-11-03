@@ -36,6 +36,9 @@ export type InitialTimelineFilterOpts = Omit<RecalibrateFilterOpts, 'room'>;
 export type RoomUnreadInfo = {
   readUptoEventId: string;
   inLiveTimeline: boolean;
+  /** Jump to the read marker when the room opens. */
+
+
 
 
 

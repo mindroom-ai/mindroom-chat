@@ -384,11 +384,10 @@ export const useRoomInputAttachments = ({
     [visibleFiles]
   );
 
+  // "Remove all" on the board removes the board's files, and `remove` cancels those still
+  // uploading. A file that is not on the board (a recording a send holds) keeps its upload.
   const cancelUploads = useCallback(
-
-
-
-      });
+    (uploads: Upload[]) => {
       const canceled = new Set(uploads.map((upload) => upload.file));
       access.remove(
         current.current.roomId,
@@ -398,7 +397,7 @@ export const useRoomInputAttachments = ({
           .map((item) => item.file)
       );
     },
-    [access, mx]
+    [access]
   );
 
   const board =

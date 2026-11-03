@@ -38,10 +38,10 @@ const HttpsLinkRule: InlineMDRule = {
 
 // Bold, italic, strikethrough and links; the parser always handles inline code.
 const NOTICE_INLINE_RULES = [
-
-
-
-
+  BoldRule,
+  StrikeRule,
+  ItalicRule1,
+  ItalicRule2,
   HttpsLinkRule,
   EscapeRule,
 ];

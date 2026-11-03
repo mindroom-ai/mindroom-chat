@@ -4,6 +4,9 @@ import type { Capabilities, MatrixClient, OidcClientConfig } from 'matrix-js-sdk
 /** `GET /media/config`; the SDK does not export its type. */
 export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
 
+/** What the homeserver reports about itself; a field is missing when its request failed. */
+
+
 
 
 

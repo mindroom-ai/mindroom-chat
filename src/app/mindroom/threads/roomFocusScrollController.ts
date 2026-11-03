@@ -125,14 +125,14 @@ export const useRoomFocusScrollController = ({
   unreadInfo,
   unreadScrollAnchorIndex,
 }: RoomFocusScrollControllerOptions): void => {
+  const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>(undefined);
 
-
-
-
-
-
-
-
+  const focusRoomIdRef = useRef(roomId);
+  if (focusRoomIdRef.current !== roomId) {
+    // A focus still waiting for its row belongs to the room the timeline just left.
+    focusRoomIdRef.current = roomId;
+    pendingRoomFocusRef.current = undefined;
+  }
 
   useEffect(() => {
     if (!threadId) return undefined;
@@ -311,14 +311,14 @@ export const useRoomFocusScrollController = ({
     }
 
     if (focusItem) {
-
-
-
-
-
-
-
-
+      // Once the jump settles, drop its highlight and scroll request; a newer target wins.
+      clearFocusTimeoutId = setTimeout(() => {
+        if (!alive() || (!focusItem.highlight && !focusItem.scrollTo)) return;
+        setFocusItem((current) =>
+          current === focusItem ? { ...focusItem, highlight: false, scrollTo: false } : current
+        );
+      }, ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS + ROOM_FOCUS_OBSERVER_IDLE_MS);
+    }
 
     return () => {
       allowObserverPaginationHandoff = false;
@@ -335,9 +335,9 @@ export const useRoomFocusScrollController = ({
     focusScrollResetToken,
     retryPagination,
     scrollRef,
-
-
-
+    scrollToElement,
+    scrollToItem,
+    setFocusItem,
     suppressFocusPaginationRef,
     threadFilteredEventsRef,
     threadId,
@@ -458,15 +458,15 @@ export const useRoomFocusScrollController = ({
   useEffect(() => {
     if (!editId) return;
 
-    const editMsgElement = getEventElementById(scrollRef.current, editId) ?? undefined;
 
 
 
 
 
-      });
-    }
-  }, [editId, scrollRef, scrollToElement]);
+
+
+
+
 
   useEffect(() => {
     if (!timelineAtLiveEnd) {

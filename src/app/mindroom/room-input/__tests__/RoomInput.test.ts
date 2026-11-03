@@ -301,10 +301,10 @@ vi.mock('../../../components/UseStateProvider', () => ({
 
 vi.mock('../../../components/upload-card', () => ({
   UploadCardRenderer: ({
-
-
-
-
+    fileItem,
+    onRemove,
+  }: {
+    fileItem: TUploadItem;
     onRemove: (file: File) => void;
   }) =>
     React.createElement('button', {

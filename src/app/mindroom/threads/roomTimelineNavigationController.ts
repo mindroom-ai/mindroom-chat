@@ -67,9 +67,10 @@ export const useRoomTimelineNavigationController = ({
   readUptoEventId,
 }: RoomTimelineNavigationControllerOptions) => {
   const pinToBottom = useCallback(() => {
-
-
-
+    // An instant jump: the newest rows replace the window, so there is nothing to animate.
+    const { count } = scrollToBottomRef.current;
+    scrollToBottomRef.current = { count: count + 1, smooth: false };
+    setAtBottom(true);
   }, [scrollToBottomRef, setAtBottom]);
 
   /**

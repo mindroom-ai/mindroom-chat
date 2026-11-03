@@ -87,14 +87,15 @@ const useGlobalImagePacks = (): ImagePack[] => {
   }, [mx, emoteRoomsEvent, version]);
 };
 
+// A room pack is one pack wherever it is listed; only the user's own pack has no address.
 const packKey = (pack: ImagePack): string =>
+  pack.address ? JSON.stringify([pack.address.roomId, pack.address.stateKey]) : pack.id;
 
-
-
-
-
-
-
+/**
+ * The packs to offer for `usage`: the account's own pack, then the packs it enabled everywhere,
+ * then those of `rooms`. A pack listed twice (a global pack that is also in `rooms`) shows once,
+ * and a pack without an image for `usage` not at all.
+ */
 
 
 

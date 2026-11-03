@@ -291,11 +291,11 @@ export const useRoomLiveRenderController = ({
               }
             }
           }
-
-
-
-
-
+          // A thread reply has no room row but changes its card: repaint, follow at the bottom.
+          setTimeline((ct) => ({ ...ct }));
+          if (atBottomRef.current && atLiveEndRef.current) {
+            scrollToBottomRef.current.count += 1;
+            scrollToBottomRef.current.smooth = true;
           }
           return;
         }
@@ -305,19 +305,19 @@ export const useRoomLiveRenderController = ({
           isTimelineAtLiveEnd: atLiveEndRef.current,
         });
 
+        // A reader following the live end in a focused window sees the event arrive; for
+        // anyone else it stays unread, and the marker shows where they left off.
+        const seen = shouldAutoFollow && atBottomRef.current && !!globalThis.document?.hasFocus();
+        if (seen) {
+          void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+        }
 
+        if (!seen && !unreadInfo) {
+          setUnreadInfo(getRoomUnreadInfo(room));
+        }
 
-
-
-
-
-
-
-
-
-
-
-
+        // Only a window that reaches the live end grows to mount the new row.
+        if (atLiveEndRef.current) {
 
           const renderableLiveEvent = isRenderableEvent(
             mEvt,
@@ -331,6 +331,16 @@ export const useRoomLiveRenderController = ({
 
           if (renderableLiveEvent) {
             if (roomThreadFilterActive) {
+              // The filtered overview mounts every matching row, so a repaint shows it.
+              setTimeline((ct) => ({ ...ct }));
+            } else {
+              // The window's end grows by the new row; its start stays with the reader.
+              setTimeline((ct) => ({
+                ...ct,
+                range: { start: ct.range.start, end: ct.range.end + 1 },
+              }));
+            }
+            if (shouldAutoFollow) {
 
 
 
@@ -340,18 +350,8 @@ export const useRoomLiveRenderController = ({
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+      },
+      [
         atBottomRef,
         atLiveEndRef,
         effectiveThreadFilterState,

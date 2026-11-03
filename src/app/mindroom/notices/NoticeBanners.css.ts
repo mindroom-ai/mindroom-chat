@@ -4,11 +4,11 @@ import { color, config, toRem } from 'folds';
 
 // In normal flow above the app, so the layout below shrinks instead of being covered.
 export const NoticeStack = style({
-
-
-
-
-
+  display: 'flex',
+  flexDirection: 'column',
+  flexShrink: 0,
+  width: '100%',
+  overscrollBehavior: 'contain',
   // Expanded notices never take more than half of #root, which follows the keyboard on iOS.
   maxHeight: '50%',
   overflowY: 'auto',
@@ -23,11 +23,11 @@ const levelColors = (tone: typeof color.Primary) => ({
 export const Notice = recipe({
   base: {
     // Rows keep their height; the capped stack scrolls instead.
-
-
-
-
-
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: config.space.S200,
+    minHeight: toRem(36),
     padding: `${config.space.S100} ${config.space.S200} ${config.space.S100} ${config.space.S300}`,
     borderBottomWidth: config.borderWidth.B300,
     borderBottomStyle: 'solid',
@@ -80,16 +80,16 @@ export const NoticeAction = style({
   background: 'none',
   color: 'inherit',
   font: 'inherit',
-
-
-
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
 });
 
 // Inline links keep the banner's own color, which meets contrast on every level.
 globalStyle(`${NoticeText} a`, {
-
-
-
+  color: 'inherit',
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
 });
 
 // Takes the height #root has left below the notices, so layouts that fill their parent

@@ -16,6 +16,7 @@ export const Chip = style({
   fontSize: '0.65rem',
   fontWeight: 500,
   lineHeight: 1.4,
+  // A long name shortens instead of widening the header.
 
 
 

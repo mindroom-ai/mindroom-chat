@@ -140,11 +140,11 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
 
 export const useToggleThreadResolution = (room: Room) => {
   const { setResolved, updating, updatingThreadRootIds, error } = useMutateThreadTags(room);
-
-
-
-
-
+  const myUserId = useMatrixClient().getSafeUserId();
+  const roomCreators = useRoomCreators(room);
+  const roomPowerLevels = usePowerLevels(room);
+  const permissions = useRoomPermissions(roomCreators, roomPowerLevels);
+  const canToggle = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, myUserId);
 
   return {
     canToggle,

@@ -48,12 +48,12 @@ export const useThreadRootEvent = (
       if (removed || eventRoom?.roomId !== room.roomId) return;
       refreshRootId();
     };
-
-
-
-
-
-
+    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
+      event,
+      echoRoom,
+      oldEventId
+    ) => {
+      if (echoRoom?.roomId !== room.roomId) return;
       // This hook only canonicalizes the currently open thread route.
       // RoomEvent.LocalEchoUpdated fires for every local echo in the room; if we
       // react to unrelated reply sends, we can retarget the open thread URL from

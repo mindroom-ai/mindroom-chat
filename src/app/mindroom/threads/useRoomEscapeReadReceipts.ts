@@ -23,7 +23,7 @@ export const useRoomEscapeReadReceipts = ({
 
 
 
-
+      (evt: KeyboardEvent) => {
         if (conversationHidden || !isKeyHotkey('escape', evt)) return;
         if (threadId) {
           markThreadAsRead(mx, roomId, threadId, hideActivity);

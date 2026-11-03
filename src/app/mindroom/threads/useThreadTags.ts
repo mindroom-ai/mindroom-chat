@@ -42,10 +42,9 @@ const EMPTY_CONTENT: ThreadTagsContent = { tags: {} };
  * thread never reads as resolved.
  */
 export const useThreadTags = (room: Room, threadRootId?: string): ThreadTagsState => {
-
-
-
-
+  const myUserId = useMatrixClient().getSafeUserId();
+  const roomPowerLevels = usePowerLevelsContext();
+  const permissions = useRoomPermissions(useRoomCreators(room), roomPowerLevels);
   const events = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
   const pendingVersion = usePendingThreadTagsVersion();
   const pinnedEventIds = usePinnedEventIds(room);
@@ -68,7 +67,7 @@ export const useThreadTags = (room: Room, threadRootId?: string): ThreadTagsStat
 
   const content = pendingContent ?? liveContent;
   const pinned = !!threadRootId && pinnedEventIds.includes(threadRootId);
-  const canEdit = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId());
+  const canEdit = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, myUserId);
 
   return useMemo(
     () => ({

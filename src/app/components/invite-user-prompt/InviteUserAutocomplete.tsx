@@ -200,10 +200,10 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               onBlur={() => setInputFocused(false)}
               name="userIdInput"
               placeholder={t('sharedUi.inviteUserAutocomplete.placeholder')}
-
-
-
-
+              variant={variant}
+              radii={radii}
+              disabled={disabled}
+              autoFocus={autoFocus}
               autoComplete="off"
               required
               role="combobox"
@@ -249,19 +249,19 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                         commitUser(user);
                       });
                     }}
+                    onClick={() => commitUser(user)}
+                    before={
+                      <Avatar size="200" radii="Pill">
+                        <UserAvatar
+                          userId={user.userId}
 
 
 
-
-
-
-
-
-
-
-
-
-
+                        />
+                      </Avatar>
+                    }
+                  >
+                    <span className={css.InviteAutocompleteIdentity}>
                       <Text
                         as="span"
                         className={css.InviteAutocompleteDisplayName}

@@ -40,9 +40,9 @@ export const useTimelineReadReceiptController = ({
   atBottomAnchorRef,
   atBottomRef,
   atLiveEndRef,
-
-
-
+  getScrollElement,
+  handleOpenEvent,
+  hideActivity,
   mx,
   readUptoEventIdRef,
   room,
@@ -72,16 +72,16 @@ export const useTimelineReadReceiptController = ({
   timelineAtLiveEnd: boolean;
   unreadInfo?: RoomUnreadInfoLike;
 }) => {
-
-
-
-
-
-
-
-
-
-
+  const tryAutoMarkAsRead = useCallback(() => {
+    // Mark the main timeline read only when the read marker lies on the chain that reaches
+    // the live end; a marker in older, unlinked history means the newest rows were not seen.
+    const markerEventId = readUptoEventIdRef.current;
+    const markerTimeline = markerEventId ? getEventTimeline(room, markerEventId) : undefined;
+    const markerChainEnd =
+      markerTimeline && getFirstLinkedTimeline(markerTimeline, Direction.Forward);
+    if (!markerEventId || markerChainEnd === room.getLiveTimeline()) {
+      // Wait a frame so the rows that brought the reader to the bottom have painted.
+      requestAnimationFrame(() => void markMainTimelineAsRead(mx, room.roomId, hideActivity));
     }
   }, [hideActivity, mx, readUptoEventIdRef, room]);
 
@@ -110,20 +110,20 @@ export const useTimelineReadReceiptController = ({
 
 
 
+    { wait: 500 }
+  );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+  useIntersectionObserver(
+    useCallback(
+      (entries: IntersectionObserverEntry[]) => {
+        const anchorEntry = getIntersectionObserverEntry(atBottomAnchorRef.current, entries);
+        if (!anchorEntry) return;
+        // Leaving the bottom settles after a pause, so a short bounce does not flicker it.
+        debounceSetAtBottom(anchorEntry);
+        if (anchorEntry.isIntersecting) {
+          setAtBottom(true);
+          if (atLiveEndRef.current && document.hasFocus()) {
+            if (threadId) {
               tryAutoMarkThreadAsRead();
             } else {
               tryAutoMarkAsRead();
@@ -139,41 +139,41 @@ export const useTimelineReadReceiptController = ({
         threadId,
         tryAutoMarkAsRead,
         tryAutoMarkThreadAsRead,
-
-
-
-
-
-
-
-
-
-
+      ]
+    ),
+    useCallback(
+      (): IntersectionObserverInit => ({
+        root: getScrollElement() ?? null,
+        rootMargin: '0px 0px 96px 0px',
+      }),
+      [getScrollElement]
+    ),
+    useCallback(() => atBottomAnchorRef.current, [atBottomAnchorRef])
   );
 
-
-
-
-
-
+  useDocumentFocusChange(
+    useCallback(
+      (inFocus: boolean) => {
+        if (inFocus && atBottomRef.current) {
+          if (threadId) {
             if (atLiveEndRef.current) {
               tryAutoMarkThreadAsRead();
             }
             return;
           }
-
-
-
-
-
-
-
-
-
-
-
-
-
+          const marker = unreadInfo?.inLiveTimeline ? unreadInfo.readUptoEventId : undefined;
+          if (!marker) {
+            tryAutoMarkAsRead();
+            return;
+          }
+          // Show the reader where they left off; when that row is already on screen there is
+          // nothing above it they missed, so the room counts as read.
+          void handleOpenEvent(marker, false, (scrolled) => {
+            if (!scrolled) tryAutoMarkAsRead();
+          });
+        }
+      },
+      [
         atBottomRef,
         atLiveEndRef,
         handleOpenEvent,

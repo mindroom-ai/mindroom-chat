@@ -14,6 +14,7 @@ export const useRecentEmoji = (mx: MatrixClient, limit?: number, imagePacks?: Im
   useEffect(() => {
     const handleAccountData = (event: MatrixEvent) => {
       if (event.getType() === AccountDataEvent.ElementRecentEmoji) {
+        // The list is read from the account data, so a new version is all a reader needs.
 
 
 
