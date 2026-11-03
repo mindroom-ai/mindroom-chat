@@ -54,6 +54,7 @@ import { scheduleReconcile, useMindroomSyncEngine } from '../engine';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { CompactRoomView } from './CompactRoomView';
+import { CompactThreadCount } from './CompactThreadCount';
 import * as overlay from './RoomOverlay.css';
 import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
@@ -1382,14 +1383,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
         </Box>
       );
     }
+    const compactRootIds = threadIndex.compactOverviewOrdering.displayOrderedIds;
     return (
-      <CompactRoomView
-        room={room}
-        threadRootIds={threadIndex.compactOverviewOrdering.displayOrderedIds}
-        threadRecordMap={threadIndex.compactThreadRecordMap}
-        onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
-        compactRoomScrollStateRef={compactRoomScrollStateRef}
-      />
+      <>
+        <CompactThreadCount count={compactRootIds.length} />
+        <CompactRoomView
+          room={room}
+          threadRootIds={compactRootIds}
+          threadRecordMap={threadIndex.compactThreadRecordMap}
+          onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
+          compactRoomScrollStateRef={compactRoomScrollStateRef}
+        />
+      </>
     );
   }
 

@@ -6,7 +6,7 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { Menu } from '../../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
   NavButton,
@@ -29,6 +29,7 @@ import { SpaceProvider, useSpace } from '../../../hooks/useSpace';
 import { useRoomName } from '../../../hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { stopPropagation } from '../../../utils/keyboard';
+import { useOpenSpaceSettings } from '../../../state/hooks/spaceSettings';
 import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
@@ -133,15 +134,19 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
+/** The space's title bar: its name, and a menu for its rooms and its settings. */
+type SpaceHeaderProps = { spaceId: string; name: string; roomIds: string[] };
+
+function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
   const { t } = useTranslation();
+  const openSpaceSettings = useOpenSpaceSettings();
   const [menuAt, setMenuAt] = useState<RectCords>();
   const dismiss = () => setMenuAt(undefined);
   const showMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
     setMenuAt(event.currentTarget.getBoundingClientRect());
   };
 
-  // Marking the space's rooms read is the menu's only entry.
+  // Mark the space's rooms read, or open the space's settings.
   const menuContent = (
     <FocusTrap
       focusTrapOptions={{
@@ -152,9 +157,22 @@ function SpaceHeader({ name, roomIds }: { name: string; roomIds: string[] }) {
         returnFocusOnDeactivate: false,
       }}
     >
-      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
+      <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
           <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={dismiss} />
+          <MenuItem
+            size="300"
+            radii="300"
+            after={<Icon size="100" src={Icons.Setting} />}
+            onClick={() => {
+              dismiss();
+              openSpaceSettings(spaceId);
+            }}
+          >
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+              {t('featureUi.lobby.lobbyHeader.spaceSettings')}
+            </Text>
+          </MenuItem>
         </Box>
       </Menu>
     </FocusTrap>
@@ -232,8 +250,9 @@ export function Space() {
 
   return (
     <PageNav>
-      <SpaceHeader name={title} roomIds={spaceRooms} />
-      <PageNavContent>
+      <PageNavContent
+        header={<SpaceHeader spaceId={space.roomId} name={title} roomIds={spaceRooms} />}
+      >
         <Box direction="Column" gap="300">
           <NavCategory>
             <SpacePageLink
