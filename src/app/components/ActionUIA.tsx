@@ -1,0 +1,177 @@
+import React, { FormEventHandler, ReactNode, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { AuthDict, AuthType, IAuthData, UIAFlow } from 'matrix-js-sdk';
+import { Box, Button, Icon, IconButton, Icons, Input, Text, color, config } from 'folds';
+import { Dialog, Header } from './glass/GlassPrimitives';
+import { useMatrixClient } from '../hooks/useMatrixClient';
+
+const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
+  AuthType.Password,
+  AuthType.Sso,
+  AuthType.SsoUnstable,
+  AuthType.Dummy,
+]);
+
+const isSsoStage = (stage: string) => stage === AuthType.Sso || stage === AuthType.SsoUnstable;
+
+const isSingleStage = (flow: UIAFlow, test: (stage: string) => boolean) =>
+  flow.stages.length === 1 && test(flow.stages[0]);
+
+/**
+ * Chooses the flow to authenticate an action with: single sign-on first (accounts created
+ * through SSO often have no password), then password, then whatever the server lists first.
+ */
+export const pickUIAFlow = (flows: UIAFlow[]): UIAFlow | undefined =>
+  flows.find((flow) => isSingleStage(flow, isSsoStage)) ??
+  flows.find((flow) => isSingleStage(flow, (stage) => stage === AuthType.Password)) ??
+  flows[0];
+
+const isFlowSupported = (flow: UIAFlow) =>
+  flow.stages.every((stage) => SUPPORTED_STAGES.has(stage));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  return <>{flow ? children(flow) : unsupported()}</>;
+}
+
+type StageProps = {
+  session?: string;
+  stage: string;
+  action: (authDict: AuthDict) => void;
+};
+
+function PasswordStage({ session, action }: StageProps) {
+
+
+
+
+
+
+
+
+
+
+
+      type: AuthType.Password,
+      identifier: { type: 'm.id.user', user: mx.getUserId() ?? '' },
+      password,
+      session: session ?? '',
+    });
+  };
+
+  return (
+    <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+      <Text size="T300">{t('sharedUi.actionUia.passwordDescription')}</Text>
+      <Box direction="Column" gap="100">
+        <Text size="L400">{t('sharedUi.actionUia.password')}</Text>
+        <Input
+          name="passwordInput"
+          type="password"
+          autoComplete="current-password"
+          variant="Background"
+          size="400"
+          outlined
+          required
+          autoFocus
+        />
+      </Box>
+      <Button variant="Primary" type="submit">
+        <Text size="B400">{t('sharedUi.actionUia.continue')}</Text>
+      </Button>
+    </Box>
+  );
+}
+
+function SsoStage({ session, stage, action }: StageProps) {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const [opened, setOpened] = useState(false);
+
+  const openSso = () => {
+    window.open(mx.getFallbackAuthUrl(stage, session ?? ''), '_blank', 'noopener');
+    setOpened(true);
+  };
+
+  return (
+    <Box direction="Column" gap="400">
+      <Text size="T300">{t('sharedUi.actionUia.ssoDescription')}</Text>
+      <Button variant={opened ? 'Secondary' : 'Primary'} onClick={openSso}>
+        <Text size="B400">{t('sharedUi.actionUia.openSso')}</Text>
+      </Button>
+      {opened && (
+        <Button variant="Primary" onClick={() => action({ session })}>
+          <Text size="B400">{t('sharedUi.actionUia.ssoDone')}</Text>
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+function DummyStage({ session, action }: StageProps) {
+  useEffect(() => {
+    action({ type: AuthType.Dummy, session });
+  }, [action, session]);
+  return null;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+  const stage = ongoingFlow.stages.find((candidate) => !completed.includes(candidate));
+  const { session } = authData;
+
+  let body: ReactNode;
+  if (stage === AuthType.Password)
+    body = <PasswordStage stage={stage} session={session} action={action} />;
+  else if (stage && isSsoStage(stage))
+    body = <SsoStage stage={stage} session={session} action={action} />;
+  else if (stage === AuthType.Dummy)
+    body = <DummyStage stage={stage} session={session} action={action} />;
+  else {
+    body = (
+      <Text size="T300" style={{ color: color.Critical.Main }}>
+        {t('sharedUi.actionUia.unsupported')}
+      </Text>
+    );
+  }
+
+  return (
+    <Dialog variant="Surface" role="dialog" aria-modal="true">
+      <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
+        <Box grow="Yes">
+          <Text size="H4">{t('sharedUi.actionUia.title')}</Text>
+        </Box>
+        <IconButton
+          size="300"
+          radii="300"
+          onClick={onCancel}
+          aria-label={t('sharedUi.actionUia.cancel')}
+        >
+          <Icon src={Icons.Cross} />
+        </IconButton>
+      </Header>
+      <Box direction="Column" style={{ padding: config.space.S400 }}>
+        {body}
+      </Box>
+    </Dialog>
+  );
+}
