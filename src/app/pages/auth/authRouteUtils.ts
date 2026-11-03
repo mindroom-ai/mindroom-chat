@@ -36,3 +36,21 @@ export const buildAuthRoutePath = ({
   const path = generatePath(pattern, { server: encodeURIComponent(server) });
   return `${path}${search}${hash}`;
 };
+
+/**
+ * The homeserver to sign in to. A server named in the URL is used only when
+ * the user could have picked it: on a locked deployment only listed servers
+ * are accepted, so a crafted link cannot send credentials elsewhere.
+ */
+export const resolveAuthServer = (
+  requested: string | undefined,
+  defaultServer: string,
+  locked: boolean,
+  homeserverList: readonly string[] | undefined
+): string => {
+  const server = requested?.trim();
+  if (!server) return defaultServer;
+  if (!locked) return server;
+  const normalized = server.toLowerCase();
+  return homeserverList?.find((item) => item.toLowerCase() === normalized) ?? defaultServer;
+};

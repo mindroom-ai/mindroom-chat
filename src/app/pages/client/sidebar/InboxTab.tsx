@@ -29,13 +29,13 @@ import { getInboxInvitesPath, getInboxPath } from '../../pathUtils';
 
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.inbox')}>
+      <SidebarItemTooltip tooltip={t('nav.inbox')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.inbox')}
+            aria-label={t('nav.inbox')}
             onClick={handleClick}
           >
             <Icon src={Icons.Inbox} filled={selected} />

@@ -31,6 +31,9 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
   const [selectedKey, setSelectedKey] = useState<string>();
 
   const selected = groups.find(([key]) => key === selectedKey) ?? groups[0];
+  const selectedShortcode = selected
+    ? (selected[1][0]?.getContent().shortcode as string | undefined) ?? selected[0]
+    : undefined;
   const senders = selected
     ? [...new Set(selected[1].map((event) => event.getSender()).filter((id): id is string => !!id))]
     : [];
@@ -53,32 +56,26 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
   return (
     <Box direction="Column" style={{ maxHeight: '75vh' }}>
       <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
-        <Box grow="Yes">
-          <Text size="H4">{t('sharedUi.reactionViewer.title')}</Text>
+        <Box grow="Yes" style={{ minWidth: 0 }}>
+          {selectedShortcode && (
+            <Text size="H4" truncate>
+              {t('featureUi.room.reactionViewer.reactedWith', { shortcode: selectedShortcode })}
+            </Text>
+          )}
         </Box>
         <IconButton
           size="300"
           radii="300"
           onClick={requestClose}
-          aria-label={t('sharedUi.reactionViewer.close')}
+          aria-label={t('featureUi.room.membersDrawer.close')}
         >
           <Icon src={Icons.Cross} />
         </IconButton>
       </Header>
-      {groups.length === 0 ? (
-        <Box style={{ padding: config.space.S400 }}>
-          <Text size="T300">{t('sharedUi.reactionViewer.empty')}</Text>
-        </Box>
-      ) : (
+      {groups.length > 0 && (
         <Box grow="Yes" style={{ minHeight: 0 }}>
           <Scroll size="300" hideTrack visibility="Hover">
-            <Box
-              direction="Column"
-              gap="100"
-              style={{ padding: config.space.S200 }}
-              role="tablist"
-              aria-label={t('sharedUi.reactionViewer.reactions')}
-            >
+            <Box direction="Column" gap="100" style={{ padding: config.space.S200 }} role="tablist">
               {groups.map(([key, events]) => (
                 <MenuItem
                   key={key}

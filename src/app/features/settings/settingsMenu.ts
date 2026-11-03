@@ -20,32 +20,32 @@ export const getSettingsMenuItems = (
 ): SettingsMenuItem[] => [
   {
     page: SettingsPages.GeneralPage,
-    name: t('featureUi.settings.menu.general'),
+    name: t('settings.nav.general'),
     icon: Icons.Setting,
   },
-  { page: SettingsPages.AccountPage, name: t('featureUi.settings.menu.account'), icon: Icons.User },
+  { page: SettingsPages.AccountPage, name: t('settings.nav.account'), icon: Icons.User },
   {
     page: SettingsPages.NotificationPage,
-    name: t('featureUi.settings.menu.notifications'),
+    name: t('settings.nav.notifications'),
     icon: Icons.Bell,
   },
   {
     page: SettingsPages.DevicesPage,
-    name: t('featureUi.settings.menu.devices'),
+    name: t('settings.nav.devices'),
     icon: Icons.Monitor,
   },
   {
     page: SettingsPages.EmojisStickersPage,
-    name: t('featureUi.settings.menu.emojisStickers'),
+    name: t('settings.nav.emojisStickers'),
     icon: Icons.Smile,
   },
   ...getMindroomSettingsMenuItems(showLocalMindroom, t),
   {
     page: SettingsPages.DeveloperToolsPage,
-    name: t('featureUi.settings.menu.developerTools'),
+    name: t('settings.nav.developerTools'),
     icon: Icons.Terminal,
   },
-  { page: SettingsPages.AboutPage, name: t('featureUi.settings.menu.about'), icon: Icons.Info },
+  { page: SettingsPages.AboutPage, name: t('settings.nav.about'), icon: Icons.Info },
 ];
 
 /**

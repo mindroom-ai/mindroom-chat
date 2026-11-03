@@ -7,10 +7,10 @@ import classNames from 'classnames';
 import { autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 import { createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import { resolveAuthRouteRedirect } from '../routeSessionGuards';
-import { buildAuthRoutePath } from './authRouteUtils';
+import { buildAuthRoutePath, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
 import * as css from './styles.css';
 
@@ -24,6 +24,18 @@ type DiscoveryState =
 const useDefaultServer = (): string => {
   const { homeserverList, defaultHomeserver } = useClientConfig();
   return homeserverList?.[defaultHomeserver ?? 0] ?? homeserverList?.[0] ?? DEFAULT_SERVER;
+};
+
+/**
+ * Whether the deployment pins sign-in to its configured homeservers: custom
+ * servers are off, or the picker is hidden because only one server is listed.
+ */
+const useServerLocked = (): boolean => {
+  const { homeserverList, allowCustomHomeservers, auth } = useClientConfig();
+  return (
+    allowCustomHomeservers === false ||
+    (auth?.hideServerPickerWhenSingle === true && (homeserverList?.length ?? 0) === 1)
+  );
 };
 
 const useServerDiscovery = (server: string): DiscoveryState => {
@@ -50,10 +62,8 @@ function ServerPicker({
   onChange: (server: string) => void;
 }) {
   const { t } = useTranslation();
-  const { homeserverList, allowCustomHomeservers, auth } = useClientConfig();
-  const fixed =
-    allowCustomHomeservers === false ||
-    (auth?.hideServerPickerWhenSingle === true && (homeserverList?.length ?? 0) === 1);
+  const { homeserverList } = useClientConfig();
+  const locked = useServerLocked();
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -62,16 +72,16 @@ function ServerPicker({
     if (value && value !== server) onChange(value);
   };
 
-  if (fixed && homeserverList?.length === 1) return null;
+  if (locked && (homeserverList?.length ?? 0) <= 1) return null;
 
   return (
     <Box as="form" onSubmit={handleSubmit} direction="Column" gap="100">
       <Text as="label" size="L400" priority="300">
-        {t('featureUi.auth.homeserver')}
+        {t('sharedUi.serverPicker.server')}
       </Text>
-      {homeserverList && homeserverList.length > 0 && allowCustomHomeservers === false ? (
+      {locked && homeserverList && homeserverList.length > 0 ? (
         <select
-          aria-label={t('featureUi.auth.homeserver')}
+          aria-label={t('sharedUi.serverPicker.server')}
           value={server}
           onChange={(event) => onChange(event.target.value)}
         >
@@ -86,7 +96,7 @@ function ServerPicker({
           key={server}
           name="serverInput"
           defaultValue={server}
-          aria-label={t('featureUi.auth.homeserver')}
+          aria-label={t('sharedUi.serverPicker.server')}
           variant="Background"
           size="500"
           outlined
@@ -107,9 +117,11 @@ function ServerPicker({
 
   const { server: encodedServer } = useParams();
   const defaultServer = useDefaultServer();
-  const server = encodedServer ? decodeURIComponent(encodedServer) : defaultServer;
+  const locked = useServerLocked();
+  const { auth, homeserverList } = useClientConfig();
+  const requestedServer = encodedServer ? decodeURIComponent(encodedServer) : undefined;
+  const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const discovery = useServerDiscovery(server);
-  const { auth } = useClientConfig();
 
   const homeRedirect =
     typeof window !== 'undefined' ? resolveAuthRouteRedirect(window.location.href) : null;
@@ -118,6 +130,7 @@ function ServerPicker({
   }, [homeRedirect, navigate]);
 
   const handleServerChange = (nextServer: string) => {
+    if (resolveAuthServer(nextServer, defaultServer, locked, homeserverList) !== nextServer) return;
     navigate(
       buildAuthRoutePath({
         pathname: location.pathname,
@@ -128,15 +141,15 @@ function ServerPicker({
       }),
       { replace: true }
     );
+  };
 
-
-
-
-
-
-
-
-
+  return (
+    <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
+      <Box
+        className={classNames(css.AuthLayout)}
+        direction="Column"
+        alignItems="Center"
+        justifyContent="Center"
         gap="400"
       >
         <Box className={css.AuthCard} direction="Column">
@@ -144,22 +157,23 @@ function ServerPicker({
             <Box grow="Yes" alignItems="Center" gap="300">
               <img
                 className={css.AuthLogo}
-                src={MINDROOM_CLIENT_BRANDING.logoSrc}
-                alt={MINDROOM_CLIENT_BRANDING.logoAlt}
+                src={MINDROOM_AUTH_BRANDING.logoSrc}
+                alt={MINDROOM_AUTH_BRANDING.logoAlt}
               />
-              <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
+              <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column" gap="500">
             <ServerPicker server={server} onChange={handleServerChange} />
             {discovery.status === 'loading' && (
-              <Box justifyContent="Center">
-                <Spinner variant="Secondary" size="600" />
+              <Box justifyContent="Center" alignItems="Center" gap="200">
+                <Spinner variant="Secondary" size="200" />
+                <Text size="T300">{t('sharedUi.authLayout.lookingForServer')}</Text>
               </Box>
             )}
             {discovery.status === 'error' && (
               <Text style={{ color: color.Critical.Main }} size="T300">
-                {t('featureUi.auth.discoveryFailed', { server: discovery.server })}
+                {t('sharedUi.authLayout.failedToFindServer')}
               </Text>
             )}
             {discovery.status === 'ready' && (

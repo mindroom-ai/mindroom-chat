@@ -68,7 +68,7 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
       <Box alignItems="Center" grow="Yes" gap="300">
         <Box grow="Yes">
           <Text size="H4" truncate>
-            {t('featureUi.home.title')}
+            {t('nav.home')}
           </Text>
         </Box>
         <IconButton
@@ -91,12 +91,12 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
 
 
 
+              }}
+            >
 
 
-
-
-
-
+                  <MindroomMarkRoomsReadMenuItem
+                    roomIds={roomIds}
                     onClose={() => setMenuAnchor(undefined)}
                   />
                 </Box>
@@ -157,42 +157,42 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
   const roomActions = (
     <NavCategory>
       <NavItem variant="Background" radii="400" aria-selected={createSelected}>
-
-
-
-
-
-
-
-                {t('featureUi.home.createRoom')}
-
-
-
-
-
-
-
+        <NavButton data-home-room-action="create" onClick={() => navigate(getHomeCreatePath())}>
+          <NavItemContent>
+            <Box as="span" grow="Yes" alignItems="Center" gap="200">
+              <Avatar size="200" radii="400">
+                <Icon src={Icons.Plus} size="100" />
+              </Avatar>
+              <Text as="span" size="Inherit" truncate>
+                {t('nav.createRoom')}
+              </Text>
+            </Box>
+          </NavItemContent>
+        </NavButton>
+      </NavItem>
+      <NavItem variant="Background" radii="400">
+        <NavButton data-home-room-action="join" onClick={() => setJoinOpen(true)}>
           <NavItemContent>
             <Box as="span" grow="Yes" alignItems="Center" gap="200">
               <Avatar size="200" radii="400">
                 <Icon src={Icons.Link} size="100" />
               </Avatar>
               <Text as="span" size="Inherit" truncate>
-                {t('featureUi.home.joinWithAddress')}
-
-
-
-
-
-
-
+                {t('nav.joinWithAddress')}
+              </Text>
+            </Box>
+          </NavItemContent>
+        </NavButton>
+      </NavItem>
+      <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
+        <NavButton data-home-room-action="search" onClick={() => navigate(getHomeSearchPath())}>
           <NavItemContent>
             <Box as="span" grow="Yes" alignItems="Center" gap="200">
               <Avatar size="200" radii="400">
                 <Icon src={Icons.Search} size="100" />
               </Avatar>
               <Text as="span" size="Inherit" truncate>
-                {t('featureUi.home.messageSearch')}
+                {t('nav.messageSearch')}
               </Text>
             </Box>
           </NavItemContent>
@@ -212,12 +212,12 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
           icon={<Icon size="600" src={Icons.Hash} />}
           title={
             <Text size="H5" align="Center">
-              {t('featureUi.home.noRooms')}
+              {t('nav.noRooms')}
             </Text>
           }
           content={
             <Text size="T300" align="Center">
-              {t('featureUi.home.noRoomsDescription')}
+              {t('nav.noRoomsDescription')}
             </Text>
           }
           options={roomActions}
@@ -233,7 +233,7 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
                   data-category-id={roomsCategoryId}
                   onClick={handleCategoryClick}
                 >
-                  {t('featureUi.home.rooms')}
+                  {t('nav.rooms')}
                 </RoomNavCategoryButton>
               </NavCategoryHeader>
               <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
@@ -244,6 +244,7 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
                   return (
                     <VirtualTile
                       key={item.index}
+                      virtualItem={item}
 
 
 
@@ -251,14 +252,13 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
 
 
 
-
-
-
-
-
-
-
-
+                      />
+                    </VirtualTile>
+                  );
+                })}
+              </div>
+            </NavCategory>
+            <ThreadNavCategory />
           </Box>
         </PageNavContent>
       )}

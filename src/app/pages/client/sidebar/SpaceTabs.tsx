@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Text } from 'folds';
+import type { RectCords } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,10 @@ import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
 import { nameInitials } from '../../../utils/common';
+import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
+import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
+import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 
 function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
@@ -32,6 +36,8 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
   const unread = useRoomUnread(space.roomId, roomToUnreadAtom);
   const avatarUrl = getRoomAvatarUrl(mx, space, 96, useAuthentication);
+  const spaceRooms = useSpaceSearchRooms(space.roomId);
+  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleClick = () => {
     const lastPath = navToActivePath.get(space.roomId);
@@ -51,6 +57,10 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
             ref={triggerRef}
             size="400"
             aria-label={space.name}
+            onClick={handleClick}
+            onContextMenu={toggleContextMenu(setMenuAnchor)}
+          >
+            <RoomAvatar
 
 
 
@@ -65,10 +75,13 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
 
 
-
-
-
-
+        <MindroomMarkRoomsReadMenuItem
+          roomIds={spaceRooms}
+          onClose={() => setMenuAnchor(undefined)}
+        />
+      </SidebarContextMenu>
+    </SidebarItem>
+  );
 }
 
 /** The joined top-level spaces in the icon rail. */
@@ -91,7 +104,7 @@ export function SpaceTabs() {
   if (spaces.length === 0) return null;
 
   return (
-    <div role="group" aria-label={t('featureUi.sidebar.spaces')}>
+    <div role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
       {spaces.map((space) => (
         <SpaceTab key={space.roomId} space={space} selected={selectedSpaceId === space.roomId} />
       ))}

@@ -64,14 +64,12 @@ function AccountRow({
             {session.userId}
           </Text>
         </Box>
-        {active && (
-          <Icon size="100" src={Icons.Check} aria-label={t('featureUi.accountSwitcher.active')} />
-        )}
+        {active && <Icon size="100" src={Icons.Check} aria-label={t('accountSwitcher.active')} />}
       </Box>
       <Box gap="200" wrap="Wrap">
         {active ? (
           <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onOpenSettings}>
-            <Text size="B300">{t('featureUi.accountSwitcher.openSettings')}</Text>
+            <Text size="B300">{t('accountSwitcher.openSettings')}</Text>
           </Button>
         ) : (
           <>
@@ -86,7 +84,7 @@ function AccountRow({
               {busy ? (
                 <Spinner size="100" />
               ) : (
-                <Text size="B300">{t('featureUi.accountSwitcher.switch')}</Text>
+                <Text size="B300">{t('accountSwitcher.switch')}</Text>
               )}
             </Button>
 
@@ -120,7 +118,7 @@ export function AccountSwitcher({
   const { t } = useTranslation();
   return (
     <Box direction="Column" gap="200" style={{ padding: config.space.S400 }}>
-      <Text size="H4">{t('featureUi.accountSwitcher.title')}</Text>
+      <Text size="H4">{t('accountSwitcher.title')}</Text>
       {error && (
         <Text size="T200" role="alert">
           {error}
@@ -139,11 +137,11 @@ export function AccountSwitcher({
       <Box gap="200" justifyContent="End">
         {onAddAccount && (
           <Button size="300" variant="Primary" radii="300" onClick={onAddAccount}>
-            <Text size="B300">{t('featureUi.accountSwitcher.addAccount')}</Text>
+            <Text size="B300">{t('accountSwitcher.addAccount')}</Text>
           </Button>
         )}
         <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClose}>
-          <Text size="B300">{t('featureUi.accountSwitcher.close')}</Text>
+          <Text size="B300">{t('accountSwitcher.close')}</Text>
         </Button>
       </Box>
     </Box>

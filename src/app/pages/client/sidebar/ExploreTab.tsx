@@ -53,13 +53,13 @@ export function ExploreTab({ onSelect }: ExploreTabProps) {
 
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.explore')}>
+      <SidebarItemTooltip tooltip={t('nav.exploreCommunity')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.explore')}
+            aria-label={t('nav.exploreCommunity')}
             onClick={handleClick}
           >
             <Icon src={Icons.Explore} filled={selected} />

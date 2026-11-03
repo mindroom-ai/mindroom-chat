@@ -103,7 +103,7 @@ export function Reactions({
 
 
                 count={events.length}
-                label={stopButton ? t('featureUi.room.reactions.stop') : undefined}
+                label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
                 onClick={
                   canToggle
                     ? () => onReactionToggle(mEventId, key, shortcode, relations)

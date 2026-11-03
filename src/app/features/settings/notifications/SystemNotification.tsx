@@ -30,9 +30,11 @@ const EMAIL_PUSHER_APP_ID = 'm.email';
 
 
 
-
+            app_id: EMAIL_PUSHER_APP_ID,
             pushkey: email,
-            app_display_name: t('featureUi.settings.notifications.systemNotification.emailAppName'),
+            app_display_name: t(
+              'featureUi.settings.notifications.systemNotification.emailNotification'
+            ),
             device_display_name: email,
             lang,
             data: getMindroomEmailNotificationPusherData(),
@@ -53,17 +55,19 @@ const EMAIL_PUSHER_APP_ID = 'm.email';
 
   let description: React.ReactNode;
   if (result === undefined) {
-    description = t('featureUi.settings.notifications.systemNotification.emailLoading');
+    description = <Spinner size="50" variant="Secondary" />;
   } else if (result === null) {
     description = (
       <span style={{ color: color.Critical.Main }}>
-        {t('featureUi.settings.notifications.systemNotification.emailUnavailable')}
+        {t('featureUi.settings.notifications.systemNotification.unexpectedError')}
       </span>
     );
   } else if (!result.email) {
-    description = t('featureUi.settings.notifications.systemNotification.emailNoAddress');
+    description = t(
+      'featureUi.settings.notifications.systemNotification.yourAccountDoesNotHaveAnyEmail'
+    );
   } else {
-    description = t('featureUi.settings.notifications.systemNotification.emailDescription', {
+    description = t('featureUi.settings.notifications.systemNotification.sendToEmailAddress', {
       email: result.email,
     });
   }
@@ -102,28 +106,28 @@ const EMAIL_PUSHER_APP_ID = 'm.email';
 
   const requestPermission = () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
+    void window.Notification.requestPermission();
+  };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{t('featureUi.settings.notifications.systemNotification.system')}</Text>
+      <SequenceCard
+        className={SequenceCardStyle}
+        variant="SurfaceVariant"
+        direction="Column"
+        gap="400"
+      >
+        <SettingTile
+          title={t('featureUi.settings.notifications.systemNotification.desktopNotifications')}
+          description={
+            permission === 'denied'
+              ? t('featureUi.settings.notifications.systemNotification.permissionBlocked')
+              : t(
+                  'featureUi.settings.notifications.systemNotification.showDesktopNotificationsWhenMessageArrive'
+                )
+          }
+          after={
             permission === 'prompt' ? (
               <Button size="300" radii="300" fill="Soft" onClick={requestPermission}>
                 <Text size="B300">
@@ -142,7 +146,7 @@ const EMAIL_PUSHER_APP_ID = 'm.email';
         <SettingTile
           title={t('featureUi.settings.notifications.systemNotification.notificationSound')}
           description={t(
-            'featureUi.settings.notifications.systemNotification.notificationSoundDescription'
+            'featureUi.settings.notifications.systemNotification.playSoundWhenNewMessageArrive'
           )}
           after={<Switch value={notificationSounds} onChange={setNotificationSounds} />}
         />

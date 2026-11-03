@@ -6,6 +6,16 @@ const STORAGE_KEY = 'after_login_redirect_url';
 
 export const AFTER_LOGIN_REDIRECT_PATH_MAX_AGE_MS = 15 * 60 * 1000;
 
+/**
+ * Only a path inside this app may be remembered: a full URL or a
+ * protocol-relative `//host` path would send a fresh session off-site.
+ */
+export const isInAppPath = (path: unknown): path is string =>
+  typeof path === 'string' &&
+  path.startsWith('/') &&
+  !path.startsWith('//') &&
+  !path.includes('\\');
+
 type StoredRedirect = {
   path: string;
   savedAt: number;
@@ -38,6 +48,7 @@ const parseStoredRedirect = (raw: string | null): StoredRedirect | undefined => 
 };
 
 export const setAfterLoginRedirectPath = (path: string): void => {
+  if (!isInAppPath(path)) return;
   const value: StoredRedirect = { path, savedAt: Date.now() };
   try {
     getStorage()?.setItem(STORAGE_KEY, JSON.stringify(value));
@@ -66,6 +77,10 @@ export const getAfterLoginRedirectPath = (): string | undefined => {
 
   const age = Date.now() - stored.savedAt;
   if (age < 0 || age > AFTER_LOGIN_REDIRECT_PATH_MAX_AGE_MS) {
+    deleteAfterLoginRedirectPath();
+    return undefined;
+  }
+  if (!isInAppPath(stored.path)) {
     deleteAfterLoginRedirectPath();
     return undefined;
   }

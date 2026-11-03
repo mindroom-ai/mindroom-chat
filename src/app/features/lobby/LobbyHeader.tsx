@@ -66,15 +66,22 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [inviteOpen, setInviteOpen] = useState(false);
 
+  const baseMembersLabel = t('featureUi.lobby.lobbyHeader.members');
   const membersLabel =
     pendingRequests > 0
-      ? t('featureUi.lobby.header.membersWithRequests', { count: pendingRequests })
-      : t('featureUi.lobby.header.members');
+      ? t('featureUi.room.pendingJoinRequests.accessibleLabel', {
+          baseLabel: baseMembersLabel,
+          count: pendingRequests,
+        })
+      : baseMembersLabel;
 
   return (
     <PageHeader balance={screenSize === ScreenSize.Mobile}>
       <Box grow="Yes" alignItems="Center" gap="200">
         {screenSize === ScreenSize.Mobile && onBack && (
+          <IconButton
+            onClick={onBack}
+
 
 
 
@@ -137,8 +144,8 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
 
 
 
-
-
+              }}
+            >
 
 
 
@@ -151,7 +158,7 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
                       setInviteOpen(true);
                     }}
                   >
-                    <Text size="T300">{t('featureUi.lobby.header.invite')}</Text>
+                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.invite')}</Text>
                   </MenuItem>
                   <MenuItem
                     size="300"
@@ -162,7 +169,7 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
 
                     }}
                   >
-                    <Text size="T300">{t('featureUi.lobby.header.settings')}</Text>
+                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.spaceSettings')}</Text>
                   </MenuItem>
                 </Box>
               </Menu>
@@ -173,7 +180,7 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
             onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
               setMenuAnchor(event.currentTarget.getBoundingClientRect())
             }
-            aria-label={t('featureUi.lobby.header.options')}
+            aria-label={t('featureUi.lobby.lobbyHeader.moreOptions')}
             aria-pressed={!!menuAnchor}
           >
             <Icon size="400" src={Icons.VerticalDots} />

@@ -118,23 +118,20 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
                 size="300"
                 radii="300"
                 onClick={requestClose}
-                aria-label={t('featureUi.commonSettings.permissions.powersEditor.back')}
+                aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
               >
                 <Icon src={Icons.ArrowLeft} />
               </IconButton>
               <Text size="H3" truncate>
-                {t('featureUi.commonSettings.permissions.powersEditor.title')}
+                {t('featureUi.commonSettings.permissions.powersEditor.powerLevels')}
               </Text>
             </Box>
           </PageHeader>
         }
-
-
-
-
-
-
-              </Text>
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <Box direction="Column" gap="100">
               <SequenceCard
                 className={SequenceCardStyle}
                 variant="SurfaceVariant"
@@ -142,7 +139,10 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
                 gap="400"
               >
                 <SettingTile
-                  title={t('featureUi.commonSettings.permissions.powersEditor.description')}
+                  title={t('featureUi.commonSettings.permissions.powersEditor.newPowerLevel')}
+                  description={t(
+                    'featureUi.commonSettings.permissions.powersEditor.createANewPowerLevel'
+                  )}
                   after={
                     !creating && (
                       <Button
@@ -163,7 +163,7 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
                   <Box as="form" onSubmit={handleCreate} gap="200" alignItems="End">
                     <Box direction="Column" gap="100">
                       <Text size="L400">
-                        {t('featureUi.commonSettings.permissions.powersEditor.level')}
+                        {t('featureUi.commonSettings.permissions.powersEditor.power')}
                       </Text>
                       <Input
                         name="powerInput"
@@ -199,21 +199,21 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
                   <SettingTile
                     key={level}
                     title={tag.name}
-                    description={t('featureUi.commonSettings.permissions.powersEditor.levelValue', {
-                      level,
-                    })}
+                    description={String(level)}
                     after={
                       <Box gap="200" alignItems="Center">
                         <Chip
                           variant="Critical"
                           radii="Pill"
                           disabled={usedLevels.has(level)}
-                          aria-label={t(
-                            'featureUi.commonSettings.permissions.powersEditor.remove',
-                            {
-                              name: tag.name,
-                            }
-                          )}
+                          aria-label={t('featureUi.commonSettings.permissions.powersEditor.remove')}
+                          title={
+                            usedLevels.has(level)
+                              ? t(
+                                  'featureUi.commonSettings.permissions.powersEditor.youHaveToRemoveItsUseBefore'
+                                )
+                              : undefined
+                          }
                           onClick={() => setEdit(level, null)}
                           before={<Icon size="50" src={Icons.Delete} />}
                         />
@@ -237,7 +237,9 @@ const applyEdits = (base: PowerLevelTags, edits: TagEdits): PowerLevelTags => {
               </Button>
               {saveFailed && (
                 <Text size="T200" style={{ paddingInline: config.space.S200 }}>
-                  {t('featureUi.commonSettings.permissions.powersEditor.saveFailed')}
+                  {t(
+                    'featureUi.commonSettings.permissions.powersEditor.failedToApplyChangesPleaseTryAgain'
+                  )}
                 </Text>
               )}
             </Box>

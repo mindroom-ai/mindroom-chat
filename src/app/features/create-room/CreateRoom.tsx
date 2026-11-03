@@ -115,29 +115,29 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       <Box direction="Column" gap="100">
         <Text size="L400">{t('featureUi.createRoom.name')}</Text>
         <Input
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          required
+          name="nameInput"
+          autoFocus
+          size="500"
+          variant="SurfaceVariant"
+          radii="400"
+          autoComplete="off"
+          disabled={creating}
+        />
+      </Box>
+      <Box direction="Column" gap="100">
+        <Text size="L400">{t('featureUi.createRoom.topicOptional')}</Text>
+        <TextArea
+          name="topicTextAria"
+          size="500"
+          variant="SurfaceVariant"
+          radii="400"
+          disabled={creating}
+        />
+      </Box>
+      {isPublic && (
         <Box direction="Column" gap="100">
-          <Text size="L400">{t('featureUi.createRoom.address')}</Text>
+          <Text size="L400">{t('sharedUi.createRoomAliasInput.addressOptional')}</Text>
           <CreateRoomAliasInput disabled={creating} />
         </Box>
       )}
@@ -152,8 +152,8 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
               style={{ padding: '12px' }}
             >
               <SettingTile
-                title={t('featureUi.createRoom.encryption')}
-                description={t('featureUi.createRoom.encryptionDescription')}
+                title={t('featureUi.createRoom.endToEndEncryption')}
+                description={t('featureUi.createRoom.onceThisFeatureIsEnabledItCan')}
                 after={
                   <Switch
                     variant="Primary"
@@ -173,8 +173,8 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
               style={{ padding: '12px' }}
             >
               <SettingTile
-                title={t('featureUi.createRoom.knock')}
-                description={t('featureUi.createRoom.knockDescription')}
+                title={t('featureUi.createRoom.knockToJoin')}
+                description={t('featureUi.createRoom.anyoneCanSendRequestToJoinThis')}
                 after={
                   <Switch variant="Primary" value={knock} onChange={setKnock} disabled={creating} />
                 }
@@ -189,8 +189,8 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
               style={{ padding: '12px' }}
             >
               <SettingTile
-                title={t('featureUi.createRoom.federation')}
-                description={t('featureUi.createRoom.federationDescription')}
+                title={t('featureUi.createRoom.allowFederation')}
+                description={t('featureUi.createRoom.usersFromOtherServersCanJoin')}
                 after={
                   <Switch
                     variant="Primary"
@@ -209,23 +209,14 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
               onClick={() => setAdvanced(!advanced)}
               before={<Icon size="50" src={advanced ? Icons.ChevronTop : Icons.ChevronBottom} />}
             >
-              <Text size="T200">{t('featureUi.createRoom.advanced')}</Text>
+              <Text size="T200">{t('featureUi.createRoom.advancedOptions')}</Text>
             </Chip>
           </Box>
           {advanced && (
-            <SequenceCard
-              variant="SurfaceVariant"
-              direction="Column"
-              gap="300"
-              style={{ padding: '12px' }}
-            >
-              <SettingTile
-                title={t('featureUi.createRoom.roomVersion')}
-                after={
-                  <RoomVersionSelector
-                    versions={versions.length > 0 ? versions : [version]}
-                    value={version}
-                    onChange={setVersion}
+            <RoomVersionSelector
+              versions={versions.length > 0 ? versions : [version]}
+              value={version}
+              onChange={setVersion}
 
 
 
@@ -243,12 +234,9 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
 
 
 
-
-
-
-
-
-
+          before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
+        >
+          <Text size="B500">{t('featureUi.createRoom.create')}</Text>
         </Button>
       </Box>
     </Box>

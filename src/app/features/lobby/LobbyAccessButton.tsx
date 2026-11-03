@@ -30,7 +30,7 @@ export function LobbyAccessButton({
   if (access.kind === 'unavailable' || access.kind === 'unknown') {
     return (
       <Text size="T200" priority="300">
-        {t('featureUi.lobby.accessUnavailable')}
+        {t('featureUi.lobby.roomItem.accessUnavailable')}
       </Text>
     );
   }
@@ -53,9 +53,9 @@ export function LobbyAccessButton({
       {(control) => {
         const label = knock
           ? control.requested
-            ? t('featureUi.lobby.requestSent')
-            : t('featureUi.lobby.requestToJoin')
-          : t('featureUi.lobby.join');
+            ? t('featureUi.lobby.roomItem.requestSent')
+            : t('featureUi.lobby.roomItem.requestToJoin')
+          : t('featureUi.lobby.roomItem.join');
         const disabled = knock ? !!control.requested : !!control.succeeded;
         if (chipClassName) {
           return (

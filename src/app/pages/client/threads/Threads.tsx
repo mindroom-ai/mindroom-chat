@@ -29,7 +29,7 @@ export function Threads() {
 
 
           <Text size="H4" truncate>
-            {t('featureUi.threads.title')}
+            {t('nav.threads')}
           </Text>
         </Box>
       </PageHeader>

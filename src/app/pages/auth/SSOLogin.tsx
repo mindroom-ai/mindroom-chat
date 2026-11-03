@@ -10,7 +10,7 @@ import {
   isNativeIOS,
   openNativeSsoBrowser,
   signInWithNativeApple,
-} from '../../mindroom/native/nativeSso';
+} from '../../mindroom/auth/authUi';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import {
@@ -44,7 +44,7 @@ const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeA
   const sortedProviders = useMemo(() => sortIdentityProviders(providers), [providers]);
 
   const ssoUrl = (providerId?: string): string =>
-    mx.getSsoLoginUrl(redirectUrl, providerId ? 'sso' : 'sso', providerId, action);
+    mx.getSsoLoginUrl(redirectUrl, 'sso', providerId, action);
 
   const openInNativeBrowser = async (event: MouseEvent, url: string) => {
     event.preventDefault();

@@ -1,6 +1,6 @@
 import React, { FormEventHandler, useCallback, useMemo, useState } from 'react';
-import { Box, Button, Input, Spinner, Text, color } from 'folds';
-import { useTranslation } from 'react-i18next';
+import { Box, Button, Input, Spinner, Text } from 'folds';
+import { Trans, useTranslation } from 'react-i18next';
 import type { MatrixError } from 'matrix-js-sdk';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
@@ -27,6 +27,13 @@ type EmailToken = {
 
 
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
+  const serverName = useMemo(() => {
+    try {
+      return new URL(baseUrl).host;
+    } catch {
+      return baseUrl;
+    }
+  }, [baseUrl]);
   const [mismatch, setMismatch] = useState(false);
   const [emailToken, setEmailToken] = useState<EmailToken>();
   const [done, setDone] = useState(false);
@@ -94,7 +101,11 @@ type EmailToken = {
   if (done) {
     return (
       <Box direction="Column" gap="400">
-        <Text>{t('sharedUi.passwordResetForm.passwordChanged')}</Text>
+        <Text>
+          {t(
+            'sharedUi.passwordResetForm.passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword'
+          )}
+        </Text>
       </Box>
     );
   }
@@ -102,11 +113,11 @@ type EmailToken = {
   return (
     <Box as="form" onSubmit={handleSubmit} direction="Inherit" gap="400">
       <Text size="T300" priority="400">
-        {t('sharedUi.passwordResetForm.description')}
-      </Text>
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordResetForm.email')}
+        <Trans
+          i18nKey="sharedUi.passwordResetForm.resetEmailDescription"
+          values={{ server: serverName }}
+          components={{ strong: <strong /> }}
+        />
 
 
 
@@ -118,56 +129,61 @@ type EmailToken = {
 
 
 
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordResetForm.newPassword')}
-        </Text>
-        <Input
-          type="password"
-          name="passwordInput"
-          variant="Background"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           size="500"
           required
           outlined
         />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text as="label" size="L400" priority="300">
-          {t('sharedUi.passwordResetForm.confirmPassword')}
-        </Text>
-        <Input
-          type="password"
-          name="confirmPasswordInput"
-          variant="Background"
-          size="500"
-          required
-          outlined
-        />
-        {mismatch && <FieldError message={t('sharedUi.passwordResetForm.passwordsDoNotMatch')} />}
       </Box>
       {error && (
         <FieldError
-          message={`${error.errcode ?? 'M_UNKNOWN'}: ${
-            error.errcode === 'M_THREEPID_NOT_FOUND'
-              ? t('sharedUi.passwordResetForm.emailNotFound')
-              : t('sharedUi.passwordResetForm.failedToResetPassword')
-          }`}
+          message={`${error.errcode ?? 'M_UNKNOWN'}: ${t(
+            'sharedUi.passwordResetForm.failedToResetPassword'
+          )}`}
         />
       )}
       {emailToken ? (
         <Box direction="Column" gap="200">
           <Text size="T300">
-            {t('sharedUi.passwordResetForm.checkEmail', { email: emailToken.email })}
+            {t('sharedUi.emailStage.pleaseCheckYourEmailValue1AndValidateBeforeContinuingFurther', {
+              value1: emailToken.email,
+            })}
           </Text>
           <Button
             type="button"
             variant="Primary"
             size="500"
             disabled={busy}
+            before={busy ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
             onClick={() => void resetPassword(emailToken).catch(() => undefined)}
           >
             <Text as="span" size="B500">
-              {t('sharedUi.passwordResetForm.continue')}
+              {t('sharedUi.emailStage.continue')}
             </Text>
           </Button>
         </Box>
@@ -183,11 +199,6 @@ type EmailToken = {
             {t('sharedUi.passwordResetForm.resetPassword')}
           </Text>
         </Button>
-      )}
-      {busy && (
-        <Text size="T200" style={{ color: color.Secondary.Main }}>
-          {t('sharedUi.passwordResetForm.working')}
-        </Text>
       )}
     </Box>
   );

@@ -11,7 +11,7 @@ import { Profile } from './Profile';
 
 
   return (
-    <SettingsPageFrame title={t('featureUi.settings.menu.account')} requestClose={requestClose}>
+    <SettingsPageFrame title={t('settings.nav.account')} requestClose={requestClose}>
       <Profile />
       <MatrixId />
     </SettingsPageFrame>

@@ -36,7 +36,7 @@ import { EmojisStickers } from './emojis-stickers';
 import { DeveloperTools } from './developer-tools';
 import { About } from './about';
 
-
+type SettingsProps = {
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
@@ -112,9 +112,9 @@ function SettingsPageContent({
         showNav && (
           <PageNav size="300">
             <PageNavHeader outlined={false}>
-
-
-
+              <Box grow="Yes" gap="200" alignItems="Center">
+                <Avatar size="200" radii="300">
+                  <UserAvatar
 
 
 
@@ -122,14 +122,14 @@ function SettingsPageContent({
                   />
                 </Avatar>
                 <Text size="H4" truncate>
-                  {t('featureUi.settings.title')}
+                  {t('settings.title')}
                 </Text>
               </Box>
               {isMobile && (
                 <IconButton
                   onClick={requestClose}
                   variant="Background"
-                  aria-label={t('featureUi.settings.close')}
+                  aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
 
 
 
@@ -161,15 +161,15 @@ function SettingsPageContent({
 
 
 
-
-
-
-
-
-
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Critical"
+                  fill="None"
+                  onClick={() => setLogoutOpen(true)}
                   before={<Icon size="100" src={Icons.Power} />}
                 >
-                  <Text size="B400">{t('featureUi.settings.logout')}</Text>
+                  <Text size="B400">{t('settings.logout')}</Text>
                 </Button>
                 {logoutOpen && (
                   <Overlay open backdrop={<OverlayBackdrop />}>

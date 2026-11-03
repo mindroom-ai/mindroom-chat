@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Switch, Text, config, toRem } from 'folds';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
@@ -36,10 +36,10 @@ function DiagnosticsExport() {
 
   const statusText =
     status === 'unexpected'
-      ? t('featureUi.settings.about.diagnostics.unexpected')
+      ? t('featureUi.settings.about.diagnosticsUnexpected')
       : status === 'unavailable'
-      ? t('featureUi.settings.about.diagnostics.unavailable')
-      : t('featureUi.settings.about.diagnostics.none');
+      ? t('featureUi.settings.about.diagnosticsUnavailable')
+      : t('featureUi.settings.about.diagnosticsNone');
 
   const handleExport = async () => {
     if (exportingRef.current) return;
@@ -59,12 +59,12 @@ function DiagnosticsExport() {
   };
 
   const description = failed
-    ? `${statusText} ${t('featureUi.settings.about.diagnostics.exportFailed')}`
+    ? t('featureUi.settings.about.diagnosticsExportFailed', { description: statusText })
     : statusText;
 
   return (
     <SettingTile
-      title={t('featureUi.settings.about.diagnostics.title')}
+      title={t('featureUi.settings.about.onDeviceDiagnostics')}
       description={description}
       after={
         <Button
@@ -77,7 +77,7 @@ function DiagnosticsExport() {
           onClick={handleExport}
           before={exporting ? <Spinner size="100" /> : undefined}
         >
-          <Text size="B300">{t('featureUi.settings.about.diagnostics.export')}</Text>
+          <Text size="B300">{t('featureUi.settings.about.exportDiagnostics')}</Text>
         </Button>
       }
     />
@@ -131,26 +131,27 @@ function DeepTraceSetting() {
 
   let description: string;
   if (notice === 'storage-unavailable') {
-    description = t('featureUi.settings.about.deepTrace.storageUnavailable');
+    description = t('featureUi.settings.about.traceStorageUnavailable');
   } else if (notice === 'restart-may-reenable') {
-    description = t('featureUi.settings.about.deepTrace.restartMayReenable');
+    description = t('featureUi.settings.about.deepTracePreferenceSaveFailed', {
+      description: t('featureUi.settings.about.deepTraceOff'),
+    });
   } else if (!enabled) {
-    description = t('featureUi.settings.about.deepTrace.off');
+    description = t('featureUi.settings.about.deepTraceOff');
   } else if (runtimeStatus === 'recording') {
-    description = t('featureUi.settings.about.deepTrace.recording');
+    description = t('featureUi.settings.about.deepTraceRecording');
   } else if (runtimeStatus === 'memory-only') {
-    description = t('featureUi.settings.about.deepTrace.memoryOnly');
+    description = t('featureUi.settings.about.deepTraceMemoryOnly');
   } else if (runtimeStatus === 'unavailable') {
-    description = t('featureUi.settings.about.deepTrace.enabledUnavailable');
-  } else if (runtimeStatus === 'starting') {
-    description = t('featureUi.settings.about.deepTrace.starting');
+    description = t('featureUi.settings.about.deepTraceEnabledStorageUnavailable');
   } else {
-    description = t('featureUi.settings.about.deepTrace.enabled');
+    // Enabled and not recording yet.
+    description = t('featureUi.settings.about.deepTraceStarting');
   }
 
   return (
     <SettingTile
-      title={t('featureUi.settings.about.deepTrace.title')}
+      title={t('featureUi.settings.about.deepDiagnosticTracing')}
       description={description}
       after={
         <Box alignItems="Center" gap="200">
@@ -163,7 +164,7 @@ function DeepTraceSetting() {
             disabled={pending}
             onClick={handleClear}
           >
-            <Text size="B300">{t('featureUi.settings.about.deepTrace.clear')}</Text>
+            <Text size="B300">{t('featureUi.settings.about.clearTrace')}</Text>
           </Button>
           <Switch variant="Primary" value={enabled} onChange={handleToggle} disabled={pending} />
         </Box>
@@ -172,9 +173,18 @@ function DeepTraceSetting() {
   );
 }
 
+type AboutProps = {
+  requestClose: () => void;
+};
 
-
-
+/** A credit's link; `Trans` fills in the linked text. */
+function CreditLink({ href, children }: { href: string; children?: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer noopener">
+      {children}
+    </a>
+  );
+}
 
 
 
@@ -191,14 +201,14 @@ function DeepTraceSetting() {
             <Box grow="Yes" gap="200">
               <Box grow="Yes" alignItems="Center" gap="200">
                 <Text size="H3" truncate>
-                  {t('featureUi.settings.menu.about')}
+                  {t('settings.nav.about')}
                 </Text>
               </Box>
               <Box shrink="No">
                 <IconButton
                   onClick={requestClose}
                   variant="Surface"
-                  aria-label={t('featureUi.settings.close')}
+                  aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
                 >
                   <Icon src={Icons.Cross} />
                 </IconButton>
@@ -233,14 +243,14 @@ function DeepTraceSetting() {
                     radii="300"
                     before={<Icon src={Icons.Code} size="100" filled />}
                   >
+                    <Text size="B300">{t('featureUi.settings.about.sourceCode')}</Text>
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
 
-
-
-
-
-
-
-
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.settings.about.options')}</Text>
               <SequenceCard
                 className={SequenceCardStyle}
                 variant="SurfaceVariant"
@@ -248,7 +258,7 @@ function DeepTraceSetting() {
                 gap="400"
               >
                 <SettingTile
-                  title={t('featureUi.settings.about.clearCacheTitle')}
+                  title={t('featureUi.settings.about.clearCacheAndReload')}
                   description={t('featureUi.settings.about.clearCacheDescription')}
                   after={
                     <Button
@@ -283,16 +293,62 @@ function DeepTraceSetting() {
                   style={{ margin: 0, paddingInlineStart: config.space.S400 }}
                 >
                   <li>
-                    <Text size="T300">{t('featureUi.settings.about.matrixSdkCredit')}</Text>
+                    <Text size="T300">
+                      <Trans
+                        i18nKey="featureUi.settings.about.matrixSdkCredit"
+                        components={{
+                          sdk: <CreditLink href="https://github.com/matrix-org/matrix-js-sdk" />,
+                          owner: <span />,
+                          license: (
+                            <CreditLink href="https://github.com/matrix-org/matrix-js-sdk/blob/develop/LICENSE" />
+                          ),
+                        }}
+                      />
+                    </Text>
                   </li>
                   <li>
-                    <Text size="T300">{t('featureUi.settings.about.emojiArtCredit')}</Text>
+                    <Text size="T300">
+                      <Trans
+                        i18nKey="featureUi.settings.about.emojiArtCredit"
+                        components={{
+                          art: <CreditLink href="https://github.com/jdecked/twemoji" />,
+                          owner: <span />,
+                          license: (
+                            <CreditLink href="https://creativecommons.org/licenses/by/4.0/" />
+                          ),
+                        }}
+                      />
+                    </Text>
                   </li>
                   <li>
-                    <Text size="T300">{t('featureUi.settings.about.emojiFontCredit')}</Text>
+                    <Text size="T300">
+                      <Trans
+                        i18nKey="featureUi.settings.about.emojiFontCredit"
+                        components={{
+                          font: <CreditLink href="https://github.com/mozilla/twemoji-colr" />,
+                          owner: <span />,
+                          license: (
+                            <CreditLink href="https://www.apache.org/licenses/LICENSE-2.0" />
+                          ),
+                        }}
+                      />
+                    </Text>
                   </li>
                   <li>
-                    <Text size="T300">{t('featureUi.settings.about.soundResourcesCredit')}</Text>
+                    <Text size="T300">
+                      <Trans
+                        i18nKey="featureUi.settings.about.soundResourcesCredit"
+                        components={{
+                          resources: (
+                            <CreditLink href="https://material.io/design/sound/sound-resources.html" />
+                          ),
+                          owner: <span />,
+                          license: (
+                            <CreditLink href="https://creativecommons.org/licenses/by/4.0/" />
+                          ),
+                        }}
+                      />
+                    </Text>
                   </li>
                 </Box>
               </SequenceCard>

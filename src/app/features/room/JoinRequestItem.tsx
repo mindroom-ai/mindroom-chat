@@ -74,13 +74,13 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
   if (state.status === 'pending') {
     statusText =
       state.action === 'approve'
-        ? t('featureUi.room.joinRequest.approving')
-        : t('featureUi.room.joinRequest.declining');
+        ? t('featureUi.room.joinRequestItem.approving')
+        : t('featureUi.room.joinRequestItem.declining');
   } else if (state.status === 'done') {
     statusText =
       state.action === 'approve'
-        ? t('featureUi.room.joinRequest.approved')
-        : t('featureUi.room.joinRequest.declined');
+        ? t('featureUi.room.joinRequestItem.approvedWaitingForSync')
+        : t('featureUi.room.joinRequestItem.declinedWaitingForSync');
   }
 
   return (
@@ -109,7 +109,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
         )}
       </Box>
       <Text as="p" size="T300" className={`${css.JoinRequestMessage} ${BreakWord}`}>
-        {message ?? t('featureUi.room.joinRequest.noMessage')}
+        {message ?? t('featureUi.room.joinRequestItem.noMessageProvided')}
       </Text>
       {state.status === 'error' && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
@@ -129,7 +129,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             fill="Soft"
             radii="300"
             disabled={busy}
-            aria-label={t('featureUi.room.joinRequest.approveAria', { userId })}
+            aria-label={t('featureUi.room.joinRequestItem.approveFromUser', { userId })}
             onClick={() => run('approve')}
             before={
               state.status === 'pending' && state.action === 'approve' ? (
@@ -139,7 +139,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
               )
             }
           >
-            <Text size="B300">{t('featureUi.room.joinRequest.approve')}</Text>
+            <Text size="B300">{t('featureUi.room.joinRequestItem.approve')}</Text>
           </Button>
         )}
         {canDecline && (
@@ -149,7 +149,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             fill="Soft"
             radii="300"
             disabled={busy}
-            aria-label={t('featureUi.room.joinRequest.declineAria', { userId })}
+            aria-label={t('featureUi.room.joinRequestItem.declineFromUser', { userId })}
             onClick={() => run('decline')}
             before={
               state.status === 'pending' && state.action === 'decline' ? (
@@ -157,7 +157,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
               ) : undefined
             }
           >
-            <Text size="B300">{t('featureUi.room.joinRequest.decline')}</Text>
+            <Text size="B300">{t('featureUi.room.joinRequestItem.decline')}</Text>
           </Button>
         )}
       </Box>

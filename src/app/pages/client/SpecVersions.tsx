@@ -44,10 +44,10 @@ function ConnectingSplash({ onCancel }: { onCancel?: () => void }) {
     <MindRoomSplashScreen>
       <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
         <Spinner variant="Secondary" size="600" />
-        <Text>{t('featureUi.client.specVersions.connecting')}</Text>
+        <Text>{t('sharedUi.specVersions.connectingToServer')}</Text>
         {onCancel && (
           <Button variant="Secondary" fill="Soft" size="300" radii="300" onClick={onCancel}>
-            <Text size="B300">{t('featureUi.client.specVersions.cancel')}</Text>
+            <Text size="B300">{t('sharedUi.specVersions.cancelAndReturnToSignIn')}</Text>
           </Button>
         )}
       </Box>
@@ -73,20 +73,25 @@ function ConnectionError({
     clearAllCacheAndReload().catch(() => setClearing(false));
   };
 
-
-
-
-
-
-
+  return (
+    <SplashScreen>
+      <Box grow="Yes" direction="Column" gap="400" alignItems="Center" justifyContent="Center">
+        <Dialog>
+          <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
+            <Text>
+              {t(
+                'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection',
+                { server: baseUrl }
+              )}
+            </Text>
             <Button variant="Critical" onClick={retry}>
               <Text as="span" size="B400">
-                {t('featureUi.client.specVersions.retry')}
+                {t('sharedUi.specVersions.retry')}
               </Text>
             </Button>
             <Button variant="Secondary" fill="Soft" onClick={ignore}>
               <Text as="span" size="B400">
-                {t('featureUi.client.specVersions.continue')}
+                {t('sharedUi.specVersions.continue')}
               </Text>
             </Button>
             <Button
@@ -98,8 +103,8 @@ function ConnectionError({
             >
               <Text as="span" size="B400">
                 {clearing
-                  ? t('featureUi.client.specVersions.clearing')
-                  : t('featureUi.client.specVersions.clearCache')}
+                  ? t('sharedUi.specVersions.clearing')
+                  : t('sharedUi.specVersions.clearCacheAndReload')}
               </Text>
             </Button>
           </Box>

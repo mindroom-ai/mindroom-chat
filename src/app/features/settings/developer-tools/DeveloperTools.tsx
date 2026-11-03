@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import { SequenceCard } from '../../../components/sequence-card';
@@ -17,14 +16,10 @@ import { SequenceCardStyle } from '../styles.css';
 
 
 
-
   return (
-    <SettingsPageFrame
-      title={t('featureUi.settings.menu.developerTools')}
-      requestClose={requestClose}
-    >
+    <SettingsPageFrame title={t('settings.nav.developerTools')} requestClose={requestClose}>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.settings.developerTools.options')}</Text>
+        <Text size="L400">{t('featureUi.settings.developerTools.developTools.options')}</Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"
@@ -32,15 +27,8 @@ import { SequenceCardStyle } from '../styles.css';
           gap="400"
         >
           <SettingTile
-            title={t('featureUi.settings.developerTools.enable')}
-            description={t('featureUi.settings.developerTools.enableDescription')}
+            title={t('featureUi.settings.developerTools.developTools.enableDeveloperTools')}
             after={<Switch variant="Primary" value={developerTools} onChange={setDeveloperTools} />}
-          />
-          <SettingTile
-            title={t('featureUi.settings.developerTools.session')}
-            description={`${mx.getUserId() ?? ''} · ${
-              mx.getDeviceId() ?? ''
-            } · ${mx.getHomeserverUrl()}`}
           />
         </SequenceCard>
       </Box>

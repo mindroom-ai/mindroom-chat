@@ -15,12 +15,12 @@ import { SequenceCardStyle } from '../styles.css';
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
+    setCopied(await copyToClipboard(userId));
+  };
 
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{t('featureUi.settings.account.matrixId.matrixId')}</Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"

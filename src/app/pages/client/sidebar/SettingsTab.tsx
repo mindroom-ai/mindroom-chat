@@ -141,7 +141,7 @@ const useCachedActiveAvatar = (
   );
 
   const failed = () => {
-    setError(t('featureUi.accountSwitcher.updateFailed'));
+    setError(t('accountSwitcher.actionError'));
     setSwitcherOpen(true);
   };
 
@@ -184,12 +184,12 @@ const useCachedActiveAvatar = (
   return (
     <>
       <SidebarItem>
-        <SidebarItemTooltip tooltip={t('featureUi.sidebar.settingsFor', { name: displayName })}>
+        <SidebarItemTooltip tooltip={t('accountsRail.openSettingsAria', { name: displayName })}>
           {(triggerRef) => (
             <SidebarAvatar
               as="button"
               ref={triggerRef}
-              aria-label={t('featureUi.sidebar.settingsFor', { name: displayName })}
+              aria-label={t('accountsRail.openSettingsAria', { name: displayName })}
               onClick={openSettings}
             >
               <UserAvatar
@@ -204,7 +204,7 @@ const useCachedActiveAvatar = (
 
 
         const name = sessionName(session);
-        const label = t('featureUi.sidebar.switchTo', { name, userId: session.userId });
+        const label = t('accountsRail.switchAria', { name, userId: session.userId });
         return (
           <SidebarItem key={session.sessionId}>
             <SidebarItemTooltip tooltip={label}>
@@ -230,13 +230,13 @@ const useCachedActiveAvatar = (
       })}
       {sessions.length > 1 && (
         <SidebarItem>
-          <SidebarItemTooltip tooltip={t('featureUi.sidebar.manageAccounts')}>
+          <SidebarItemTooltip tooltip={t('accountsRail.manageAccounts')}>
             {(triggerRef) => (
               <SidebarAvatar
                 as="button"
                 size="300"
                 ref={triggerRef}
-                aria-label={t('featureUi.sidebar.manageAccounts')}
+                aria-label={t('accountsRail.manageAccounts')}
                 onClick={() => setSwitcherOpen(true)}
               >
                 <Text size="L400">{sessions.length}</Text>
@@ -246,13 +246,13 @@ const useCachedActiveAvatar = (
         </SidebarItem>
       )}
       <SidebarItem>
-        <SidebarItemTooltip tooltip={t('featureUi.sidebar.addAccount')}>
+        <SidebarItemTooltip tooltip={t('accountsRail.addAccountAria')}>
           {(triggerRef) => (
             <SidebarAvatar
               as="button"
               size="300"
               ref={triggerRef}
-              aria-label={t('featureUi.sidebar.addAccount')}
+              aria-label={t('accountsRail.addAccountAria')}
               onClick={handleAddAccount}
             >
               <Icon src={Icons.Plus} />

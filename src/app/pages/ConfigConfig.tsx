@@ -49,21 +49,21 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
                 <Text as="span" size="B400">
-                  {t('featureUi.configConfig.signInAgain')}
-                </Text>
-              </Button>
-            ) : (
-              <Button variant="Critical" onClick={() => retry()}>
-                <Text as="span" size="B400">
-                  {t('featureUi.configConfig.retry')}
-                </Text>
-              </Button>
-            )}
-            {ignore && (
-              <Button variant="Secondary" fill="Soft" onClick={() => ignore()}>
-                <Text as="span" size="B400">
-                  {t('featureUi.configConfig.continueOffline')}
+                  {t('sharedUi.configConfig.continueOffline')}
                 </Text>
               </Button>
             )}

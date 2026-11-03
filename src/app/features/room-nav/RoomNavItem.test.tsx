@@ -180,20 +180,6 @@ vi.mock('../../hooks/useRoomTypingMembers', () => ({
   useRoomTypingMember: () => [],
 }));
 
-vi.mock('../../hooks/useCall', () => ({
-  useCallMembers: () => [],
-  useCallSession: () => undefined,
-}));
-
-vi.mock('../../hooks/useCallEmbed', () => ({
-  useCallEmbed: () => undefined,
-  useCallStart: () => vi.fn(),
-}));
-
-vi.mock('../../state/hooks/callPreferences', () => ({
-  useCallPreferencesAtom: () => ({}),
-}));
-
 vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => undefined,
 }));
@@ -221,7 +207,6 @@ const room = {
   getJoinRule: () => JoinRule.Public,
   getMxcAvatarUrl: () => testState.roomAvatarMxc,
   getType: () => undefined,
-  isCallRoom: () => false,
 } as unknown as Room;
 
 const renderRoomNavItem = (props: { direct?: boolean; showAvatar?: boolean } = {}) =>

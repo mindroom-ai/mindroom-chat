@@ -47,9 +47,9 @@ export function Devices({ requestClose }: DevicesProps) {
   }, [load]);
 
   return (
-    <SettingsPageFrame title={t('featureUi.settings.menu.devices')} requestClose={requestClose}>
+    <SettingsPageFrame title={t('settings.nav.devices')} requestClose={requestClose}>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.settings.devices.sessions')}</Text>
+        <Text size="L400">{t('featureUi.settings.devices.devices')}</Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"
@@ -62,7 +62,7 @@ export function Devices({ requestClose }: DevicesProps) {
               title={t('featureUi.settings.devices.loadFailed')}
               after={
                 <Button size="300" radii="300" fill="Soft" onClick={() => void load()}>
-                  <Text size="B300">{t('featureUi.settings.devices.retry')}</Text>
+                  <Text size="B300">{t('sharedUi.clientRoot.retry')}</Text>
                 </Button>
               }
             />
@@ -77,7 +77,8 @@ export function Devices({ requestClose }: DevicesProps) {
                   device.device_id,
                   device.device_id === currentDeviceId
                     ? t('featureUi.settings.devices.current')
-                    : lastSeen && t('featureUi.settings.devices.lastSeen', { time: lastSeen }),
+                    : lastSeen &&
+                      `${t('featureUi.settings.devices.deviceTile.lastActivity')} ${lastSeen}`,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

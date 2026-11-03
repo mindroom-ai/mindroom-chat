@@ -32,13 +32,13 @@ import { SequenceCardStyle } from '../styles.css';
     } catch {
       setFailed(true);
     } finally {
+      setSaving(false);
+    }
+  };
 
-
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{t('featureUi.settings.account.profile.profile')}</Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"
@@ -70,7 +70,9 @@ import { SequenceCardStyle } from '../styles.css';
           </Box>
           {failed && (
             <Text size="T200" style={{ color: 'var(--mr-critical, #c62828)' }}>
-              {t('featureUi.settings.account.profile.saveFailed')}
+              {t(
+                'featureUi.settings.emojisStickers.globalPacks.failedToApplyChangesPleaseTryAgain'
+              )}
             </Text>
           )}
         </SettingTile>

@@ -65,6 +65,12 @@ import { Room } from '../mindroom/threads/MindroomRoom';
 import { Home } from './client/home/Home';
 import { useHomeSearchRooms } from './client/home/useHomeRooms';
 import { Direct } from './client/direct/Direct';
+import { DirectCreate } from './client/direct/DirectCreate';
+import { Space, SpaceRouteProvider } from './client/space/Space';
+import { useSpaceSearchRooms } from './client/space/useSpaceSearchRooms';
+import { Lobby } from '../features/lobby/Lobby';
+import { useSpace } from '../hooks/useSpace';
+import { useRoomName } from '../hooks/useRoomMeta';
 import { Threads } from './client/threads';
 import { Canvases } from './client/canvases';
 import { FeaturedRooms } from './client/explore/Featured';
@@ -144,10 +150,22 @@ function HomeSearchPage() {
     <div ref={scrollRef} style={{ flexGrow: 1, minWidth: 0, overflowY: 'auto' }}>
       <MindroomMessageSearch
         defaultRooms={defaultRooms}
-        scopeName={t('featureUi.home.title')}
+        scopeName={t('nav.home')}
         allowGlobal
         scrollRef={scrollRef}
       />
+    </div>
+  );
+}
+
+function SpaceSearchPage() {
+  const space = useSpace();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const defaultRooms = useSpaceSearchRooms(space.roomId);
+  const name = useRoomName(space);
+  return (
+    <div ref={scrollRef} style={{ flexGrow: 1, minWidth: 0, overflowY: 'auto' }}>
+      <MindroomMessageSearch defaultRooms={defaultRooms} scopeName={name} scrollRef={scrollRef} />
     </div>
   );
 }
@@ -182,7 +200,7 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
         </Route>
         <Route path={DIRECT_PATH} element={<SectionPage path={DIRECT_PATH} nav={<Direct />} />}>
           <Route index element={<WelcomePage />} />
-          <Route path={DIRECT_CREATE_PATH} element={<WelcomePage />} />
+          <Route path={DIRECT_CREATE_PATH} element={<DirectCreate />} />
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
         <Route path={THREADS_PATH} element={<Threads />} />
@@ -196,10 +214,17 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
           <Route index element={<Invites />} />
           <Route path={INBOX_INVITES_PATH} element={<Invites />} />
         </Route>
-        <Route path={SPACE_PATH} element={<SectionPage path={SPACE_PATH} nav={<Home />} />}>
-          <Route index element={<WelcomePage />} />
-          <Route path={SPACE_LOBBY_PATH} element={<WelcomePage />} />
-          <Route path={SPACE_SEARCH_PATH} element={<HomeSearchPage />} />
+        <Route
+          path={SPACE_PATH}
+          element={
+            <SpaceRouteProvider>
+              <SectionPage path={SPACE_PATH} nav={<Space />} />
+            </SpaceRouteProvider>
+          }
+        >
+          <Route index element={<Lobby />} />
+          <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
+          <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />
           <Route path={SPACE_ROOM_PATH} element={<RoomPage />} />
         </Route>
       </Route>

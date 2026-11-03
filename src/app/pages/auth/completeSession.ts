@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { putSession } from '../../state/sessions';
-import { deleteAfterLoginRedirectPath, getAfterLoginRedirectPath } from '../afterLoginRedirectPath';
+import {
+  deleteAfterLoginRedirectPath,
+  getAfterLoginRedirectPath,
+  isInAppPath,
+} from '../afterLoginRedirectPath';
 import { getHomePath } from '../pathUtils';
 
 /** Credentials a successful login or registration hands back. */
@@ -55,7 +59,7 @@ export const useCompleteSession = <T extends SessionCredentials>(
 
     const redirectPath = getAfterLoginRedirectPath();
     deleteAfterLoginRedirectPath();
-    navigate(redirectPath ?? getHomePath(), { replace: true });
+    navigate(isInAppPath(redirectPath) ? redirectPath : getHomePath(), { replace: true });
   }, [baseUrl, response, navigate]);
 
   return storeFailed;

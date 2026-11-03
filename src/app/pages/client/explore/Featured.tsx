@@ -76,7 +76,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
             <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
               <Icon size="400" src={Icons.Bulb} />
               <Text size="H3" truncate>
-                {t('featureUi.explore.featured')}
+                {t('sharedUi.explore.featured')}
               </Text>
             </Box>
           </PageHeader>
@@ -88,13 +88,15 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
               <PageHeroSection>
                 <PageHero
                   icon={<Icon size="600" src={Icons.Bulb} />}
-                  title={t('featureUi.explore.featuredTitle')}
-                  subTitle={t('featureUi.explore.featuredSubtitle')}
+                  title={t('sharedUi.featured.featuredByClient')}
+                  subTitle={t(
+                    'sharedUi.featured.findAndExplorePublicRoomsAndSpacesFeaturedByClientProvider'
+                  )}
                 />
               </PageHeroSection>
               {spaces.length > 0 && (
                 <Box direction="Column" gap="300">
-                  <Text size="H4">{t('featureUi.explore.featuredSpaces')}</Text>
+                  <Text size="H4">{t('sharedUi.featured.featuredSpaces')}</Text>
                   <RoomCardGrid>
                     {spaces.map((roomIdOrAlias) => (
                       <FeaturedCard key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias} space />
@@ -104,7 +106,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
               )}
               {rooms.length > 0 && (
                 <Box direction="Column" gap="300">
-                  <Text size="H4">{t('featureUi.explore.featuredRooms')}</Text>
+                  <Text size="H4">{t('sharedUi.featured.featuredRooms')}</Text>
                   <RoomCardGrid>
                     {rooms.map((roomIdOrAlias) => (
                       <FeaturedCard
@@ -118,7 +120,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
               )}
               {spaces.length === 0 && rooms.length === 0 && (
                 <Text size="T300" align="Center">
-                  {t('featureUi.explore.noFeatured')}
+                  {t('sharedUi.featured.noRoomsOrSpacesFeaturedByClientProvider')}
                 </Text>
               )}
             </Box>

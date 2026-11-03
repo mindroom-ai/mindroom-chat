@@ -99,7 +99,7 @@ function LocalMindroomSetup() {
   const setSettingsModal = useSetAtom(settingsModalAtom);
   return (
     <Box direction="Column" gap="200" style={{ maxWidth: toRem(560), margin: '0 auto' }}>
-      <Text size="H4">{t('sharedUi.welcomePage.setupTitle')}</Text>
+      <Text size="H4">{t('sharedUi.welcomePage.setUpLocalMindroom')}</Text>
       <Text size="T300">{t('sharedUi.welcomePage.setupStep1', { command: SETUP_COMMAND })}</Text>
       <Text size="T300">
         {t('sharedUi.welcomePage.setupStep2', { envFile: ENV_FILE, command: CREDENTIALS_COMMAND })}
@@ -114,7 +114,7 @@ function LocalMindroomSetup() {
           aria-label={t('sharedUi.welcomePage.openLocalMindroomSettings')}
           onClick={() => setSettingsModal({ initialPage: LOCAL_MINDROOM_SETTINGS_PAGE })}
         >
-          <Text size="B300">{t('sharedUi.welcomePage.haveCode')}</Text>
+          <Text size="B300">{t('sharedUi.welcomePage.enterPairCode')}</Text>
         </Button>
       </Box>
     </Box>

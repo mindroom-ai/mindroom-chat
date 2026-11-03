@@ -20,11 +20,11 @@ import { ServerPack } from './ServerPack';
         <Box alignItems="Center" gap="200" style={{ padding: '8px' }}>
           <IconButton
             onClick={() => setViewPack(undefined)}
-            aria-label={t('featureUi.settings.back')}
+            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
           >
             <Icon src={Icons.ArrowLeft} />
           </IconButton>
-          <Text size="H4">{t('featureUi.settings.menu.emojisStickers')}</Text>
+          <Text size="H4">{t('settings.nav.emojisStickers')}</Text>
         </Box>
         <ImagePackView address={viewPack.address} requestClose={() => setViewPack(undefined)} />
       </Box>
@@ -32,10 +32,7 @@ import { ServerPack } from './ServerPack';
   }
 
   return (
-    <SettingsPageFrame
-      title={t('featureUi.settings.menu.emojisStickers')}
-      requestClose={requestClose}
-    >
+    <SettingsPageFrame title={t('settings.nav.emojisStickers')} requestClose={requestClose}>
       <ServerPack onViewPack={setViewPack} />
     </SettingsPageFrame>
   );

@@ -77,19 +77,19 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
 
 
 
-                  void clearAllCacheAndReload(mx);
-                }}
-              >
-                <Text size="T300">{t('featureUi.client.startup.clearCache')}</Text>
-              </MenuItem>
-            </Box>
-          </Menu>
-        </FocusTrap>
-      }
-    >
-      <IconButton
-        variant="Background"
-        aria-label={t('featureUi.client.startup.recoveryOptions')}
+
+
+
+
+
+
+
+
+
+
+
+
+
         onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
           setAnchor(event.currentTarget.getBoundingClientRect())
         }
@@ -113,10 +113,12 @@ function StartupSplash({ mx }: { mx?: MatrixClient }) {
 }
 
 function StartupError({
+  account,
   error,
   mx,
   onRetry,
 }: {
+  account: string;
   error: unknown;
   mx?: MatrixClient;
   onRetry: () => void;
@@ -128,15 +130,20 @@ function StartupError({
       <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center">
         <Dialog>
           <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-            <Text>{t('featureUi.client.startup.failed', { message })}</Text>
+            <Text>
+              {t('sharedUi.clientRoot.failedToStartAccountValue1Value2', {
+                value1: account,
+                value2: message,
+              })}
+            </Text>
             <Button variant="Critical" onClick={onRetry}>
               <Text as="span" size="B400">
-                {t('featureUi.client.startup.retry')}
+                {t('sharedUi.clientRoot.retry')}
               </Text>
             </Button>
             <Button variant="Secondary" fill="Soft" onClick={() => clearAllCacheAndReload(mx)}>
               <Text as="span" size="B400">
-                {t('featureUi.client.startup.clearCache')}
+                {t('sharedUi.clientRoot.clearCacheAndReload')}
               </Text>
             </Button>
           </Box>
@@ -155,7 +162,7 @@ function CatchingUp() {
       style={{ position: 'fixed', top: 0, insetInline: 0, justifyContent: 'center', zIndex: 10 }}
     >
       <Spinner size="100" variant="Secondary" />
-      <Text size="T200">{t('featureUi.client.startup.catchingUp')}</Text>
+      <Text size="T200">{t('sharedUi.clientRoot.catchingUp')}</Text>
     </Box>
   );
 }
@@ -302,7 +309,9 @@ function ClientSession({ session, children }: { session: StoredSession; children
 
   let content: ReactNode;
   if (state.status === 'error') {
-    content = <StartupError error={state.error} mx={state.mx} onRetry={retry} />;
+    content = (
+      <StartupError account={session.userId} error={state.error} mx={state.mx} onRetry={retry} />
+    );
   } else if (!state.mx) {
     content = <StartupSplash />;
   } else {

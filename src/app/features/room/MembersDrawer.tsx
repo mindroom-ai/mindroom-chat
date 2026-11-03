@@ -201,7 +201,7 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
         </Box>
         <IconButton
           variant="Background"
-          aria-label={t('featureUi.room.membersDrawer.invite')}
+          aria-label={t('featureUi.room.membersDrawer.invitePeople')}
           disabled={!canInvite}
           onClick={() => setInviteOpen(true)}
         >
@@ -225,8 +225,8 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
           <Input
             value={query}
             onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-            placeholder={t('featureUi.room.membersDrawer.searchPlaceholder')}
-            aria-label={t('featureUi.room.membersDrawer.searchPlaceholder')}
+            placeholder={t('featureUi.room.membersDrawer.typeName')}
+            aria-label={t('featureUi.room.membersDrawer.typeName')}
             variant="Background"
             size="400"
             radii="400"
@@ -263,7 +263,7 @@ function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
           {visibleMembers.length === 0 && (
             <Box className={css.MembersGroupLabel} justifyContent="Center">
               <Text size="T200" priority="300">
-                {t('featureUi.room.membersDrawer.empty')}
+                {t('featureUi.room.membersDrawer.noResults')}
               </Text>
             </Box>
           )}

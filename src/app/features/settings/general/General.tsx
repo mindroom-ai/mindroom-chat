@@ -14,13 +14,14 @@ import {
 } from '../../../mindroom/settings/settingsExtensions';
 import { SettingsPageFrame } from '../SettingsPageFrame';
 import { SequenceCardStyle } from '../styles.css';
+import { isMacOS } from '../../../utils/user-agent';
 
 const THEME_LABEL_KEYS = {
-  'light-theme': 'featureUi.settings.general.appearance.themes.light',
-  'silver-theme': 'featureUi.settings.general.appearance.themes.silver',
-  'dark-theme': 'featureUi.settings.general.appearance.themes.dark',
-  'midnight-theme': 'featureUi.settings.general.appearance.themes.midnight',
-  'butter-theme': 'featureUi.settings.general.appearance.themes.butter',
+  'light-theme': 'options.themeName.light',
+  'silver-theme': 'options.themeName.silver',
+  'dark-theme': 'options.themeName.dark',
+  'midnight-theme': 'options.themeName.midnight',
+  'butter-theme': 'options.themeName.butter',
 } as const;
 
 const selectStyle: React.CSSProperties = { minWidth: '10rem' };
@@ -33,26 +34,26 @@ function Appearance() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.general.appearance.sectionTitle')}</Text>
-      <SequenceCard
-        className={SequenceCardStyle}
-        variant="SurfaceVariant"
-        direction="Column"
-        gap="400"
-      >
-        <SettingTile
-          title={t('featureUi.settings.general.appearance.systemTheme')}
-          description={t('featureUi.settings.general.appearance.systemThemeDescription')}
-          after={<Switch variant="Primary" value={useSystemTheme} onChange={setUseSystemTheme} />}
+
+
+
+
+
+
+
+
+
+
+
         />
         {!useSystemTheme && (
           <SettingTile
-            title={t('featureUi.settings.general.appearance.theme')}
+            title={t('settings.general.appearance.theme')}
             after={
               <select
                 style={selectStyle}
                 value={themeId ?? 'light-theme'}
-                aria-label={t('featureUi.settings.general.appearance.theme')}
+                aria-label={t('settings.general.appearance.theme')}
                 onChange={(event: ChangeEvent<HTMLSelectElement>) => setThemeId(event.target.value)}
               >
                 {THEMES.map((theme) => (
@@ -122,7 +123,7 @@ function Language() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.general.messages.sectionTitle')}</Text>
+      <Text size="L400">{t('settings.general.editor.sectionTitle')}</Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"
@@ -130,20 +131,22 @@ function Language() {
         gap="400"
       >
         <SettingTile
-          title={t('featureUi.settings.general.messages.enterForNewline')}
-          description={t('featureUi.settings.general.messages.enterForNewlineDescription')}
+          title={t('settings.general.editor.enterForNewline')}
+          description={t('settings.general.editor.enterForNewlineDescription', {
+            sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
+          })}
           after={<Switch variant="Primary" value={enterForNewline} onChange={setEnterForNewline} />}
         />
         <SettingTile
-          title={t('featureUi.settings.general.messages.markdown')}
+          title={t('settings.general.editor.markdownFormatting')}
           after={<Switch variant="Primary" value={isMarkdown} onChange={setIsMarkdown} />}
         />
         <SettingTile
-          title={t('featureUi.settings.general.messages.hour24Clock')}
+          title={t('settings.general.dateTime.hour24Clock')}
           after={<Switch variant="Primary" value={hour24Clock} onChange={setHour24Clock} />}
         />
         <SettingTile
-          title={t('featureUi.settings.general.messages.urlPreview')}
+          title={t('settings.general.messages.urlPreview')}
           after={<Switch variant="Primary" value={urlPreview} onChange={setUrlPreview} />}
         />
       </SequenceCard>
@@ -159,7 +162,7 @@ function Language() {
 
 
   return (
-    <SettingsPageFrame title={t('featureUi.settings.menu.general')} requestClose={requestClose}>
+    <SettingsPageFrame title={t('settings.nav.general')} requestClose={requestClose}>
       <Appearance />
       <Language />
       <MindroomInterfaceSettings className={SequenceCardStyle} />

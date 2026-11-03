@@ -25,7 +25,7 @@ export function SettingsPageFrame({ title, requestClose, children }: SettingsPag
 
 
               variant="Surface"
-              aria-label={t('featureUi.settings.close')}
+              aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
             >
               <Icon src={Icons.Cross} />
             </IconButton>

@@ -68,7 +68,7 @@ function AddChildMenu({ spaceId }: { spaceId: string }) {
                 openCreateRoom(spaceId);
               }}
             >
-              <Text size="T300">{t('featureUi.lobby.newRoom')}</Text>
+              <Text size="T300">{t('featureUi.lobby.spaceItem.addRoom')}</Text>
             </MenuItem>
             <MenuItem
               size="300"
@@ -78,7 +78,7 @@ function AddChildMenu({ spaceId }: { spaceId: string }) {
                 (openCreateSpace as (spaceId?: string) => void)(spaceId);
               }}
             >
-              <Text size="T300">{t('featureUi.lobby.newSpace')}</Text>
+              <Text size="T300">{t('featureUi.lobby.spaceItem.newSpace')}</Text>
             </MenuItem>
           </Menu>
         </FocusTrap>
@@ -87,7 +87,7 @@ function AddChildMenu({ spaceId }: { spaceId: string }) {
       <IconButton
         size="300"
         radii="Pill"
-        aria-label={t('featureUi.lobby.addToSpace')}
+        aria-label={t('featureUi.lobby.spaceItem.addRoom')}
         onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
           setAnchor(event.currentTarget.getBoundingClientRect())
         }

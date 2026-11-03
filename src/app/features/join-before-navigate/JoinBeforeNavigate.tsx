@@ -89,7 +89,7 @@ function SummaryCard({
           </Text>
           {summary.num_joined_members !== undefined && (
             <Text size="T200" priority="300">
-              {t('featureUi.joinBeforeNavigate.members', { count: summary.num_joined_members })}
+              {t('sharedUi.roomCard.members', { count: summary.num_joined_members })}
             </Text>
           )}
         </Box>
@@ -101,7 +101,7 @@ function SummaryCard({
       )}
       {blocked ? (
         <Text size="T300" style={{ color: color.Critical.Main }}>
-          {t('featureUi.joinBeforeNavigate.accessUnavailable')}
+          {t('sharedUi.roomCard.accessUnavailable')}
         </Text>
       ) : (
         <RoomAccessControl
@@ -127,9 +127,9 @@ function SummaryCard({
                 <Text size="B400" truncate>
                   {knock
                     ? access.requested
-                      ? t('featureUi.joinBeforeNavigate.requested')
-                      : t('featureUi.joinBeforeNavigate.requestToJoin')
-                    : t('featureUi.joinBeforeNavigate.join')}
+                      ? t('sharedUi.roomCard.requestSent')
+                      : t('sharedUi.roomCard.requestToJoin')
+                    : t('sharedUi.roomCard.join')}
                 </Text>
               </Button>
             </>
@@ -182,9 +182,8 @@ function SummaryCard({
             if (state.status === AsyncStatus.Error) {
               return (
                 <Box direction="Column" alignItems="Center" gap="300">
-                  <Text size="T300">{t('featureUi.joinBeforeNavigate.summaryFailed')}</Text>
                   <Button variant="Secondary" fill="Soft" radii="300" size="300" onClick={retry}>
-                    <Text size="B300">{t('featureUi.joinBeforeNavigate.retry')}</Text>
+                    <Text size="B300">{t('sharedUi.roomCard.retryRoomInfo')}</Text>
                   </Button>
                 </Box>
               );
@@ -192,7 +191,7 @@ function SummaryCard({
             return (
               <Box direction="Column" alignItems="Center" gap="300">
                 <Spinner variant="Secondary" size="400" />
-                <Text size="T300">{t('featureUi.joinBeforeNavigate.checkingAccess')}</Text>
+                <Text size="T300">{t('sharedUi.roomCard.checkingAccess')}</Text>
               </Box>
             );
           }}

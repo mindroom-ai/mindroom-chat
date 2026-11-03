@@ -12,7 +12,7 @@ export function ResetPassword() {
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
-        {t('featureUi.auth.resetPassword.title')}
+        {t('sharedUi.resetPassword.resetPassword')}
       </Text>
       <PasswordResetForm defaultEmail={searchParams.get('email') ?? undefined} />
       <Text align="Center">

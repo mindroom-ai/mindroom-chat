@@ -78,8 +78,8 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
                   <Input
                     name="searchInput"
                     defaultValue={term}
-                    placeholder={t('featureUi.explore.search')}
-                    aria-label={t('featureUi.explore.search')}
+                    placeholder={t('sharedUi.server.searchForKeyword')}
+                    aria-label={t('sharedUi.server.searchForKeyword')}
                     variant="SurfaceVariant"
                     size="500"
                     radii="400"
@@ -87,7 +87,7 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
                   />
                 </Box>
                 <Button type="submit" size="500" radii="400" variant="Secondary">
-                  <Text size="B400">{t('featureUi.explore.searchButton')}</Text>
+                  <Text size="B400">{t('sharedUi.server.search')}</Text>
                 </Button>
               </Box>
               {isLoading && (
@@ -97,12 +97,14 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
               )}
               {!!error && (
                 <Box className={css.PublicRoomsError}>
-                  <Text size="T300">{t('featureUi.explore.loadFailed')}</Text>
+                  <Text size="T300">
+                    {t('sharedUi.explore.failedToLoadPublicRoomsPleaseTryAgain')}
+                  </Text>
                 </Box>
               )}
               {!isLoading && !error && rooms.length === 0 && (
                 <Box className={css.RoomsInfoCard} justifyContent="Center">
-                  <Text size="T300">{t('featureUi.explore.noRooms')}</Text>
+                  <Text size="T300">{t('sharedUi.server.noCommunitiesFound')}</Text>
                 </Box>
               )}
               {rooms.length > 0 && (

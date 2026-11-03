@@ -48,57 +48,6 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
 
   const handleLeave = () => {
     void mx.leave(room.roomId);
-    requestClose();
-  };
-
-  return (
-
-
-        <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
-        <MenuItem
-          size="300"
-          radii="300"
-
-
-
-
-            {t('featureUi.roomNav.copyLink')}
-          </Text>
-        </MenuItem>
-        <MenuItem
-          size="300"
-          radii="300"
-          after={<Icon size="100" src={Icons.Setting} />}
-          onClick={() => {
-            openRoomSettings(room.roomId);
-            requestClose();
-          }}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            {t('featureUi.roomNav.roomSettings')}
-          </Text>
-        </MenuItem>
-        <MenuItem
-          size="300"
-          radii="300"
-          variant="Critical"
-          fill="None"
-
-
-
-
-            {t('featureUi.roomNav.leaveRoom')}
-          </Text>
-        </MenuItem>
-      </Box>
-    </Menu>
-  );
-}
-
-/**
- * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
- * while agents run background jobs in it, and a menu on hover or focus.
- */
 
 
 
@@ -117,27 +66,6 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
 
 
 
-  const backgroundJobs = useRoomBackgroundJobs(room);
-  const directAvatar = direct && showAvatar;
-  const avatarMxc = useRoomAvatar(room, directAvatar);
-
-  let avatarSrc: string | undefined;
-  if (avatarMxc) {
-    avatarSrc =
-      mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined;
-  } else if (directAvatar) {
-    // A person without an avatar shows the room's own one before initials.
-    avatarSrc = getRoomAvatarUrl(mx, room, AVATAR_SIZE, useAuthentication);
-  }
-
-  const muted = notificationMode === RoomNotificationMode.Mute;
-  const hasJobs = backgroundJobs.length > 0;
-  const unreadCount = unread?.total ?? 0;
-
-  return (
-    <NavItem
-      variant="Background"
-      radii="400"
 
 
 
@@ -149,23 +77,6 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
 
 
 
-                <RoomAvatar
-                  roomId={room.roomId}
-                  src={avatarSrc}
-                  alt={name}
-                  renderFallback={() => (
-                    <Text as="span" size="H6">
-                      {(name.trim()[0] ?? '#').toUpperCase()}
-                    </Text>
-                  )}
-                />
-              ) : (
-                <RoomAvatar
-                  roomId={room.roomId}
-                  src={avatarSrc}
-                  alt={name}
-                  renderFallback={() => (
-                    <RoomIcon size="100" joinRule={room.getJoinRule()} filled={selected} />
 
 
 
@@ -173,16 +84,105 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
 
 
 
-              </Text>
-            </Box>
-            {hasJobs && (
-              <IconTooltip label={t('featureUi.roomNav.backgroundJobs')}>
-                {(triggerRef) => (
-                  <Icon
-                    ref={triggerRef}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                     size="50"
                     src={Icons.Clock}
-                    aria-label={t('featureUi.roomNav.backgroundJobs')}
+                    aria-label={t('mindroomUi.backgroundJobs.inRoom')}
                     style={{ opacity: config.opacity.P500 }}
                   />
                 )}
@@ -195,7 +195,7 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
               <Icon
                 size="50"
                 src={Icons.Message}
-                aria-label={t('featureUi.roomNav.muted')}
+                aria-label={t('sharedUi.powerLevels.muted')}
                 style={{ opacity: config.opacity.P300 }}
               />
             )}
@@ -227,17 +227,17 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
                 setMenuAnchor(event.currentTarget.getBoundingClientRect())
               }
               aria-pressed={!!menuAnchor}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+              variant="Background"
+              fill="None"
+              size="300"
+              radii="300"
+            >
+              <Icon size="50" src={Icons.VerticalDots} />
+            </IconButton>
+          </PopOut>
+        </NavItemOptions>
+      )}
+    </NavItem>
+  );
+}

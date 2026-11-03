@@ -1,5 +1,8 @@
-import React, { useMemo } from 'react';
-import { Box, Text } from 'folds';
+import React, { useMemo, useState } from 'react';
+import { Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
+import type { RectCords } from 'folds';
+import FocusTrap from 'focus-trap-react';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -17,9 +20,12 @@ import { mDirectAtom } from '../../../state/mDirectList';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
+import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { stopPropagation } from '../../../utils/keyboard';
 import { getDirectRoomPath } from '../../pathUtils';
 
 /** The Direct Messages navigation: joined direct rooms by latest activity. */
+
 
 
 
@@ -42,17 +48,54 @@ import { getDirectRoomPath } from '../../pathUtils';
   return (
     <PageNav>
       <PageNavHeader>
-        <Box grow="Yes">
-          <Text size="H4" truncate>
-            {t('featureUi.sidebar.direct')}
-          </Text>
+        <Box alignItems="Center" grow="Yes" gap="300">
+          <Box grow="Yes">
+            <Text size="H4" truncate>
+              {t('nav.directMessages')}
+            </Text>
+          </Box>
+          <IconButton
+            aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+            variant="Background"
+            onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+              setMenuAnchor(event.currentTarget.getBoundingClientRect())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                }}
+              >
+
+
+                    <MindroomMarkRoomsReadMenuItem
+                      roomIds={directRooms.map((room) => room.roomId)}
+                      onClose={() => setMenuAnchor(undefined)}
+                    />
+                  </Box>
+                </Menu>
+              </FocusTrap>
+            }
+          />
         </Box>
       </PageNavHeader>
       <PageNavContent>
         <NavCategory>
           {directRooms.length === 0 && (
             <Text size="T300" priority="300" style={{ padding: '8px' }}>
-              {t('featureUi.direct.empty')}
+              {t('nav.noDirectMessagesDescription')}
             </Text>
           )}
           {directRooms.map((room) => (

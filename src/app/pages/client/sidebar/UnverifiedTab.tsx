@@ -43,13 +43,13 @@ import { SettingsPages } from '../../../features/settings/settingsPages';
 
   return (
     <SidebarItem>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.unverified')}>
+      <SidebarItemTooltip tooltip={t('nav.unverifiedDevice')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.unverified')}
+            aria-label={t('nav.unverifiedDevice')}
             onClick={() => setSettingsModal({ initialPage: SettingsPages.DevicesPage })}
           >
             <Icon src={Icons.ShieldUser} />

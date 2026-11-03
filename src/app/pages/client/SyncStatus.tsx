@@ -72,11 +72,11 @@ export function SyncStatus({ mx }: SyncStatusProps) {
   } else if (unreachable || syncFailed) {
     message =
       snapshot.current === SyncState.Reconnecting
-        ? t('featureUi.client.syncStatus.reconnecting')
-        : t('featureUi.client.syncStatus.connectionLost');
+        ? t('sharedUi.syncStatus.connectionLostReconnecting')
+        : t('sharedUi.syncStatus.connectionLost');
     critical = true;
   } else if (snapshot.catchingUp) {
-    message = t('featureUi.client.syncStatus.catchingUp');
+    message = t('sharedUi.syncStatus.catchingUp');
   }
 
   if (!message) return null;

@@ -100,7 +100,7 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
         {shownPacks.map((pack) => (
           <SettingTile
             key={pack.address?.stateKey ?? pack.id}
-            title={packName(pack, t('featureUi.settings.emojisStickers.serverPack.unnamed'))}
+            title={packName(pack, t('featureUi.settings.emojisStickers.serverPack.title'))}
             after={
               <Button
                 size="300"
@@ -109,7 +109,7 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
                 radii="300"
                 onClick={() => onViewPack(pack)}
               >
-                <Text size="B300">{t('featureUi.settings.emojisStickers.view')}</Text>
+                <Text size="B300">{t('featureUi.settings.emojisStickers.globalPacks.view')}</Text>
               </Button>
             }
           />

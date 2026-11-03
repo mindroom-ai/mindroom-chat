@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon, Icons } from 'folds';
+import type { RectCords } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +17,9 @@ import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
+import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getDirectPath, joinPathComponent } from '../../pathUtils';
+import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 
 type DirectTabProps = {
   onSelect?: (selected: boolean) => boolean;
@@ -30,7 +33,9 @@ export function DirectTab({ onSelect }: DirectTabProps) {
   const selected = useDirectSelected();
   const navToActivePath = useAtomValue(useNavToActivePathAtom());
   const directs = useAtomValue(mDirectAtom);
-  const unread = useRoomsUnread(Array.from(directs), roomToUnreadAtom);
+  const directRoomIds = Array.from(directs);
+  const unread = useRoomsUnread(directRoomIds, roomToUnreadAtom);
+  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleClick = () => {
     if (onSelect?.(selected)) return;
@@ -44,14 +49,15 @@ export function DirectTab({ onSelect }: DirectTabProps) {
 
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.direct')}>
+      <SidebarItemTooltip tooltip={t('nav.directMessages')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.direct')}
+            aria-label={t('nav.directMessages')}
             onClick={handleClick}
+            onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
 
 
@@ -60,8 +66,14 @@ export function DirectTab({ onSelect }: DirectTabProps) {
 
 
 
-        </SidebarItemBadge>
-      )}
+
+
+
+
+
+          onClose={() => setMenuAnchor(undefined)}
+        />
+      </SidebarContextMenu>
     </SidebarItem>
   );
 }

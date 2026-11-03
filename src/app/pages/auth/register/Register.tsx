@@ -1,65 +1,135 @@
-import React, { FormEventHandler, useMemo, useState } from 'react';
-import { Box, Button, Input, Spinner, Text } from 'folds';
+import React, { useMemo } from 'react';
+import { Box, Text } from 'folds';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { SSOAction, type IIdentityProvider } from 'matrix-js-sdk';
+import {
+  AuthFlowsLoader,
+  RegisterFlowStatus,
+  type AuthFlows,
+} from '../../../components/AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
-import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
-import { getLoginPath } from '../../pathUtils';
+import { useClientConfig } from '../../../hooks/useClientConfig';
+import {
+  getMindroomAuthSsoRedirectUrl,
+  shouldRequireAppleProvider,
+  shouldUseSsoOnlyRegistration,
+} from '../../../mindroom/auth/authUi';
+import { getLoginPath, getOriginBaseUrl } from '../../pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../addAccount';
 import { FieldError } from '../FiledError';
-import { CustomRegisterResponse, register, useRegisterComplete } from './registerUtil';
+import { SSOLogin } from '../SSOLogin';
+import { hasAppleIdentityProvider } from '../ssoProviders';
+import { PasswordRegisterForm, canRegisterWithPassword } from './PasswordRegisterForm';
 
-const isDummyOnly = (stages: string[]): boolean =>
-  stages.every((stage) => stage === 'm.login.dummy');
+const getSsoProviders = ({ loginFlows }: AuthFlows): IIdentityProvider[] | undefined => {
+  const sso = loginFlows.flows.find((flow) => flow.type === 'm.login.sso') as
+    | { identity_providers?: IIdentityProvider[] }
+    | undefined;
+  return sso ? sso.identity_providers ?? [] : undefined;
+};
 
-/** Creates an account with a username and password; dummy auth stages are answered directly. */
+type RegisterMethodsProps = {
+  server: string;
+  baseUrl: string;
+  authFlows: AuthFlows;
+  ssoRedirectUrl: string;
+};
+
+/** What this client can offer for sign-up on the server, after the MindRoom auth policy. */
+function RegisterMethods({ server, baseUrl, authFlows, ssoRedirectUrl }: RegisterMethodsProps) {
+  const { t } = useTranslation();
+  const { auth } = useClientConfig();
+  const { registerFlows } = authFlows;
+  const providers = getSsoProviders(authFlows);
+
+  if (shouldRequireAppleProvider(server, auth) && !hasAppleIdentityProvider(providers)) {
+    return (
+      <FieldError
+        message={t(
+          'sharedUi.register.thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider'
+        )}
+      />
+    );
+  }
+
+  if (shouldUseSsoOnlyRegistration(server)) {
+    if (!providers) {
+      return (
+        <FieldError
+          message={t(
+            'sharedUi.register.ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere'
+          )}
+        />
+      );
+    }
+    return (
+      <Box direction="Column" gap="400">
+        <Text size="T300">
+          {t('sharedUi.register.thisHomeserverOnlyAllowsSignUpWithAppleGoogleOrGithub')}
+        </Text>
+        <SSOLogin providers={providers} redirectUrl={ssoRedirectUrl} action={SSOAction.REGISTER} />
+      </Box>
+    );
+  }
+
+  if (registerFlows.status === RegisterFlowStatus.Disabled) {
+    return (
+      <FieldError message={t('sharedUi.register.registrationHasBeenDisabledOnThisHomeserver')} />
+    );
+  }
+  if (registerFlows.status === RegisterFlowStatus.RateLimited) {
+    return (
+      <FieldError message={t('sharedUi.register.youHaveBeenRateLimitedPleaseTryAfterSomeTime')} />
+    );
+  }
+  if (registerFlows.status !== RegisterFlowStatus.FlowRequired) {
+    return (
+      <FieldError
+        message={t('sharedUi.register.invalidRequestFailedToGetAnyRegistrationOptions')}
+      />
+    );
+  }
+
+  const passwordSupported = canRegisterWithPassword(registerFlows.data);
+  if (!passwordSupported && !providers) {
+    return (
+      <FieldError
+        message={t('sharedUi.register.thisApplicationDoesNotSupportRegistrationOnThisHomeserver')}
+      />
+    );
+  }
+  return (
+    <Box direction="Column" gap="400">
+      {passwordSupported && <PasswordRegisterForm baseUrl={baseUrl} />}
+      {providers && (
+        <SSOLogin
+          providers={providers}
+          redirectUrl={ssoRedirectUrl}
+          action={SSOAction.REGISTER}
+          saveScreenSpace={passwordSupported}
+        />
+      )}
+    </Box>
+  );
+}
+
+/** Creates an account with a password or through single sign-on. */
 export function Register() {
   const { t } = useTranslation();
   const { server } = useOutletContext<{ server: string }>();
   const baseUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
-  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
+  const { hashRouter } = useClientConfig();
   const [searchParams] = useSearchParams();
   const addAccount = isAddAccountSearch(searchParams);
-  const [result, setResult] = useState<CustomRegisterResponse>();
-  const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const storeFailed = useRegisterComplete(result);
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();
-    const target = event.target as HTMLFormElement & {
-
-
-
-    };
-    const username = target.usernameInput.value.trim();
-    const password = target.passwordInput.value;
-    if (password !== target.confirmPasswordInput.value) {
-      setError(t('featureUi.auth.register.passwordsDoNotMatch'));
-      return;
-    }
-    setBusy(true);
-    setError(undefined);
-    try {
-      const data = { username, password, initial_device_display_name: 'MindRoom Client' };
-      let attempt = await register(mx, data);
-      if (attempt.kind === 'uia') {
-        const flow = attempt.authData.flows?.find((item) => isDummyOnly(item.stages));
-        if (!flow) {
-          setError(t('featureUi.auth.register.unsupportedStages'));
-          return;
-        }
-        attempt = await register(mx, {
-          ...data,
-          auth: { type: 'm.login.dummy', session: attempt.authData.session },
-        });
-      }
-      if (attempt.kind === 'success') setResult({ baseUrl, response: attempt.response });
-      else if (attempt.kind === 'error') setError(attempt.message ?? attempt.error);
-      else setError(t('featureUi.auth.register.unsupportedStages'));
-    } finally {
-      setBusy(false);
-    }
+  // A completed SSO sign-up returns with a login token, which the login page exchanges.
+  const ssoRedirectUrl = useMemo(
+    () =>
+      getMindroomAuthSsoRedirectUrl(
+        `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(getLoginPath(server), addAccount)}`
+      ),
+    [hashRouter, server, addAccount]
 
 
 
@@ -67,62 +137,16 @@ export function Register() {
 
 
       </Text>
-      {storeFailed && <FieldError message={t('featureUi.auth.storeFailed')} />}
-      <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
-        <Box direction="Column" gap="100">
-          <Text as="label" size="L400" priority="300">
-            {t('featureUi.auth.login.username')}
-          </Text>
-          <Input
-            name="usernameInput"
-            variant="Background"
-            size="500"
-            required
-            outlined
-            autoComplete="username"
+      <AuthFlowsLoader>
+
+
+
+
+            authFlows={authFlows}
+            ssoRedirectUrl={ssoRedirectUrl}
           />
-        </Box>
-        <Box direction="Column" gap="100">
-          <Text as="label" size="L400" priority="300">
-            {t('featureUi.auth.login.password')}
-          </Text>
-          <Input
-            name="passwordInput"
-            type="password"
-            variant="Background"
-            size="500"
-            required
-            outlined
-            autoComplete="new-password"
-          />
-        </Box>
-        <Box direction="Column" gap="100">
-          <Text as="label" size="L400" priority="300">
-            {t('featureUi.auth.register.confirmPassword')}
-          </Text>
-          <Input
-            name="confirmPasswordInput"
-            type="password"
-            variant="Background"
-            size="500"
-            required
-            outlined
-            autoComplete="new-password"
-          />
-        </Box>
-        {error && <FieldError message={error} />}
-        <Button
-          type="submit"
-          variant="Primary"
-          size="500"
-          disabled={busy}
-          before={busy ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
-        >
-          <Text as="span" size="B500">
-            {t('featureUi.auth.register.submit')}
-          </Text>
-        </Button>
-      </Box>
+        )}
+      </AuthFlowsLoader>
       <Text align="Center">
         <Trans
           i18nKey="sharedUi.register.accountLink"

@@ -103,7 +103,10 @@ export function RoomItemCard({
         )}
         {summary?.num_joined_members !== undefined && (
           <Text size="T200" priority="300">
-            {t('featureUi.lobby.members', { count: summary.num_joined_members })}
+            {t('featureUi.lobby.roomItem.memberCount', {
+              count: summary.num_joined_members,
+              formattedCount: summary.num_joined_members.toLocaleString(),
+            })}
           </Text>
         )}
       </Box>
@@ -117,7 +120,7 @@ export function RoomItemCard({
               size="300"
               onClick={() => onOpen(roomId)}
             >
-              <Text size="B300">{t('featureUi.lobby.open')}</Text>
+              <Text size="B300">{t('featureUi.lobby.roomItem.openRoom')}</Text>
             </Button>
           ) : (
             <LobbyAccessButton

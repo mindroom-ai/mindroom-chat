@@ -13,13 +13,13 @@ export function ThreadsTab() {
   const selected = useThreadsSelected();
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.threads')}>
+      <SidebarItemTooltip tooltip={t('nav.threads')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.threads')}
+            aria-label={t('nav.threads')}
             onClick={() => navigate(getThreadsPath())}
           >
             <Icon src={Icons.Thread} filled={selected} />

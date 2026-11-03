@@ -187,7 +187,7 @@ export function InviteCard({
       {invite.senderName && (
         <Text size="T200">
           <Trans
-            i18nKey="featureUi.inbox.invites.invitedBy"
+            i18nKey="sharedUi.invites.from"
             values={{ sender: invite.senderName }}
             components={{ b: <b title={invite.senderId} /> }}
           />
@@ -195,7 +195,7 @@ export function InviteCard({
       )}
       {state === 'error' && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {t('featureUi.inbox.invites.failed')}
+          {t('sharedUi.invites.actionFailed')}
         </Text>
       )}
       <Box gap="200">
@@ -208,7 +208,7 @@ export function InviteCard({
           onClick={handleAccept}
           before={state === 'joining' ? <Spinner size="100" variant="Success" /> : undefined}
         >
-          <Text size="B300">{t('featureUi.inbox.invites.accept')}</Text>
+          <Text size="B300">{t('sharedUi.invites.accept')}</Text>
         </Button>
         <Button
           size="300"
@@ -219,7 +219,7 @@ export function InviteCard({
           onClick={handleDecline}
           before={state === 'leaving' ? <Spinner size="100" variant="Critical" /> : undefined}
         >
-          <Text size="B300">{t('featureUi.inbox.invites.decline')}</Text>
+          <Text size="B300">{t('sharedUi.invites.decline')}</Text>
         </Button>
       </Box>
     </SequenceCard>
@@ -264,7 +264,7 @@ export function InviteCard({
   return (
     <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-        <Text size="H4">{t('featureUi.inbox.invites.title')}</Text>
+        <Text size="H4">{t('sharedUi.invites.invites')}</Text>
         {invites.length > 1 && (
           <Button
             size="300"
@@ -274,11 +274,11 @@ export function InviteCard({
             disabled={acceptingAll}
             onClick={handleAcceptAll}
           >
-            <Text size="B300">{t('featureUi.inbox.invites.acceptAll')}</Text>
+            <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
           </Button>
         )}
       </Box>
-      {invites.length === 0 && <Text size="T300">{t('featureUi.inbox.invites.empty')}</Text>}
+      {invites.length === 0 && <Text size="T300">{t('sharedUi.invites.noInvites')}</Text>}
 
 
 

@@ -10,13 +10,13 @@ export function CreateTab() {
   const openCreateSpace = useOpenCreateSpaceModal() as () => void;
   return (
     <SidebarItem>
-      <SidebarItemTooltip tooltip={t('featureUi.sidebar.createSpace')}>
+      <SidebarItemTooltip tooltip={t('nav.createSpace')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('featureUi.sidebar.createSpace')}
+            aria-label={t('nav.createSpace')}
             onClick={() => openCreateSpace()}
           >
             <Icon src={Icons.Plus} />

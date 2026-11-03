@@ -38,12 +38,13 @@ const formatBytes = (bytes: number): string => {
 };
 
 const PAUSE_MESSAGE_KEYS = {
-  space: 'featureUi.roomSettings.offline.pausedSpace',
-  'read-only': 'featureUi.roomSettings.offline.pausedReadOnly',
-  offline: 'featureUi.roomSettings.offline.pausedOffline',
-  limited: 'featureUi.roomSettings.offline.pausedLimited',
-  error: 'featureUi.roomSettings.offline.pausedError',
-  unavailable: 'featureUi.roomSettings.offline.unavailable',
+  space: 'featureUi.roomSettings.general.offline.spacePause',
+  'read-only': 'featureUi.roomSettings.general.offline.readOnlyPause',
+  offline: 'featureUi.roomSettings.general.offline.offlinePause',
+  hidden: 'featureUi.roomSettings.general.offline.backgroundPause',
+  limited: 'featureUi.roomSettings.general.offline.connectionPause',
+  error: 'featureUi.roomSettings.general.offline.errorPause',
+  unavailable: 'featureUi.roomSettings.general.offline.unavailable',
 } as const;
 
 const useOfflineRoomSnapshot = (roomId: string): OfflineRoomSnapshot => {
@@ -81,11 +82,11 @@ function ClearContentDialog({
 
 
 
-
-
-
-
-
+              variant="Surface"
+              size="500"
+            >
+              <Box grow="Yes">
+                <Text size="H4">{t('featureUi.roomSettings.general.offline.clearTitle')}</Text>
               </Box>
               <IconButton
                 size="300"
@@ -99,23 +100,27 @@ function ClearContentDialog({
 
 
 
-
-
-
-
-
-
-
-
+              </Text>
+              {failed && (
+                <Text style={{ color: color.Critical.Main }}>
+                  {t('featureUi.roomSettings.general.offline.clearFailed')}
+                </Text>
+              )}
+              <Box direction="Column" gap="200">
+                <Button
+                  variant="Critical"
+                  onClick={onConfirm}
                   disabled={clearing}
                   before={
                     clearing ? <Spinner size="100" variant="Critical" fill="Solid" /> : undefined
                   }
                 >
-                  <Text size="B400">{t('featureUi.roomSettings.offline.clearConfirm')}</Text>
+                  <Text size="B400">
+                    {t('featureUi.roomSettings.general.offline.clearConfirm')}
+                  </Text>
                 </Button>
                 <Button variant="Secondary" fill="Soft" onClick={onCancel} disabled={clearing}>
-                  <Text size="B400">{t('featureUi.roomSettings.offline.cancel')}</Text>
+                  <Text size="B400">{t('featureUi.roomSettings.general.offline.cancel')}</Text>
                 </Button>
               </Box>
             </Box>
@@ -163,29 +168,45 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
   };
 
   const pauseKey = PAUSE_MESSAGE_KEYS[snapshot.status as keyof typeof PAUSE_MESSAGE_KEYS];
+  let progressKey:
+    | 'featureUi.roomSettings.general.offline.checking'
+    | 'featureUi.roomSettings.general.offline.downloading'
+    | 'featureUi.roomSettings.general.offline.notSaved'
+    | undefined;
+  if (!snapshot.loaded) progressKey = 'featureUi.roomSettings.general.offline.checking';
+  else if (snapshot.downloading && !pauseKey)
+    progressKey = 'featureUi.roomSettings.general.offline.downloading';
+  else if (snapshot.savedEvents === 0)
+    progressKey = 'featureUi.roomSettings.general.offline.notSaved';
   const details: string[] = [];
-  if (!snapshot.historyComplete) details.push(t('featureUi.roomSettings.offline.historyPartial'));
-  if (snapshot.hasGap) details.push(t('featureUi.roomSettings.offline.historyGap'));
+  if (!snapshot.historyComplete)
+    details.push(t('featureUi.roomSettings.general.offline.partialHistory'));
+  if (snapshot.hasGap)
+    details.push(t('featureUi.roomSettings.general.offline.inaccessibleHistory'));
   if (snapshot.undecryptedEvents > 0) {
     details.push(
-      t('featureUi.roomSettings.offline.undecrypted', { count: snapshot.undecryptedEvents })
+      t('featureUi.roomSettings.general.offline.waitingForKeys', {
+        count: snapshot.undecryptedEvents,
+      })
     );
   }
   if (snapshot.unresolvedRelations > 0) {
     details.push(
-      t('featureUi.roomSettings.offline.unresolvedRelations', {
+      t('featureUi.roomSettings.general.offline.unresolvedRelations', {
         count: snapshot.unresolvedRelations,
       })
     );
   }
   if (snapshot.missingEssential > 0) {
     details.push(
-      t('featureUi.roomSettings.offline.missingEssential', { count: snapshot.missingEssential })
+      t('featureUi.roomSettings.general.offline.missingEssential', {
+        count: snapshot.missingEssential,
+      })
     );
   }
   if (snapshot.saved > 0 || snapshot.missing > 0) {
     details.push(
-      t('featureUi.roomSettings.offline.attachments', {
+      t('featureUi.roomSettings.general.offline.attachments', {
         saved: snapshot.saved,
         missing: snapshot.missing,
       })
@@ -195,8 +216,8 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
   return (
     <Box direction="Column" gap="300">
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.roomSettings.offline.title')}</Text>
-        <Text size="T200">{t('featureUi.roomSettings.offline.description')}</Text>
+        <Text size="L400">{t('featureUi.roomSettings.general.offline.title')}</Text>
+        {progressKey && <Text size="T200">{t(progressKey)}</Text>}
       </Box>
       {pauseKey && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
@@ -205,10 +226,14 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
       )}
       <Box direction="Column" gap="100">
         <Text size="T200">
-          {t('featureUi.roomSettings.offline.savedEvents', { count: snapshot.savedEvents })}
+          {t('featureUi.roomSettings.general.offline.historyEntries', {
+            count: snapshot.savedEvents,
+          })}
         </Text>
         <Text size="T200">
-          {t('featureUi.roomSettings.offline.storageUsed', { size: formatBytes(snapshot.bytes) })}
+          {t('featureUi.roomSettings.general.offline.storageUsed', {
+            size: formatBytes(snapshot.bytes),
+          })}
         </Text>
         {details.map((detail) => (
           <Text key={detail} size="T200">
@@ -217,9 +242,9 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
         ))}
       </Box>
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-        <Text size="T300">{t('featureUi.roomSettings.offline.includeAllMedia')}</Text>
+        <Text size="T300">{t('featureUi.roomSettings.general.offline.includeAllMedia')}</Text>
         <Switch
-          aria-label={t('featureUi.roomSettings.offline.includeAllMedia')}
+          aria-label={t('featureUi.roomSettings.general.offline.includeAllMedia')}
           value={includeAllMedia}
           onChange={setIncludeAllMedia}
           disabled={snapshot.downloading}
@@ -227,24 +252,26 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
       </Box>
       <Box gap="200" wrap="Wrap">
         {snapshot.downloading ? (
-
-
-
-
-
-
-
-
+          <Button
+            variant="Secondary"
+            fill="Soft"
+            size="300"
+            radii="300"
+            onClick={() => offline.cancel(roomId)}
+          >
+            <Text size="B300">{t('featureUi.roomSettings.general.offline.cancelDownload')}</Text>
           </Button>
         ) : (
           <Button
-
-
-
-
-
-
-
+            variant="Primary"
+            fill="Soft"
+            size="300"
+            radii="300"
+            onClick={() => offline.download(roomId, { includeAllMedia })}
+          >
+            <Text size="B300">
+              {t('featureUi.roomSettings.general.offline.downloadEntireRoom')}
+            </Text>
           </Button>
         )}
         <Button
@@ -257,23 +284,27 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
             setConfirmClear(true);
           }}
         >
-          <Text size="B300">{t('featureUi.roomSettings.offline.clear')}</Text>
+          <Text size="B300">
+            {t('featureUi.roomSettings.general.offline.clearDownloadedContent')}
+          </Text>
         </Button>
       </Box>
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
         <Box direction="Column">
-          <Text size="T300">{t('featureUi.roomSettings.offline.keepOffline')}</Text>
-          <Text size="T200">{t('featureUi.roomSettings.offline.keepOfflineDescription')}</Text>
+          <Text size="T300">{t('featureUi.roomSettings.general.offline.keepOffline')}</Text>
+          <Text size="T200">
+            {t('featureUi.roomSettings.general.offline.keepOfflineDescription')}
+          </Text>
         </Box>
         <Switch
-          aria-label={t('featureUi.roomSettings.offline.keepOffline')}
+          aria-label={t('featureUi.roomSettings.general.offline.keepOffline')}
           value={snapshot.pinned}
           onChange={handlePinned}
         />
       </Box>
       {pinFailed && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {t('featureUi.roomSettings.offline.pinFailed')}
+          {t('featureUi.roomSettings.general.offline.pinFailed')}
         </Text>
       )}
       {confirmClear && (

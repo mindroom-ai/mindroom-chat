@@ -98,7 +98,12 @@ const pushActiveSession = (): void => {
  */
 const recoverServiceWorkerControl = async (): Promise<void> => {
   if (!getActiveSession()) return;
-  if (window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') return;
+  let alreadyReloaded = true;
+  runSafely('recovery reload marker', () => {
+    alreadyReloaded = window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1';
+  });
+  // Without a readable marker a reload could loop, so stay on this page.
+  if (alreadyReloaded) return;
   if (await waitForServiceWorkerControl()) return;
 
   const url = new URL(window.location.href);
@@ -109,7 +114,11 @@ const recoverServiceWorkerControl = async (): Promise<void> => {
     // Without a way to mark the navigation, a reload could loop; stay on this page.
     return;
   }
-  window.sessionStorage.setItem(SW_CONTROL_RELOAD_KEY, '1');
+  try {
+    window.sessionStorage.setItem(SW_CONTROL_RELOAD_KEY, '1');
+  } catch {
+    return;
+  }
   window.location.reload();
 };
 
@@ -158,9 +167,10 @@ const startServiceWorker = (): void => {
 
 startDiagnostics();
 prepareDocument();
-if (typeof window !== 'undefined' && window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') {
-  runSafely('recovery marker', clearRecoveryMarker);
-}
+runSafely('recovery marker', () => {
+  // Reading sessionStorage throws where site data is blocked; startup must go on.
+  if (window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') clearRecoveryMarker();
+});
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

@@ -10,10 +10,7 @@ import { SystemNotification } from './SystemNotification';
 
 
   return (
-    <SettingsPageFrame
-      title={t('featureUi.settings.menu.notifications')}
-      requestClose={requestClose}
-    >
+    <SettingsPageFrame title={t('settings.nav.notifications')} requestClose={requestClose}>
       <SystemNotification />
     </SettingsPageFrame>
   );
