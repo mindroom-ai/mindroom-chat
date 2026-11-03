@@ -128,6 +128,7 @@ import {
   useThreadApprovalTimeline,
 } from './useThreadApprovalTimeline';
 import { shouldAutoPaginateThreadBack } from './threadRenderUtils';
+import { countCacheProbe } from './cacheProbe';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { isScrollNearBottom, isTimelineAtLiveEnd } from './timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
@@ -1374,7 +1375,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
         hasUserScrollIntent: current.hasUserScrollIntent,
         triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
       });
-      if (shouldPaginate) void current.paginateBack();
+      if (!shouldPaginate) return;
+      // The probe tells this trigger apart from the open's own history pages.
+      countCacheProbe('threadAutoPaginateBackFired');
+      void current.paginateBack();
     };
     scrollElement.addEventListener('scroll', checkTop, { passive: true });
     return () => scrollElement.removeEventListener('scroll', checkTop);
