@@ -1,64 +1,92 @@
-import React, { FormEventHandler, ReactNode, useEffect, useState } from 'react';
-import { Box, Input, Scroll, Spinner, Text, color } from 'folds';
+import React, { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import { Box, Button, Input, Scroll, Spinner, Text, color } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
 import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../components/particle-background';
-import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import { autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
+import { AutoDiscoveryAction, autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
 import { AuthServerProvider } from '../../hooks/useAuthServer';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { useActiveSession } from '../../hooks/useSessionStore';
 import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 import { createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
 import { decodeRouteParam } from '../pathUtils';
 import { resolveAuthRouteRedirect } from '../routeSessionGuards';
-import { buildAuthRoutePath, resolveAuthServer } from './authRouteUtils';
+import { resolveAddAccountReturnPath } from './addAccount';
+import { buildAuthRoutePath, isServerChoiceLocked, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
 import * as css from './styles.css';
 
 const DEFAULT_SERVER = 'mindroom.chat';
 
+/** The configured servers, offered as suggestions in the free-text server field. */
+const SERVER_LIST_ID = 'auth-server-list';
+
 type DiscoveryState =
   | { status: 'loading' }
   | { status: 'ready'; info: AutoDiscoveryInfo }
-  | { status: 'error'; server: string };
+  | { status: 'error'; server: string; action: AutoDiscoveryAction };
 
 const useDefaultServer = (): string => {
   const { homeserverList, defaultHomeserver } = useClientConfig();
   return homeserverList?.[defaultHomeserver ?? 0] ?? homeserverList?.[0] ?? DEFAULT_SERVER;
 };
 
-/**
- * Whether the deployment pins sign-in to its configured homeservers: custom
- * servers are off, or the picker is hidden because only one server is listed.
- */
-const useServerLocked = (): boolean => {
-  const { homeserverList, allowCustomHomeservers, auth } = useClientConfig();
-  return (
-    allowCustomHomeservers === false ||
-    (auth?.hideServerPickerWhenSingle === true && (homeserverList?.length ?? 0) === 1)
-  );
-};
+const useServerLocked = (): boolean => isServerChoiceLocked(useClientConfig());
 
-const useServerDiscovery = (server: string): DiscoveryState => {
+/** The server's well-known answer; `retry` asks again after a failure. */
+const useServerDiscovery = (server: string): [DiscoveryState, () => void] => {
   const [state, setState] = useState<DiscoveryState>({ status: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });
     autoDiscovery(createMatrixFetchFn(fetch), server).then(([error, info]) => {
       if (cancelled) return;
-      setState(info && !error ? { status: 'ready', info } : { status: 'error', server });
+      if (info && !error) setState({ status: 'ready', info });
+      else
+        setState({
+          status: 'error',
+          server,
+          action: error?.action ?? AutoDiscoveryAction.FAIL_PROMPT,
+        });
     });
     return () => {
       cancelled = true;
     };
-  }, [server]);
-  return state;
+  }, [server, attempt]);
+  const retry = useCallback(() => setAttempt((count) => count + 1), []);
+  return [state, retry];
 };
+
+type DiscoveryFailureProps = { failure: AutoDiscoveryAction; retry: () => void };
+
+/** Why the server could not be used, and a way to try it again. */
+function DiscoveryFailure(props: DiscoveryFailureProps) {
+  const { t } = useTranslation();
+  const insecure = props.failure === AutoDiscoveryAction.FAIL_INSECURE;
+  return (
+    <Box direction="Column" alignItems="Start" gap="200" role="alert">
+      <Text style={{ color: color.Critical.Main }} size="T300">
+        {insecure
+          ? t('sharedUi.authLayout.onlyHttpsServersAreAllowedHttpIsSupportedForLocalNetworkServers')
+          : t('sharedUi.authLayout.failedToConnectEitherServerIsUnavailableAtThisMomentOrDoes')}
+      </Text>
+      {!insecure && (
+        <Button variant="Secondary" fill="Soft" size="300" radii="300" onClick={props.retry}>
+          <Text as="span" size="B300">
+            {t('sharedUi.authFlowsLoader.retry')}
+          </Text>
+        </Button>
+      )}
+    </Box>
+  );
+}
 
 function ServerPicker({
   server,
@@ -98,19 +126,30 @@ function ServerPicker({
           ))}
         </select>
       ) : (
-        <Input
-          key={server}
-          name="serverInput"
-          defaultValue={server}
-          aria-label={t('sharedUi.serverPicker.server')}
-          variant="Background"
-          size="500"
-          outlined
-          onBlur={(event) => {
-            const value = event.currentTarget.value.trim();
-            if (value && value !== server) onChange(value);
-          }}
-        />
+        <>
+          <Input
+            key={server}
+            name="serverInput"
+            defaultValue={server}
+            aria-label={t('sharedUi.serverPicker.server')}
+            list={homeserverList && homeserverList.length > 1 ? SERVER_LIST_ID : undefined}
+            autoComplete="off"
+            variant="Background"
+            size="500"
+            outlined
+            onBlur={(event) => {
+              const value = event.currentTarget.value.trim();
+              if (value && value !== server) onChange(value);
+            }}
+          />
+          {homeserverList && homeserverList.length > 1 && (
+            <datalist id={SERVER_LIST_ID} aria-label={t('sharedUi.serverPicker.serverList')}>
+              {homeserverList.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+          )}
+        </>
       )}
     </Box>
   );
@@ -145,7 +184,10 @@ export function AuthLayout() {
   const { auth, homeserverList } = useClientConfig();
   const requestedServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
-  const discovery = useServerDiscovery(server);
+  const [discovery, retryDiscovery] = useServerDiscovery(server);
+  const activeSession = useActiveSession();
+  // Adding an account can be abandoned: back to where the signed-in account was.
+  const returnPath = resolveAddAccountReturnPath(search, activeSession);
 
   const homeRedirect =
     typeof window !== 'undefined' ? resolveAuthRouteRedirect(window.location.href) : null;
@@ -195,9 +237,7 @@ export function AuthLayout() {
             </Box>
           )}
           {discovery.status === 'error' && (
-            <Text style={{ color: color.Critical.Main }} size="T300">
-              {t('sharedUi.authLayout.failedToFindServer')}
-            </Text>
+            <DiscoveryFailure failure={discovery.action} retry={retryDiscovery} />
           )}
           {discovery.status === 'ready' && (
             <AuthServerProvider value={server}>
@@ -205,6 +245,11 @@ export function AuthLayout() {
                 <Outlet context={{ server }} />
               </AutoDiscoveryInfoProvider>
             </AuthServerProvider>
+          )}
+          {returnPath && (
+            <Text align="Center" size="T300">
+              <Link to={returnPath}>{t('sharedUi.authLayout.backToCurrentAccount')}</Link>
+            </Text>
           )}
         </Box>
       </Box>

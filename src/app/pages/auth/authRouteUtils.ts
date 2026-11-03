@@ -54,3 +54,26 @@ export const resolveAuthServer = (
   const normalized = server.toLowerCase();
   return homeserverList?.find((item) => item.toLowerCase() === normalized) ?? defaultServer;
 };
+
+type ServerChoiceConfig = {
+  homeserverList?: readonly string[];
+  allowCustomHomeservers?: boolean;
+  auth?: { hideServerPickerWhenSingle?: boolean };
+};
+
+/**
+ * Whether the deployment pins sign-in to its configured homeservers: custom servers are off, or
+ * the picker is hidden because only one server is listed.
+ */
+export const isServerChoiceLocked = ({
+  homeserverList,
+  allowCustomHomeservers,
+  auth,
+}: ServerChoiceConfig): boolean =>
+  allowCustomHomeservers === false ||
+  (auth?.hideServerPickerWhenSingle === true && (homeserverList?.length ?? 0) === 1);
+
+/** Whether a sign-in may go to `server`: any server, or one of the listed ones when locked. */
+export const isServerChoiceAllowed = (config: ServerChoiceConfig, server: string): boolean =>
+  !isServerChoiceLocked(config) ||
+  (config.homeserverList ?? []).some((item) => item.toLowerCase() === server.toLowerCase());
