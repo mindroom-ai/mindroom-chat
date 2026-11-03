@@ -90,7 +90,7 @@ export const useCallFailureNotice = (
 
     return () => {
       active = false;
-      mx.off(RoomEvent.Timeline, handleTimelineEvent);
+      mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
     };
   }, [joined, mx, room, startedAfterTs]);
 
