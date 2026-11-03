@@ -62,6 +62,25 @@ samp {
   font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
 }
 
+/*
+ * Links in running text, such as the welcome page credits: each theme's Primary.Main from
+ * src/colors.css.ts, for markup that cannot import the folds colour contract.
+ */
+:root,
+.light-theme,
+.silver-theme {
+  --mr-link-color: #694ccd;
+}
+
+.dark-theme,
+.midnight-theme {
+  --mr-link-color: #9b85f0;
+}
+
+.butter-theme {
+  --mr-link-color: #e3c46b;
+}
+
 /* Scrollbars: a thumb that stays visible on every track of the theme. */
 :root,
 .light-theme,
