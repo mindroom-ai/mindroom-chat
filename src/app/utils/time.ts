@@ -18,9 +18,10 @@ export const today = (ts: number): boolean => inSameDay(ts, Date.now());
 
 export const yesterday = (ts: number): boolean => inSameDay(ts, Date.now() - daysToMs(1));
 
+// Two-digit hours on both clocks ("08:44 PM"), so the times down a timeline line up.
 export const timeHourMinute = (ts: number, hour24Clock = false, language?: string): string =>
   new Intl.DateTimeFormat(language, {
-    hour: hour24Clock ? '2-digit' : 'numeric',
+    hour: '2-digit',
     minute: '2-digit',
     hour12: !hour24Clock,
   }).format(ts);
