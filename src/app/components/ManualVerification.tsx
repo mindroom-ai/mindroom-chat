@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useCallback, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Chip, Icon, Icons, PopOut, RectCords, Spinner, Text, color, config } from 'folds';
@@ -9,6 +9,7 @@ import {
   SecretStorageRecoveryKey,
   SecretStorageRecoveryPassphrase,
 } from './SecretStorage';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { storePrivateKey } from '../../client/secretStorageKeys';
@@ -21,6 +22,19 @@ enum VerificationMethod {
   RecoveryKey = 'recovery-key',
   RecoveryPassphrase = 'recovery-passphrase',
 }
+
+/** Escape closes only the menu, not a dialog the tile sits in. */
+const keepEscapeInsideMenu = (evt: KeyboardEvent) => {
+  evt.stopPropagation();
+  return true;
+};
+
+const menuTrapOptions = (close: () => void): FocusTrap.Props['focusTrapOptions'] => ({
+  initialFocus: false,
+  clickOutsideDeactivates: true,
+  escapeDeactivates: keepEscapeInsideMenu,
+  onDeactivate: close,
+});
 
 type MethodSwitcherProps = {
   value: VerificationMethod;
@@ -61,23 +75,12 @@ function ManualVerificationMethodSwitcher({ value, hasPassphrase, onChange }: Me
         <Text size="B300">{label(value)}</Text>
       </Chip>
       <PopOut
-
-
-
-
-
-
-
-
-
-
-              // Escape closes only the menu, not a dialog the tile sits in.
-              escapeDeactivates: (evt: KeyboardEvent) => {
-                evt.stopPropagation();
-                return true;
-              },
-            }}
-          >
+        anchor={menuAnchor}
+        position="Bottom"
+        align="End"
+        offset={4}
+        content={
+          <FocusTrap focusTrapOptions={menuTrapOptions(() => setMenuAnchor(undefined))}>
             <Menu role="menu">
               <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
                 {methods.map((method) => (
@@ -101,34 +104,52 @@ function ManualVerificationMethodSwitcher({ value, hasPassphrase, onChange }: Me
   );
 }
 
+type VerificationStatusProps = {
+  tone: 'Success' | 'Critical';
+  children: ReactNode;
+};
 
+function VerificationStatus({ tone, children }: VerificationStatusProps) {
+  return (
+    <Text size="T200" style={{ color: color[tone].Main }}>
+      <b>{children}</b>
+    </Text>
+  );
+}
 
+/** Caches the recovery key, then lets the SDK unlock cross-signing and key backup with it. */
+async function unlockWithRecoveryKey(
+  client: MatrixClient,
+  keyId: string,
+  recoveryKey: Uint8Array
+): Promise<void> {
+  const crypto = client.getCrypto();
+  if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
+  storePrivateKey(keyId, recoveryKey);
+  // With the key cached, bootstrapping imports the account's cross-signing keys from
+  // secret storage and signs this device with them.
+  await crypto.bootstrapCrossSigning({});
+  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
+  await crypto.checkKeyBackupAndEnable();
+}
 
+type TileProps = {
+  secretStorageKeyId: string;
+  secretStorageKeyContent: SecretStorageKeyContent;
+};
 
-
-
-
-
-
-
-
-
-  const passphraseContent = secretStorageKeyContent.passphrase;
+/** Verifies this device by unlocking secret storage with the recovery key or passphrase. */
+export function ManualVerificationTile(props: TileProps) {
+  const { secretStorageKeyId: keyId, secretStorageKeyContent: keyContent } = props;
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const passphraseContent = keyContent.passphrase;
   const [method, setMethod] = useState(VerificationMethod.RecoveryKey);
 
   const [verifyState, verify] = useAsyncCallback(
-
-
-
-        if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
-        storePrivateKey(secretStorageKeyId, recoveryKey);
-        // With the key cached, bootstrapping imports the account's cross-signing keys from
-        // secret storage and signs this device with them.
-        await crypto.bootstrapCrossSigning({});
-        await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
-        await crypto.checkKeyBackupAndEnable();
-      },
-      [mx, secretStorageKeyId]
+    useCallback(
+      (recoveryKey: Uint8Array) => unlockWithRecoveryKey(client, keyId, recoveryKey),
+      [client, keyId]
     )
   );
 
@@ -160,35 +181,35 @@ function ManualVerificationMethodSwitcher({ value, hasPassphrase, onChange }: Me
             hasPassphrase={!!passphraseContent}
             onChange={setMethod}
           />
-
-
-
-
-
-        </Text>
+        }
+      />
+      {verifyState.status === AsyncStatus.Success ? (
+        <VerificationStatus tone="Success">
+          {t('sharedUi.manualVerification.deviceVerified')}
+        </VerificationStatus>
       ) : (
         <>
           {passphraseChosen && passphraseContent ? (
             <SecretStorageRecoveryPassphrase
-
-
-
-
-
-
-
-
+              keyContent={keyContent}
+              passphraseContent={passphraseContent}
+              onDecodedRecoveryKey={handleDecodedRecoveryKey}
+            />
+          ) : (
+            <SecretStorageRecoveryKey
+              keyContent={keyContent}
+              onDecodedRecoveryKey={handleDecodedRecoveryKey}
             />
           )}
           {verifyState.status === AsyncStatus.Loading && (
             <Box alignItems="Center" gap="200">
               <Spinner size="100" variant="Secondary" />
             </Box>
-
-
-
-
-            </Text>
+          )}
+          {verifyState.status === AsyncStatus.Error && (
+            <VerificationStatus tone="Critical">
+              {errorMessage(verifyState.error)}
+            </VerificationStatus>
           )}
         </>
       )}

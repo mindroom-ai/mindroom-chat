@@ -79,9 +79,9 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
     },
     ref
   ) => {
-
-
-
+    const t = useTranslation().t;
+    const mx = useMatrixClient();
+    const useAuthentication = useMediaAuthentication();
     // Per-instance listbox id: the invite dialog and the create-DM page can
     // both be mounted, and duplicate ids would corrupt the ARIA graph. The
     // stable prefix is what e2e specs match on.
@@ -254,9 +254,9 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
                       <Avatar size="200" radii="Pill">
                         <UserAvatar
                           userId={user.userId}
-
-
-
+                          src={avatarUrl}
+                          alt={displayName}
+                          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
                         />
                       </Avatar>
                     }

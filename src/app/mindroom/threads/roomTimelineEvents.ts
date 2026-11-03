@@ -21,9 +21,9 @@ type RoomPreloadCounts = {
 };
 
 const KNOWN_EVENT_TYPES = new Set<string>([
-
-
-
+  // Messages and stickers (spec: Instant Messaging module), including their encrypted form.
+  MessageEvent.RoomMessageEncrypted, MessageEvent.RoomMessage,
+  MessageEvent.Sticker,
   MINDROOM_TOOL_APPROVAL_EVENT,
   StateEvent.RoomMember,
   StateEvent.RoomName,
@@ -117,9 +117,9 @@ export const mergeClassicRoomThreadReplyEntries = ({
   renderableEventEntries: TimelineEventEntry[];
   room: Room;
   ignoredUsersSet: Set<string>;
-
-
-
+  readonly hideMembershipEvents: boolean;
+  readonly hideNickAvatarEvents: boolean;
+  readonly showHiddenEvents: boolean;
 }): TimelineEventEntry[] => {
   if (renderableEventEntries.length === 0) return renderableEventEntries;
 
@@ -261,9 +261,9 @@ export const buildRoomSurfaceEventEntries = ({
   linkedTimelines: EventTimeline[];
   room: Room;
   ignoredUsersSet: Set<string>;
-
-
-
+  readonly hideMembershipEvents: boolean;
+  readonly hideNickAvatarEvents: boolean;
+  readonly showHiddenEvents: boolean;
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap?: Map<string, { isResolved: boolean }>;
 }): TimelineEventEntry[] => {
@@ -338,9 +338,9 @@ export const getRoomPreloadCounts = (
   filterOpts: {
     threadId: string | undefined;
     ignoredUsersSet: Set<string>;
-
-
-
+    readonly hideMembershipEvents: boolean;
+    readonly hideNickAvatarEvents: boolean;
+    readonly showHiddenEvents: boolean;
   }
 ): RoomPreloadCounts => {
   const loadedTimelineEvents = getLinkedTimelineEvents(linkedTimelines);

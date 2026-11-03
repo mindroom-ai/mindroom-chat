@@ -35,9 +35,9 @@ export type ShouldTrackLiveCollapsibleMessage = {
   threadResolutionMap: Map<string, { isResolved: boolean }>;
   threadRecordMap?: ReadonlyMap<string, ThreadRecord>;
   ignoredUsersSet: Set<string>;
-
-
-
+  readonly hideMembershipEvents: boolean;
+  readonly hideNickAvatarEvents: boolean;
+  readonly showHiddenEvents: boolean;
 };
 
 export const shouldTrackLiveCollapsibleMessage = ({

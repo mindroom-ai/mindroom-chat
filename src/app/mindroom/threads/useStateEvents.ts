@@ -8,29 +8,33 @@ import {
   type RoomStateEventHandlerMap,
 } from 'matrix-js-sdk';
 
+type StateSnapshot = {
+  room: Room;
+  eventType: string;
+  events: MatrixEvent[];
+};
+
 /** The current state events of `eventType`, one per state key; empty when there are none. */
+const takeSnapshot = (room: Room, eventType: string): StateSnapshot => ({
+  room,
+  eventType,
+  events: room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(eventType) ?? [],
+});
 
+/**
+ * The room's current state events of `eventType`, read again whenever one of them changes. The
+ * array keeps its identity between changes, so callers can key memos and caches on it.
+ */
+export const useStateEvents = (room: Room, eventType: string): MatrixEvent[] => {
+  const [stored, setStored] = useState(() => takeSnapshot(room, eventType));
 
-
-
-
-
-
-
-  const [state, setState] = useState(() => ({
-    room,
-    eventType,
-    events: readStateEvents(room, eventType),
-  }));
-
-  const stale = state.room !== room || state.eventType !== eventType;
-  if (stale) {
-    // Switching rooms or types reads the new state during render instead of showing the old one.
-    setState({ room, eventType, events: readStateEvents(room, eventType) });
-  }
+  // Switching rooms or types reads the new state during render instead of showing the old one.
+  const stale = stored.room !== room || stored.eventType !== eventType;
+  const snapshot = stale ? takeSnapshot(room, eventType) : stored;
+  if (stale) setStored(snapshot);
 
   useEffect(() => {
-    const refresh = () => setState({ room, eventType, events: readStateEvents(room, eventType) });
+    const refresh = () => setStored(takeSnapshot(room, eventType));
     const handleStateEvent: RoomStateEventHandlerMap[RoomStateEvent.Events] = (event) => {
       if (event.getRoomId() !== room.roomId || event.getType() !== eventType) return;
       refresh();
@@ -44,5 +48,5 @@ import {
     };
   }, [room, eventType]);
 
-  return stale ? readStateEvents(room, eventType) : state.events;
+  return snapshot.events;
 };

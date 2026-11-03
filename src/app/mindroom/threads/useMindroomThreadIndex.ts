@@ -278,9 +278,9 @@ export type UseMindroomThreadIndexOptions = {
   linkedTimelines: EventTimeline[];
   renderableEventEntries: TimelineEventEntry[];
   ignoredUsersSet: Set<string>;
-
-
-
+  readonly hideMembershipEvents: boolean;
+  readonly hideNickAvatarEvents: boolean;
+  readonly showHiddenEvents: boolean;
   summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   threadResolutionMap: Map<string, ThreadResolutionLike>;
   currentUserId: string | undefined;

@@ -96,19 +96,17 @@ const packKey = (pack: ImagePack): string =>
  * then those of `rooms`. A pack listed twice (a global pack that is also in `rooms`) shows once,
  * and a pack without an image for `usage` not at all.
  */
+export const useRelevantImagePacks = (usage: ImageUsage, rooms: Room[]): ImagePack[] => {
+  const ownPack = useUserImagePack();
+  const everywherePacks = useGlobalImagePacks();
+  const roomPacks = useRoomsImagePacks(rooms);
 
-
-
-
-
-
-
-    const packs = [...(userPack ? [userPack] : []), ...globalPacks, ...roomsPacks];
-    return packs.filter((pack) => {
+  return useMemo(() => {
+    const byKey = new Map<string, ImagePack>();
+    [...(ownPack ? [ownPack] : []), ...everywherePacks, ...roomPacks].forEach((pack) => {
       const key = packKey(pack);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return pack.getImages(usage).length > 0;
+      if (!byKey.has(key)) byKey.set(key, pack);
     });
-  }, [usage, userPack, globalPacks, roomsPacks]);
+    return [...byKey.values()].filter((pack) => pack.getImages(usage).length > 0);
+  }, [usage, ownPack, everywherePacks, roomPacks]);
 };

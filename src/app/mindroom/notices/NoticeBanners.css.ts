@@ -65,9 +65,9 @@ export const NoticeText = style({
 
 // Three lines keep the banner slim on a phone; "Show more" reveals the rest.
 export const NoticeTextCollapsed = style({
-
-
-
+  WebkitLineClamp: '3',
+  WebkitBoxOrient: 'vertical',
+  display: '-webkit-box',
   overflow: 'hidden',
 });
 

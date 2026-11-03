@@ -81,9 +81,9 @@ export const useRoomLiveRenderController = ({
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
   effectiveThreadFilterState: ThreadFilterState;
-
-
-
+  readonly hideActivity: boolean;
+  readonly hideMembershipEvents: boolean;
+  readonly hideNickAvatarEvents: boolean;
   ignoredUsersSet: Set<string>;
   markLiveExpansionCandidate: (eventId: string) => void;
   mx: MatrixClient;
@@ -292,7 +292,7 @@ export const useRoomLiveRenderController = ({
             }
           }
           // A thread reply has no room row but changes its card: repaint, follow at the bottom.
-          setTimeline((ct) => ({ ...ct }));
+          setTimeline((current) => ({ ...current }));
           if (atBottomRef.current && atLiveEndRef.current) {
             scrollToBottomRef.current.count += 1;
             scrollToBottomRef.current.smooth = true;
@@ -332,24 +332,24 @@ export const useRoomLiveRenderController = ({
           if (renderableLiveEvent) {
             if (roomThreadFilterActive) {
               // The filtered overview mounts every matching row, so a repaint shows it.
-              setTimeline((ct) => ({ ...ct }));
+              setTimeline((current) => ({ ...current }));
             } else {
               // The window's end grows by the new row; its start stays with the reader.
-              setTimeline((ct) => ({
-                ...ct,
-                range: { start: ct.range.start, end: ct.range.end + 1 },
+              setTimeline((current) => ({
+                ...current,
+                range: { start: current.range.start, end: current.range.end + 1 },
               }));
             }
             if (shouldAutoFollow) {
-
-
-
-
-
-
-
-
-
+              scrollToBottomRef.current.count += 1;
+              scrollToBottomRef.current.smooth = true;
+            }
+            return;
+          }
+        }
+        // Reactions, edits and rows outside the window change what is painted, not the
+        // window itself.
+        setTimeline((current) => ({ ...current }));
       },
       [
         atBottomRef,

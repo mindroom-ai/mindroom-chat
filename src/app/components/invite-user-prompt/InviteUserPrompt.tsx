@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useRef, useState } from 'react';
+import React, { FormEventHandler, RefObject, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -59,12 +59,23 @@ function InvitePromptTitle({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** The user ID field takes focus first; Escape and a click outside close the dialog. */
+const dialogTrapOptions = (
+  firstFocus: RefObject<HTMLElement>,
+  dismiss: () => void
+): FocusTrap.Props['focusTrapOptions'] => ({
+  initialFocus: () => firstFocus.current ?? false,
+  onDeactivate: dismiss,
+  escapeDeactivates: stopPropagation,
+  clickOutsideDeactivates: true,
+});
+
 /** Dialog to invite someone to a room by user ID, with directory suggestions and a reason. */
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
-
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const alive = useAlive();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string>();
@@ -87,7 +98,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     setInviting(true);
     setError(undefined);
     try {
-      await mx.invite(room.roomId, target, reason);
+      await client.invite(room.roomId, target, reason);
       if (alive()) requestClose();
     } catch (inviteError) {
       if (!alive()) return;
@@ -96,22 +107,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
           ? inviteError.message
           : String(inviteError)
       );
+      setInviting(false);
+    }
+  };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-          }}
-        >
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={dialogTrapOptions(inputRef, requestClose)}>
           <Dialog
             role="dialog"
             aria-labelledby={TITLE_ID}

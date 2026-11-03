@@ -71,10 +71,10 @@ const getThreadActivityEvents = (
   const trackedEventIds = new Set<string>();
 
   const addTrackedEvent = (mEvent: MatrixEvent | null | undefined) => {
+    if (mEvent == null) return;
 
-
-
-
+    const eventId = mEvent.getId();
+    if (eventId) {
       if (trackedEventIds.has(eventId)) return;
       trackedEventIds.add(eventId);
     } else if (trackedEvents.includes(mEvent)) {

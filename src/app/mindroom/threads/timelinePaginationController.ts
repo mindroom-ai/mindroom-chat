@@ -47,22 +47,22 @@ export const useEventTimelineLoader = (
 };
 
 export const useTimelinePagination = (
-
-
-
+  mx: MatrixClient,
+  timeline: Readonly<Timeline>,
+  setTimeline: Dispatch<SetStateAction<Timeline>>,
   limit: number,
   filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
 ): ((backwards: boolean) => Promise<void>) => {
+  const alive = useAlive();
+  const latestTimeline = useRef(timeline);
+  latestTimeline.current = timeline;
 
+  const handleTimelinePagination = useMemo(() => {
+    let fetching = false;
 
-
-
-
-
-
-
-
-      const lTimelines = timelineRef.current.linkedTimelines;
+    return async (backwards: boolean): Promise<void> => {
+      if (fetching) return;
+      const lTimelines = latestTimeline.current.linkedTimelines;
       const timelinesEventsCount = lTimelines.map(timelineToEventsCount);
       const fOpts = filterOptsRef.current ?? undefined;
       const timelinesRenderableCounts = fOpts

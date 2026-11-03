@@ -11,9 +11,9 @@ import { useKeyBackupPresence } from './useKeyBackupPresence';
 import { WelcomeCardStyle } from './welcomeCard';
 
 function KeyBackupNudgeCard() {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const userId = client.getSafeUserId();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const [dismissed, setDismissed] = useState(() => readKeyBackupNudgeDismissed(userId));
   const presence = useKeyBackupPresence();

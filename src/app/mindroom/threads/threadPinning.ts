@@ -19,10 +19,10 @@ import { getStateEvent } from '../../utils/room';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
 export const canPinRoomEvents = (
-
-
-
-
+  creators: Set<string>,
+  powerLevels: Readonly<IPowerLevels>,
+  userId: string
+): boolean =>
   (creators.has(userId) || readPowerLevel.user(powerLevels, userId) >= 100) &&
   getRoomPermissionsAPI(creators, powerLevels).stateEvent(StateEvent.RoomPinnedEvents, userId);
 

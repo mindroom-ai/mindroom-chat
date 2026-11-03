@@ -1,9 +1,21 @@
 import { MouseEvent, MouseEventHandler, useCallback } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { useOpenUserRoomProfile } from '../state/hooks/userRoomProfile';
 import { getCanonicalAliasRoomId, isRoomAlias, isRoomId, isUserId } from '../utils/matrix';
 import { useMatrixClient } from './useMatrixClient';
 import { useRoomNavigate } from './useRoomNavigate';
 import { useSpaceOptionally } from './useSpace';
+
+const readMention = (pill: HTMLElement) => ({
+  id: pill.getAttribute('data-mention-id'),
+  eventId: pill.getAttribute('data-mention-event-id') ?? undefined,
+});
+
+/** An alias resolves only through a room the account knows; an unknown one gives `undefined`. */
+const resolveMentionedRoom = (client: MatrixClient, mentionId: string): string | undefined => {
+  if (isRoomAlias(mentionId)) return getCanonicalAliasRoomId(client, mentionId);
+  return isRoomId(mentionId) ? mentionId : undefined;
+};
 
 /**
  * The click handler for mention pills, which carry the mentioned ID in `data-mention-id` (and an
@@ -11,34 +23,27 @@ import { useSpaceOptionally } from './useSpace';
  * has joined opens, at the event when one is given.
  */
 export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLElement> => {
+  const client = useMatrixClient();
+  const { navigateRoom } = useRoomNavigate();
+  const openProfile = useOpenUserRoomProfile();
+  const spaceRoomId = useSpaceOptionally()?.roomId;
 
-
-
-
-
-
+  return useCallback(
     (event: MouseEvent<HTMLElement>) => {
-      const target = event.currentTarget;
-      const mentionId = target.getAttribute('data-mention-id');
-      if (!mentionId) return;
+      const pill = event.currentTarget;
+      const mention = readMention(pill);
+      if (!mention.id) return;
+      event.preventDefault();
 
+      if (isUserId(mention.id)) {
+        // The card opens next to the pill that was clicked.
+        openProfile(roomId, spaceRoomId, mention.id, pill.getBoundingClientRect());
+        return;
+      }
 
-
-
-
-
-
-
-
-
-        ? getCanonicalAliasRoomId(mx, mentionId)
-        : isRoomId(mentionId)
-        ? mentionId
-        : undefined;
-      if (!mentionedRoomId) return;
-      const eventId = target.getAttribute('data-mention-event-id') ?? undefined;
-      navigateRoom(mentionedRoomId, eventId);
+      const mentionedRoomId = resolveMentionedRoom(client, mention.id);
+      if (mentionedRoomId) navigateRoom(mentionedRoomId, mention.eventId);
     },
-    [mx, navigateRoom, openProfile, roomId, space]
+    [client, navigateRoom, openProfile, roomId, spaceRoomId]
   );
 };

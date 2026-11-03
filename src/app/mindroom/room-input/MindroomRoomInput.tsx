@@ -420,7 +420,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [autocompleteMenuOpen, enterForNewline, handleSend, isComposing]
     );
 
-    const handleKeyUp = useCallback(() => {
+    const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
         ? getMindroomRoomInputAutocompleteQuery(editor, range) ??
@@ -504,9 +504,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editableName="RoomInput"
           placeholder={t('composer.placeholder')}
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-
-
-
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onKeyUp={syncAutocompleteQuery}
           onPaste={attachments.onPaste}
           top={
             <>

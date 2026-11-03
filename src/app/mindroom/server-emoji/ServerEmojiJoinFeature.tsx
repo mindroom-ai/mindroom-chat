@@ -28,6 +28,12 @@ const hasRoomOverride = (mx: MatrixClient, roomId: string): boolean => {
   return rules?.global?.override?.some((rule) => rule.rule_id === roomId) ?? false;
 };
 
+/** An override rule without actions keeps every event in the room silent (spec: push rules). */
+const silenceRoomRule = (roomId: string): Pick<IPushRule, 'actions' | 'conditions'> => ({
+  actions: [],
+  conditions: [{ kind: ConditionKind.EventMatch, key: 'room_id', pattern: roomId }],
+});
+
 /**
  * Joins the emoji room the homeserver names in its well-known, so its packs are available to
  * everyone on the server, and mutes it: packs are state, and nothing posted there should notify.
@@ -52,11 +58,8 @@ export function ServerEmojiJoinFeature() {
   useEffect(() => {
     if (!roomId || hasRoomOverride(mx, roomId)) return;
     if (!firstTime(muteAttempts, mx, roomId)) return;
-    // An override rule without actions keeps every event in the room silent (spec: push rules).
-
-
-      actions: [],
-    }).catch((error: unknown) => {
+    const muteRule = silenceRoomRule(roomId);
+    mx.addPushRule('global', PushRuleKind.Override, roomId, muteRule).catch((error: unknown) => {
       // eslint-disable-next-line no-console
       console.warn('[server-emoji] could not mute the server emoji room', roomId, error);
     });

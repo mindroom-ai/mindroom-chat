@@ -442,9 +442,9 @@ export const useRoomInputSendSessionController = ({
         sendSessionRef.current.composerFallback =
           composerFallback ?? structuredClone(editor.children);
         if (!composerAlreadyReset) {
-
-
-
+          // Start the editor over, and stop the typing indicator, now that its text is captured.
+          resetEditor(editor); resetEditorHistory(editor);
+          sendTypingStatus(false);
         }
       }
       try {

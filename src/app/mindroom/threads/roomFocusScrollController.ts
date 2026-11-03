@@ -411,9 +411,9 @@ export const useRoomFocusScrollController = ({
       // loop (open-at-latest pin) would yank the jump back to the bottom.
       cancelThreadBottomSettle?.();
       scrollToElement(target, {
-
-
-
+        // A jump, not an animation; nothing moves when the target is already fully in view.
+        align: 'center', behavior: 'instant',
+        stopInView: true,
       });
       threadTargets.complete(pendingOpen.requestId, true);
       return;
@@ -458,15 +458,15 @@ export const useRoomFocusScrollController = ({
   useEffect(() => {
     if (!editId) return;
 
-
-
-
-
-
-
-
-
-
+    const editMsgElement = getEventElementById(scrollRef.current, editId) ?? undefined;
+    if (editMsgElement) {
+      scrollToElement(editMsgElement, {
+        // Glide to the message being edited, centered unless it is already fully in view.
+        behavior: 'smooth', align: 'center',
+        stopInView: true,
+      });
+    }
+  }, [editId, scrollRef, scrollToElement]);
 
   useEffect(() => {
     if (!timelineAtLiveEnd) {

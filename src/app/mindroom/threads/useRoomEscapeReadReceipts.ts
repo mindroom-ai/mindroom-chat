@@ -18,11 +18,11 @@ export const useRoomEscapeReadReceipts = ({
   roomId,
   threadId,
 }: UseRoomEscapeReadReceiptsOptions): void => {
+  const mx = useMatrixClient();
 
-
-
-
-
+  // Escape marks the conversation as read, wherever the focus is on the page.
+  useKeyDown(window,
+    useCallback(
       (evt: KeyboardEvent) => {
         if (conversationHidden || !isKeyHotkey('escape', evt)) return;
         if (threadId) {

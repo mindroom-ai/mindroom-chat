@@ -104,12 +104,12 @@ export const useTimelineReadReceiptController = ({
     threadId,
     threadInitialRenderMode,
     threadTailLoaded,
+  ]);
 
-
-
-
-
-
+  const debounceSetAtBottom = useDebounce(
+    useCallback((observed: IntersectionObserverEntry) => {
+      if (!observed.isIntersecting) setAtBottom(false);
+    }, [setAtBottom]),
     { wait: 500 }
   );
 

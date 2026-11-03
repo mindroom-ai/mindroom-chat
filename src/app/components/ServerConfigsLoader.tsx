@@ -1,34 +1,41 @@
 import { ReactNode, useEffect, useState } from 'react';
-import type { Capabilities, MatrixClient, OidcClientConfig } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 
 /** `GET /media/config`; the SDK does not export its type. */
 export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
 
-/** What the homeserver reports about itself; a field is missing when its request failed. */
-
-
-
-
-
+/** The client call behind each config field. */
+type ConfigSources = {
+  /** `GET /capabilities`: which account changes the server allows. */
+  capabilities: MatrixClient['getCapabilities'];
+  /** Upload limits; see {@link MediaConfig}. */
+  mediaConfig: MatrixClient['getMediaConfig'];
   /** OAuth 2.0 server metadata (MSC2965), when the homeserver delegates auth. */
-  authMetadata?: OidcClientConfig;
+  authMetadata: MatrixClient['getAuthMetadata'];
 };
 
+/** What the homeserver reports about itself; a field is missing when its request failed. */
+export type ServerConfigs = {
+  [Field in keyof ConfigSources]?: Awaited<ReturnType<ConfigSources[Field]>>;
+};
 
+type RenderWithConfigs = (configs: ServerConfigs) => ReactNode;
 
-
-
+type ServerConfigsLoaderProps = {
+  /** Passed explicitly: the loader runs before the client context exists. */
+  mx: MatrixClient;
+  children: RenderWithConfigs;
 };
 
 const settledValue = <T,>(result: PromiseSettledResult<T>): T | undefined =>
   result.status === 'fulfilled' ? result.value : undefined;
 
-const loadServerConfigs = async (mx: MatrixClient): Promise<ServerConfigs> => {
+const loadServerConfigs = async (client: MatrixClient): Promise<ServerConfigs> => {
   // Each request may fail on its own (older servers lack auth metadata); the rest still count.
   const [capabilities, mediaConfig, authMetadata] = await Promise.allSettled([
-
-
-
+    client.getCapabilities(),
+    client.getMediaConfig(),
+    client.getAuthMetadata(),
   ]);
   return {
     capabilities: settledValue(capabilities),

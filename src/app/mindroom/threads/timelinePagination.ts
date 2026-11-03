@@ -17,17 +17,16 @@ export type Timeline = {
   range: TimelineRange;
 };
 
+type VisibilityFlag = 'hideMembershipEvents' | 'hideNickAvatarEvents' | 'showHiddenEvents';
+
 /**
  * The filters that turn raw timeline events into rendered rows. When present, ranges count
  * rendered rows rather than raw events.
  */
-export type RecalibrateFilterOpts = {
+export type RecalibrateFilterOpts = Record<VisibilityFlag, boolean> & {
   room: Room;
   threadId: string | undefined;
   ignoredUsersSet: Set<string>;
-
-
-
   showThreadRepliesInRoom?: boolean;
 };
 
@@ -37,16 +36,17 @@ export type RoomUnreadInfo = {
   readUptoEventId: string;
   inLiveTimeline: boolean;
   /** Jump to the read marker when the room opens. */
+  scrollTo: boolean;
+};
 
+const unfilteredSet = (room: Room) => room.getUnfilteredTimelineSet();
 
+/** The timeline sync appends to: the live end of the room's unfiltered set. */
+export const getLiveTimeline = (room: Room): EventTimeline => unfilteredSet(room).getLiveTimeline();
 
-
-
-
-
-
-
-  room.getUnfilteredTimelineSet().getTimelineForEvent(eventId) ?? undefined;
+/** The loaded timeline that holds `eventId`, if any. */
+export const getEventTimeline = (room: Room, eventId: string): EventTimeline | undefined =>
+  unfilteredSet(room).getTimelineForEvent(eventId) ?? undefined;
 
 export const timelineToEventsCount = (timeline: EventTimeline): number =>
   timeline.getEvents().length;
@@ -55,25 +55,25 @@ export const getTimelinesEventsCount = (timelines: EventTimeline[]): number =>
   timelines.reduce((total, timeline) => total + timelineToEventsCount(timeline), 0);
 
 /** Index of `eventId` within `eventTimeline`, counted across the whole linked chain. */
-
-
-
-
-
-  const timelineIndex = linkedTimelines.indexOf(eventTimeline);
-  if (timelineIndex === -1) return undefined;
-  const indexInTimeline = eventTimeline.getEvents().findIndex((event) => event.getId() === eventId);
-  if (indexInTimeline === -1) return undefined;
-  return getTimelinesEventsCount(linkedTimelines.slice(0, timelineIndex)) + indexInTimeline;
+export const getEventIdAbsoluteIndex = (
+  chain: EventTimeline[],
+  holder: EventTimeline,
+  eventId: string
+): number | undefined => {
+  const holderPosition = chain.indexOf(holder);
+  if (holderPosition === -1) return undefined;
+  const indexInHolder = holder.getEvents().findIndex((event) => event.getId() === eventId);
+  if (indexInHolder === -1) return undefined;
+  return getTimelinesEventsCount(chain.slice(0, holderPosition)) + indexInHolder;
 };
 
 /** Index of `eventId` across the linked chain, whichever timeline holds it. */
 export const getLinkedTimelinesEventAbsoluteIndex = (
-
-
-
+  chain: EventTimeline[],
+  eventId: string
+): number | undefined => {
   let offset = 0;
-  for (const timeline of linkedTimelines) {
+  for (const timeline of chain) {
     const events = timeline.getEvents();
     const index = events.findIndex((event) => event.getId() === eventId);
     if (index !== -1) return offset + index;
@@ -168,18 +168,18 @@ const sameTimelines = (a: EventTimeline[], b: EventTimeline[]): boolean =>
  * the number of rows added; forward pagination appends after it and leaves it in place.
  *
  * `timelinesEventsCount` (raw events) and `timelinesRenderableCounts` (rendered rows, when
- * `filterOpts` is given) describe `linkedTimelines` before the pagination. A result for a chain
+ * `filterOpts` is given) describe `chainBefore` before the pagination. A result for a chain
  * that is no longer the one on screen is dropped.
  */
 export const recalibrateTimelinePagination = (
-
-
-
+  setTimeline: Dispatch<SetStateAction<Timeline>>,
+  chainBefore: EventTimeline[],
+  timelinesEventsCount: number[],
   backwards: boolean,
   filterOpts?: RecalibrateFilterOpts,
   timelinesRenderableCounts?: number[]
 ): void => {
-  const anchor = backwards ? linkedTimelines[0] : linkedTimelines[linkedTimelines.length - 1];
+  const anchor = backwards ? chainBefore[0] : chainBefore[chainBefore.length - 1];
   if (!anchor) return;
 
   const previousCounts =
@@ -187,12 +187,12 @@ export const recalibrateTimelinePagination = (
   const rowFilter = filterOpts && timelinesRenderableCounts ? filterOpts : undefined;
 
   setTimeline((current) => {
-    if (!sameTimelines(current.linkedTimelines, linkedTimelines)) return current;
+    if (!sameTimelines(current.linkedTimelines, chainBefore)) return current;
 
     const nextLinkedTimelines = getLinkedTimelines(anchor);
     const rowsOf = (timeline: EventTimeline) => countRows([timeline], rowFilter);
     const previousCountOf = (timeline: EventTimeline) => {
-      const index = linkedTimelines.indexOf(timeline);
+      const index = chainBefore.indexOf(timeline);
       return index === -1 ? 0 : previousCounts[index] ?? 0;
     };
 

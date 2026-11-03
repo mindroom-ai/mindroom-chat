@@ -51,20 +51,20 @@ const createDeferred = <T>() => {
 
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
-
-
-
-
+  // A plain staged file: not encrypted, not a voice message, not a text paste.
+  encInfo: undefined, originalFile: file,
+  metadata: {
+    markedAsSpoiler: false,
   },
   ...(prepError ? { prepError } : {}),
 });
 
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
-
-
-
-
+  // A plain staged file that also carries the marker of a pasted text.
+  encInfo: undefined, originalFile: file,
+  metadata: {
+    markedAsSpoiler: false,
     mindroomPasteAttachment: {
       id: 'paste-a3f19c',
       chars: 11,

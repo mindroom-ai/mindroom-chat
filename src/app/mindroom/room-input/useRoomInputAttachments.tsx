@@ -347,10 +347,10 @@ export const useRoomInputAttachments = ({
       if (!text) return;
       const activeEditor = current.current.editor;
       const plainText = toPlainText(activeEditor.children, isMarkdown);
+      const markdown = { allowBlockMarkdown: isMarkdown, allowInlineMarkdown: isMarkdown };
       const formattedBody = toMatrixCustomHTML(activeEditor.children, {
-
-
-
+        allowTextFormatting: true,
+        ...markdown,
       });
       if (
         !shouldConvertPasteToAttachment({
@@ -400,6 +400,9 @@ export const useRoomInputAttachments = ({
     [access]
   );
 
+  const replaceItem = (item: TUploadItem, replacement: TUploadItem) =>
+    store.set(itemsAtom, { type: 'REPLACE', item, replacement });
+
   const board =
     visibleItems.length > 0 ? (
       <UploadBoard
@@ -420,11 +423,7 @@ export const useRoomInputAttachments = ({
                 isEncrypted={room.hasEncryptionStateEvent()}
                 fileItem={item}
                 setMetadata={(fileItem, metadata) =>
-                  store.set(itemsAtom, {
-
-
-
-                  })
+                  replaceItem(fileItem, { ...fileItem, metadata })
                 }
                 onRemove={(file) => access.remove(current.current.roomId, [file])}
               />
