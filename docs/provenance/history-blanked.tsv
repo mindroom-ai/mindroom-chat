@@ -6638,6 +6638,10 @@ de90617a031a8cd6f085a40fec4ecf002aa2a3a4	src/app/mindroom/threads/roomLiveRender
 68976db6e078a0e58283dd525d7a8f565431962f	src/app/mindroom/threads/MindroomRoomView.tsx	56
 68976db6e078a0e58283dd525d7a8f565431962f	src/app/mindroom/threads/MindroomRoomView.tsx	57
 68976db6e078a0e58283dd525d7a8f565431962f	src/app/mindroom/threads/MindroomRoomView.tsx	58
+68a0db73b6cee05af93f6b0c6b80fa1c217a030c	src/app/hooks/useAuthMetadata.ts	10
+68a0db73b6cee05af93f6b0c6b80fa1c217a030c	src/app/hooks/useAuthMetadata.ts	11
+68a0db73b6cee05af93f6b0c6b80fa1c217a030c	src/app/hooks/useAuthMetadata.ts	6
+68a0db73b6cee05af93f6b0c6b80fa1c217a030c	src/app/hooks/useAuthMetadata.ts	8
 68b769553a863d4441bdd78c811ff45663602b64	src/app/mindroom/models/ModelPicker.css.ts	102
 68b769553a863d4441bdd78c811ff45663602b64	src/app/mindroom/models/ModelPicker.css.ts	103
 68b769553a863d4441bdd78c811ff45663602b64	src/app/mindroom/models/ModelPicker.css.ts	104
@@ -10614,6 +10618,9 @@ eb0a91007acf6a65e3f6e2ca10dc4837dbcef92b	src/app/components/message/content/Imag
 9ec75a305016b099593c172f5063acb2776f76da	src/app/mindroom/threads/timelinePagination.ts	69
 9ec75a305016b099593c172f5063acb2776f76da	src/app/mindroom/threads/timelinePagination.ts	70
 9ec75a305016b099593c172f5063acb2776f76da	src/app/mindroom/threads/timelinePagination.ts	71
+9f15c64c1141e2d75899afa31c478f2c9554a488	src/app/pages/client/ClientRoot.tsx	346
+9f15c64c1141e2d75899afa31c478f2c9554a488	src/app/pages/client/ClientRoot.tsx	347
+9f15c64c1141e2d75899afa31c478f2c9554a488	src/app/pages/client/ClientRoot.tsx	348
 9f86a00002fc8c47416a84906f90ec185386befc	src/app/components/editor/autocomplete/AutocompleteMenu.tsx	10
 9f86a00002fc8c47416a84906f90ec185386befc	src/app/components/editor/autocomplete/AutocompleteMenu.tsx	11
 9f86a00002fc8c47416a84906f90ec185386befc	src/app/components/editor/autocomplete/AutocompleteMenu.tsx	12
