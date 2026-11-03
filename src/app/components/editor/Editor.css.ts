@@ -44,7 +44,8 @@ export const EditorPlaceholder = style({
   position: 'absolute',
   top: textPaddingBlock,
   insetInline: config.space.S100,
-  opacity: config.opacity.Placeholder,
+  // A third of the text color: a hint, lighter than any text the user typed.
+  opacity: 0.333,
   pointerEvents: 'none',
   userSelect: 'none',
 });
