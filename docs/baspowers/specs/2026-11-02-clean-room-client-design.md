@@ -88,12 +88,13 @@ Interface framework, chosen within approach 1:
 
 ```
 mindroom-client/
-  core/            Rust crate `mindroom-core`, built to wasm with wasm-bindgen
+  crates/model/    Rust crate `mindroom-model`: serializable view models and pure mapping
+                   functions; no SDK dependency, so its tests run natively in seconds
+  crates/core/     Rust crate `mindroom-core`, built to wasm with wasm-bindgen
     src/lib.rs        wasm exports (thin)
-    src/client.rs     login, restore, logout, sync service
-    src/rooms.rs      room list subscription and view models
-    src/timeline.rs   room and thread timelines, sending, pagination
-    src/model.rs      serializable view models (serde), pure mapping functions
+    src/client.rs     login, restore, logout, sync service, session persistence
+    src/rooms.rs      room list subscription
+    src/timeline.rs   room and thread timelines, sending, pagination, retry
   web/             SolidJS + TypeScript + Vite
     src/core/         typed wrapper around the wasm module (the only file that imports it)
     src/state/        Solid stores fed by core subscriptions; diff application
@@ -101,7 +102,7 @@ mindroom-client/
     src/render/       message body rendering (sanitized HTML, MindRoom markers)
   e2e/             Playwright tests and the Tuwunel Docker Compose stack
   scripts/         license check, similarity audit
-  flake.nix        dev shell: rustc, cargo, lld, wasm-bindgen-cli, wasm-pack, bun, chromium for tests
+  flake.nix        dev shell: rustc, cargo, lld, wasm-bindgen-cli, binaryen (wasm-opt), just, cargo-deny, bun, chromium for tests
 ```
 
 ### 5.1 Rust core (`mindroom-core`)
@@ -128,6 +129,7 @@ class Core {
 interface TimelineHandle {
   paginateBack(count: number): Promise<boolean>;           // true when the start is reached
   sendMarkdown(text: string): Promise<void>;               // into the thread when threadRoot is set
+  retrySend(uniqueId: string): Promise<void>;              // retry a failed local echo
   close(): void;
 }
 interface Subscription { close(): void }
@@ -147,9 +149,9 @@ interface Subscription { close(): void }
 - `thread`: for a thread root in a room timeline, `replyCount` and the latest reply's sender and preview
 - `reactions`: list of key, count, and whether the user reacted
 
-The pure mapping from SDK timeline items and raw event JSON to view models lives in `model.rs`. It is unit-tested on the native target with JSON fixtures, so most core tests run without a browser.
+The pure mapping logic (diff conversion, MindRoom field extraction, previews, error classification) lives in `mindroom-model`. It is unit-tested on the native target with JSON fixtures, so most core tests run without a browser. `mindroom-core` only adapts SDK types to those functions.
 
-Sync: `matrix_sdk_ui::sync_service::SyncService` drives `RoomListService` (sliding sync, MSC4186, served by Tuwunel as `sync/v5`) and the encryption sync. `SyncState` is `idle`, `running`, `offline`, or `error` with text.
+Sync: `matrix_sdk_ui::sync_service::SyncService` drives `RoomListService` (sliding sync, MSC4186, served by Tuwunel as `sync/v5`) and the encryption sync. `SyncState` is `idle`, `running`, `offline`, `error` with text, or `sessionExpired` (the server rejected the access token).
 
 Timelines: `Room::timeline_builder()`. The room timeline uses `TimelineFocus::Live { hide_threaded_events: true }` and shows thread summaries on roots, which is how MindRoom conversations look. A thread timeline uses `TimelineFocus::Thread` with the root event ID. Both exist in 0.19.1.
 
@@ -186,7 +188,7 @@ Sending: `RoomMessageEventContent::text_markdown` through the timeline's send qu
 ## 6. Testing
 
 - **Rust unit tests** (`cargo test`, native target): view-model mapping from JSON fixtures, including edits with `io.mindroom.stream_status` and `io.mindroom.tool_trace`.
-- **Wasm build check** in CI: `wasm-pack build core --target web`.
+- **Wasm build check**: `cargo build -p mindroom-core --target wasm32-unknown-unknown --release`, then `wasm-bindgen --target web` and `wasm-opt -Oz` (the Nix versions, so the CLI matches the pinned crate).
 - **TypeScript unit tests** (Vitest): diff application, HTML sanitizing (script tags, `javascript:` links, event handler attributes all removed), route guards.
 - **End-to-end tests** (Playwright with the system Chromium) against a disposable Tuwunel from `ghcr.io/mindroom-ai/mindroom-tuwunel` (Apache-2.0) in Docker Compose with open registration. Accounts are registered through the client-server API in test setup. M1 cases: login and restore after reload; room list shows a room another account created; sending a message appears for both accounts; a thread reply shows in the thread panel and as a summary in the room; an edit sent by another account (simulating a streamed agent reply with `io.mindroom.stream_status: streaming`, then `completed`) updates the message in place; the same flows in an encrypted room.
 - Tuwunel limits password logins per account, so tests reuse stored sessions and use one account per browser context.
