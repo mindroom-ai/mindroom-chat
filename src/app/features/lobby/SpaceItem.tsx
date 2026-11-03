@@ -23,27 +23,36 @@ import { useDraggableItem } from './DnD';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
 
-type SpaceItemCardProps = {
-  item: HierarchyItem;
-  /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
-  summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
-  /** The summary is still being fetched. */
-
-
-
-
-
+/** How the heading is shown and what it offers: joined or not, collapsing, adding children. */
+type SpaceItemHeadingProps = {
+  /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
+  joined: boolean;
+  /** The id `handleClose` receives; the lobby uses the space's room id. */
+  categoryId: string;
   closed: boolean;
   /** Collapses or expands the space's rooms in the lobby. */
-
-
-
-
-
-
-  /** Extra controls at the end of the heading. */
-  options?: React.ReactNode;
+  handleClose?: (categoryId: string) => void;
+  /** Offers the menu that adds a room or subspace. */
+  canEditChild: boolean;
 };
+
+/** Reordering the heading among its siblings by drag and drop. */
+type SpaceItemDragProps = {
+  canReorder: boolean;
+  onDragging: (item?: HierarchyItem) => void;
+};
+
+type SpaceItemCardProps = SpaceItemHeadingProps &
+  SpaceItemDragProps & {
+    item: HierarchyItem;
+    /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
+    summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+    /** The summary is still being fetched. */
+    loading?: boolean;
+    getRoom: (roomId: string) => Room | undefined;
+    /** Extra controls at the end of the heading. */
+    options?: React.ReactNode;
+  };
 
 /** The plus button of a joined space: create a room or a subspace inside it. */
 function AddChildMenu({ spaceId }: { spaceId: string }) {
@@ -123,13 +132,13 @@ export function SpaceItemCard({
   getRoom,
   options,
 }: SpaceItemCardProps) {
-
-
-
-  useDraggableItem(item, targetRef, canReorder ? onDragging : undefined);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const authenticated = useMediaAuthentication();
+  const client = useMatrixClient();
+  useDraggableItem(item, cardRef, canReorder ? onDragging : undefined);
 
   const { roomId } = item;
-  const localSpace = getRoom(roomId) ?? mx.getRoom(roomId) ?? undefined;
+  const localSpace = getRoom(roomId) ?? client.getRoom(roomId) ?? undefined;
   const membership = localSpace?.getMyMembership();
   // The joined list can lag behind the client's own membership.
   const isJoined = joined || membership === Membership.Join;
@@ -137,7 +146,7 @@ export function SpaceItemCard({
   if (isJoined && localSpace) {
     return (
       <Box
-        ref={targetRef}
+        ref={cardRef}
         className={css.SpaceItemCard({ outlined: closed })}
         alignItems="Center"
         gap="200"
@@ -164,15 +173,15 @@ export function SpaceItemCard({
     );
   }
 
-  const name = summary?.name || summary?.canonical_alias || roomId;
-  const avatarUrl = summary?.avatar_url
-    ? mxcUrlToHttp(mx, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+  const spaceName = summary?.name || summary?.canonical_alias || roomId;
+  const avatarSrc = summary?.avatar_url
+    ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
     : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 
   return (
     <Box
-      ref={targetRef}
+      ref={cardRef}
       className={css.SpaceItemCard({ outlined: true })}
       alignItems="Center"
       gap="200"
@@ -187,18 +196,18 @@ export function SpaceItemCard({
             <Avatar size="200" radii="300">
               <RoomAvatar
                 roomId={roomId}
-                src={avatarUrl}
-                alt={name}
-                renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+                src={avatarSrc}
+                alt={spaceName}
+                renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
               />
             </Avatar>
             <Text size="H4" truncate>
-              {name}
+              {spaceName}
             </Text>
           </Box>
           <LobbyAccessButton
             roomId={roomId}
-            roomName={name}
+            roomName={spaceName}
             access={access}
             membership={membership}
             viaServers={item.content.via}

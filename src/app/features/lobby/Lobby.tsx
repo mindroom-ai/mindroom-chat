@@ -58,25 +58,25 @@ const getChildItems = (space: Room, depth: number, parentId: string): HierarchyI
     });
 
 /** The space's rooms and subspaces, one level of each joined subspace below it. */
-const getLobbyItems = (mx: MatrixClient, space: Room): HierarchyItem[] =>
+const getLobbyItems = (client: MatrixClient, space: Room): HierarchyItem[] =>
   getChildItems(space, 1, space.roomId).flatMap((item) => {
     if (!item.space) return [item];
-    const subspace = mx.getRoom(item.roomId);
+    const subspace = client.getRoom(item.roomId);
     return subspace ? [item, ...getChildItems(subspace, 2, item.roomId)] : [item];
   });
 
 const noop = () => undefined;
 
 /** A space's lobby: its header and the rooms and subspaces it lists. */
-
-
-
-
-
+export function Lobby() {
+  const space = useSpace();
+  const client = useMatrixClient();
+  const screenSize = useScreenSizeContext();
+  const navigate = useNavigate();
   const powerLevels = usePowerLevels(space);
   const [closedCategories, setClosedCategories] = useState<Set<string>>(() => new Set());
-  const items = useMemo(() => getLobbyItems(mx, space), [mx, space]);
-  const getRoom = useCallback((roomId: string) => mx.getRoom(roomId) ?? undefined, [mx]);
+  const items = useMemo(() => getLobbyItems(client, space), [client, space]);
+  const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
 
   const toggleCategory = (categoryId: string) =>
     setClosedCategories((current) => {

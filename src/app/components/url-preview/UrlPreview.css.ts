@@ -30,27 +30,29 @@ export const UrlPreviewImg = style([
   {
     width: TEXT_BLOCK_HEIGHT,
     height: TEXT_BLOCK_HEIGHT,
+    flex: 'none',
+    objectFit: 'cover',
+    // Shown while the image loads and behind transparent images.
+    background: color.SurfaceVariant.ContainerActive,
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Fills the rest of the card; `minWidth: 0` lets long titles truncate instead of widening it.
+export const UrlPreviewContent = style([
+  DefaultReset,
+  {
+    flex: '1 1 0',
+    minInlineSize: 0,
+    display: 'flex',
+    flexFlow: 'column',
+    justifyContent: 'center',
+    rowGap: config.space.S100,
     paddingBlock: config.space.S200,
     paddingInline: config.space.S300,
   },
 ]);
+
+const DESCRIPTION_LINES = 2;
 
 // At most two lines, cut with an ellipsis (the WebKit box clamp is what every engine supports).
 export const UrlPreviewDescription = style([
@@ -58,8 +60,8 @@ export const UrlPreviewDescription = style([
   {
     overflow: 'hidden',
     overflowWrap: 'anywhere',
-
-
-
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: DESCRIPTION_LINES,
   },
 ]);

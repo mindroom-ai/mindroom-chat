@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Badge,
@@ -41,24 +42,28 @@ type LobbyHeaderProps = {
   onBack?: () => void;
 };
 
+/** The space's avatar as a small cropped thumbnail URL, or undefined when it has none. */
+const useSpaceAvatarSrc = (space: Room): string | undefined => {
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const avatarMxc = useRoomAvatar(space);
+  if (!avatarMxc) return undefined;
+  return mxcUrlToHttp(client, avatarMxc, authenticated, 96, 96, 'crop') ?? undefined;
+};
+
 /** The header of a space's lobby: back on mobile, the space, members with join requests, options. */
 export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: LobbyHeaderProps) {
-
-
-
-
-
+  const space = useSpace();
+  const spaceName = useRoomName(space);
+  const avatarSrc = useSpaceAvatarSrc(space);
+  const client = useMatrixClient();
+  const screenSize = useScreenSizeContext();
+  const { t } = useTranslation();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
+  const openSpaceSettings = useOpenSpaceSettings();
 
-
-
-
-
-
-
-
-
-
+  // Reviewing join requests takes the power to let people in (invite) or to keep them out (kick).
+  const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(space), powerLevels);
   const canInvite = permissions.action('invite', myUserId);
   const canReview = canInvite || permissions.action('kick', myUserId);
@@ -109,14 +114,14 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
           <Avatar size="300" radii="300">
             <RoomAvatar
-
-
-
-              renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+              roomId={space.roomId}
+              src={avatarSrc}
+              alt={spaceName}
+              renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
             />
           </Avatar>
           <Text size="H4" truncate>
-            {name}
+            {spaceName}
           </Text>
         </Box>
         <TooltipProvider

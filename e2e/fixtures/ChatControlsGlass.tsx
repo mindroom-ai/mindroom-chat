@@ -26,13 +26,13 @@ export function ChatControlsGlass() {
       style={{
         minHeight: '100vh',
         padding: 16,
-
-
-
-
-
-
-
+        backgroundColor: color.Surface.Container,
+        color: color.Surface.OnContainer,
+      }}
+    >
+      <div style={{
+          display: 'grid',
+          // minmax(0, 1fr) lets long labels shrink instead of widening the column
           gridTemplateColumns: 'minmax(0, 1fr)',
           gap: 18,
           maxWidth: 600,

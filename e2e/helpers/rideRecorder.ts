@@ -930,10 +930,10 @@ export const analyzeBlankBands = (
     if (!context) return results;
     for (const frame of encodedFrames) {
       // eslint-disable-next-line no-await-in-loop
-
-
-
-
+      const image = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = document.createElement('img');
+        img.addEventListener('load', () => resolve(img));
+        img.addEventListener('error', () => resolve(null));
         img.src = `data:image/jpeg;base64,${frame.data}`;
       });
       if (!image) continue;

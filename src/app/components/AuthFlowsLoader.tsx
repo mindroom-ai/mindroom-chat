@@ -11,47 +11,47 @@ export enum RegisterFlowStatus {
   FlowRequired = 401,
   Disabled = 403,
   /** `M_LIMIT_EXCEEDED`: the server wants the client to wait before asking again. */
+  RateLimited = 429,
+  /** Any other answer, a success to the empty request included. */
+  InvalidRequest = 400,
+}
 
+/** Registration is open: the server answered 401 with the user-interactive auth flows. */
+type OpenRegistration = { status: RegisterFlowStatus.FlowRequired; data: IAuthData };
 
+/** Any other answer is final for the sign-up page and carries no flows. */
+type ClosedRegistration = { status: Exclude<RegisterFlowStatus, RegisterFlowStatus.FlowRequired> };
 
+/** The answer to an empty `POST /register` (spec: User-Interactive Authentication API). */
+export type RegisterFlowsResponse = OpenRegistration | ClosedRegistration;
 
+export type AuthFlows = { loginFlows: ILoginFlowsResponse; registerFlows: RegisterFlowsResponse };
 
-
-
-
-
-
-  | { status: RegisterFlowStatus.FlowRequired; data: IAuthData }
-  | {
-
-
-
-
-
-
-};
+/** Statuses that end sign-up for good; the page shows them as they are. */
+const FINAL_REGISTER_STATUSES = [
+  RegisterFlowStatus.Disabled,
+  RegisterFlowStatus.RateLimited,
+] as const;
 
 /** An empty registration request answers 401 with the server's sign-up flows when sign-up is open. */
-const getRegisterFlows = async (mx: MatrixClient): Promise<RegisterFlowsResponse> => {
+const getRegisterFlows = async (client: MatrixClient): Promise<RegisterFlowsResponse> => {
+  const invalid: RegisterFlowsResponse = { status: RegisterFlowStatus.InvalidRequest };
   try {
-    await mx.registerRequest({});
-    return { status: RegisterFlowStatus.InvalidRequest };
+    await client.registerRequest({});
+    return invalid;
   } catch (error) {
     const { httpStatus, data } = (error ?? {}) as { httpStatus?: number; data?: IAuthData };
     if (httpStatus === RegisterFlowStatus.FlowRequired && data?.flows) {
       return { status: RegisterFlowStatus.FlowRequired, data };
     }
-    if (httpStatus === RegisterFlowStatus.Disabled) return { status: RegisterFlowStatus.Disabled };
-    if (httpStatus === RegisterFlowStatus.RateLimited) {
+    const final = FINAL_REGISTER_STATUSES.find((status) => status === httpStatus);
+    return final === undefined ? invalid : { status: final };
+  }
+};
 
-
-
-
-
-
-
-
-
+type AuthFlowsLoaderProps = {
+  /** Shown while the flows load; a centered spinner when absent. */
+  fallback?: () => ReactNode;
   /** Explains a failure above the retry button. */
   error?: (error: unknown) => ReactNode;
   children: (authFlows: AuthFlows) => ReactNode;

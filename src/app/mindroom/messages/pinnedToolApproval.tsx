@@ -1,7 +1,5 @@
-import React, { type ReactNode } from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import type { HTMLReactParserOptions } from 'html-react-parser';
-import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';
 
@@ -11,15 +9,15 @@ export const MINDROOM_PINNED_TOOL_APPROVAL_EVENT = MINDROOM_TOOL_APPROVAL_EVENT;
 export const isMindroomPinnedToolApprovalEvent = (eventType: string): boolean =>
   eventType === MINDROOM_PINNED_TOOL_APPROVAL_EVENT;
 
-export type MindroomPinnedToolApprovalRenderOptions = {
+type ContentProps = ComponentProps<typeof RenderMessageContent>;
+
+/** Parsing and media settings come straight from the message renderer; the pin menu owns the rest. */
+export type MindroomPinnedToolApprovalRenderOptions = Pick<
+  ContentProps,
+  'htmlReactParserOptions' | 'linkifyOpts' | 'mediaAutoLoad' | 'outlineAttachment' | 'urlPreview'
+> & {
   roomId: string;
   displayName: string;
-
-
-
-
-
-
   eventId?: string;
   /** Latest edit of the approval (the backend edits it as the request is decided). */
   editedEvent?: MatrixEvent;

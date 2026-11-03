@@ -51,10 +51,10 @@ export type RenderMindroomMessageContentOptions = {
   content: Record<string, unknown>;
   pendingSend?: boolean;
   failedSend?: boolean;
-
-
-
-
+  highlightRegex?: RegExp;
+  htmlReactParserOptions: HTMLReactParserOptions; // turns formatted_body HTML into React nodes
+  linkifyOpts: LinkifyOpts; // links bare URLs in plain-text bodies
+  renderUrlsPreview?: (urls: string[]) => ReactNode;
   showMessageExtras?: boolean;
   hydrateLongText?: boolean;
 };

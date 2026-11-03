@@ -19,11 +19,11 @@ import {
 
 type MindroomPinnedMessageRenderOptions = {
   roomId: string;
-
-
-
-
-
+  mediaAutoLoad?: boolean;
+  urlPreview?: boolean;
+  htmlReactParserOptions: HTMLReactParserOptions; // turns formatted_body HTML into React nodes
+  linkifyOpts: LinkifyOpts;
+  outlineAttachment?: boolean;
 };
 
 type MindroomPinnedEncryptedMessageRenderOptions = MindroomPinnedMessageRenderOptions & {

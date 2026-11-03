@@ -1,6 +1,8 @@
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
 
+const FADE_Z_INDEX = 1;
+
 /** Fades the cards into the background at an edge that has more cards beyond it. */
 export const UrlPreviewHolderGradient = recipe({
   base: [
@@ -10,7 +12,7 @@ export const UrlPreviewHolderGradient = recipe({
       top: 0,
       bottom: 0,
       width: config.space.S600,
-      zIndex: 1,
+      zIndex: FADE_Z_INDEX,
       pointerEvents: 'none',
     },
   ],
@@ -29,14 +31,14 @@ export const UrlPreviewHolderGradient = recipe({
 });
 
 /** The arrow button over an edge, centered vertically on the cards and above the fade. */
-
-
-
-
-
-
-
+export const UrlPreviewHolderBtn = recipe({
+  base: [
+    DefaultReset,
+    {
+      position: 'absolute',
+      insetBlockStart: '50%',
       translate: '0 -50%',
+      zIndex: FADE_Z_INDEX + 1,
     },
   ],
   variants: {

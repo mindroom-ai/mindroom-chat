@@ -44,6 +44,19 @@ const useRecoveryErrorText = () => {
   };
 };
 
+/** Checks a derived key against the secret storage key's description; `invalid` is thrown when it fails. */
+const useKeyVerifier = (keyContent: SecretStorageKeyContent) => {
+  const client = useMatrixClient();
+  return useCallback(
+    async (key: Uint8Array, invalid: string): Promise<Uint8Array> => {
+      const description = keyContent as SecretStorageKeyDescriptionAesV1;
+      if (!(await client.secretStorage.checkKey(key, description))) throw new Error(invalid);
+      return key;
+    },
+    [client, keyContent]
+  );
+};
+
 type RecoveryFormProps = {
   label: string;
   inputName: string;
@@ -110,29 +123,25 @@ export function SecretStorageRecoveryPassphrase(
   props: RecoveryPromptProps & { passphraseContent: SecretStoragePassphraseContent }
 ) {
   const { keyContent, passphraseContent, onDecodedRecoveryKey } = props;
-
-
-
+  const { t } = useTranslation();
+  const alive = useAlive();
+  const verifyKey = useKeyVerifier(keyContent);
   const errorText = useRecoveryErrorText();
 
   const [state, decode] = useAsyncCallback(
     useCallback(
       async (passphrase: string) => {
-        const key = await deriveRecoveryKeyFromPassphrase(
+        const derived = await deriveRecoveryKeyFromPassphrase(
           passphrase,
           passphraseContent.salt,
           passphraseContent.iterations,
           passphraseContent.bits
         );
-        const valid = await mx.secretStorage.checkKey(
-          key,
-          keyContent as SecretStorageKeyDescriptionAesV1
-        );
-        if (!valid) throw new Error(INVALID_PASSPHRASE);
+        const key = await verifyKey(derived, INVALID_PASSPHRASE);
         if (alive()) onDecodedRecoveryKey(key);
         return key;
       },
-      [mx, alive, keyContent, passphraseContent, onDecodedRecoveryKey]
+      [verifyKey, alive, passphraseContent, onDecodedRecoveryKey]
     )
   );
 
@@ -150,29 +159,25 @@ export function SecretStorageRecoveryPassphrase(
 /** Asks for the recovery key and hands it on once secret storage accepts it. */
 export function SecretStorageRecoveryKey(props: RecoveryPromptProps) {
   const { keyContent, onDecodedRecoveryKey } = props;
-
-
-
+  const { t } = useTranslation();
+  const alive = useAlive();
+  const verifyKey = useKeyVerifier(keyContent);
   const errorText = useRecoveryErrorText();
 
   const [state, decode] = useAsyncCallback(
     useCallback(
       async (recoveryKey: string) => {
-        let key: Uint8Array;
+        let decoded: Uint8Array;
         try {
-          key = decodeRecoveryKey(recoveryKey);
+          decoded = decodeRecoveryKey(recoveryKey);
         } catch {
           throw new Error(INVALID_KEY);
         }
-        const valid = await mx.secretStorage.checkKey(
-          key,
-          keyContent as SecretStorageKeyDescriptionAesV1
-        );
-        if (!valid) throw new Error(INVALID_KEY);
+        const key = await verifyKey(decoded, INVALID_KEY);
         if (alive()) onDecodedRecoveryKey(key);
         return key;
       },
-      [mx, alive, keyContent, onDecodedRecoveryKey]
+      [verifyKey, alive, onDecodedRecoveryKey]
     )
   );
 

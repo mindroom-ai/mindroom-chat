@@ -4,12 +4,32 @@ import { color, config, toRem } from 'folds';
 
 // Styles for message HTML (`org.matrix.custom.html`) as the custom HTML parser renders it.
 
+type ContainerTone = { Container: string; OnContainer: string; ContainerLine: string };
+
+/** The corner radius of every chip-sized element: inline code, mentions, spoilers, toolbar buttons. */
+const CHIP_RADIUS = config.radii.R300;
+
+/** A box-shadow outline `width` wide in `tint`, drawn inside the box when `inset` is set. */
+const ring = (width: string, tint: string, inset = false) =>
+  `${inset ? 'inset ' : ''}0 0 0 ${width} ${tint}`;
+
+/** Text and background colours of one container tone. */
+const surfaceOf = (tone: Pick<ContainerTone, 'Container' | 'OnContainer'>) => ({
+  color: tone.OnContainer,
+  backgroundColor: tone.Container,
+});
+
+/** A flex row whose items share one centre line. */
+const centeredRow = (gap: string) => ({ display: 'flex', alignItems: 'center', gap } as const);
+
+/** An element that is `size` wide and tall. */
+const square = (size: string) => ({ width: size, height: size });
+
 /** Vertical rhythm between blocks of a message; the last block adds no space under the message. */
-
-
-
+export const MarginSpaced = style({
+  marginBlock: `0 ${config.space.S200}`,
   selectors: {
-    '&:last-child': { marginBottom: 0 },
+    '&:last-child': { marginBlockEnd: 0 },
   },
 });
 
@@ -18,9 +38,9 @@ export const Paragraph = style([MarginSpaced]);
 export const Heading = style([
   MarginSpaced,
   {
-    marginTop: config.space.S300,
+    marginBlockStart: config.space.S300,
     selectors: {
-      '&:first-child': { marginTop: 0 },
+      '&:first-child': { marginBlockStart: 0 },
     },
   },
 ]);
@@ -47,10 +67,9 @@ const codeFont = "'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Conso
 
 /** Inline code: a small tinted chip that wraps with the text around it. */
 export const Code = style({
-
-
-
-
+  ...surfaceOf(color.SurfaceVariant),
+  boxShadow: ring(config.borderWidth.B300, color.SurfaceVariant.ContainerLine, true),
+  borderRadius: CHIP_RADIUS,
   paddingInline: toRem(4),
   fontFamily: codeFont,
   fontSize: '0.9em',
@@ -59,19 +78,16 @@ export const Code = style({
 });
 
 /** A fenced code block: a header with the language and actions above a scrolling body. */
-
-
-
-
-
-
-
-
-
-
-    whiteSpace: 'normal',
-  },
-]);
+export const CodeBlock = style({
+  ...surfaceOf(color.SurfaceVariant),
+  position: 'relative',
+  display: 'flex',
+  flexFlow: 'column',
+  overflow: 'hidden',
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  borderRadius: config.radii.R400,
+  whiteSpace: 'normal',
+});
 
 /** A code block inside a message bubble, which has its own padding. */
 export const MessageCodeBlock = style({
@@ -79,18 +95,14 @@ export const MessageCodeBlock = style({
 });
 
 export const CodeBlockHeader = style({
-  display: 'flex',
-  alignItems: 'center',
+  ...centeredRow(config.space.S200),
   justifyContent: 'space-between',
-  gap: config.space.S200,
   padding: `${config.space.S100} ${config.space.S200}`,
   borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
 export const CodeBlockLabel = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S100,
+  ...centeredRow(config.space.S100),
   minWidth: 0,
 });
 
@@ -105,9 +117,8 @@ export const CodeBlockLabelText = style({
 
 // Each language icon carries both tints; the prism theme class on the page picks one.
 export const CodeBlockLanguageIcon = style({
-
-
-
+  ...square(toRem(14)),
+  flex: 'none',
   color: 'var(--mr-code-icon-light)',
   selectors: {
     '.prism-dark &': { color: 'var(--mr-code-icon-dark)' },
@@ -115,22 +126,19 @@ export const CodeBlockLanguageIcon = style({
 });
 
 export const CodeBlockActions = style({
-  display: 'flex',
-
-
-
+  ...centeredRow(toRem(2)),
+  flex: 'none',
 });
 
 /** An icon-only toolbar button; a pressed toggle (wrap) keeps the hover tint. */
 export const CodeBlockAction = style({
-
-
-
-
-
-
-
-
+  display: 'inline-grid',
+  placeItems: 'center',
+  padding: config.space.S100,
+  border: 0,
+  borderRadius: CHIP_RADIUS,
+  backgroundColor: 'transparent',
+  color: 'inherit',
   opacity: 0.7,
   cursor: 'pointer',
   selectors: {
@@ -145,19 +153,17 @@ export const CodeBlockAction = style({
   },
 });
 
-export const CodeBlockActionIcon = style({
-  width: toRem(16),
-  height: toRem(16),
-});
+export const CodeBlockActionIcon = style(square(toRem(16)));
 
 export const CodeBlockScroll = style({
   overflow: 'auto',
   maxHeight: toRem(480),
 });
 
-
-
-
+export const CodeBlockInternal = style({
+  margin: 0,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
   fontFamily: codeFont,
   fontSize: toRem(13),
   lineHeight: 1.5,
@@ -166,23 +172,20 @@ export const CodeBlockScroll = style({
 });
 
 // Fades a collapsed block's last visible lines into the block's background.
+const SHADOW_HEIGHT = toRem(24);
 
-
-
+export const CodeBlockBottomShadow = style({
+  height: SHADOW_HEIGHT,
+  position: 'sticky',
   insetBlockEnd: 0,
-  marginTop: `calc(-1 * ${toRem(24)})`,
+  marginTop: `calc(-1 * ${SHADOW_HEIGHT})`,
   pointerEvents: 'none',
   background: `linear-gradient(transparent, ${color.SurfaceVariant.Container})`,
 });
 
-type ContainerTone = { Container: string; OnContainer: string; ContainerLine: string };
-
-const ring = (width: string, tint: string) => `0 0 0 ${width} ${tint}`;
-
 // The chip surface, text and ring all come from one container tone.
 const mentionTone = (tone: ContainerTone) => ({
-  color: tone.OnContainer,
-  backgroundColor: tone.Container,
+  ...surfaceOf(tone),
   boxShadow: ring(config.borderWidth.B300, tone.ContainerLine),
 });
 
@@ -193,7 +196,7 @@ export const Mention = recipe({
     display: 'inline',
     paddingBlock: 0,
     paddingInline: toRem(2),
-    borderRadius: config.radii.R300,
+    borderRadius: CHIP_RADIUS,
     fontWeight: config.fontWeight.W500,
     textDecoration: 'none',
   },
@@ -208,7 +211,7 @@ export const Mention = recipe({
 const SpoilerBase = style({
   color: 'transparent',
   backgroundColor: color.SurfaceVariant.ContainerActive,
-  borderRadius: config.radii.R300,
+  borderRadius: CHIP_RADIUS,
   paddingInline: toRem(2),
   cursor: 'pointer',
 });
@@ -230,19 +233,16 @@ export const Spoiler = recipe({
 });
 
 /** The inline wrapper of a custom (`data-mx-emoticon`) image emoji. */
-export const EmoticonBase = style({
+export const EmoticonBase = style({ display: 'inline-block', whiteSpace: 'nowrap' });
 
-
-
-
-
-
-
-
-    textAlign: 'center',
+/** A Unicode or custom emoji, scaled a little above the text; alone in a message it grows. */
+export const Emoticon = recipe({
+  base: {
+    display: 'inline-block',
+    blockSize: '1.25em',
+    minInlineSize: '1.25em',
     objectFit: 'contain',
-    height: '1.25em',
-    minWidth: '1.25em',
+    textAlign: 'center',
     fontSize: '1.33em',
     lineHeight: 1,
     verticalAlign: '-0.3em',
@@ -258,9 +258,8 @@ export const EmoticonBase = style({
 
 // A search match inside a message.
 export const highlightText = style({
-
-
-
+  ...surfaceOf(color.Warning),
+  borderRadius: CHIP_RADIUS,
   boxShadow: ring(toRem(1), color.Warning.Container),
 });
 
