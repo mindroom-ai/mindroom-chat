@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { EventTimeline, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../../types/matrix/room';
 import { useDirectUsers } from '../../hooks/useDirectUsers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -27,14 +27,8 @@ import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../../utils/matrix'
 import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
 import { markRoomAndThreadsAsRead } from '../notifications/readReceipts';
 import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
-import {
-  aggregateThreadTagEvents,
-  buildPerTagEventContent,
-  buildPerTagStateKey,
-  isThreadResolved,
-  MINDROOM_THREAD_TAGS_EVENT,
-  RESOLVED_TAG,
-} from '../threads/threadTags';
+import { isThreadPinned } from '../threads/threadPinning';
+import { useThreadResolution, useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import {
   type CommandPaletteQuickActionId,
   commandPaletteStaticActionPaths,
@@ -85,32 +79,6 @@ const roomTopic = (room: Room): string | undefined => {
   const topic = liveState(room)?.getStateEvents(StateEvent.RoomTopic, '')?.getContent().topic;
   return typeof topic === 'string' && topic ? topic : undefined;
 };
-
-const isThreadPinnedInRoom = (room: Room, threadId: string): boolean => {
-  const pinned = liveState(room)
-    ?.getStateEvents(StateEvent.RoomPinnedEvents, '')
-    ?.getContent().pinned;
-  return Array.isArray(pinned) && pinned.includes(threadId);
-};
-
-const isThreadResolvedInRoom = (room: Room, threadId: string): boolean => {
-  const events = liveState(room)?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
-  const content = aggregateThreadTagEvents(events).get(threadId);
-  return content ? isThreadResolved(content) : false;
-};
-
-const setThreadResolved = (
-  mx: MatrixClient,
-  roomId: string,
-  threadId: string,
-  resolved: boolean
-): Promise<unknown> =>
-  mx.sendStateEvent(
-    roomId,
-    MINDROOM_THREAD_TAGS_EVENT as never,
-    (resolved ? buildPerTagEventContent(mx.getSafeUserId()) : {}) as never,
-    buildPerTagStateKey(threadId, RESOLVED_TAG)
-  );
 
 /**
  * The command palette's items for the signed-in account: quick actions for where the user is,
@@ -231,19 +199,23 @@ export const useCommandPaletteSource = ({
   );
 
   const currentThreadId = currentRoom ? selectedThreadId : undefined;
+  // The thread tag hooks need a room; without one open, no thread action is offered anyway.
+  const noRoom = useMemo(() => new Room('!command-palette:invalid', mx, myUserId), [mx, myUserId]);
+  const resolutionRoom = currentRoom ?? noRoom;
+  const { isResolved: currentThreadResolved } = useThreadResolution(
+    resolutionRoom,
+    currentThreadId
+  );
+  const { canToggle, setResolved } = useToggleThreadResolution(resolutionRoom);
+  const canResolveThread = !!currentRoom && !!currentThreadId && canToggle;
   const actions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
     const items = getCommandPaletteQuickActions(
       {
         currentRoomName: currentRoom?.name,
         currentThreadId,
-        isCurrentThreadResolved:
-          currentRoom && currentThreadId
-            ? isThreadResolvedInRoom(currentRoom, currentThreadId)
-            : undefined,
+        isCurrentThreadResolved: currentThreadId ? currentThreadResolved : undefined,
         isCurrentThreadPinned:
-          currentRoom && currentThreadId
-            ? isThreadPinnedInRoom(currentRoom, currentThreadId)
-            : undefined,
+          currentRoom && currentThreadId ? isThreadPinned(currentRoom, currentThreadId) : undefined,
       },
       t
     );
@@ -265,26 +237,26 @@ export const useCommandPaletteSource = ({
                 idOrAlias,
                 idOrAlias.startsWith('!') ? getViaServers(currentRoom) : undefined
               )
-            ).catch(() => undefined);
+            ).catch((error: unknown) => {
+              // eslint-disable-next-line no-console
+              console.warn('[command-palette] could not copy the room link', error);
+            });
           }
         : undefined,
       'open-current-room-settings': currentRoom
         ? () => openRoomSettings(currentRoom.roomId, selectedSpaceId)
         : undefined,
+      // The thread tag write path checks the root, shows the change at once and reports errors.
       'resolve-current-thread':
-        currentRoom && currentThreadId
+        canResolveThread && currentThreadId
           ? () => {
-              setThreadResolved(mx, currentRoom.roomId, currentThreadId, true).catch(
-                () => undefined
-              );
+              setResolved(currentThreadId, true);
             }
           : undefined,
       'unresolve-current-thread':
-        currentRoom && currentThreadId
+        canResolveThread && currentThreadId
           ? () => {
-              setThreadResolved(mx, currentRoom.roomId, currentThreadId, false).catch(
-                () => undefined
-              );
+              setResolved(currentThreadId, false);
             }
           : undefined,
       'toggle-theme': () => {
@@ -293,13 +265,22 @@ export const useCommandPaletteSource = ({
       },
       logout: onLogout,
     };
-    return items.map((item) => ({
-      ...item,
-      onSelect: run[item.id as CommandPaletteQuickActionId],
-    }));
+    // Resolving needs the right to set thread tags; without it the action is not offered.
+    return items
+      .filter(
+        (item) =>
+          canResolveThread ||
+          (item.id !== 'resolve-current-thread' && item.id !== 'unresolve-current-thread')
+      )
+      .map((item) => ({
+        ...item,
+        onSelect: run[item.id as CommandPaletteQuickActionId],
+      }));
   }, [
+    canResolveThread,
     currentRoom,
     currentThreadId,
+    currentThreadResolved,
     hideActivity,
     mx,
     navigate,
@@ -309,6 +290,7 @@ export const useCommandPaletteSource = ({
     openRoomSettings,
     selectedSpaceId,
     setSettingsModal,
+    setResolved,
     setThemeId,
     setUseSystemTheme,
     t,

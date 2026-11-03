@@ -12,9 +12,9 @@ import { mindroomSettingsAtom } from './mindroomSettings';
 const SCOPES: readonly PrefetchScope[] = ['current-room-only', 'my-server', 'all-rooms'];
 
 const SCOPE_LABEL_KEYS = {
-  'current-room-only': 'settings.general.prefetch.scopeCurrentRoom',
-  'my-server': 'settings.general.prefetch.scopeMyServer',
-  'all-rooms': 'settings.general.prefetch.scopeAllRooms',
+  'current-room-only': 'options.prefetchScope.currentRoomOnly',
+  'my-server': 'options.prefetchScope.myHomeserver',
+  'all-rooms': 'options.prefetchScope.allRooms',
 } as const satisfies Record<PrefetchScope, string>;
 
 /** The menu for which rooms keep their history loaded in the background. */
@@ -42,7 +42,7 @@ export function SelectPrefetchScope() {
 
 
 
-
+      >
 
 
 
@@ -93,8 +93,8 @@ export function MindroomPrefetchSettings({ className }: { className?: string }) 
   return (
     <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
       <SettingTile
-        title={t('settings.general.prefetch.scope')}
-        description={t('settings.general.prefetch.scopeDescription')}
+        title={t('settings.general.messages.prefetchScope')}
+        description={t('settings.general.messages.prefetchScopeDescription')}
         after={<SelectPrefetchScope />}
       />
     </SequenceCard>

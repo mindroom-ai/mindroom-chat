@@ -13,10 +13,11 @@ import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, MsgType, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import { Box, Icon, IconButton, Icons, PopOut, RectCords, config } from 'folds';
+import { Box, Icon, IconButton, Icons, PopOut, RectCords, Text, color, config } from 'folds';
 import { Editor as SlateEditor } from 'slate';
 import {
   AUTOCOMPLETE_PREFIXES,
+  AutocompletePrefix,
   type AutocompleteQuery,
   CustomEditor,
   customHtmlEqualsPlainText,
@@ -61,6 +62,7 @@ import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { settingsAtom } from '../../state/settings';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { withMindroomPasteAttachmentMetadata } from '../messages/pasteAttachmentMarker';
+import { getMindroomCommandSuggestions } from '../commands/mindroomCommandSuggestions';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { IconTooltip } from '../tooltip/IconTooltip';
@@ -312,18 +314,41 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       }
     }, [buildTextContent, sendTypingStatus, sessions, voice]);
 
+    // Every send path goes through here: failures are logged once, and the promise still
+    // rejects for a caller that awaits it.
+    const handleSend = useCallback(() => {
+      const sending = submit();
+      sending.catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[room-input] could not send the message', error);
+      });
+      return sending;
+    }, [submit]);
+
+    // Only `@` mentions and matching `!` commands show a menu; other prefixes send on Enter.
+    let autocompleteMenuOpen = false;
+    if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
+      autocompleteMenuOpen = getMindroomCommandSuggestions(autocompleteQuery.text).length > 0;
+    } else if (autocompleteQuery) {
+      autocompleteMenuOpen = autocompleteQuery.prefix === AutocompletePrefix.UserMention;
+    }
+
     const handleKeyDown = useCallback(
       (event: KeyboardEvent<HTMLDivElement>) => {
         if (isComposing(event.nativeEvent)) return;
-        // Enter picks a suggestion while a menu is open; it never sends then.
-        if (autocompleteQuery && isEnter(event.nativeEvent ?? event)) return;
-        const sendKey = enterForNewline || mobileOrTablet() ? isModEnter : isEnter;
-        if (sendKey(event.nativeEvent ?? event)) {
+        const keyEvent = event.nativeEvent ?? event;
+        // With a menu open, Enter picks its suggestion; it never sends then.
+        if (autocompleteMenuOpen && isEnter(keyEvent)) {
           event.preventDefault();
-          submit().catch(() => undefined);
+          return;
+        }
+        const sendKey = enterForNewline || mobileOrTablet() ? isModEnter : isEnter;
+        if (sendKey(keyEvent)) {
+          event.preventDefault();
+          handleSend();
         }
       },
-      [autocompleteQuery, enterForNewline, isComposing, submit]
+      [autocompleteMenuOpen, enterForNewline, handleSend, isComposing]
     );
 
     const handleKeyUp = useCallback(() => {
@@ -353,7 +378,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
-    const attachLabel = t('composer.attachFile');
+    const attachLabel = t('composer.attach');
 
     const autocomplete =
       autocompleteQuery &&
@@ -364,7 +389,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           requestClose={closeAutocomplete}
         />
       ) : (
-        autocompleteQuery.prefix === '@' && (
+        autocompleteQuery.prefix === AutocompletePrefix.UserMention && (
           <UserMentionAutocomplete
 
 
@@ -377,13 +402,36 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     return (
       <div ref={ref}>
         {autocomplete}
+        {attachments.dropZoneVisible && (
+          <Box
+            direction="Column"
+            alignItems="Center"
+            gap="100"
+            role="status"
+            style={{
+              margin: `0 ${config.space.S200} ${config.space.S200}`,
+              padding: config.space.S400,
+              borderRadius: config.radii.R400,
+              border: `${config.borderWidth.B400} dashed ${color.Primary.Main}`,
+              backgroundColor: color.Primary.Container,
+              color: color.Primary.OnContainer,
+              pointerEvents: 'none',
+            }}
+          >
+            <Icon size="400" src={Icons.File} />
+            <Text size="H5" align="Center">
+              {t('composer.dropFiles', { roomName: room.name || t('composer.roomFallback') })}
+            </Text>
+            <Text size="T300" align="Center">
+              {t('composer.dropFilesHint')}
+            </Text>
+          </Box>
+        )}
         {attachments.board}
-        {voice.renderRecorder(() => {
-          submit().catch(() => undefined);
-        })}
+        {voice.renderRecorder(handleSend)}
         <CustomEditor
           editor={editor}
-          editableName={t('composer.messageInput')}
+          editableName={t('composer.placeholder')}
           placeholder={t('composer.placeholder')}
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
 
@@ -473,7 +521,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     size="300"
                     radii="300"
                     aria-label={sendLabel}
-                    onClick={() => submit()}
+                    onClick={handleSend}
                   >
                     <Icon src={Icons.Send} />
                   </IconButton>

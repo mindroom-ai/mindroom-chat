@@ -39,7 +39,7 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
     if (openRoomId !== undefined && openRoomId !== room.roomId) setOpenRoomId(undefined);
   }, [openRoomId, room.roomId]);
 
-  const label = t('roomSchedules.trigger', { count: tasks.length });
+  const label = t('roomSchedules.openLabel', { total: tasks.length });
   const close = () => setOpenRoomId(undefined);
 
   return (

@@ -165,7 +165,7 @@ function ThreadNavItemRow({
         {relativeTime && (
           <>
             <Text as="span" size="T200" priority="300">
-              {t('threadNav.activity')}
+              {t('threadNav.lastActivity')}
             </Text>
             <Text as="span" size="T200" title={activityTitle}>
               {relativeTime}
@@ -226,7 +226,7 @@ function ThreadNavItemRow({
                 size="300"
                 radii="300"
                 variant="Background"
-                aria-label={t('threadNav.resolve')}
+                aria-label={t('thread.resolve')}
                 disabled={updating}
                 onClick={() => setResolved(entry.threadRootId, true)}
               >

@@ -13,7 +13,7 @@ import {
 export function MindroomCommandPaletteSidebarTab() {
   const { t } = useTranslation();
   const [open, setOpen] = useAtom(commandPaletteOpenAtom);
-  const label = t('commandPalette.openAria');
+  const label = t('commandPalette.open');
 
   return (
     <SidebarItem active={open}>

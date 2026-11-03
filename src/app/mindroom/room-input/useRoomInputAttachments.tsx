@@ -105,7 +105,7 @@ export const useRoomInputAttachments = ({
   const roomItems = useAtomValue(itemsAtom);
   const [boardOpen, setBoardOpen] = useState(true);
 
-  // Which draft owns a staged file; files without an entry belong to the room's composer.
+  // Which draft owns a staged paste file.
   const owners = useRef(new Map<TUploadContent, string | undefined>());
   const enrolled = useRef<TUploadItem[]>([]);
   const leases = useRef(new Map<TUploadContent, number>());
@@ -133,10 +133,38 @@ export const useRoomInputAttachments = ({
     });
   }, []);
 
+  // Paste files belong to the draft they were pasted into; other files to the room's composer,
+  // whichever conversation it shows.
   const ownedByCurrent = useCallback(
-    (item: TUploadItem) => owners.current.get(item.file) === current.current.draftKey,
+    (item: TUploadItem) =>
+      !isPasteItem(item) ||
+      !owners.current.has(item.file) ||
+      owners.current.get(item.file) === current.current.draftKey,
     []
   );
+
+  // Upload progress of every staged or claimed file wakes the listeners too: a send session
+  // waits on uploads, which change outside this hook.
+  const uploadWatches = useRef(new Map<TUploadContent, () => void>());
+  const watchedRooms = useRef(new Set<string>([roomId]));
+  watchedRooms.current.add(roomId);
+  const syncUploadWatches = useCallback(() => {
+    const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
+    watchedRooms.current.forEach((watchedRoomId) =>
+      store
+        .get(roomIdToUploadItemsAtomFamily(watchedRoomId))
+        .forEach((item) => needed.add(item.file))
+    );
+    uploadWatches.current.forEach((unsubscribe, file) => {
+      if (needed.has(file)) return;
+      unsubscribe();
+      uploadWatches.current.delete(file);
+    });
+    needed.forEach((file) => {
+      if (uploadWatches.current.has(file)) return;
+      uploadWatches.current.set(file, store.sub(roomUploadAtomFamily(file), notify));
+    });
+  }, [notify, store]);
 
   const access = useMemo<RoomInputAttachmentAccess>(() => {
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
@@ -158,6 +186,8 @@ export const useRoomInputAttachments = ({
         if (item.prepError) store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
       });
       store.set(roomIdToUploadItemsAtomFamily(targetRoomId), { type: 'PUT', item: items });
+      watchedRooms.current.add(targetRoomId);
+      syncUploadWatches();
       notify();
     };
 
@@ -166,9 +196,17 @@ export const useRoomInputAttachments = ({
       const removed = new Set(files);
       const listAtom = roomIdToUploadItemsAtomFamily(targetRoomId);
       const items = store.get(listAtom).filter((item) => removed.has(item.file));
+      // A removed file's upload in flight is cancelled; its card would otherwise finish it.
+      items.forEach((item) => {
+        const upload = store.get(roomUploadAtomFamily(item.file));
+        if (upload.status !== UploadStatus.Loading) return;
+        mx.cancelUpload(upload.promise);
+        store.set(roomUploadAtomFamily(item.file), { status: UploadStatus.Idle });
+      });
       if (items.length > 0) store.set(listAtom, { type: 'DELETE', item: items });
       files.forEach((file) => owners.current.delete(file));
       enrolled.current = enrolled.current.filter((item) => !removed.has(item.file));
+      syncUploadWatches();
       notify();
     };
 
@@ -179,10 +217,12 @@ export const useRoomInputAttachments = ({
       enroll: (items) => {
         const known = new Set(enrolled.current.map((item) => item.file));
         enrolled.current = [...enrolled.current, ...items.filter((item) => !known.has(item.file))];
+        syncUploadWatches();
         notify();
       },
       clearEnrollment: () => {
         enrolled.current = [];
+        syncUploadWatches();
         notify();
       },
       protectPasteItems: (items) => {
@@ -206,20 +246,26 @@ export const useRoomInputAttachments = ({
         };
       },
     };
-  }, [notify, ownedByCurrent, store]);
+  }, [mx, notify, ownedByCurrent, store, syncUploadWatches]);
+
+  // Files staged from outside (another composer instance, a restored draft) are watched as well.
+  useEffect(() => {
+    syncUploadWatches();
+    notify();
+  }, [notify, roomItems, syncUploadWatches]);
 
   const onEditorChange = useCallback(() => {
     const { roomId: activeRoomId, editor: activeEditor } = current.current;
     const present = getMindroomRoomInputPasteMarkerFileNames(activeEditor.children);
-    const orphans = access
-      .snapshot()
-      .staged.filter(
-        (item) =>
-          isPasteItem(item) &&
-          !item.prepError &&
-          !leases.current.has(item.file) &&
-          !present.has(item.metadata.mindroomPasteAttachment!.fileName)
-      );
+    const orphans = access.snapshot().staged.filter(
+      (item) =>
+        isPasteItem(item) &&
+        !item.prepError &&
+        !leases.current.has(item.file) &&
+        // A file a send session claimed stays until the session sends or drops it.
+        !enrolled.current.some((entry) => entry.file === item.file) &&
+        !present.has(item.metadata.mindroomPasteAttachment!.fileName)
+    );
     access.remove(
       activeRoomId,
       orphans.map((item) => item.file)

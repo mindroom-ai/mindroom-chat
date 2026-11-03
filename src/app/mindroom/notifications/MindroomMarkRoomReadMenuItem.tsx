@@ -31,7 +31,7 @@ export function MindroomMarkRoomReadMenuItem({
       }}
     >
       <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-        {t('mindroomUi.notifications.markAsRead')}
+        {t('mindroomUi.notifications.mindroomMarkRoomReadMenuItem.markAsRead')}
       </Text>
     </MenuItem>
   );

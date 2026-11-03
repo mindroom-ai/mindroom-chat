@@ -19,7 +19,7 @@ export function MindroomMarkRoomReadChip({ roomId }: { roomId: string }) {
 
       onClick={() => markRoomAndThreadsAsRead(mx, roomId, hideActivity)}
     >
-      <Text size="L400">{t('mindroomUi.notifications.markAsRead')}</Text>
+      <Text size="L400">{t('mindroomUi.notifications.mindroomMarkRoomReadChip.markAsRead')}</Text>
     </Chip>
   );
 }

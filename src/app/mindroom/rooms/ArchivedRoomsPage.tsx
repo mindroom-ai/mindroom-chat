@@ -25,30 +25,44 @@ function ArchivedRoomRow({ roomId, name, onOpen }: ArchivedRoomRowProps) {
 
   return (
     <SettingTile
-      title={name}
-      after={
-        <Box gap="200" alignItems="Center">
-          <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onOpen}>
-            <Text size="B300">{t('archivedRooms.open')}</Text>
-          </Button>
-          <Button
-            size="300"
-            variant="Primary"
-            fill="Soft"
-            radii="300"
-            disabled={busy}
-            onClick={() => {
-              toggle().catch(() => undefined);
-            }}
-          >
-            <Text size="B300">{t('archivedRooms.unarchive')}</Text>
-          </Button>
+      title={
+        <Box
+          as="button"
+          type="button"
+          onClick={onOpen}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {name}
         </Box>
+      }
+      after={
+        <Button
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+          radii="300"
+          disabled={busy}
+          aria-label={t('archivedRooms.restoreNamed', { room: name })}
+          onClick={() => {
+            toggle().catch((error: unknown) => {
+              // eslint-disable-next-line no-console
+              console.warn('[archived-rooms] could not restore the room', roomId, error);
+            });
+          }}
+        >
+          <Text size="B300">{t('archivedRooms.restore')}</Text>
+        </Button>
       }
     >
       {failed && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {t('archivedRooms.unarchiveFailed')}
+          {t('archivedRooms.failed')}
         </Text>
       )}
     </SettingTile>
@@ -78,7 +92,9 @@ export function ArchivedRooms({ requestClose, onNavigate }: ArchivedRoomsProps) 
   return (
     <SettingsPageFrame title={t('archivedRooms.title')} requestClose={requestClose}>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('archivedRooms.title')}</Text>
+        <Text size="T300" priority="300">
+          {t('archivedRooms.description')}
+        </Text>
         <SequenceCard variant="SurfaceVariant" direction="Column" gap="400">
           {rooms.length === 0 ? (
             <SettingTile title={t('archivedRooms.empty')} />

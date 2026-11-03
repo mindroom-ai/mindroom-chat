@@ -8,16 +8,14 @@ import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { onTabPress } from '../../utils/keyboard';
 import { insertMindroomCommand } from './mindroomCommandQuery';
-import { MINDROOM_COMMANDS, type MindroomCommandItem } from './mindroomCommands';
+import type { MindroomCommandItem } from './mindroomCommands';
+import { getMindroomCommandSuggestions } from './mindroomCommandSuggestions';
 
 type MindroomCommandAutocompleteProps = {
   editor: Editor;
   query: AutocompleteQuery<string>;
   requestClose: () => void;
 };
-
-const matches = (command: MindroomCommandItem, text: string): boolean =>
-  command.name.toLowerCase().startsWith(text.toLowerCase());
 
 /** Suggests MindRoom's `!` commands while the message starts with one, with their syntax. */
 export function MindroomCommandAutocomplete({
@@ -26,10 +24,7 @@ export function MindroomCommandAutocomplete({
   requestClose,
 }: MindroomCommandAutocompleteProps) {
   const { t } = useTranslation();
-  const suggestions = useMemo(
-    () => MINDROOM_COMMANDS.filter((command) => matches(command, query.text)),
-    [query.text]
-  );
+  const suggestions = useMemo(() => getMindroomCommandSuggestions(query.text), [query.text]);
 
   const select = useCallback(
     (command: MindroomCommandItem) => {
@@ -55,7 +50,11 @@ export function MindroomCommandAutocomplete({
   return (
     <AutocompleteMenu
       requestClose={requestClose}
-      headerContent={<Text size="L400">{t('mindroomUi.commands.title')}</Text>}
+      headerContent={
+        <Text size="L400">
+          {t('mindroomUi.commands.mindroomCommandAutocomplete.mindroomCommands')}
+        </Text>
+      }
     >
       {suggestions.map((command) => (
         <MenuItem
@@ -69,9 +68,12 @@ export function MindroomCommandAutocomplete({
           onClick={() => select(command)}
           after={
             <Text size="T200" priority="300" truncate>
-              {t(`mindroomUi.commands.descriptions.${command.name}`, {
-                defaultValue: command.description,
-              })}
+              {/* Keys built at runtime are untyped, so t returns unknown. */}
+              {String(
+                t(`mindroomUi.commands.descriptions.${command.name}`, {
+                  defaultValue: command.description,
+                })
+              )}
             </Text>
           }
         >

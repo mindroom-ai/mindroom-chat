@@ -52,8 +52,7 @@ export function MindroomSearchResultBody({
       {highlightText(preview, highlightRegex)}
       {isSearchResultEdited(event) && (
         <Text as="span" size="T200" priority="300">
-          {' '}
-          {t('mindroomUi.message-search.edited')}
+          {t('mindroomUi.message-search.mindroomSearchResultBody.edited')}
         </Text>
       )}
     </Text>

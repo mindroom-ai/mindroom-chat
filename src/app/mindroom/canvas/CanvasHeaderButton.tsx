@@ -50,11 +50,11 @@ export function CanvasHeaderButton({
   if (canvases.length === 0) return null;
 
   const openHere = canvases.some((canvas) => canvas.canvasId === openCanvasId);
-  let label = t('mindroomUi.canvases.title');
+  let label = t('mindroomUi.threads.mindroomRoomViewHeader.canvases');
   if (!several) {
     label = openHere
-      ? t('mindroomUi.canvas.headerButton.hide')
-      : t('mindroomUi.canvas.headerButton.show');
+      ? t('mindroomUi.threads.mindroomRoomViewHeader.hideCanvas')
+      : t('mindroomUi.threads.mindroomRoomViewHeader.showCanvas');
   }
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -129,7 +129,7 @@ export function CanvasHeaderButton({
                   padding: `${config.space.S300} ${config.space.S300} ${config.space.S100}`,
                 }}
               >
-                <Text size="L400">{t('mindroomUi.canvases.title')}</Text>
+                <Text size="L400">{t('mindroomUi.threads.mindroomRoomViewHeader.canvases')}</Text>
               </Box>
               <Scroll size="300" hideTrack visibility="Hover">
                 <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>

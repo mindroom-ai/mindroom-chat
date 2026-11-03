@@ -6,6 +6,7 @@ import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { SettingsPageFrame } from '../../features/settings/SettingsPageFrame';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getConnectPath } from '../../pages/pathUtils';
@@ -17,8 +18,10 @@ import {
 } from './api';
 import {
   formatLocalTimestamp,
+  getConnectionCreatedAt,
   getConnectionId,
   getConnectionLastSeenAt,
+  getMindroomDocsUrl,
   getConnectionName,
   isConnectionRevoked,
   resolveMindroomProvisioningRequest,
@@ -52,6 +55,9 @@ function ConnectionRow({ connection, index, onRevoke }: ConnectionRowProps) {
   const [revoking, setRevoking] = useState(false);
   const [failed, setFailed] = useState(false);
   const connectionId = getConnectionId(connection);
+  const language = useAppLanguageCode();
+  const unknown = t('mindroomUi.local-mindroom.localMindroom.unknown');
+  const createdAt = getConnectionCreatedAt(connection);
   const lastSeen = getConnectionLastSeenAt(connection);
 
   const revoke = () => {
@@ -73,10 +79,17 @@ function ConnectionRow({ connection, index, onRevoke }: ConnectionRowProps) {
           <Text size="T300" truncate>
             {getConnectionName(connection, index)}
           </Text>
+          {createdAt && (
+            <Text size="T200" priority="300">
+              {t('mindroomUi.local-mindroom.localMindroom.createdAt', {
+                timestamp: formatLocalTimestamp(createdAt, language, unknown),
+              })}
+            </Text>
+          )}
           {lastSeen && (
             <Text size="T200" priority="300">
-              {t('mindroomUi.local-mindroom.localMindroom.lastSeen', {
-                time: formatLocalTimestamp(lastSeen),
+              {t('mindroomUi.local-mindroom.localMindroom.lastSeenAt', {
+                timestamp: formatLocalTimestamp(lastSeen, language, unknown),
               })}
             </Text>
           )}
@@ -169,16 +182,43 @@ function LinkedInstallations({ provisioningBaseUrl }: { provisioningBaseUrl: str
     await load();
   };
 
-  if (state.status === 'loading') return <Spinner size="200" variant="Secondary" />;
+  if (state.status === 'loading') {
+    return (
+      <Box alignItems="Center" gap="200">
+        <Spinner size="200" variant="Secondary" />
+        <Text size="T300">
+          {t('mindroomUi.local-mindroom.localMindroom.loadingLinkedInstallations')}
+        </Text>
+      </Box>
+    );
+  }
   if (state.status === 'error') {
     return (
-      <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-        {state.message}
-      </Text>
+      <Box direction="Column" alignItems="Start" gap="200">
+        <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
+          {state.message}
+        </Text>
+        <Button
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+          radii="300"
+          onClick={() => {
+            setState({ status: 'loading' });
+            load();
+          }}
+        >
+          <Text size="B300">{t('mindroomUi.local-mindroom.localMindroom.tryAgain')}</Text>
+        </Button>
+      </Box>
     );
   }
   if (state.connections.length === 0) {
-    return <SettingTile title={t('mindroomUi.local-mindroom.localMindroom.noConnections')} />;
+    return (
+      <SettingTile
+        title={t('mindroomUi.local-mindroom.localMindroom.noLinkedLocalMindroomInstallationsYet')}
+      />
+    );
   }
   return (
     <>
@@ -236,20 +276,21 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
 
 
 
-
-          <Box direction="Column" gap="200">
-            <Text size="T300">{t('mindroomUi.local-mindroom.localMindroom.enterCode')}</Text>
-            <PairCodeForm
-              onSubmit={(code) => {
-                navigate(getConnectPath(code));
-                onNavigate();
-              }}
-            />
-          </Box>
+          <PairCodeForm
+            onSubmit={(code) => {
+              navigate(getConnectPath(code));
+              onNavigate();
+            }}
+          />
+          <Text size="T200">
+            <a href={getMindroomDocsUrl()} target="_blank" rel="noreferrer noopener">
+              {t('mindroomUi.local-mindroom.localMindroom.mindroomDocs')}
+            </a>
+          </Text>
         </SequenceCard>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.linkedTitle')}</Text>
+        <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.linkedInstallations')}</Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"
@@ -260,8 +301,8 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
             <LinkedInstallations provisioningBaseUrl={provisioningBaseUrl} />
           ) : (
             <SettingTile
-              title={t('mindroomUi.local-mindroom.localMindroom.linkedUnavailable', {
-                host: provisioningBaseUrl ? hostOf(provisioningBaseUrl) : '',
+              title={t('mindroomUi.local-mindroom.localMindroom.linkedInstallationsUnavailable', {
+                server: provisioningBaseUrl ? hostOf(provisioningBaseUrl) : '',
               })}
             />
           )}

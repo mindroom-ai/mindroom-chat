@@ -23,12 +23,22 @@ import { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
 type Store = ReturnType<typeof createStore>;
 
 export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room: Room) => {
+  // A recording that cannot be prepared (encrypted) fails at once; the recorder keeps it to retry.
   const createVoiceUploadItems = useCallback(
-    (file: File, duration: number, waveform: number[] | undefined, targetRoom: Room = room) =>
-      createMindroomRoomUploadItems([file], targetRoom, () => ({
+    async (
+      file: File,
+      duration: number,
+      waveform: number[] | undefined,
+      targetRoom: Room = room
+    ): Promise<TUploadItem[]> => {
+      const items = await createMindroomRoomUploadItems([file], targetRoom, () => ({
         markedAsSpoiler: false,
         voiceMessage: { duration, waveform },
-      })),
+      }));
+      const failed = items.find((item) => item.prepError);
+      if (failed?.prepError) throw failed.prepError;
+      return items;
+    },
     [room]
   );
 
@@ -72,15 +82,28 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
    */
   const uploadItemWhileStaged = useCallback(
     async (roomId: string, item: TUploadItem): Promise<TUploadItem | undefined> => {
-      const staged = () =>
-        store.get(roomIdToUploadItemsAtomFamily(roomId)).some((entry) => entry.file === item.file);
+      const listAtom = roomIdToUploadItemsAtomFamily(roomId);
+      const staged = () => store.get(listAtom).some((entry) => entry.file === item.file);
       if (!staged()) return undefined;
+      // Removing the file from the composer ends the wait, even for an upload that never settles.
+      let unsubscribe = () => {};
+      const removed = new Promise<undefined>((resolve) => {
+        unsubscribe = store.sub(listAtom, () => {
+          if (!staged()) resolve(undefined);
+        });
+      });
       try {
-        await uploadItem(item);
-      } catch {
-        return undefined;
+        const uploaded = await Promise.race([
+          uploadItem(item).then(
+            () => item,
+            () => undefined
+          ),
+          removed,
+        ]);
+        return uploaded && staged() ? uploaded : undefined;
+      } finally {
+        unsubscribe();
       }
-      return staged() ? item : undefined;
     },
     [store, uploadItem]
   );

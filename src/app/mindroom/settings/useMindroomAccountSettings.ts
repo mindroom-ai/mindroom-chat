@@ -34,7 +34,7 @@ export const useBindMindroomAccountSettings = (mx: MatrixClient): void => {
 
 
 
-
+      setContent(undefined);
     };
   }, [mx, setContent]);
 };
@@ -78,7 +78,11 @@ export const useSetMindroomAccountSettings = (): ((
   );
 };
 
-export const useSimpleMode = (): boolean => useMindroomAccountSettings().simpleMode;
+/**
+ * Simple Mode is not part of this client: the full interface always shows, whatever an older
+ * client stored. Kept for the call sites until they drop their Simple Mode branches.
+ */
+export const useSimpleMode = (): boolean => false;
 
 export const useShowCanvasesInSidebar = (): boolean =>
   useMindroomAccountSettings().showCanvasesInSidebar;

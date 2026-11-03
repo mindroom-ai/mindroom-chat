@@ -60,15 +60,15 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
       return;
     }
     setDraft(deploymentUrl ?? '');
+    setFeedback(undefined);
+  };
 
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{t('settings.general.computers.sectionTitle')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         <SettingTile
-          title={t('settings.general.computers.title')}
+          title={t('settings.general.computers.apiUrl')}
           description={t('settings.general.computers.description')}
         >
           <Box direction="Column" gap="200">
@@ -80,7 +80,7 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
               inputMode="url"
               autoComplete="off"
               spellCheck={false}
-              aria-label={t('settings.general.computers.title')}
+              aria-label={t('settings.general.computers.apiUrl')}
               value={draft}
               placeholder={placeholder}
               onChange={handleChange}
@@ -96,12 +96,12 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
                 radii="300"
                 onClick={followDefault}
               >
-                <Text size="B300">{t('settings.general.computers.useDefault')}</Text>
+                <Text size="B300">{t('settings.general.computers.reset')}</Text>
               </Button>
             </Box>
             {isPlainHttp(draft) && (
               <Text size="T200" role="note">
-                {t('settings.general.computers.httpWarning')}
+                {t('settings.general.computers.httpNotice')}
               </Text>
             )}
             {feedback === 'saved' && (
@@ -112,7 +112,7 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
             {(feedback === 'invalid' || feedback === 'storageFailed') && (
               <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
                 {feedback === 'invalid'
-                  ? t('settings.general.computers.invalid')
+                  ? t('settings.general.computers.invalidUrl')
                   : t('settings.general.computers.saveFailed')}
               </Text>
             )}

@@ -4,6 +4,7 @@ import { Box, Switch, Text, color } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
+import { MINDROOM_APP_NAME } from '../branding/branding';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -71,6 +72,21 @@ function IOSPushNotificationTile() {
       .finally(refreshPermission);
   };
 
+  const busy = toggleState.status === AsyncStatus.Loading;
+  let status = t('mindroomUi.native.iOSPushNotification.nativeIosPushIsDisabledForThisDevice');
+  if (!pushConfig) {
+    status = t(
+      'mindroomUi.native.iOSPushNotification.nativeIosPushIsNotConfiguredByTheDeploymentAdd'
+    );
+  } else if (permission === 'denied') {
+    status = t('mindroomUi.native.iOSPushNotification.permissionDenied', {
+      appName: MINDROOM_APP_NAME,
+    });
+  } else if (enabled && permission === 'granted') {
+    status = t(
+      'mindroomUi.native.iOSPushNotification.deviceRegisteredForNativeIosPushNotifications'
+    );
+  }
 
 
 
@@ -82,16 +98,17 @@ function IOSPushNotificationTile() {
 
 
 
-        description={
-          <Box direction="Column" gap="100" as="span">
-            <span>{t('mindroomUi.native.iOSPushNotification.description')}</span>
-            {permission === 'denied' && (
-              <Text as="span" size="T200" role="note">
-                {t('mindroomUi.native.iOSPushNotification.permissionDenied')}
-              </Text>
-            )}
-            {toggleState.status === AsyncStatus.Error && (
-              <Text as="span" size="T200" role="alert" style={{ color: color.Critical.Main }}>
+
+
+
+
+
+
+
+
+
+
+
                 {t('mindroomUi.native.iOSPushNotification.failedToUpdateNativePushSettings')}
               </Text>
             )}
@@ -101,7 +118,7 @@ function IOSPushNotificationTile() {
           <Switch
             variant="Primary"
             value={enabled && permission !== 'denied'}
-            disabled={busy}
+            disabled={busy || !pushConfig}
             onChange={handleChange}
           />
         }

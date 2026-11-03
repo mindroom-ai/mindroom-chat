@@ -60,7 +60,7 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
           radii="400"
           onClick={() => onOpen(room.roomId, getSearchResultOpenTarget(event))}
         >
-          <Text size="B300">{t('mindroomUi.message-search.open')}</Text>
+          <Text size="B300">{t('mindroomUi.message-search.searchResultGroup.open')}</Text>
         </Chip>
       </Box>
       <Box direction="Column" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>

@@ -37,10 +37,10 @@ export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
       label = t('mindroomUi.uiActions.openCanvas', { defaultValue: 'Open canvas' });
       break;
     case 'open_settings':
-      label = t('mindroomUi.uiActions.openSettings', { defaultValue: 'Open settings' });
+      label = t('commandPalette.actions.openSettings', { defaultValue: 'Open Settings' });
       break;
     default:
-      label = t('mindroomUi.uiActions.showMembers', { defaultValue: 'Show members' });
+      label = t('mindroomUi.uiActions.openMembers', { defaultValue: 'Open Members' });
   }
   const reason = actions.unavailable(action);
 

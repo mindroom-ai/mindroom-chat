@@ -42,7 +42,7 @@ export function PairCodeForm({ defaultValue = '', inputId, onSubmit }: PairCodeF
             autoCapitalize="characters"
             spellCheck={false}
             placeholder="ABCD-EFGH"
-            aria-label={t('mindroomUi.local-mindroom.pairCodeForm.code')}
+            aria-label={t('mindroomUi.local-mindroom.localMindroom.pairCode')}
             aria-invalid={invalid || undefined}
             value={value}
             onChange={(event: { currentTarget: { value: string } }) => {
@@ -52,12 +52,12 @@ export function PairCodeForm({ defaultValue = '', inputId, onSubmit }: PairCodeF
           />
         </Box>
         <Button type="submit" variant="Primary" size="400" radii="300">
-          <Text size="B400">{t('mindroomUi.local-mindroom.pairCodeForm.continue')}</Text>
+          <Text size="B400">{t('mindroomUi.local-mindroom.connect.continue')}</Text>
         </Button>
       </Box>
       {invalid && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {t('mindroomUi.local-mindroom.pairCodeForm.invalid')}
+          {t('mindroomUi.local-mindroom.connect.invalidCode')}
         </Text>
       )}
     </Box>

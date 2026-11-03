@@ -2,7 +2,7 @@ import React, { FormEvent, RefObject, useCallback, useEffect, useMemo, useState 
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Box, Button, Chip, Icon, Icons, Input, Spinner, Text, color, config } from 'folds';
+import { Box, Chip, Icon, Icons, Input, Spinner, Text, color, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { makeHighlightRegex } from '../../plugins/highlightRegex';
@@ -86,7 +86,6 @@ export function MessageSearch({
   const highlightRegex = useMemo(() => makeHighlightRegex(highlights), [highlights]);
   const groups = useMemo(() => pages?.flatMap((page) => page.groups) ?? [], [pages]);
   const rows = useMemo(() => flattenMessageSearchRows(groups), [groups]);
-  const count = pages?.[0]?.count;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -116,7 +115,8 @@ export function MessageSearch({
           scrollHeight: scroll.scrollHeight,
         })
       ) {
-        fetchNextPage().catch(() => undefined);
+        // A failed page shows as the query's error state; the promise itself never rejects.
+        fetchNextPage();
       }
     };
     check();
@@ -180,11 +180,10 @@ export function MessageSearch({
     );
   };
 
-  let scopeLabel = scopeName;
-  if (global) scopeLabel = t('mindroomUi.message-search.allRooms');
-  else if (explicitRooms) {
-    scopeLabel = t('mindroomUi.message-search.selectedRooms', { count: explicitRooms.length });
-  }
+  // Rooms the address names explicitly (the command palette's "in this room") show as a filter.
+  const scopeLabel = explicitRooms
+    ? `${t('mindroomUi.message-search.searchFilters.rooms')} (${explicitRooms.length})`
+    : scopeName;
 
   return (
     <Box direction="Column" gap="400">
@@ -197,8 +196,8 @@ export function MessageSearch({
           type="search"
           autoFocus
           before={<Icon size="200" src={Icons.Search} />}
-          placeholder={t('mindroomUi.message-search.placeholder')}
-          aria-label={t('mindroomUi.message-search.placeholder')}
+          placeholder={t('mindroomUi.message-search.searchInput.searchForKeyword')}
+          aria-label={t('mindroomUi.message-search.messageSearch.searchMessages')}
           value={draft}
           onChange={(event: { currentTarget: { value: string } }) =>
             setDraft(event.currentTarget.value)
@@ -220,12 +219,12 @@ export function MessageSearch({
               aria-pressed={global}
               onClick={() => setGlobal(true)}
             >
-              <Text size="T200">{t('mindroomUi.message-search.allRooms')}</Text>
+              <Text size="T200">{t('mindroomUi.message-search.searchFilters.global')}</Text>
             </Chip>
           )}
-          {term && typeof count === 'number' && (
+          {term && groups.length > 0 && (
             <Text size="T200" priority="300" role="status">
-              {t('mindroomUi.message-search.resultCount', { count })}
+              {t('mindroomUi.message-search.messageSearch.resultsFor', { term })}
             </Text>
           )}
         </Box>
@@ -233,17 +232,17 @@ export function MessageSearch({
 
       {!term && (
         <Text size="T300" priority="300">
-          {t('mindroomUi.message-search.prompt')}
+          {t('mindroomUi.message-search.messageSearch.searchDescription')}
         </Text>
       )}
       {search.status === 'error' && (
         <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-          {t('mindroomUi.message-search.failed')}
+          {t('mindroomUi.message-search.messageSearch.searchFailed')}
         </Text>
       )}
       {term && search.status === 'success' && groups.length === 0 && (
         <Text size="T300" priority="300">
-          {t('mindroomUi.message-search.noResults', { term })}
+          {t('mindroomUi.message-search.messageSearch.noResultsFor', { term })}
         </Text>
       )}
       {renderState.showLoadingSkeletons && (
@@ -281,19 +280,6 @@ export function MessageSearch({
       {isFetchingNextPage && (
         <Box justifyContent="Center">
           <Spinner size="200" variant="Secondary" />
-        </Box>
-      )}
-      {hasNextPage && !isFetchingNextPage && (
-        <Box justifyContent="Center">
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="Soft"
-            radii="300"
-            onClick={() => fetchNextPage().catch(() => undefined)}
-          >
-            <Text size="B300">{t('mindroomUi.message-search.loadMore')}</Text>
-          </Button>
         </Box>
       )}
     </Box>
