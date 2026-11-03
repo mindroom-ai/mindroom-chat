@@ -16,7 +16,7 @@ What Bas decided:
 
 Success criteria:
 
-- Every file is either a ported file wholly authored by Bas (recorded in `docs/provenance/ported-files.tsv`) or new code written without access to the upstream client or MindRoom Chat source.
+- Every file is either a ported file at least 95% authored by Bas, with every other author's line blanked and rewritten (recorded in `docs/provenance/portable*.tsv` and `holes*.tsv`), or new code written without access to the upstream client or MindRoom Chat source.
 - No dependency under GPL, AGPL, LGPL, or SSPL. `@element-hq/element-call-embedded` (AGPL) is excluded; calls use LiveKit directly.
 - The app matches the reference screenshots in `docs/design/reference/` and passes the ported tests.
 
@@ -25,9 +25,9 @@ Success criteria:
 ### Lane P: ported (Bas-authored)
 
 - Source: `mindroom-ai/mindroom-chat` at a recorded commit (first import: `dev` at `fc3a5905`).
-- A file qualifies only when `git blame -w -M -C -C` attributes every line to Bas Nijholt (`bas@nijho.lt`). Files with any other author's line do not qualify, whatever the share.
+- A file qualifies when `git blame -w -M -C -C` attributes at least 95% of its lines to Bas Nijholt (`bas@nijho.lt`); every line attributed to anyone else is blanked when copied and rewritten in Lane C (`docs/provenance/holes*.tsv`). Binary assets qualify when every commit touching them is Bas's (wave 3, verified by blob hash).
 - Per Bas Nijholt's instruction of 2026-11-02, as sole author he licenses the qualifying files under Apache-2.0 for this project.
-- `docs/provenance/ported-files.tsv` lists path, source commit, line count, and the blame command. `scripts/verify-ported.sh <chat checkout>` recomputes the blame for every listed file and fails when a file no longer qualifies.
+- `docs/provenance/portable.tsv` (wave 1, code), `portable-wave2.tsv` (other text files) and `portable-wave3.tsv` (binary assets) list the ported files; `import.txt` records each import commit; `scripts/port_files.py` performs and verifies imports, and `scripts/verify-ported.sh <chat checkout>` re-verifies every wave. Lane P files later removed as dropped features or as MindRoom Chat repository tooling are listed in `dropped.tsv`.
 - The orchestrator copies these files. Implementers may then change them only to re-point imports to Lane C modules, adapt to Lane C interfaces, and remove dead code for dropped features (filter bar, Simple Mode, Element Call). Each such change is a normal commit.
 - Paths stay the same as in MindRoom Chat (`src/app/mindroom/**`, `src/app/components/glass/**`, and so on), so later changes Bas makes there can be ported again with the same tooling.
 
@@ -52,7 +52,7 @@ mindroom-client/
   src/**                      Lane C: seams at the paths ported files import, plus the shell
   e2e/                        ported Playwright tests (Lane P) and new ones (Lane C), Tuwunel stack
   docs/provenance/            ported-files.tsv, seams.tsv, external.tsv, audit reports
-  scripts/                    port-files.sh, verify-ported.sh, license-check.mjs, similarity-audit.sh
+  scripts/                    port_files.py, verify-ported.sh, check_holes.py, license-check.mjs, similarity-audit.sh
 ```
 
 State management and component structure follow what the ported files expect: `matrix-js-sdk` `MatrixClient` in a React context, jotai atoms for UI state, TanStack Query for server reads. Lane C decides the internals of each seam.

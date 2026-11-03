@@ -1,0 +1,17 @@
+lane_c_file	lane_c_lines	corpus_file	corpus_lines	lines
+src/app/mindroom/threads/message-rendering/TimelineMessagePermissions.test.tsx	39-52	src/app/mindroom/threads/message-rendering/TimelineMessageFeature.test.tsx	74-87	14
+src/app/mindroom/threads/message-rendering/TimelineMessagePermissions.test.tsx	65-77	src/app/mindroom/threads/message-rendering/TimelineMessageFeature.test.tsx	92-103	13
+src/app/mindroom/threads/message-rendering/TimelineMessageContent.test.tsx	28-33	src/app/mindroom/threads/message-rendering/TimelineMessageFeature.test.tsx	68-73	6
+src/app/mindroom/threads/message-rendering/TimelineMessageContent.test.tsx	43-56	src/app/mindroom/threads/message-rendering/TimelineMessageFeature.test.tsx	89-102	14
+src/app/components/editor/autocomplete/UserMentionAutocomplete.suggestions.test.tsx	21-38	src/app/components/editor/autocomplete/UserMentionAutocomplete.test.tsx	26-43	18
+src/app/pages/auth/AuthLayout.tsx	158-168	src/app/mindroom/local-mindroom/ConnectPage.tsx	73-83	11
+src/app/mindroom/room-input/useRoomInputUploadTransport.signal.test.ts	3-19	src/app/mindroom/room-input/useRoomInputUploadTransport.test.ts	4-20	17
+src/app/mindroom/room-input/useRoomInputUploadTransport.signal.test.ts	24-33	src/app/mindroom/room-input/useRoomInputUploadTransport.test.ts	35-44	10
+src/app/features/join-before-navigate/JoinBeforeNavigate.navigation.test.tsx	2-9	src/app/features/join-before-navigate/JoinBeforeNavigate.test.tsx	2-10	8
+src/app/features/join-before-navigate/JoinBeforeNavigate.navigation.test.tsx	13-22	src/app/features/join-before-navigate/JoinBeforeNavigate.test.tsx	41-50	10
+src/app/components/room-access/RoomAccessControl.focus.test.tsx	12-20	src/app/features/lobby/SpaceItem.test.tsx	11-22	9
+src/app/state/sessions.registry.test.ts	14-24	src/app/mindroom/recent-threads/recentThreads.test.ts	18-39	11
+src/app/components/DeviceVerificationSetup.uia.test.tsx	83-89	src/app/components/SecretStorage.test.tsx	24-30	7
+src/app/components/DeviceVerificationSetup.uia.test.tsx	91-96	src/app/components/DeviceVerificationSetup.test.tsx	63-68	6
+src/app/cs-api.ts	135-148	src/client/sessionTokenRefresh.ts	40-53	14
+package.json	33-46	package.json	74-87	14
