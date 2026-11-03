@@ -588,8 +588,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
         openedViewKeyRef.current = viewKeyRef.current;
       },
       resetAfterLeave: () => backController.reset(),
+      // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
-        if (backController.requestOpenBottomPin(scrollToBottomRef)) forceRender();
+        backController.requestOpenBottomPin(scrollToBottomRef);
       },
     }),
     [backController, viewKeyRef]
