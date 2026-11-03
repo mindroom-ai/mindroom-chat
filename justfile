@@ -38,10 +38,15 @@ build:
 # Everything CI runs.
 check: typecheck lint test license-check verify-ported
 
-# Added in Task 2.
+# Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
-    @echo "added in Task 2"
+    node --test scripts/license-check.test.mjs
+    node scripts/license-check.mjs node_modules
 
-# Added in Task 2.
-verify-ported:
-    @echo "added in Task 2"
+# Recompute the Lane P import from a MindRoom Chat checkout and compare it with the import commit; skipped without a path.
+verify-ported *checkout:
+    bash scripts/verify-ported.sh {{checkout}}
+
+# Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
+similarity-audit *corpora:
+    bash scripts/similarity-audit.sh {{corpora}}

@@ -39,6 +39,9 @@ Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, 
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on Lane C files you wrote |
 | `just dev` | Vite on `http://127.0.0.1:4200` |
 | `just build` | production build into `dist/` |
+| `just license-check` | `scripts/license-check.mjs`: fails on any installed package outside the license allowlist; runs its `node --test` suite first |
+| `just verify-ported [chat checkout]` | recomputes the Lane P import (`port_files.py --verify`); prints a notice and passes when no path is given |
+| `just similarity-audit <corpus dir>...` | jscpd (`--min-tokens 50`) of Lane C `src` files against each corpus; writes `docs/provenance/audit/<date>/` |
 | `just check` | typecheck, lint, test, license-check, verify-ported |
 
 `docs/provenance/m1-baseline.txt` records the starting error counts for the M1 compile.
