@@ -54,7 +54,7 @@ const sendVoice = async (signalBridgedRoom: boolean) => {
 
 describe('useRoomInputUploadTransport voice codec', () => {
   it('labels a voice message for a Signal-bridged room as the bridge expects', async () => {
-    expect((await sendVoice(true)).info.mimetype).toBe('audio/ogg');
+    expect((await sendVoice(true)).info.mimetype).toBe('audio/aac');
   });
 
   it('keeps the recorded type elsewhere', async () => {

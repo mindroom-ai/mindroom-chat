@@ -21,7 +21,7 @@ type Store = ReturnType<typeof createStore>;
 export const getVoiceMessageContentOptions = (
   signalBridgedRoom: boolean
 ): Parameters<typeof getAudioMsgContent>[2] =>
-  signalBridgedRoom ? { voiceMessageMimeTypeOverride: 'audio/ogg' } : {};
+  signalBridgedRoom ? { voiceMessageMimeTypeOverride: 'audio/aac' } : {};
 
 /**
  * How the composer moves files to the homeserver: preparing voice recordings as upload items,
