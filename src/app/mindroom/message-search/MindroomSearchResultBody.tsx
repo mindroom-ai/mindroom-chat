@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
 import type { SearchResultBodyProps } from './SearchResultGroup';
 import { getSearchResultPreviewText, isSearchResultEdited } from './searchResultPreview';
+import * as css from './MindroomSearchResultBody.css';
 
 const highlightText = (text: string, regex?: RegExp): React.ReactNode => {
   if (!regex) return text;
@@ -18,7 +19,11 @@ const highlightText = (text: string, regex?: RegExp): React.ReactNode => {
       pattern.lastIndex += 1;
     } else {
       if (match.index > last) parts.push(text.slice(last, match.index));
-      parts.push(<mark key={`${match.index}`}>{match[0]}</mark>);
+      parts.push(
+        <mark key={`${match.index}`} className={css.SearchMatch}>
+          {match[0]}
+        </mark>
+      );
       last = match.index + match[0].length;
     }
     match = pattern.exec(text);
