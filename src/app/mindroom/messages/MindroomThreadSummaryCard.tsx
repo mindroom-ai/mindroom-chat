@@ -1,0 +1,70 @@
+import React, { type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Box, Chip, Icon, Icons, Text } from 'folds';
+import { MessageEditedContent } from '../../components/message/content';
+import { MessageTextBody } from '../../components/message/layout';
+import { Time } from '../../components/message/Time';
+import type { MindroomThreadSummaryInfo } from './threadSummary';
+import * as css from './MindroomThreadSummaryCard.css';
+
+export type MindroomThreadSummaryCardProps = {
+  summaryInfo: MindroomThreadSummaryInfo;
+  /** Thread badges and overview rows: a single provenance line, no chip and no time. */
+  compact?: boolean;
+  /** The summary notice was edited. */
+  edited?: boolean;
+  renderBody: (props: { body: string; customBody?: string }) => ReactNode;
+};
+
+/**
+ * A thread title (`io.mindroom.thread_summary` notice) rendered as a card: who wrote it (an
+ * agent's model or a person editing it by hand) and how many messages it covers.
+ */
+export function MindroomThreadSummaryCard({
+  summaryInfo,
+  compact,
+  edited,
+  renderBody,
+}: MindroomThreadSummaryCardProps) {
+  const { t } = useTranslation();
+  const { isManual, summaryText, messageCount, generatedTs } = summaryInfo;
+  const hasCount = typeof messageCount === 'number' && messageCount > 0;
+
+  let label: string;
+  if (isManual) {
+    label = t('mindroomUi.threadSummary.manual');
+  } else if (compact && hasCount) {
+    label = t('mindroomUi.threadSummary.aiOfLast', { count: messageCount });
+  } else {
+    label = t('mindroomUi.threadSummary.ai');
+  }
+
+  return (
+    <Box
+      as="section"
+      className={css.ThreadSummaryCard}
+      direction="Column"
+      gap="100"
+      aria-label={label}
+    >
+      <div className={css.ThreadSummaryHeader}>
+        <Text as="span" className={css.ThreadSummaryLabel} size="L400">
+          <Icon size="50" src={Icons.Bulb} aria-hidden="true" />
+          {label}
+        </Text>
+        {!compact && !isManual && hasCount && (
+          <Chip as="span" size="400" radii="Pill" variant="SurfaceVariant" aria-disabled="true">
+            <Text size="T200">
+              {t('mindroomUi.threadSummary.generatedFrom', { count: messageCount })}
+            </Text>
+          </Chip>
+        )}
+        {!compact && typeof generatedTs === 'number' && <Time ts={generatedTs} compact />}
+      </div>
+      <MessageTextBody className={compact ? css.ThreadSummaryBodyCompact : css.ThreadSummaryBody}>
+        {renderBody({ body: summaryText ?? '' })}
+        {edited && <MessageEditedContent />}
+      </MessageTextBody>
+    </Box>
+  );
+}

@@ -1,0 +1,192 @@
+import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ClientEvent, type MatrixEvent, type Relations, type Room } from 'matrix-js-sdk';
+import FocusTrap from 'focus-trap-react';
+import {
+  Box,
+  Icon,
+  IconButton,
+  Icons,
+  MenuItem,
+  Modal,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Text,
+} from 'folds';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useRelevantImagePacks } from '../../hooks/useImagePacks';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { ImageUsage } from '../../plugins/custom-emoji';
+import { getRecentEmojis } from '../../plugins/recent-emoji';
+import { ReactionViewer } from '../../features/room/reaction-viewer';
+import * as css from '../../features/room/message/styles.css';
+
+const QUICK_REACTION_COUNT = 4;
+const RECENT_EMOJI_EVENT = 'io.element.recent_emoji';
+
+/** Called with the reaction key (Unicode emoji or mxc URL) and a custom emoji's shortcode. */
+export type ReactionHandler = (key: string, shortcode?: string) => void;
+
+type QuickReactionProps = {
+  label: string;
+  onSelect: () => void;
+  children: ReactNode;
+};
+
+function QuickReaction({ label, onSelect, children }: QuickReactionProps) {
+  return (
+    <IconButton
+      className={css.MessageQuickReaction}
+      size="300"
+      radii="300"
+      variant="SurfaceVariant"
+      aria-label={label}
+      title={label}
+      onClick={onSelect}
+    >
+      {children}
+    </IconButton>
+  );
+}
+
+type RecentEmoji = ReturnType<typeof getRecentEmojis>[number];
+
+const isCustomEmoji = (emoji: RecentEmoji): emoji is Extract<RecentEmoji, { url: string }> =>
+  typeof (emoji as { url?: unknown }).url === 'string';
+
+const unicodeEmojiName = (emoji: RecentEmoji): string => {
+  const { label, shortcode, unicode } = emoji as {
+    label?: string;
+    shortcode?: string;
+    unicode?: string;
+  };
+  return label ?? shortcode ?? unicode ?? '';
+};
+
+/** The user's most used emoji, Unicode and custom, as one-tap reactions. */
+export function MessageQuickReactions({
+  imagePackRooms,
+  onReaction,
+}: {
+
+
+
+
+
+  const packs = useRelevantImagePacks(ImageUsage.Emoticon, imagePackRooms);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    const handleAccountData = (event: MatrixEvent) => {
+
+
+
+
+
+
+
+
+  const recent = useMemo(() => {
+    void revision;
+    return getRecentEmojis(mx, QUICK_REACTION_COUNT, packs);
+  }, [mx, packs, revision]);
+
+  if (recent.length === 0) return null;
+
+  return (
+    <Box alignItems="Center" justifyContent="Center" gap="200" style={{ padding: '0.25rem' }}>
+      {recent.map((emoji) => {
+        if (isCustomEmoji(emoji)) {
+          const src =
+            mx.mxcUrlToHttp(
+              emoji.url,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              useAuthentication
+            ) ?? emoji.url;
+          return (
+            <QuickReaction
+              key={emoji.url}
+              label={emoji.shortcode}
+              onSelect={() => onReaction(emoji.url, emoji.shortcode)}
+            >
+              <img
+                src={src}
+                alt={emoji.shortcode}
+                style={{ width: '1.25rem', height: '1.25rem', objectFit: 'contain' }}
+              />
+            </QuickReaction>
+          );
+        }
+        return (
+          <QuickReaction
+            key={(emoji as { unicode: string }).unicode}
+            label={unicodeEmojiName(emoji)}
+            onSelect={() => onReaction((emoji as { unicode: string }).unicode)}
+          >
+            <Text as="span" size="T400">
+              {(emoji as { unicode: string }).unicode}
+            </Text>
+          </QuickReaction>
+        );
+      })}
+    </Box>
+  );
+}
+
+/** "View reactions": every reaction on the message and who sent it. */
+export function MessageAllReactionItem({
+  room,
+  relations,
+  onClose,
+}: {
+  room: Room;
+  relations: Relations;
+  onClose?: () => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              escapeDeactivates: true,
+            }}
+          >
+            <Modal variant="Surface" size="300">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          {t('sharedUi.message.viewReactions')}
+        </Text>
+      </MenuItem>
+    </>
+  );
+}
