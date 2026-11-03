@@ -1,80 +1,68 @@
-vitest	775
-matrix-js-sdk	713
-react	646
-react-test-renderer	288
-@playwright/test	199
-folds	191
-jotai	116
-react-dom	100
-fake-indexeddb	97
-react-i18next	85
-i18next	50
-node:fs	49
-@vanilla-extract/css	44
-react-router-dom	34
-@capacitor/core	30
-html-react-parser	24
-node:path	23
-slate	23
-dayjs	20
-node:url	15
-classnames	15
-events	15
-idb	15
-node:crypto	12
-await-to-js	12
-@tanstack/react-virtual	12
-@fontsource/inter	8
-node:os	8
-focus-trap-react	8
-immer	8
-domhandler	8
-node:child_process	7
-@tabler/icons-react	7
-@matrix-org/matrix-sdk-crypto-wasm	6
-linkifyjs	5
-fs	5
-typescript	5
-@tanstack/react-query	4
-@capacitor/status-bar	4
-@dnd-kit/sortable	4
-node:events	4
-@capacitor/browser	4
-node:http	3
-slate-history	3
-browser-encrypt-attachment	3
-markdown-it	3
-node:module	3
-@vanilla-extract/recipes	3
-react-error-boundary	3
-node:vm	3
-esbuild	2
-@basnijholt/particular-drift	2
-@capacitor/keyboard	2
-path	2
-fuse.js	2
-react-aria	2
-file-saver	2
-is-hotkey	2
-matrix-widget-api	2
-node:net	1
-workbox-precaching	1
-workbox-routing	1
-node:timers	1
-@tanstack/react-query-devtools	1
-eslint	1
-@dnd-kit/core	1
-@dnd-kit/utilities	1
-url	1
-jsdom	1
-@novnc/novnc	1
-html-dom-parser	1
-@capacitor/network	1
-linkify-react	1
-sanitize-html	1
-@capacitor/push-notifications	1
-node:zlib	1
-yaml	1
-katex	1
-chroma-js	1
-@capacitor/clipboard	1
+package	version in mindroom-chat	license	imports
+vitest	2.1.8	MIT	775
+matrix-js-sdk	41.7.0	Apache-2.0	713
+react	18.2.0	MIT	646
+react-test-renderer	18.2.0	MIT	288
+@playwright/test	1.58.2	Apache-2.0	199
+folds	2.7.1	Apache-2.0	191
+jotai	2.6.0	MIT	116
+react-dom	18.2.0	MIT	100
+fake-indexeddb	6.2.5	Apache-2.0	97
+react-i18next	15.0.0	MIT	85
+i18next	23.12.2	MIT	50
+@vanilla-extract/css	1.9.3	MIT	44
+react-router-dom	6.30.3	MIT	34
+@capacitor/core	8.5.2	MIT	30
+html-react-parser	4.2.0	MIT	24
+slate	0.123.0	MIT	23
+dayjs	1.11.10	MIT	20
+classnames	2.3.2	MIT	15
+events	(transitive)	MIT	15
+idb	7.1.1	ISC	15
+await-to-js	3.0.0	MIT	12
+@tanstack/react-virtual	3.14.5	MIT	12
+@fontsource/inter	4.5.14	MIT	8
+focus-trap-react	10.0.2	MIT	8
+immer	9.0.16	MIT	8
+domhandler	5.0.3	BSD-2-Clause	8
+@tabler/icons-react	3.40.0	MIT	7
+@matrix-org/matrix-sdk-crypto-wasm	(transitive)	Apache-2.0	6
+linkifyjs	4.3.2	MIT	5
+fs	(transitive)	?	5
+typescript	5.4.2	Apache-2.0	5
+@tanstack/react-query	5.24.1	MIT	4
+@capacitor/status-bar	8.0.1	MIT	4
+@dnd-kit/sortable	10.0.0	MIT	4
+@capacitor/browser	8.0.1	MIT	4
+slate-history	0.113.1	MIT	3
+browser-encrypt-attachment	0.3.0	Apache-2.0	3
+markdown-it	14.3.3	MIT	3
+@vanilla-extract/recipes	0.3.0	MIT	3
+react-error-boundary	4.0.13	MIT	3
+esbuild	0.19.12	MIT	2
+@basnijholt/particular-drift	0.2.0	MIT	2
+@capacitor/keyboard	8.0.0	MIT	2
+path	(transitive)	?	2
+fuse.js	7.3.0	Apache-2.0	2
+react-aria	3.29.1	Apache-2.0	2
+file-saver	2.0.5	MIT	2
+is-hotkey	0.2.0	MIT	2
+matrix-widget-api	1.16.1	Apache-2.0	2
+workbox-precaching	7.3.0	MIT	1
+workbox-routing	7.3.0	MIT	1
+@tanstack/react-query-devtools	5.24.1	MIT	1
+eslint	8.57.1	MIT	1
+@dnd-kit/core	6.3.1	MIT	1
+@dnd-kit/utilities	3.2.2	MIT	1
+url	(transitive)	?	1
+jsdom	22.1.0	MIT	1
+@novnc/novnc	1.7.0	MPL-2.0	1
+html-dom-parser	4.0.0	MIT	1
+@capacitor/network	8.0.1	MIT	1
+linkify-react	4.3.2	MIT	1
+sanitize-html	2.17.6	MIT	1
+@capacitor/push-notifications	8.0.1	MIT	1
+yaml	1.10.2	ISC	1
+katex	0.16.44	MIT	1
+chroma-js	3.1.2	(BSD-3-Clause AND Apache-2.0)	1
+@capacitor/clipboard	8.0.1	MIT	1
