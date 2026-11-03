@@ -58,10 +58,10 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             <SidebarStack>
               <HomeTab onSelect={onPageNavSelect} />
               <DirectTab onSelect={onPageNavSelect} />
-              {showThreads && <ThreadsTab />}
+              {showThreads && <ThreadsTab onSelect={onPageNavSelect} />}
               {showCanvases && <CanvasesTab />}
             </SidebarStack>
-            <SpaceTabs />
+            <SpaceTabs onSelect={onPageNavSelect} />
             {showCommunities && (
               <>
                 <SidebarStackSeparator />

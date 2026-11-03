@@ -6,12 +6,22 @@ import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../compone
 import { useThreadsSelected } from '../../../hooks/router/useThreadsSelected';
 import { getThreadsPath } from '../../pathUtils';
 
+type ThreadsTabProps = {
+  /** Lets the navigation panel take the click, given whether Threads is shown; true when it did. */
+  onSelect?: (selected: boolean) => boolean;
+};
+
 /** The Threads button of the icon rail: threads across every room. */
-export function ThreadsTab() {
+export function ThreadsTab({ onSelect }: ThreadsTabProps) {
   const navigate = useNavigate();
   const active = useThreadsSelected();
   const { t } = useTranslation();
   const label = t('nav.threads');
+
+  const openThreads = () => {
+    if (onSelect?.(active)) return;
+    navigate(getThreadsPath());
+  };
 
   const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
     <SidebarAvatar
@@ -19,7 +29,7 @@ export function ThreadsTab() {
       as="button"
       aria-label={label}
       outlined
-      onClick={() => navigate(getThreadsPath())}
+      onClick={openThreads}
     >
       <Icon filled={active} src={Icons.Thread} />
     </SidebarAvatar>
