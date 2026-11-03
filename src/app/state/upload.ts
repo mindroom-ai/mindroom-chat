@@ -18,19 +18,13 @@ export enum UploadStatus {
 
 /** The fields each status adds to the file and the status itself. */
 type StatusFields = {
-  [UploadStatus.Error]: { error: MatrixError };
+  [UploadStatus.Error]: { error: Error };
   [UploadStatus.Idle]: Record<never, never>;
   [UploadStatus.Loading]: { promise: Promise<UploadResponse>; progress: UploadProgress };
   [UploadStatus.Success]: { mxc: string };
 };
 
-type StatusFieldName = { [S in UploadStatus]: keyof StatusFields[S] }[UploadStatus];
-
-// A variant declares the other statuses' fields as absent, so `upload.error` or `upload.mxc`
-// reads as undefined on any upload without narrowing its status first.
-type UploadAt<S extends UploadStatus> = { file: TUploadContent; status: S } & StatusFields[S] & {
-    [F in Exclude<StatusFieldName, keyof StatusFields[S]>]?: undefined;
-  };
+type UploadAt<S extends UploadStatus> = { file: TUploadContent; status: S } & StatusFields[S];
 
 export type UploadIdle = UploadAt<UploadStatus.Idle>;
 export type UploadLoading = UploadAt<UploadStatus.Loading>;
@@ -44,7 +38,7 @@ export type UploadAtomAction =
   | { promise: Promise<UploadResponse> }
   | { progress: UploadProgress }
   | { mxc: string }
-  | { error: MatrixError }
+  | { error: Error }
   | { status: UploadStatus.Idle };
 
 export type TUploadAtom = WritableAtom<Upload, [UploadAtomAction], void>;
