@@ -47,7 +47,6 @@ fuse.js	7.3.0	Apache-2.0	2
 react-aria	3.29.1	Apache-2.0	2
 file-saver	2.0.5	MIT	2
 is-hotkey	0.2.0	MIT	2
-matrix-widget-api	1.16.1	Apache-2.0	2
 workbox-precaching	7.3.0	MIT	1
 workbox-routing	7.3.0	MIT	1
 @tanstack/react-query-devtools	5.24.1	MIT	1
