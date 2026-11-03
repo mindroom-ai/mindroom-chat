@@ -57,11 +57,11 @@ export const startClient = async (
   options: Partial<IStartClientOpts> = {}
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
-
-
-
+  const policy: Partial<IStartClientOpts> = {
+    threadSupport: true,
+    lazyLoadMembers: true,
     initialSyncLimit: STARTUP_SYNC_TIMELINE_LIMIT,
     filter: buildSyncFilter(mx),
-    ...options,
-  });
+  };
+  await mx.startClient({ ...policy, ...options });
 };

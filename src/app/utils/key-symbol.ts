@@ -4,7 +4,7 @@
 
 
 
-
+  CapsLock = '⇪',
   Enter = '↵',
   Escape = '⎋',
   Backspace = '⌫',

@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, Text, as } from 'folds';
 import type { MessageSpacing } from '../../../state/settings';
+import { MESSAGE_LAYOUT_GAP } from './config';
 import * as css from './layout.css';
 
 type MessageBaseProps = {
@@ -18,26 +19,26 @@ type MessageBaseProps = {
 export const MessageBase = as<'div', MessageBaseProps>(
   ({ className, space, collapse, autoCollapse, highlight, selected, ...props }, ref) => (
     <div
+      {...props}
+      ref={ref}
+      className={classNames(css.MessageBase({ space, collapse, highlight, selected }), className)}
+    />
+  )
+);
 
-
-
-
-
-
-
-
-
-
-
+/** The avatar slot of a message: centered in the avatar column, aligned to the first line. */
+export const AvatarBase = as<'span'>(({ as: AsAvatarBase = 'span', className, ...props }, ref) => (
+  <AsAvatarBase {...props} ref={ref} className={classNames(css.AvatarBase, className)} />
+));
 
 type LayoutProps = {
   before?: ReactNode;
 };
 
 /** Avatar column, then the header and body; follow-ups keep the avatar column empty. */
-
-
-
+export const ModernLayout = as<'div', LayoutProps>(({ before, children, ...props }, ref) => (
+  <Box gap={MESSAGE_LAYOUT_GAP} alignItems="Start" {...props} ref={ref}>
+    <div className={css.AvatarColumn}>{before}</div>
     <div className={css.LayoutContent}>{children}</div>
   </Box>
 ));
@@ -52,9 +53,9 @@ export const CompactLayout = as<'div', LayoutProps>(({ before, children, ...prop
 
 /** Avatar beside a bubble holding the header and body. */
 export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode }>(
-
-
-
+  ({ before, header, children, ...props }, ref) => (
+    <Box gap={MESSAGE_LAYOUT_GAP} alignItems="Start" {...props} ref={ref}>
+      <div className={css.AvatarColumn}>{before}</div>
       <div className={css.LayoutContent}>
         <div className={css.BubbleContent}>
           {header}
@@ -68,9 +69,10 @@ export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode }>(
 
 
 
+));
 
-
-
+/** The bold part of a sender name. */
+export const UsernameBold = as<'b'>(({ as: AsBold = 'b', ...props }, ref) => (
   <AsBold {...props} ref={ref} />
 ));
 
@@ -83,6 +85,20 @@ type MessageTextBodyProps = {
 
 /** Text block of a message body. */
 export const MessageTextBody = as<'div', MessageTextBodyProps>(
+  ({ className, preWrap, jumboEmoji, emote, notice, ...props }, ref) => {
+    const variant = css.MessageTextBody({ preWrap, jumboEmoji, emote, notice });
+    return (
+      <Text
+        as="div"
+        size="T400"
+        priority="400"
+        {...props}
+        ref={ref}
+        className={classNames(variant, className)}
+      />
+    );
+  }
+);
 
 
 
@@ -91,16 +107,6 @@ export const MessageTextBody = as<'div', MessageTextBodyProps>(
 
 
 
-
-
-
-
-
-
-};
-
-/** A quoted message line: who wrote it, then the quoted text. */
-export const ReplyLayout = as<'div', ReplyLayoutProps>(
   ({ username, children, className, ...props }, ref) => (
     <Box
       alignItems="Center"

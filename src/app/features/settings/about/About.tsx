@@ -300,6 +300,7 @@ function AppIdentity() {
   );
 }
 
+/** App version, cache and diagnostics tools, and credits. */
 
 
 

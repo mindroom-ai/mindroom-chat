@@ -18,19 +18,16 @@ export function ComputerHeaderButton({
   onToggle,
 }: ComputerHeaderButtonProps) {
   if (!available) return null;
+  const hint = (
+    <Tooltip>
+      <Text size="T300">{label}</Text>
+    </Tooltip>
+  );
   return (
-    <TooltipProvider
-      position="Bottom"
-      offset={4}
-
-
-
-
-
-
-
-
-
+    <TooltipProvider tooltip={hint} position="Bottom" offset={4}>
+      {(anchorRef) => (
+        <IconButton
+          ref={anchorRef}
           variant={open ? 'Primary' : 'Surface'}
           fill={open ? 'Soft' : 'None'}
           aria-label={label}

@@ -44,27 +44,28 @@ export const AvatarBase = style({
   paddingTop: toRem(4),
   width: toRem(MESSAGE_AVATAR_WIDTH_PX),
   display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'flex-start',
+});
 
-
-
-
-
+// The avatar column beside the content. It keeps its width while empty, so the bodies of a run
+// of follow-ups from one sender line up under the first.
+export const AvatarColumn = style({
   width: toRem(MESSAGE_AVATAR_WIDTH_PX),
   flexShrink: 0,
 });
 
 export const LayoutContent = style({
   minWidth: 0,
+  flexGrow: 1,
+  flexBasis: 0,
+});
 
-
-
-
-
-
-
+// A bubble only as wide as its content, up to the content column.
+export const BubbleContent = style({
+  width: 'fit-content',
   minWidth: 0,
   maxWidth: '100%',
-  alignSelf: 'flex-start',
   display: 'flex',
 
 

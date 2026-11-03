@@ -18,19 +18,22 @@ import { SequenceCardStyle } from '../styles.css';
 
 const EMAIL_PUSHER_APP_ID = 'm.email';
 
+/** Whether the homeserver emails notifications to the account's address (an `email` pusher). */
 
 
 
   const lang = useAppLanguageCode();
   const [result, refresh] = useEmailNotifications();
 
+  // Matrix spec, client-server API, `POST /pushers/set`: an email pusher has kind `email` and the
+  // address as its push key; kind `null` deletes the pusher.
 
 
 
 
 
 
-
+            app_id: EMAIL_PUSHER_APP_ID,
             pushkey: email,
             app_display_name: t(
               'featureUi.settings.notifications.systemNotification.emailNotification'

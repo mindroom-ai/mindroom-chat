@@ -5,16 +5,13 @@ import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
-import { SettingsPageFrame } from '../SettingsPageFrame';
+import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SequenceCardStyle } from '../styles.css';
 
-
-
-
-
-
-
-
+/** The switch that turns on the developer tools of the app. */
+export function DeveloperTools({ requestClose }: SettingsPageProps) {
+  const { t } = useTranslation();
+  const [developerTools, setDeveloperTools] = useSetting(settingsAtom, 'developerTools');
 
   return (
     <SettingsPageFrame title={t('settings.nav.developerTools')} requestClose={requestClose}>

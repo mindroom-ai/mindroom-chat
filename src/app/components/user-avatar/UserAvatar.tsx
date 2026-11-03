@@ -47,17 +47,17 @@ export const useImageFailed = (src: string | undefined): [boolean, () => void] =
 
 
 
+
+
 };
 
 /** A user's avatar image, or a colored fallback while there is none or it fails to load. */
 export function UserAvatar({ userId, src, alt, className, renderFallback }: UserAvatarProps) {
   const [failed, setFailed] = useImageFailed(src);
+  const showImage = !!src && !failed;
 
-
-
-
-
-
+  if (!showImage) {
+    return (
 
 
 

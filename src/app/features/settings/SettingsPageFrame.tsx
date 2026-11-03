@@ -9,8 +9,12 @@ type SettingsPageFrameProps = {
   children: ReactNode;
 };
 
+/** What the settings dialog hands each of its pages. */
+export type SettingsPageProps = Pick<SettingsPageFrameProps, 'requestClose'>;
+
 /** Header with the page title and a close button over the scrolling settings content. */
 export function SettingsPageFrame({ title, requestClose, children }: SettingsPageFrameProps) {
+
 
 
 

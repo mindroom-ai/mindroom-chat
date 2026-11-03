@@ -38,6 +38,7 @@ import { mxcUrlToHttp } from '../../utils/matrix';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { stopPropagation } from '../../utils/keyboard';
 
+/** The two boards of the picker; only callers that take stickers offer the switch. */
 
 
 
@@ -50,6 +51,8 @@ import { stopPropagation } from '../../utils/keyboard';
 
 
 
+// Rail icons of the unicode groups, in the alphabetical order of their IDs.
+const EMOJI_GROUP_ICONS: Record<EmojiGroupId, IconSrc> = {
 
 
 
@@ -57,8 +60,8 @@ import { stopPropagation } from '../../utils/keyboard';
 
 
 
-
-
+  [EmojiGroupId.Travel]: Icons.Globe,
+};
 
 const EMOJI_GROUP_LABEL_KEYS = {
   [EmojiGroupId.People]: 'sharedUi.emojiGroups.smileysPeople',
@@ -171,6 +174,7 @@ type EmojiPickHandlers = {
 
 
 
+
 };
 
 type EmojiBoardProps = EmojiPickHandlers & {
@@ -178,13 +182,10 @@ type EmojiBoardProps = EmojiPickHandlers & {
 
 
 
+
   /** Keep the board open after a pick (as reactions do with Shift or Alt held). */
   keepOpenOnSelect?: boolean;
   returnFocusOnDeactivate?: boolean;
-  requestClose: () => void;
-};
-
-/** Emoji and sticker picker with search, recent emoji, custom packs, and adding a custom emoji. */
 
 
 
@@ -192,7 +193,11 @@ type EmojiBoardProps = EmojiPickHandlers & {
 
 
 
-  keepOpenOnSelect,
+
+
+
+
+
 
 
 
@@ -434,8 +439,8 @@ type EmojiBoardProps = EmojiPickHandlers & {
   return (
     <FocusTrap
       focusTrapOptions={{
-
-
+        initialFocus: false,
+        returnFocusOnDeactivate,
 
 
 

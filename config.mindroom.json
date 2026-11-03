@@ -1,10 +1,10 @@
 {
   "defaultHomeserver": 0,
   "homeserverList": ["mindroom.chat", "matrix.org"],
-
-
-
-
+  "allowCustomHomeservers": true,
+  "hashRouter": {
+    "basename": "/",
+    "enabled": false
   },
   "auth": {
     "allowRegistration": true,

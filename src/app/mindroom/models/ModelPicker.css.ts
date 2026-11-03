@@ -2,9 +2,10 @@ import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 const control = {
-
-
-
+  margin: 0,
+  border: 0,
+  color: 'inherit',
+  background: 'transparent',
   font: 'inherit',
   cursor: 'pointer',
 } as const;
@@ -117,7 +118,7 @@ export const SearchInput = style({
 
 
 
-
+  outline: 'none',
   font: 'inherit',
   fontSize: config.fontSize.T300,
   padding: `${config.space.S100} 0`,
@@ -222,10 +223,9 @@ export const OptionIcon = style({
 
 
   width: toRem(28),
-
-
-
-
+  height: toRem(28),
+  borderRadius: config.radii.R300,
+  overflow: 'hidden',
 });
 
 export const IconImage = style({
@@ -243,6 +243,7 @@ export const OptionText = style({
 
 export const OptionTitle = style({
   fontSize: config.fontSize.T300,
+  lineHeight: config.lineHeight.T300,
 
 
 
@@ -251,6 +252,7 @@ export const OptionTitle = style({
 
 export const OptionDetail = style({
   fontSize: config.fontSize.T200,
+
 
 
 
@@ -272,6 +274,7 @@ export const Empty = style({
 
 
 
+
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
   borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
 });
@@ -284,10 +287,10 @@ export const FooterText = style({
 // The composer's row above the editor that names the thread's model.
 export const ComposerRow = style({
   display: 'flex',
-
-
-
-
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+  padding: `${config.space.S100} ${config.space.S200} 0`,
 });
 
 export const ScopeLabel = style({
@@ -302,10 +305,9 @@ export const Trigger = style([
 
 
 
-
-
-
-
+    minWidth: 0,
+    maxWidth: '100%',
+    padding: `${toRem(2)} ${config.space.S200}`,
 
 
 

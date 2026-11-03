@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
 import { useStateEventCallback } from './useStateEventCallback';
@@ -20,11 +20,17 @@ export type IPowerLevels = {
 
 
 
+
+/** The top-level power levels that gate an action on other users or their events. */
+export type PowerLevelAction = 'ban' | 'invite' | 'kick' | 'redact';
+
+// Matrix spec, client-server API, `m.room.power_levels`: `invite` defaults to 0 and the other
+// actions to 50 when the event leaves them out.
 const DEFAULT_ACTION_LEVEL: Record<PowerLevelAction, number> = {
 
 
 
-
+  redact: 50,
 };
 
 const DEFAULT_NOTIFICATION_LEVEL: Record<string, number> = { room: 50 };
@@ -88,17 +94,15 @@ const getPowerLevelsEvent = (room: Room): MatrixEvent | undefined =>
 /** The room's power levels, following `m.room.power_levels` changes. */
 export const usePowerLevels = (room: Room): IPowerLevels => {
   const [version, refresh] = useForceUpdate();
-
-
-
-      () => (event: MatrixEvent) => {
-        if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomPowerLevels) {
-          refresh();
-        }
-      },
-      [room.roomId, refresh]
-    )
+  const onPowerLevelsChange = useCallback(
+    (event: MatrixEvent) => {
+      if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomPowerLevels) {
+        refresh();
+      }
+    },
+    [room.roomId, refresh]
   );
+  useStateEventCallback(room.client, onPowerLevelsChange);
 
   return useMemo(() => {
     void version;
@@ -106,13 +110,14 @@ export const usePowerLevels = (room: Room): IPowerLevels => {
   }, [room, version]);
 };
 
+const PowerLevelsContext = createContext<IPowerLevels | undefined>(undefined);
 
+/** Shares one room's power levels with everything rendered inside that room. */
+export const PowerLevelsContextProvider = PowerLevelsContext.Provider;
 
-
-
-
-
-
+/** The power levels of the surrounding `PowerLevelsContextProvider`. */
+export const usePowerLevelsContext = (): IPowerLevels => {
+  const powerLevels = useContext(PowerLevelsContext);
   if (!powerLevels) throw new Error('Power levels are not provided!');
   return powerLevels;
 };

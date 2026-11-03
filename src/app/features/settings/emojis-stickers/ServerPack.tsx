@@ -46,13 +46,13 @@ type ServerPackSectionProps = {
 };
 
 function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
-
-
-
+  const { t } = useTranslation();
+  const userId = useMatrixClient().getSafeUserId();
+  const openRoomSettings = useOpenRoomSettings();
   const packs = useRoomImagePacks(room);
-
-
-
+  // Room creators outrank every power level (room version 12).
+  const creators = useRoomCreators(room);
+  const powerLevels = usePowerLevels(room);
 
   const livePacks = useMemo(() => packs.filter((pack) => !isDeletedPack(pack)), [packs]);
   // A room without packs still offers its first one, so the first emoji can be added.

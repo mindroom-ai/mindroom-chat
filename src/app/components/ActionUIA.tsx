@@ -33,14 +33,16 @@ const isFlowSupported = (flow: UIAFlow) =>
 
 
 
+  children: (flow: UIAFlow) => ReactNode;
+};
 
-
-
-
-
-
-
-
+/** Chooses the flow to authenticate with among those this client can complete. */
+export function ActionUIAFlowsLoader({
+  authData,
+  unsupported,
+  children,
+}: ActionUIAFlowsLoaderProps) {
+  const flow = pickUIAFlow((authData.flows ?? []).filter(isFlowSupported));
 
   return <>{flow ? children(flow) : unsupported()}</>;
 }
@@ -52,17 +54,16 @@ type StageProps = {
 };
 
 function PasswordStage({ session, action }: StageProps) {
+  const mx = useMatrixClient();
+  const { t } = useTranslation();
 
-
-
-
-
-
-
-
-
-
-
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    const password = new FormData(event.currentTarget).get('passwordInput');
+    if (typeof password !== 'string' || password === '') return;
+    // Matrix spec, client-server API, "Password-based" authentication: the user identifier
+    // and password, with the session of this interactive authentication.
+    action({
       type: AuthType.Password,
       identifier: { type: 'm.id.user', user: mx.getUserId() ?? '' },
       password,
@@ -128,6 +129,7 @@ function DummyStage({ session, action }: StageProps) {
   }, [action, session]);
   return null;
 }
+
 
 
 

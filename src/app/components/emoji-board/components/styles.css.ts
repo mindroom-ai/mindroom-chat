@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { type StyleRule, style } from '@vanilla-extract/css';
 import { DefaultReset, FocusOutline, color, config, toRem } from 'folds';
 import { glassFloating, glassSurface } from '../../../styles/Glass.css';
 
@@ -29,6 +29,7 @@ export const Base = style([
 
 
 
+
   DefaultReset,
   {
     width: RAIL_WIDTH,
@@ -36,12 +37,11 @@ export const Base = style([
     display: 'flex',
     flexDirection: 'column',
     borderInlineStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  },
+]);
 
-
-
-
-
-
+export const SidebarContent = style({
+  flexGrow: 1,
   minHeight: 0,
   overflowY: 'auto',
   scrollbarWidth: 'none',
@@ -57,11 +57,19 @@ export const Base = style([
 
 
 
+  width: toRem(20),
+  height: toRem(20),
+
+
+
 
 
 
 
   backgroundColor: color.SurfaceVariant.ContainerLine,
+});
+
+// Tab chips over the search field.
 
 
 
@@ -70,42 +78,38 @@ export const Base = style([
 
 
 
+  paddingInline: config.space.S200,
+  paddingBottom: config.space.S200,
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export const EmojiGroupLabel = style({
+  display: 'block',
   padding: `${config.space.S100} ${config.space.S300}`,
+  color: color.Surface.OnContainer,
+  opacity: config.opacity.P500,
+});
 
+// Cells wrap eight to a row; stickers take bigger cells in the same flow.
+export const EmojiGroupContent = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+});
 
-
-
-
-
-
-
-
-  },
-]);
-
-const item = {
-
+// What emoji and sticker buttons share: a centered glyph or image on a hoverable tile.
+const item: StyleRule = {
+  padding: 0,
 
 
 
   background: 'none',
+
+
+
+
+
+
+
+
 
 
 
@@ -121,33 +125,24 @@ const item = {
     // folds heading size H2 (1.5625rem), leaving about 0.6rem of the cell around the glyph.
     fontSize: config.fontSize.H2,
     lineHeight: 1,
-    selectors: {
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      },
-    },
+// Four stickers to a row: the 80 px image and S100 around it.
+export const StickerItem = style([
+  DefaultReset,
+  FocusOutline,
+  item,
+  {
+    width: toRem(88),
+    height: toRem(88),
   },
 ]);
 
 export const CustomEmojiImg = style({
-
-
-
+  width: toRem(28),
+  height: toRem(28),
+  objectFit: 'contain',
 });
 
 export const StickerImg = style({
@@ -161,6 +156,7 @@ export const StickerImg = style({
 
 
 
+  padding: `0 ${config.space.S300}`,
   minHeight: toRem(52),
   borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
 });
@@ -185,6 +181,8 @@ export const AddCustomEmoji = style([
 
 
 
+
+    overflowY: 'auto',
   },
 ]);
 

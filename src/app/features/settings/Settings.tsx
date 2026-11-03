@@ -40,7 +40,7 @@ import { EmojisStickers } from './emojis-stickers';
 import { DeveloperTools } from './developer-tools';
 import { About } from './about';
 
-
+type SettingsProps = {
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
@@ -186,9 +186,9 @@ function LogoutButton() {
         <Box grow="Yes" gap="200" alignItems="Center">
           <Avatar size="200" radii="300">
             <UserAvatar
-
-
-
+              alt={displayName}
+              src={avatarUrl}
+              userId={userId}
               renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
             />
           </Avatar>
