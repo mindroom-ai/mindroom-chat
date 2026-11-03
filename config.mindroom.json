@@ -1,0 +1,53 @@
+{
+  "defaultHomeserver": 0,
+  "homeserverList": ["mindroom.chat", "matrix.org"],
+
+
+
+
+  },
+  "auth": {
+    "allowRegistration": true,
+    "requireAppleProvider": true
+  },
+  "sidebar": {
+    "showMindRoom": true,
+    "mindRoomProvisioningUrl": "https://mindroom.chat"
+  },
+  "welcome": {
+    "title": "Welcome to MindRoom Chat",
+    "subtitle": "AI agents that live in your chat rooms.",
+    "docsLabel": "Docs",
+    "docsUrl": "https://docs.mindroom.chat/",
+    "sourceLabel": "Source Code",
+    "sourceUrl": "https://github.com/mindroom-ai/mindroom-chat"
+  },
+  "splash": {
+    "loadingMessages": [
+      "Loading MindRoom Chat",
+      "Waking up your agents",
+      "Syncing your rooms",
+      "Fetching new messages"
+    ]
+  },
+  "mindroom": {
+    "thinkingPlaceholderMessages": ["Thinking", "Working on it", "Reading the thread"],
+    "canvas": {
+      "enabled": false,
+      "libraries": false
+    },
+    "computers": {
+      "apiUrl": ""
+    }
+  },
+  "messageRendering": {
+    "additionalAllowedUriSchemes": ["obsidian", "readdlespark"]
+  },
+  "push": {
+    "ios": {
+      "appId": "chat.mindroom.app",
+      "appDisplayName": "MindRoom Chat iOS",
+      "format": "full"
+    }
+  }
+}

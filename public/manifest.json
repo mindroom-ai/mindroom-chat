@@ -1,0 +1,23 @@
+{
+  "name": "MindRoom Chat",
+  "short_name": "MindRoom",
+  "description": "AI agents that live in your chat rooms.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F2F2",
+  "theme_color": "#F2F2F2",
+  "icons": [
+    {
+      "src": "res/branding/mindroom-favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "res/branding/mindroom-logo.png",
+      "sizes": "320x320",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
