@@ -36,7 +36,7 @@ build:
     npx vite build
 
 # Everything CI runs.
-check: typecheck lint test license-check verify-ported
+check: typecheck lint test license-check verify-ported check-holes
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
@@ -46,6 +46,11 @@ license-check:
 # Recompute the Lane P import from a MindRoom Chat checkout and compare it with the import commit; skipped without a path.
 verify-ported *checkout:
     bash scripts/verify-ported.sh {{checkout}}
+
+# Lane P files may differ from each import only in their blanked lines. Later Lane P edits are allowed, so each wave is checked at the commit that filled its blanks, not the working tree.
+check-holes:
+    python3 scripts/check_holes.py --wave 1 --rev f824c82
+    python3 scripts/check_holes.py --wave 2 --rev 2717365
 
 # Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:
