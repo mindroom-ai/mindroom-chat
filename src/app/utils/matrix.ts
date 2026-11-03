@@ -43,15 +43,17 @@ export const getMxIdServer = (userId: string): string | undefined =>
     : undefined;
 
 /** The room this client knows under `alias` as its canonical or alternative alias. */
-export const getCanonicalAliasRoomId = (mx: MatrixClient, alias: string): string | undefined =>
-  mx
-    .getRooms()
 
 
 
 
 
+        room.getCanonicalAlias?.() === alias || (room.getAltAliases?.() ?? []).includes(alias)
 
+
+
+
+  return room?.getCanonicalAlias() ?? roomId;
 };
 
 /**
@@ -101,21 +103,6 @@ export const addRoomIdToMDirect = (
     const rooms = current[userId] ?? [];
     if (rooms.includes(roomId)) return;
     await mx.setAccountData(EventType.Direct, { ...current, [userId]: [...rooms, roomId] });
-  });
-
-/** Removes `roomId` from every user's direct rooms in `m.direct`. */
-export const removeRoomIdFromMDirect = (mx: MatrixClient, roomId: string): Promise<void> =>
-  runDirectUpdate(mx, async () => {
-    const current =
-      (mx.getAccountData(EventType.Direct)?.getContent() as MDirectContent | undefined) ?? {};
-    let changed = false;
-    const next: MDirectContent = {};
-    Object.entries(current).forEach(([userId, rooms]) => {
-      const kept = rooms.filter((id) => id !== roomId);
-      if (kept.length !== rooms.length) changed = true;
-      if (kept.length > 0) next[userId] = kept;
-    });
-    if (changed) await mx.setAccountData(EventType.Direct, next);
   });
 
 const sleep = (ms: number) =>
@@ -339,33 +326,12 @@ export type UploadContentOptions = {
   }
 };
 
-export const getDirectRoomIds = (mx: MatrixClient): Set<string> => {
-  const content = mx.getAccountData(EventType.Direct)?.getContent() as MDirectContent | undefined;
-  return new Set(Object.values(content ?? {}).flat());
-};
-
 /** Downloads media as a blob; `init` carries authentication when the URL needs it. */
 export const downloadMedia = async (url: string, init?: RequestInit): Promise<Blob> => {
   const response = await fetch(url, { ...init, method: 'GET' });
   if (!response.ok) throw new Error(`Unable to download media (${response.status})`);
   return response.blob();
 };
-
-/** Downloads encrypted media and returns what `decrypt` makes of its bytes. */
-export const downloadEncryptedMedia = async (
-  url: string,
-  decrypt: (encrypted: ArrayBuffer) => Promise<Blob>,
-  init?: RequestInit
-): Promise<Blob> => {
-  const encrypted = await downloadMedia(url, init);
-  return decrypt(await encrypted.arrayBuffer());
-};
-
-/** A filter for events from one sender. */
-export const factoryEventSentBy =
-  (senderId: string) =>
-  (mEvent: { getSender: () => string | undefined | null }): boolean =>
-    mEvent.getSender() === senderId;
 
 /**
  * Whether the room version gives its creators unlimited power instead of a power level

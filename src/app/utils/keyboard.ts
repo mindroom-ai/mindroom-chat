@@ -45,12 +45,3 @@ export const preventScrollWithArrowKey = (event: KeyboardEvent | ReactKeyboardEv
     event.preventDefault();
   }
 };
-
-export const onEnterOrSpace =
-  <T>(callback: (event: T) => void) =>
-  (event: ReactKeyboardEvent & T): void => {
-    if (isPlainKey(event, 'Enter') || isPlainKey(event, ' ')) {
-      event.preventDefault();
-      callback(event);
-    }
-  };

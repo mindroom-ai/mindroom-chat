@@ -29,7 +29,7 @@ const signPow = (value: number, exponent: number): number =>
   Math.sign(value) * Math.abs(value) ** exponent;
 
 /** Encodes RGBA pixels (4 bytes each) with `componentsX` by `componentsY` components (1 to 9). */
-export const encodeBlurHashPixels = (
+const encodeBlurHashPixels = (
   pixels: Uint8ClampedArray,
   width: number,
   height: number,
@@ -122,16 +122,4 @@ export const encodeBlurHash = (
   } catch {
     return undefined;
   }
-};
-
-/** Whether a string can be a BlurHash: the size flag fixes its length. */
-export const isValidBlurHash = (hash: unknown): hash is string => {
-  if (typeof hash !== 'string' || hash.length < 6) return false;
-  const sizeFlag = BASE83.indexOf(hash[0]);
-  if (sizeFlag < 0) return false;
-  const componentsX = (sizeFlag % 9) + 1;
-  const componentsY = Math.floor(sizeFlag / 9) + 1;
-  return (
-    hash.length === 4 + 2 * componentsX * componentsY && [...hash].every((c) => BASE83.includes(c))
-  );
 };

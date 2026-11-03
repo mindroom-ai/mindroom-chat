@@ -1,5 +1,4 @@
 import {
-  ClientEvent,
   Filter,
   type ICreateClientOpts,
   type IStartClientOpts,
@@ -7,6 +6,7 @@ import {
 } from 'matrix-js-sdk';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
+import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 import { Feature, ServerSupport, buildFeatureSupportMap } from 'matrix-js-sdk/lib/feature';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
@@ -66,10 +66,16 @@ const raiseSyncArchiveTimelineLimit = (store: SyncArchiveStore): void => {
   );
 };
 
+// Failures here are logged, never thrown: the mark only guards against recreating a lost store.
+const describeError = (error: unknown): string =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
 const safeHasInitializedCryptoStore = (sessionId: string): boolean => {
   try {
     return hasInitializedCryptoStore(sessionId);
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[initMatrix] could not read the crypto store mark', describeError(error));
     return false;
   }
 };
@@ -77,8 +83,9 @@ const safeHasInitializedCryptoStore = (sessionId: string): boolean => {
 const safeMarkCryptoStoreInitialized = (sessionId: string): void => {
   try {
     markCryptoStoreInitialized(sessionId);
-  } catch {
-    // The mark only guards against recreating a lost store; startup does not depend on it.
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[initMatrix] could not record the crypto store mark', describeError(error));
   }
 };
 
@@ -117,10 +124,11 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
 
 
 
-
-
-
-
+    // The JavaScript cache answers `undefined` for an unknown key, which the SDK treats as none.
+    cryptoCallbacks: cryptoCallbacks as unknown as CryptoCallbacks,
+    timelineSupport: true,
+    threadSupport: true,
+    verificationMethods: ['m.sas.v1'],
   } as ICreateClientOpts & { threadSupport: boolean });
 
   if (!continuity && (await serverHasDeviceIdentity(mx, session))) {
@@ -141,10 +149,14 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   if (failure) {
     try {
       mx.stopClient();
-    } catch {
-      // Already stopped.
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[initMatrix] could not stop the half-started client', describeError(error));
     }
-    await Promise.resolve(store.destroy?.()).catch(() => undefined);
+    await Promise.resolve(store.destroy?.()).catch((error: unknown) => {
+      // eslint-disable-next-line no-console
+      console.warn('[initMatrix] could not close the sync store', describeError(error));
+    });
     throw failure.reason;
   }
 
@@ -188,42 +200,12 @@ const buildSyncFilter = (mx: MatrixClient): Filter => {
   return filter;
 };
 
-const deferredParentFetch = (): Promise<never> =>
-  Promise.reject(new Error('Relation parents are not fetched while the saved sync is replayed.'));
-
-/**
- * The saved sync can hold a reaction or edit whose parent it does not hold. Replaying it, the
- * SDK would fetch each such parent and wait for the answer before showing any chat, so startup
- * hung while the network did. During the replay those fetches fail at once instead; the relation
- * is kept and applies when its parent arrives. Fetching resumes with the first sync state.
- */
-const deferRelationParentFetchesDuringReplay = async (mx: MatrixClient): Promise<void> => {
-  let savedSyncToken: string | null | undefined;
-  try {
-    savedSyncToken = await mx.store?.getSavedSyncToken?.();
-  } catch {
-    savedSyncToken = undefined;
-  }
-  if (!savedSyncToken) return;
-
-  const client = mx as MatrixClient & { fetchRoomEvent: MatrixClient['fetchRoomEvent'] };
-  const hadOwnFetch = Object.prototype.hasOwnProperty.call(client, 'fetchRoomEvent');
-  const ownFetch = hadOwnFetch ? client.fetchRoomEvent : undefined;
-  client.fetchRoomEvent = deferredParentFetch;
-  mx.once(ClientEvent.Sync, () => {
-    if (client.fetchRoomEvent !== deferredParentFetch) return;
-    if (ownFetch) client.fetchRoomEvent = ownFetch;
-    else delete (client as Partial<typeof client>).fetchRoomEvent;
-  });
-};
-
 /** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
 export const startClient = async (
   mx: MatrixClient,
   options: Partial<IStartClientOpts> = {}
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
-  await deferRelationParentFetchesDuringReplay(mx);
 
 
 

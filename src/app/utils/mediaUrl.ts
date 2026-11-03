@@ -78,7 +78,7 @@ export const mxcUrlToHttp = (
     height,
     resizeMethod,
     allowDirectLinks,
-    allowRedirects ?? true,
+    allowRedirects,
     useAuthentication
   );
   if (!httpUrl) return null;

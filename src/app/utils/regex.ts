@@ -3,8 +3,6 @@
 
 const escapeForRegex = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export const sanitizeForRegex = escapeForRegex;
-
 /** A regular expression that matches any of `words` literally. */
 export const createRegexFromWords = (words: string[], flags = 'g'): RegExp =>
   new RegExp(words.map(escapeForRegex).join('|'), flags);
@@ -26,7 +24,7 @@ export const EMOJI_PATTERN = `(?:${FLAG}|${KEYCAP}|${EMOJI_SEQUENCE})`;
 export const VARIATION_SELECTOR_PATTERN = '\\uFE0F';
 
 /** A custom emoji shortcode such as `:party-parrot:`; it cannot contain spaces or colons. */
-export const SHORTCODE_PATTERN = ':[^\\s:]+:';
+const SHORTCODE_PATTERN = ':[^\\s:]+:';
 
 const JUMBO_TOKEN = `(?:${EMOJI_PATTERN}${VARIATION_SELECTOR_PATTERN}?|${SHORTCODE_PATTERN})`;
 
@@ -41,8 +39,6 @@ export const URL_REG = new RegExp(
   `(?:https?|ftp|mailto|magnet):\\/\\/[^\\s<>]*[^${URL_TRAILING_EXCLUDED}]`,
   'g'
 );
-
-export const URL_NEG_LB = '(?:https?|ftp|mailto|magnet):\\/\\/';
 
 const URL_SCHEMES = ['https', 'http', 'ftp', 'mailto', 'magnet'];
 const WHITESPACE = /\s/;
@@ -102,5 +98,3 @@ export const execOutsideUrl = (regex: RegExp, text: string): RegExpExecArray | n
   }
   return null;
 };
-
-export const HTTP_URL_PATTERN = '^https?:\\/\\/';

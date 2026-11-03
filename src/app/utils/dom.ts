@@ -56,20 +56,6 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
   return copyWithSelection(text);
 };
 
-export const targetFromEvent = (event: Event, selector: string): Element | undefined => {
-  const path = event.composedPath();
-  return path.find(
-    (target): target is Element => target instanceof Element && target.matches(selector)
-  );
-};
-
-export const editableActiveElement = (): boolean => {
-  const element = typeof document === 'undefined' ? null : document.activeElement;
-  if (!element) return false;
-  if ((element as HTMLElement).isContentEditable) return true;
-  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName);
-};
-
 /** Whether `child` is fully inside the visible part of `scrollElement`. */
 export const isInScrollView = (scrollElement: HTMLElement, child: HTMLElement): boolean => {
   const view = scrollElement.getBoundingClientRect();
@@ -86,13 +72,6 @@ export const isIntersectingScrollView = (
   const rect = child.getBoundingClientRect();
   return rect.bottom > view.top && rect.top < view.bottom;
 };
-
-export const getScrollInfo = (target: HTMLElement) => ({
-  offsetTop: Math.round(target.scrollTop),
-  height: target.clientHeight,
-  scrollHeight: target.scrollHeight,
-  viewHeight: target.scrollHeight - target.clientHeight,
-});
 
 /** Scrolls to the end of the content; instantly unless asked to animate. */
 export const scrollToBottom = (
@@ -198,7 +177,7 @@ export const getThumbnail = (
 
 
 
-
+      video.onloadeddata = null;
       resolve(video);
     };
     video.onerror = () => reject(new Error(`Could not load video ${url}`));
@@ -208,27 +187,4 @@ export const getThumbnail = (
 export const getDataTransferFiles = (dataTransfer: DataTransfer): File[] | undefined => {
   const files = Array.from(dataTransfer.files ?? []);
   return files.length > 0 ? files : undefined;
-};
-
-export const getImageUrlBlob = async (url: string): Promise<Blob> => {
-  const response = await fetch(url);
-  return response.blob();
-};
-
-export const getImageFileUrl = (fileOrBlob: Blob): string => URL.createObjectURL(fileOrBlob);
-
-export const getVideoFileUrl = (fileOrBlob: Blob): string => URL.createObjectURL(fileOrBlob);
-
-/** Calls `callback` when the user presses `key` without modifiers, until the returned cleanup. */
-export const onKeyPress = (
-  target: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>,
-  key: string,
-  callback: (event: KeyboardEvent) => void
-): (() => void) => {
-  const listener = (event: Event) => {
-    const keyboardEvent = event as KeyboardEvent;
-    if (keyboardEvent.key === key) callback(keyboardEvent);
-  };
-  target.addEventListener('keydown', listener);
-  return () => target.removeEventListener('keydown', listener);
 };

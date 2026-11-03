@@ -4,7 +4,7 @@
 /** A JSON Web Key for AES-CTR, as carried in encrypted attachment metadata. */
 export type IEncryptedFileKey = {
   alg: string;
-  ext?: boolean;
+  ext: boolean;
   key_ops: string[];
   kty: string;
   k: string;
@@ -58,6 +58,8 @@ export type IImageInfo = IThumbnailInfo & {
 
 
 
+
+  thumbnail_info?: IThumbnailInfo;
 };
 
 /** Duration in milliseconds and a waveform of values from 0 to 1024 (MSC1767 audio). */

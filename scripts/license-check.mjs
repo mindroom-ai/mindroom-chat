@@ -24,6 +24,8 @@ const ALLOWED = new Set(
     'OFL-1.1',
     'MPL-2.0',
     'Python-2.0',
+    // Public-domain dedication (big-integer, stream-buffers under @capacitor/cli).
+    'Unlicense',
   ].map((id) => id.toLowerCase())
 );
 
@@ -31,6 +33,7 @@ const ALLOWED = new Set(
 const EXCEPTIONS = {
   'require-like': 'MIT license text ships in the package; package.json has no license field',
   'caniuse-lite': 'CC-BY-4.0 browser data used by build tooling only, never shipped in the bundle',
+  jsonify: 'Public Domain (no SPDX id); dev-only, pulled in by @capacitor/cli, never shipped',
 };
 
 // SPDX expression grammar: or := and (OR and)*; and := atom (AND atom)*; atom := '(' or ')' | id [WITH id].

@@ -1,6 +1,10 @@
 export const FALLBACK_MIMETYPE = 'application/octet-stream';
 
-/** Media types the client opens in the browser (as a blob URL) rather than only downloading. */
+// Media types the client gives to a blob URL for <img>, <video> or <audio>: the formats MDN
+// lists as broadly supported by browsers ("Image file type and format guide" and "Media
+// container formats", developer.mozilla.org/en-US/docs/Web/Media/Formats). Anything else,
+// including SVG and HTML, which can run script, is served as a plain download.
+const BLOB_SAFE_MIMETYPES = new Set([
 
 
 
@@ -19,12 +23,7 @@ export const FALLBACK_MIMETYPE = 'application/octet-stream';
 
 
 
-
-
-
-
-  'text/plain',
-];
+]);
 
 /** The type without parameters, lower case: `Text/Plain; charset=utf-8` is `text/plain`. */
 export const getMimeTypeBase = (mimeType: string): string =>
@@ -33,13 +32,9 @@ export const getMimeTypeBase = (mimeType: string): string =>
 /** A type safe to give a blob URL; anything else is served as a download. */
 export const getBlobSafeMimeType = (mimeType: string): string => {
   const base = getMimeTypeBase(mimeType);
+  // iPhones record QuickTime files; their H.264 content plays as MP4.
   if (base === 'video/quicktime') return 'video/mp4';
-  return ALLOWED_BLOB_MIMETYPES.includes(base) ? base : FALLBACK_MIMETYPE;
-};
-
-export const safeFile = (file: File): File => {
-  const safeType = getBlobSafeMimeType(file.type);
-  return safeType === file.type ? file : new File([file], file.name, { type: safeType });
+  return BLOB_SAFE_MIMETYPES.has(base) ? base : FALLBACK_MIMETYPE;
 };
 
 /** The name without its last extension: `report.final.pdf` is `report.final`. */
@@ -53,28 +48,3 @@ export const getFileNameExt = (fileName: string): string => {
   const dot = fileName.lastIndexOf('.');
   return dot > 0 && dot < fileName.length - 1 ? fileName.slice(dot + 1) : '';
 };
-
-const EXTENSIONS_BY_TYPE: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
-  'image/svg+xml': 'svg',
-  'video/mp4': 'mp4',
-  'video/webm': 'webm',
-  'video/quicktime': 'mov',
-  'audio/mpeg': 'mp3',
-  'audio/ogg': 'ogg',
-  'audio/webm': 'webm',
-  'audio/mp4': 'm4a',
-  'audio/wav': 'wav',
-  'application/pdf': 'pdf',
-  'application/json': 'json',
-  'text/plain': 'txt',
-  'text/markdown': 'md',
-  'text/html': 'html',
-};
-
-export const mimeTypeToExt = (mimeType: string): string =>
-  EXTENSIONS_BY_TYPE[getMimeTypeBase(mimeType)] ?? getMimeTypeBase(mimeType).split('/')[1] ?? '';

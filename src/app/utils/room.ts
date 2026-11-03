@@ -7,7 +7,6 @@ import {
   type MatrixClient,
   type MatrixEvent,
   type Room,
-  type RoomMember,
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { MessageEvent, MsgType, RoomType, StateEvent } from '../../types/matrix/room';
@@ -18,9 +17,6 @@ import { mxcUrlToHttp } from './mediaUrl';
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (
   room: Room,
-
-
-
 
 
 
@@ -347,62 +343,4 @@ export const trimReplyFromBody = (body: string): string => {
     lineStart = lineEnd + 1;
   }
   return body;
-};
-
-/** The replacement relations of an event, for listing its edit history. */
-export const getEventEdits = (
-  timelineSet: Pick<EventTimelineSet, 'relations'>,
-  eventId: string,
-  eventType: string = EventType.RoomMessage
-): Relations | undefined =>
-  timelineSet.relations?.getChildEventsForEvent(eventId, RelationType.Replace, eventType);
-
-/** The newest event of the timeline we may edit, for editing the last message with Up. */
-export const getLatestEditableEvt = (
-
-
-
-
-
-    const event = events[index];
-    if (!reactionOrEditEvent(event) && canEdit(event)) return event;
-  }
-
-
-
-
-
-
-
-
-    rel_type: RelationType.Annotation,
-  },
-  ...(shortcode ? { shortcode } : {}),
-});
-
-/** The text a member list search matches: the user ID for `@` queries, else the name. */
-export const getMemberSearchStr = (
-  member: Pick<RoomMember, 'userId' | 'rawDisplayName'>,
-  query: string,
-  mxIdToName?: (userId: string) => string
-): string => {
-  if (query.startsWith('@')) return member.userId;
-  const name =
-    member.rawDisplayName && member.rawDisplayName !== member.userId
-      ? member.rawDisplayName
-      : mxIdToName?.(member.userId) ?? member.userId;
-  return name;
-};
-
-/** Of the spaces that contain a room, the one to open it in: a joined one first. */
-export const guessPerfectParent = (
-  mx: MatrixClient,
-  roomId: string,
-  parents: readonly string[] | Set<string> | undefined
-): string | undefined => {
-  const candidates = [...(parents ?? [])].filter((parentId) => parentId !== roomId);
-  return (
-    candidates.find((parentId) => mx.getRoom(parentId)?.getMyMembership() === 'join') ??
-    candidates[0]
-  );
 };

@@ -16,21 +16,6 @@ const secretStorageKeys = new Map();
 export function storePrivateKey(keyId, privateKey) {
   if (!(privateKey instanceof Uint8Array))
     throw new Error('Secret storage key must be a Uint8Array');
-  secretStorageKeys.set(keyId, privateKey);
-}
-
-/**
- * @param {string} keyId
- * @returns {boolean}
- */
-export function hasPrivateKey(keyId) {
-  return secretStorageKeys.has(keyId);
-}
-
-/**
- * @param {string} keyId
- * @returns {Uint8Array | undefined}
- */
 
 
 
@@ -45,12 +30,20 @@ export function hasPrivateKey(keyId) {
 
 
 
-
+  /**
+   * @param {{ keys: Record<string, unknown> }} request the key IDs the secret may be read with
+   * @returns {Promise<[string, Uint8Array] | undefined>}
+   */
   async getSecretStorageKey({ keys }) {
     const keyId = Object.keys(keys).find((id) => secretStorageKeys.has(id));
-    if (!keyId) return /** @type {null} */ (/** @type {unknown} */ (undefined));
-    return [keyId, /** @type {Uint8Array} */ (secretStorageKeys.get(keyId))];
+    const privateKey = keyId ? secretStorageKeys.get(keyId) : undefined;
+    return keyId && privateKey ? [keyId, privateKey] : undefined;
   },
+  /**
+   * @param {string} keyId
+   * @param {unknown} _keyInfo
+   * @param {Uint8Array} privateKey
+   */
   cacheSecretStorageKey(keyId, _keyInfo, privateKey) {
     storePrivateKey(keyId, privateKey);
   },

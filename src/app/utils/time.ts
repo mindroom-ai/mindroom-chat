@@ -25,12 +25,6 @@ export const timeHourMinute = (ts: number, hour24Clock = false, language?: strin
     hour12: !hour24Clock,
   }).format(ts);
 
-export const timeDayMonYear = (ts: number, language?: string): string =>
-  new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', year: 'numeric' }).format(ts);
-
-export const timeDayMonthYear = (ts: number, language?: string): string =>
-  new Intl.DateTimeFormat(language, { day: 'numeric', month: 'long', year: 'numeric' }).format(ts);
-
 type RelativeUnit = 'second' | 'minute' | 'hour' | 'day';
 
 const ageOf = (ts: number): number => Math.max(0, Date.now() - ts);
@@ -86,7 +80,3 @@ export const formatCompactRelativeTime = (ts: number, language = 'en'): string =
     ...(sameYear ? {} : { year: 'numeric' }),
   });
 };
-
-/** Whole minutes between two timestamps, in either order. */
-export const minuteDifference = (ts1: number, ts2: number): number =>
-  Math.floor(Math.abs(ts1 - ts2) / minutesToMs(1));

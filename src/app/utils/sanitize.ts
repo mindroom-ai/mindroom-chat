@@ -84,7 +84,8 @@ const BASE_ATTRIBUTES: Record<string, string[]> = {
 
 
 
-  code: ['class', 'data-md'],
+  // `data-label` names a code block (the label row above it).
+  code: ['class', 'data-md', 'data-label'],
   div: ['data-md'],
   details: ['open'],
   th: ['colspan', 'rowspan', 'align'],
@@ -117,8 +118,17 @@ const linkInNewTab: Transformer = (tagName, attribs) => ({
   attribs: { ...attribs, target: '_blank', rel: 'noreferrer noopener' },
 });
 
+// Images come only from the media repository (`mxc://`); a relative or other URL would make every
+// reader's browser fetch from wherever the sender chose.
+const mxcImageOnly: Transformer = (tagName, attribs) => {
+  if (/^mxc:\/\//i.test(attribs.src ?? '')) return { tagName, attribs };
+  const { src: _src, ...rest } = attribs;
+  return { tagName, attribs: rest };
+};
+
 const BASE_TRANSFORMS: Record<string, Transformer> = {
   a: linkInNewTab,
+  img: mxcImageOnly,
   font: colorToStyle,
   span: colorToStyle,
 };
@@ -237,6 +247,8 @@ const buildOptions = ({
     transformTags: mergeTransforms(policy?.transformTags),
     // Reply fallbacks (MSC2781) and executable or invisible content are dropped with their text.
     nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],
+    // An image left without an `mxc://` source is dropped.
+    exclusiveFilter: (frame) => frame.tag === 'img' && !frame.attribs.src,
     disallowedTagsMode: 'discard',
   };
 };

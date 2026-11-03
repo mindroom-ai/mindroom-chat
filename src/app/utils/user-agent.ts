@@ -26,7 +26,7 @@ export const isMacOS = (): boolean => {
   return /Mac/i.test(platformName(nav)) || /Macintosh|Mac OS X/i.test(nav.userAgent);
 };
 
-export const isAndroid = (): boolean => {
+const isAndroid = (): boolean => {
   const nav = getNavigator();
   return !!nav && /Android/i.test(nav.userAgent);
 };
@@ -37,14 +37,4 @@ export const mobileOrTablet = (): boolean => {
   if (!nav) return false;
   if (nav.userAgentData?.mobile) return true;
   return isIOS() || isAndroid() || /Mobi|Tablet|Silk|Kindle/i.test(nav.userAgent);
-};
-
-export const isSafari = (): boolean => {
-  const nav = getNavigator();
-  return !!nav && /AppleWebKit\//.test(nav.userAgent) && !/Chrome\/|Chromium\//.test(nav.userAgent);
-};
-
-export const isFirefox = (): boolean => {
-  const nav = getNavigator();
-  return !!nav && /Firefox\//.test(nav.userAgent);
 };

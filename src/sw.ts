@@ -93,7 +93,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // Paths the app shell must never answer: the homeserver, the MindRoom runtime and static
-// documents (such as call widgets) served beside the app, also under a path prefix.
+// documents under public/ served beside the app, also under a path prefix.
 const navigationFallbackDenylist = [
   /^\/api(?:\/|$)/,
   /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,

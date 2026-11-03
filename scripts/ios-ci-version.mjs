@@ -147,7 +147,8 @@ export const assertMarketingVersionNotBehindPackage = (marketingVersion, package
   }
 };
 
-// `node scripts/ios-ci-version.mjs` prints the metadata for this checkout as shell assignments.
+// `node scripts/ios-ci-version.mjs` prints the metadata for this checkout as `key=value` lines
+// (ios/App/ci_scripts/ci_pre_xcodebuild.sh reads them).
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const root = fileURLToPath(new URL('..', import.meta.url));
@@ -177,6 +178,11 @@ if (isMain) {
     headTags,
   });
   process.stdout.write(
-    `MARKETING_VERSION=${metadata.marketingVersion}\nCURRENT_PROJECT_VERSION=${metadata.buildNumber}\n`
+    [
+      `marketing_version=${metadata.marketingVersion}`,
+      `marketing_version_source=${metadata.marketingVersionSource}`,
+      `build_number=${metadata.buildNumber}`,
+      `build_number_source=${metadata.buildNumberSource}`,
+    ].join('\n') + '\n'
   );
 }

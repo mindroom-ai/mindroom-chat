@@ -1,33 +1,6 @@
-import { AuthType, type IAuthData, type UIAFlow } from 'matrix-js-sdk';
+import { AuthType } from 'matrix-js-sdk';
 
-// Helpers for user-interactive authentication (client-server specification, "User-Interactive
-// Authentication API"): flows, completed stages and the parameters of each stage.
-
-export const getSupportedUIAFlows = (flows: UIAFlow[], supportedStages: string[]): UIAFlow[] => {
-  const supported = new Set(supportedStages);
-  return flows.filter((flow) => flow.stages.every((stage) => supported.has(stage)));
-};
-
-export const getUIACompleted = (authData: IAuthData): string[] => authData.completed ?? [];
-
-/** The stages of `flow` not completed yet, in order. */
-export const getUIAFlowStages = (flow: UIAFlow, completed: string[] = []): string[] =>
-  flow.stages.filter((stage) => !completed.includes(stage));
-
-export const hasStageInFlows = (flows: UIAFlow[], stage: string): boolean =>
-  flows.some((flow) => flow.stages.includes(stage));
-
-export const requiredStageInFlows = (flows: UIAFlow[], stage: string): boolean =>
-  flows.length > 0 && flows.every((flow) => flow.stages.includes(stage));
-
-// A failed stage answers 401 with the auth data plus the usual `errcode` and `error`.
-type IAuthDataWithError = IAuthData & { errcode?: unknown; error?: unknown };
-
-export const getUIAError = (authData: IAuthDataWithError): string | undefined =>
-  typeof authData.error === 'string' ? authData.error : undefined;
-
-export const getUIAErrorCode = (authData: IAuthDataWithError): string | undefined =>
-  typeof authData.errcode === 'string' ? authData.errcode : undefined;
+// The terms link of the `m.login.terms` stage of user-interactive authentication.
 
 type TermsPolicy = Record<string, unknown>;
 
