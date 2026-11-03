@@ -339,7 +339,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     prefetchDepth,
   } = useTimelineDisplaySettings();
   const compactLayout = messageLayout === MessageLayout.Compact;
-  const clientCatchingUp = useInitialClientCatchup(mx);
+  const compactViewRequested = !threadId && viewMode === 'compact';
+  // Only the compact overview waits for the client's first catch-up, so only it follows sync.
+  const clientCatchingUp = useInitialClientCatchup(compactViewRequested ? mx : undefined);
   const roomUnread = !!useRoomUnread(room.roomId, roomToUnreadAtom);
   const fallbackCompactScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const compactRoomScrollStateRef =
@@ -354,7 +356,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
       viewMode,
     });
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
-  const compactViewRequested = !threadId && effectiveViewMode === 'compact';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
   // References the controllers share.

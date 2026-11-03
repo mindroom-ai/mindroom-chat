@@ -154,7 +154,8 @@ const useDecryptionRepaint = (renderedEventsRef: RefObject<MatrixEvent[]>): numb
       subscribed.delete(event);
     });
     current.forEach((event) => {
-      if (subscribed.has(event)) return;
+      // Rows can hold stand-ins for events that never decrypt and emit nothing.
+      if (subscribed.has(event) || typeof event.on !== 'function') return;
       REPAINT_EVENTS.forEach((name) => event.on(name, repaint));
       subscribed.add(event);
     });
@@ -411,7 +412,7 @@ export const useTimelineMessageFeature = ({
         : undefined;
       if (summaryInfo && marker) {
         return (
-          <MessageAside key={eventId} spaced>
+          <MessageAside key={eventId} data-message-id={eventId} spaced>
             <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
           </MessageAside>
         );
