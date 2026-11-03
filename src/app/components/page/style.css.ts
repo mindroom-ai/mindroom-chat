@@ -39,6 +39,9 @@ export const PageNavHeader = style({
 /** A navigation header that scrolls with the list below it. */
 export const PageNavHeaderScroll = style({ position: 'sticky', top: 0, zIndex: 1 });
 
+/** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
+export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex: 2 });
+
 // Top S200, flush right against the scrollbar, room at the bottom, rows S200 from the rail.
 export const PageNavContent = style({
   minHeight: '100%',
