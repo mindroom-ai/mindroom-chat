@@ -35,10 +35,18 @@ type RegisterMethodsProps = {
   baseUrl: string;
   authFlows: AuthFlows;
   ssoRedirectUrl: string;
+  /** A registration token from an invite link. */
+  defaultToken?: string;
 };
 
 /** What this client can offer for sign-up on the server, after the MindRoom auth policy. */
-function RegisterMethods({ server, baseUrl, authFlows, ssoRedirectUrl }: RegisterMethodsProps) {
+function RegisterMethods({
+  server,
+  baseUrl,
+  authFlows,
+  ssoRedirectUrl,
+  defaultToken,
+}: RegisterMethodsProps) {
   const { t } = useTranslation();
   const { auth } = useClientConfig();
   const { registerFlows } = authFlows;
@@ -104,7 +112,13 @@ function RegisterMethods({ server, baseUrl, authFlows, ssoRedirectUrl }: Registe
   }
   return (
     <Box direction="Column" gap="400">
-      {passwordSupported && <PasswordRegisterForm baseUrl={baseUrl} />}
+      {passwordSupported && (
+        <PasswordRegisterForm
+          homeserverUrl={baseUrl}
+          signUpFlows={registerFlows.data}
+          inviteToken={defaultToken}
+        />
+      )}
       {providers && (
         <SSOLogin
           providers={providers}
@@ -155,6 +169,7 @@ export function Register() {
             baseUrl={baseUrl}
             server={server}
             ssoRedirectUrl={ssoRedirectUrl}
+            defaultToken={searchParams.get('token') ?? undefined}
           />
         )}
       </AuthFlowsLoader>
