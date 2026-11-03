@@ -107,3 +107,42 @@ Count per error code:
 ## 3. Other baselines
 just lint: 144 errors, 47 warnings. Every error is in a file with blanked lines (parse errors and imports lost with them); the Lane P files without holes lint clean.
 just test: 773 test files, all fail until src/app/locales/en.json exists (src/vitest.setup.ts imports it). With an empty stub for that file: 149 files and 1488 of 2096 tests pass; the rest wait on seams.
+
+## 4. Type gate split (final fix F4, 2026-11-03)
+just typecheck (tsc --noEmit -p tsconfig.app.json: src without tests) is the gate `just check` runs: 0 errors.
+just typecheck-tests (tsc --noEmit -p .: everything, tests and e2e included) reports without failing.
+Total at a289c40 (with the other final-fix sessions' uncommitted edits in the tree): 773 errors, 682 in src tests and 91 in e2e.
+Regenerate with: just typecheck-tests | grep -o 'error TS[0-9]*' | sort | uniq -c
+
+Count per error code:
+      2 error TS18046
+     50 error TS18048
+      4 error TS2304
+      3 error TS2305
+    122 error TS2322
+     33 error TS2339
+     16 error TS2341
+    169 error TS2345
+     62 error TS2352
+      8 error TS2353
+      1 error TS2418
+      1 error TS2454
+     70 error TS2493
+      4 error TS2531
+      4 error TS2532
+     15 error TS2540
+     27 error TS2554
+      4 error TS2558
+     31 error TS2683
+      2 error TS2722
+      8 error TS2739
+      9 error TS2740
+     15 error TS2741
+     69 error TS2769
+      1 error TS2820
+     28 error TS7006
+      2 error TS7015
+      4 error TS7017
+      5 error TS7022
+      2 error TS7031
+      2 error TS7053

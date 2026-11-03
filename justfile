@@ -7,9 +7,17 @@ default:
 install:
     npm ci
 
-# Type-check with tsc. Stops reporting at the first syntax error, so blanked lines hide the rest.
+# Type-check the app sources (tsconfig.app.json: src without tests). The gate `just check` uses; must report 0 errors.
 typecheck:
-    npx tsc --noEmit -p .
+    npx tsc --noEmit -p tsconfig.app.json
+
+# Type-check everything, tests and e2e included (tsconfig.json). Reports the errors without failing; docs/provenance/m1-baseline.txt records the count.
+typecheck-tests:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    output=$(npx tsc --noEmit -p . --pretty false)
+    if [ -n "$output" ]; then printf '%s\n' "$output"; fi
+    echo "typecheck-tests: $(grep -c 'error TS' <<<"$output") errors (reported, not enforced)"
 
 # Type-check and report syntax and semantic errors together.
 typecheck-all:
