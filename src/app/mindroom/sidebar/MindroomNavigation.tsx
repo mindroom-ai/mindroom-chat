@@ -54,8 +54,7 @@ export function MindroomNavigationProvider({ children }: { children: ReactNode }
 
 function PageNavToggle() {
   const { t } = useTranslation();
-  const { collapsed, canCollapse, setCollapsed } = useMindroomDesktopPageNav();
-  if (!canCollapse) return null;
+  const { collapsed, setCollapsed } = useMindroomDesktopPageNav();
   const label = collapsed
     ? t('sharedUi.mindroomNavigation.expandNavigationPanel')
     : t('sharedUi.mindroomNavigation.collapseNavigationPanel');
@@ -80,8 +79,9 @@ function PageNavToggle() {
 }
 
 /**
- * The icon rail, with the page navigation's collapse toggle at its foot. Choosing the section
- * already shown toggles its navigation instead of navigating; choosing another opens it.
+ * The icon rail, with the page navigation's collapse toggle at its foot wherever the panel can
+ * collapse. Choosing the section already shown toggles its navigation instead of navigating;
+ * choosing another opens it.
  */
 export function MindroomSidebarNav() {
   const { collapsed, canCollapse, setCollapsed } = useMindroomDesktopPageNav();
@@ -101,7 +101,10 @@ export function MindroomSidebarNav() {
 
   return (
     <MobileFriendlyClientNav>
-      <SidebarNav footer={<PageNavToggle />} onPageNavSelect={handlePageNavSelect} />
+      <SidebarNav
+        footer={canCollapse ? <PageNavToggle /> : undefined}
+        onPageNavSelect={handlePageNavSelect}
+      />
     </MobileFriendlyClientNav>
   );
 }

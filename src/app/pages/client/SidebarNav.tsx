@@ -16,7 +16,6 @@ import {
   ExploreTab,
   HomeTab,
   InboxTab,
-  SearchTab,
   SettingsTab,
   SpaceTabs,
   ThreadsTab,
@@ -25,7 +24,7 @@ import {
 import { CreateTab } from './sidebar/CreateTab';
 
 type SidebarNavProps = {
-  /** Shown below the account controls, such as the panel collapse toggle. */
+  /** Shown under a rule below the account controls, such as the panel collapse toggle. */
   footer?: ReactNode;
   /**
    * Called when a section button is pressed, with whether that section is
@@ -35,7 +34,11 @@ type SidebarNavProps = {
   onPageNavSelect?: (selected: boolean) => boolean;
 };
 
-/** The icon rail: sections and spaces on top, search, inbox and the account at the foot. */
+/**
+ * The icon rail. On top: Home, Direct Messages and the optional sections, then the joined spaces
+ * and, where communities are on, Explore and Create Space. Pinned to the foot: device and Local
+ * MindRoom notices when they apply, the Inbox, the account, and the footer.
+ */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar, mindroom } = useClientConfig();
@@ -44,7 +47,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
 
   const showThreads = sidebar?.showThreads ?? true;
   const showCanvases = !!mindroom?.canvas?.enabled && showCanvasesSetting;
-  const showExplore = sidebar?.showExploreCommunity ?? true;
+  const showCommunities = sidebar?.showExploreCommunity ?? true;
 
   return (
     <Sidebar>
@@ -58,24 +61,32 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               {showCanvases && <CanvasesTab />}
             </SidebarStack>
             <SpaceTabs />
-            <SidebarStackSeparator />
-            <SidebarStack>
-              <CreateTab />
-            </SidebarStack>
+            {showCommunities && (
+              <>
+                <SidebarStackSeparator />
+                <SidebarStack>
+                  <ExploreTab onSelect={onPageNavSelect} />
+                  <CreateTab />
+                </SidebarStack>
+              </>
+            )}
           </Scroll>
         }
         sticky={
           <>
             <SidebarStackSeparator />
             <SidebarStack>
-              {showExplore && <ExploreTab onSelect={onPageNavSelect} />}
-              <SearchTab />
-              <InboxTab />
-              {showLocalMindroom && <MindroomTab />}
               <UnverifiedTab />
+              {showLocalMindroom && <MindroomTab />}
+              <InboxTab />
               <SettingsTab />
             </SidebarStack>
-            {footer}
+            {footer && (
+              <>
+                <SidebarStackSeparator />
+                <SidebarStack>{footer}</SidebarStack>
+              </>
+            )}
           </>
         }
       />

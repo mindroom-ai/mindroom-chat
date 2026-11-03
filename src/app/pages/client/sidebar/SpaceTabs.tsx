@@ -10,6 +10,8 @@ import {
   SidebarItem,
   SidebarItemBadge,
   SidebarItemTooltip,
+  SidebarStack,
+  SidebarStackSeparator,
 } from '../../../components/sidebar';
 import { RoomAvatar } from '../../../components/room-avatar';
 import { UnreadBadge } from '../../../components/unread-badge';
@@ -105,11 +107,15 @@ export function SpaceTabs() {
 
   if (spaces.length === 0) return null;
 
+  // Spaces get their own stack under a rule, apart from the sections above them.
   return (
-    <div role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
-      {spaces.map((space) => (
-        <SpaceTab key={space.roomId} space={space} selected={selectedSpaceId === space.roomId} />
-      ))}
-    </div>
+    <>
+      <SidebarStackSeparator />
+      <SidebarStack role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
+        {spaces.map((space) => (
+          <SpaceTab key={space.roomId} space={space} selected={selectedSpaceId === space.roomId} />
+        ))}
+      </SidebarStack>
+    </>
   );
 }
