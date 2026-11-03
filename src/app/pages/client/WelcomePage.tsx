@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, ReactNode, useEffect, useState } from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
+import type { IconSrc } from 'folds';
 import { useSetAtom } from 'jotai';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -17,6 +18,8 @@ import {
   shouldShowWelcomeSetupPrompt,
 } from '../../mindroom/local-mindroom/mindroom';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
+import { KeyBackupNudge } from '../../mindroom/onboarding/KeyBackupNudge';
+import type { MindroomPoweredByLink } from '../../mindroom/branding/branding';
 import { settingsModalAtom } from '../../state/settingsModal';
 
 const SETUP_COMMAND =
@@ -121,7 +124,54 @@ function LocalMindroomSetup() {
   );
 }
 
-/** Shown when no room is open: the app's name, links to docs and source, and setup help. */
+/** The welcome column's width in home.png: links, cards and credits all share it. */
+const WELCOME_COLUMN_WIDTH = toRem(360);
+
+type WelcomeLinkProps = { href: string; icon: IconSrc; children: ReactNode };
+
+/** A full-width link button of the welcome column, opened in a new tab. */
+function WelcomeLink({ href, icon, children }: WelcomeLinkProps) {
+  return (
+    <Button
+      as="a"
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      size="400"
+      radii="300"
+      variant="Primary"
+      fill="Soft"
+      outlined
+      before={<Icon size="100" src={icon} />}
+      style={{ textDecoration: 'none' }}
+    >
+      <Text size="B400">{children}</Text>
+    </Button>
+  );
+}
+
+/** Credit links in the theme's link colour (src/index.css), without underlines. */
+const CREDIT_LINK_STYLE = { color: 'var(--mr-link-color)', textDecoration: 'none' } as const;
+
+/** "Powered by A • B": the credited projects, each linked. */
+function PoweredByLine({ links }: { links: readonly MindroomPoweredByLink[] }) {
+  if (links.length === 0) return null;
+  const linked = links.map((link, index) => (
+    <Fragment key={link.url}>
+      {index > 0 && ' • '}
+      <a href={link.url} target="_blank" rel="noreferrer noopener" style={CREDIT_LINK_STYLE}>
+        {link.label}
+      </a>
+    </Fragment>
+  ));
+  return (
+    <Text size="T300" align="Center">
+      <Trans i18nKey="sharedUi.welcomePage.poweredBy" components={{ links: <>{linked}</> }} />
+    </Text>
+  );
+}
+
+/** Shown when no room is open: the app's name, links to source and docs, backup and setup help. */
 export function WelcomePage() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
@@ -150,41 +200,22 @@ export function WelcomePage() {
             subTitle={content.subtitle}
           >
             <Box
-              justifyContent="Center"
-              gap="200"
-              wrap="Wrap"
-              style={{ paddingTop: config.space.S400 }}
+              direction="Column"
+              gap="300"
+              style={{ width: '100%', maxWidth: WELCOME_COLUMN_WIDTH, marginInline: 'auto' }}
             >
-              {content.docsUrl && (
-                <Button
-                  as="a"
-                  href={content.docsUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  size="300"
-                  radii="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  before={<Icon size="200" src={Icons.Info} />}
-                >
-                  <Text size="B300">{content.docsLabel}</Text>
-                </Button>
-              )}
               {content.sourceUrl && (
-                <Button
-                  as="a"
-                  href={content.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  size="300"
-                  radii="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  before={<Icon size="200" src={Icons.Code} />}
-                >
-                  <Text size="B300">{content.sourceLabel}</Text>
-                </Button>
+                <WelcomeLink href={content.sourceUrl} icon={Icons.Code}>
+                  {content.sourceLabel}
+                </WelcomeLink>
               )}
+              {content.docsUrl && (
+                <WelcomeLink href={content.docsUrl} icon={Icons.Info}>
+                  {content.docsLabel}
+                </WelcomeLink>
+              )}
+              <KeyBackupNudge />
+              {Array.isArray(content.poweredBy) && <PoweredByLine links={content.poweredBy} />}
             </Box>
           </PageHero>
         </PageHeroSection>
