@@ -13,7 +13,7 @@ import { UnreadBadge } from '../../../components/unread-badge';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useInboxSelected } from '../../../hooks/router/useInbox';
 import { allInvitesAtom } from '../../../state/room-list/inviteList';
-import { getInboxInvitesPath, getInboxPath } from '../../pathUtils';
+import { getInboxNotificationsPath, getInboxPath } from '../../pathUtils';
 
 /** The Inbox button of the icon rail, with the number of pending invites. */
 export function InboxTab() {
@@ -24,8 +24,8 @@ export function InboxTab() {
   const { t } = useTranslation();
   const label = t('nav.inbox');
 
-  // Phones open the Inbox section list; wider screens go straight to the invites.
-  const openInbox = () => navigate(onPhone ? getInboxPath() : getInboxInvitesPath());
+  // Phones open the Inbox section list; wider screens go straight to the notifications.
+  const openInbox = () => navigate(onPhone ? getInboxPath() : getInboxNotificationsPath());
 
   const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
     <SidebarAvatar ref={tooltipAnchor} as="button" aria-label={label} outlined onClick={openInbox}>
