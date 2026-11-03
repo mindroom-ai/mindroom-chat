@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
-import { NavCategory } from '../../../components/nav';
+import { NavCategory, NavEmptyLayout } from '../../../components/nav';
 import { RoomNavItem } from '../../../features/room-nav';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
@@ -22,7 +23,7 @@ import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { stopPropagation } from '../../../utils/keyboard';
-import { getDirectRoomPath } from '../../pathUtils';
+import { getDirectCreatePath, getDirectRoomPath } from '../../pathUtils';
 
 // Pressing Escape or clicking elsewhere closes a menu without moving focus around.
 const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
@@ -84,6 +85,7 @@ function useDirectRooms(): Room[] {
 export function Direct() {
   const client = useMatrixClient();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const dmRooms = useDirectRooms();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const activeRoomId = useSelectedRoom();
@@ -92,38 +94,64 @@ export function Direct() {
 
   return (
     <PageNav>
-      <PageNavHeader>
-        <Box gap="300" grow="Yes" alignItems="Center">
-          <Box grow="Yes">
-            <Text truncate size="H4">
-              {t('nav.directMessages')}
-            </Text>
-          </Box>
-          <DirectOptionsMenu
-            label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-            roomIds={dmRooms.map((room) => room.roomId)}
+      <PageNavContent
+        header={
+          <PageNavHeader>
+            <Box gap="300" grow="Yes" alignItems="Center">
+              <Box grow="Yes">
+                <Text truncate size="H4">
+                  {t('nav.directMessages')}
+                </Text>
+              </Box>
+              <DirectOptionsMenu
+                label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+                roomIds={dmRooms.map((room) => room.roomId)}
+              />
+            </Box>
+          </PageNavHeader>
+        }
+      >
+        {dmRooms.length === 0 ? (
+          <NavEmptyLayout
+            icon={<Icon size="600" src={Icons.Mention} />}
+            title={
+              <Text size="H5" align="Center">
+                {t('nav.noDirectMessages')}
+              </Text>
+            }
+            content={
+              <Text size="T300" align="Center">
+                {t('nav.noDirectMessagesDescription')}
+              </Text>
+            }
+            options={
+              <Button
+                variant="Secondary"
+                size="300"
+                radii="300"
+                onClick={() => navigate(getDirectCreatePath())}
+              >
+                <Text size="B300" truncate>
+                  {t('nav.directMessage')}
+                </Text>
+              </Button>
+            }
           />
-        </Box>
-      </PageNavHeader>
-      <PageNavContent>
-        <NavCategory>
-          {dmRooms.length === 0 && (
-            <Text size="T300" priority="300" style={{ padding: '8px' }}>
-              {t('nav.noDirectMessagesDescription')}
-            </Text>
-          )}
-          {dmRooms.map((room) => (
-            <RoomNavItem
-              key={room.roomId}
-              room={room}
-              selected={activeRoomId === room.roomId}
-              linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
-              notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
-              direct
-              showAvatar
-            />
-          ))}
-        </NavCategory>
+        ) : (
+          <NavCategory>
+            {dmRooms.map((room) => (
+              <RoomNavItem
+                key={room.roomId}
+                room={room}
+                selected={activeRoomId === room.roomId}
+                linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
+                notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
+                direct
+                showAvatar
+              />
+            ))}
+          </NavCategory>
+        )}
       </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
