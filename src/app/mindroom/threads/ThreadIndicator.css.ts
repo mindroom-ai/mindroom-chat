@@ -58,6 +58,9 @@ export const ThreadParticipants = style({
   paddingInlineStart: toRem(2),
 });
 
+// Each face overlaps the one before it by this much.
+const participantOverlap = `-${toRem(6)}`;
+
 /** One stacked avatar; each overlaps the previous one. */
 export const ThreadParticipant = style({
   width: toRem(18),
@@ -67,7 +70,16 @@ export const ThreadParticipant = style({
   boxShadow: `0 0 0 ${toRem(2)} ${color.SurfaceVariant.Container}`,
   selectors: {
     '& + &': {
-      marginLeft: `-${toRem(6)}`,
+      marginLeft: participantOverlap,
+    },
+    // On a Compact thread bar the faces are a full 24 px tile whose outer pixel is a hairline
+    // ring in the surface color, so the overlap reads as a cut-out rather than a shadow.
+    '[data-compact-card-metadata] &': {
+      boxSizing: 'border-box',
+      width: toRem(24),
+      height: toRem(24),
+      border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.Container}`,
+      boxShadow: 'none',
     },
   },
 });
