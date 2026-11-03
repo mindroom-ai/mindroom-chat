@@ -65,12 +65,16 @@ export const AuthHeader = style({
 /** Space between the card's sections, and under the last one. */
 const sectionGap = toRem(44);
 
-/** The forms inside the card. */
+/** The forms inside the card, inset from its edges as far as the sections are apart. */
 export const AuthCardContent = style({
   minInlineSize: 0,
   gap: sectionGap,
-  paddingInline: config.space.S400,
+  paddingInline: sectionGap,
   paddingBlock: `${config.space.S700} ${sectionGap}`,
+  '@media': {
+    // Phones keep the narrower inset, so the fields stay wide enough to type in.
+    'screen and (max-width: 480px)': { paddingInline: config.space.S400 },
+  },
 });
 
 /** Credits and policy links under the card. */
