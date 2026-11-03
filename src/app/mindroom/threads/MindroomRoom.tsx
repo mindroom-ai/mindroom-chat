@@ -137,7 +137,16 @@ export function Room() {
   const clientConfig = useClientConfig();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-  const { viewMode, setViewMode } = useRoomViewMode(roomId);
+  const { viewMode: chosenViewMode, setViewMode, availableViewModes } = useRoomViewMode(roomId);
+  // The Full view shows no thread routes, so a link to a thread brings the threads back, as an
+  // action from a thread does. A direct chat between people offers no modes and keeps the guard's
+  // redirect to the room timeline.
+  const threadLinkInFullView =
+    !!routedThreadId && chosenViewMode === 'classic' && !!availableViewModes?.includes('threaded');
+  const viewMode = threadLinkInFullView ? 'threaded' : chosenViewMode;
+  useEffect(() => {
+    if (threadLinkInFullView) setViewMode('threaded');
+  }, [setViewMode, threadLinkInFullView]);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const setSettingsModal = useSetAtom(settingsModalAtom);
 
