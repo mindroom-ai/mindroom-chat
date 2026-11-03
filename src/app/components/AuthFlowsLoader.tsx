@@ -46,27 +46,26 @@ const getRegisterFlows = async (mx: MatrixClient): Promise<RegisterFlowsResponse
 
 
   /** Explains a failure above the retry button. */
+  error?: (error: unknown) => ReactNode;
+  children: (authFlows: AuthFlows) => ReactNode;
+};
 
+/** Login flows first: a server without them cannot sign anyone in, so registration is moot. */
+const fetchAuthFlows = async (client: MatrixClient): Promise<AuthFlows> => {
+  const loginFlows = await client.loginFlows();
+  if (!Array.isArray(loginFlows?.flows)) {
+    throw new Error('The homeserver returned no login flows.');
+  }
+  return { loginFlows, registerFlows: await getRegisterFlows(client) };
+};
 
-
-
-
-
-
-
-
-  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
-
-  const [state, load] = useAsyncCallback(
-    useCallback(async (): Promise<AuthFlows> => {
-      const loginFlows = await mx.loginFlows();
-      if (!loginFlows || !Array.isArray(loginFlows.flows)) {
-        throw new Error('The homeserver returned no login flows.');
-      }
-      const registerFlows = await getRegisterFlows(mx);
-      return { loginFlows, registerFlows };
-    }, [mx])
-  );
+/** Loads the homeserver's login and registration flows for the sign-in pages. */
+export function AuthFlowsLoader(props: AuthFlowsLoaderProps) {
+  const { fallback, error, children } = props;
+  const homeserverUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
+  const client = useMemo(() => createMatrixClient({ baseUrl: homeserverUrl }), [homeserverUrl]);
+  const [state, load] = useAsyncCallback(useCallback(() => fetchAuthFlows(client), [client]));
+  const { t } = useTranslation();
 
   const retry = useCallback(() => {
     load().catch(() => undefined);

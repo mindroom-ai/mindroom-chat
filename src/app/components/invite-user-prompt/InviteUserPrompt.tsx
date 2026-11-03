@@ -33,6 +33,32 @@ type InviteFormTarget = EventTarget & {
   reasonInput?: { value: string };
 };
 
+const TITLE_ID = 'invite-user-prompt-title';
+
+/** Title row: the heading the dialog is labelled by, and a close button at the end. */
+function InvitePromptTitle({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const inset = { left: config.space.S400, right: config.space.S200 };
+  return (
+    <Header
+      size="500"
+      style={{ paddingBlock: 0, paddingLeft: inset.left, paddingRight: inset.right }}
+    >
+      <Text size="H4" id={TITLE_ID} style={{ flexGrow: 1 }}>
+        {t('sharedUi.inviteUserPrompt.invite')}
+      </Text>
+      <IconButton
+        aria-label={t('sharedUi.inviteUserPrompt.close')}
+        onClick={onClose}
+        radii="300"
+        size="300"
+      >
+        <Icon src={Icons.Cross} />
+      </IconButton>
+    </Header>
+  );
+}
+
 /** Dialog to invite someone to a room by user ID, with directory suggestions and a reason. */
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
 
@@ -87,38 +113,21 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         >
           <Dialog
             role="dialog"
-            aria-labelledby="invite-user-prompt-title"
+            aria-labelledby={TITLE_ID}
             style={{
               width: '100%',
               maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
             }}
           >
             <Box direction="Column">
-              <Header
-                size="500"
-                style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}
+              <InvitePromptTitle onClose={requestClose} />
+              <Box
+                as="form"
+                onSubmit={handleSubmit}
+                direction="Column"
+                gap="400"
+                style={{ padding: config.space.S400, paddingTop: 0 }}
               >
-                <Box grow="Yes">
-                  <Text id="invite-user-prompt-title" size="H4">
-                    {t('sharedUi.inviteUserPrompt.invite')}
-                  </Text>
-                </Box>
-                <IconButton
-                  size="300"
-                  radii="300"
-                  onClick={requestClose}
-                  aria-label={t('sharedUi.inviteUserPrompt.close')}
-
-
-
-
-
-
-
-
-
-
-
                 <Box direction="Column" gap="100">
                   <Text size="L400">{t('sharedUi.inviteUserPrompt.userId')}</Text>
                   <InviteUserAutocomplete

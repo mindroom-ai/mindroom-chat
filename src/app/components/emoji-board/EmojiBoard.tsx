@@ -47,7 +47,7 @@ import { stopPropagation } from '../../utils/keyboard';
 
 
 
-}
+
 
 
 
@@ -166,23 +166,25 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
   );
 }
 
+/** Picks report the image's `mxc://` URI and shortcode; unicode picks the character itself. */
+type EmojiPickHandlers = {
 
 
 
+};
 
-
-
-
+type EmojiBoardProps = EmojiPickHandlers & {
+  /** Rooms whose emoji and sticker packs the board offers. */
 
 
 
   /** Keep the board open after a pick (as reactions do with Shift or Alt held). */
+  keepOpenOnSelect?: boolean;
+  returnFocusOnDeactivate?: boolean;
+  requestClose: () => void;
+};
 
-
-
-
-
-
+/** Emoji and sticker picker with search, recent emoji, custom packs, and adding a custom emoji. */
 
 
 
@@ -191,6 +193,8 @@ function ItemButton({ item, mx, useAuthentication }: ItemButtonProps) {
 
 
   keepOpenOnSelect,
+
+
 
 
 

@@ -13,15 +13,34 @@ import * as css from './AutocompleteMenu.css';
   children: ReactNode;
 };
 
+type TrapOptions = NonNullable<React.ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
+
+// Arrow keys step through the items like Tab does; the trap wraps at both ends.
+const isArrowDown = (evt: KeyboardEvent) => isHotkey('arrowdown', evt);
+const isArrowUp = (evt: KeyboardEvent) => isHotkey('arrowup', evt);
+
 /**
  * Floating list of suggestions above the composer. Arrow keys move between the items (wrapping
  * at the ends), Escape or a click outside closes it.
  */
 export function AutocompleteMenu({ requestClose, headerContent, children }: AutocompleteMenuProps) {
   const alive = useAlive();
-
-  const handleDeactivate = useCallback(() => {
+  const closeIfMounted = useCallback(() => {
     if (alive()) requestClose();
+  }, [alive, requestClose]);
+
+  const trapOptions: TrapOptions = {
+
+
+
+    returnFocusOnDeactivate: false,
+    initialFocus: false,
+    isKeyForward: isArrowDown,
+    isKeyBackward: isArrowUp,
+    onPostDeactivate: closeIfMounted,
+  };
+  const header = (
+    <Header size="400" className={css.AutocompleteMenuHeader}>
 
 
 
@@ -29,25 +48,12 @@ export function AutocompleteMenu({ requestClose, headerContent, children }: Auto
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <Menu className={css.AutocompleteMenu}>
+            <PageScroll
               scrollbarTabIndex={-1}
+              onKeyDown={preventScrollWithArrowKey}
+              header={header}
             >
               <div className={css.AutocompleteMenuItems}>{children}</div>
             </PageScroll>

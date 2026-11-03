@@ -39,128 +39,125 @@ export const useSaveMedia = (src: string, fileName: string) => {
   return [state, save] as const;
 };
 
+type ImageViewerProps = {
+  alt: string;
+  src: string;
+  requestClose: () => void;
+};
+
+const DOWNLOAD_LABEL_KEY = {
+  idle: 'sharedUi.imageViewer.download',
+  saving: 'sharedUi.imageViewer.saving',
+  failed: 'sharedUi.imageViewer.retryDownload',
+} as const satisfies Record<DownloadState, string>;
+
+/** Highlights a zoom control while the image is zoomed in its direction. */
 
 
 
 
 
 
-
-
-
-
-    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
-    const {
-      pan,
-      cursor,
-      isPanning,
-      onPointerDown,
-      onPointerMove,
-      onPointerUp,
-      onPointerCancel,
-      onLostPointerCapture,
-    } = usePan(zoom !== 1);
     const [downloadState, download] = useSaveMedia(src, alt);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
+    const panning = usePan(zoom !== 1);
+    const { pan, cursor, isPanning } = panning;
+    const saving = downloadState === 'saving';
+
+    let downloadIcon = <Icon size="50" src={Icons.Download} />;
+    if (saving) downloadIcon = <Spinner size="50" variant="Primary" fill="Solid" />;
+    else if (downloadState === 'failed') downloadIcon = <Icon size="50" src={Icons.Warning} />;
+
+    const imageTransform = `translate(${pan.translateX}px, ${pan.translateY}px) scale(${zoom})`;
+
+    // usePinchToZoom leaves page zoom alone while an element marked `data-image-viewer` is open.
+    return (
+      <Box
+        data-image-viewer="true"
+        direction="Column"
+        className={classNames(css.ImageViewer, className)}
+        {...props}
+        ref={ref}
+      >
+        <Header size="400" className={css.ImageViewerHeader}>
+          <IconButton
+            aria-label={t('sharedUi.imageViewer.close')}
+            onClick={requestClose}
+            radii="300"
+            size="300"
+          >
+            <Icon src={Icons.ArrowLeft} size="50" />
+          </IconButton>
+          <Box grow="Yes" style={{ minWidth: 0 }}>
+            <Text truncate size="T300">
+              {alt}
+            </Text>
+          </Box>
+          <Box alignItems="Center" shrink="No" gap="200">
+            <IconButton
+              aria-label={t('sharedUi.imageViewer.zoomOut')}
+              onClick={zoomOut}
+              variant={zoomTone(zoom < 1)}
+              radii="Pill"
+              size="300"
+            >
+              <Icon src={Icons.Minus} size="50" />
+            </IconButton>
+            <Button
+              type="button"
+              onClick={() => setZoom(1)}
+              variant={zoom === 1 ? 'Secondary' : 'Success'}
+              fill="Soft"
+              radii="Pill"
+              size="300"
+            >
+              <Text as="span" size="B300">{`${Math.round(zoom * 100)}%`}</Text>
+            </Button>
+            <IconButton
+              aria-label={t('sharedUi.imageViewer.zoomIn')}
+              onClick={zoomIn}
+              variant={zoomTone(zoom > 1)}
+              radii="Pill"
+              size="300"
+            >
+              <Icon src={Icons.Plus} size="50" />
+            </IconButton>
+            <Button
+              type="button"
+              before={downloadIcon}
+              disabled={saving}
+              onClick={download}
+              variant={downloadState === 'failed' ? 'Critical' : 'Primary'}
+              fill="Solid"
+              radii="300"
+              size="300"
+            >
+              <Text as="span" size="B300">
+                {t(DOWNLOAD_LABEL_KEY[downloadState])}
+              </Text>
+            </Button>
+          </Box>
+        </Header>
+        <Box
+          ref={zoomTargetRef}
+          className={css.ImageViewerContent}
+          style={{ cursor }}
+          onPointerDown={panning.onPointerDown}
+          onPointerMove={panning.onPointerMove}
+          onPointerUp={panning.onPointerUp}
+          onPointerCancel={panning.onPointerCancel}
+          onLostPointerCapture={panning.onLostPointerCapture}
+        >
+          <img
+            className={css.ImageViewerImg}
+            data-gesture={isZooming || isPanning}
+            style={{ transform: imageTransform }}
+            src={src}
+            alt={alt}
+            draggable={false}
+          />
+        </Box>
+      </Box>
+    );
+  }
+);

@@ -140,25 +140,25 @@ function RoomAccessSession({
   }, [signal, summaryMembership]);
 
   useEffect(() => {
-    const handleMembership = (room: Room, membership: string) => {
-      if (targetRef.current && room.roomId === targetRef.current) signal(membership);
+    const isTarget = (roomId: string | undefined) =>
+      !!targetRef.current && roomId === targetRef.current;
+    // Both our own member state event and the membership event report a change in the target.
+    const onMemberState = (event: MatrixEvent) => {
+      const ownMemberEvent =
+        event.getType() === EventType.RoomMember && event.getStateKey() === mx.getUserId();
+      if (!ownMemberEvent || !isTarget(event.getRoomId())) return;
+      const membership: unknown = event.getContent().membership;
+      if (typeof membership === 'string') signal(membership);
     };
-    const handleStateEvent = (event: MatrixEvent) => {
-      if (
-        targetRef.current &&
-        event.getRoomId() === targetRef.current &&
-        event.getType() === EventType.RoomMember &&
-        event.getStateKey() === mx.getUserId()
-      ) {
-        const { membership } = event.getContent();
-        if (typeof membership === 'string') signal(membership);
-      }
+    const onMyMembership = (room: Room, membership: string) => {
+      if (isTarget(room.roomId)) signal(membership);
     };
-    mx.on(RoomEvent.MyMembership, handleMembership);
-    mx.on(RoomStateEvent.Events, handleStateEvent);
+
+    mx.on(RoomStateEvent.Events, onMemberState);
+    mx.on(RoomEvent.MyMembership, onMyMembership);
     return () => {
-      mx.removeListener(RoomEvent.MyMembership, handleMembership);
-      mx.removeListener(RoomStateEvent.Events, handleStateEvent);
+      mx.removeListener(RoomStateEvent.Events, onMemberState);
+      mx.removeListener(RoomEvent.MyMembership, onMyMembership);
     };
   }, [mx, signal, targetRoomId, cachedRoom]);
 

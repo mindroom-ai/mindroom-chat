@@ -78,19 +78,6 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
           size="300"
           radii="300"
           onClick={onClose}
-          aria-label={t('sharedUi.deviceVerification.close')}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
-      </Header>
-      <Box direction="Column" style={{ padding: config.space.S400 }}>
-        <Text size="T300" style={{ color: color.Critical.Main }}>
-          {t(
-            'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
-          )}
-        </Text>
-      </Box>
-    </Dialog>
 
 
 
@@ -102,27 +89,100 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
 
 
 
-  const errorText = useDeviceVerificationErrorText();
-  const [uiaRequest, setUIARequest] = useState<UIARequest>();
 
-  const authUploadDeviceSigningKeys: UIAuthCallback<void> = useCallback(async (makeRequest) => {
-    try {
-      await makeRequest(null);
-      return;
-    } catch (error) {
-      const authData = getUIAData(error);
-      if (!authData) throw error;
-      const authDict = await new Promise<AuthDict>((resolve, reject) => {
-        setUIARequest({ authData, resolve, reject });
-      }).finally(() => setUIARequest(undefined));
-      if (Object.keys(authDict).length === 0) throw new Error(UIA_WITHOUT_DATA);
-      try {
-        await makeRequest(authDict);
-      } catch {
-        throw new Error(SETUP_AUTH_FAILED);
-      }
-    }
-  }, []);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <div>
+            <ActionUIAFlowsLoader authData={authData} unsupported={renderUnsupported}>
+              {(flow) => (
+                <ActionUIA
+                  ongoingFlow={flow}
+                  authData={authData}
+                  onCancel={onCancel}
+                  action={resolve}
+                />
+              )}
+            </ActionUIAFlowsLoader>
+          </div>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
+const RECOVERY_DESCRIPTION_TAGS = { b: <b /> };
+
+function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) => void }) {
+  const mx = useMatrixClient();
+  const alive = useAlive();
+  const { pending, cancel, authUploadDeviceSigningKeys } = useCrossSigningAuthPrompt();
+  const { t } = useTranslation();
+  const describeError = useDeviceVerificationErrorText();
 
   const [setupState, setup] = useAsyncCallback(
     useCallback(
@@ -149,12 +209,13 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
       [mx, alive, authUploadDeviceSigningKeys, onComplete]
     )
   );
-  const loading = setupState.status === AsyncStatus.Loading;
-  const cancelUIA = () => uiaRequest?.reject(new Error(SETUP_AUTH_FAILED));
+  const busy = setupState.status === AsyncStatus.Loading;
+  const failure =
+    setupState.status === AsyncStatus.Error ? describeError(setupState.error) : undefined;
 
-
-
-
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
+    evt.preventDefault();
+    if (busy) return;
     const { passphraseInput } = evt.target as HTMLFormElement & {
       passphraseInput?: HTMLInputElement;
     };
@@ -162,72 +223,38 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
     setup(passphrase || undefined).catch(() => undefined);
   };
 
+  const spinner = busy ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined;
+
   return (
     <>
-      <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+      <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
         <Text size="T300">
           <Trans
+            components={RECOVERY_DESCRIPTION_TAGS}
             i18nKey="sharedUi.deviceVerificationSetup.recoveryDescription"
-            components={{ b: <b /> }}
           />
         </Text>
-        <Box direction="Column" gap="100">
+        <Box gap="100" direction="Column">
           <Text size="L400">{t('sharedUi.deviceVerificationSetup.passphraseOptional')}</Text>
           <PasswordInput
             name="passphraseInput"
-            variant="Background"
-            size="400"
-            outlined
             autoComplete="new-password"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            disabled={busy}
+            size="400"
+            variant="Background"
+            outlined
+          />
+        </Box>
+        <Button type="submit" before={spinner} disabled={busy} variant="Primary">
+          <Text size="B400">{t('sharedUi.deviceVerificationSetup.continue')}</Text>
+        </Button>
+        {failure !== undefined && (
+          <Text style={{ color: color.Critical.Main }} size="T200">
+            <b>{failure}</b>
           </Text>
         )}
       </Box>
-      {/* The password stage has its own form, so the dialog sits beside this one. Cancelling
-          rejects the pending request, which fails the setup and stops its spinner; a reject after
-          the request resolved (the trap deactivates on unmount) does nothing. */}
-      {uiaRequest && (
-        <Overlay open backdrop={<OverlayBackdrop />}>
-          <OverlayCenter>
-            <FocusTrap
-              focusTrapOptions={{
-                initialFocus: false,
-                onDeactivate: cancelUIA,
-                escapeDeactivates: stopPropagation,
-              }}
-            >
-              <div>
-                <ActionUIAFlowsLoader
-                  authData={uiaRequest.authData}
-                  unsupported={() => <UnsupportedUIA onClose={cancelUIA} />}
-                >
-                  {(ongoingFlow) => (
-                    <ActionUIA
-                      authData={uiaRequest.authData}
-                      ongoingFlow={ongoingFlow}
-                      action={uiaRequest.resolve}
-                      onCancel={cancelUIA}
-                    />
-                  )}
-                </ActionUIAFlowsLoader>
-              </div>
-            </FocusTrap>
-          </OverlayCenter>
-        </Overlay>
-      )}
+      {pending && <UIAPromptOverlay request={pending} onCancel={cancel} />}
     </>
   );
 }

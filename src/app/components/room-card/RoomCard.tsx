@@ -36,8 +36,9 @@ type RoomCardProps = {
   /** The address the card was opened from: a room ID or an alias. */
   roomIdOrAlias: string;
   /** The room ID the server confirmed for that address, when known. */
-
-
+  roomId?: string;
+  viaServers?: string[];
+  /** IDs of the rooms the user has joined. */
 
 
 
@@ -69,8 +70,7 @@ type RoomCardProps = {
 
       accessStatus,
       onAccessRetry,
-
-
+      onView,
 
 
 
@@ -92,40 +92,47 @@ type RoomCardProps = {
     if (accessStatus === AsyncStatus.Success) knownJoinRule = joinRule ?? JoinRule.Public;
     else if (accessStatus === undefined) knownJoinRule = joinRule;
 
-    const fallback =
-      accessStatus === AsyncStatus.Loading ? (
-        <Button className={css.ActionButton} variant="Secondary" fill="Soft" size="300" disabled>
-          <Spinner size="100" variant="Secondary" />
-          <Text size="B300" truncate>
+    // While the summary loads, or after it failed with a way to retry, that takes the action's place.
+    let fallback: ReactNode = null;
+    if (accessStatus === AsyncStatus.Loading) {
+      fallback = (
+        <Button disabled size="300" fill="Soft" variant="Secondary" className={css.ActionButton}>
+          <Spinner variant="Secondary" size="100" />
+          <Text truncate size="B300">
             {t('sharedUi.roomCard.checkingAccess')}
           </Text>
         </Button>
-      ) : accessStatus === AsyncStatus.Error && onAccessRetry ? (
+      );
+    } else if (accessStatus === AsyncStatus.Error && onAccessRetry) {
+      fallback = (
         <Button
-          className={css.ActionButton}
-          variant="Critical"
-          fill="Soft"
-          size="300"
+          before={<Icon src={Icons.Warning} size="50" />}
           onClick={onAccessRetry}
-          before={<Icon size="50" src={Icons.Warning} />}
+          size="300"
+          fill="Soft"
+          variant="Critical"
+          className={css.ActionButton}
         >
-          <Text size="B300" truncate>
+          <Text truncate size="B300">
             {t('sharedUi.roomCard.retryRoomInfo')}
           </Text>
         </Button>
-      ) : null;
+      );
+    }
+
+    const avatarFallback = () => (
+      <Icon filled size="400" src={getRoomIconSrc(space, knownJoinRule)} />
+    );
 
     return (
-      <RoomCardBase {...props} ref={ref}>
-        <Box gap="200" justifyContent="SpaceBetween">
-          <Avatar size="500">
-            <RoomAvatar
+
+
+
+
+
+
               roomId={verifiedRoomId ?? roomIdOrAlias}
-
-
-
-                <Icon size="400" src={getRoomIconSrc(space, knownJoinRule)} filled />
-              )}
+              renderFallback={avatarFallback}
             />
           </Avatar>
         </Box>

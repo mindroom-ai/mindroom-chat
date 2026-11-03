@@ -1,13 +1,17 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
+// The frame line is drawn inside the box, so it takes no layout space.
+const editorFrameLine = createVar();
 
-
-
-
-
-
-
+export const Editor = style({
+  vars: { [editorFrameLine]: color.SurfaceVariant.ContainerLine },
+  overflow: 'hidden',
+  borderRadius: config.radii.R400,
+  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${editorFrameLine}`,
+  color: color.SurfaceVariant.OnContainer,
+  backgroundColor: color.SurfaceVariant.Container,
+});
 
 export const EditorOptions = style({
   padding: config.space.S200,

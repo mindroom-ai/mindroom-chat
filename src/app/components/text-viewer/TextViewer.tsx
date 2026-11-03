@@ -23,47 +23,43 @@ import * as css from './TextViewer.css';
 
     const [copied, setCopied] = useState(false);
 
+    // The check mark clears itself a moment after a successful copy.
     useEffect(() => {
       if (!copied) return undefined;
-      const timeout = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-      return () => clearTimeout(timeout);
+      const reset = setTimeout(setCopied, COPIED_FEEDBACK_MS, false);
+      return () => clearTimeout(reset);
     }, [copied]);
 
-    const handleCopy = async () => {
+    const copyAll = () => {
+      copyToClipboard(text).then(setCopied, () => undefined);
+    };
+    const rootClassName = classNames(css.TextViewer, className);
 
-
-
-
-
-
-
-
-
-
-
-
-            <Text size="H4" truncate title={name}>
+    return (
+      <Box direction="Column" className={rootClassName} {...props} ref={ref}>
+        <Header size="400" className={css.TextViewerHeader}>
+          <Box grow="Yes" style={{ minWidth: 0 }}>
+            <Text title={name} truncate size="H4">
               {name}
             </Text>
           </Box>
-          <Box shrink="No" alignItems="Center" gap="200">
-            <Chip
-              variant={copied ? 'Success' : 'Primary'}
-              radii="300"
-              onClick={handleCopy}
-              before={copied ? <Icon size="50" src={Icons.Check} /> : undefined}
-            >
-              <Text size="B300">{t('sharedUi.textViewer.copyAll')}</Text>
-            </Chip>
-            <IconButton
-              size="300"
-              radii="300"
-              onClick={requestClose}
-              aria-label={t('sharedUi.textViewer.close')}
-            >
-              <Icon size="50" src={Icons.Cross} />
-            </IconButton>
-          </Box>
+          <Chip
+            before={copied ? <Icon src={Icons.Check} size="50" /> : undefined}
+            onClick={copyAll}
+            variant={copied ? 'Success' : 'Primary'}
+            radii="300"
+            style={{ flexShrink: 0 }}
+          >
+            <Text size="B300">{t('sharedUi.textViewer.copyAll')}</Text>
+          </Chip>
+          <IconButton
+            aria-label={t('sharedUi.textViewer.close')}
+            onClick={requestClose}
+            radii="300"
+            size="300"
+          >
+            <Icon src={Icons.Cross} size="50" />
+          </IconButton>
         </Header>
         <PageScroll className={css.TextViewerContent}>
           <pre className={classNames(css.TextViewerPre, `language-${langName}`)}>

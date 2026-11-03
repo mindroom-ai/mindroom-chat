@@ -15,71 +15,62 @@ export type PdfViewerProps = {
 
 // The frame is not sandboxed (browsers do not run their PDF viewer in one), so only local
 // object URLs reach it: never a `javascript:` URL or a server response that could be HTML.
+const isBlobUrl = (src: string) => src.startsWith('blob:');
 
 
 
 
 
 
-    const [saving, setSaving] = useState(false);
-    const [saveFailed, setSaveFailed] = useState(false);
-    const allowed = isBlobUrl(src);
 
-    const handleDownload = async () => {
-      if (saving || !allowed) return;
-      setSaving(true);
-      try {
-        await saveFile(src, name);
-        setSaveFailed(false);
-      } catch {
-        setSaveFailed(true);
-      } finally {
-        setSaving(false);
-      }
+    const [progress, setProgress] = useState<SaveProgress>({ pending: false, failed: false });
+    const savable = isBlobUrl(src);
+    const { pending, failed } = progress;
 
+    // A failed attempt keeps its warning until the next attempt settles.
+    const startSave = () => {
+      if (pending || !savable) return;
+      setProgress((previous) => ({ ...previous, pending: true }));
+      saveFile(src, name).then(
+        () => setProgress({ pending: false, failed: false }),
+        () => setProgress({ pending: false, failed: true })
+      );
+    };
 
+    const frameStyle = { display: 'block', width: '100%', height: '100%', border: 'none' };
 
-
-
-
-            <IconButton
-              size="300"
-              radii="300"
-              onClick={requestClose}
-              aria-label={t('sharedUi.pdfViewer.close')}
-            >
-              <Icon size="50" src={Icons.ArrowLeft} />
-            </IconButton>
-            <Text size="T300" truncate>
+    return (
+      <Box direction="Column" className={classNames(css.PdfViewer, className)} {...props} ref={ref}>
+        {/* The header's own gap spaces back button, title and download. */}
+        <Header size="400" className={css.PdfViewerHeader}>
+          <IconButton
+            aria-label={t('sharedUi.pdfViewer.close')}
+            onClick={requestClose}
+            radii="300"
+            size="300"
+          >
+            <Icon src={Icons.ArrowLeft} size="50" />
+          </IconButton>
+          <Box grow="Yes" style={{ minWidth: 0 }}>
+            <Text truncate size="T300">
               {name}
             </Text>
           </Box>
-          <Box shrink="No" alignItems="Center" gap="200">
-            <Chip
-              variant={saveFailed ? 'Critical' : 'Primary'}
-              radii="300"
-              disabled={saving || !allowed}
-              onClick={() => {
-                handleDownload().catch(() => undefined);
-              }}
-              before={<Icon size="50" src={saveFailed ? Icons.Warning : Icons.Download} />}
-            >
-              <Text size="B300">
-                {saveFailed
-                  ? t('sharedUi.pdfViewer.retryDownload')
-                  : t('sharedUi.pdfViewer.download')}
-              </Text>
-            </Chip>
-          </Box>
+          <Chip
+            before={<Icon src={failed ? Icons.Warning : Icons.Download} size="50" />}
+            disabled={pending || !savable}
+            onClick={startSave}
+            radii="300"
+            variant={failed ? 'Critical' : 'Primary'}
+            style={{ flexShrink: 0 }}
+          >
+            <Text size="B300">
+              {t(failed ? 'sharedUi.pdfViewer.retryDownload' : 'sharedUi.pdfViewer.download')}
+            </Text>
+          </Chip>
         </Header>
-        <Box grow="Yes" className={css.PdfViewerContent}>
-          {allowed && (
-            <iframe
-              title={name}
-              src={src}
-              style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
-            />
-          )}
+        <Box className={css.PdfViewerContent} grow="Yes">
+          {savable ? <iframe src={src} title={name} style={frameStyle} /> : null}
         </Box>
       </Box>
     );

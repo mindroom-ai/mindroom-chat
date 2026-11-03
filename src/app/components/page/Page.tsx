@@ -8,101 +8,94 @@ import { ContainerColor } from '../../styles/ContainerColor.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import * as css from './style.css';
 
+type PageRootProps = {
+  nav: ReactNode;
+  children: ReactNode;
+};
 
+/** Inside a glass surface (the settings dialog) pages reveal the material behind them. */
+const useInheritSurfaceClass = () => (useSurfaceContext() ? inheritSurface : undefined);
 
-
-
-
-
-
-
-  // Inside a glass surface (the settings dialog) the page reveals the material behind it.
-  const insideSurface = useSurfaceContext();
+/** Page layout: optional navigation column, a divider, then the page itself. */
+export function PageRoot({ nav, children }: PageRootProps) {
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const surfaceClass = useInheritSurfaceClass();
+  // On mobile the navigation and the page take turns on screen, so nothing divides them.
+  const divider =
+    nav && !mobile ? <Line direction="Vertical" size="300" variant="Background" /> : null;
 
   return (
-    <Box
-      grow="Yes"
-      className={classNames(
-        ContainerColor({ variant: 'Background' }),
-        insideSurface && inheritSurface
-      )}
-    >
+    <Box className={classNames(ContainerColor({ variant: 'Background' }), surfaceClass)} grow="Yes">
       {nav}
-      {nav && screenSize !== ScreenSize.Mobile && (
-        <Line variant="Background" size="300" direction="Vertical" />
-      )}
+      {divider}
       {children}
     </Box>
   );
 }
 
-type PageNavProps = {
-  size?: '400' | '300';
-  children: ReactNode;
-};
+/** The navigation column; on mobile it takes the whole width instead of a fixed size. */
+export function PageNav({ size, children }: { size?: '400' | '300'; children: ReactNode }) {
+  const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const columnClass = css.PageNav(isMobile ? undefined : { size });
 
-
-
-
-
-
-
-
-
-      direction="Column"
-    >
+  return (
+    <Box direction="Column" className={columnClass} grow={isMobile ? 'Yes' : undefined}>
       {children}
     </Box>
   );
 }
 
 export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean }>(
-  ({ className, outlined: _outlined, scroll, ...props }, ref) => (
-    <Header
-      className={classNames(css.PageNavHeader, scroll && css.PageNavHeaderScroll, className)}
-      variant="Background"
-      size="600"
-      {...props}
-      ref={ref}
-    />
-  )
-);
 
-type PageNavContentProps = {
+
+
+
+
+
+
+
+
+
+
+
   scrollRef?: RefObject<HTMLDivElement>;
   children: ReactNode;
 };
 
+/** The scrolling list under a navigation header; the scrollbar shows on hover only. */
 export function PageNavContent({ scrollRef, children }: PageNavContentProps) {
+  const list = <div className={css.PageNavContent}>{children}</div>;
   return (
-    <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
+    <Box style={{ minHeight: 0 }} direction="Column" grow="Yes">
       <Scroll
+        ref={scrollRef}
+        hideTrack
+        visibility="Hover"
+        size="300"
+        direction="Vertical"
+        variant="Background"
+      >
+        {list}
+      </Scroll>
+    </Box>
+  );
+}
 
+// Flex children may shrink below their content, so long rooms and threads scroll inside.
+const PAGE_MIN_SIZE = { minHeight: 0, minWidth: 0 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-  const insideSurface = useSurfaceContext();
-
+export const Page = as<'div'>(({ className, ...props }, ref) => {
+  const pageClass = classNames(
+    ContainerColor({ variant: 'Surface' }),
+    useInheritSurfaceClass(),
+    className
+  );
   return (
     <Box
-      grow="Yes"
       direction="Column"
-      className={classNames(
-        ContainerColor({ variant: 'Surface' }),
-        insideSurface && inheritSurface,
-        className
-      )}
-      style={{ minWidth: 0, minHeight: 0 }}
+      grow="Yes"
+      style={PAGE_MIN_SIZE}
+      className={pageClass}
       {...props}
       ref={ref}
     />
@@ -115,10 +108,30 @@ type PageHeaderProps = Pick<ComponentProps<typeof Header>, 'variant'> & {
 };
 
 export const PageHeader = as<'header', PageHeaderProps>(
-  ({ className, outlined, balance, variant = 'Surface', ...props }, ref) => (
-    <Header
-      as="header"
-      size="600"
+  ({ className, outlined, balance, variant = 'Surface', ...props }, ref) => {
+    const headerClass = classNames(css.PageHeader({ outlined, balance }), className);
+    return (
+      <Header
+        variant={variant}
+        size="600"
+        as="header"
+        className={headerClass}
+        {...props}
+        ref={ref}
+      />
+    );
+  }
+);
+
+/** A plain `div` that always carries `baseClass` beside any class the caller adds. */
+const classedDiv = (baseClass: string) =>
+  as<'div'>(({ className, ...props }, ref) => (
+    <div {...props} ref={ref} className={classNames(baseClass, className)} />
+  ));
+
+export const PageContent = classedDiv(css.PageContent);
+
+export const PageContentCenter = classedDiv(css.PageContentCenter);
 
 
 
@@ -130,21 +143,6 @@ export const PageHeader = as<'header', PageHeaderProps>(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-type PageHeroProps = {
   icon: ReactNode;
   title: ReactNode;
   subTitle?: ReactNode;
@@ -153,21 +151,25 @@ type PageHeroProps = {
 
 /** Centered icon, title, and subtitle at the top of an empty or welcome page. */
 export function PageHero({ icon, title, subTitle, children }: PageHeroProps) {
+  const heading = (
+    <Box as="h2" style={{ margin: 0 }} alignItems="Center" gap="200" direction="Column">
+      <Text size="H2" align="Center">
+        {title}
+      </Text>
+      {subTitle ? (
+        <Text priority="400" align="Center">
+          {subTitle}
+        </Text>
+      ) : null}
+    </Box>
+  );
+
   return (
-    <Box direction="Column" gap="400">
-      <Box direction="Column" alignItems="Center" gap="200">
+    <Box gap="400" direction="Column">
+      <Box alignItems="Center" gap="200" direction="Column">
         {icon}
       </Box>
-      <Box as="h2" direction="Column" gap="200" alignItems="Center" style={{ margin: 0 }}>
-        <Text align="Center" size="H2">
-          {title}
-        </Text>
-        {subTitle && (
-          <Text align="Center" priority="400">
-            {subTitle}
-          </Text>
-        )}
-      </Box>
+      {heading}
       {children}
     </Box>
   );

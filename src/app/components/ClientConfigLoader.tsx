@@ -76,27 +76,36 @@ export const fetchClientConfig = async (
   return config;
 };
 
+/** The page address, or `undefined` outside a browser or when it does not parse. */
+const readLocationUrl = (): URL | undefined => {
+  const href = typeof window === 'undefined' ? undefined : window.location?.href;
+  if (!href) return undefined;
+  try {
+    return new URL(href);
+  } catch {
+    return undefined;
+  }
+};
+
 /** Drops the marker a sign-in recovery navigation leaves in the URL, keeping history state. */
 const removeRecoveryNavigationMarker = () => {
-  if (typeof window === 'undefined' || !window.location?.href || !window.history) return;
+  const url = readLocationUrl();
+  if (!url?.searchParams.has(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM)) return;
+  const { history } = window;
+  if (!history) return;
+  url.searchParams.delete(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM);
+  const path = [url.pathname, url.search, url.hash].join('');
   try {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM)) return;
-    url.searchParams.delete(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM);
-    window.history.replaceState(
-      window.history.state,
-      '',
-      `${url.pathname}${url.search}${url.hash}`
-    );
+    history.replaceState(history.state, '', path);
   } catch {
-    // An unparsable location has no marker to remove.
+    // A document that refuses history updates keeps the marker; it is harmless.
   }
 };
 
 /** Without a recovery owner, a top-level navigation lets the proxy run its sign-in. */
 const navigateForSignIn = () => {
-  if (typeof window === 'undefined' || !window.location?.href) return;
-  const url = new URL(window.location.href);
+  const url = readLocationUrl();
+  if (!url) return;
   url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
   window.location.href = url.href;
 };

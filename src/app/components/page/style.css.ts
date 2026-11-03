@@ -46,23 +46,21 @@ export const PageNavHeaderScroll = style({
 
 
 
+  padding: `${config.space.S200} 0 ${config.space.S700} ${config.space.S200}`,
+});
 
-
-
-
-
-
-
-
-
-
-
-
+/** Page headers sit S400 in on the title side and S200 at the actions; `balance` evens both. */
+export const PageHeader = recipe({
+  base: { flexShrink: 0, paddingRight: config.space.S200 },
+  variants: {
+    balance: {
+      false: { paddingLeft: config.space.S400 },
       true: { paddingLeft: config.space.S200 },
     },
     outlined: {
       true: { borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}` },
     },
+  },
 
 
 

@@ -57,6 +57,92 @@ type VoiceAudioContentProps = {
   isVoiceMessage?: boolean;
 };
 
+/** One "label: value" line in the More menu's file details. */
+function DetailRow({
+  label,
+  value,
+  truncate = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  truncate?: boolean;
+}) {
+  return (
+    <div className={css.MoreMenuMeta}>
+      <Text className={css.MoreMenuMetaLabel} as="span" size="T200">
+        {label}
+      </Text>
+      <Text className={css.MoreMenuMetaValue} as="span" size="T200" truncate={truncate}>
+        {value}
+      </Text>
+    </div>
+  );
+}
+
+type VoiceDetailsMenuProps = Pick<
+  VoiceAudioContentProps,
+  'mimeType' | 'url' | 'info' | 'encInfo' | 'owner' | 'filename'
+> & {
+  subject: string;
+  duration: number;
+  onDismiss: () => void;
+};
+
+/** The More menu: volume and download first, then name (when known), type, size and length. */
+function VoiceDetailsMenu({
+  subject,
+  filename,
+  mimeType,
+  url,
+  encInfo,
+  owner,
+  info,
+  duration,
+  onDismiss,
+}: VoiceDetailsMenuProps) {
+  const { t } = useTranslation();
+  const trapOptions = {
+    initialFocus: false as const,
+    clickOutsideDeactivates: true,
+    escapeDeactivates: true,
+    onDeactivate: onDismiss,
+  };
+  const { size } = info;
+
+  return (
+    <FocusTrap focusTrapOptions={trapOptions}>
+      <Menu
+        role="dialog"
+        aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
+        className={css.MoreMenu}
+      >
+        <div className={css.MoreMenuAction}>
+          <VoiceVolumeButton />
+          <FileDownloadButton
+
+
+
+            owner={owner}
+            filename={filename ?? subject}
+          />
+        </div>
+        {filename ? (
+          <DetailRow label={t('sharedUi.voiceAudioContent.name')} value={filename} truncate />
+        ) : null}
+        <DetailRow
+          label={t('sharedUi.voiceAudioContent.type')}
+          value={info.mimetype ?? mimeType}
+          truncate
+        />
+        {typeof size === 'number' ? (
+          <DetailRow label={t('sharedUi.voiceAudioContent.size')} value={bytesToSize(size)} />
+        ) : null}
+        <DetailRow label={t('sharedUi.voiceAudioContent.duration')} value={formatTime(duration)} />
+      </Menu>
+    </FocusTrap>
+  );
+}
+
 /**
  * Player for voice messages and audio files: play, waveform seek, time, speed, and a More menu
  * with volume, download, and file details. The media loads on the first play or seek.
@@ -200,6 +286,8 @@ export function VoiceAudioContent({
     if (audio) applyAudioSettings(audio);
   };
 
+  const markPlaybackFailed = () => setPlaybackFailed(true);
+
   const handleMoreClick = (event: MouseEvent<HTMLButtonElement>) => {
     // Read the target now: React may run the updater after the event is released.
     const rect = event.currentTarget.getBoundingClientRect();
@@ -298,83 +386,33 @@ export function VoiceAudioContent({
         align="End"
         offset={4}
         content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              onDeactivate: () => setMoreAnchor(undefined),
-              clickOutsideDeactivates: true,
-              escapeDeactivates: true,
-            }}
-          >
-            <Menu
-              className={css.MoreMenu}
-              role="dialog"
-              aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
-            >
-              <div className={css.MoreMenuAction}>
-                <VoiceVolumeButton />
-                <FileDownloadButton
-                  filename={filename ?? subject}
+          <VoiceDetailsMenu
+            subject={subject}
 
 
 
-                  owner={owner}
-                />
-              </div>
-              {filename && (
-                <div className={css.MoreMenuMeta}>
-                  <Text as="span" size="T200" className={css.MoreMenuMetaLabel}>
-                    {t('sharedUi.voiceAudioContent.name')}
-                  </Text>
-                  <Text as="span" size="T200" className={css.MoreMenuMetaValue} truncate>
-                    {filename}
-                  </Text>
-                </div>
-              )}
-              <div className={css.MoreMenuMeta}>
-                <Text as="span" size="T200" className={css.MoreMenuMetaLabel}>
-                  {t('sharedUi.voiceAudioContent.type')}
-                </Text>
-                <Text as="span" size="T200" className={css.MoreMenuMetaValue} truncate>
-                  {info.mimetype ?? mimeType}
-                </Text>
-              </div>
-              {typeof info.size === 'number' && (
-                <div className={css.MoreMenuMeta}>
-                  <Text as="span" size="T200" className={css.MoreMenuMetaLabel}>
-                    {t('sharedUi.voiceAudioContent.size')}
-                  </Text>
-                  <Text as="span" size="T200" className={css.MoreMenuMetaValue}>
-                    {bytesToSize(info.size)}
-                  </Text>
-                </div>
-              )}
-              <div className={css.MoreMenuMeta}>
-                <Text as="span" size="T200" className={css.MoreMenuMetaLabel}>
-                  {t('sharedUi.voiceAudioContent.duration')}
-                </Text>
-                <Text as="span" size="T200" className={css.MoreMenuMetaValue}>
-                  {formatTime(duration)}
-                </Text>
-              </div>
-            </Menu>
-          </FocusTrap>
+
+            owner={owner}
+            info={info}
+            duration={duration}
+            onDismiss={() => setMoreAnchor(undefined)}
+          />
         }
       />
       {/* Voice messages have no caption track; the waveform and time stand in for one. */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio
-        key={audioKey}
         ref={audioRef}
-        className={css.Audio}
-        controls={false}
-        preload="metadata"
+        key={audioKey}
         autoPlay={autoPlay}
-        onLoadedMetadata={handleLoadedMetadata}
+        preload="metadata"
+        controls={false}
+        className={css.Audio}
+        onError={markPlaybackFailed}
         onPlay={handleMediaPlay}
-        onError={() => setPlaybackFailed(true)}
+        onLoadedMetadata={handleLoadedMetadata}
       >
-        {src && <source src={src} type={mimeType} onError={() => setPlaybackFailed(true)} />}
+        {src ? <source type={mimeType} src={src} onError={markPlaybackFailed} /> : null}
       </audio>
     </div>
   );

@@ -3,7 +3,6 @@ import React, {
   CSSProperties,
   KeyboardEventHandler,
   ReactNode,
-  useCallback,
   useState,
 } from 'react';
 import classNames from 'classnames';
@@ -179,21 +178,33 @@ type CustomEditorProps = {
   onPaste?: ClipboardEventHandler<HTMLDivElement>;
 };
 
+// Module-level renderers keep one identity for every editor, so Slate never re-renders for them.
+const renderElement = (props: RenderElementProps) => <RenderElement {...props} />;
+const renderLeaf = (props: RenderLeafProps) => <RenderLeaf {...props} />;
+const renderPlaceholder = (props: RenderPlaceholderProps) => <RenderPlaceholder {...props} />;
+
+/** A row of controls beside the text box; renders nothing without controls. */
+function EditorControls({ children }: { children?: ReactNode }) {
+  if (!children) return null;
+  return (
+    <Box shrink="No" gap="100" alignItems="Center" className={css.EditorOptions}>
+      {children}
+    </Box>
+  );
+}
+
 /** The composer text box: Slate editing between optional leading and trailing controls. */
-export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
-  (
-    {
-      editor,
-      editableName,
-      ariaLabel,
-      placeholder,
-      top,
-      bottom,
-      before,
-      after,
-      maxHeight = '50vh',
-      className,
-      style,
+export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
+  const { editor, onChange, top, bottom, before, after, className, style } = props;
+  const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
+  const { readOnly, onKeyDown, onKeyUp, onPaste } = props;
+
+  const textBox = (
+    <Editable
+      className={css.EditorTextarea}
+      data-editable-name={editableName}
+      aria-label={ariaLabel}
+      readOnly={readOnly}
 
 
 
@@ -201,59 +212,30 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
 
 
 
+    />
+  );
 
-
-
-
-
-
-
-      (props: RenderPlaceholderProps) => <RenderPlaceholder {...props} />,
-      []
-    );
-
-    return (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <div ref={ref} style={style} className={classNames(css.Editor, className)}>
+      <Slate initialValue={initialValue} editor={editor} onChange={onChange}>
+        {top}
+        <Box alignItems="Start">
+          <EditorControls>{before}</EditorControls>
+          <Scroll
+            hideTrack
+            visibility="Hover"
+            size="300"
+            variant="SurfaceVariant"
+            style={{ maxHeight }}
+            className={css.EditorTextareaScroll}
+          >
+            {textBox}
+          </Scroll>
+          <EditorControls>{after}</EditorControls>
+        </Box>
+        {bottom}
+      </Slate>
+    </div>
+  );
+});
 CustomEditor.displayName = 'CustomEditor';

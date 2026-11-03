@@ -2,24 +2,22 @@ import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
-// The staged-uploads panel that floats above the composer.
+// The staged-uploads panel floats above the composer. Its anchor takes no clicks, so the
+// timeline under the empty area stays usable; only the panel itself (below) takes them.
+export const UploadBoardBase = style([
+  DefaultReset,
+  { pointerEvents: 'none', position: 'relative' },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Spans the anchor's width S200 above it and pushes the panel to the end edge. */
+export const UploadBoardContainer = style([
+  DefaultReset,
+  {
     display: 'flex',
     justifyContent: 'flex-end',
+    position: 'absolute',
+    insetInline: 0,
+    bottom: config.space.S200,
   },
 ]);
 

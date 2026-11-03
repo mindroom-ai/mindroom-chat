@@ -27,21 +27,32 @@ export const createRoomCallState = (): ICreateRoomStateEvent => ({
   content: {},
 });
 
+/** The level servers pin by default for the room's security-relevant state. */
+const PINNED_STATE_LEVEL = 100;
+
 /**
  * Voice rooms let every member publish call membership. The override replaces the whole
- * `events` map, so it repeats the levels servers pin by default, including the upgrade level
- * servers raise above every assignable level where creators are privileged (room version 12).
+ * `events` map (Client-Server API, `m.room.power_levels`), so it repeats the levels servers pin
+ * by default. Where creators are privileged (room version 12, MSC4289), servers raise the
+ * upgrade (`m.room.tombstone`) level above every assignable level, to 150.
  */
-export const createVoiceRoomPowerLevelsOverride = (version?: string) => ({
-  events: {
-    [StateEvent.RoomPowerLevels]: 100,
-    [StateEvent.RoomServerAcl]: 100,
-    [StateEvent.RoomEncryption]: 100,
-    [StateEvent.RoomHistoryVisibility]: 100,
-    [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : 100,
+export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
+  // Spec `m.room.*` state events, alphabetical.
+  const pinned = [
 
 
 
+    StateEvent.RoomServerAcl,
+  ];
+  const events: Record<string, number> = {};
+  pinned.forEach((type) => {
+    events[type] = PINNED_STATE_LEVEL;
+  });
+  events[StateEvent.RoomTombstone] = creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL;
+  // MSC3401 call membership: any member may join the call.
+  events[StateEvent.GroupCallMemberPrefix] = 0;
+  return { events };
+};
 
 
 
@@ -86,9 +97,15 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => ({
   };
 };
 
-export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => ({
-  type: StateEvent.SpaceParent,
-  state_key: parent.roomId,
+/** `m.space.parent` pointing at `parent`, marked canonical. */
+export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
+  const via = getViaServers(parent);
+  return {
+    type: StateEvent.SpaceParent,
+    state_key: parent.roomId,
+    content: { canonical: true, via },
+  };
+};
 
 
 
@@ -102,47 +119,50 @@ export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => ({
 
 
 
+};
+
+/** Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. */
+export const createRoom = async (mx: MatrixClient, data: CreateRoomData): Promise<string> => {
+  const { access, parent, type, version } = data;
+  const isPublic = access === CreateRoomAccess.Public;
+  const isVoice = type === RoomType.Call;
+
+  const initialState = [
+    data.encryption ? createRoomEncryptionState() : undefined,
+    parent && createRoomParentState(parent),
+    createRoomJoinRulesState(access, parent, data.knock),
+    isVoice ? createRoomCallState() : undefined,
+  ].filter((event): event is ICreateRoomStateEvent => event !== undefined);
+
+  const options: ICreateRoomOpts = {
+    room_version: version,
+    name: data.name,
+    topic: data.topic,
+    room_alias_name: data.aliasLocalPart || undefined,
+    preset: isPublic ? Preset.PublicChat : Preset.PrivateChat,
+    visibility: isPublic ? Visibility.Public : Visibility.Private,
 
 
 
 
 
+    ),
+    ...(isVoice
+      ? { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }
+      : {}),
+  };
 
+  const result = await mx.createRoom(options);
 
-
-  if (data.parent) initialState.push(createRoomParentState(data.parent));
-  const joinRules = createRoomJoinRulesState(data.access, data.parent, data.knock);
-  if (joinRules) initialState.push(joinRules);
-  if (data.type === RoomType.Call) initialState.push(createRoomCallState());
-
-
-
-
-
-    visibility: data.access === CreateRoomAccess.Public ? Visibility.Public : Visibility.Private,
-    preset: data.access === CreateRoomAccess.Public ? Preset.PublicChat : Preset.PrivateChat,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      { auto_join: false, suggested: false, via: getViaServers(data.parent) } as never,
-      result.room_id
+  const roomId = result.room_id;
+  if (parent) {
+    const childContent = { via: getViaServers(parent), suggested: false, auto_join: false };
+    await mx.sendStateEvent(
+      parent.roomId,
+      StateEvent.SpaceChild as never,
+      childContent as never,
+      roomId
     );
   }
-
-  return result.room_id;
+  return roomId;
 };
