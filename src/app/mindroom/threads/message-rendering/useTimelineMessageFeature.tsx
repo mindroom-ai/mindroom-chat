@@ -27,6 +27,8 @@ import { usePowerLevelsContext } from '../../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
+import { useSpaceOptionally } from '../../../hooks/useSpace';
+import { useOpenUserRoomProfile } from '../../../state/hooks/userRoomProfile';
 import { isEmptyEditor } from '../../../components/editor';
 import { Reply } from '../../../components/message';
 import { MessageAside } from '../../../components/message/layout/MessageAside';
@@ -383,6 +385,18 @@ export const useTimelineMessageFeature = ({
     },
     [navigateRoomThread, room, setReplyDraft]
   );
+  // The avatar or the name of a message opens the sender's profile card beside it.
+  const openUserProfile = useOpenUserRoomProfile();
+  const spaceRoomId = useSpaceOptionally()?.roomId;
+  const handleSenderClick = useCallback(
+    (evt: React.MouseEvent<HTMLElement>) => {
+      const senderId = evt.currentTarget.getAttribute('data-user-id');
+      if (!senderId) return;
+      evt.stopPropagation();
+      openUserProfile(room.roomId, spaceRoomId, senderId, evt.currentTarget.getBoundingClientRect());
+    },
+    [openUserProfile, room.roomId, spaceRoomId]
+  );
   // A thread badge under a room row opens its thread.
   const handleOpenThread = useCallback(
     (evt: React.MouseEvent) => {
@@ -526,6 +540,8 @@ export const useTimelineMessageFeature = ({
             messageLayout={messageLayout}
             messageSpacing={messageSpacing}
             onReplyClick={handleReplyClick}
+            onUserClick={handleSenderClick}
+            onUsernameClick={handleSenderClick}
             onReactionToggle={(key, shortcode) =>
               toggleReaction(eventId, key, shortcode, relations)
             }
@@ -565,6 +581,7 @@ export const useTimelineMessageFeature = ({
       editingEventId,
       handleOpenThread,
       handleReplyClick,
+      handleSenderClick,
       hideActivity,
       hour24Clock,
       htmlReactParserOptions,
