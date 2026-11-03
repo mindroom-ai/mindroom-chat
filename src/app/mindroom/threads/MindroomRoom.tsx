@@ -1,22 +1,78 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { usePowerLevels, PowerLevelsContextProvider } from '../../hooks/usePowerLevels';
-import { useKeyDown } from '../../hooks/useKeyDown';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
+import { settingsModalAtom } from '../../state/settingsModal';
+import { SettingsPages, type SettingsPage } from '../../features/settings/settingsPages';
 import { MembersDrawer } from '../../features/room/MembersDrawer';
-import { markRoomAndThreadsAsRead, markThreadAsRead } from '../notifications/readReceipts';
-import { isMindroomAgentUserId } from '../matrix/agentIdentity';
+import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
+import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
+import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { useBindsOpenIdTokens, useRoomMindroomServers } from '../server/useMindroomServers';
-import { removeRecentThread } from '../recent-threads/recentThreads';
+import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
+import {
+  useComputerShown,
+  useConversationCanvases,
+  useOpenCanvasById,
+} from '../canvas/canvasIndex';
+import { useCanvasOpenRequest } from '../canvas/useCanvasOpenRequest';
+import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActionProvider';
+import type { ChatUiAction, ChatUiSettingsSection } from '../ui-actions/chatUiProtocol';
+import type { RoomViewHeaderProps } from './MindroomRoomViewHeader';
 import { RoomView } from './MindroomRoomView';
+import { isThreadRouteReady } from './threadRouteUtils';
+import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
+import { useRoomViewMode } from './useRoomViewMode';
+import { useThreadRootEvent } from './useThreadRootEvent';
+
+/** The computer opens wide enough for a desktop screen beside the conversation. */
+const COMPUTER_DEFAULT_WIDTH = 672;
+const COMPUTER_MAX_WIDTH = 1600;
+
+/** Where each Settings section an agent may ask for lives in the Settings dialog. */
+const SETTINGS_PAGE_FOR_SECTION: Record<ChatUiSettingsSection, SettingsPage> = {
+  general: SettingsPages.GeneralPage,
+  account: SettingsPages.AccountPage,
+  notifications: SettingsPages.NotificationPage,
+  devices: SettingsPages.DevicesPage,
+  'emojis-stickers': SettingsPages.EmojisStickersPage,
+  developer: SettingsPages.DeveloperToolsPage,
+  about: SettingsPages.AboutPage,
+};
+
+/** The side-panel controls of the room header; the room owns their state. */
+type HeaderPanelControls = Pick<
+  RoomViewHeaderProps,
+  | 'computerAvailable'
+  | 'computerOpen'
+  | 'computerShown'
+  | 'onComputerToggle'
+  | 'canvasOpen'
+  | 'canvases'
+  | 'openCanvasId'
+  | 'onCanvasOpen'
+  | 'onCanvasClose'
+>;
+
+/** A canvas on screen and the conversation it was opened in. */
+type ShownCanvas = { event: MatrixEvent; expanded: boolean; conversation: string };
 
 /** The computer agents of the room and the server each one runs on. */
 const useRoomComputer = (
@@ -54,97 +110,284 @@ const useRoomComputer = (
   return { agents, apiUrl: agents.length > 0 ? apiUrl : undefined };
 };
 
-/** A room: its view, the members panel, and the agents' computer beside it. */
-export function Room() {
-  const client = useMatrixClient();
-  const room = useRoom();
-  const { roomId } = room;
-  const [query] = useSearchParams();
-  const threadId = query.get('threadId') ?? undefined;
-  const { eventId } = useParams();
-  const powerLevels = usePowerLevels(room);
-  const members = useRoomMembers(client, roomId);
-  const [membersOpen, setMembersOpen] = useMembersDrawer();
-  const myUserId = client.getSafeUserId();
+/**
+ * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, or
+ * the members). The room also carries out the UI requests agents send (`io.mindroom.ui_action`).
+ */
+/** What the room's URL asks for: an event, a thread, and whether to show the event in place. */
+const useRoomRoute = () => {
+  const params = useParams();
+  const [search] = useSearchParams();
+  return {
+    eventId: params.eventId,
+    routedThreadId: search.get('threadId') ?? undefined,
+    focusEventInRoom: search.get('focusEvent') === '1',
+  };
+};
 
-  const hasMindroomAgents = useMemo(
-    () =>
-      members.some(
-        (member) => member.membership === 'join' && isMindroomAgentUserId(member.userId)
-      ),
-    [members]
-  );
+export function Room() {
+  const room = useRoom();
+  const { eventId, routedThreadId, focusEventInRoom } = useRoomRoute();
+  const { roomId } = room;
+  const client = useMatrixClient();
+  const ownUserId = client.getSafeUserId();
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const { t } = useTranslation();
+  const members = useRoomMembers(client, roomId);
+  const clientConfig = useClientConfig();
+  const [membersOpen, setMembersOpen] = useMembersDrawer();
+  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
+  const { viewMode, setViewMode } = useRoomViewMode(roomId);
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const setSettingsModal = useSetAtom(settingsModalAtom);
+
+  // The URL may name a reply; panels and agent requests belong to the thread's root.
+  const threadId = useThreadRootEvent(room, routedThreadId);
+  const routeReady = isThreadRouteReady(room, routedThreadId);
+  const conversation = `${roomId}\n${routedThreadId ?? ''}`;
+
+  const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);
   const joinRequestCount = useMemo(
     () => members.filter((member) => member.membership === 'knock').length,
     [members]
   );
 
   const roomServers = useRoomMindroomServers(room);
-  const computer = useRoomComputer(members, roomServers, myUserId);
-  const [computerOpen, setComputerOpen] = useState(false);
+  const computerTarget = useRoomComputer(members, roomServers, ownUserId);
+  const computer = useRoomComputerState({
+    mx: client,
+    roomId,
+    threadId: routedThreadId,
+    available: !!computerTarget.apiUrl,
+    apiUrl: computerTarget.apiUrl,
+  });
+  const {
+    close: closeComputer,
+    toggle: toggleComputer,
+    show: showComputer,
+    reportInteraction,
+  } = computer;
+  const computerOpen = computer.open && !!computerTarget.apiUrl;
   const [computerExpanded, setComputerExpanded] = useState(false);
   useEffect(() => {
-    if (!computer.apiUrl) setComputerOpen(false);
-  }, [computer.apiUrl]);
+    if (!computerOpen) setComputerExpanded(false);
+  }, [computerOpen]);
+  const computerShown = useComputerShown(client, roomId, threadId);
 
-  // A thread that cannot load leaves the recently opened list; the route itself stays.
-  const onThreadLoadError = useCallback(
-    (failed: string) => removeRecentThread(roomId, failed),
-    [roomId]
-  );
-
-  // Escape marks everything in view as read.
-  const markViewAsRead = useCallback(
-    (evt: KeyboardEvent) => {
-      if (evt.key !== 'Escape' || evt.defaultPrevented) return;
-      if (threadId) markThreadAsRead(client, roomId, threadId, false);
-      else markRoomAndThreadsAsRead(client, roomId, false);
+  const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
+  const conversationCanvases = useConversationCanvases(client, roomId, threadId);
+  const [shownCanvas, setShownCanvas] = useState<ShownCanvas>();
+  // A canvas belongs to the conversation it opened in; another route shows none.
+  const canvas =
+    canvasEnabled && shownCanvas?.conversation === conversation ? shownCanvas : undefined;
+  const openCanvasId = canvas?.event.getId() ?? undefined;
+  const closeCanvas = useCallback(() => setShownCanvas(undefined), []);
+  const showCanvas = useCallback(
+    (event: MatrixEvent, expanded = false) => {
+      setShownCanvas({ event, expanded, conversation });
+      closeComputer();
+      setMembersOpen(false);
     },
-    [client, roomId, threadId]
+    [closeComputer, conversation, setMembersOpen]
   );
-  useKeyDown(window, markViewAsRead);
+
+  const onComputerToggle = useCallback(() => {
+    if (!computer.open) {
+      closeCanvas();
+      setMembersOpen(false);
+    }
+    toggleComputer();
+  }, [closeCanvas, computer.open, setMembersOpen, toggleComputer]);
+
+  // While the person controls a computer, agents may not take the view away from it.
+  const controlling = computerOpen && computer.interaction.locked;
+  const controlledAgent = computer.interaction.agentUserId;
+  const unavailable = useCallback(
+    (action: ChatUiAction): string | undefined => {
+      if (action.action === 'show_computer') {
+        if (!computerTarget.agents.some((agent) => agent.userId === action.agentUserId)) {
+          return t('mindroomUi.uiActions.computerUnavailable');
+        }
+        return controlling && controlledAgent && controlledAgent !== action.agentUserId
+          ? t('mindroomUi.uiActions.releaseControl')
+          : undefined;
+      }
+      if (action.action === 'show_canvas' && !canvasEnabled) {
+        return t('mindroomUi.uiActions.canvasDisabled');
+      }
+      return controlling ? t('mindroomUi.uiActions.releaseControl') : undefined;
+    },
+    [canvasEnabled, computerTarget.agents, controlledAgent, controlling, t]
+  );
+
+  const perform = useCallback(
+    (action: ChatUiAction) => {
+      switch (action.action) {
+        case 'show_computer':
+          closeCanvas();
+          setMembersOpen(false);
+          showComputer(action.agentUserId);
+          break;
+        case 'show_canvas':
+          showCanvas(action.event);
+          break;
+        case 'open_panel':
+          closeCanvas();
+          closeComputer();
+          setMembersOpen(true);
+          break;
+        case 'open_settings':
+          setSettingsModal({
+            initialPage: SETTINGS_PAGE_FOR_SECTION[action.section],
+            requestId: action.eventId,
+          });
+          break;
+        default:
+      }
+    },
+    [closeCanvas, closeComputer, setMembersOpen, setSettingsModal, showCanvas, showComputer]
+  );
+
+  // The Full view shows no thread routes, so an action from a thread brings the threads back.
+  const showConversation = useCallback(
+    (target: string | undefined) => {
+      if (!target) {
+        navigateRoom(roomId);
+        return;
+      }
+      if (viewMode === 'classic') setViewMode('threaded');
+      navigateRoomThread(roomId, target);
+    },
+    [navigateRoom, navigateRoomThread, roomId, setViewMode, viewMode]
+  );
+
+  const uiActions = useChatUiActions({
+    mx: client,
+    room,
+    threadId,
+    autoOpenFromHomeservers: clientConfig.mindroom?.uiActions?.autoOpenFromHomeservers,
+    ready: routeReady,
+    perform,
+    navigate: showConversation,
+    unavailable,
+  });
+
+  // A canvas chosen in the header may still load; any change of what the side panel shows
+  // (or of the conversation) since then wins over its late answer.
+  const panelContext = [
+    conversation,
+    openCanvasId ?? '',
+    computerOpen ? 'computer' : '',
+    membersOpen ? 'members' : '',
+  ].join('\n');
+  const onCanvasOpen = useOpenCanvasById(client, room, panelContext, uiActions.activate);
+
+  // The Canvases page opens its canvas across the whole room.
+  const { read: readUiAction } = uiActions;
+  const openRequestedCanvas = useCallback(
+    (event: MatrixEvent) => {
+      if (readUiAction(event)?.action === 'show_canvas') showCanvas(event, true);
+    },
+    [readUiAction, showCanvas]
+  );
+  useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
+
+  // On phones a panel covers the conversation; expanded, it takes the conversation's column.
+  const computerCoversConversation = computerOpen && (mobile || computerExpanded);
+  const canvasCoversConversation = !!canvas && (mobile || canvas.expanded);
+  const conversationHidden = computerCoversConversation || canvasCoversConversation;
+  const membersShown = membersOpen && !computerOpen && !canvas;
+
+  const onThreadLoadError = useRoomThreadRouteGuards({
+    eventId,
+    roomId,
+    threadId: routedThreadId,
+    viewMode,
+  });
+  useRoomEscapeReadReceipts({ conversationHidden, hideActivity, roomId, threadId });
+
+  const powerLevels = usePowerLevels(room);
+  const headerPanels: HeaderPanelControls = {
+    computerAvailable: !!computerTarget.apiUrl,
+    computerOpen,
+    computerShown,
+    onComputerToggle,
+    canvasOpen: !!canvas,
+    canvases: canvasEnabled ? conversationCanvases : undefined,
+    openCanvasId,
+    onCanvasOpen,
+    onCanvasClose: closeCanvas,
+  };
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
-      <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
-        <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-          <RoomView
-            room={room}
-            eventId={eventId}
-            threadId={threadId}
-            hasMindroomAgents={hasMindroomAgents}
-            joinRequestCount={joinRequestCount}
-            computerAvailable={!!computer.apiUrl}
-            computerOpen={computerOpen}
-            onComputerToggle={() => setComputerOpen((open) => !open)}
-            onThreadLoadError={onThreadLoadError}
-          />
-        </Box>
-        {computerOpen && computer.apiUrl && (
-          <Box
-            data-testid="resizable-computer-panel"
-            direction="Column"
-            shrink="No"
-            style={{ width: computerExpanded ? '60%' : '28rem', minWidth: 0 }}
-          >
-            <ComputerPanel
-              agents={computer.agents}
-              apiUrl={computer.apiUrl}
+      <ChatUiActionContext.Provider value={uiActions}>
+        <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
+          {!conversationHidden && (
+            <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+              <RoomView
+                room={room}
+                eventId={eventId}
+                threadId={routedThreadId}
+                focusEventInRoom={focusEventInRoom}
+                hasMindroomAgents={hasMindroomAgents}
+                joinRequestCount={joinRequestCount}
+                onThreadLoadError={onThreadLoadError}
+                {...headerPanels}
+              />
+            </Box>
+          )}
+          {computerOpen && computerTarget.apiUrl && (
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.computer.width:${ownUserId}`}
+              defaultWidth={COMPUTER_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={COMPUTER_MAX_WIDTH}
+              fullWidth={!mobile && computerExpanded}
+              passthrough={mobile}
+              resizeLabel={t('mindroomUi.computer.resize')}
+              collapseLabel={t('mindroomUi.computer.close')}
+              onCollapse={closeComputer}
+              testId="resizable-computer-panel"
+            >
+              <ComputerPanel
+                agents={computerTarget.agents}
+                apiUrl={computerTarget.apiUrl}
+                mx={client}
+                roomId={roomId}
+                threadId={threadId}
+                continuationReady={routeReady}
+                requestedAgent={computer.requestedAgent}
+                onInteractionChange={reportInteraction}
+                onClose={closeComputer}
+                expanded={!mobile && computerExpanded}
+                onToggleExpanded={
+                  mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
+                }
+              />
+            </ResizablePanel>
+          )}
+          {canvas && (
+            <RoomCanvasPanel
               mx={client}
-              roomId={roomId}
-              threadId={threadId}
-              onClose={() => setComputerOpen(false)}
-              expanded={computerExpanded}
-              onToggleExpanded={() => setComputerExpanded((expanded) => !expanded)}
+              room={room}
+              event={canvas.event}
+              onClose={closeCanvas}
+              expanded={canvas.expanded}
+              onToggleExpanded={() =>
+                setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
+              }
+              libraries={clientConfig.mindroom?.canvas?.libraries === true}
             />
-          </Box>
-        )}
-        {membersOpen && (
-          <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
-            <MembersDrawer key={roomId} room={room} members={members} />
-          </ResizableMembersPanel>
-        )}
-      </Box>
+          )}
+          {membersShown && (
+            <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
+              <MembersDrawer key={roomId} room={room} members={members} />
+            </ResizableMembersPanel>
+          )}
+        </Box>
+      </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>
   );
 }
