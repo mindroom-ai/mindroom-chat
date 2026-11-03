@@ -10,6 +10,7 @@ import {
   MindroomNativeIOSPushOpenFeature,
 } from '../../mindroom/client/MindroomClientNonUIFeatures';
 import { ServerEmojiJoinFeature } from '../../mindroom/server-emoji/ServerEmojiJoinFeature';
+import { BugReportAutoJoinFeature } from '../../mindroom/bug-reports/BugReportAutoJoinFeature';
 
 /** The archived rooms list, kept for the whole session. */
 function ArchivedRoomsIndex() {
@@ -17,7 +18,10 @@ function ArchivedRoomsIndex() {
   return null;
 }
 
-/** Account-wide work without UI: indexes, account settings, invites, push and the emoji room. */
+/**
+ * Account-wide work without UI: indexes, account settings, invites, push, the emoji room, and
+ * the bug report rooms an administrator joins without accepting their invites.
+ */
 export function ClientNonUIFeatures() {
   return (
     <>
@@ -29,6 +33,7 @@ export function ClientNonUIFeatures() {
       <MindroomNativeIOSPushFeature />
       <MindroomNativeIOSPushOpenFeature />
       <ServerEmojiJoinFeature />
+      <BugReportAutoJoinFeature />
     </>
   );
 }
