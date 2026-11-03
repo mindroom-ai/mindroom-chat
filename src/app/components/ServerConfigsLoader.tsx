@@ -46,13 +46,20 @@ const loadServerConfigs = async (client: MatrixClient): Promise<ServerConfigs> =
 
 const LoadedConfigs = createContext<ServerConfigs>({});
 
-/** Fetches the homeserver's capabilities, media limits and auth metadata, then renders children. */
+/** Until the homeserver answers, every field reads as missing. */
+const NOT_LOADED: ServerConfigs = {};
+
+/**
+ * Fetches the homeserver's capabilities, media limits and auth metadata. Children render at once
+ * with no fields, so a shell restored from the store never waits for (or, offline, on) these
+ * requests, and render again with what the server reported.
+ */
 export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) {
-  const [configs, setConfigs] = useState<ServerConfigs>();
+  const [configs, setConfigs] = useState<ServerConfigs>(NOT_LOADED);
 
   useEffect(() => {
     let current = true;
-    setConfigs(undefined);
+    setConfigs(NOT_LOADED);
     loadServerConfigs(mx).then((loaded) => {
       if (current) setConfigs(loaded);
     });
@@ -61,7 +68,6 @@ export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) 
     };
   }, [mx]);
 
-  if (!configs) return null;
   return <LoadedConfigs.Provider value={configs}>{children(configs)}</LoadedConfigs.Provider>;
 }
 
