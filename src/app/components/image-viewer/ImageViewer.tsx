@@ -11,6 +11,8 @@ import { DOWNLOAD_MIME_TYPE } from '../message/attachmentDownload';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
+// The zoom percentage switches between fitting the image and this closer look.
+const CLOSE_LOOK_ZOOM = 2;
 
 type DownloadState = 'idle' | 'saving' | 'failed';
 
@@ -105,7 +107,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             </IconButton>
             <Button
               type="button"
-              onClick={() => setZoom(1)}
+              onClick={() => setZoom(zoom === 1 ? CLOSE_LOOK_ZOOM : 1)}
               variant={zoom === 1 ? 'Secondary' : 'Success'}
               fill="Soft"
               radii="Pill"
