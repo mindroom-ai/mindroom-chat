@@ -39,6 +39,7 @@ import {
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
   INBOX_INVITES_PATH,
+  INBOX_NOTIFICATIONS_PATH,
   INBOX_PATH,
   LOGIN_PATH,
   REGISTER_PATH,
@@ -77,6 +78,7 @@ import { Canvases } from './client/canvases';
 import { FeaturedRooms } from './client/explore/Featured';
 import { PublicRooms } from './client/explore/Server';
 import { Invites } from './client/inbox/Invites';
+import { Notifications } from './client/inbox/Notifications';
 
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
 
@@ -213,6 +215,7 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
         </Route>
         <Route path={INBOX_PATH} element={<Outlet />}>
           <Route index element={<Invites />} />
+          <Route path={INBOX_NOTIFICATIONS_PATH} element={<Notifications />} />
           <Route path={INBOX_INVITES_PATH} element={<Invites />} />
         </Route>
         <Route
