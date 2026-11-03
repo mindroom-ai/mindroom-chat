@@ -8,7 +8,7 @@ import React, {
   type MouseEventHandler,
   type ReactNode,
 } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useFocusWithin, useHover } from 'react-aria';
 import FocusTrap from 'focus-trap-react';
 import type { MatrixEvent, Relations, Room } from 'matrix-js-sdk';
@@ -19,6 +19,7 @@ import {
   Icon,
   IconButton,
   Icons,
+  Line,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -27,7 +28,6 @@ import {
   color,
   type RectCords,
 } from 'folds';
-import { Trans } from 'react-i18next';
 import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { EmojiBoard } from '../../components/emoji-board';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -74,6 +74,7 @@ import {
 } from './MessageReactionActions';
 import { MessageReadReceiptItem, MessageSourceCodeItem } from './MessageInspectionActions';
 import * as css from '../../features/room/message/styles.css';
+import * as copyCss from './MessageCopyActions.css';
 
 export type { ReactionHandler };
 export {
@@ -108,7 +109,6 @@ function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItem
   );
 }
 
-/** "Copy Text": the message body, without the tool call markers MindRoom adds. */
 /** Edits a text message in place and sends the edit as an `m.replace` event. */
 function MessageInlineEditor({
   room,
@@ -295,41 +295,97 @@ function MessageActionDialog({
   );
 }
 
-/** "Copy Text": the message body, without the tool call markers MindRoom adds. */
+const isCoarsePointer = (): boolean =>
+  globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+
+/**
+ * "Copy Text": the message body, without the tool call markers MindRoom adds. A reply with tool
+ * calls also offers its text with each call written out, as an icon beside the item, or as a
+ * labelled row of its own on touch screens. While a long text loads, the item waits for it.
+ */
 export function MessageCopyTextItem({
   content,
   originalContent,
   resolvedContent,
+  loading = false,
   onClose,
 }: {
   content: Record<string, unknown>;
   originalContent?: Record<string, unknown>;
   resolvedContent?: Record<string, unknown>;
+  loading?: boolean;
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
-  const handleCopy = async () => {
+  const texts = useMemo(() => {
+    if (loading) return undefined;
     const source = getMessageCopyTextSource(content, originalContent ?? content, resolvedContent);
-    if (!source) return;
+    if (!source) return undefined;
     const scan = scanMindroomToolMarkerLines(
       source.body,
       source.formattedBody,
-      !source.formattedBody
+      source.plainBodyFallback
     );
-    const copied = await copyToClipboard(getMessageCopyTexts(source, scan).text);
+    return getMessageCopyTexts(source, scan);
+  }, [content, loading, originalContent, resolvedContent]);
+  const handleCopy = async (text: string | undefined) => {
+    if (text === undefined) return;
+    const copied = await copyToClipboard(text);
     setFailed(!copied);
     if (copied) onClose?.();
   };
-  return (
+
+  let label = t('mindroomUi.messages.messageCopyActions.copyText');
+  if (failed) label = t('threadActions.failed');
+  else if (loading) label = t('mindroomUi.messages.messageCopyActions.copyTextLoading');
+  const copyText = (
     <MessageMenuAction
-      label={
-        failed ? t('threadActions.failed') : t('mindroomUi.messages.messageCopyActions.copyText')
-      }
+      label={label}
       icon={failed ? Icons.Warning : Icons.Text}
       variant={failed ? 'Critical' : undefined}
-      onClick={() => void handleCopy()}
+      disabled={loading}
+      onClick={() => void handleCopy(texts?.text)}
     />
+  );
+  const withToolCalls = texts?.textWithToolCalls;
+  if (withToolCalls === undefined) return copyText;
+
+  const withToolCallsLabel = t('mindroomUi.messages.messageCopyActions.copyTextWithToolCalls');
+  if (isCoarsePointer()) {
+    return (
+      <>
+        {copyText}
+        <MessageMenuAction
+          label={withToolCallsLabel}
+          icon={Icons.Terminal}
+          onClick={() => void handleCopy(withToolCalls)}
+        />
+      </>
+    );
+  }
+  return (
+    <Box alignItems="Center" gap="100">
+      <Box grow="Yes" direction="Column">
+        {copyText}
+      </Box>
+      <Line
+        className={copyCss.CopyActionDivider}
+        direction="Vertical"
+        variant="Surface"
+        size="300"
+      />
+      <IconButton
+        size="300"
+        radii="300"
+        variant="Surface"
+        aria-label={withToolCallsLabel}
+        title={withToolCallsLabel}
+        onClick={() => void handleCopy(withToolCalls)}
+      >
+        <Icon size="100" src={Icons.Terminal} />
+      </IconButton>
+    </Box>
   );
 }
 
@@ -761,6 +817,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   content={content}
                   originalContent={mEvent.getContent()}
                   resolvedContent={copyState.resolvedContent}
+                  loading={copyState.loading}
                   onClose={closeMenu}
                 />
               ) : null}
@@ -873,7 +930,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             {body}
           </BubbleLayout>
         ) : (
-          <ModernLayout before={collapse ? undefined : renderAvatar(true)}>
+          <ModernLayout
+            before={collapse && !extensionState.aiRunInfo ? undefined : renderAvatar(true)}
+          >
             {!collapse && header}
             {body}
           </ModernLayout>
