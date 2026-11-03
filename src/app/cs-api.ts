@@ -7,18 +7,20 @@ import { trimTrailingSlash } from './utils/common';
  * Body of `GET /_matrix/client/versions` (specification "Client-Server API", section "Versions").
  * Servers may leave out `unstable_features`.
  */
-
-
-
-
-
-
-
-
-
-  /** The server, or the base URL it advertises, is plain HTTP outside the local network. */
-  FAIL_INSECURE = 'FAIL_INSECURE',
+export interface SpecVersions {
+  versions: string[];
+  unstable_features?: Record<string, boolean>;
 }
+
+/** What the sign-in screen does with a discovery failure. */
+export const AutoDiscoveryAction = {
+  /** The server, or the base URL it advertises, is plain HTTP outside the local network. */
+  FAIL_INSECURE: 'FAIL_INSECURE',
+  /** The well-known could not be read; ask the user for another server. */
+  FAIL_PROMPT: 'FAIL_PROMPT',
+} as const;
+
+export type AutoDiscoveryAction = (typeof AutoDiscoveryAction)[keyof typeof AutoDiscoveryAction];
 
 export type AutoDiscoveryError = {
   /** The server URL that was tried, with its scheme. */
@@ -85,16 +87,18 @@ const fallbackInfo = (baseUrl: string): AutoDiscoveryInfo => ({
   'm.homeserver': { base_url: baseUrl },
 });
 
+/** `[error, undefined]` when sign-in cannot go on, otherwise `[undefined, info]`. */
+export type AutoDiscoveryResult = [AutoDiscoveryError | undefined, AutoDiscoveryInfo | undefined];
+
 /**
- * Resolves a server name or URL to its client discovery info. Resolves to `[error, undefined]`
- * when sign-in cannot go on, or to `[undefined, info]`; a missing well-known (404) falls back to
- * the server URL itself as the homeserver base URL.
+ * Resolves a server name or URL to its client discovery info (see `AutoDiscoveryResult`). A
+ * missing well-known (404) falls back to the server URL itself as the homeserver base URL.
  */
-
-
-
-): Promise<[AutoDiscoveryError | undefined, AutoDiscoveryInfo | undefined]> => {
-  const host = trimTrailingSlash(withScheme(server.trim()));
+export const autoDiscovery = async (
+  request: typeof fetch,
+  serverNameOrUrl: string
+): Promise<AutoDiscoveryResult> => {
+  const host = trimTrailingSlash(withScheme(serverNameOrUrl.trim()));
 
   if (!isAllowedHomeserverBaseUrl(host)) {
     return [{ host, action: AutoDiscoveryAction.FAIL_INSECURE }, undefined];

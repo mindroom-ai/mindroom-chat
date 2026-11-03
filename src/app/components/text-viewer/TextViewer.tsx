@@ -10,18 +10,14 @@ import * as css from './TextViewer.css';
 /** How long the copy chip shows its check mark. */
 const COPIED_FEEDBACK_MS = 2000;
 
+/** The title (file name), the content, and its language (a `language-<langName>` class on the `pre`). */
+type TextSource = { name: string; langName: string; text: string };
 
+export type TextViewerProps = TextSource & { requestClose: () => void };
 
-
-
-
-
-
-
-
-
-
-  ({ text, name, langName, requestClose, className, ...props }, ref) => {
+/** Full-height read-only view of a text file or event source, with copy and close actions. */
+export const TextViewer = as<'div', TextViewerProps>(
+  ({ className, langName, name, requestClose, text, ...props }, ref) => {
     const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
 

@@ -3,36 +3,43 @@ import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
+// Icon row on top, extra detail (progress, error) stacked below it.
+const stackedRows = style({
+  display: 'flex',
+  flexFlow: 'column',
+  minWidth: 0,
+});
+
 // One file in the upload board: icon, name and actions on top, progress or error below.
 export const UploadCard = recipe({
   base: [
     DefaultReset,
     glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+    stackedRows,
     {
-      display: 'flex',
-
-
-
-
-
-
-
-
+      rowGap: config.space.S200,
+      paddingBlock: config.space.S200,
+      paddingInline: config.space.S300,
+      borderRadius: config.radii.R400,
+    },
+  ],
+  variants: {
     outlined: {
       true: glassOutline,
     },
     // Settings forms place a single upload in a narrow column, so it sits tighter there.
+    compact: {
+      true: {
+        rowGap: config.space.S100,
+        paddingBlock: config.space.S200,
+        paddingInline: config.space.S200,
+        borderRadius: config.radii.R300,
+      },
+    },
+  },
+});
 
-
-
-
-
-
-
-
-
-
-
+export const UploadCardError = style({
   display: 'flex',
   alignItems: 'flex-start',
   gap: config.space.S100,

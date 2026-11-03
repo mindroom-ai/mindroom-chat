@@ -28,62 +28,62 @@ export const RoomCardGrid = as<'div'>(({ className, ...props }, ref) => (
   <div {...props} className={classNames(css.CardGrid, className)} ref={ref} />
 ));
 
-
-
+export const RoomCardBase = as<'div'>(({ className, ...props }, ref) => (
+  <div {...props} className={classNames(css.RoomCardBase, className)} ref={ref} />
 ));
 
-type RoomCardProps = {
-  /** The address the card was opened from: a room ID or an alias. */
-  roomIdOrAlias: string;
-  /** The room ID the server confirmed for that address, when known. */
-  roomId?: string;
-  viaServers?: string[];
-  /** IDs of the rooms the user has joined. */
+/** Where the card points: the address it was opened from, the confirmed ID, how to reach it. */
+type CardTarget = { roomIdOrAlias: string; roomId?: string; viaServers?: string[] };
 
+/** What the directory or summary says about the room; the address stands in for a missing name. */
+type CardListing = { name?: string; topic?: string; avatarUrl?: string };
 
+/** Member count and `m.space` for spaces. */
+type CardFacts = { memberCount?: number; roomType?: string };
 
+/** Renders the full topic, in the dialog that the topic button opens. */
+type TopicViewerRenderer = (name: string, topic: string, requestClose: () => void) => ReactNode;
 
+type RoomCardProps = CardTarget &
+  CardListing &
+  CardFacts & {
+    /** IDs of the rooms the user has joined. */
+    allRooms: string[];
+    /** The access rule the room summary reported. */
+    joinRule?: RoomAccessJoinRule;
+    /** State of the summary request that `joinRule` came from. */
+    accessStatus?: AsyncStatus;
+    /** Retries the summary request after it failed. */
+    onAccessRetry?: () => void;
+    /** Opens a room the user has already joined. */
+    onView?: (roomId: string) => void;
+    renderTopicViewer: TopicViewerRenderer;
+  };
 
-
-
-
-
-  /** The access rule the room summary reported. */
-  joinRule?: RoomAccessJoinRule;
-  /** State of the summary request that `joinRule` came from. */
-  accessStatus?: AsyncStatus;
-  /** Retries the summary request after it failed. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** A room or space in a card grid: avatar, name, topic, members, and the way in (or View). */
+export const RoomCard = as<'div', RoomCardProps>(
+  (
+    {
+      roomIdOrAlias,
+      roomId,
+      viaServers,
+      allRooms,
+      name,
+      topic,
+      avatarUrl,
+      memberCount,
+      roomType,
+      joinRule,
+      accessStatus,
+      onAccessRetry,
+      onView,
+      renderTopicViewer,
+      ...divProps
+    },
+    ref
+  ) => {
+    const { t } = useTranslation();
+    const [topicOpen, setTopicOpen] = useState(false);
 
     // Only an ID the server confirmed counts: a cached room's own alias claim is not trusted.
     const verifiedRoomId = roomId ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : undefined);
@@ -131,12 +131,12 @@ type RoomCardProps = {
     );
 
     return (
-
-
-
-
-
-
+      <RoomCardBase {...divProps} ref={ref}>
+        <Box gap="200" alignItems="Start">
+          <Avatar size="500" radii="400">
+            <RoomAvatar
+              alt={roomName}
+              src={avatarUrl}
               roomId={verifiedRoomId ?? roomIdOrAlias}
               renderFallback={avatarFallback}
             />
@@ -152,23 +152,23 @@ type RoomCardProps = {
               type="button"
               size="T200"
               className={css.RoomCardTopic}
-              onClick={() => setViewTopic(true)}
+              onClick={() => setTopicOpen(true)}
             >
               {topic}
             </Text>
           )}
-          {topic && viewTopic && (
-
-
-
-
-
-
-
+          {topic && topicOpen && (
+            <Overlay open backdrop={<OverlayBackdrop />}>
+              <OverlayCenter>
+                <FocusTrap
+                  focusTrapOptions={{
+                    onDeactivate: () => setTopicOpen(false),
+                    escapeDeactivates: stopPropagation,
+                    clickOutsideDeactivates: true,
                     initialFocus: false,
                   }}
                 >
-                  {renderTopicViewer(roomName, topic, () => setViewTopic(false))}
+                  {renderTopicViewer(roomName, topic, () => setTopicOpen(false))}
                 </FocusTrap>
               </OverlayCenter>
             </Overlay>

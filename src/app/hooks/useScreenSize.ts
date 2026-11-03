@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
 /** Layout classes the app switches between; the values are what tests and logs see. */
+export const ScreenSize = {
+  Desktop: 'Desktop',
+  Mobile: 'Mobile',
+  Tablet: 'Tablet',
+} as const;
 
-
-
-
-}
+export type ScreenSize = (typeof ScreenSize)[keyof typeof ScreenSize];
 
 const MOBILE_MAX_WIDTH = 750;
 const TABLET_MAX_WIDTH = 1124;

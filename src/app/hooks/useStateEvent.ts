@@ -12,21 +12,17 @@ export const useStateEvent = (
 ): MatrixEvent | undefined => {
   const [version, refresh] = useForceUpdate();
 
-
-
-
-      (event: MatrixEvent) => {
-        if (
-          event.getRoomId() === room.roomId &&
-          event.getType() === type &&
-          event.getStateKey() === stateKey
-        ) {
-          refresh();
-        }
-      },
-      [room.roomId, type, stateKey, refresh]
-    )
+  const refreshOnMatch = useCallback(
+    (event: MatrixEvent) => {
+      const matches =
+        event.getRoomId() === room.roomId &&
+        event.getType() === type &&
+        event.getStateKey() === stateKey;
+      if (matches) refresh();
+    },
+    [room.roomId, type, stateKey, refresh]
   );
+  useStateEventCallback(room.client, refreshOnMatch);
 
   return useMemo(() => {
     void version;

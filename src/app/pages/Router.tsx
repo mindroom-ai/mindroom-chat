@@ -185,12 +185,12 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
     <Route>
       <Route path={ROOT_PATH} element={<RootRedirect />} />
       <Route path={CONNECT_PATH} element={<ConnectPage />} />
-
-
-
-
-
-
+      <Route element={<AuthLayout />}>
+        <Route path={LOGIN_PATH} Component={Login} />
+        <Route path={REGISTER_PATH} Component={Register} />
+        <Route path={RESET_PASSWORD_PATH} Component={ResetPassword} />
+      </Route>
+      <Route path={CONNECTIONS_PATH} element={<ConnectionsPage />} />
       <Route element={<ProtectedRoutes hashRouter={hashRouter} />}>
         <Route path={HOME_PATH} element={<SectionPage path={HOME_PATH} nav={<Home />} />}>
           <Route index element={<WelcomePage />} />

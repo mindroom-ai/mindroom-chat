@@ -1,6 +1,6 @@
 import React, { HTMLAttributes, ReactNode, forwardRef } from 'react';
 import classNames from 'classnames';
-import { Box, Icon, Icons, ProgressBar, Text, percent } from 'folds';
+import { Box, Icon, IconButton, Icons, ProgressBar, Text, percent } from 'folds';
 import { bytesToSize } from '../../utils/common';
 import * as css from './UploadCard.css';
 
@@ -25,22 +25,19 @@ export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
       <Box alignItems="Center" gap="200">
         {before}
         <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+          {children}
+        </Box>
+        {after}
+      </Box>
+      {bottom}
+    </Box>
+  )
+);
 
+type UploadCardProgressProps = { sentBytes: number; totalBytes: number };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** The progress line of an upload: a bar, the percentage, and the bytes sent of the total. */
+export function UploadCardProgress({ sentBytes, totalBytes }: UploadCardProgressProps) {
   // A zero-byte file would otherwise divide by zero.
   const total = Math.max(totalBytes, 1);
   return (
@@ -69,3 +66,14 @@ export const UploadCardError = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     </Box>
   )
 );
+
+type UploadCardCancelProps = { label: string; onClick: () => void };
+
+/** The round "x" at the end of an upload card's file row. */
+export function UploadCardCancel({ label, onClick }: UploadCardCancelProps) {
+  return (
+    <IconButton type="button" size="300" radii="Pill" aria-label={label} onClick={onClick}>
+      <Icon src={Icons.Cross} size="50" />
+    </IconButton>
+  );
+}

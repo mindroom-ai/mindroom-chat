@@ -16,10 +16,10 @@ export const getThreadTailEvents = (
   const seenEventIds = new Set<string>();
 
   const addEvent = (mEvent: MatrixEvent | null | undefined) => {
+    if (mEvent === null || mEvent === undefined) return;
 
-
-
-
+    const eventId = mEvent.getId();
+    if (eventId) {
       if (seenEventIds.has(eventId)) return;
       seenEventIds.add(eventId);
     } else if (tailEvents.includes(mEvent)) {

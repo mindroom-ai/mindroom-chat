@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon, IconButton, Icons, Text, color } from 'folds';
-import { UploadCard } from './UploadCard';
+import { Icon, Icons, Text, color } from 'folds';
+import { UploadCard, UploadCardCancel } from './UploadCard';
 import { UploadStatusLine, getFileTypeIcon, getTooLargeError } from './UploadCardRenderer';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
@@ -18,16 +18,15 @@ type CompactUploadCardRendererProps = {
 
 /** A one-file upload (avatar, room icon): starts at once, then reports the result. */
 export function CompactUploadCardRenderer({
-  onRemove,
   uploadAtom,
   uploadKind = 'file',
   onComplete,
-
-
-
-
-  const maxUploadSize = mediaConfig['m.upload.size'];
-  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom);
+  onRemove,
+}: CompactUploadCardRendererProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const maxUploadSize = useMediaConfig()['m.upload.size'];
+  const { upload, startUpload, cancelUpload } = useBindUploadAtom(client, uploadAtom);
   const { file } = upload;
   const tooLargeError = useMemo(
     () => getTooLargeError(file.size, maxUploadSize),
@@ -61,18 +60,13 @@ export function CompactUploadCardRenderer({
           {upload.status === UploadStatus.Success && (
             <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
           )}
-          <IconButton
-            type="button"
-            size="300"
-            radii="Pill"
-            aria-label={t('sharedUi.compactUploadCardRenderer.cancelUpload')}
-
-
-
-
-
-
-
+          <UploadCardCancel
+            label={t('sharedUi.compactUploadCardRenderer.cancelUpload')}
+            onClick={handleRemove}
+          />
+        </>
+      }
+      bottom={
         <UploadStatusLine
           upload={upload}
           blockedError={tooLargeError}

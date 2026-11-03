@@ -50,28 +50,19 @@ function JoinedNavigation({
   return null;
 }
 
-function SummaryCard({
-  summary,
-  roomIdOrAlias,
-  viaServers,
-  eventId,
-  threadId,
-}: {
-  summary: SummaryData;
+/** What the link points at, plus the summary the server gave for it. */
+type SummaryCardProps = JoinBeforeNavigateProps & { summary: SummaryData };
 
-
-
-
-
-
-
-
+function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: SummaryCardProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
   const roomId = summary.room_id;
   const name = summary.name || summary.canonical_alias || roomIdOrAlias;
   let avatarUrl: string | undefined;
   try {
     avatarUrl = summary.avatar_url
-      ? mxcUrlToHttp(mx, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+      ? mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
       : undefined;
   } catch {
     // A client without a homeserver URL yet shows the fallback icon.
@@ -169,13 +160,9 @@ function SummaryCard({
  * way in its join rule allows (join, request to join, or none), before the
  * room itself opens.
  */
-
-
-
-
-
-
-
+export function JoinBeforeNavigate(props: JoinBeforeNavigateProps) {
+  const { roomIdOrAlias, viaServers } = props;
+  const { t } = useTranslation();
 
   return (
     <Page>
@@ -198,11 +185,9 @@ function SummaryCard({
             if (state.status === AsyncStatus.Success) {
               return (
                 <SummaryCard
+                  {...props}
                   summary={state.data as SummaryData}
-                  roomIdOrAlias={roomIdOrAlias}
                   viaServers={resolvedViaServers ?? viaServers}
-                  eventId={eventId}
-                  threadId={threadId}
                 />
               );
             }

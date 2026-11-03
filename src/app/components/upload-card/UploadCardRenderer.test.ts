@@ -141,11 +141,11 @@ describe('upload card renderers', () => {
       React.createElement(UploadCardRenderer, {
         fileItem: {
           file,
-
-
-
-
-          },
+          originalFile: file,
+          // Unencrypted: the upload keeps its file name.
+          encInfo: undefined,
+          // Not marked as a spoiler.
+          metadata: { markedAsSpoiler: false },
         },
         setMetadata: vi.fn(),
         onRemove: vi.fn(),
@@ -167,11 +167,11 @@ describe('upload card renderers', () => {
       React.createElement(UploadCardRenderer, {
         fileItem: {
           file,
-
-
-
-
-          },
+          // A prep error alone has to keep the card from uploading.
+          originalFile: file,
+          encInfo: undefined,
+          // The spoiler flag plays no part in that.
+          metadata: { markedAsSpoiler: false },
           prepError: toMatrixUploadError(new Error('encryption failed'), 'create'),
         },
         setMetadata: vi.fn(),
@@ -197,11 +197,11 @@ describe('upload card renderers', () => {
         isEncrypted: true,
         fileItem: {
           file,
-
-
-
-
-          },
+          // The room is encrypted, yet the file has no encryption info.
+          originalFile: file,
+          encInfo: undefined,
+          // Spoiler flag off, as in the other cases.
+          metadata: { markedAsSpoiler: false },
           prepError,
         },
         setMetadata: vi.fn(),

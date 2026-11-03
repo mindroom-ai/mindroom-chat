@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
 import type { MatrixError } from 'matrix-js-sdk';
-import { UploadCard, UploadCardError, UploadCardProgress } from './UploadCard';
+import { UploadCard, UploadCardCancel, UploadCardError, UploadCardProgress } from './UploadCard';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 import { type Upload, UploadStatus, useBindUploadAtom } from '../../state/upload';
@@ -88,26 +88,25 @@ export function UploadStatusLine({
   return null;
 }
 
-
-
-
-
+type UploadHandlers = {
+  /** Stores new metadata (such as the spoiler flag) for the item. */
+  setMetadata: (item: TUploadItem, metadata: TUploadMetadata) => void;
   onRemove: (file: TUploadItem['file']) => void;
-  /** The room is encrypted: a file that is not encrypted must never upload. */
+};
 
+// With `isEncrypted`, a file that is not encrypted must never upload.
+type UploadCardRendererProps = UploadHandlers & { fileItem: TUploadItem; isEncrypted?: boolean };
 
-
-
-
-
-
-
-
-
-
-
-
-  const maxUploadSize = mediaConfig[MEDIA_UPLOAD_SIZE_KEY];
+/** A staged composer attachment: uploads it at once and shows progress, errors and options. */
+export const UploadCardRenderer = ({
+  fileItem,
+  isEncrypted,
+  setMetadata,
+  onRemove,
+}: UploadCardRendererProps) => {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
   const { file, originalFile, metadata, encInfo, prepError } = fileItem;
 
   // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
@@ -124,11 +123,15 @@ export function UploadStatusLine({
     [file.size, maxUploadSize]
   );
 
-  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, roomUploadAtomFamily(file), {
-    // Only the encrypted blob is uploaded without its name; the name travels inside the event.
-    hideFilename: encInfo !== undefined,
-    blockUploadError,
-  });
+  const { upload, startUpload, cancelUpload } = useBindUploadAtom(
+    client,
+    roomUploadAtomFamily(file),
+    {
+      // Only the encrypted blob is uploaded without its name; the name travels inside the event.
+      hideFilename: encInfo !== undefined,
+      blockUploadError,
+    }
+  );
 
   const blocked = blockUploadError ?? tooLargeError;
   useEffect(() => {
@@ -136,9 +139,9 @@ export function UploadStatusLine({
     startUpload();
   }, [blocked, upload.status, startUpload]);
 
-
-
-
+  const cancelAndRemove = () => {
+    cancelUpload();
+    onRemove(file);
   };
 
   const mimeType = originalFile.type || file.type;
@@ -169,18 +172,13 @@ export function UploadStatusLine({
               <Icon src={Icons.EyeBlind} size="50" />
             </IconButton>
           )}
-          <IconButton
-            type="button"
-            size="300"
-            radii="Pill"
-            aria-label={t('sharedUi.uploadCardRenderer.cancelUpload')}
-
-
-
-
-
-
-
+          <UploadCardCancel
+            label={t('sharedUi.uploadCardRenderer.cancelUpload')}
+            onClick={cancelAndRemove}
+          />
+        </>
+      }
+      bottom={
         <UploadStatusLine
           upload={upload}
           blockedError={blocked}
@@ -198,4 +196,4 @@ export function UploadStatusLine({
       </Text>
     </UploadCard>
   );
-}
+};

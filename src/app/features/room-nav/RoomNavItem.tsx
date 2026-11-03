@@ -51,17 +51,17 @@ type RoomNavItemProps = {
 };
 
 function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () => void }) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const openRoomSettings = useOpenRoomSettings();
 
-
-
-
-
-    void copyToClipboard(getMatrixToRoom(getCanonicalAliasOrRoomId(mx, room.roomId)));
+  const handleCopyLink = () => {
+    void copyToClipboard(getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId)));
     requestClose();
   };
 
   const handleLeave = () => {
-    void mx.leave(room.roomId);
+    void client.leave(room.roomId);
     requestClose();
   };
 
@@ -149,19 +149,18 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected }: RoomNavItemAv
   // A partner without an avatar shows the room's own, which is only looked up then.
   if (!src && personAvatar) src = getRoomAvatarUrl(mx, room, AVATAR_SIZE, useAuthentication);
 
-  const renderFallback = () =>
-    personAvatar ? (
-      <Text as="span" size="H6">
-
-
-
-
-
-
-
-        space={room.getType() === RoomType.Space}
-      />
-    );
+  const renderFallback = () => {
+    if (personAvatar) {
+      return (
+        <Text as="span" size="H6">
+          {nameInitials(name)}
+        </Text>
+      );
+    }
+    const joinRule = room.getJoinRule();
+    const isSpace = room.getType() === RoomType.Space;
+    return <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} />;
+  };
 
   return (
     <Avatar size="200" radii="400">
@@ -178,8 +177,9 @@ type RoomNavOptionsProps = {
 
 function RoomNavOptions({ room, anchor, onAnchorChange }: RoomNavOptionsProps) {
   const { t } = useTranslation();
+  const menuOpen = anchor !== undefined;
   const closeMenu = () => onAnchorChange(undefined);
-  const openMenu = (event: React.MouseEvent<HTMLButtonElement>) =>
+  const anchorToButton = (event: React.MouseEvent<HTMLButtonElement>) =>
     onAnchorChange(event.currentTarget.getBoundingClientRect());
 
   const menu = (
@@ -204,10 +204,10 @@ function RoomNavOptions({ room, anchor, onAnchorChange }: RoomNavOptionsProps) {
           size="300"
           radii="300"
           aria-label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-
-
-
-
+          aria-pressed={menuOpen}
+          onClick={anchorToButton}
+        >
+          <Icon size="50" src={Icons.VerticalDots} />
         </IconButton>
       </PopOut>
     </NavItemOptions>
@@ -222,13 +222,12 @@ export function RoomNavItem(props: RoomNavItemProps) {
   const { room, selected, linkPath, notificationMode, direct, showAvatar } = props;
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
-
-
-
+  const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
+  const name = useRoomName(room);
+  const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
   const jobsRunning = useRoomBackgroundJobs(room).length > 0;
 
-  const menuOpen = menuAnchor !== undefined;
-  const showOptions = engaged || menuOpen;
+  const showOptions = engaged || optionsAnchor !== undefined;
   const mutedMark = notificationMode === RoomNotificationMode.Mute && !unread;
   const jobsLabel = t('mindroomUi.backgroundJobs.inRoom');
 
@@ -251,10 +250,10 @@ export function RoomNavItem(props: RoomNavItemProps) {
       {...engagementProps}
       variant="Background"
       radii="400"
-
-
-
-
+      aria-selected={selected}
+      highlight={Boolean(unread)}
+    >
+      <NavLink to={linkPath}>
         <NavItemContent>
           <Box as="span" grow="Yes" alignItems="Center" gap="200">
             <RoomNavItemAvatar
@@ -286,7 +285,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
         </NavItemContent>
       </NavLink>
       {showOptions ? (
-        <RoomNavOptions room={room} anchor={menuAnchor} onAnchorChange={setMenuAnchor} />
+        <RoomNavOptions room={room} anchor={optionsAnchor} onAnchorChange={setOptionsAnchor} />
       ) : null}
     </NavItem>
   );
