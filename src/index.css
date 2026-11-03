@@ -35,6 +35,9 @@ body {
      (useMobileKeyboardViewportFix); #root stays in normal flow. */
   height: var(--app-height, 100%);
   margin-top: var(--app-viewport-offset-top, 0px);
+  /* The page reaches under the status bar (viewport-fit=cover) with the theme's background,
+     which applyThemeToDom gives html and body; the app itself starts below it. */
+  padding-top: env(safe-area-inset-top, 0px);
   display: flex;
   flex-direction: column;
 }
@@ -58,6 +61,11 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+
+/* A button paints only the fill its own styles give it, not the browser's grey. */
+button {
+  background-color: transparent;
 }
 
 img,
@@ -164,4 +172,15 @@ samp {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* A folds switch moves its thumb with translateX, which reads left to right. In right-to-left
+   languages the thumb starts at the right edge instead, so it moves the other way: 5 px in while
+   off, and over to the left while on. */
+html[dir='rtl'] [role='switch'] > :first-child {
+  transform: translateX(-0.3125rem);
+}
+
+html[dir='rtl'] [role='switch'][aria-checked='true'] > :first-child {
+  transform: translateX(-1.4375rem);
 }
