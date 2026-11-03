@@ -22,6 +22,9 @@ import { useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useKeyDown } from '../../../hooks/useKeyDown';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { usePowerLevelsContext } from '../../../hooks/usePowerLevels';
+import { useRoomCreators } from '../../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { isEmptyEditor } from '../../../components/editor';
 import { Reply } from '../../../components/message';
@@ -42,6 +45,7 @@ import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
+import { canPinRoomEvents } from '../threadPinning';
 import { getLinkedTimelines } from '../linkedTimelines';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { TimelineMessageData, TimelineMessageKind, TimelineMessageRow } from './types';
@@ -271,6 +275,15 @@ export const useTimelineMessageFeature = ({
 
 
 
+  const canPinEvent = !!userId && canPinRoomEvents(creators, powerLevels, userId);
+  // A redaction needs permission to send `m.room.redaction`; redacting someone else's event also
+  // needs the room's `redact` level (Matrix specification, redaction authorization rules).
+  const canSendRedaction = !!userId && permissions.event(MessageEvent.RoomRedaction, userId);
+  const canRedactOthers = !!userId && permissions.action('redact', userId);
+
+
+
+
 
 
 
@@ -358,6 +371,10 @@ export const useTimelineMessageFeature = ({
         linkifyOpts: LINKIFY_OPTS,
       };
       const relations = getEventReactions(row.timelineSet, eventId);
+      const canDelete =
+        canSendRedaction &&
+        !event.isRedacted() &&
+        (event.getSender() === userId || canRedactOthers);
 
       return (
         <React.Fragment key={eventId}>
@@ -369,7 +386,9 @@ export const useTimelineMessageFeature = ({
             highlight={highlighted}
             edit={editable && editingEventId === eventId ? true : undefined}
             onEditId={editable ? setEditingEventId : undefined}
+            canDelete={canDelete}
             canSendReaction={kind !== 'sticker'}
+            canPinEvent={canPinEvent}
             relations={relations}
             reply={
               replyEventId ? (
@@ -425,6 +444,9 @@ export const useTimelineMessageFeature = ({
       );
     },
     [
+      canPinEvent,
+      canRedactOthers,
+      canSendRedaction,
       consumeLiveExpansion,
       dateFormatString,
       decryptions,
@@ -441,6 +463,7 @@ export const useTimelineMessageFeature = ({
       showUrlPreview,
       threadId,
       toggleReaction,
+      userId,
     ]
   );
 
