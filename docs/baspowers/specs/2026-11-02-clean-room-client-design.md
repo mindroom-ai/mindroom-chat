@@ -151,7 +151,7 @@ The pure mapping from SDK timeline items and raw event JSON to view models lives
 
 Sync: `matrix_sdk_ui::sync_service::SyncService` drives `RoomListService` (sliding sync, MSC4186, served by Tuwunel as `sync/v5`) and the encryption sync. `SyncState` is `idle`, `running`, `offline`, or `error` with text.
 
-Timelines: `Room::timeline_builder()`; a thread timeline uses the SDK's thread focus with the root event ID. The room timeline hides thread replies and shows thread summaries on roots, which is how MindRoom conversations look.
+Timelines: `Room::timeline_builder()`. The room timeline uses `TimelineFocus::Live { hide_threaded_events: true }` and shows thread summaries on roots, which is how MindRoom conversations look. A thread timeline uses `TimelineFocus::Thread` with the root event ID. Both exist in 0.19.1.
 
 Sending: `RoomMessageEventContent::text_markdown` through the timeline's send queue (local echo comes free). Thread replies set the thread relation through the timeline in thread focus.
 
@@ -203,7 +203,7 @@ Sending: `RoomMessageEventContent::text_markdown` through the timeline's send qu
 |---|---|
 | `matrix-sdk-ui` on wasm hits a runtime gap (IndexedDB event cache, timers) | M0 ends with a smoke test that logs in and syncs in a real browser against Tuwunel; fall back to the SDK's in-memory stores for M1 if a store fails |
 | Large wasm bundle (SDK plus crypto) | `opt-level = "z"`, LTO, `wasm-opt`; measure in M0; load it with a splash screen |
-| Thread focus or thread summaries missing in SDK 0.19 | Verified during M1; fallback is a filtered live timeline for threads |
+| Thread summaries on roots incomplete in SDK 0.19 (both focus types exist) | Verified during M1; fallback counts replies from the thread timeline |
 | Live frames need custom ephemeral events over sliding sync | Deferred to M2; streaming works through edits without them |
 | Training-data contamination | Similarity audit before each release |
 
