@@ -1,0 +1,151 @@
+import React from 'react';
+import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
+import { useTranslation } from 'react-i18next';
+import type { StoredSession } from '../../../state/sessions';
+import { UserAvatar } from '../../../components/user-avatar';
+
+export type AccountSwitcherAccount = {
+  session: StoredSession;
+  active: boolean;
+  displayName?: string;
+  avatarUrl?: string;
+};
+
+type AccountSwitcherProps = {
+  accounts: AccountSwitcherAccount[];
+  /** The session being switched to or removed, while that runs. */
+  busySessionId?: string;
+  /** Why the last switch or removal failed. */
+  error?: string;
+  onOpenSettings: () => void;
+  onSwitchAccount: (session: StoredSession) => void;
+  onRemoveAccount: (session: StoredSession) => void;
+  onAddAccount?: () => void;
+  onClose: () => void;
+};
+
+function AccountRow({
+  account,
+  busy,
+  onOpenSettings,
+  onSwitchAccount,
+  onRemoveAccount,
+}: {
+  account: AccountSwitcherAccount;
+  busy: boolean;
+  onOpenSettings: () => void;
+  onSwitchAccount: (session: StoredSession) => void;
+  onRemoveAccount: (session: StoredSession) => void;
+}) {
+  const { t } = useTranslation();
+  const { session, active, displayName, avatarUrl } = account;
+  const name = displayName ?? session.userId;
+
+  return (
+    <Box
+      direction="Column"
+      gap="200"
+      style={{ padding: config.space.S300, borderRadius: config.radii.R400 }}
+    >
+
+
+
+
+
+
+
+
+
+
+          <Text size="T300" truncate>
+            {name}
+          </Text>
+          <Text size="T200" priority="300" truncate>
+            {session.userId}
+          </Text>
+        </Box>
+        {active && (
+          <Icon size="100" src={Icons.Check} aria-label={t('featureUi.accountSwitcher.active')} />
+        )}
+      </Box>
+      <Box gap="200" wrap="Wrap">
+        {active ? (
+          <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onOpenSettings}>
+            <Text size="B300">{t('featureUi.accountSwitcher.openSettings')}</Text>
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="300"
+              variant="Primary"
+              fill="Soft"
+              radii="300"
+              disabled={busy}
+              onClick={() => onSwitchAccount(session)}
+            >
+              {busy ? (
+                <Spinner size="100" />
+              ) : (
+                <Text size="B300">{t('featureUi.accountSwitcher.switch')}</Text>
+              )}
+            </Button>
+
+
+
+
+
+
+
+
+
+            </Button>
+          </>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+/** The accounts signed in on this device: switch, remove, or add one. */
+export function AccountSwitcher({
+  accounts,
+  busySessionId,
+  error,
+  onOpenSettings,
+  onSwitchAccount,
+  onRemoveAccount,
+  onAddAccount,
+  onClose,
+}: AccountSwitcherProps) {
+  const { t } = useTranslation();
+  return (
+    <Box direction="Column" gap="200" style={{ padding: config.space.S400 }}>
+      <Text size="H4">{t('featureUi.accountSwitcher.title')}</Text>
+      {error && (
+        <Text size="T200" role="alert">
+          {error}
+        </Text>
+      )}
+      {accounts.map((account) => (
+        <AccountRow
+          key={account.session.sessionId}
+          account={account}
+          busy={busySessionId === account.session.sessionId}
+          onOpenSettings={onOpenSettings}
+          onSwitchAccount={onSwitchAccount}
+          onRemoveAccount={onRemoveAccount}
+        />
+      ))}
+      <Box gap="200" justifyContent="End">
+        {onAddAccount && (
+          <Button size="300" variant="Primary" radii="300" onClick={onAddAccount}>
+            <Text size="B300">{t('featureUi.accountSwitcher.addAccount')}</Text>
+          </Button>
+        )}
+        <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClose}>
+          <Text size="B300">{t('featureUi.accountSwitcher.close')}</Text>
+        </Button>
+      </Box>
+    </Box>
+  );
+}
