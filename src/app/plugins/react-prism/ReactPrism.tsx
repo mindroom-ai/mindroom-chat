@@ -64,6 +64,7 @@ const renderTokens = (stream: Prism.TokenStream, key: string): ReactNode => {
 type PrismCodeProps = {
   code: string;
   language?: string;
+  id?: string;
   className?: string;
   style?: React.CSSProperties;
 };
@@ -73,14 +74,18 @@ type PrismCodeProps = {
  * React renders the tokens itself, so a streamed edit never shows uncolored code and Prism never
  * changes elements React owns. Code in a language Prism does not know is shown as text.
  */
-export function PrismCode({ code, language, className, style }: PrismCodeProps) {
+export function PrismCode({ code, language, id, className, style }: PrismCodeProps) {
   const grammar = getPrismGrammar(language);
   const content = useMemo(
     () => (grammar ? renderTokens(Prism.tokenize(code, grammar), 'token') : code),
     [code, grammar]
   );
   return (
-    <code className={classNames(className, language && `language-${language}`)} style={style}>
+    <code
+      id={id}
+      className={classNames(className, language && `language-${language}`)}
+      style={style}
+    >
       {content}
     </code>
   );

@@ -248,6 +248,8 @@ const COLLAPSED_LINES = 12;
 // Wrapped lines are estimated from their length; message columns fit about this many characters.
 const WRAPPED_LINE_CHARACTERS = 80;
 const COPIED_FEEDBACK_MS = 2000;
+// The code element of every block; the id repeats per block, so look it up inside its <pre>.
+const CODE_BLOCK_CONTENT_ID = 'code-block-content';
 
 const countShownLines = (code: string, wrap: boolean): number =>
   code
@@ -312,13 +314,13 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   let body: ReactNode;
   if (formatted && opts) {
     body = (
-      <code className={css.CodeBlockInternal} style={codeStyle}>
+      <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
         {domToReact(children, opts)}
       </code>
     );
   } else if (searchMatch) {
     body = (
-      <code className={css.CodeBlockInternal} style={codeStyle}>
+      <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
         {renderStyledText(code, highlightRegex)}
       </code>
     );
@@ -326,7 +328,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     body = (
       <ErrorBoundary
         fallback={
-          <code className={css.CodeBlockInternal} style={codeStyle}>
+          <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
             {code}
           </code>
         }
@@ -334,6 +336,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
         <PrismCode
           code={code}
           language={language}
+          id={CODE_BLOCK_CONTENT_ID}
           className={css.CodeBlockInternal}
           style={codeStyle}
         />
@@ -399,7 +402,8 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
         className={css.CodeBlockScroll}
         style={
           collapsed
-            ? { maxHeight: `${COLLAPSED_LINES * 1.5}em`, overflow: 'hidden' }
+            ? // Collapsed, long lines still scroll sideways when they do not wrap.
+              { maxHeight: `${COLLAPSED_LINES * 1.5}em`, overflowY: 'hidden' }
             : { maxHeight: 'none' }
         }
       >
