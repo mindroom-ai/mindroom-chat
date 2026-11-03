@@ -8,6 +8,7 @@ import { ScreenSizeProvider, useScreenSize } from '../hooks/useScreenSize';
 import { useActiveSession } from '../hooks/useSessionStore';
 import { ThemeContextProvider, useSystemDefaultTheme, useTheme } from '../hooks/useTheme';
 import { usePageZoom } from '../hooks/usePageZoom';
+import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewportFix';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { applyThemeToDom } from '../theme/themeBootstrap';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
@@ -49,6 +50,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
 
 /** The app: client configuration, shared providers, and the router. */
 function App() {
+  // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
+  useMobileKeyboardViewportFix();
   return (
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>

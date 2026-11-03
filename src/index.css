@@ -31,9 +31,25 @@ body {
 }
 
 #root {
-  height: 100%;
+  /* --app-height and --app-viewport-offset-top follow a keyboard-panned visual viewport
+     (useMobileKeyboardViewportFix); #root stays in normal flow. */
+  height: var(--app-height, 100%);
+  margin-top: var(--app-viewport-offset-top, 0px);
   display: flex;
   flex-direction: column;
+}
+
+/* Neither the viewport nor body ever scrolls, not even to bring a focused field into view, so the
+   keyboard offset above is the only shift: html gives the viewport its hidden overflow, body
+   clips (clip, unlike hidden, is no scroll container), and flow-root keeps the #root margin from
+   collapsing through body. */
+html {
+  overflow: hidden;
+}
+
+body {
+  display: flow-root;
+  overflow: clip;
 }
 
 button,
