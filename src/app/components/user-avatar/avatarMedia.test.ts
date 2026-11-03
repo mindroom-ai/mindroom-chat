@@ -172,6 +172,34 @@ describe('fetchAvatar', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('drops only the images of an account that signs out', async () => {
+    await fetchAvatar(client('@alice:hs.test'), AUTHED);
+    await fetchAvatar(client('@bob:hs.test', HS, 'bob-token'), AUTHED);
+
+    clearFetchedAvatars('@alice:hs.test');
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:avatar-1');
+    expect(peekFetchedAvatar(client('@alice:hs.test'), AUTHED)).toBe(undefined);
+    expect(peekFetchedAvatar(client('@bob:hs.test'), AUTHED)).toBe('blob:avatar-2');
+  });
+
+  it('does not keep a download that finishes after its account signed out', async () => {
+    let finish!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const pending = fetchAvatar(client(), AUTHED);
+    clearFetchedAvatars('@alice:hs.test');
+    finish(new Response(new Blob(['png']), { status: 200 }));
+
+    expect(await pending).toBe('blob:avatar-1');
+    expect(peekFetchedAvatar(client(), AUTHED)).toBe(undefined);
+  });
+
   it('revokes the least recently used image once the cache is full', async () => {
     const urls = Array.from({ length: 301 }, (_, i) => `${AUTHED}&n=${i}`);
     for (const url of urls.slice(0, 300)) {

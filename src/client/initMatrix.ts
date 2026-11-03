@@ -4,6 +4,8 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
+import * as sessionLifecycle from '../app/mindroom/matrix/sessionLifecycle';
+import { clearFetchedAvatars } from '../app/components/user-avatar/avatarMedia';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../app/mindroom/matrix/clientSyncPolicy';
 import {
   type ClientBootstrapSession,
@@ -13,6 +15,7 @@ import {
   MissingCryptoStoreError,
 } from '../app/mindroom/matrix/cryptoStoreContinuity';
 import {
+  type StoredSession,
   getSessionRustCryptoStorePrefix,
   getSessionStoreName,
   hasInitializedCryptoStore,
@@ -22,14 +25,43 @@ import { createStoredSessionTokenRefresh } from './sessionTokenRefresh';
 import { cryptoCallbacks } from './secretStorageKeys';
 
 // Account removal, logout and cache clearing live in the MindRoom session lifecycle module;
-// this module is the startup orchestrator and re-exports them for the app shell.
+// this module is the startup orchestrator and hands them to the app shell. The ones that end an
+// account's session also drop the avatars that account fetched (avatarMedia keeps them per account).
 export {
-  clearAllCacheAndReload,
-  logoutClient,
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
-  removeStoredSession,
 } from '../app/mindroom/matrix/sessionLifecycle';
+
+// The account a client signed in as, or undefined when it has none (then every avatar goes).
+const accountOf = (mx: MatrixClient): string | undefined => {
+  try {
+    return mx.getSafeUserId();
+  } catch {
+    return undefined;
+  }
+};
+
+export const logoutClient = async (mx: MatrixClient): Promise<void> => {
+  const userId = accountOf(mx);
+  try {
+    await sessionLifecycle.logoutClient(mx);
+  } finally {
+    clearFetchedAvatars(userId);
+  }
+};
+
+export const removeStoredSession = async (session: StoredSession): Promise<void> => {
+  try {
+    await sessionLifecycle.removeStoredSession(session);
+  } finally {
+    clearFetchedAvatars(session.userId);
+  }
+};
+
+export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
+  clearFetchedAvatars();
+  await sessionLifecycle.clearAllCacheAndReload(mx);
+};
 export { DeviceIdentityVerificationError, MissingCryptoStoreError };
 // How the client syncs is the MindRoom sync policy's; the app shell starts the client from here.
 export {

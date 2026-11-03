@@ -112,7 +112,12 @@ export const canFetchAvatar = (mx: AvatarMediaClient, src: string): boolean =>
 // Object URLs of fetched avatars, most recently used last. The cap bounds memory in rooms with
 // thousands of members; an `<img>` keeps showing an image whose URL was revoked after it loaded.
 const MAX_CACHED_AVATARS = 300;
-type CachedAvatar = { objectUrl?: string; pending?: Promise<string | undefined> };
+// `cleared` marks an entry dropped by clearFetchedAvatars while it downloaded.
+type CachedAvatar = {
+  objectUrl?: string;
+  pending?: Promise<string | undefined>;
+  cleared?: boolean;
+};
 const fetchedAvatars = new Map<string, CachedAvatar>();
 
 // Each account has its own entries, so one account never reuses what another fetched.
@@ -186,17 +191,22 @@ export const fetchAvatar = (mx: AvatarMediaClient, src: string): Promise<string 
       }
       entry.objectUrl = objectUrl;
       // Evicted while it downloaded: keep it after all, it is about to be shown.
-      if (!fetchedAvatars.has(key)) touch(key, entry);
+      if (!fetchedAvatars.has(key) && !entry.cleared) touch(key, entry);
       return objectUrl;
     });
   touch(key, entry);
   return entry.pending;
 };
 
-/** Drops every fetched avatar and revokes its object URL. */
-export const clearFetchedAvatars = () => {
-  fetchedAvatars.forEach((entry) => {
+/**
+ * Drops fetched avatars and revokes their object URLs: those one account fetched when `userId`
+ * is given (it signed out), otherwise every account's.
+ */
+export const clearFetchedAvatars = (userId?: string) => {
+  [...fetchedAvatars].forEach(([key, entry]) => {
+    if (userId !== undefined && !key.startsWith(`${userId}\n`)) return;
+    fetchedAvatars.delete(key);
+    entry.cleared = true;
     if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
   });
-  fetchedAvatars.clear();
 };
