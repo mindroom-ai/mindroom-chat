@@ -19,6 +19,7 @@ export const SequenceCard = as<'div', SequenceCardProps>(
   ({ as: AsCard = 'div', className, variant = 'SurfaceVariant', outlined, ...props }, ref) => (
     <Box
       as={AsCard}
+      data-sequence-card=""
       className={classNames(ContainerColor({ variant }), css.SequenceCard({ outlined }), className)}
       {...props}
       ref={ref}
