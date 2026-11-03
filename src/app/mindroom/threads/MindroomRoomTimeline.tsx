@@ -273,6 +273,10 @@ const expandAllToggleStyle: React.CSSProperties = {
   borderRadius: config.radii.R300,
   border: `1px solid ${color.Primary.ContainerLine}`,
   color: color.Primary.Main,
+  // Rows scroll beneath it under the thread banner, so it frosts them like the banner does.
+  backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 72%, transparent)`,
+  backdropFilter: 'blur(3px)',
+  WebkitBackdropFilter: 'blur(3px)',
 };
 
 /** A pill over the timeline that takes the reader somewhere or settles the unread state. */
@@ -1569,13 +1573,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
           )}
           <span ref={atBottomAnchorRef} />
         </Box>
+        {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
+            placed by the timeline box, so it stays between the header and the composer. */}
+        <InsetScrollbar
+          scrollRef={scrollRef}
+          contentRef={contentRef}
+          className={overlay.Scrollbar}
+          label={t('threadNav.messages')}
+        />
       </Scroll>
-      <InsetScrollbar
-        scrollRef={scrollRef}
-        contentRef={contentRef}
-        className={overlay.Scrollbar}
-        label={t('threadNav.messages')}
-      />
       {minimap.minimapItems.length > 0 && (
         <TimelineMinimap
           items={minimap.minimapItems}
