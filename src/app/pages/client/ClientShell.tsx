@@ -9,6 +9,7 @@ import {
   useRoomsNotificationPreferences,
 } from '../../hooks/useRoomsNotificationPreferences';
 import { SettingsModalRenderer } from '../../features/settings/SettingsModalRenderer';
+import { RoomSettingsRenderer } from '../../features/room-settings/RoomSettingsRenderer';
 import { UserRoomProfileRenderer } from '../../components/user-profile/UserRoomProfileRenderer';
 import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPaletteRenderer';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
@@ -52,6 +53,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <ClientNonUIFeatures />
           {children}
           <SettingsModalRenderer />
+          <RoomSettingsRenderer />
           <CommandPaletteRenderer />
           <UserRoomProfileRenderer />
         </RoomsNotificationPreferencesProvider>
