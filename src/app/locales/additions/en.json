@@ -62,6 +62,11 @@
     "settings": {
       "devices": {
         "loadFailed": "Could not load your devices."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Unblock"
+        }
       }
     },
     "createChat": {
