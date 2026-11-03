@@ -147,31 +147,32 @@ export const CodeBlockScroll = style({
   background: `linear-gradient(transparent, ${color.SurfaceVariant.Container})`,
 });
 
+type ContainerTone = { Container: string; OnContainer: string; ContainerLine: string };
+
+const ring = (width: string, tint: string) => `0 0 0 ${width} ${tint}`;
+
+// The chip surface, text and ring all come from one container tone.
+const mentionTone = (tone: ContainerTone) => ({
+  color: tone.OnContainer,
+  backgroundColor: tone.Container,
+  boxShadow: ring(config.borderWidth.B300, tone.ContainerLine),
+});
+
 export const Mention = recipe({
   base: {
+    ...mentionTone(color.SurfaceVariant),
+    cursor: 'pointer',
     display: 'inline',
-
-
-
-
-
-
+    paddingBlock: 0,
+    paddingInline: toRem(2),
+    borderRadius: config.radii.R300,
+    fontWeight: config.fontWeight.W500,
     textDecoration: 'none',
-
-
-
-
-
-
-
-
-
-
-
-
-
-      },
-    },
+  },
+  // `focus` is declared last so its ring replaces the tone's outline when both apply.
+  variants: {
+    highlight: { true: mentionTone(color.Success) },
+    focus: { true: { boxShadow: ring(config.borderWidth.B400, color.Other.FocusRing) } },
   },
 });
 

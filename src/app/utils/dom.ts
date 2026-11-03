@@ -140,49 +140,55 @@ export function selectFile(accept: string, multiple = false): Promise<File | Fil
   });
 }
 
+const encodeCanvas = (canvas: HTMLCanvasElement, mimeType: string): Promise<Blob | undefined> =>
+  new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob ?? undefined), mimeType);
+  });
+
 /** Draws `source` at the given size and encodes it, or resolves undefined when the canvas cannot. */
-export const getThumbnail = (
+export const getThumbnail = async (
   source: CanvasImageSource,
   width: number,
   height: number,
   thumbnailMimeType = 'image/jpeg'
+): Promise<Blob | undefined> => {
+  const canvas = Object.assign(document.createElement('canvas'), { width, height });
+  const context = canvas.getContext('2d');
+  if (context === null) return undefined;
 
+  context.drawImage(source, 0, 0, width, height);
+  return encodeCanvas(canvas, thumbnailMimeType);
+};
 
-
-
-
-
-
-
-
-
-
-    canvas.toBlob((blob) => resolve(blob ?? undefined), thumbnailMimeType);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      video.onloadeddata = null;
-      resolve(video);
-    };
-    video.onerror = () => reject(new Error(`Could not load video ${url}`));
-    video.src = url;
+/** Points `element` at `url` and settles on its first `readyEvent` or its first `error`. */
+const loadMedia = <T extends HTMLImageElement | HTMLVideoElement>(
+  element: T,
+  readyEvent: 'load' | 'loadeddata',
+  url: string
+): Promise<T> =>
+  new Promise((resolve, reject) => {
+    element.addEventListener(readyEvent, () => resolve(element), { once: true });
+    element.addEventListener(
+      'error',
+      () =>
+        reject(
+          new Error(`Could not load ${element.localName === 'img' ? 'image' : 'video'} ${url}`)
+        ),
+      { once: true }
+    );
+    element.src = url;
   });
+
+/** Loads an image from a URL, for its dimensions or to draw a thumbnail. */
+export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
+  loadMedia(document.createElement('img'), 'load', url);
+
+/** Loads a video's metadata and first frame from a URL. */
+export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
+  const video = document.createElement('video');
+  Object.assign(video, { preload: 'metadata', playsInline: true, muted: true });
+  return loadMedia(video, 'loadeddata', url);
+};
 
 export const getDataTransferFiles = (dataTransfer: DataTransfer): File[] | undefined => {
   const files = Array.from(dataTransfer.files ?? []);
