@@ -196,7 +196,13 @@ function ThreadNavItemRow({
           <NavButton
             type="button"
             onClick={onOpen}
-            aria-label={t('thread.aria.openThread', { title })}
+            aria-label={[
+              t('thread.aria.openThread', { title }),
+              entry.roomName,
+              relativeTime && `${t('threadNav.lastActivity')} ${relativeTime}`,
+            ]
+              .filter(Boolean)
+              .join('. ')}
           >
             <NavItemContent as="span">
               <Box as="span" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
