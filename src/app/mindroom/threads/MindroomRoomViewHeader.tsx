@@ -14,6 +14,7 @@ import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useRoomViewMode } from './useRoomViewMode';
 import type { RoomViewMode } from './roomViewMode';
+import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import * as css from './MindroomRoomViewHeader.css';
 
 export type RoomViewHeaderProps = {
@@ -21,7 +22,18 @@ export type RoomViewHeaderProps = {
   joinRequestCount?: number;
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  /** Whether an agent showed its computer in this conversation. */
+  computerShown?: boolean;
   onComputerToggle?: () => void;
+  /** Whether a canvas holds the side panel; the Members button replaces it. */
+  canvasOpen?: boolean;
+  /** This conversation's canvases, newest first; undefined while canvases are off. */
+  canvases?: CanvasListEntry[];
+  openCanvasId?: string;
+  onCanvasOpen?: (canvasId: string) => void;
+  onCanvasClose?: () => void;
+  /** The open thread, undefined for the room's main timeline. */
+  threadId?: string;
 };
 
 /**
