@@ -106,10 +106,8 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
             {title}
           </Text>
         </Box>
-        <MarkRoomsReadMenu
-          label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-          roomIds={roomIds}
-        />
+        {/* Its own name, so it is not taken for a room's More Options button. */}
+        <MarkRoomsReadMenu label={t('featureUi.homeNav.options')} roomIds={roomIds} />
       </Box>
     </PageNavHeader>
   );

@@ -76,6 +76,12 @@
     },
     "createChat": {
       "failed": "Could not start the chat. Try again."
+    },
+    "homeNav": {
+      "options": "Home Options"
+    },
+    "directNav": {
+      "options": "Direct Messages Options"
     }
   },
   "mindroomUi": {

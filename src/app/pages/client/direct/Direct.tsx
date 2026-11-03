@@ -18,8 +18,8 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { mDirectAtom } from '../../../state/mDirectList';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { stopPropagation } from '../../../utils/keyboard';
@@ -65,10 +65,10 @@ function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[
 const byLatestActivity = (a: Room, b: Room): number =>
   b.getLastActiveTimestamp() - a.getLastActiveTimestamp();
 
-/** The joined direct rooms, by latest activity. */
+/** The joined direct rooms the user has not archived, by latest activity. */
 function useDirectRooms(): Room[] {
   const client = useMatrixClient();
-  const roomIds = useAtomValue(allRoomsAtom);
+  const roomIds = useAtomValue(navigationRoomsAtom);
   const directIds = useAtomValue(mDirectAtom);
 
   return useMemo(() => {
@@ -104,7 +104,7 @@ export function Direct() {
                 </Text>
               </Box>
               <DirectOptionsMenu
-                label={t('featureUi.roomNav.roomNavItem.moreOptions')}
+                label={t('featureUi.directNav.options')}
                 roomIds={dmRooms.map((room) => room.roomId)}
               />
             </Box>
