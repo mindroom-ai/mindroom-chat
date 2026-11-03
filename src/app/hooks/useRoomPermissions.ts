@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { IPowerLevels, PowerLevelAction, readPowerLevel } from './usePowerLevels';
 
-type RoomPermissionsAPI = {
+type RoomPermissions = {
   /** Whether `userId` may send a message event of `eventType`. */
   event: (eventType: string, userId: string) => boolean;
   /** Whether `userId` may send a state event of `eventType`. */
@@ -9,33 +9,32 @@ type RoomPermissionsAPI = {
   /** Whether `userId` may invite, kick, ban, redact others' events, or see history. */
   action: (action: PowerLevelAction, userId: string) => boolean;
   /** Whether `userId` may trigger the `@room` notification (or another notification key). */
-
-
-
-
-
-
-
-
-
-
-
-
-    creators.has(userId) ? Infinity : readPowerLevel.user(powerLevels, userId);
-
-  return {
-    event: (eventType, userId) => userLevel(userId) >= readPowerLevel.event(powerLevels, eventType),
-    stateEvent: (eventType, userId) =>
-      userLevel(userId) >= readPowerLevel.state(powerLevels, eventType),
-    action: (action, userId) => userLevel(userId) >= readPowerLevel.action(powerLevels, action),
-    notification: (key, userId) =>
-      userLevel(userId) >= readPowerLevel.notification(powerLevels, key),
-  };
+  notification: (key: string, userId: string) => boolean;
 };
 
+/**
+ * Answers permission questions from a room's power levels. Room creators (room version 12 and
+ * later, Matrix spec: room version 12 "creators") outrank every power level.
+ */
+export function getRoomPermissionsAPI(
+  creatorIds: ReadonlySet<string>,
+  levels: IPowerLevels
+): RoomPermissions {
+  const levelOf = (userId: string) =>
+    creatorIds.has(userId) ? Infinity : readPowerLevel.user(levels, userId);
+
+  return {
+    event: (eventType, userId) => levelOf(userId) >= readPowerLevel.event(levels, eventType),
+    stateEvent: (eventType, userId) => levelOf(userId) >= readPowerLevel.state(levels, eventType),
+    action: (action, userId) => levelOf(userId) >= readPowerLevel.action(levels, action),
+    notification: (key, userId) => levelOf(userId) >= readPowerLevel.notification(levels, key),
+  };
+}
+
 /** Memoized {@link getRoomPermissionsAPI} for a component. */
-
-
-
-): RoomPermissionsAPI =>
-  useMemo(() => getRoomPermissionsAPI(creators, powerLevels), [creators, powerLevels]);
+export function useRoomPermissions(
+  creatorIds: ReadonlySet<string>,
+  levels: IPowerLevels
+): RoomPermissions {
+  return useMemo(() => getRoomPermissionsAPI(creatorIds, levels), [creatorIds, levels]);
+}

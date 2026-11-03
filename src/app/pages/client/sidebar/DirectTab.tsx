@@ -27,9 +27,9 @@ type DirectTabProps = {
 
 /** The Direct Messages button of the icon rail. */
 export function DirectTab({ onSelect }: DirectTabProps) {
-
-
-
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const selected = useDirectSelected();
   const navToActivePath = useAtomValue(useNavToActivePathAtom());
   const directs = useAtomValue(mDirectAtom);
@@ -40,7 +40,7 @@ export function DirectTab({ onSelect }: DirectTabProps) {
   const handleClick = () => {
     if (onSelect?.(selected)) return;
     const lastPath = navToActivePath.get('direct');
-    if (screenSize === ScreenSize.Mobile && !selected) {
+    if (isMobile && !selected) {
       navigate(getDirectPath());
       return;
     }

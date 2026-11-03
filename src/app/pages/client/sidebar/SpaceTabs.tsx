@@ -30,21 +30,24 @@ import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 
 function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
-
-
-
-
-  const unread = useRoomUnread(space.roomId, roomToUnreadAtom);
-  const avatarUrl = getRoomAvatarUrl(mx, space, 96, useAuthentication);
-  const spaceRooms = useSpaceSearchRooms(space.roomId);
+  const client = useMatrixClient();
+  const { roomId, name } = space;
+  const navigate = useNavigate();
+  const useAuthentication = useMediaAuthentication();
+  const activePaths = useAtomValue(useNavToActivePathAtom());
+  const unread = useRoomUnread(roomId, roomToUnreadAtom);
+  const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
+  const spaceRooms = useSpaceSearchRooms(roomId);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
+  const closeMenu = () => setMenuAnchor(undefined);
+
   const handleClick = () => {
-    const lastPath = navToActivePath.get(space.roomId);
+    const lastPath = activePaths.get(roomId);
     navigate(
       lastPath
         ? joinPathComponent(lastPath)
-        : getSpacePath(getCanonicalAliasOrRoomId(mx, space.roomId))
+        : getSpacePath(getCanonicalAliasOrRoomId(client, roomId))
     );
   };
 
@@ -56,31 +59,28 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={space.name}>
+      <SidebarItemTooltip tooltip={name}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             size="400"
-            aria-label={space.name}
+            aria-label={name}
             onClick={handleClick}
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
             <RoomAvatar
-
-
-
-              renderFallback={() => <Text size="H4">{nameInitials(space.name, 2)}</Text>}
+              alt={name}
+              roomId={roomId}
+              src={avatarUrl}
+              renderFallback={() => <Text size="H4">{nameInitials(name, 2)}</Text>}
             />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>
       {unreadBadge}
-      <SidebarContextMenu anchor={menuAnchor} onClose={() => setMenuAnchor(undefined)}>
-        <MindroomMarkRoomsReadMenuItem
-          roomIds={spaceRooms}
-          onClose={() => setMenuAnchor(undefined)}
-        />
+      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
+        <MindroomMarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
       </SidebarContextMenu>
     </SidebarItem>
   );
@@ -88,19 +88,19 @@ function SpaceTab({ space, selected }: { space: Room; selected: boolean }) {
 
 /** The joined top-level spaces in the icon rail. */
 export function SpaceTabs() {
-
-
-
-
-
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  const selectedSpaceId = useSelectedSpace();
 
   const spaces = useMemo(
     () =>
-      rooms
-        .map((roomId) => mx.getRoom(roomId))
+      joinedRoomIds
+        .map((roomId) => client.getRoom(roomId))
         .filter((room): room is Room => !!room && isSpace(room))
-        .filter((room) => (roomToParents.get(room.roomId)?.size ?? 0) === 0),
-    [mx, rooms, roomToParents]
+        .filter((room) => (parentsByRoom.get(room.roomId)?.size ?? 0) === 0),
+    [client, joinedRoomIds, parentsByRoom]
   );
 
   if (spaces.length === 0) return null;

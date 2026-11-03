@@ -27,19 +27,27 @@ globalStyle(
   { pointerEvents: 'auto' }
 );
 
-export const SplashScreenContent = style({
+/** Stacks above the particle canvas that paints behind the splash screen. */
+const Layer = style({
   position: 'relative',
-  display: 'flex',
-
-
-
-
-
-
-
-  position: 'relative',
-  paddingInline: config.space.S400,
-  paddingTop: config.space.S400,
-  paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
-  opacity: config.opacity.P300,
+  zIndex: 1,
 });
+
+export const SplashScreenContent = style([
+  Layer,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+]);
+
+/** The app name pinned under the content, clear of the home indicator on phones. */
+export const SplashScreenFooter = style([
+  Layer,
+  {
+    paddingInline: config.space.S400,
+    paddingTop: config.space.S400,
+    paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
+    opacity: config.opacity.P300,
+  },
+]);

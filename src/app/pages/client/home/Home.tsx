@@ -144,11 +144,11 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
 }
 
 /** The Home navigation: room actions, the rooms outside spaces, threads, and recently opened. */
-
-
-
-
-
+export function Home() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const listScrollRef = useRef<HTMLDivElement>(null);
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper('home', true);
   const homeRooms = useVisibleRooms(useHomeRooms());
@@ -165,16 +165,16 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
   const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
-  const sortedRooms = useMemo(() => {
-    const items = sortRooms(mx, homeRooms);
+  const listedRoomIds = useMemo(() => {
+    const items = sortRooms(client, homeRooms);
     if (!roomsClosed) return items;
     // A collapsed category still shows the selected room.
     return items.filter((roomId) => roomId === selectedRoomId);
-  }, [mx, homeRooms, roomsClosed, selectedRoomId]);
+  }, [client, homeRooms, roomsClosed, selectedRoomId]);
 
-
-
-
+  const virtualizer = useVirtualizer({
+    getScrollElement: () => listScrollRef.current,
+    count: listedRoomIds.length,
     estimateSize: () => ROOM_ROW_HEIGHT,
     overscan: 10,
   });
@@ -235,7 +235,7 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
           options={roomActions}
         />
       ) : (
-        <PageNavContent scrollRef={scrollRef}>
+        <PageNavContent scrollRef={listScrollRef}>
           <Box direction="Column" gap="300">
             {roomActions}
             <NavCategory>
@@ -250,8 +250,8 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
               </NavCategoryHeader>
               <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
                 {virtualizer.getVirtualItems().map((item) => {
-                  const roomId = sortedRooms[item.index];
-                  const room = mx.getRoom(roomId);
+                  const roomId = listedRoomIds[item.index];
+                  const room = client.getRoom(roomId);
                   if (!room) return null;
                   return (
                     <VirtualTile
@@ -261,7 +261,7 @@ function RoomAction({ action, icon, label, selected, onSelect }: RoomActionProps
                     >
                       <RoomNavItem
                         room={room}
-                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
+                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId))}
                         selected={roomId === selectedRoomId}
                         notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
                       />

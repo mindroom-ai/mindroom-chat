@@ -24,9 +24,9 @@ import {
 import { useIOSPushEnabled } from './useIOSPushEnabled';
 
 function IOSPushNotificationTile() {
-
-
-
+  const matrixClient = useMatrixClient();
+  const clientConfig = useClientConfig();
+  const { t } = useTranslation();
   const sessionId = useActiveSession()?.sessionId;
   const language = useAppLanguageCode();
   const enabled = useIOSPushEnabled(sessionId);
@@ -56,10 +56,10 @@ function IOSPushNotificationTile() {
           return;
         }
         setIOSPushEnabled(false, sessionId);
-        if (pushConfig) await disableIOSPushPusher(mx, pushConfig, sessionId);
+        if (pushConfig) await disableIOSPushPusher(matrixClient, pushConfig, sessionId);
         await unregisterIOSPush();
       },
-      [mx, pushConfig, sessionId]
+      [matrixClient, pushConfig, sessionId]
     )
   );
 

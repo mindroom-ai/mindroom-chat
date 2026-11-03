@@ -1,4 +1,4 @@
-import React, { ChangeEventHandler, FormEventHandler, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -49,73 +49,59 @@ type JoinAddressPromptProps = {
 
 const TITLE_ID = 'join-address-prompt-title';
 
+// Clicking outside or pressing Escape closes the dialog. Initial focus is left to the address
+// field, which focuses itself.
+const TRAP_DISMISSAL = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
+
+const DIALOG_STYLE = { width: '100%', maxWidth: toRem(440) };
+
+const FORM_STYLE = { padding: `0 ${config.space.S400} ${config.space.S400}` };
+
+const TITLE_BAR_STYLE = {
+  paddingBlock: 0,
+  paddingInline: `${config.space.S400} ${config.space.S200}`,
+};
+
 /** Dialog that opens a room from an alias, a room ID, or a matrix.to link. */
 export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [invalid, setInvalid] = useState(false);
 
-  const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
-    setValue(evt.target.value);
+  const handleChange = ({ target }: ChangeEvent<HTMLInputElement>) => {
+    setValue(target.value);
     // Editing the address clears the error until the next submit.
+    setInvalid(false);
+  };
 
+  const submitAddress = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsed = parseJoinAddress(value);
+    if (parsed) onOpen(parsed.roomIdOrAlias, parsed.viaServers, parsed.eventId);
+    else setInvalid(true);
+  };
 
-
-
-
-    const address = parseJoinAddress(value);
-    if (!address) {
-      setInvalid(true);
-      return;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-          }}
+  return (
+    <Overlay backdrop={<OverlayBackdrop />} open>
+      <OverlayCenter>
+        <FocusTrap
+          focusTrapOptions={{ ...TRAP_DISMISSAL, initialFocus: false, onDeactivate: onCancel }}
         >
-          <Dialog
-            role="dialog"
-            aria-labelledby={TITLE_ID}
-            variant="Surface"
-            style={{ width: '100%', maxWidth: toRem(440) }}
-          >
-            <Header
-              size="500"
-              style={{
-                paddingBlock: 0,
-                paddingLeft: config.space.S400,
-                paddingRight: config.space.S200,
-              }}
-            >
+          <Dialog role="dialog" aria-labelledby={TITLE_ID} variant="Surface" style={DIALOG_STYLE}>
+            <Header size="500" style={TITLE_BAR_STYLE}>
               <Text id={TITLE_ID} as="h2" size="H4" style={{ flexGrow: 1 }}>
                 {t('sharedUi.joinAddressPrompt.joinWithAddress')}
               </Text>
               <IconButton
+                size="300"
+                radii="300"
+                onClick={onCancel}
                 aria-label={t('sharedUi.inviteUserPrompt.close')}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              >
+                <Icon src={Icons.Cross} />
+              </IconButton>
+            </Header>
+            <Box as="form" onSubmit={submitAddress} direction="Column" gap="400" style={FORM_STYLE}>
               <Box direction="Column" gap="200">
                 <Text size="T300" priority="400">
                   {t(

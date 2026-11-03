@@ -7,12 +7,12 @@ export const Bar = style([
   glassSurface({ level: 'panel', variant: 'Surface' }),
   {
     position: 'relative',
-
-
-
-
-
-
+    zIndex: 1,
+    flex: '0 0 auto',
+    display: 'flex',
+    flexFlow: 'row wrap',
+    alignItems: 'center',
+    gap: config.space.S200,
     padding: `${config.space.S200} ${config.space.S400}`,
     borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
     background: color.Surface.Container,

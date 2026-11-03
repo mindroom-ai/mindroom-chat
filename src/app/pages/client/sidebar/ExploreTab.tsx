@@ -24,17 +24,17 @@ type ExploreTabProps = {
 
 /** The Explore button of the icon rail. */
 export function ExploreTab({ onSelect }: ExploreTabProps) {
-
-
-
-
-
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const { featuredCommunities } = useClientConfig();
   const selected = useExploreSelected();
   const navToActivePath = useAtomValue(useNavToActivePathAtom());
 
   const handleClick = () => {
     if (onSelect?.(selected)) return;
-    if (screenSize === ScreenSize.Mobile) {
+    if (isMobile) {
       navigate(getExplorePath());
       return;
     }
@@ -47,7 +47,7 @@ export function ExploreTab({ onSelect }: ExploreTabProps) {
       navigate(getExploreFeaturedPath());
       return;
     }
-    const server = getMxIdServer(mx.getUserId() ?? '');
+    const server = getMxIdServer(client.getUserId() ?? '');
     navigate(server ? getExploreServerPath(server) : getExploreFeaturedPath());
   };
 

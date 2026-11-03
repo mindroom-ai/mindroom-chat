@@ -9,54 +9,65 @@ export type ItemRange = {
 
 type ScrollAlign = 'start' | 'center' | 'end';
 
-type ScrollToOptions = {
-  behavior?: ScrollBehavior;
+/** Where the element lands in the scroll view. */
+type ScrollPlacement = {
   align?: ScrollAlign;
   /** Extra pixels below the aligned position (negative: above). */
   offset?: number;
+};
+
+type ScrollToOptions = ScrollPlacement & {
+  behavior?: ScrollBehavior;
   /** Leave the scroll position alone when the element is already fully visible. */
   stopInView?: boolean;
 };
 
-/** Jumping to an item takes the same options as scrolling to an element. */
+/** Scrolls to a target in the aligned position; false when nothing scrolled. */
+type ScrollAction<Target> = (target: Target, opts?: ScrollToOptions) => boolean;
 
+/** Scrolls `element` into the aligned position. */
+export type ScrollToElement = ScrollAction<HTMLElement>;
 
+/** Scrolls to the item at an index, moving the window there first when it is outside it. */
+export type ScrollToItem = ScrollAction<number>;
 
+/** `preserveAnchorIndex` keeps that item at its place on screen while the window changes. */
+export type RetryPaginationOptions = { preserveAnchorIndex?: number };
 
-
-
-
-
-export type RetryPaginationOptions = {
-  /** Keep this item at its place on screen while the window changes. */
-  preserveAnchorIndex?: number;
-};
-
-
-
-
-
-
-
-
-
+/** How the paginator finds the scroll container and the items inside it. */
+type PaginatorDom = {
+  getScrollElement: () => HTMLElement | null;
   getItemElement: (index: number) => HTMLElement | undefined;
-  /** The window reached the first (`back`) or last item: load more from the source. */
-  onEnd?: (back: boolean) => void;
-  /** While true, sentinels do not paginate (a focus jump is in progress). */
-  shouldSuppressPagination?: () => boolean;
-  /**
-   * Lets an automatic fill phase own automatic pagination: returns true when it took `retry`
-   * and will call it once the layout settles; false to paginate now.
-   */
-  deferAutomaticPagination?: (retry: () => boolean) => boolean;
 };
 
-export type VirtualPaginator = {
+/** The window of items in the DOM now and the source of items behind it. */
+type PaginatorWindow = {
+  range: ItemRange;
+  onRangeChange: (range: ItemRange) => void;
+  /** How many items the source holds. */
+  count: number;
+  /** How far one pagination step widens the window. */
+  limit: number;
+};
+
+type VirtualPaginatorOptions = PaginatorDom &
+  PaginatorWindow & {
+    /** The window reached the first (`back`) or last item: load more from the source. */
+    onEnd?: (back: boolean) => void;
+    /** While true, sentinels do not paginate (a focus jump is in progress). */
+    shouldSuppressPagination?: () => boolean;
+    /**
+     * Lets an automatic fill phase own automatic pagination: returns true when it took `retry`
+     * and will call it once the layout settles; false to paginate now.
+     */
+    deferAutomaticPagination?: (retry: () => boolean) => boolean;
+  };
+
+type ScrollApi = { scrollToElement: ScrollToElement; scrollToItem: ScrollToItem };
+
+export type VirtualPaginator = ScrollApi & {
   /** Indices of the items in the current window, in order. */
-
-
-
+  getItems: () => number[];
   /** Paginates again towards a sentinel that is still in view. */
   retryPagination: (opts?: RetryPaginationOptions) => void;
   /** Ref callbacks for the sentinels before the first and after the last item. */
@@ -113,7 +124,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   const { range } = options;
 
   const anchorRef = useRef<{ index: number; top: number }>();
-  const pendingScrollRef = useRef<{ index: number; opts?: ScrollToItemOptions }>();
+  const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>();
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
 

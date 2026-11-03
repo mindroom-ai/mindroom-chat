@@ -27,12 +27,12 @@ const PAGE_LIMIT = 24;
 type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: string };
 
 /** The public room directory of a server, with search. */
-
-
-
-
-  const joinedRoomIds = useAtomValue(allRoomsAtom);
+export function PublicRooms() {
+  const client = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const { t } = useTranslation();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const { navigateSpace, navigateRoom } = useRoomNavigate();
   const { server: encodedServer } = useParams();
   const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,7 +41,7 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-rooms', server, term],
     queryFn: () =>
-      mx.publicRooms({
+      client.publicRooms({
         server,
         limit: PAGE_LIMIT,
         filter: term ? { generic_search_term: term } : undefined,
@@ -113,7 +113,7 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
                   {rooms.map((room) => {
                     const space = room.room_type === 'm.space';
                     const avatarUrl = room.avatar_url
-                      ? mxcUrlToHttp(mx, room.avatar_url, useAuthentication, 96, 96, 'crop') ??
+                      ? mxcUrlToHttp(client, room.avatar_url, useAuthentication, 96, 96, 'crop') ??
                         undefined
                       : undefined;
                     return (

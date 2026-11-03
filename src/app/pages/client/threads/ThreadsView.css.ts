@@ -23,13 +23,20 @@ export const List = style({
   width: '100%',
 });
 
-export const Empty = style({
-
-
-
-
-  textAlign: 'center',
+/** Centers the children of a flex container on both axes. */
+const CenterChildren = style({
+  justifyContent: 'center',
+  alignItems: 'center',
 });
+
+export const Empty = style([
+  CenterChildren,
+  {
+    flexGrow: 1,
+    padding: `${config.space.S700} ${config.space.S400}`,
+    textAlign: 'center',
+  },
+]);
 
 export const Row = style({
   display: 'flex',
@@ -45,10 +52,11 @@ export const RowChrome = style({
   minWidth: 0,
 });
 
-export const Chip = style({
-
-
-
-  minWidth: 0,
-  maxWidth: '50%',
-});
+// A row of inline content that may shrink, capped at half the row it sits in.
+export const Chip = style([
+  RowChrome,
+  {
+    display: 'inline-flex',
+    maxWidth: '50%',
+  },
+]);

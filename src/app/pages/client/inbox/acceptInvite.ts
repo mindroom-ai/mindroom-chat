@@ -4,14 +4,14 @@ import { addRoomIdToMDirect, guessDmRoomUserId, rateLimitedActions } from '../..
 import { Membership } from '../../../../types/matrix/room';
 
 export const acceptInvite = async (mx: MatrixClient, room: Room): Promise<void> => {
+  const userId = mx.getSafeUserId();
+  // Read is_direct and the DM partner before joining; the join replaces our invite member event.
+  const partnerId = isDirectInvite(room, userId) ? guessDmRoomUserId(room, userId) : undefined;
 
-
-
-
-
-
-
-
+  await mx.joinRoom(room.roomId);
+  if (!partnerId) return;
+  // A direct invite is also recorded in the m.direct account data, now that we joined.
+  await addRoomIdToMDirect(mx, room.roomId, partnerId);
 };
 
 // One failed join leaves that invite in the list and does not stop the rest.

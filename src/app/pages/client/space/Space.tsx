@@ -209,29 +209,29 @@ function SpacePageLink({
 }
 
 /** The navigation of a space: lobby, message search, its rooms, threads, and recently opened. */
-
-
-
-
-
-
+export function Space() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const space = useSpace();
+  const title = useRoomName(space);
+  const navigate = useNavigate();
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
   const spaceRooms = useSpaceSearchRooms(space.roomId);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
-  const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
+  const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
 
   const sortedRooms = useMemo(() => {
-    const items = [...spaceRooms].sort((a, b) => lastActivity(mx, b) - lastActivity(mx, a));
+    const items = [...spaceRooms].sort((a, b) => lastActivity(client, b) - lastActivity(client, a));
     // A collapsed category still shows the selected room.
     return roomsClosed ? items.filter((roomId) => roomId === selectedRoomId) : items;
-  }, [mx, spaceRooms, roomsClosed, selectedRoomId]);
+  }, [client, spaceRooms, roomsClosed, selectedRoomId]);
 
   return (
     <PageNav>
-      <SpaceHeader name={name} roomIds={spaceRooms} />
+      <SpaceHeader name={title} roomIds={spaceRooms} />
       <PageNavContent>
         <Box direction="Column" gap="300">
           <NavCategory>
@@ -253,13 +253,16 @@ function SpacePageLink({
               </RoomNavCategoryButton>
             </NavCategoryHeader>
             {sortedRooms.map((roomId) => {
-              const room = mx.getRoom(roomId);
+              const room = client.getRoom(roomId);
               return room ? (
                 <RoomNavItem
                   key={roomId}
                   room={room}
                   selected={roomId === selectedRoomId}
-                  linkPath={getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(mx, roomId))}
+                  linkPath={getSpaceRoomPath(
+                    spaceIdOrAlias,
+                    getCanonicalAliasOrRoomId(client, roomId)
+                  )}
                   notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
                 />
               ) : null;

@@ -9,16 +9,16 @@ import { settingsModalAtom } from '../../../state/settingsModal';
 import { SettingsPages } from '../../../features/settings/settingsPages';
 
 /** Shown while this device is not verified; opens the device settings. */
-
-
-
+export function UnverifiedTab() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const [unverified, setUnverified] = useState(false);
 
   useEffect(() => {
-
-
-
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    const crypto = client.getCrypto();
     if (!crypto || !userId || !deviceId) return undefined;
     let cancelled = false;
     const check = () => {
@@ -30,14 +30,14 @@ import { SettingsPages } from '../../../features/settings/settingsPages';
         .catch(() => undefined);
     };
     check();
-    mx.on(CryptoEvent.UserTrustStatusChanged, check);
-    mx.on(CryptoEvent.DevicesUpdated, check);
+    client.on(CryptoEvent.UserTrustStatusChanged, check);
+    client.on(CryptoEvent.DevicesUpdated, check);
     return () => {
       cancelled = true;
-      mx.removeListener(CryptoEvent.UserTrustStatusChanged, check);
-      mx.removeListener(CryptoEvent.DevicesUpdated, check);
+      client.removeListener(CryptoEvent.UserTrustStatusChanged, check);
+      client.removeListener(CryptoEvent.DevicesUpdated, check);
     };
-  }, [mx]);
+  }, [client]);
 
   if (!unverified) return null;
 

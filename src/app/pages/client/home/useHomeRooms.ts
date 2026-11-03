@@ -14,14 +14,14 @@ export const mergeHomeSearchRoomSources = (...sources: string[][]): string[] =>
   Array.from(new Set(sources.flat()));
 
 const isHomeRoom = (
-  mx: MatrixClient,
+  client: MatrixClient,
   roomId: string,
-  directs: Set<string>,
+  directRoomIds: Set<string>,
   roomToParents: RoomToParents
 ): boolean => {
-  if (directs.has(roomId)) return false;
+  if (directRoomIds.has(roomId)) return false;
   if ((roomToParents.get(roomId)?.size ?? 0) > 0) return false;
-  const room = mx.getRoom(roomId);
+  const room = client.getRoom(roomId);
   return !isSpace(room) && !isMindroomEmojiRoom(room);
 };
 
@@ -31,40 +31,40 @@ const isHomeRoom = (
  * not inside a space.
  */
 export const getHomeSearchRooms = (
-  mx: MatrixClient,
+  client: MatrixClient,
   roomIds: string[],
-  directs: Set<string>,
+  directRoomIds: Set<string>,
   roomToParents: RoomToParents
-): string[] => roomIds.filter((roomId) => isHomeRoom(mx, roomId, directs, roomToParents));
+): string[] => roomIds.filter((roomId) => isHomeRoom(client, roomId, directRoomIds, roomToParents));
 
 /** What both Home room lists are computed from: the joined rooms and how they are grouped. */
 const useHomeRoomSources = () => {
-
-
-
-
-  return { mx, rooms, directs, roomToParents };
+  const client = useMatrixClient();
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const rooms = useAtomValue(allRoomsAtom);
+  return { client, rooms, directRoomIds, roomToParents };
 };
 
 /** Room IDs shown under Rooms on Home. */
 export const useHomeRooms = (): string[] => {
-  const { mx, rooms, directs, roomToParents } = useHomeRoomSources();
+  const { client, rooms, directRoomIds, roomToParents } = useHomeRoomSources();
   return useMemo(
-    () => getHomeSearchRooms(mx, rooms, directs, roomToParents),
-    [mx, rooms, directs, roomToParents]
+    () => getHomeSearchRooms(client, rooms, directRoomIds, roomToParents),
+    [client, rooms, directRoomIds, roomToParents]
   );
 };
 
 /** Room IDs message search covers from Home: every Home room, including those the SDK knows but the list has not bound yet. */
 export const useHomeSearchRooms = (): string[] => {
-  const { mx, rooms, directs, roomToParents } = useHomeRoomSources();
+  const { client, rooms, directRoomIds, roomToParents } = useHomeRoomSources();
   return useMemo(() => {
-    const sdkRooms = mx.getRooms().map((room) => room.roomId);
+    const sdkRooms = client.getRooms().map((room) => room.roomId);
     return getHomeSearchRooms(
-      mx,
+      client,
       mergeHomeSearchRoomSources(rooms, sdkRooms),
-      directs,
+      directRoomIds,
       roomToParents
     );
-  }, [mx, rooms, directs, roomToParents]);
+  }, [client, rooms, directRoomIds, roomToParents]);
 };

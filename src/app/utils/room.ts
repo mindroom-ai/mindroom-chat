@@ -15,16 +15,13 @@ import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
+export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
+  const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+  return state?.getStateEvents(type, stateKey) ?? undefined;
+};
 
-
-
-
-
-
-
-
-
-
+/** The account data event of `eventType`, if the client has it. */
+export const getAccountData = (mx: MatrixClient, eventType: string): MatrixEvent | undefined =>
   mx.getAccountData(eventType as never) ?? undefined;
 
 const getRoomType = (room: Room): string | undefined => {
@@ -266,13 +263,13 @@ export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent): boolean => 
 
 const MINDROOM_TOOL_APPROVAL_EVENT = 'io.mindroom.tool_approval';
 
-// Event types that carry a message, sorted by type (Matrix Client-Server API modules: End-to-End
-// Encryption for m.room.encrypted, Instant Messaging for m.room.message, Stickers for m.sticker),
-// plus MindRoom's tool approval requests.
+// Event types that carry a message (Matrix Client-Server API modules: End-to-End Encryption for
+// m.room.encrypted, Instant Messaging for m.room.message, Stickers for m.sticker), plus MindRoom's
+// tool approval requests.
+const TEXT_EVENT_TYPES = [MessageEvent.RoomMessageEncrypted, MessageEvent.RoomMessage];
 const UNREAD_EVENT_TYPES: ReadonlySet<string> = new Set<string>([
-
-
-
+  ...TEXT_EVENT_TYPES,
+  MessageEvent.Sticker,
   MINDROOM_TOOL_APPROVAL_EVENT,
 ]);
 
@@ -289,16 +286,16 @@ const isUnreadWorthy = (mEvent: MatrixEvent): boolean =>
  * Whether the room has a message we have not read: walking back from the newest event, a
  * message by someone else before our read position or our own last message.
  */
-export const roomHaveUnread = (mx: MatrixClient, room: Room): boolean => {
+export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
+  const selfId = client.getUserId();
+  if (!selfId) return false;
+  const timeline = room.getLiveTimeline().getEvents();
+  const readUpToId = room.getEventReadUpTo(selfId);
 
-
-
-
-
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const event = timeline[index];
     if (readUpToId && event.getId() === readUpToId) return false;
-    if (event.getSender() === userId) {
+    if (event.getSender() === selfId) {
       if (isUnreadWorthy(event)) return false;
     } else if (isUnreadWorthy(event)) {
       return true;

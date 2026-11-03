@@ -28,20 +28,20 @@ type HomeTabProps = {
 
 /** The Home button of the icon rail; returns to the last place opened in Home. */
 export function HomeTab({ onSelect }: HomeTabProps) {
-
-
-
-
-
-
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const homeSelected = useHomeSelected();
+  const activePaths = useAtomValue(useNavToActivePathAtom());
+  const homeRooms = useHomeRooms();
   const unread = useRoomsUnread(homeRooms, roomToUnreadAtom);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleClick = () => {
     if (onSelect?.(homeSelected)) return;
-    const lastPath = navToActivePath.get('home');
+    const lastPath = activePaths.get('home');
     // On phones the first tap shows the Home list; a second one returns to the last room.
-    if (screenSize === ScreenSize.Mobile && !homeSelected) {
+    if (isMobile && !homeSelected) {
       navigate(getHomePath());
       return;
     }

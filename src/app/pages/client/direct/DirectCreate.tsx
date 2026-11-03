@@ -14,31 +14,39 @@ type MDirectContent = Record<string, string[] | undefined>;
 
 /** A joined direct room with `userId` the account already has, if any. */
 const findDirectRoom = (
-  mx: ReturnType<typeof useMatrixClient>,
+  client: ReturnType<typeof useMatrixClient>,
   userId: string
 ): string | undefined => {
-  const content = mx.getAccountData(EventType.Direct)?.getContent() as MDirectContent | undefined;
+  const content = client.getAccountData(EventType.Direct)?.getContent() as
+    | MDirectContent
+    | undefined;
   return content?.[userId]?.find(
-    (roomId) => mx.getRoom(roomId)?.getMyMembership() === KnownMembership.Join
+    (roomId) => client.getRoom(roomId)?.getMyMembership() === KnownMembership.Join
   );
+};
+
+const ENABLE_ENCRYPTION = {
+  type: EventType.RoomEncryption,
+  state_key: '',
+  content: { algorithm: 'm.megolm.v1.aes-sha2' },
 };
 
 /**
  * `/direct/create/?userId=`: opens the direct room with that person, or
  * starts one. Without a user ID it asks for one.
  */
-
-
-
-
-
-  const { userId: requestedUserId } = getDirectCreateSearchParams(searchParams);
+export function DirectCreate() {
+  const client = useMatrixClient();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const [query] = useSearchParams();
+  const { userId: requestedUserId } = getDirectCreateSearchParams(query);
   const [encryption, setEncryption] = useState(true);
   const [creating, setCreating] = useState(false);
   const [invalid, setInvalid] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const existingRoomId = requestedUserId ? findDirectRoom(mx, requestedUserId) : undefined;
+  const existingRoomId = requestedUserId ? findDirectRoom(client, requestedUserId) : undefined;
   useEffect(() => {
     if (existingRoomId) navigate(getDirectRoomPath(existingRoomId), { replace: true });
   }, [existingRoomId, navigate]);
@@ -51,30 +59,22 @@ const findDirectRoom = (
     const valid = isUserId(userId);
     setInvalid(!valid);
     if (!valid) return;
-    const existing = findDirectRoom(mx, userId);
+    const existing = findDirectRoom(client, userId);
     if (existing) {
       navigate(getDirectRoomPath(existing));
       return;
     }
     setCreating(true);
     try {
-      const { room_id: roomId } = await mx.createRoom({
-
-
-
-
-
-        initial_state: encryption
-          ? [
-              {
-                type: EventType.RoomEncryption,
-                state_key: '',
-                content: { algorithm: 'm.megolm.v1.aes-sha2' },
-              },
-            ]
-          : [],
+      const { room_id: roomId } = await client.createRoom({
+        invite: [userId],
+        is_direct: true,
+        initial_state: encryption ? [ENABLE_ENCRYPTION] : [],
+        // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
+        preset: Preset.TrustedPrivateChat,
+        visibility: Visibility.Private,
       });
-      await addRoomIdToMDirect(mx, roomId, userId);
+      await addRoomIdToMDirect(client, roomId, userId);
       navigate(getDirectRoomPath(roomId));
     } catch {
       setFailed(true);

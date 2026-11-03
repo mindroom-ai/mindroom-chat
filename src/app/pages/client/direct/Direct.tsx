@@ -24,45 +24,39 @@ import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/M
 import { stopPropagation } from '../../../utils/keyboard';
 import { getDirectRoomPath } from '../../pathUtils';
 
+// Pressing Escape or clicking elsewhere closes a menu without moving focus around.
+const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
+
 /** The header's options button, whose menu marks every direct room read. */
 function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
   const [anchor, setAnchor] = useState<RectCords>();
   const closeMenu = () => setAnchor(undefined);
+  const openMenu = ({ currentTarget }: React.MouseEvent<HTMLButtonElement>) =>
+    setAnchor(currentTarget.getBoundingClientRect());
+
+  const menu = (
+    <FocusTrap
+      focusTrapOptions={{
+        ...LIGHT_DISMISS,
+        initialFocus: false,
+        returnFocusOnDeactivate: false,
+        onDeactivate: closeMenu,
+      }}
+    >
+      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
+        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
 
   return (
     <>
-      <IconButton
-        variant="Background"
-        aria-label={label}
-        onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-          setAnchor(event.currentTarget.getBoundingClientRect())
-        }
-      >
-
-
-
-
-
-
-
-
-
-
-
-
-              initialFocus: false,
-              onDeactivate: closeMenu,
-              returnFocusOnDeactivate: false,
-            }}
-          >
-            <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
-              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-                <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
-              </Box>
-            </Menu>
-          </FocusTrap>
-        }
-      />
+      <IconButton variant="Background" aria-label={label} onClick={openMenu}>
+        <Icon size="200" src={Icons.VerticalDots} />
+      </IconButton>
+      <PopOut anchor={anchor} position="Bottom" align="End" offset={4} content={menu} />
     </>
   );
 }
@@ -70,25 +64,31 @@ function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[
 const byLatestActivity = (a: Room, b: Room): number =>
   b.getLastActiveTimestamp() - a.getLastActiveTimestamp();
 
-/** The Direct Messages navigation: joined direct rooms by latest activity. */
+/** The joined direct rooms, by latest activity. */
+function useDirectRooms(): Room[] {
+  const client = useMatrixClient();
+  const roomIds = useAtomValue(allRoomsAtom);
+  const directIds = useAtomValue(mDirectAtom);
 
-
-
-  // On a phone, opening the list keeps the remembered conversation for the next visit.
-  useNavToActivePathMapper('direct', true);
-
-
-
-
-
-  const directRooms = useMemo(() => {
+  return useMemo(() => {
     const joinedDirects: Room[] = [];
-    rooms.forEach((roomId) => {
-      const room = directs.has(roomId) ? mx.getRoom(roomId) : null;
+    roomIds.forEach((roomId) => {
+      const room = directIds.has(roomId) ? client.getRoom(roomId) : null;
       if (room) joinedDirects.push(room);
     });
     return joinedDirects.sort(byLatestActivity);
-  }, [mx, rooms, directs]);
+  }, [client, roomIds, directIds]);
+}
+
+/** The Direct Messages navigation: joined direct rooms by latest activity. */
+export function Direct() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const dmRooms = useDirectRooms();
+  const notificationPreferences = useRoomsNotificationPreferencesContext();
+  const activeRoomId = useSelectedRoom();
+  // On a phone, opening the list keeps the remembered conversation for the next visit.
+  useNavToActivePathMapper('direct', true);
 
   return (
     <PageNav>
@@ -101,23 +101,23 @@ const byLatestActivity = (a: Room, b: Room): number =>
           </Box>
           <DirectOptionsMenu
             label={t('featureUi.roomNav.roomNavItem.moreOptions')}
-            roomIds={directRooms.map((room) => room.roomId)}
+            roomIds={dmRooms.map((room) => room.roomId)}
           />
         </Box>
       </PageNavHeader>
       <PageNavContent>
         <NavCategory>
-          {directRooms.length === 0 && (
+          {dmRooms.length === 0 && (
             <Text size="T300" priority="300" style={{ padding: '8px' }}>
               {t('nav.noDirectMessagesDescription')}
             </Text>
           )}
-          {directRooms.map((room) => (
+          {dmRooms.map((room) => (
             <RoomNavItem
               key={room.roomId}
               room={room}
-              selected={selectedRoomId === room.roomId}
-              linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(mx, room.roomId))}
+              selected={activeRoomId === room.roomId}
+              linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
               notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
               direct
               showAvatar

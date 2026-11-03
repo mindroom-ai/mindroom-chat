@@ -24,27 +24,26 @@ import { mxcUrlToHttp } from '../../../utils/mediaUrl';
 import { renderTopicText } from './exploreRoomCard';
 
 function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: boolean }) {
-  const { navigateSpace, navigateRoom } = useRoomNavigate();
+  const client = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const { navigateSpace, navigateRoom } = useRoomNavigate();
 
-
-
-
-
+  return (
+    <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias}>
       {(state, retry, viaServers, resolvedRoomId) => {
         const summary = state.status === AsyncStatus.Success ? state.data : undefined;
         const avatarUrl = summary?.avatar_url
-          ? mxcUrlToHttp(mx, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+          ? mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
           : undefined;
+        const listing = { name: summary?.name, topic: summary?.topic, avatarUrl };
+        const facts = { memberCount: summary?.num_joined_members, roomType: summary?.room_type };
         return (
           <RoomCard
+            {...listing}
+            {...facts}
             roomIdOrAlias={roomIdOrAlias}
             roomId={summary?.room_id ?? resolvedRoomId}
-
-
-
-
-
             allRooms={joinedRoomIds}
             joinRule={
               summary ? (summary.join_rule as JoinRule | undefined) ?? JoinRule.Public : undefined

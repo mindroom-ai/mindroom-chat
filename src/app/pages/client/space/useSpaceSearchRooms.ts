@@ -79,18 +79,18 @@ const getSdkRoomToParents = (mx: MatrixClient): RoomToParents => {
 };
 
 export const useSpaceSearchRooms = (spaceId: string): string[] => {
-
-
-
-
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
   return useMemo(() => {
-    const sdkRooms = mx.getRooms().map((room) => room.roomId);
+    const sdkRoomIds = client.getRooms().map((room) => room.roomId);
     return getSpaceSearchRooms(
-      mx,
+      client,
       spaceId,
-      mergeSearchRoomSources(sdkRooms, rooms),
-      directs,
-      mergeRoomToParentsSources(roomToParents, getSdkRoomToParents(mx))
+      mergeSearchRoomSources(sdkRoomIds, joinedRoomIds),
+      directRoomIds,
+      mergeRoomToParentsSources(parentsByRoom, getSdkRoomToParents(client))
     );
-  }, [mx, spaceId, rooms, directs, roomToParents]);
+  }, [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]);
 };

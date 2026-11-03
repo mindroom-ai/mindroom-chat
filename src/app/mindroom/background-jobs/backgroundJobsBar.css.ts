@@ -6,10 +6,10 @@ import * as approvals from '../messages/ThreadApprovals.css';
 // grow upward over the timeline instead of growing the footer.
 export const Anchor = style({
   position: 'relative',
-
-
-
-
+  zIndex: 1,
+  flex: '0 0 auto',
+  display: 'flex',
+  flexFlow: 'column nowrap',
   justifyContent: 'flex-end',
   margin: `0 ${config.space.S400} ${config.space.S200}`,
 });

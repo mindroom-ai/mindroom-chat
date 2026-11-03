@@ -16,16 +16,16 @@ const readUser = (
 ): Pick<UserProfile, 'displayName' | 'avatarUrl'> => ({
   displayName: user?.displayName || undefined,
   avatarUrl: user?.avatarUrl || undefined,
+});
 
-
-
-
-
-
-
-
-
-    ...readUser(mx.getUser(userId)),
+/**
+ * A user's display name and avatar: the cached user first, then the server profile, then live
+ * presence updates. The resolved flags tell a placeholder apart from a profile that is empty.
+ */
+export const useUserProfile = (userId: string): UserProfile => {
+  const client = useMatrixClient();
+  const [profile, setProfile] = useState<UserProfile>(() => ({
+    ...readUser(client.getUser(userId)),
     isDisplayNameResolved: false,
     isAvatarResolved: false,
   }));
@@ -33,12 +33,13 @@ const readUser = (
   useEffect(() => {
     let disposed = false;
     setProfile({
-      ...readUser(mx.getUser(userId)),
+      ...readUser(client.getUser(userId)),
       isDisplayNameResolved: false,
       isAvatarResolved: false,
     });
 
-    mx.getProfileInfo(userId)
+    client
+      .getProfileInfo(userId)
       .then((info) => {
         if (disposed) return;
         setProfile({
@@ -73,14 +74,14 @@ const readUser = (
         isAvatarResolved: true,
       }));
     };
-    mx.on(UserEvent.DisplayName, handleDisplayName);
-    mx.on(UserEvent.AvatarUrl, handleAvatarUrl);
+    client.on(UserEvent.DisplayName, handleDisplayName);
+    client.on(UserEvent.AvatarUrl, handleAvatarUrl);
     return () => {
       disposed = true;
-      mx.removeListener(UserEvent.DisplayName, handleDisplayName);
-      mx.removeListener(UserEvent.AvatarUrl, handleAvatarUrl);
+      client.removeListener(UserEvent.DisplayName, handleDisplayName);
+      client.removeListener(UserEvent.AvatarUrl, handleAvatarUrl);
     };
-  }, [mx, userId]);
+  }, [client, userId]);
 
   return profile;
 };

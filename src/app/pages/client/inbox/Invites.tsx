@@ -44,16 +44,17 @@ const BAD_WORDS_REGEX = new RegExp(
   'iu'
 );
 
-/** One pending invite, read from the stripped state the server sent with it. */
+/** The invited room itself. */
+type InvitedRoom = { room: Room; roomId: string; isSpace: boolean };
 
+/**
+ * How the room presents itself in the stripped state that came with the invite: its name (else
+ * its alias, else its ID), the `mxc://` avatar URL, and its topic.
+ */
+type InvitedRoomListing = { roomName: string; roomAvatar?: string; roomTopic?: string };
 
-
-
-
-
-
-
-
+/** Who invited, and when. */
+type InviteOrigin = {
   /** The inviter's user ID. */
   senderId?: string;
   /** The inviter's display name as they set it, for checks. */
@@ -62,6 +63,9 @@ const BAD_WORDS_REGEX = new RegExp(
   senderName?: string;
   inviteTs?: number;
 };
+
+/** One pending invite, read from the stripped state the server sent with it. */
+export type InviteData = InvitedRoom & InvitedRoomListing & InviteOrigin;
 
 const cleanName = (name: string): string =>
   name.replace(BIDI_CONTROLS, '').replace(LINE_SEPARATORS, '');
@@ -105,11 +109,17 @@ export const hasBadWords = (invite: InviteData): boolean =>
     (text) => !!text && BAD_WORDS_REGEX.test(text)
   );
 
+/** The user's time and date format settings, for when the invite arrived. */
+type InviteTimeFormat = { hour24Clock: boolean; dateFormatString: string };
 
+const useInviteTimeFormat = (): InviteTimeFormat => {
+  const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
+  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
+  return { dateFormatString, hour24Clock };
+};
 
-
-
-
+type InviteCardProps = InviteTimeFormat & {
+  invite: InviteData;
   onNavigate: (roomId: string, isSpace: boolean) => void;
   hideAvatar: boolean;
   /** Whether media needs an access token (authenticated media). */
@@ -123,19 +133,18 @@ export function InviteCard({
   hour24Clock,
   hideAvatar,
   useAuthentication = false,
-
-
-
+}: InviteCardProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { room, roomId, roomName, roomTopic, isSpace } = invite;
   const [state, setState] = useState<'idle' | 'joining' | 'leaving' | 'error'>('idle');
-  const avatarUrl = hideAvatar
-    ? undefined
-    : getRoomAvatarUrl(mx, invite.room, 96, useAuthentication);
+  const avatar = hideAvatar ? undefined : getRoomAvatarUrl(client, room, 96, useAuthentication);
 
   const handleAccept = async () => {
     setState('joining');
     try {
-      await acceptInvite(mx, invite.room);
-      onNavigate(invite.roomId, invite.isSpace);
+      await acceptInvite(client, room);
+      onNavigate(roomId, isSpace);
     } catch {
       setState('error');
     }
@@ -144,13 +153,14 @@ export function InviteCard({
   const handleDecline = async () => {
     setState('leaving');
     try {
-      await mx.leave(invite.roomId);
+      await client.leave(roomId);
     } catch {
       setState('error');
     }
   };
 
   const busy = state === 'joining' || state === 'leaving';
+  const fallbackIcon = isSpace ? Icons.Space : Icons.Hash;
   const time = invite.inviteTs
     ? dayjs(invite.inviteTs).format(`${dateFormatString} ${hour24Clock ? 'HH:mm' : 'hh:mm A'}`)
     : undefined;
@@ -163,25 +173,23 @@ export function InviteCard({
       style={{ padding: config.space.S400 }}
     >
       <Box alignItems="Center" gap="300">
-        <Avatar size="300" radii={invite.isSpace ? '300' : 'Pill'}>
+        <Avatar size="300" radii={isSpace ? '300' : 'Pill'}>
           <RoomAvatar
-
-
-
-
-              <Icon size="200" src={invite.isSpace ? Icons.Space : Icons.Hash} />
-            )}
+            src={avatar}
+            roomId={roomId}
+            alt={roomName}
+            renderFallback={() => <Icon size="200" src={fallbackIcon} />}
           />
         </Avatar>
         <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
           <Text size="T400" truncate>
-            {invite.roomName}
+            {roomName}
           </Text>
-          {invite.roomTopic && (
+          {roomTopic ? (
             <Text size="T200" priority="300" truncate>
-              {invite.roomTopic}
+              {roomTopic}
             </Text>
-          )}
+          ) : null}
         </Box>
         {time && (
           <Text size="T200" priority="300">
@@ -232,23 +240,22 @@ export function InviteCard({
 }
 
 /** Pending invites. One that looks like spam shows no avatar and is left out of Accept All. */
-
-
-
-
-  const inviteIds = useAtomValue(allInvitesAtom);
-
-
-
+export function Invites() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const useAuthentication = useMediaAuthentication();
+  const timeFormat = useInviteTimeFormat();
+  const pendingRoomIds = useAtomValue(allInvitesAtom);
+  const { navigateSpace, navigateRoom } = useRoomNavigate();
   const [acceptingAll, setAcceptingAll] = useState(false);
 
   const invites = useMemo(
     () =>
-      inviteIds
-        .map((roomId) => mx.getRoom(roomId))
+      pendingRoomIds
+        .map((roomId) => client.getRoom(roomId))
         .filter((room): room is Room => !!room)
-        .map((room) => makeInviteData(mx, room, room.isSpaceRoom())),
-    [mx, inviteIds]
+        .map((room) => makeInviteData(client, room, room.isSpaceRoom())),
+    [client, pendingRoomIds]
   );
 
   const handleNavigate = (roomId: string, isSpace: boolean) =>
@@ -258,7 +265,7 @@ export function InviteCard({
     setAcceptingAll(true);
     try {
       await acceptInvites(
-        mx,
+        client,
         invites.filter((invite) => !hasBadWords(invite)).map((invite) => invite.room)
       );
     } finally {
@@ -284,13 +291,12 @@ export function InviteCard({
         )}
       </Box>
       {invites.length === 0 && <Text size="T300">{t('sharedUi.invites.noInvites')}</Text>}
-
-
-
-
-
-          dateFormatString={dateFormatString}
-          hour24Clock={hour24Clock}
+      {invites.map((invite) => (
+        <InviteCard
+          {...timeFormat}
+          key={invite.roomId}
+          invite={invite}
+          onNavigate={handleNavigate}
           hideAvatar={hasBadWords(invite)}
           useAuthentication={useAuthentication}
         />

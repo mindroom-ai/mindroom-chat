@@ -102,17 +102,17 @@ const useCachedActiveAvatar = (
 };
 
 /** The account area at the bottom of the icon rail: settings, other accounts, and add account. */
-
-
-
-
+export function SettingsTab() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const activeSessionHook = useActiveSession();
   const sessions = useStoredSessions();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
 
-  const userId = activeSessionHook?.userId ?? mx.getUserId() ?? '';
+  const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
   // The stored copy carries the freshest cached profile fields.
   const activeSession =
     sessions.find((session) => session.sessionId === activeSessionHook?.sessionId) ??
