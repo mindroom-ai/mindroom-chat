@@ -96,18 +96,18 @@ type MembersDrawerProps = {
 type FilterSelection = number | 'auto';
 
 /** One row of the list: a power level group's title or a member. */
-type ListEntry =
+export type ListEntry =
   | { kind: 'group'; tag: MemberPowerTag; spaced: boolean }
   | { kind: 'member'; member: RoomMember };
 
-const memberName = (room: Room, member: RoomMember): string =>
+export const memberName = (room: Room, member: RoomMember): string =>
   getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
 
 /**
  * Whether a lowercase search matches the member's name or user name. The server part of the user
  * ID only counts once the search includes a `:`, since every local member shares it.
  */
-const matchesQuery = (room: Room, member: RoomMember, query: string): boolean => {
+export const matchesQuery = (room: Room, member: RoomMember, query: string): boolean => {
   const userId = member.userId.toLowerCase();
   const searched = query.includes(':') ? userId : getMxIdLocalPart(userId) ?? userId;
   return (
@@ -118,7 +118,7 @@ const matchesQuery = (room: Room, member: RoomMember, query: string): boolean =>
 
 const isMember = (item: MemberPowerTag | RoomMember): item is RoomMember => 'userId' in item;
 
-const toListEntries = (items: Array<MemberPowerTag | RoomMember>): ListEntry[] => {
+export const toListEntries = (items: Array<MemberPowerTag | RoomMember>): ListEntry[] => {
   let groups = 0;
   return items.map((item) => {
     if (isMember(item)) return { kind: 'member', member: item };
@@ -127,7 +127,7 @@ const toListEntries = (items: Array<MemberPowerTag | RoomMember>): ListEntry[] =
   });
 };
 
-const entryKey = (entry: ListEntry): string =>
+export const entryKey = (entry: ListEntry): string =>
   entry.kind === 'member' ? entry.member.userId : `group:${entry.tag.level}`;
 
 /** Where a pop-out menu opens: under the button that was clicked, until `close`. */
@@ -141,7 +141,7 @@ const useMenuAnchor = () => {
   };
 };
 
-function MemberGroupTitle({ tag, spaced }: { tag: MemberPowerTag; spaced: boolean }) {
+export function MemberGroupTitle({ tag, spaced }: { tag: MemberPowerTag; spaced: boolean }) {
   return (
     <Text
       as="h3"
@@ -154,7 +154,7 @@ function MemberGroupTitle({ tag, spaced }: { tag: MemberPowerTag; spaced: boolea
   );
 }
 
-function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
+export function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   const openProfile = useOpenUserRoomProfile();

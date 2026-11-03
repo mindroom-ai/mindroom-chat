@@ -1,76 +1,100 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Icon, IconButton, Icons, Text, config } from 'folds';
+import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
-import { SequenceCard } from '../../components/sequence-card';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { RoomSettingsPage } from '../../state/roomSettings';
 import { SettingsMenu } from '../settings/frame.css';
+import { SettingsCard } from '../settings/SettingsCard';
 import { SettingsPageFrame } from '../settings/SettingsPageFrame';
-import { SequenceCardStyle } from '../settings/styles.css';
 import { OfflineRoomSettings } from './general/OfflineRoomSettings';
+import { RoomProfileEditor } from './general/RoomProfileEditor';
+import { RoomMembersPage } from './members/RoomMembersPage';
+import { RoomPermissionsPage } from './permissions/RoomPermissionsPage';
+import { RoomPacksPage } from './emojis-stickers/RoomPacksPage';
+import { RoomDeveloperToolsPage } from './developer-tools/RoomDeveloperToolsPage';
 
-/** The pages this dialog has so far; a request for another one opens General. */
-const OFFERED_PAGES = [RoomSettingsPage.GeneralPage] as const;
-type OfferedPage = (typeof OFFERED_PAGES)[number];
+const NAVIGATION = 'featureUi.roomSettings.navigation';
 
-const PAGE_LABEL_KEYS: Record<OfferedPage, 'featureUi.roomSettings.navigation.general'> = {
-  [RoomSettingsPage.GeneralPage]: 'featureUi.roomSettings.navigation.general',
-};
+/** The dialog's pages in menu order, with their names and icons. */
+const PAGES: Array<{ page: RoomSettingsPage; label: string; icon: IconSrc }> = [
+  { page: RoomSettingsPage.GeneralPage, label: 'general', icon: Icons.Setting },
+  { page: RoomSettingsPage.MembersPage, label: 'members', icon: Icons.User },
+  { page: RoomSettingsPage.PermissionsPage, label: 'permissions', icon: Icons.Lock },
+  { page: RoomSettingsPage.EmojisStickersPage, label: 'emojisStickers', icon: Icons.Smile },
+  { page: RoomSettingsPage.DeveloperToolsPage, label: 'developerTools', icon: Icons.Terminal },
+];
 
-const PAGE_ICONS = {
-  [RoomSettingsPage.GeneralPage]: Icons.Setting,
-} as const;
-
-const isOffered = (page: RoomSettingsPage | undefined): page is OfferedPage =>
-  OFFERED_PAGES.some((offered) => offered === page);
+const isPage = (page: string | undefined): page is RoomSettingsPage =>
+  PAGES.some((entry) => entry.page === page);
 
 /** Phones open on the menu unless a page was asked for; wider screens open on a page. */
 const firstPage = (
-  requested: RoomSettingsPage | undefined,
+  requested: string | undefined,
   screen: ScreenSize
-): OfferedPage | undefined => {
-  if (isOffered(requested)) return requested;
+): RoomSettingsPage | undefined => {
+  if (isPage(requested)) return requested;
   return screen === ScreenSize.Mobile ? undefined : RoomSettingsPage.GeneralPage;
 };
 
-type GeneralProps = { room: Room; requestClose: () => void };
+type PageProps = { room: Room; space: boolean; requestClose: () => void };
 
-/** The room's General page: for now, what this device keeps of the room offline. */
-function General({ room, requestClose }: GeneralProps) {
+/** The name and topic, and for a room what this device keeps of it offline. */
+function General({ room, space, requestClose }: PageProps) {
   const { t } = useTranslation();
   return (
-    <SettingsPageFrame
-      title={t('featureUi.roomSettings.navigation.general')}
-      requestClose={requestClose}
-    >
-      <SequenceCard
-        className={SequenceCardStyle}
-        variant="SurfaceVariant"
-        direction="Column"
-        gap="400"
-      >
-        <OfflineRoomSettings roomId={room.roomId} />
-      </SequenceCard>
+    <SettingsPageFrame title={t(`${NAVIGATION}.general`)} requestClose={requestClose}>
+      <Box direction="Column" gap="100">
+        <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.profile')}</Text>
+        <SettingsCard>
+          <RoomProfileEditor room={room} />
+        </SettingsCard>
+      </Box>
+      {!space && (
+        <SettingsCard>
+          <OfflineRoomSettings roomId={room.roomId} />
+        </SettingsCard>
+      )}
     </SettingsPageFrame>
   );
 }
 
-/** The room settings dialog: the room's name and page menu beside the selected page. */
+function SelectedPage({ page, ...props }: PageProps & { page: RoomSettingsPage }) {
+  switch (page) {
+    case RoomSettingsPage.MembersPage:
+      return <RoomMembersPage room={props.room} requestClose={props.requestClose} />;
+    case RoomSettingsPage.PermissionsPage:
+      return <RoomPermissionsPage room={props.room} requestClose={props.requestClose} />;
+    case RoomSettingsPage.EmojisStickersPage:
+      return <RoomPacksPage room={props.room} requestClose={props.requestClose} />;
+    case RoomSettingsPage.DeveloperToolsPage:
+      return <RoomDeveloperToolsPage room={props.room} requestClose={props.requestClose} />;
+    default:
+      return <General {...props} />;
+  }
+}
+
+/**
+ * The settings dialog of a room or a space: its name over the page menu, beside the selected
+ * page. On phones the menu and a page take turns.
+ */
 export function RoomSettings(props: {
   room: Room;
   /** The page asked for, such as from a link into the dialog. */
-  openOn?: RoomSettingsPage;
+  openOn?: string;
+  /** A space has no offline copy, so its General page only edits the name and topic. */
+  space?: boolean;
   requestClose: () => void;
 }) {
-  const { room, openOn, requestClose } = props;
+  const { room, openOn, space = false, requestClose } = props;
   const { t } = useTranslation();
   const screen = useScreenSizeContext();
   const roomName = useRoomName(room);
-  const [page, setPage] = useState<OfferedPage | undefined>(() => firstPage(openOn, screen));
+  const [page, setPage] = useState<RoomSettingsPage | undefined>(() => firstPage(openOn, screen));
   const phone = screen === ScreenSize.Mobile;
 
   // On phones a page goes back to the menu; elsewhere it closes the dialog.
@@ -79,58 +103,59 @@ export function RoomSettings(props: {
     [phone, requestClose]
   );
 
-  const entries = OFFERED_PAGES.map((offered) => {
-    const current = offered === page;
+  const entries = PAGES.map((entry) => {
+    const current = entry.page === page;
     return (
       <MenuItem
-        key={offered}
+        key={entry.page}
         radii="500"
         variant="Background"
-        before={<Icon size="100" src={PAGE_ICONS[offered]} filled={current} />}
+        before={<Icon size="100" src={entry.icon} filled={current} />}
         aria-pressed={current}
-        onClick={() => setPage(offered)}
+        onClick={() => setPage(entry.page)}
       >
         <Text
           size="T300"
           style={current ? { fontWeight: config.fontWeight.W600 } : undefined}
           truncate
         >
-          {t(PAGE_LABEL_KEYS[offered])}
+          {t(`${NAVIGATION}.${entry.label}` as never)}
         </Text>
       </MenuItem>
     );
   });
 
+  // The page menu scrolls beneath the room's name.
+  const title = (
+    <PageNavHeader outlined={false}>
+      <Box grow="Yes" alignItems="Center">
+        <Text size="H4" truncate>
+          {roomName}
+        </Text>
+      </Box>
+      {phone && (
+        <IconButton
+          variant="Background"
+          aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+          onClick={requestClose}
+        >
+          <Icon src={Icons.Cross} />
+        </IconButton>
+      )}
+    </PageNavHeader>
+  );
   const nav = (
     <PageNav size="300">
-      <PageNavHeader outlined={false}>
-        <Box grow="Yes" alignItems="Center">
-          <Text size="H4" truncate>
-            {roomName}
-          </Text>
-        </Box>
-        {phone && (
-          <IconButton
-            variant="Background"
-            aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-            onClick={requestClose}
-          >
-            <Icon src={Icons.Cross} />
-          </IconButton>
-        )}
-      </PageNavHeader>
-      <Box grow="Yes" direction="Column">
-        <PageNavContent>
-          <div className={SettingsMenu}>{entries}</div>
-        </PageNavContent>
-      </Box>
+      <PageNavContent header={title}>
+        <div className={SettingsMenu}>{entries}</div>
+      </PageNavContent>
     </PageNav>
   );
 
   return (
     <PageRoot nav={(!phone || page === undefined) && nav}>
-      {page === RoomSettingsPage.GeneralPage && (
-        <General room={room} requestClose={closePage} />
+      {page !== undefined && (
+        <SelectedPage key={page} page={page} room={room} space={space} requestClose={closePage} />
       )}
     </PageRoot>
   );

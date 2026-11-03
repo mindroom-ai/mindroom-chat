@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, RefObject } from 'react';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../components/page';
@@ -8,6 +8,8 @@ type SettingsPageFrameProps = {
   title: string;
   requestClose: () => void;
   children: ReactNode;
+  /** The scrolling viewport, for pages with a virtual list. */
+  scrollRef?: RefObject<HTMLDivElement>;
 };
 
 /** What the settings dialog hands each of its pages. */
@@ -69,10 +71,18 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
 }
 
 /** Header with the page title and a close button over the scrolling settings content. */
-export function SettingsPageFrame({ title, requestClose, children }: SettingsPageFrameProps) {
+export function SettingsPageFrame({
+  title,
+  requestClose,
+  children,
+  scrollRef,
+}: SettingsPageFrameProps) {
   return (
     <Page>
-      <PageScroll header={<FrameHeader title={title} requestClose={requestClose} />}>
+      <PageScroll
+        scrollRef={scrollRef}
+        header={<FrameHeader title={title} requestClose={requestClose} />}
+      >
         <PageContent style={CONTENT_INSET} data-settings-page="">
           <Box direction="Column" gap="700">
             {children}
