@@ -41,7 +41,8 @@ import { useThreadApprovalTimeline } from './useThreadApprovalTimeline';
 import { planThreadSummaryTimeline } from './threadSummaryTimeline';
 import type { ThreadSummaryWriter } from './threadSummaryState';
 
-const PAGINATION_LIMIT = 30;
+/** Events loaded per timeline page, initially and on each "load older". */
+const TIMELINE_PAGE_SIZE = 30;
 
 export type RoomTimelineProps = {
   room: Room;
@@ -122,10 +123,10 @@ export function RoomTimeline({
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
 
   const [timeline, setTimeline] = useState<Timeline>(() =>
-    getInitialTimeline(room, PAGINATION_LIMIT)
+    getInitialTimeline(room, TIMELINE_PAGE_SIZE)
   );
   useEffect(() => {
-    setTimeline(getInitialTimeline(room, PAGINATION_LIMIT));
+    setTimeline(getInitialTimeline(room, TIMELINE_PAGE_SIZE));
   }, [room]);
   // A limited sync swaps the live timeline; follow it.
   const liveTimeline = getLiveTimeline(room);
@@ -141,7 +142,7 @@ export function RoomTimeline({
     mx,
     timeline,
     setTimeline,
-    PAGINATION_LIMIT,
+    TIMELINE_PAGE_SIZE,
     filterOptsRef
   );
   const [loadingOlder, setLoadingOlder] = useState(false);

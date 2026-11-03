@@ -37,8 +37,14 @@ export const getLinkedTimelines = (timeline: EventTimeline): EventTimeline[] => 
   return linked;
 };
 
-/** Events of a thread across all timelines linked to its live timeline, oldest first. */
-export const getThreadTimelineEvents = (thread: Thread): MatrixEvent[] =>
-  getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline()).flatMap((timeline) =>
-    timeline.getEvents()
-  );
+/**
+ * Events of a thread, oldest first: those of the older timelines linked before its live timeline,
+ * then `thread.events`, which the thread keeps for its live timeline.
+ */
+export const getThreadTimelineEvents = (thread: Thread): MatrixEvent[] => {
+  const liveTimeline = thread.getUnfilteredTimelineSet().getLiveTimeline();
+  const linked = getLinkedTimelines(liveTimeline);
+  const liveIndex = linked.indexOf(liveTimeline);
+  const older = liveIndex < 0 ? linked : linked.slice(0, liveIndex);
+  return [...older.flatMap((timeline) => timeline.getEvents()), ...thread.events];
+};
