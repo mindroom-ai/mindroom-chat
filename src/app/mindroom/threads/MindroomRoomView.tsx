@@ -20,6 +20,7 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { editableActiveElement } from '../../utils/dom';
+import { RoomViewFollowing } from '../../features/room/RoomViewFollowing';
 import { RoomViewTyping } from '../../features/room/RoomViewTyping';
 import { RoomInput } from '../room-input/MindroomRoomInput';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
@@ -320,6 +321,7 @@ export function RoomView({
               onRoomMessageSent={threadState.handleRoomMessageSent}
             />
           )}
+          <RoomViewFollowing room={room} threadId={effectiveThreadId} />
         </div>
       </div>
     </Page>
