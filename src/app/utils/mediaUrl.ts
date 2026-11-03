@@ -98,7 +98,11 @@ export const mxcUrlToHttp = (
   return url.href;
 };
 
-/** The fetch options that authenticate a request for homeserver media, if it needs any. */
+/**
+ * The fetch options that authenticate a request for homeserver media, if it needs any. Only the
+ * homeserver's authenticated endpoints (`/_matrix/client/v1/media/`) take the access token; the
+ * legacy `/_matrix/media/v3/` endpoints are unauthenticated, so they never receive it.
+ */
 export const authenticatedMediaRequestInit = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getAccessToken'>,
   url: string
@@ -107,7 +111,7 @@ export const authenticatedMediaRequestInit = (
   const homeserver = parseUrl(mx.getHomeserverUrl());
   const parsed = parseUrl(url);
   if (!token || !homeserver || !parsed) return undefined;
-  if (parsed.origin !== homeserver.origin || parsed.searchParams.has('access_token')) {
+  if (!isHomeserverMediaUrl(parsed, homeserver) || parsed.searchParams.has('access_token')) {
     return undefined;
   }
   return { headers: { Authorization: `Bearer ${token}` } };
