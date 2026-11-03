@@ -1,4 +1,12 @@
-import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  ChangeEvent,
+  CSSProperties,
+  MouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Input, Scroll, Text, config } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';
@@ -41,48 +49,44 @@ type FilterSelection = number | 'auto';
 const memberName = (room: Room, member: RoomMember): string =>
   getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
 
+// A member row is a bare button: it takes the full width and shows none of the button chrome.
+const MEMBER_ROW_STYLE: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  width: '100%',
+  height: MEMBER_ROW_HEIGHT,
+  padding: `0 ${config.space.S200}`,
+  textAlign: 'start',
+  borderRadius: config.radii.R400,
+  border: 0,
+  background: 'none',
+  color: 'inherit',
+  cursor: 'pointer',
+};
+
 function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
-
-
-
+  const client = useMatrixClient();
+  const openProfile = useOpenUserRoomProfile();
+  const authenticatedMedia = useMediaAuthentication();
   const name = memberName(room, member);
   const avatarMxc = member.getMxcAvatarUrl?.();
   const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 64, 64, 'crop') ?? undefined
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
 
+  // The drawer sits at the inline end, so the card opens towards the timeline.
+  const showProfile = (event: MouseEvent<HTMLButtonElement>) => {
+    const anchorRect = event.currentTarget.getBoundingClientRect();
+    openProfile(room.roomId, undefined, member.userId, anchorRect, 'Left');
+  };
+
   return (
-    <button
-      type="button"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: config.space.S200,
-        width: '100%',
-        height: MEMBER_ROW_HEIGHT,
-
-
-
-        textAlign: 'start',
-        background: 'none',
-        border: 0,
-        cursor: 'pointer',
-      }}
-      onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-        openProfile(
-          room.roomId,
-          undefined,
-          member.userId,
-
-
-
-
-
-
-
-
-
-
+    <button type="button" style={MEMBER_ROW_STYLE} onClick={showProfile}>
+      <Avatar radii="400" size="200">
+        <UserAvatar
+          alt={name}
+          userId={member.userId}
           src={avatarSrc}
           renderFallback={() => <Icon filled size="50" src={Icons.User} />}
         />

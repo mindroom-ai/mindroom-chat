@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useCallback, useState } from 'react';
+import React, { CSSProperties, FormEventHandler, ReactNode, useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
 import FocusTrap from 'focus-trap-react';
@@ -63,6 +63,31 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
   return data?.flows ? data : undefined;
 };
 
+const TITLE_BAR_PADDING = `0 ${config.space.S200} 0 ${config.space.S400}`;
+
+type DialogTitleBarProps = {
+  onClose: () => void;
+  /** The title, left of the close button. */
+  children?: ReactNode;
+};
+
+function DialogTitleBar({ onClose, children }: DialogTitleBarProps) {
+  const { t } = useTranslation();
+  return (
+    <Header size="500" style={{ padding: TITLE_BAR_PADDING }}>
+      <Box grow="Yes">{children}</Box>
+      <IconButton
+        size="300"
+        radii="300"
+        aria-label={t('sharedUi.deviceVerification.close')}
+        onClick={onClose}
+      >
+        <Icon src={Icons.Cross} />
+      </IconButton>
+    </Header>
+  );
+}
+
 type UnsupportedUIAProps = {
   onClose: () => void;
 };
@@ -72,20 +97,10 @@ function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
   const { t } = useTranslation();
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true">
-      <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
-        <Box grow="Yes" />
-        <IconButton
-          size="300"
-          radii="300"
-          onClick={onClose}
-
-
-
-
-
-
-
-
+      <DialogTitleBar onClose={onClose} />
+      <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
+        <Text size="T300">
+          {t(
             'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
           )}
         </Text>
@@ -192,6 +207,9 @@ function UIAPromptOverlay({ request, onCancel }: UIAPromptOverlayProps) {
 
 const RECOVERY_DESCRIPTION_TAGS = { b: <b /> };
 
+// Both the secret storage and its key backup are created anew, never merged into existing ones.
+const FRESH_SECRET_STORAGE = { setupNewSecretStorage: true, setupNewKeyBackup: true } as const;
+
 function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) => void }) {
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -209,17 +227,17 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
         const { encodedPrivateKey } = recoveryKey;
         if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
 
-
-
-
-
-
-
-
-
-
-
+        await crypto.bootstrapCrossSigning({
+          authUploadDeviceSigningKeys,
+          setupNewCrossSigning: true,
         });
+        // Keys cached for the previous secret storage cannot open the new one.
+        clearSecretStorageKeys();
+        const newStorage = {
+          ...FRESH_SECRET_STORAGE,
+          createSecretStorageKey: async () => recoveryKey,
+        };
+        await crypto.bootstrapSecretStorage(newStorage);
         if (alive()) onComplete(encodedPrivateKey);
       },
       [mx, alive, authUploadDeviceSigningKeys, onComplete]
@@ -275,10 +293,14 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
   );
 }
 
+/** `recoveryKey` is the encoded key, shown once. */
+type RecoveryKeyDisplayProps = { recoveryKey: string; onDone: () => void };
 
-
-
-
+const RECOVERY_KEY_BOX_STYLE: CSSProperties = {
+  padding: config.space.S300,
+  border: `${config.borderWidth.B300} solid var(--mr-container-line)`,
+  borderRadius: config.radii.R400,
+  wordBreak: 'break-all',
 };
 
 function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
@@ -301,15 +323,7 @@ function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
       <Text size="T300">
         {t('sharedUi.deviceVerificationSetup.storeTheRecoveryKeyInASafePlaceForFutureUseAs')}
       </Text>
-      <Box
-
-
-
-
-          border: `${config.borderWidth.B300} solid var(--mr-container-line)`,
-          wordBreak: 'break-all',
-        }}
-      >
+      <Box className={ContainerColor({ variant: 'SurfaceVariant' })} style={RECOVERY_KEY_BOX_STYLE}>
         <Text as="code" size="T300">
           {recoveryKey}
         </Text>
@@ -348,19 +362,9 @@ export function DeviceVerificationSetup({ onCancel }: DeviceVerificationSetupPro
 
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true">
-      <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
-        <Box grow="Yes">
-          <Text size="H4">{t('sharedUi.deviceVerificationSetup.setupDeviceVerification')}</Text>
-        </Box>
-        <IconButton
-          size="300"
-          radii="300"
-          onClick={onCancel}
-          aria-label={t('sharedUi.deviceVerification.close')}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
-      </Header>
+      <DialogTitleBar onClose={onCancel}>
+        <Text size="H4">{t('sharedUi.deviceVerificationSetup.setupDeviceVerification')}</Text>
+      </DialogTitleBar>
       <Box direction="Column" style={{ padding: config.space.S400 }}>
         {recoveryKey ? (
           <RecoveryKeyDisplay recoveryKey={recoveryKey} onDone={onCancel} />

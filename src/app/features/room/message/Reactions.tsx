@@ -64,12 +64,12 @@ export function Reactions({
   relations,
   onReactionToggle,
 }: ReactionsProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
   useRelationsUpdates(relations);
 
-  const myUserId = mx.getUserId();
+  const myUserId = client.getUserId();
   const annotations = getRenderableAnnotationsByKey(relations, targetEvent);
   const canToggle = !!canSendReaction && isConfirmedEventId(mEventId);
 
@@ -100,8 +100,8 @@ export function Reactions({
               <Reaction
                 ref={triggerRef}
                 aria-pressed={mine}
-                mx={mx}
-                useAuthentication={useAuthentication}
+                mx={client}
+                useAuthentication={authenticatedMedia}
                 reaction={key}
                 count={events.length}
                 label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}

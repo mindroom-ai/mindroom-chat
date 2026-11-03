@@ -22,11 +22,44 @@ type ReactionGroup = [key: string, events: MatrixEvent[]];
 const getReactionGroups = (relations: Relations): ReactionGroup[] =>
   (relations.getSortedAnnotationsByKey() ?? []).map(([key, events]) => [key, [...events]]);
 
+function SenderRow({ room, userId }: { room: Room; userId: string }) {
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
+  const avatarMxc = getMemberAvatarMxc(room, userId);
+  const avatarSrc = avatarMxc
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined
+    : undefined;
+  const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
+
+  return (
+    <Box gap="200" alignItems="Center">
+      <Avatar radii="400" size="200">
+        <UserAvatar
+          alt={name}
+          userId={userId}
+          src={avatarSrc}
+          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
+        />
+      </Avatar>
+      <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
+        <Text size="T300" truncate>
+          {name}
+        </Text>
+        {name !== userId && (
+          <Text size="T200" priority="300" truncate>
+            {userId}
+          </Text>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 /** Who reacted to a message, one reaction at a time. */
 export function ReactionViewer({ room, relations, requestClose }: ReactionViewerProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
   const groups = useRelations(relations, useCallback(getReactionGroups, []));
   const [selectedKey, setSelectedKey] = useState<string>();
 
@@ -39,7 +72,9 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
     : [];
 
   const renderKey = (key: string) => {
-    const src = key.startsWith('mxc://') ? mxcUrlToHttp(mx, key, useAuthentication) : undefined;
+    const src = key.startsWith('mxc://')
+      ? mxcUrlToHttp(client, key, authenticatedMedia)
+      : undefined;
     return src ? (
       <img
         src={src}
@@ -103,36 +138,9 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
                 style={{ padding: config.space.S300 }}
                 role="tabpanel"
               >
-                {senders.map((userId) => {
-
-
-
-
-                    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 64, 64, 'crop') ?? undefined
-                    : undefined;
-                  return (
-                    <Box key={userId} gap="200" alignItems="Center">
-                      <Avatar radii="400" size="200">
-                        <UserAvatar
-                          alt={name}
-                          userId={userId}
-                          src={avatarSrc}
-                          renderFallback={() => <Icon filled size="50" src={Icons.User} />}
-                        />
-                      </Avatar>
-                      <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
-                        <Text size="T300" truncate>
-                          {name}
-                        </Text>
-                        {name !== userId && (
-                          <Text size="T200" priority="300" truncate>
-                            {userId}
-                          </Text>
-                        )}
-                      </Box>
-                    </Box>
-                  );
-                })}
+                {senders.map((userId) => (
+                  <SenderRow key={userId} room={room} userId={userId} />
+                ))}
               </Box>
             </Scroll>
           </Box>

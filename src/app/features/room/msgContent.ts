@@ -92,14 +92,24 @@ const uploadThumbnail = async (
   return { thumbnail_url: contentUri, thumbnail_info: thumbnailInfo };
 };
 
-/** Image content with its size, dimensions, and blurhash when the browser can decode it. */
-export const getImageMsgContent = async (
-  _mx: MatrixClient,
+/** Image and video builders share one signature: the uploaded item and where its bytes live. */
+type MediaContentBuilder = (mx: MatrixClient, item: TUploadItem, mxc: string) => Promise<IContent>;
 
-
-
-  const { originalFile } = item;
+/** Assembles the message of an uploaded image or video from its measured `info`. */
+const mediaMsgContent = (
+  msgtype: MsgType.Image | MsgType.Video,
+  info: IImageInfo | IVideoInfo,
+  item: TUploadItem,
+  mxc: string
+): IContent => {
   const name = fileName(item);
+  const content: IContent = { msgtype, filename: name, body: name, info };
+  return withSpoiler(withFileSource(content, item, mxc), item);
+};
+
+/** Image content with its size, dimensions, and blurhash when the browser can decode it. */
+export const getImageMsgContent: MediaContentBuilder = async (_mx, item, mxc) => {
+  const { originalFile } = item;
   let info: IImageInfo = { mimetype: originalFile.type, size: originalFile.size };
   const objectUrl = URL.createObjectURL(originalFile);
   try {
@@ -114,23 +124,12 @@ export const getImageMsgContent = async (
     URL.revokeObjectURL(objectUrl);
   }
 
-  const content: IContent = {
-    msgtype: MsgType.Image,
-    filename: name,
-    body: name,
-    info,
-  };
+  return mediaMsgContent(MsgType.Image, info, item, mxc);
+};
 
-
-
-
-
-
-
-
-
-
-  const name = fileName(item);
+/** Video content with metadata, a blurhash, and an uploaded poster thumbnail when possible. */
+export const getVideoMsgContent: MediaContentBuilder = async (mx, item, mxc) => {
+  const { originalFile } = item;
   let info: IVideoInfo = { mimetype: originalFile.type, size: originalFile.size };
   const objectUrl = URL.createObjectURL(originalFile);
   try {
@@ -154,13 +153,7 @@ export const getImageMsgContent = async (
     URL.revokeObjectURL(objectUrl);
   }
 
-  const content: IContent = {
-    msgtype: MsgType.Video,
-    filename: name,
-    body: name,
-    info,
-  };
-  return withSpoiler(withFileSource(content, item, mxc), item);
+  return mediaMsgContent(MsgType.Video, info, item, mxc);
 };
 
 export const getAudioMsgContent = (

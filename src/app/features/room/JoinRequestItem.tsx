@@ -38,16 +38,16 @@ const requestMessage = (member: RoomMember): string | undefined => {
  * settled until the membership sync removes the row.
  */
 export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRequestItemProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const { userId } = member;
 
   const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
   const avatarMxc = member.getMxcAvatarUrl();
   const avatarUrl = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined
     : undefined;
   const requestTs = member.events.member?.getTs();
   const age = useRelativeTime(requestTs);
@@ -56,8 +56,8 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
   const run = async (action: RequestAction) => {
     setState({ status: 'pending', action });
     try {
-      if (action === 'approve') await mx.invite(room.roomId, userId);
-      else await mx.kick(room.roomId, userId);
+      if (action === 'approve') await client.invite(room.roomId, userId);
+      else await client.kick(room.roomId, userId);
       setState({ status: 'done', action });
     } catch (error) {
       setState({

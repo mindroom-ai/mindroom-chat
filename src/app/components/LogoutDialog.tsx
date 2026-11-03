@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { CSSProperties, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -6,6 +6,7 @@ import { Dialog, Header, IconButton } from './glass/GlassPrimitives';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';
 import { logoutClient } from '../../client/initMatrix';
+import { ContainerColor } from '../styles/ContainerColor.css';
 
 type EncryptionRisk = 'none' | 'unverified-device' | 'no-verification';
 
@@ -13,32 +14,35 @@ type EncryptionRisk = 'none' | 'unverified-device' | 'no-verification';
  * What logging out costs this device: messages it alone can decrypt are lost when cross-signing
  * is not set up, or when this device is not verified and so holds keys nobody else has.
  */
-const getEncryptionRisk = async (mx: MatrixClient): Promise<EncryptionRisk> => {
-
-
-
+const getEncryptionRisk = async (client: MatrixClient): Promise<EncryptionRisk> => {
+  const crypto = client.getCrypto();
+  const userId = client.getUserId();
+  const deviceId = client.getDeviceId();
   if (!crypto || !userId || !deviceId) return 'none';
   if (!(await crypto.isCrossSigningReady())) return 'no-verification';
   const status = await crypto.getDeviceVerificationStatus(userId, deviceId);
   return status?.crossSigningVerified ? 'none' : 'unverified-device';
 };
 
-type LogoutDialogProps = {
-  handleClose: () => void;
+type LogoutDialogProps = { handleClose: () => void };
+
+const RISK_PANEL_SHAPE: CSSProperties = {
+  borderRadius: config.radii.R400,
+  padding: config.space.S300,
 };
 
 /** Confirms logging out, warning first when this device holds the only copy of message keys. */
 export function LogoutDialog({ handleClose }: LogoutDialogProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const alive = useAlive();
   const [risk, setRisk] = useState<EncryptionRisk>('none');
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
     let current = true;
-    getEncryptionRisk(mx).then(
+    getEncryptionRisk(client).then(
       (next) => {
         if (current) setRisk(next);
       },
@@ -47,14 +51,14 @@ export function LogoutDialog({ handleClose }: LogoutDialogProps) {
     return () => {
       current = false;
     };
-  }, [mx]);
+  }, [client]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
     setError(undefined);
     try {
-      await logoutClient(mx);
+      await logoutClient(client);
     } catch (logoutError) {
       if (!alive()) return;
       const message = logoutError instanceof Error ? logoutError.message : String(logoutError);
@@ -83,14 +87,10 @@ export function LogoutDialog({ handleClose }: LogoutDialogProps) {
       <Box direction="Column" gap="400" style={{ padding: config.space.S400, paddingTop: 0 }}>
         {risk !== 'none' && (
           <Box
-            direction="Column"
+            className={ContainerColor({ variant: 'Warning' })}
+            style={RISK_PANEL_SHAPE}
             gap="100"
-            style={{
-
-
-
-
-            }}
+            direction="Column"
           >
             <Box alignItems="Center" gap="200">
               <Icon size="100" src={Icons.Warning} filled />

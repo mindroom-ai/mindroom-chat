@@ -39,10 +39,10 @@ vi.mock('../../utils/matrix', async () => {
 
 const createUploadItem = (file: File): TUploadItem => ({
   file,
-
-
-
-
+  originalFile: file, encInfo: undefined,
+  metadata: {
+    // Only the spoiler flag matters to these tests.
+    markedAsSpoiler: false,
   },
 });
 

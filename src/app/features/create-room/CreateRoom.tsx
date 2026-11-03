@@ -27,11 +27,13 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useClientConfig } from '../../hooks/useClientConfig';
 
+type RoomCreatedHandler = (roomId: string) => void;
 
-
-
-
-
+type CreateRoomFormProps = {
+  defaultAccess?: CreateRoomAccess;
+  onCreate?: RoomCreatedHandler;
+  /** The space the new room joins, if any. */
+  space?: Room;
 };
 
 type CreateRoomFormElements = HTMLFormElement & {
@@ -66,6 +68,9 @@ type OptionToggleProps = {
   disabled: boolean;
 };
 
+/** An option switch of the form; hidden ones are skipped. */
+type OptionToggleSpec = Omit<OptionToggleProps, 'disabled'> & { id: string; visible: boolean };
+
 function OptionToggle({ title, description, value, onChange, disabled }: OptionToggleProps) {
   const toggle = <Switch variant="Primary" value={value} onChange={onChange} disabled={disabled} />;
   return (
@@ -87,9 +92,9 @@ const describeError = (reason: unknown): string =>
  * read them anyway.
  */
 export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFormProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const capabilities = useCapabilities();
   const { createRoom: policy } = useClientConfig();
   const roomVersions = capabilities['m.room_versions'];
   const versions = Object.keys(roomVersions?.available ?? {});
@@ -116,7 +121,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
     setError(undefined);
     setCreating(true);
     try {
-      const createdRoomId = await createRoom(mx, {
+      const createdRoomId = await createRoom(client, {
         version,
         parent: space,
         access,
@@ -139,6 +144,33 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
     event.preventDefault();
     return submitRoom(event.currentTarget as CreateRoomFormElements);
   };
+
+  const optionToggles: OptionToggleSpec[] = [
+    {
+      id: 'encryption',
+      visible: encryptionToggleVisible,
+      title: t('featureUi.createRoom.endToEndEncryption'),
+      description: t('featureUi.createRoom.onceThisFeatureIsEnabledItCan'),
+      value: encryption,
+      onChange: setEncryption,
+    },
+    {
+      id: 'knock',
+      visible: !isPublic,
+      title: t('featureUi.createRoom.knockToJoin'),
+      description: t('featureUi.createRoom.anyoneCanSendRequestToJoinThis'),
+      value: knock,
+      onChange: setKnock,
+    },
+    {
+      id: 'federation',
+      visible: federationToggleVisible,
+      title: t('featureUi.createRoom.allowFederation'),
+      description: t('featureUi.createRoom.usersFromOtherServersCanJoin'),
+      value: federation,
+      onChange: setFederation,
+    },
+  ];
 
   const spinner = <Spinner variant="Primary" fill="Solid" size="200" />;
   const chevron = advanced ? Icons.ChevronTop : Icons.ChevronBottom;
@@ -181,33 +213,9 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       ) : null}
       <LabeledField label={t('featureUi.createRoom.options')}>
         <Box direction="Column" gap="200">
-          {encryptionToggleVisible ? (
-            <OptionToggle
-              title={t('featureUi.createRoom.endToEndEncryption')}
-              description={t('featureUi.createRoom.onceThisFeatureIsEnabledItCan')}
-
-
-
-            />
-          ) : null}
-          {isPublic ? null : (
-            <OptionToggle
-              title={t('featureUi.createRoom.knockToJoin')}
-              description={t('featureUi.createRoom.anyoneCanSendRequestToJoinThis')}
-
-
-
-            />
+          {optionToggles.map(({ id, visible, ...toggle }) =>
+            visible ? <OptionToggle key={id} disabled={creating} {...toggle} /> : null
           )}
-          {federationToggleVisible ? (
-            <OptionToggle
-              title={t('featureUi.createRoom.allowFederation')}
-              description={t('featureUi.createRoom.usersFromOtherServersCanJoin')}
-
-
-
-            />
-          ) : null}
           <Box>
             <Chip
               radii="Pill"

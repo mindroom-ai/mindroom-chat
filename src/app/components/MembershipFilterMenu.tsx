@@ -13,6 +13,8 @@ type MembershipFilterMenuProps = {
   onSelect: (index: number) => void;
 };
 
+const hotkeyMatcher = (hotkey: string) => (evt: KeyboardEvent) => isHotkey(hotkey, evt);
+
 // Banned members read as a warning, as elsewhere in moderation.
 const toMenuVariant = (item: MembershipFilterItem) =>
   item.filterFn === MembershipFilter.filterBanned ? 'Critical' : 'Surface';
@@ -28,48 +30,45 @@ export function MembershipFilterMenu({ items, selected, onSelect }: MembershipFi
 
   // Arrow keys walk the options; Escape and outside clicks dismiss the menu.
   const trapOptions = {
-
-
-
+    onDeactivate: close,
+    isKeyBackward: hotkeyMatcher('arrowup'),
+    isKeyForward: hotkeyMatcher('arrowdown'),
+    escapeDeactivates: stopPropagation,
+    clickOutsideDeactivates: true,
     initialFocus: false as const,
+  };
 
+  const menu = (
+    <FocusTrap focusTrapOptions={trapOptions}>
+      <Menu role="menu" aria-label={selectedName}>
+        <Box style={{ padding: config.space.S100 }} gap="100" direction="Column">
+          {items.map((item, index) => (
+            <MenuItem
+              key={item.name}
+              role="menuitemradio"
+              aria-checked={index === selected}
+              size="300"
+              radii="300"
+              variant={toMenuVariant(item)}
+              fill={index === selected ? 'Soft' : 'None'}
+              after={index === selected ? <Icon size="50" src={Icons.Check} /> : undefined}
+              onClick={() => {
+                close();
+                onSelect(index);
+              }}
+            >
+              <Text size="T300" style={{ flexGrow: 1 }}>
+                {item.name}
+              </Text>
+            </MenuItem>
+          ))}
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
 
-
-
-
-
-
-
-
-
-        <FocusTrap focusTrapOptions={trapOptions}>
-          <Menu role="menu" aria-label={selectedName}>
-            <Box style={{ padding: config.space.S100 }} gap="100" direction="Column">
-              {items.map((item, index) => (
-                <MenuItem
-                  key={item.name}
-                  role="menuitemradio"
-                  aria-checked={index === selected}
-                  size="300"
-                  radii="300"
-                  variant={toMenuVariant(item)}
-                  fill={index === selected ? 'Soft' : 'None'}
-                  after={index === selected ? <Icon size="50" src={Icons.Check} /> : undefined}
-                  onClick={() => {
-                    close();
-                    onSelect(index);
-                  }}
-                >
-                  <Text size="T300" style={{ flexGrow: 1 }}>
-                    {item.name}
-                  </Text>
-                </MenuItem>
-              ))}
-            </Box>
-          </Menu>
-        </FocusTrap>
-      }
-    >
+  return (
+    <PopOut align="End" position="Bottom" anchor={anchor} content={menu}>
       <IconButton
         size="300"
         radii="300"

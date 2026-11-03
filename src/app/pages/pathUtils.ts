@@ -155,15 +155,11 @@ export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
 
 /** A room inside a space, optionally focused on one event. */
-
-
-
-
-): string =>
+export const getSpaceRoomPath = (space: string, room: string, event?: string): string =>
   generatePath(SPACE_ROOM_PATH, {
-    spaceIdOrAlias: encodeSegment(spaceIdOrAlias),
-    roomIdOrAlias: encodeSegment(roomIdOrAlias),
-    eventId: optionalSegment(eventId),
+    spaceIdOrAlias: encodeSegment(space),
+    roomIdOrAlias: encodeSegment(room),
+    eventId: optionalSegment(event),
   });
 
 export const getExplorePath = fixedPath(EXPLORE_PATH);

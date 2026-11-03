@@ -245,14 +245,14 @@ type LocalMindroomProps = {
  * code to enter here), and see or revoke the installations already linked to this account.
  */
 export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) {
-
-
-
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const client = useMatrixClient();
   const provisioningOverrideUrl = useClientConfig().sidebar?.mindRoomProvisioningUrl;
   const { provisioningBaseUrl, canAuthenticate } = resolveMindroomProvisioningRequest({
-    sessionHomeserverUrl: mx.getHomeserverUrl(),
+    sessionHomeserverUrl: client.getHomeserverUrl(),
     provisioningOverrideUrl,
-    accessToken: mx.getAccessToken() ?? undefined,
+    accessToken: client.getAccessToken() ?? undefined,
   });
 
   return (

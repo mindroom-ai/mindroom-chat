@@ -30,33 +30,37 @@ export const copyFiles = {
 // authentication recovery script also serves shells cached by older workers.
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
+// src/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
+// classic script and public/manifest.json is the web manifest, so the plugin adds neither.
+const serviceWorkerPlugin = VitePWA({
+  strategies: 'injectManifest',
+  injectManifest: {
+    rollupFormat: 'iife',
+    injectionPoint: 'self.__WB_MANIFEST',
+    // The Rust crypto wasm module is several MiB and belongs in the precache.
+    maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+    globPatterns: ['**/*.{js,css,html,wasm,woff2,svg,png,ico}'],
+    globIgnores: precacheGlobIgnores,
+  },
+  srcDir: 'src',
+  filename: 'sw.ts',
+  devOptions: { enabled: false },
+  injectRegister: false,
+  manifest: false,
+});
+
+// The app's own sources: JSX through the React plugin, `.css.ts` files through vanilla-extract.
+const sourcePlugins = [react(), vanillaExtractPlugin()];
+
 export default defineConfig({
   plugins: [
     // Only active when Playwright starts the dev server (see playwright.config.ts).
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
-
-
-
-
-
-
-
-
-
-
-
-
-        rollupFormat: 'iife',
-        injectionPoint: 'self.__WB_MANIFEST',
-        // The Rust crypto wasm module is several MiB and belongs in the precache.
-        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,wasm,woff2,svg,png,ico}'],
-        globIgnores: precacheGlobIgnores,
-      },
-      devOptions: { enabled: false },
-    }),
+    ...sourcePlugins,
+    viteStaticCopy(copyFiles),
+    serviceWorkerPlugin,
   ],
   server: {
     // 127.0.0.1 rather than localhost: Node can resolve localhost to ::1 only,
