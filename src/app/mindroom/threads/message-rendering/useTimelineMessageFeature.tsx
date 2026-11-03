@@ -13,6 +13,7 @@ import {
   EventType,
   MatrixEventEvent,
   RelationType,
+  type MatrixClient,
   type MatrixEvent,
   type Relations,
   type Room,
@@ -35,7 +36,12 @@ import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-c
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom, type Settings } from '../../../state/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
-import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../../utils/room';
+import {
+  canEditEvent,
+  getEditedEvent,
+  getEventReactions,
+  getLatestMessageContent,
+} from '../../../utils/room';
 import { MessageEvent } from '../../../../types/matrix/room';
 import { EncryptedContent } from '../../../features/room/message/EncryptedContent';
 import { Event, Message } from '../../messages/MindroomMessage';
@@ -101,14 +107,9 @@ const getMessageKind = (eventType: string): TimelineMessageKind | undefined => {
   return undefined;
 };
 
-const isEditableOwnMessage = (event: MatrixEvent, userId: string | null): boolean => {
-  if (!userId || event.getSender() !== userId) return false;
-  if (!isConfirmedMatrixEventId(event.getId())) return false;
-  if (event.getType() !== MessageEvent.RoomMessage || event.isRedacted()) return false;
-  if (event.getRelation()?.rel_type === RelationType.Replace) return false;
-  const msgtype = event.getContent().msgtype;
-  return msgtype === 'm.text' || msgtype === 'm.notice' || msgtype === 'm.emote';
-};
+/** The user's own confirmed text message, a long text sent as a file included. */
+const isEditableOwnMessage = (client: MatrixClient, event: MatrixEvent): boolean =>
+  isConfirmedMatrixEventId(event.getId()) && canEditEvent(client, event);
 
 /** Whether the row should quote what it replies to (not the message right before it, not a thread fallback). */
 const shouldShowReply = (row: TimelineMessageRow): boolean => {
@@ -311,7 +312,6 @@ export const useTimelineMessageFeature = ({
   threadIdRef.current = threadId;
 
   const findLatestEditableEvent = useCallback((): MatrixEvent | undefined => {
-    const userId = client.getUserId();
     const activeThreadId = threadIdRef.current;
     if (activeThreadId) {
       const thread = room.getThread(activeThreadId);
@@ -319,14 +319,14 @@ export const useTimelineMessageFeature = ({
       const events = thread?.liveTimeline
         ? getLinkedTimelines(thread.liveTimeline).flatMap((timeline) => timeline.getEvents())
         : [];
-      const reply = [...events].reverse().find((event) => isEditableOwnMessage(event, userId));
+      const reply = [...events].reverse().find((event) => isEditableOwnMessage(client, event));
       if (reply) return reply;
       const root = thread?.rootEvent;
-      return root && isEditableOwnMessage(root, userId) ? root : undefined;
+      return root && isEditableOwnMessage(client, root) ? root : undefined;
     }
     return [...room.getLiveTimeline().getEvents()]
       .reverse()
-      .find((event) => isEditableOwnMessage(event, userId));
+      .find((event) => isEditableOwnMessage(client, event));
   }, [client, room]);
 
   // Up in an empty composer edits the user's latest message, as in most chat clients.

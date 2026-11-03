@@ -46,11 +46,12 @@ import { UserAvatar } from '../../components/user-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { MessageLayout, type MessageSpacing } from '../../state/settings';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
+import { canEditEvent, getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { copyToClipboard } from '../../utils/dom';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
+import { MessageEditor } from '../../features/room/message/MessageEditor';
 import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
@@ -108,97 +109,6 @@ function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItem
         {label}
       </Text>
     </MenuItem>
-  );
-}
-
-type InlineEditorProps = {
-  room: Room;
-  mEvent: MatrixEvent;
-  /** What the row shows now; the edit starts from its body. */
-  content: Record<string, unknown>;
-  /** Closes the editor, after a saved edit or on cancel. */
-  onDone: () => void;
-};
-
-/** Edits a text message in place and sends the edit as an `m.replace` event. */
-function MessageInlineEditor({ room, mEvent, content, onDone }: InlineEditorProps) {
-  const mx = useMatrixClient();
-  const { t } = useTranslation();
-  const [text, setText] = useState(typeof content.body === 'string' ? content.body : '');
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const eventId = mEvent.getId();
-  // Opening the editor (from Edit or Up in the composer) moves typing here, caret after the text.
-  const focusOnOpen = useCallback((field: HTMLTextAreaElement | null) => {
-    if (!field) return;
-    field.focus({ preventScroll: true });
-    field.setSelectionRange(field.value.length, field.value.length);
-  }, []);
-  const save = async () => {
-    const body = text.trim();
-    if (!eventId || !body) return;
-    setBusy(true);
-    setFailed(false);
-    const msgtype = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
-    try {
-      await mx.sendMessage(room.roomId, mEvent.threadRootId ?? null, {
-        msgtype,
-        body: `* ${body}`,
-        'm.new_content': { msgtype, body },
-        'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
-      } as never);
-      onDone();
-    } catch {
-      setFailed(true);
-      setBusy(false);
-    }
-  };
-  return (
-    <Box direction="Column" gap="200">
-      <textarea
-        ref={focusOnOpen}
-        aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
-        placeholder={t('featureUi.room.message.messageEditor.editMessage')}
-        value={text}
-        disabled={busy}
-        rows={Math.min(8, Math.max(2, text.split('\n').length))}
-        style={{ width: '100%', font: 'inherit', resize: 'vertical' }}
-        onChange={(evt) => setText(evt.target.value)}
-        onKeyDown={(evt) => {
-          if (evt.key === 'Escape') onDone();
-          if (evt.key === 'Enter' && !evt.shiftKey) {
-            evt.preventDefault();
-            void save();
-          }
-        }}
-      />
-      {failed && (
-        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-          {t('threadActions.failed')}
-        </Text>
-      )}
-      <Box gap="200">
-        <Button
-          type="button"
-          size="300"
-          variant="Primary"
-          disabled={busy}
-          onClick={() => void save()}
-        >
-          <Text size="B300">{t('featureUi.room.message.messageEditor.save')}</Text>
-        </Button>
-        <Button
-          type="button"
-          size="300"
-          variant="Secondary"
-          fill="Soft"
-          disabled={busy}
-          onClick={onDone}
-        >
-          <Text size="B300">{t('featureUi.room.message.messageEditor.cancel')}</Text>
-        </Button>
-      </Box>
-    </Box>
   );
 }
 
@@ -706,6 +616,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       [mEvent, resolvedMessageContent]
     );
     const extensionState = useMindroomMessageExtensionState(content, !!menuAnchor, mEvent);
+    // The sender edits their own confirmed text messages, long texts included.
+    const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
+    const startEdit = () => onEditId?.(eventId);
     const copyState = getMindroomMessageCopyTextState(extensionState);
     const dismissMenu = () => setMenuAnchor(undefined);
 
@@ -776,13 +689,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         <>
           {reply}
           {onEditId && edit ? (
-            <MessageInlineEditor
-              room={room}
-              mEvent={mEvent}
-              // The edit starts from the content shown, earlier edits included.
-              content={content}
-              onDone={() => onEditId(undefined)}
-            />
+            <MessageEditor room={room} mEvent={mEvent} onDone={() => onEditId(undefined)} />
           ) : (
             children
           )}
@@ -834,6 +741,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   icon={Icons.ThreadPlus}
                   onClick={() => {
                     onReplyClick(eventId, true);
+                    dismissMenu();
+                  }}
+                />
+              )}
+              {canEdit && (
+                <MessageMenuAction
+                  label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                  icon={Icons.Pencil}
+                  onClick={() => {
+                    startEdit();
                     dismissMenu();
                   }}
                 />
@@ -943,6 +860,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   onClick={() => onReplyClick(eventId, true)}
                 >
                   <Icon src={Icons.ThreadPlus} size="100" />
+                </IconButton>
+              )}
+              {canEdit && (
+                <IconButton
+                  size="300"
+                  radii="300"
+                  aria-label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                  onClick={startEdit}
+                >
+                  <Icon src={Icons.Pencil} size="100" />
                 </IconButton>
               )}
               <PopOut anchor={menuAnchor} position="Bottom" align="End" offset={4} content={menu}>
