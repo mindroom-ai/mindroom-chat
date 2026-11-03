@@ -85,9 +85,11 @@ export type RenderImageContentProps = {
   alt: string;
   title: string;
   tabIndex: number;
-
-
-
+  onClick: () => void;
+  /** Opens the viewer on Enter, since the image is focusable. */
+  onKeyDown: (evt: React.KeyboardEvent<HTMLElement>) => void;
+  onLoad: () => void;
+  onError: () => void;
 };
 
 export type RenderImageViewerProps = {
@@ -221,6 +223,11 @@ type ImageContentProps = {
 
 
               onClick: () => setViewerOpen(true),
+              onKeyDown: (evt) => {
+                if (evt.key !== 'Enter') return;
+                evt.preventDefault();
+                setViewerOpen(true);
+              },
               onLoad: () => setLoaded(true),
               onError: () => setFailed(true),
             })}
@@ -241,12 +248,12 @@ type ImageContentProps = {
           </Box>
         )}
         {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
-          spoilerRevealed && (
-            <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
-              <Spinner variant="Secondary" />
-            </Box>
-          )}
-        {(srcState.status === AsyncStatus.Error || failed) && (
+
+
+
+
+
+
           <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
             <Button
               variant="Critical"

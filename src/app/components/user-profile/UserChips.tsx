@@ -60,7 +60,7 @@ function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
 
 function ChipMenuItem({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
-    <MenuItem size="300" radii="300" onClick={onClick}>
+    <MenuItem size="300" radii="300" role="menuitem" onClick={onClick}>
       <Text size="B300">{children}</Text>
     </MenuItem>
   );

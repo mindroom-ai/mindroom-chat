@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import FocusTrap from 'focus-trap-react';
 import { EventType, JoinRule, MatrixEvent, Room, RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import {
   Box,
@@ -326,75 +327,90 @@ function RoomAccessRequestDialog({
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
-        <Dialog
-          ref={dialogRef}
-          variant="Surface"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          tabIndex={-1}
+        {/* Only keeps Tab inside the dialog: the effects above own focus, Escape and outside
+            clicks. Nothing in the dialog is hidden, so the visibility check can be skipped. */}
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            fallbackFocus: () => dialogRef.current ?? document.body,
+            returnFocusOnDeactivate: false,
+            escapeDeactivates: false,
+            allowOutsideClick: true,
+            tabbableOptions: { displayCheck: 'none' },
+          }}
         >
-          <Header style={{ padding: `0 ${config.space.S400}` }} size="500">
-            <Text id={titleId} as="h2" size="H4" truncate>
-              {t('sharedUi.roomAccessControl.requestToJoinValue1', { value1: roomName })}
-            </Text>
-          </Header>
-          <Box
-            as="form"
-            direction="Column"
-            gap="400"
-            style={{ padding: config.space.S400 }}
-            onSubmit={handleSubmit}
+          <Dialog
+            ref={dialogRef}
+            variant="Surface"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
           >
-            <Text size="T300" priority="400">
-              {t('sharedUi.roomAccessControl.anAdminWillReviewYourRequest')}
-            </Text>
-            <Box direction="Column" gap="100">
-              <Text as="label" htmlFor={messageId} size="L400">
-                {t('sharedUi.roomAccessControl.messageOptional')}
+            <Header style={{ padding: `0 ${config.space.S400}` }} size="500">
+              <Text id={titleId} as="h2" size="H4" truncate>
+                {t('sharedUi.roomAccessControl.requestToJoinValue1', { value1: roomName })}
               </Text>
-              <TextArea
-                ref={messageRef}
-                id={messageId}
-                name="reasonInput"
-                variant="Background"
-                rows={3}
-                maxLength={500}
-                readOnly={loading}
-              />
-            </Box>
-            {shownError && (
-              <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-                {shownError}
+            </Header>
+            <Box
+              as="form"
+              direction="Column"
+              gap="400"
+              style={{ padding: config.space.S400 }}
+              onSubmit={handleSubmit}
+            >
+              <Text size="T300" priority="400">
+                {t('sharedUi.roomAccessControl.anAdminWillReviewYourRequest')}
               </Text>
-            )}
-            <Box gap="200" justifyContent="End">
-              <Button
-                type="button"
-                variant="Secondary"
-                fill="Soft"
-                size="400"
-                disabled={loading}
-                onClick={requestClose}
-              >
-                <Text size="B400">{t('sharedUi.roomAccessControl.cancel')}</Text>
-              </Button>
-              <Button
-                type="submit"
-                variant="Primary"
-                size="400"
-                disabled={loading}
-                before={loading ? <Spinner size="100" variant="Primary" fill="Solid" /> : undefined}
-              >
-                <Text size="B400">
-                  {loading
-                    ? t('sharedUi.roomAccessControl.sendingRequest')
-                    : t('sharedUi.roomAccessControl.sendRequest')}
+              <Box direction="Column" gap="100">
+                <Text as="label" htmlFor={messageId} size="L400">
+                  {t('sharedUi.roomAccessControl.messageOptional')}
                 </Text>
-              </Button>
+                <TextArea
+                  ref={messageRef}
+                  id={messageId}
+                  name="reasonInput"
+                  variant="Background"
+                  rows={3}
+                  maxLength={500}
+                  readOnly={loading}
+                />
+              </Box>
+              {shownError && (
+                <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+                  {shownError}
+                </Text>
+              )}
+              <Box gap="200" justifyContent="End">
+                <Button
+                  type="button"
+                  variant="Secondary"
+                  fill="Soft"
+                  size="400"
+                  disabled={loading}
+                  onClick={requestClose}
+                >
+                  <Text size="B400">{t('sharedUi.roomAccessControl.cancel')}</Text>
+                </Button>
+                <Button
+                  type="submit"
+                  variant="Primary"
+                  size="400"
+                  disabled={loading}
+                  before={
+                    loading ? <Spinner size="100" variant="Primary" fill="Solid" /> : undefined
+                  }
+                >
+                  <Text size="B400">
+                    {loading
+                      ? t('sharedUi.roomAccessControl.sendingRequest')
+                      : t('sharedUi.roomAccessControl.sendRequest')}
+                  </Text>
+                </Button>
+              </Box>
             </Box>
-          </Box>
-        </Dialog>
+          </Dialog>
+        </FocusTrap>
       </OverlayCenter>
     </Overlay>
   );

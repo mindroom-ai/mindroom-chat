@@ -278,7 +278,7 @@ export function VoiceAudioContent({
               radii="Pill"
               variant="SurfaceVariant"
               aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
-              aria-haspopup="menu"
+              aria-haspopup="dialog"
               aria-expanded={!!moreAnchor}
               onClick={handleMoreClick}
             >
@@ -306,7 +306,11 @@ export function VoiceAudioContent({
               escapeDeactivates: true,
             }}
           >
-            <Menu className={css.MoreMenu}>
+            <Menu
+              className={css.MoreMenu}
+              role="dialog"
+              aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
+            >
               <div className={css.MoreMenuAction}>
                 <VoiceVolumeButton />
                 <FileDownloadButton

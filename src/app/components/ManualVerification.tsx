@@ -78,32 +78,33 @@ function ManualVerificationMethodSwitcher({
 
             }}
           >
-            <Menu>
+            <Menu role="menu">
               <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
                 {methods.map((method) => (
                   <MenuItem
                     key={method}
                     size="300"
                     radii="300"
-                    aria-pressed={method === value}
+                    role="menuitemradio"
+                    aria-checked={method === value}
                     onClick={() => handleSelect(method)}
                   >
                     <Text size="T300">{label(method)}</Text>
                   </MenuItem>
                 ))}
-              </Box>
-            </Menu>
-          </FocusTrap>
-        }
-      />
-    </>
-  );
-}
 
 
 
 
-};
+
+
+
+
+
+
+
+
+
 
 /** Verifies this device by unlocking secret storage with the recovery key or passphrase. */
 
