@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """One-time history rewrite of 2026-11-03: blank every upstream overlap in every commit.
 
-Usage: rewrite_history.py <findings.tsv> <purge-paths.txt> <workdir>
+Usage: rewrite_history.py <findings.tsv> <purge-paths.txt> <workdir> <upstream repository>
 
 <findings.tsv> is `check.py --history --jscpd --out` output for this repository: one row per
 finding (blob, path, start-end, kind). Every line inside a finding's range is replaced by an empty
 line in that blob, except import and re-export statements and lines that are already blank, so
-line numbers stay the same. <purge-paths.txt> lists MindRoom Chat repository tooling removed from
-every commit; their rows are also dropped from the provenance lists. The rewrite runs
-git-filter-repo once, so the commit count and messages stay; commits that end up empty are pruned.
+line numbers stay the same. Each blanked blob is checked again (blanking can leave a skeleton of
+brackets and kept lines that still matches) and blanked further until it passes.
+<purge-paths.txt> lists MindRoom Chat repository tooling removed from every commit; their rows are
+also dropped from the provenance lists. The rewrite runs git-filter-repo once, so the commits and
+their messages stay; commits that end up empty are pruned.
 
 Writes into <workdir>: blobs/<oid> (replacement contents), blanked.tsv (blob, path, line),
 holes-overlap-import.tsv rows for docs/provenance (path, line, wave), and holes-overlap-head.tsv
@@ -21,7 +23,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from check import IMPORTS, REPO, git, read_blobs  # noqa: E402
+from check import CODE, IMPORTS, REPO, corpus_lines, corpus_windows, generic_lines, git, line_runs, read_blobs, token_runs  # noqa: E402
 
 PROV = "docs/provenance"
 
@@ -38,6 +40,10 @@ def blank_lines(text: str, ranges: list[tuple[int, int]]) -> list[int]:
 
 def main() -> None:
     findings, purge_file, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+    corpus = Path(sys.argv[4])
+    cset = corpus_lines(corpus)
+    generic = generic_lines(cset)
+    cwindows = corpus_windows(corpus)
     purge = [p for p in purge_file.read_text().splitlines() if p]
     (work / "blobs").mkdir(parents=True, exist_ok=True)
     ranges: dict[str, list[tuple[int, int]]] = defaultdict(list)
@@ -50,10 +56,19 @@ def main() -> None:
     texts = read_blobs(REPO, list(ranges))
     blanked_rows, by_oid = [], {}
     for oid, text in texts.items():
-        numbers = blank_lines(text, ranges[oid])
         lines = text.split("\n")
-        for n in numbers:
-            lines[n - 1] = ""
+        numbers: set[int] = set()
+        todo = ranges[oid]
+        while todo:
+            new = blank_lines("\n".join(lines), todo)
+            numbers.update(new)
+            for n in new:
+                lines[n - 1] = ""
+            current = "\n".join(lines)
+            todo = line_runs(current, cset, generic) + (token_runs(current, cwindows) if CODE.search(paths[oid]) else [])
+            if todo and not blank_lines(current, todo):
+                raise SystemExit(f"{paths[oid]} ({oid}): residual overlap {todo} has nothing left to blank")
+        numbers = sorted(numbers)
         by_oid[oid] = numbers
         (work / "blobs" / oid).write_bytes("\n".join(lines).encode())
         blanked_rows += [f"{oid}\t{paths[oid]}\t{n}" for n in numbers]
@@ -104,4 +119,5 @@ def main() -> None:
     )
 
 
-main()
+if __name__ == "__main__":
+    main()
