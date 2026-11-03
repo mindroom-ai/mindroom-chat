@@ -43,7 +43,7 @@ const openRegistration = (sso: boolean): AuthFlows => ({
     flows: [
       { type: 'm.login.password' },
       ...(sso ? [{ type: 'm.login.sso', identity_providers: [] }] : []),
-    ],
+    ] as AuthFlows['loginFlows']['flows'],
   },
   registerFlows: {
     status: RegisterFlowStatus.FlowRequired,
