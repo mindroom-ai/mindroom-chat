@@ -90,7 +90,8 @@ function FormatHints() {
   ));
 
   return (
-    <Menu style={{ width: toRem(280), maxHeight: '60vh', overflowY: 'auto' }}>
+    // The list scrolls, so it takes focus (keyboard scrolling, and the focus trap needs a stop).
+    <Menu tabIndex={0} style={{ width: toRem(280), maxHeight: '60vh', overflowY: 'auto' }}>
       <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>
         <Text size="H5">{t(`${HINT_PREFIX}.title`)}</Text>
       </Header>
