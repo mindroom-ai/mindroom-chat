@@ -15,12 +15,19 @@ import {
 } from './RoomInputMindroomExtensions';
 import { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
 
+type Store = ReturnType<typeof createStore>;
+
+/** Signal only plays voice messages in a codec it knows; the bridge converts the rest. */
+export const getVoiceMessageContentOptions = (
+  signalBridgedRoom: boolean
+): Parameters<typeof getAudioMsgContent>[2] =>
+  signalBridgedRoom ? { voiceMessageMimeTypeOverride: 'audio/ogg' } : {};
+
 /**
  * How the composer moves files to the homeserver: preparing voice recordings as upload items,
  * uploading an item through its upload atom (so its card shows progress), and sending a voice
  * message. A send that fails drops its unsent local echo; the recorder keeps the recording.
  */
-type Store = ReturnType<typeof createStore>;
 
 export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room: Room) => {
   // A recording that cannot be prepared (encrypted) fails at once; the recorder keeps it to retry.
@@ -110,7 +117,11 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
 
   const sendVoiceItem = useCallback(
     async (context: MindroomVoiceSendContext, item: TUploadItem, mxc: string): Promise<string> => {
-      const content: IContent = getAudioMsgContent(item, mxc);
+      const content: IContent = getAudioMsgContent(
+        item,
+        mxc,
+        getVoiceMessageContentOptions(context.signalBridgedRoom)
+      );
       const relation = getMindroomRoomInputVoiceUploadRelation(context, item.file);
       if (relation) content['m.relates_to'] = relation;
       const txnId = mx.makeTxnId();

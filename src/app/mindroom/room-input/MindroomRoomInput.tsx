@@ -77,7 +77,10 @@ import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
-import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
+import {
+  getVoiceMessageContentOptions,
+  useRoomInputUploadTransport,
+} from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
 
 export { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
@@ -110,12 +113,7 @@ const buildUploadMessageContent = async (
   if (type.startsWith('image/')) content = await getImageMsgContent(mx, item, mxc);
   else if (type.startsWith('video/')) content = await getVideoMsgContent(mx, item, mxc);
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
-    // Signal only plays voice messages in a codec it knows; the bridge converts the rest.
-    content = getAudioMsgContent(
-      item,
-      mxc,
-      signalBridgedRoom ? { voiceMessageMimeTypeOverride: 'audio/ogg' } : {}
-    );
+    content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
   return withMindroomPasteAttachmentMetadata(
     content,
