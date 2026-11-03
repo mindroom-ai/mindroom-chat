@@ -55,9 +55,9 @@ import {
 
 
 
-
-
-
+  defaultProtocol: 'https',
+  // A bare domain such as `example.com` stays text.
+  validate: {
     url: (value: string) => /^(?:https?|ftp|mailto|magnet):/i.test(value) || /^www\./i.test(value),
   },
 };
@@ -136,9 +136,9 @@ export const makeMentionCustomProps = (
 
 const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
   const roomId = roomIdOrAlias.startsWith('#')
-
-
-
+    ? getCanonicalAliasRoomId(mx, roomIdOrAlias)
+    : roomIdOrAlias;
+  const room = roomId ? mx.getRoom(roomId) : undefined;
   return room?.name ? `#${room.name}` : roomIdOrAlias;
 };
 
@@ -161,9 +161,9 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
     const name = room ? getMemberDisplayName(room, userId) : undefined;
     return (
       <a
-
-
-
+        {...customProps}
+        href={href}
+        className={classNames(
           css.Mention({ highlight: mx.getUserId() === userId }),
           customProps.className
         )}
@@ -196,9 +196,9 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
       : roomLink.roomIdOrAlias;
     return (
       <a
-
-
-
+        {...customProps}
+        href={href}
+        className={classNames(
           css.Mention({ highlight: !!roomId && roomId === currentRoomId }),
           customProps.className
         )}

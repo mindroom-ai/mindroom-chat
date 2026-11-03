@@ -15,11 +15,13 @@ export const Panel = style({
   borderInlineStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
 });
 
-
-
-
-
-
+// Title on the left, controls pushed to the right edge.
+export const Header = style({
+  flex: '0 0 auto',
+  display: 'flex',
+  gap: config.space.S200,
+  alignItems: 'center',
+  justifyContent: 'space-between',
   minHeight: toRem(56),
   padding: `${config.space.S200} ${config.space.S200} ${config.space.S200} ${config.space.S400}`,
   borderBottom: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,

@@ -58,15 +58,16 @@ export function RoomRoute({ children }: { children: ReactNode }) {
         key={roomIdOrAlias}
         roomIdOrAlias={roomIdOrAlias}
         eventId={eventId ? decodeRouteParam(eventId) : undefined}
+        viaServers={viaServers?.split(',').filter(Boolean)}
+        threadId={threadId}
+      />
+    );
+  }
 
-
-
-
-
-
-
-
-
-
-
-
+  const isDirect = directs.has(room.roomId);
+  return (
+    <RoomProvider value={room}>
+      <IsDirectRoomProvider value={isDirect}>{children}</IsDirectRoomProvider>
+    </RoomProvider>
+  );
+}

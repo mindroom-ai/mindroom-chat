@@ -10,20 +10,19 @@ import {
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 /** One server search hit with the messages around it. */
+export type ResultItem = {
+  event: IEventWithRoomId;
+  context: IResultContext;
+  /** The server's relevance score for this hit. */
+  rank: number;
+};
 
+/** Consecutive hits from one room, in the order the server returned them. */
+export type ResultGroup = { roomId: string; items: ResultItem[] };
 
-
-
-
-
-
-
-
-
-
-
-
-
+export type MessageSearchParams = {
+  /** Undefined or blank keeps the search idle. */
+  term?: string;
   order?: SearchOrderBy;
   /** Rooms to search; undefined searches every room the user is in. */
   rooms?: string[];

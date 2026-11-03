@@ -1,5 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
+/** Where an async request stands; `useAsyncCallback` holds the latest outcome. */
 
 
 

@@ -59,7 +59,7 @@ export function MessageSearch({
   scopeName,
   allowGlobal = true,
   scrollRef,
-
+  renderBody,
 
 
 

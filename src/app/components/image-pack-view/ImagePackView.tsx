@@ -124,6 +124,16 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
     setAnchor(evt.currentTarget.getBoundingClientRect());
   const select = (option: UsageOption) => {
     setAnchor(undefined);
+    onChange(option);
+  };
+  const closeMenu = () => setAnchor(undefined);
+
+  return (
+    <PopOut
+      anchor={anchor}
+      offset={4}
+      align="End"
+      position="Bottom"
 
 
 
@@ -131,22 +141,14 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            onDeactivate: closeMenu,
+          }}
+        >
+          <Menu>
+            <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+              {(Object.keys(labels) as UsageOption[]).map((option) => (
+                <MenuItem
+                  key={option}
                   size="300"
                   radii="300"
                   aria-pressed={option === value}
@@ -166,10 +168,12 @@ function UsageSelector({ value, disabled, onChange }: UsageSelectorProps) {
         type="button"
         variant="SurfaceVariant"
         radii="Pill"
-
-
-
-
+        size="400"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={anchor !== undefined}
+        after={<Icon size="100" src={Icons.ChevronBottom} />}
+        onClick={open}
       >
         <Text as="span" size="B300">
           {labels[value]}
@@ -215,6 +219,8 @@ const useSavedPack = (mx: MatrixClient, address: ImagePackAddress | undefined): 
   useEffect(() => {
     if (!address) {
       const handleAccountData = (event: MatrixEvent) => {
+        if (event.getType() !== AccountDataEvent.PoniesUserEmotes) return;
+
 
 
 
@@ -247,11 +253,11 @@ const useSavedPack = (mx: MatrixClient, address: ImagePackAddress | undefined): 
 
 type ImagePackViewProps = {
   /** A room pack, or undefined for the user's personal pack. */
-  address: ImagePackAddress | undefined;
-  requestClose: () => void;
-};
 
-/** Shows an emoji and sticker pack and lets an editor change usage, remove and add images. */
+
+
+
+
 
 
 
@@ -380,6 +386,7 @@ type ImagePackViewProps = {
               gap="200"
               wrap="Wrap"
               style={{
+
 
 
 

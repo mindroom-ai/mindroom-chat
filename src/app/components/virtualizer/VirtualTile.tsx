@@ -16,12 +16,12 @@ type VirtualTileProps = {
  * overrides the placement.
  */
 export const VirtualTile = forwardRef<HTMLDivElement, VirtualTileProps>(
-  ({ virtualItem, className, style, children }, ref) => (
-    <div
 
 
 
 
+
+      ref={ref}
     >
       {children}
     </div>

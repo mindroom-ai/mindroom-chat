@@ -40,16 +40,16 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
   const { room, item } = props;
   const { event } = item;
   const sender =
+    getMemberDisplayName(room, event.sender) ?? getMxIdLocalPart(event.sender) ?? event.sender;
 
-
-
-
-
-
-
-
-
-
+  return (
+    <SequenceCard
+      as="article"
+      direction="Column"
+      gap="300"
+      style={{ padding: `${config.space.S300} ${config.space.S400}` }}
+    >
+      <Box gap="200" alignItems="Center" style={{ minWidth: 0 }}>
         <Text as="span" size="T300" truncate style={{ fontWeight: 600, minWidth: 0 }}>
           {sender}
         </Text>
@@ -70,11 +70,9 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
   );
 }
 
-
-
-
-
-
+type SearchResultGroupProps = Omit<SearchResultBodyProps, 'item'> & {
+  /** The room's hits, in the order the server ranked them. */
+  items: ResultItem[];
   renderBody: SearchResultBodyRenderer;
   onOpen: (roomId: string, target: SearchResultOpenTarget) => void;
 };

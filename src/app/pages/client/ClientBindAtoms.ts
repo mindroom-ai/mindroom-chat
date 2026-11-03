@@ -3,16 +3,13 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useBindAtoms } from '../../state/hooks/useBindAtoms';
 
+type ClientBindAtomsProps = { children: ReactNode };
 
-
-
-
-
-
-
-
-
-
+/**
+ * Seeds the account-wide atoms (rooms, invites, unread counts, ...) from the
+ * active Matrix client. Children render only once the seeding effects of that
+ * client ran, so no page ever reads atoms that still hold another account.
+ */
 
 
 

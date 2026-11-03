@@ -14,12 +14,12 @@ import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../local-mindroom/settingsPage';
 import * as css from './MindroomTab.css';
 
 export function MindroomTab() {
+  const [settings, setSettings] = useState(false);
+  const { t } = useTranslation();
 
-
-
-
-
-
+  return (
+    <>
+      <SidebarItem>
         <SidebarItemTooltip tooltip={t('mindroomUi.sidebar.mindroomTab.localMindroom')}>
           {(triggerRef) => (
             <SidebarAvatar as="button" ref={triggerRef} outlined onClick={() => setSettings(true)}>

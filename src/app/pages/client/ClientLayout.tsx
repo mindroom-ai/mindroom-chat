@@ -28,9 +28,8 @@ const isRuntimeHandOffPath = (pathname: string): boolean =>
 export function ClientLayout({ nav, children }: ClientLayoutProps) {
   const mx = useMatrixClient();
   const activeSession = useActiveSession();
-
-
-
+  const { hash, pathname, search } = useLocation();
+  const navigate = useNavigate();
   const sessionId = activeSession?.sessionId;
 
   const hasAlias = pathnameContainsAliasRoute(pathname);

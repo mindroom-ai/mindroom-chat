@@ -44,15 +44,15 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
 
   const showThreads = sidebar?.showThreads ?? true;
   const showCanvases = !!mindroom?.canvas?.enabled && showCanvasesSetting;
+  const showExplore = sidebar?.showExploreCommunity ?? true;
 
-
-
-
-
-
-
-
-
+  return (
+    <Sidebar>
+      <SidebarContent
+        scrollable={
+          <Scroll ref={scrollRef} hideTrack size="0" visibility="Hover" variant="Background">
+            <SidebarStack>
+              <HomeTab onSelect={onPageNavSelect} />
               <DirectTab onSelect={onPageNavSelect} />
               {showThreads && <ThreadsTab />}
               {showCanvases && <CanvasesTab />}
