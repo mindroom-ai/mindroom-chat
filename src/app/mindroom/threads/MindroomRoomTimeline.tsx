@@ -92,6 +92,11 @@ import { useTimelineScrollLedgerController } from './timelineScrollLedgerControl
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
+import { useFollowContentGrowth } from './useFollowContentGrowth';
+import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
+import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
+import { useThreadOverviewResumeController } from './threadOverviewResumeController';
+import { getLiveReplyStore } from '../live/liveReplyStore';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useMindroomThreadIndex } from './useMindroomThreadIndex';
@@ -118,7 +123,7 @@ import {
   useThreadApprovalTimeline,
 } from './useThreadApprovalTimeline';
 import { estimateThreadEventRowHeight, shouldAutoPaginateThreadBack } from './threadRenderUtils';
-import { isTimelineAtLiveEnd } from './timelineScrollUtils';
+import { isScrollNearBottom, isTimelineAtLiveEnd } from './timelineScrollUtils';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
@@ -443,7 +448,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
-  const { overviewRefreshCounter } = useThreadOverviewRefreshCounter(room, threadId);
+  const { overviewRefreshCounter, setOverviewRefreshCounter } = useThreadOverviewRefreshCounter(
+    room,
+    threadId
+  );
 
   // Thread rows.
   const threadState = useThreadTimelineState({
@@ -1092,7 +1100,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadIdRef,
     timeline,
   });
-  const isViewportAtBottomNow = useCallback(() => atBottomRef.current, [atBottomRef]);
+  const isViewportAtBottomNow = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return atBottomRef.current;
+    const { scrollHeight, scrollTop, clientHeight } = element;
+    return isScrollNearBottom({ scrollHeight, scrollTop, clientHeight });
+  }, [atBottomRef]);
   useRoomTimelineResetRelink({
     room,
     threadId,
@@ -1158,6 +1171,66 @@ export function RoomTimeline(props: RoomTimelineProps) {
   useEffect(() => {
     engine.noteRoomFocused(room.roomId, threadId);
   }, [engine, room.roomId, threadId]);
+  // A reply that streams live frames grows the rows without a timeline event: follow it.
+  useFollowContentGrowth(
+    getScrollElement,
+    contentRef,
+    isViewportAtBottomNow,
+    atLiveEndRef,
+    getLiveReplyStore(mx),
+    room.roomId
+  );
+
+  // The compact overview: older history until zero-reply roots show up, root edits it lacks,
+  // and a refresh of its threads when the page comes back.
+  const loadedRoomEventCount = useMemo(
+    () => timeline.linkedTimelines.reduce((total, part) => total + part.getEvents().length, 0),
+    [timeline]
+  );
+  useCompactCoverageBackfillController({
+    enabled: compactViewRequested && !eventId,
+    loadedEventCount: loadedRoomEventCount,
+    hasZeroReplyRootCoverage: threadIndex.hasZeroReplyRootCoverage,
+    canPaginateBack: canPaginateRoomBack,
+    hasMoreCachedBack: roomHasMoreCachedBack,
+    paginateBack: paginateRoom,
+  });
+  useCompactRootEditBackfillController({
+    enabled: compactViewRequested,
+    mx,
+    overviewThreadRootIds: threadIndex.overviewThreadRootIds,
+    beginRoomCacheWrite,
+    room,
+    roomSurfaceEventEntries: threadIndex.roomSurfaceEventEntries,
+    roomThreadListThreads: threadIndex.roomThreadListThreads,
+    setOverviewRefreshCounter,
+  });
+  useThreadOverviewResumeController({
+    alive,
+    activeTimelineRange,
+    compactFilteredThreadRootIds: threadIndex.compactFilteredThreadRootIds,
+    compactViewRequested,
+    debugTraceId: roomDebugTraceId,
+    filteredThreadRootIds: threadIndex.filteredThreadRootIds,
+    limit: windowLimit,
+    mx,
+    onStoreThreadSummary: onStoreThreadSummary as (
+      threadRootId: string,
+      info: MindroomThreadSummaryInfo | undefined
+    ) => void,
+    onApplyThreadRelations: threadIndex.applyThreadOverviewRelationEvents,
+    beginThreadCacheWrite,
+    refreshCompactThreadList: threadIndex.refreshRoomThreadList,
+    room,
+    sessionId,
+    setOverviewRefreshCounter,
+    showCompactRoomView: threadIndex.showCompactRoomView,
+    threadFilteredEventEntries: roomRowEntries,
+    threadId,
+    threadIdRef,
+    threadReplyCountMap: threadIndex.threadReplyCountMap,
+    threadResolutionMap,
+  });
 
   // Live rows. This registers the room's last timeline listener, after every other one.
   useRoomLiveRenderController({
