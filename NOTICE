@@ -5,13 +5,90 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Ported files
 ------------
-Files listed in docs/provenance/portable.tsv were authored by Bas Nijholt and
-are licensed under the Apache License, Version 2.0 for this project, per his
-instruction of 2026-11-02 (see docs/provenance.md).
+Bas Nijholt authored the files listed in docs/provenance/portable.tsv (first
+import) and docs/provenance/portable-wave2.tsv (second import), both copied
+from MindRoom Chat (mindroom-ai/mindroom-chat) at commit fc3a5905. Per his
+instruction of 2026-11-02, he licenses the lines he wrote in the files of both
+imports under the Apache License, Version 2.0 for this project. Lines by any
+other author were blanked when copied (docs/provenance/holes.tsv and
+holes-wave2.tsv) and written fresh here. docs/provenance/import.txt names the
+import commits; docs/provenance.md describes the process.
 
 Third-party notices
 -------------------
-mindroom-client installs its dependencies from npm under their own licenses.
-Only MIT, Apache-2.0, BSD, ISC, 0BSD, Zlib, Unicode, CC0, BlueOak, OFL (fonts),
-and MPL-2.0 (used unmodified) are accepted; package-lock.json pins the exact
-versions. The notices that each package ships stay with that package.
+mindroom-client installs its dependencies from npm under their own licenses;
+package-lock.json pins the exact versions, and the notices each package ships
+stay with that package. scripts/license-check.mjs accepts these licenses:
+MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
+Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
+MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
+and stream-buffers, under @capacitor/cli). It accepts three packages by name:
+require-like (MIT license text, no license field), caniuse-lite (CC-BY-4.0
+browser data, build tooling only, not in the bundle), and jsonify (public
+domain, development only).
+
+noVNC
+  @novnc/novnc 1.7.0, Copyright (C) The noVNC authors, Mozilla Public License
+  2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.
+  Source: https://github.com/novnc/noVNC (tag v1.7.0), also published as the
+  npm package @novnc/novnc@1.7.0, which carries the license texts in docs/.
+
+Inter
+  The Inter typeface, Copyright 2020 The Inter Project Authors
+  (https://github.com/rsms/inter), SIL Open Font License 1.1, packaged as
+  @fontsource/inter 4.5.14 (MIT). The web bundle includes its font files
+  unmodified. License text: licenses/Inter-OFL-1.1.txt.
+
+The build output carries LICENSE, this NOTICE and licenses/ in
+public/licenses/ (vite.config.js), beside the bundled code they describe.
+
+Code block icons
+  src/app/mindroom/html/CODE_BLOCK_ICONS_LICENSES.md: language icons from
+  @pierre/trees (Apache-2.0) and icons from Lucide (ISC, portions from Feather,
+  MIT), with their license texts.
+
+Modified dependencies
+  patch-package applies the patches in patches/ to these installed packages
+  when `npm install` or `npm ci` runs. Bas Nijholt wrote the changes (Lane P,
+  second import). Each patch file is the record of what changed.
+
+  matrix-js-sdk 41.7.0 (Apache-2.0, Copyright The Matrix.org Foundation
+  C.I.C.), patches/matrix-js-sdk+41.7.0.patch modifies:
+    src/client.ts, src/sync.ts, src/@types/requests.ts,
+    src/http-api/fetch.ts, src/models/event-timeline-set.ts,
+    src/models/room.ts, src/models/thread.ts, src/rust-crypto/index.ts,
+    src/rust-crypto/rust-crypto.ts, src/store/indexeddb.ts,
+    src/store/indexeddb-backend.ts, src/store/indexeddb-local-backend.ts,
+    and the compiled files built from them: lib/client.js, lib/client.d.ts,
+    lib/sync.js, lib/sync.d.ts, lib/@types/requests.d.ts,
+    lib/http-api/fetch.js, lib/models/event-timeline-set.js(.map),
+    lib/models/room.js(.map), lib/models/room.d.ts,
+    lib/models/thread.js(.map), lib/models/thread.d.ts,
+    lib/rust-crypto/index.js, lib/rust-crypto/rust-crypto.js,
+    lib/store/indexeddb.js, lib/store/indexeddb-backend.d.ts,
+    lib/store/indexeddb-local-backend.js,
+    lib/store/indexeddb-local-backend.d.ts.
+
+  folds 2.7.1 (Apache-2.0), patches/folds+2.7.1.patch modifies:
+    dist/style.css.
+
+  @capacitor/android 8.1.0 (MIT), patches/@capacitor+android+8.1.0.patch
+  modifies, under capacitor/src/main/java/com/getcapacitor/:
+    MessageHandler.java, plugin/CapacitorCookies.java,
+    plugin/CapacitorHttp.java, plugin/SystemBars.java.
+
+  @capacitor/ios 8.5.2 (MIT), patches/@capacitor+ios+8.5.2.patch modifies,
+  under Capacitor/Capacitor/:
+    WebViewAssetHandler.swift, CAPNotifications.swift,
+    WebViewDelegationHandler.swift.
+
+  i18next 23.12.2 (MIT), patches/i18next+23.12.2.patch modifies:
+    dist/cjs/i18next.js, dist/esm/i18next.js.
+
+  scheduler 0.23.2 (MIT), patches/scheduler+0.23.2.patch modifies:
+    cjs/scheduler.development.js, cjs/scheduler.production.min.js, and adds
+    cjs/mindroom-wakeup.js.
+
+  @tanstack/virtual-core 3.17.3 (MIT),
+  patches/@tanstack+virtual-core+3.17.3.patch modifies:
+    dist/cjs/index.cjs, dist/esm/index.js.

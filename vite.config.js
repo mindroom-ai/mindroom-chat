@@ -19,6 +19,9 @@ export const copyFiles = {
     // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n.ts).
     // English ships in the bundle, with its overlay in src/app/locales/additions/en.json.
     { src: 'src/app/locales/*.json', dest: 'public/locales' },
+    // License texts and notices for the bundled code (NOTICE: noVNC source, Inter font license).
+    // Under public/, so the service worker never answers them with the app shell.
+    { src: ['LICENSE', 'NOTICE', 'licenses/*'], dest: 'public/licenses' },
   ],
 };
 

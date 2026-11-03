@@ -23,14 +23,18 @@ just dev
 | Recipe | What it does |
 |---|---|
 | `just install` | Install the locked dependencies (`npm ci`) |
-| `just typecheck` | `tsc --noEmit -p .` |
-| `just typecheck-all` | Same, but also reports semantic errors while syntax errors remain |
+| `just typecheck` | Type-check the app sources (`tsconfig.app.json`, no tests) |
+| `just typecheck-tests` | Type-check everything, tests included; reports without failing |
+| `just typecheck-all` | Type-check everything, reporting semantic errors while syntax errors remain |
 | `just test [args]` | Unit tests (`vitest run`) |
 | `just lint` | ESLint |
 | `just format <paths>` | Prettier on files you wrote |
 | `just dev` | Vite dev server on `http://127.0.0.1:4200` |
 | `just build` | Production build into `dist/` |
-| `just check` | Typecheck, lint, test, license check, ported-file verification |
+| `just e2e [args]` | Playwright end-to-end specs (`just hs-up` / `just hs-down` start and stop the test homeserver) |
+| `just check` | Typecheck, lint, test, license check, ported-file verification, hole check |
+
+`AGENTS.md` lists every recipe.
 
 ## License
 

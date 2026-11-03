@@ -4,12 +4,15 @@ This repository has two kinds of code. The spec (`docs/baspowers/specs/2026-11-0
 
 ## Lane P: files ported from MindRoom Chat
 
-- Source: `mindroom-ai/mindroom-chat` at `fc3a5905` (`dev`, 2026-11-02).
-- Selection: `git blame -w -M -C -C` attributes at least 95% of the file's lines to Bas Nijholt (`bas@nijho.lt`). Every line attributed to anyone else was blanked when copied; `docs/provenance/holes.tsv` lists them (path, line). Lane C rewrites the blanked lines.
-- List: `docs/provenance/portable.tsv` (path, Bas lines, blanked lines): 1581 files, 329,229 Bas lines, 655 blanked lines.
-- Grant: per Bas Nijholt's instruction of 2026-11-02, as the author of the lines in these files he licenses them under the Apache License 2.0 for this project.
-- Tool: `scripts/port_files.py <chat checkout> <commit>` performs the import; `--verify` recomputes it and compares with the import commit named in `docs/provenance/import.txt`.
-- Dropped: `docs/provenance/dropped.tsv` (path, wave, reason) lists the Lane P files deleted because their feature is not part of this client (Element Call, the room-level thread filter bar, Simple Mode). They stay in `portable.tsv` as imported; `scripts/check_holes.py` skips them.
+- Source: `mindroom-ai/mindroom-chat` at `fc3a5905` (`dev`, 2026-11-02), imported in two waves.
+- Selection: `git blame -w -M -C -C` attributes at least 95% of the file's lines to Bas Nijholt (`bas@nijho.lt`). Every line attributed to anyone else was blanked when copied and listed in the wave's hole file (path, line). Lane C rewrites the blanked lines.
+- Wave 1: `docs/provenance/portable.tsv` (path, Bas lines, blanked lines): 1581 files, 329,229 Bas lines, 655 blanked lines in `docs/provenance/holes.tsv`. The TypeScript code and tests under `src/` and `e2e/`.
+- Wave 2: `docs/provenance/portable-wave2.tsv`, same columns: 192 files, 93,171 Bas lines, 4 blanked lines in `docs/provenance/holes-wave2.tsv`. The other files Bas wrote: the native shells (`ios/`, `android/`), `patches/`, locales, test fixtures and traces, `public/` assets, `scripts/`, `serve.py`, the Docker entrypoint, and repository tooling.
+- `docs/provenance/import.txt` has one line per wave: the import commit in this repository, then the source (`mindroom-chat fc3a5905`).
+- Grant: per Bas Nijholt's instruction of 2026-11-02, as the author of the lines in the files of both waves he licenses them under the Apache License 2.0 for this project. `NOTICE` records this.
+- Tool: `scripts/port_files.py <chat checkout> <commit> [--wave N]` performs an import; `--verify` recomputes it and compares it with that wave's import commit. `scripts/verify-ported.sh <chat checkout>` (`just verify-ported`) runs the verification for every wave in `import.txt`.
+- Holes: `scripts/check_holes.py --wave N --rev <commit>` (`just check-holes`) checks that each wave's files differ from the import only in their blanked lines, at the commit that filled them (`f824c82` for wave 1, `2717365` for wave 2).
+- Dropped: `docs/provenance/dropped.tsv` (path, wave, reason) lists the Lane P files deleted because their feature is not part of this client (Element Call, the room-level thread filter bar, Simple Mode) or because they are MindRoom Chat repository tooling (`.envrc`, `.github/`, `.claude/`, `.agents/skills`, `.gitattributes` with its merge driver, the release-tag and merge-driver scripts, the test of the release workflow). `FORK_CHANGES.md` (wave 2) was deleted without being opened: it describes MindRoom Chat internals that were not ported, and Lane C must not read it. Dropped files stay in the portable lists as imported: `check_holes.py` skips them, `verify-ported.sh` still verifies them (it reads the import commit, not the working tree), and the similarity audit counts them in neither lane.
 
 ## Lane C: clean code
 
@@ -17,9 +20,11 @@ Everything else. Written without access to Cinny or MindRoom Chat source beyond 
 
 Supporting inventories, computed by the orchestrator from blame and imports only:
 
-- `docs/provenance/seams.tsv`: modules that Lane P files import but that are not ported (path in MindRoom Chat, number of importing files, Bas share of the original, imported names). Lane C implements them at the same paths.
+- `docs/provenance/seams.tsv`: modules that Lane P files import but that are not ported (path in MindRoom Chat, number of importing files, Bas share of the original, imported names). Lane C implements them at the same paths. Rows that came from strings which only look like imports (fixtures of the import-parser tests, a comment, and two modules the e2e specs load inside the page) were removed on 2026-11-03.
 - `docs/provenance/seams-dropped.tsv`: the same columns plus a reason, for seams (or single names of a seam) intentionally not built because their feature was dropped; their Lane P importers were deleted or no longer import them.
 - `docs/provenance/external.tsv`: npm packages imported by Lane P files, with import counts.
+
+`scripts/similarity-audit.sh <corpus dir>...` compares Lane C with each corpus: Lane P is both portable lists minus `dropped.tsv`; Lane C is every other file, tracked or untracked but not ignored, under `src/`, `scripts/` and `e2e/`, plus the root config files. Only the orchestrator runs it against Cinny and MindRoom Chat, and only its report (paths and line ranges) is kept.
 
 ## What the orchestrator saw
 
@@ -36,3 +41,4 @@ The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5
 | 2026-11-03 | Task 13b implementer | Claude Opus 5.5 | deleted Simple Mode, the room-level thread filter bar and Element Call leftovers; `dropped.tsv`, `seams-dropped.tsv`, `check_holes.py` skip | this repository (Lane P files, `seams.tsv`, `docs/design/reference/`), `node_modules` type definitions; no MindRoom Chat or Cinny source |
 | 2026-11-03 | Task 13a implementer | Claude Opus 5.5 | build and dev-server fixes, signed-in discovery info, unread selector loop, `e2e/lane-c/boot.spec.ts`, e2e specs re-pointed from the filter bar to the header switch, `docs/design/m1-screenshots/` | this repository (Lane P files, `docs/design/reference/`), `scripts/reference/seed.py`, vanilla-extract, jotai, Playwright and matrix-js-sdk type definitions and sources in `node_modules`; no MindRoom Chat or Cinny source |
 | 2026-11-03 | Final fix F3 implementer | Claude Opus 5.5 | login well-known origin check, room and space routes that follow joins, space path after a join, live theme, register policy, safe route decoding, `historical` power level removed | this repository (Lane P files, `seams.tsv`), matrix-js-sdk, react-router and jotai type definitions and sources in `node_modules`; no MindRoom Chat or Cinny source |
+| 2026-11-03 | Final fix F4 implementer | Claude Opus 5.5 | dropped MindRoom Chat repository tooling (wave 2), both waves in `NOTICE`, this page and `AGENTS.md`, `verify-ported.sh` and `similarity-audit.sh` over both waves, Vite build assets (`runtime-config.js`, `authentication-recovery.js`, `version.json`, build version constants, dev `/sw.js`), media token path check, `blurhash` package, `tsconfig.app.json` type gate | this repository (Lane P files, `docs/provenance/`), `node_modules` package manifests, license files and type definitions (blurhash, @novnc/novnc, @fontsource/inter, vite, esbuild); `FORK_CHANGES.md` was deleted unopened (a repository-wide grep for tool file names listed about 15 of its lines, all mentions of tooling file names); no MindRoom Chat or Cinny source |
