@@ -1,132 +1,324 @@
-import React, { useCallback, useRef } from 'react';
-import type { Room } from 'matrix-js-sdk';
-import { Box } from 'folds';
+import React, {
+  type CSSProperties,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+} from 'react';
+import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
+import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
+import { ReactEditor } from 'slate-react';
+import { Box, Text, color, config } from 'folds';
 import { useEditor } from '../../components/editor';
 import { Page } from '../../components/page';
+import { useKeyDown } from '../../hooks/useKeyDown';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
+import { editableActiveElement } from '../../utils/dom';
 import { RoomViewTyping } from '../../features/room/RoomViewTyping';
 import { RoomInput } from '../room-input/MindroomRoomInput';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
+import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
+import { useMindroomSyncEngine } from '../engine/engineContext';
+import { FailedSendActions } from '../messages/FailedSendActions';
+import { isFailedLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
-import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
-import { RoomTimeline } from './MindroomRoomTimeline';
-import { RoomViewHeader } from './MindroomRoomViewHeader';
-import { ThreadContextBanner } from './ThreadContextBanner';
-import { useRoomViewThreadState } from './useRoomViewThreadState';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
+import { RoomTimeline, type RoomTimelineProps } from './MindroomRoomTimeline';
+import { RoomViewHeader, type RoomViewHeaderProps } from './MindroomRoomViewHeader';
+import * as overlay from './RoomOverlay.css';
+import { ThreadContextBanner } from './ThreadContextBanner';
+import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
+import { useRoomViewThreadState } from './useRoomViewThreadState';
 
 const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
 /** Stand-in for handlers the thread state mock or a minimal state leaves out. */
-const ignoreSummary = () => undefined;
+const ignore = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 
-export type RoomViewProps = {
+export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId'> & {
   room: Room;
   eventId?: string;
   threadId?: string;
-  hasMindroomAgents?: boolean;
-  joinRequestCount?: number;
-  computerAvailable?: boolean;
-  computerOpen?: boolean;
-  onComputerToggle?: () => void;
+  /** The route asks to show `eventId` in the room timeline rather than in its thread. */
+  focusEventInRoom?: boolean;
   onThreadLoadError?: (threadId: string) => void;
 };
 
+/** Timeline props this view passes beyond the timeline's own contract, for the parts that use them. */
+type TimelineShellProps = Partial<{
+  threadHeader: React.ReactNode;
+  hasMindroomAgents: boolean;
+  focusEventInRoom: boolean;
+}>;
+
+// The room area is the positioning box of the floating header, dock and footer.
+const AREA_STYLE: CSSProperties = {
+  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minHeight: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+};
+const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
+// Background jobs and approvals float just above the composer.
+const DOCK_STYLE: CSSProperties = {
+  position: 'absolute',
+  insetInline: 0,
+  bottom: 'var(--room-composer-height, 0px)',
+  zIndex: 5,
+  pointerEvents: 'none',
+};
+const DOCK_CONTENT_STYLE: CSSProperties = { pointerEvents: 'auto' };
+// Where the composer would be: why it is not there, or what to do about the unsent root.
+const NOTICE_GAP = config.space.S400;
+const NOTICE_STYLE: CSSProperties = {
+  background: color.SurfaceVariant.Container,
+  margin: `0 ${NOTICE_GAP} ${NOTICE_GAP}`,
+  color: color.SurfaceVariant.OnContainer,
+  padding: `${config.space.S300} ${NOTICE_GAP}`,
+  borderRadius: config.radii.R400,
+};
+
 /**
- * The main area of a room: header, the Compact or Full timeline (or the open thread with its
- * banner), approvals and background jobs, and the composer. The composer stays mounted when a
- * thread opens, so a send that opened the thread keeps its pending uploads.
+ * Keeps the heights of the floating header and footer on the room area, where the scroll areas
+ * read them (`--room-header-height`, `--room-footer-height`) to pad their content clear of both.
+ * The dock remounts with each thread, so it is measured again whenever the thread changes.
+ */
+const useRoomOverlayInsets = (
+  areaRef: RefObject<HTMLElement>,
+  headerRef: RefObject<HTMLElement>,
+  footerRef: RefObject<HTMLElement>,
+  dockRef: RefObject<HTMLElement>,
+  threadId: string | undefined
+) => {
+  useLayoutEffect(() => {
+    const area = areaRef.current;
+    if (!area || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const header = headerRef.current?.offsetHeight ?? 0;
+      const composer = footerRef.current?.offsetHeight ?? 0;
+      const dock = dockRef.current?.offsetHeight ?? 0;
+      area.style.setProperty('--room-header-height', `${header}px`);
+      area.style.setProperty('--room-composer-height', `${composer}px`);
+      area.style.setProperty('--room-footer-height', `${composer + dock}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    [headerRef, footerRef, dockRef].forEach((ref) => {
+      if (ref.current) observer.observe(ref.current);
+    });
+    return () => observer.disconnect();
+  }, [areaRef, dockRef, footerRef, headerRef, threadId]);
+};
+
+/** Typing a letter or digit with nothing focused starts a message in the composer. */
+const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
+  const handleKey = useCallback(
+    (evt: KeyboardEvent) => {
+      if (!enabled || evt.ctrlKey || evt.metaKey || evt.altKey) return;
+      if (!/^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '')) return;
+      // The agent's computer screen takes its own keystrokes.
+      if (computerOwnsKeyboardEvent(evt) || editableActiveElement()) return;
+      ReactEditor.focus(editor as ReactEditor);
+    },
+    [editor, enabled]
+  );
+  useKeyDown(window, handleKey);
+};
+
+/**
+ * The open thread's root while it is still a local echo: its event, when the room holds it.
+ * Re-renders as the echo's send state changes, and reports a root that was deleted unsent.
+ */
+const useLocalEchoRoot = (
+  room: Room,
+  threadId: string | undefined,
+  onDeleted: () => void
+) => {
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  const pending = isLocalEchoEventId(threadId);
+  const latestOnDeleted = useRef(onDeleted);
+  latestOnDeleted.current = onDeleted;
+
+  useEffect(() => {
+    if (!pending) return undefined;
+    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, _room, oldId) => {
+      if (oldId !== threadId && event.getId() !== threadId) return;
+      if (event.status === EventStatus.CANCELLED) latestOnDeleted.current();
+      else refresh();
+    };
+    room.on(RoomEvent.LocalEchoUpdated, onEcho);
+    return () => {
+      room.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
+    };
+  }, [pending, room, threadId]);
+
+  if (!pending || !threadId) return { pending: false as const };
+  return { pending: true as const, event: room.findEventById(threadId) ?? undefined };
+};
+
+/**
+ * The main area of a room: the timeline (Compact cards, the Full timeline, or the open thread
+ * with its banner) under a floating header and footer, with approvals and background jobs
+ * above the composer. The composer stays mounted when a thread opens, so a send that opened
+ * the thread keeps its pending uploads.
  */
 export function RoomView({
   room,
   eventId,
   threadId,
+  focusEventInRoom,
   hasMindroomAgents,
-  joinRequestCount,
-  computerAvailable,
-  computerOpen,
-  onComputerToggle,
   onThreadLoadError,
+  ...headerProps
 }: RoomViewProps) {
+  const { t } = useTranslation();
   const client = useMatrixClient();
   const editor = useEditor();
-  const composerRef = useRef<HTMLDivElement>(null);
+  const engine = useMindroomSyncEngine();
+  const { roomId } = room;
+  const areaRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
-  // Cancelling a background job sends an event, so it takes that event's power level.
+  const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
-  const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, client.getSafeUserId());
+  const canMessage = permissions.event('m.room.message', myUserId);
+  // Cancelling a background job sends an event, so it takes that event's power level.
+  const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId });
-  const effectiveThreadId = threadState.effectiveThreadId;
+  const { effectiveThreadId, viewMode } = threadState;
+  const localRoot = useLocalEchoRoot(
+    room,
+    effectiveThreadId,
+    threadState.handleThreadRootDeleted ?? ignore
+  );
+  const composerShown = !localRoot.pending && canMessage;
+  useTypeToCompose(editor, composerShown);
+  useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
+
+  // The open room (and thread) keeps its history downloads; leaving the room ends them.
+  const focusedThreadId = isConfirmedMatrixEventId(effectiveThreadId)
+    ? effectiveThreadId
+    : undefined;
+  useEffect(() => {
+    engine.noteRoomFocused(roomId, focusedThreadId);
+  }, [engine, roomId, focusedThreadId]);
+  useEffect(() => () => engine.clearRoomFocus(roomId), [engine, roomId]);
+
   const focusConversation = useCallback(() => {
-    composerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+    footerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
+
+  const threadHeader = effectiveThreadId ? (
+    <ThreadContextBanner
+      room={room}
+      threadId={effectiveThreadId}
+      summaryInfo={threadState.threadSummaryInfo}
+      onExitThread={threadState.handleExitThread ?? ignore}
+    />
+  ) : undefined;
+  const timelineProps: RoomTimelineProps & TimelineShellProps = {
+    room,
+    eventId,
+    threadId: effectiveThreadId,
+    focusEventInRoom,
+    hasMindroomAgents,
+    threadHeader,
+    summaryMap: threadState.summaryMap ?? EMPTY_SUMMARY_MAP,
+    onStoreThreadSummary: threadState.storeThreadSummary ?? ignore,
+    threadFilterState: threadState.threadFilterState,
+    viewMode,
+    compactRoomScrollStateRef,
+    editor,
+    onThreadLoadError,
+  };
+
+  let composerNotice: React.ReactNode;
+  if (localRoot.pending) {
+    composerNotice =
+      localRoot.event && isFailedLocalEchoEvent(localRoot.event) ? (
+        <FailedSendActions room={room} event={localRoot.event} style={NOTICE_STYLE} />
+      ) : (
+        <Box justifyContent="Center" style={NOTICE_STYLE}>
+          <Text size="T300" priority="300">
+            {t('mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed')}
+          </Text>
+        </Box>
+      );
+  } else if (!canMessage) {
+    composerNotice = (
+      <Box justifyContent="Center" style={NOTICE_STYLE}>
+        <Text size="T300" priority="300">
+          {t('mindroomUi.threads.mindroomRoomView.youDoNotHavePermissionToPostInThisRoom')}
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <Page>
-      <ThreadApprovalProvider
-        room={room}
-        threadId={effectiveThreadId}
-        focusConversation={focusConversation}
-      >
-        <RoomViewHeader
-          hasMindroomAgents={hasMindroomAgents}
-          joinRequestCount={joinRequestCount}
-          computerAvailable={computerAvailable}
-          computerOpen={computerOpen}
-          onComputerToggle={onComputerToggle}
-        />
-        {effectiveThreadId && (
-          <ThreadContextBanner
-            room={room}
+      <div ref={areaRef} style={AREA_STYLE}>
+        <div
+          ref={headerRef}
+          className={classNames(overlay.Header, effectiveThreadId && overlay.HeaderInThread)}
+        >
+          <RoomViewHeader
+            hasMindroomAgents={hasMindroomAgents}
             threadId={effectiveThreadId}
-            summaryInfo={threadState.threadSummaryInfo}
-            onExitThread={threadState.handleExitThread ?? ignoreSummary}
+            {...headerProps}
           />
-        )}
-        <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
-          <RoomTimeline
-            key={`${room.roomId}:${effectiveThreadId ?? ''}`}
-            room={room}
-            eventId={eventId}
-            threadId={effectiveThreadId}
-            summaryMap={threadState.summaryMap ?? EMPTY_SUMMARY_MAP}
-            onStoreThreadSummary={threadState.storeThreadSummary ?? ignoreSummary}
-            threadFilterState={threadState.threadFilterState}
-            viewMode={threadState.viewMode}
-            compactRoomScrollStateRef={compactRoomScrollStateRef}
-            editor={editor}
-            onThreadLoadError={onThreadLoadError}
-          />
-        </Box>
-        <Box direction="Column" shrink="No">
-          <BackgroundJobsBar
-            room={room}
-            threadId={effectiveThreadId ?? null}
-            canCancel={canCancelJobs}
-          />
-          {effectiveThreadId && <ThreadApprovalQueue />}
-        </Box>
-      </ThreadApprovalProvider>
-      {/* Outside the approval provider: opening a thread must not remount the composer. */}
-      <Box direction="Column" shrink="No">
-        <RoomViewTyping room={room} />
-        <RoomInput
-          ref={composerRef}
+        </div>
+        <ThreadApprovalProvider
           room={room}
-          roomId={room.roomId}
           threadId={effectiveThreadId}
-          editor={editor}
-          fileDropContainerRef={composerRef}
-          onRoomMessageSent={threadState.handleRoomMessageSent}
-        />
-      </Box>
+          focusConversation={focusConversation}
+        >
+          <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+            <RoomTimeline {...timelineProps} />
+          </Box>
+          <div ref={dockRef} style={DOCK_STYLE}>
+            <div style={DOCK_CONTENT_STYLE}>
+              <BackgroundJobsBar
+                room={room}
+                threadId={effectiveThreadId ?? null}
+                canCancel={canCancelJobs}
+              />
+              {effectiveThreadId && <ThreadApprovalQueue />}
+            </div>
+          </div>
+        </ThreadApprovalProvider>
+        {/* Outside the approval provider: opening a thread must not remount the composer. */}
+        <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
+          <RoomViewTyping room={room} />
+          {composerNotice}
+          {composerShown && (
+            <RoomInput
+              room={room}
+              roomId={roomId}
+              threadId={effectiveThreadId}
+              threadingEnabled={viewMode !== 'classic'}
+              editor={editor}
+              fileDropContainerRef={areaRef}
+              onRoomMessageSent={threadState.handleRoomMessageSent}
+            />
+          )}
+        </div>
+      </div>
     </Page>
   );
 }
