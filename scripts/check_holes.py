@@ -8,7 +8,13 @@ docs/provenance/import.txt; wave 2 is docs/provenance/holes-wave2.tsv against th
 hole file lists every line (path, 1-based line number) that was blanked at that import. For each
 listed file, this compares the import commit with the working tree, or with <rev> when --rev is
 given. A file passes when it has the same number of lines as at import and every line that differs
-is listed in the hole file, was empty at import, and is now exactly one line.
+is listed in the hole file, was empty at import, and is now exactly one line. Lines listed for the
+wave in docs/provenance/holes-overlap-import.tsv (Bas-authored lines blanked at import because they
+overlap the upstream client) count as holes too.
+
+--overlap checks the second blanking instead: docs/provenance/holes-overlap.tsv lists the Lane P
+lines blanked at the tip by the 2026-11-03 history rewrite, and docs/provenance/overlap.txt names
+that commit; each listed file must differ from it only in those lines.
 
 --wave defaults to 1. With no paths it checks every file in the wave's hole file; otherwise only
 the given paths (each must be in that hole file). Files listed in docs/provenance/dropped.tsv
@@ -32,11 +38,16 @@ HOLE_FILES = {1: "holes.tsv", 2: "holes-wave2.tsv"}
 DROPPED_FILE = "dropped.tsv"
 
 
-def read_holes(wave: int) -> dict[str, set[int]]:
+def read_holes(wave: int | None) -> dict[str, set[int]]:
     holes: dict[str, set[int]] = defaultdict(set)
-    for row in (PROV / HOLE_FILES[wave]).read_text().splitlines():
+    for row in (PROV / (HOLE_FILES[wave] if wave else "holes-overlap.tsv")).read_text().splitlines():
         if row:
             path, line = row.split("\t")
+            holes[path].add(int(line))
+    overlap = PROV / "holes-overlap-import.tsv"
+    for row in overlap.read_text().splitlines() if wave and overlap.is_file() else []:
+        path, line, row_wave = row.split("\t")
+        if int(row_wave) == wave:
             holes[path].add(int(line))
     return holes
 
@@ -60,7 +71,9 @@ def current_text(rev: str | None, path: str) -> str | None:
     return file.read_bytes().decode("utf-8") if file.is_file() else None
 
 
-def import_commit(wave: int) -> str:
+def import_commit(wave: int | None) -> str:
+    if wave is None:
+        return (PROV / "overlap.txt").read_text().split()[0]
     rows = [row for row in (PROV / "import.txt").read_text().splitlines() if row.strip()]
     if len(rows) < wave:
         sys.exit(f"check_holes: docs/provenance/import.txt has no line for wave {wave}")
@@ -91,17 +104,19 @@ def violations(path: str, holes: set[int], before: str | None, after: str | None
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--wave", type=int, choices=sorted(HOLE_FILES), default=1, help="import wave to check (default 1)")
+    parser.add_argument("--overlap", action="store_true", help="check the overlap blanking (holes-overlap.tsv)")
     parser.add_argument("--rev", help="check this revision instead of the working tree")
     parser.add_argument("paths", nargs="*", help="limit the check to these hole-file paths")
     args = parser.parse_args()
 
-    commit = import_commit(args.wave)
-    holes = read_holes(args.wave)
+    wave = None if args.overlap else args.wave
+    commit = import_commit(wave)
+    holes = read_holes(wave)
     paths = args.paths or sorted(holes)
     unknown = [p for p in paths if p not in holes]
     if unknown:
         for path in unknown:
-            print(f"{path}:0: not listed in docs/provenance/{HOLE_FILES[args.wave]}")
+            print(f"{path}:0: not listed in docs/provenance/{HOLE_FILES[wave] if wave else 'holes-overlap.tsv'}")
         return 1
 
     dropped_paths = read_dropped()
@@ -113,7 +128,7 @@ def main() -> int:
         found += violations(path, holes[path], git_show(commit, path), current_text(args.rev, path))
     for line in found:
         print(line)
-    target = f"wave {args.wave}, {args.rev or 'working tree'}"
+    target = f"{f'wave {wave}' if wave else 'overlap'}, {args.rev or 'working tree'}"
     if found:
         print(f"check_holes: {len(found)} violation(s) in {target}", file=sys.stderr)
         return 1

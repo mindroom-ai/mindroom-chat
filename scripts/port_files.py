@@ -14,6 +14,11 @@ docs/provenance/holes.tsv (path, 1-based line number). A file whose share of Bas
 
 With --verify it recomputes the same output in memory and compares it with the files and
 holes.tsv as they were committed by the import commit recorded in docs/provenance/import.txt.
+
+Lines listed for the wave in docs/provenance/holes-overlap-import.tsv (path, line, wave) are blanked
+too: Bas-authored lines that are part of a run shared with the upstream client (scripts/upstream-overlap/check.py),
+blanked in every commit by the history rewrite of 2026-11-03. A new import must rerun that check
+on its output and blank what it reports.
 """
 
 import subprocess
@@ -40,14 +45,24 @@ def source_lines(chat: Path, commit: str, path: str) -> list[str]:
     return data.decode("utf-8").split("\n")
 
 
-def ported(chat: Path, commit: str, path: str) -> tuple[str, list[int]]:
+def overlap_holes(wave: int) -> dict[str, set[int]]:
+    found: dict[str, set[int]] = {}
+    file = PROV / "holes-overlap-import.tsv"
+    for row in file.read_text().splitlines() if file.is_file() else []:
+        path, line, row_wave = row.split("\t")
+        if int(row_wave) == wave:
+            found.setdefault(path, set()).add(int(line))
+    return found
+
+
+def ported(chat: Path, commit: str, path: str, overlap: set[int]) -> tuple[str, list[int]]:
     authors = blame_authors(chat, commit, path)
     lines = source_lines(chat, commit, path)
     bas = sum(1 for a in authors if a == BAS)
     if not authors or bas / len(authors) < THRESHOLD:
         raise SystemExit(f"{path}: only {bas}/{len(authors)} lines by Bas at {commit}")
     holes = [i + 1 for i, a in enumerate(authors) if a != BAS]
-    for n in holes:
+    for n in [*holes, *overlap]:
         lines[n - 1] = ""
     return "\n".join(lines), holes
 
@@ -74,8 +89,9 @@ def main() -> None:
         print(f"verified {len(rows)} binary files by blob hash against {commit}")
         return
     paths = [row[0] for row in rows]
+    overlap = overlap_holes(wave)
     with ThreadPoolExecutor(max_workers=16) as pool:
-        results = list(pool.map(lambda p: (p, *ported(chat, commit, p)), paths))
+        results = list(pool.map(lambda p: (p, *ported(chat, commit, p, overlap.get(p, set()))), paths))
     hole_rows = [f"{p}\t{n}" for p, _, holes in results for n in holes]
     if verify:
         import_commit = (PROV / "import.txt").read_text().splitlines()[wave - 1].split()[0]
