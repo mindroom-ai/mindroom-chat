@@ -84,8 +84,12 @@ export const SidebarItem = recipe({
   },
 });
 
-/** A rail button's fill: mostly `tone`, with a little of the rail showing through. */
-const railButtonFill = (tone: string) => `color-mix(in srgb, ${tone} 82%, transparent)`;
+/** A rail button's fill: `percent` of `tone`, with the rail showing through the rest. */
+const railButtonFill = (tone: string, percent: number) =>
+  `color-mix(in srgb, ${tone} ${percent}%, transparent)`;
+
+/** The theme classes whose palettes are dark. */
+const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
 
 /** The quiet grey of the corner action, with a hairline ring outside its edge. */
 const secondaryCornerTone = {
@@ -132,9 +136,16 @@ export const SidebarAvatar = recipe({
         position: 'relative',
         color: color.Secondary.OnContainer,
         selectors: {
-          '&&&': { backgroundColor: railButtonFill(color.Secondary.ContainerActive) },
+          '&&&': { backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82) },
           '&&&:hover, &&&:focus-visible': {
-            backgroundColor: railButtonFill(color.Secondary.ContainerLine),
+            backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
+          },
+          // room-dark.png: on dark rails the button barely lifts off the rail; its rim shows it.
+          [`${darkThemes} &&&`]: {
+            backgroundColor: railButtonFill(color.Background.ContainerHover, 10),
+          },
+          [`${darkThemes} &&&:hover, ${darkThemes} &&&:focus-visible`]: {
+            backgroundColor: railButtonFill(color.Background.ContainerActive, 50),
           },
         },
       },
