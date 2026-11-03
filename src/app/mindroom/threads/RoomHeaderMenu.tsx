@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Line, Text, config, toRem, type IconSrc } from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { MindroomMarkRoomReadMenuItem } from '../notifications/MindroomMarkRoomReadMenuItem';
+import { ArchiveRoomMenuItem } from '../rooms/ArchiveRoomMenuItem';
 
 /** What the room header's options menu offers; an action left out hides its entry. */
 export type RoomHeaderMenuActions = {
@@ -58,7 +59,7 @@ function MenuGroup({ children }: { children: ReactNode }) {
 
 /**
  * The room header's options menu: read state, sharing, settings, search, the computer when the
- * header does not show it, and leaving the room.
+ * header does not show it, then archiving and leaving the room.
  */
 export function RoomHeaderMenu({
   room,
@@ -114,6 +115,7 @@ export function RoomHeaderMenu({
       </MenuGroup>
       <Line variant="Surface" size="300" />
       <MenuGroup>
+        <ArchiveRoomMenuItem room={room} onClose={requestClose} />
         <HeaderMenuEntry
           critical
           icon={Icons.ArrowGoLeft}
