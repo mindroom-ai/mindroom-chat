@@ -11,6 +11,8 @@
     "requireAppleProvider": true
   },
   "sidebar": {
+    "showThreads": false,
+    "showExploreCommunity": false,
     "showMindRoom": true,
     "mindRoomProvisioningUrl": "https://mindroom.chat"
   },
