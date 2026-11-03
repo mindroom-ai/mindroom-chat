@@ -3,10 +3,6 @@
  * only changes, so a member stays listed until a list without them arrives. While anyone is
  * listed, a check every `TYPING_TIMEOUT_MS` drops members of rooms that no longer receive
  * `m.typing` (for example a room the user left).
- *
- * A gappy sync replaces a room's current state with a copy whose members start as not typing
- * and whose events the client does not re-emit. The binder carries the typing flags over to
- * the new members and re-emits them, so later `m.typing` lists still reach it.
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useStore } from 'jotai';
@@ -14,11 +10,8 @@ import {
   KnownMembership,
   type MatrixClient,
   type MatrixEvent,
-  type Room,
-  RoomEvent,
   type RoomMember,
   RoomMemberEvent,
-  type RoomState,
 } from 'matrix-js-sdk';
 
 /** How long a typing notice lasts; also the interval of the stale-member check. */
@@ -123,24 +116,9 @@ export const useBindRoomIdToTypingMembersAtom = (
       }, TYPING_TIMEOUT_MS);
     };
 
-    const handleCurrentStateUpdated = (_room: Room, previous: RoomState, current: RoomState) => {
-      current.getMembers().forEach((member) => {
-        if (previous.getMember(member.userId)?.typing) member.typing = true;
-        mx.reEmitter.reEmit(member, [RoomMemberEvent.Typing]);
-      });
-    };
-    const watchedRooms = new Set<Room>();
-    const watchRoom = (roomId: string) => {
-      const room = mx.getRoom(roomId);
-      if (!room || watchedRooms.has(room)) return;
-      watchedRooms.add(room);
-      room.on(RoomEvent.CurrentStateUpdated, handleCurrentStateUpdated);
-    };
-
     const handleTyping = (_event: MatrixEvent, member: RoomMember) => {
       const { roomId, userId } = member;
       if (userId === mx.getUserId()) return;
-      watchRoom(roomId);
       if (member.typing) {
         store.set(typingAtom, {
           type: 'PUT',
@@ -159,9 +137,6 @@ export const useBindRoomIdToTypingMembersAtom = (
     mx.on(RoomMemberEvent.Typing, handleTyping);
     return () => {
       mx.removeListener(RoomMemberEvent.Typing, handleTyping);
-      watchedRooms.forEach((room) =>
-        room.removeListener(RoomEvent.CurrentStateUpdated, handleCurrentStateUpdated)
-      );
       stopChecking();
       store.set(typingAtom, { type: 'RESET' });
     };

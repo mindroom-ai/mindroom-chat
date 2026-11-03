@@ -188,39 +188,62 @@ const parseStoredSession = (value: unknown): StoredSession | undefined => {
   return session;
 };
 
-const parseSessionStore = (raw: string | null): SessionStore => {
-  if (raw === null) return { version: SESSION_STORE_VERSION, sessions: [] };
+type ParsedSessionStore = {
+  store: SessionStore;
+  /** Stored entries this build cannot read; written back unchanged so no account is lost. */
+  unrecognized: unknown[];
+  /** False when the stored text is not a registry this build can rewrite without losing data. */
+  writable: boolean;
+};
+
+const EMPTY_STORE: SessionStore = { version: SESSION_STORE_VERSION, sessions: [] };
+
+const parseSessionStore = (raw: string | null): ParsedSessionStore => {
+  if (raw === null) return { store: EMPTY_STORE, unrecognized: [], writable: true };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { version: SESSION_STORE_VERSION, sessions: [] };
+    return { store: EMPTY_STORE, unrecognized: [], writable: false };
   }
-  if (!isRecord(parsed)) return { version: SESSION_STORE_VERSION, sessions: [] };
+  if (
+    !isRecord(parsed) ||
+    (parsed.sessions !== undefined && !Array.isArray(parsed.sessions)) ||
+    (typeof parsed.version === 'number' && parsed.version > SESSION_STORE_VERSION)
+  ) {
+    return { store: EMPTY_STORE, unrecognized: [], writable: false };
+  }
 
   const seen = new Set<string>();
-  const sessions = (Array.isArray(parsed.sessions) ? parsed.sessions : [])
-    .map(parseStoredSession)
-    .filter((session): session is StoredSession => {
-      if (!session || seen.has(session.sessionId)) return false;
-      seen.add(session.sessionId);
-      return true;
-    });
+  const sessions: StoredSession[] = [];
+  const unrecognized: unknown[] = [];
+  (Array.isArray(parsed.sessions) ? parsed.sessions : []).forEach((entry: unknown) => {
+    const session = parseStoredSession(entry);
+    if (!session || seen.has(session.sessionId)) {
+      unrecognized.push(entry);
+      return;
+    }
+    seen.add(session.sessionId);
+    sessions.push(session);
+  });
   const activeSessionId =
     typeof parsed.activeSessionId === 'string' && seen.has(parsed.activeSessionId)
       ? parsed.activeSessionId
       : undefined;
 
   return {
-    version: SESSION_STORE_VERSION,
-    sessions,
-    ...(activeSessionId ? { activeSessionId } : {}),
+    store: {
+      version: SESSION_STORE_VERSION,
+      sessions,
+      ...(activeSessionId ? { activeSessionId } : {}),
+    },
+    unrecognized,
+    writable: true,
   };
 };
 
-type StoreSnapshot = {
+type StoreSnapshot = ParsedSessionStore & {
   raw: string | null;
-  store: SessionStore;
   sorted: StoredSession[];
   active: StoredSession | undefined;
 };
@@ -230,7 +253,9 @@ type StoreSnapshot = {
 const snapshots = new WeakMap<object, StoreSnapshot>();
 const EMPTY_SNAPSHOT: StoreSnapshot = {
   raw: null,
-  store: { version: SESSION_STORE_VERSION, sessions: [] },
+  store: EMPTY_STORE,
+  unrecognized: [],
+  writable: true,
   sorted: [],
   active: undefined,
 };
@@ -246,10 +271,11 @@ const readSnapshot = (storage: SessionStorage | undefined): StoreSnapshot => {
   const cached = snapshots.get(target);
   if (cached && cached.raw === raw) return cached;
 
-  const store = parseSessionStore(raw);
+  const parsed = parseSessionStore(raw);
+  const { store } = parsed;
   const snapshot: StoreSnapshot = {
+    ...parsed,
     raw,
-    store,
     sorted: [...store.sessions].sort((a, b) => b.lastUsedAt - a.lastUsedAt),
     active: store.sessions.find((session) => session.sessionId === store.activeSessionId),
   };
@@ -273,8 +299,19 @@ const notifySessionStoreChanged = () => {
 const writeSessionStore = (store: SessionStore, storage: SessionStorage | undefined): void => {
   const target = resolveStorage(storage);
   if (!target) throw new SessionStoreWriteError();
+  const { writable, unrecognized } = readSnapshot(target);
+  if (!writable) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[sessions] The stored account list cannot be read; it is kept unchanged instead of being overwritten.'
+    );
+    throw new SessionStoreWriteError();
+  }
   try {
-    target.setItem(SESSION_STORE_KEY, JSON.stringify(store));
+    target.setItem(
+      SESSION_STORE_KEY,
+      JSON.stringify({ ...store, sessions: [...store.sessions, ...unrecognized] })
+    );
   } catch (error) {
     throw new SessionStoreWriteError(error);
   }
@@ -377,6 +414,7 @@ const updateSession = (
 // Cached metadata and rotated tokens are saved when storage allows; a refused write leaves the
 // stored record as it was instead of failing the caller (a token refresh still succeeds).
 const updateSessionBestEffort = (
+  change: string,
   sessionId: string,
   update: (session: StoredSession) => StoredSession,
   storage?: SessionStorage
@@ -384,8 +422,13 @@ const updateSessionBestEffort = (
   try {
     return updateSession(sessionId, update, storage);
   } catch (error) {
-    if (error instanceof SessionStoreWriteError) return undefined;
-    throw error;
+    if (!(error instanceof SessionStoreWriteError)) throw error;
+    // Names only the change, never the values (they can be credentials).
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[sessions] Could not save the ${change} of an account; the stored record is unchanged.`
+    );
+    return undefined;
   }
 };
 
@@ -440,7 +483,7 @@ export const updateSessionProfile = (
   profile: SessionProfile,
   storage?: SessionStorage
 ): StoredSession | undefined =>
-  updateSessionBestEffort(sessionId, (session) => ({ ...session, ...profile }), storage);
+  updateSessionBestEffort('profile', sessionId, (session) => ({ ...session, ...profile }), storage);
 
 /** Saves rotated tokens without touching the account's other fields or its position. */
 export const updateSessionCredentials = (
@@ -448,7 +491,12 @@ export const updateSessionCredentials = (
   credentials: SessionCredentials,
   storage?: SessionStorage
 ): StoredSession | undefined =>
-  updateSessionBestEffort(sessionId, (session) => ({ ...session, ...credentials }), storage);
+  updateSessionBestEffort(
+    'refreshed tokens',
+    sessionId,
+    (session) => ({ ...session, ...credentials }),
+    storage
+  );
 
 export const updateSessionLastPath = (
   sessionId: string,
@@ -459,7 +507,12 @@ export const updateSessionLastPath = (
     (session) => session.sessionId === sessionId
   );
   if (!existing || existing.lastKnownPath === lastKnownPath) return existing;
-  return updateSessionBestEffort(sessionId, (session) => ({ ...session, lastKnownPath }), storage);
+  return updateSessionBestEffort(
+    'last route',
+    sessionId,
+    (session) => ({ ...session, lastKnownPath }),
+    storage
+  );
 };
 
 /** Records that the Rust crypto store of the account's current device exists. */
@@ -467,6 +520,7 @@ export const markCryptoStoreInitialized = (sessionId: string, storage?: SessionS
   const session = getSessionStore(storage).sessions.find((item) => item.sessionId === sessionId);
   if (!session || session.cryptoStoreInitialized) return;
   updateSessionBestEffort(
+    'crypto store marker',
     sessionId,
     (item) => ({ ...item, cryptoStoreInitialized: true }),
     storage
