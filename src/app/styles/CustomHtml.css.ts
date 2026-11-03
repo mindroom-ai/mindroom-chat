@@ -25,10 +25,15 @@ const centeredRow = (gap: string) => ({ display: 'flex', alignItems: 'center', g
 /** An element that is `size` wide and tall. */
 const square = (size: string) => ({ width: size, height: size });
 
-/** Vertical rhythm between blocks of a message; the last block adds no space under the message. */
+/**
+ * Vertical rhythm between blocks of a message: the same gap above and below, so a block keeps it
+ * after a tool call row as after another block. The first and last blocks add no space at the
+ * edges of the message.
+ */
 export const MarginSpaced = style({
-  marginBlock: `0 ${config.space.S200}`,
+  marginBlock: config.space.S200,
   selectors: {
+    '&:first-child': { marginBlockStart: 0 },
     '&:last-child': { marginBlockEnd: 0 },
   },
 });
