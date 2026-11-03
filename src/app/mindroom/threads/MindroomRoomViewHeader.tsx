@@ -36,6 +36,7 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { copyToClipboard } from '../../utils/dom';
+import { nameInitials } from '../../utils/common';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import {
@@ -195,19 +196,21 @@ export function RoomViewHeader({
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
-  const sectionPath = sectionPathOf(spacePathId, useIsDirectRoom());
+  const direct = useIsDirectRoom();
+  const sectionPath = sectionPathOf(spacePathId, direct);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   const [prompt, setPrompt] = useState<'invite' | 'leave'>();
 
+  // A direct chat shows the other person, by picture or initial.
+  const pictureMxc = useRoomAvatar(room, direct);
+  // Twice the 36 px avatar, so it stays sharp on high-density screens.
+  const avatarSrc = pictureMxc
+    ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
+    : undefined;
   const roomName = useRoomName(room);
   const topic = useRoomTopic(room);
-  const avatarMxc = useRoomAvatar(room);
-  // Twice the 36 px avatar, so it stays sharp on high-density screens.
-  const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
-    : undefined;
 
   // Canvas and computer take the side panel's place, so the members panel is hidden behind them.
   const sidePanelTaken = !!computerOpen || !!canvasOpen;
@@ -261,7 +264,16 @@ export function RoomViewHeader({
               alt={roomName}
               src={avatarSrc}
               roomId={room.roomId}
-              renderFallback={() => <RoomIcon size="200" joinRule={room.getJoinRule()} filled />}
+              fallbackTone="solid"
+              renderFallback={() =>
+                direct ? (
+                  <Text as="span" size="H5">
+                    {nameInitials(roomName)}
+                  </Text>
+                ) : (
+                  <RoomIcon size="200" joinRule={room.getJoinRule()} filled />
+                )
+              }
             />
           </Avatar>
         )}
