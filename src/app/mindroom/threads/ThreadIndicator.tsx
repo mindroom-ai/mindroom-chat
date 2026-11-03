@@ -86,8 +86,12 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
     if (replyCount === undefined && threadRootId) {
       replyCount = resolveReplyCount(room, threadRootId, timelineSet);
     }
-    const label =
-      replyCount === undefined ? t('thread.chip') : t('thread.replyCount', { count: replyCount });
+    const counted = replyCount !== undefined;
+    const label = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
+    // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".
+    const iconLabel = counted
+      ? { role: 'img', 'aria-label': t('thread.chip') }
+      : { 'aria-hidden': true as const };
     const participants = threadParticipantIds?.slice(0, MAX_PARTICIPANTS) ?? [];
 
     const ownProps = {
@@ -105,7 +109,7 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
     return React.createElement(
       tag,
       ownProps,
-      <Icon size="50" src={Icons.Thread} aria-hidden="true" />,
+      <Icon size="50" src={Icons.Thread} {...iconLabel} />,
       <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
         {label}
       </Text>,
