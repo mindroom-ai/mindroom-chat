@@ -15,17 +15,15 @@ export const copyFiles = {
   targets: [
     // The MindRoom defaults are served as the runtime client config.
     { src: 'config.mindroom.json', dest: '', rename: 'config.json' },
+    // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n.ts).
+    // English ships in the bundle, with its overlay in src/app/locales/additions/en.json.
+    { src: 'src/app/locales/*.json', dest: 'public/locales' },
   ],
 };
 
 // The service worker precaches the SPA shell. Some files must stay network-fresh
 // so a deployment can change them without rebuilding the bundle.
-const precacheGlobIgnores = [
-  // Static documents under public/ are served as they are, never from the shell cache.
-  'public/element-call/**',
-  'runtime-config.js',
-  'version.json',
-];
+const precacheGlobIgnores = ['runtime-config.js', 'version.json'];
 
 export default defineConfig({
   plugins: [

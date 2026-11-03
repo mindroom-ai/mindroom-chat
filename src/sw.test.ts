@@ -20,7 +20,6 @@ describe('service worker app shell caching', () => {
     expect(swSource).toContain('if (precachesAppShell)');
     expect(viteConfigSource).toContain("injectionPoint: 'self.__WB_MANIFEST'");
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
-    expect(viteConfigSource).toContain("'public/element-call/**'");
     expect(viteConfigSource).toContain("'runtime-config.js'");
     expect(viteConfigSource).toContain("'version.json'");
   });
