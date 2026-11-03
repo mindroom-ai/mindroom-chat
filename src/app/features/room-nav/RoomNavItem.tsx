@@ -6,6 +6,7 @@ import {
   IconButton,
   type IconSrc,
   Icons,
+  Line,
   PopOut,
   Text,
   config,
@@ -35,6 +36,12 @@ import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { useRoomBackgroundJobs } from '../../mindroom/background-jobs/useRoomBackgroundJobs';
 import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
 import { MindroomMarkRoomReadMenuItem } from '../../mindroom/notifications/MindroomMarkRoomReadMenuItem';
+import { ArchiveRoomMenuItem } from '../../mindroom/rooms/ArchiveRoomMenuItem';
+import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
+import { usePowerLevels } from '../../hooks/usePowerLevels';
+import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 
 const AVATAR_SIZE = 96;
 
@@ -51,43 +58,63 @@ type RoomNavItemProps = {
   showAvatar: boolean;
 }>;
 
-function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () => void }) {
+/** A dialog the row's menu opened; it outlives the menu, which closes first. */
+type RoomNavPrompt = 'invite' | 'leave';
+
+type RoomNavItemMenuProps = {
+  room: Room;
+  requestClose: () => void;
+  onPrompt: (prompt: RoomNavPrompt) => void;
+};
+
+const menuGroupStyle = { padding: config.space.S100 } as const;
+
+function RoomNavItemMenu({ room, requestClose, onPrompt }: RoomNavItemMenuProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const openRoomSettings = useOpenRoomSettings();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
+  const canInvite = permissions.action('invite', client.getUserId() ?? '');
 
-  const handleCopyLink = () => {
-    void copyToClipboard(getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId)));
+  const closeThen = (action: () => void) => () => {
     requestClose();
+    action();
   };
 
-  const handleLeave = () => {
-    void client.leave(room.roomId);
-    requestClose();
+  const copyLink = () => {
+    void copyToClipboard(getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId)));
   };
 
   return (
-    <Menu style={{ minWidth: toRem(176) }}>
-      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+    <Menu style={{ minWidth: toRem(200) }}>
+      <Box direction="Column" gap="100" style={menuGroupStyle}>
         <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+        {canInvite && (
+          <RoomMenuEntry
+            icon={Icons.UserPlus}
+            label={t('featureUi.roomNav.roomNavItem.invite')}
+            onClick={closeThen(() => onPrompt('invite'))}
+          />
+        )}
         <RoomMenuEntry
           icon={Icons.Link}
           label={t('featureUi.roomNav.roomNavItem.copyLink')}
-          onClick={handleCopyLink}
+          onClick={closeThen(copyLink)}
         />
         <RoomMenuEntry
           icon={Icons.Setting}
           label={t('featureUi.roomNav.roomNavItem.roomSettings')}
-          onClick={() => {
-            openRoomSettings(room.roomId);
-            requestClose();
-          }}
+          onClick={closeThen(() => openRoomSettings(room.roomId))}
         />
+      </Box>
+      <Line variant="Surface" size="300" />
+      <Box direction="Column" gap="100" style={menuGroupStyle}>
+        <ArchiveRoomMenuItem room={room} onClose={requestClose} />
         <RoomMenuEntry
           critical
           icon={Icons.ArrowGoLeft}
           label={t('featureUi.roomNav.roomNavItem.leaveRoom')}
-          onClick={handleLeave}
+          onClick={closeThen(() => onPrompt('leave'))}
         />
       </Box>
     </Menu>
@@ -193,9 +220,10 @@ type RoomNavOptionsProps = {
   room: Room;
   anchor: RectCords | undefined;
   onAnchorChange: (anchor: RectCords | undefined) => void;
+  onPrompt: (prompt: RoomNavPrompt) => void;
 };
 
-function RoomNavOptions({ room, anchor, onAnchorChange }: RoomNavOptionsProps) {
+function RoomNavOptions({ room, anchor, onAnchorChange, onPrompt }: RoomNavOptionsProps) {
   const { t } = useTranslation();
   const menuOpen = anchor !== undefined;
   const closeMenu = () => onAnchorChange(undefined);
@@ -211,7 +239,7 @@ function RoomNavOptions({ room, anchor, onAnchorChange }: RoomNavOptionsProps) {
         onDeactivate: closeMenu,
       }}
     >
-      <RoomNavItemMenu room={room} requestClose={closeMenu} />
+      <RoomNavItemMenu room={room} requestClose={closeMenu} onPrompt={onPrompt} />
     </FocusTrap>
   );
 
@@ -300,15 +328,24 @@ function RoomNavLink({
   );
 }
 
+/** The menu opens where the pointer was right-clicked, like a context menu. */
+const pointerAnchor = (event: React.MouseEvent): RectCords => ({
+  x: event.clientX,
+  y: event.clientY,
+  width: 0,
+  height: 0,
+});
+
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
- * while agents run background jobs in it, and a menu on hover or focus.
+ * while agents run background jobs in it, and a menu on hover or focus or by right-click.
  */
 export function RoomNavItem(props: RoomNavItemProps) {
   const { room, selected, linkPath, notificationMode, direct, showAvatar } = props;
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
+  const [prompt, setPrompt] = useState<RoomNavPrompt>();
   const name = useRoomName(room);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
 
@@ -329,9 +366,16 @@ export function RoomNavItem(props: RoomNavItemProps) {
     );
   }
 
-  return (
+  const openContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setOptionsAnchor(pointerAnchor(event));
+  };
+  const closePrompt = () => setPrompt(undefined);
+
+  const row = (
     <NavItem
       {...engagementProps}
+      onContextMenu={openContextMenu}
       highlight={Boolean(unread)}
       aria-selected={selected}
       variant="Background"
@@ -347,8 +391,24 @@ export function RoomNavItem(props: RoomNavItemProps) {
         status={status}
       />
       {showOptions ? (
-        <RoomNavOptions room={room} anchor={optionsAnchor} onAnchorChange={setOptionsAnchor} />
+        <RoomNavOptions
+          room={room}
+          anchor={optionsAnchor}
+          onAnchorChange={setOptionsAnchor}
+          onPrompt={setPrompt}
+        />
       ) : null}
     </NavItem>
+  );
+
+  // The dialogs sit beside the row, so their pointer and focus events do not reach its handlers.
+  return (
+    <>
+      {row}
+      {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
+      {prompt === 'leave' && (
+        <LeaveRoomPrompt roomId={room.roomId} requestClose={closePrompt} onLeft={closePrompt} />
+      )}
+    </>
   );
 }
