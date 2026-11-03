@@ -62,8 +62,13 @@ const TITLE_BAR_STYLE = {
   paddingInline: `${config.space.S400} ${config.space.S200}`,
 };
 
-/** Dialog that opens a room from an alias, a room ID, or a matrix.to link. */
-export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) {
+type JoinAddressFormProps = Pick<JoinAddressPromptProps, 'onOpen'> & {
+  /** Padding around the form; the dialog keeps its edge inset. */
+  style?: React.CSSProperties;
+};
+
+/** The address field with its examples; opens the room once the address parses. */
+export function JoinAddressForm({ onOpen, style = FORM_STYLE }: JoinAddressFormProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [invalid, setInvalid] = useState(false);
@@ -80,6 +85,59 @@ export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) 
     if (parsed) onOpen(parsed.roomIdOrAlias, parsed.viaServers, parsed.eventId);
     else setInvalid(true);
   };
+
+  return (
+    <Box as="form" onSubmit={submitAddress} direction="Column" gap="400" style={style}>
+      <Box direction="Column" gap="200">
+        <Text size="T300" priority="400">
+          {t('sharedUi.joinAddressPrompt.enterPublicAddressToJoinTheCommunityAddressesLooksLike')}
+        </Text>
+        <Box
+          as="ul"
+          direction="Column"
+          gap="100"
+          style={{ margin: 0, paddingLeft: config.space.S400 }}
+        >
+          {EXAMPLE_ADDRESSES.map((example) => (
+            <Text as="li" key={example} size="T200" priority="300">
+              <i>{example}</i>
+            </Text>
+          ))}
+        </Box>
+      </Box>
+      <Box direction="Column" gap="100">
+        <Text as="label" htmlFor="join-address-input" size="L400">
+          {t('sharedUi.joinAddressPrompt.address')}
+        </Text>
+        <Input
+          id="join-address-input"
+          name="addressInput"
+          value={value}
+          onChange={handleChange}
+          variant="Background"
+          size="500"
+          radii="300"
+          autoComplete="off"
+          autoFocus
+          required
+          aria-invalid={invalid}
+        />
+        {invalid && (
+          <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+            <b>{t('sharedUi.joinAddressPrompt.invalidAddress')}</b>
+          </Text>
+        )}
+      </Box>
+      <Button type="submit" variant="Primary" size="500">
+        <Text size="B500">{t('sharedUi.joinAddressPrompt.open')}</Text>
+      </Button>
+    </Box>
+  );
+}
+
+/** Dialog that opens a room from an alias, a room ID, or a matrix.to link. */
+export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) {
+  const { t } = useTranslation();
 
   return (
     <Overlay backdrop={<OverlayBackdrop />} open>
@@ -101,53 +159,7 @@ export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) 
                 <Icon src={Icons.Cross} />
               </IconButton>
             </Header>
-            <Box as="form" onSubmit={submitAddress} direction="Column" gap="400" style={FORM_STYLE}>
-              <Box direction="Column" gap="200">
-                <Text size="T300" priority="400">
-                  {t(
-                    'sharedUi.joinAddressPrompt.enterPublicAddressToJoinTheCommunityAddressesLooksLike'
-                  )}
-                </Text>
-                <Box
-                  as="ul"
-                  direction="Column"
-                  gap="100"
-                  style={{ margin: 0, paddingLeft: config.space.S400 }}
-                >
-                  {EXAMPLE_ADDRESSES.map((example) => (
-                    <Text as="li" key={example} size="T200" priority="300">
-                      <i>{example}</i>
-                    </Text>
-                  ))}
-                </Box>
-              </Box>
-              <Box direction="Column" gap="100">
-                <Text as="label" htmlFor="join-address-input" size="L400">
-                  {t('sharedUi.joinAddressPrompt.address')}
-                </Text>
-                <Input
-                  id="join-address-input"
-                  name="addressInput"
-                  value={value}
-                  onChange={handleChange}
-                  variant="Background"
-                  size="500"
-                  radii="300"
-                  autoComplete="off"
-                  autoFocus
-                  required
-                  aria-invalid={invalid}
-                />
-                {invalid && (
-                  <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-                    <b>{t('sharedUi.joinAddressPrompt.invalidAddress')}</b>
-                  </Text>
-                )}
-              </Box>
-              <Button type="submit" variant="Primary" size="500">
-                <Text size="B500">{t('sharedUi.joinAddressPrompt.open')}</Text>
-              </Button>
-            </Box>
+            <JoinAddressForm onOpen={onOpen} />
           </Dialog>
         </FocusTrap>
       </OverlayCenter>

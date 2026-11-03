@@ -1,4 +1,5 @@
-import React, { ReactNode, useEffect, useRef } from 'react';
+import React, { ReactNode, useRef } from 'react';
+import { Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
   Navigate,
@@ -21,6 +22,7 @@ import { MindroomMessageSearch } from '../mindroom/message-search/MindroomMessag
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { ConnectionsPage } from '../mindroom/connections/ConnectionsPage';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
+import { JoinAddressForm } from '../components/join-address-prompt';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
 import {
@@ -51,7 +53,7 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
 } from './paths';
-import { getHomeRoomPath } from './pathUtils';
+import { getHomeRoomPath, withSearchParam } from './pathUtils';
 import { getAppBasePath } from '../utils/basePath';
 import { AuthLayout } from './auth/AuthLayout';
 import { Login } from './auth/login/Login';
@@ -173,12 +175,24 @@ function SpaceSearchPage() {
   );
 }
 
-function JoinRedirect() {
+/** `/home/join/`: the join-by-address form as a page, the way `/home/create/` holds room creation. */
+function JoinAddressPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  useEffect(() => {
-    navigate(HOME_PATH, { replace: true });
-  }, [navigate]);
-  return null;
+  const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
+    navigate(
+      withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
+        viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
+      })
+    );
+  return (
+    <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
+      <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
+        {t('sharedUi.joinAddressPrompt.joinWithAddress')}
+      </Text>
+      <JoinAddressForm onOpen={openRoom} style={{}} />
+    </div>
+  );
 }
 
 export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize) => {
@@ -197,7 +211,7 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
         <Route path={HOME_PATH} element={<SectionPage path={HOME_PATH} nav={<Home />} />}>
           <Route index element={<WelcomePage />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />
-          <Route path={HOME_JOIN_PATH} element={<JoinRedirect />} />
+          <Route path={HOME_JOIN_PATH} element={<JoinAddressPage />} />
           <Route path={HOME_SEARCH_PATH} element={<HomeSearchPage />} />
           <Route path={HOME_ROOM_PATH} element={<RoomPage />} />
         </Route>
