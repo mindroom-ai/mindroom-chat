@@ -164,6 +164,11 @@ const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 
 /** Gestures and keys that hand the scroll position over to the reader. */
 const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+/** How much further from the newest row a scroll must leave the reader to count as theirs. */
+const LEFT_LATEST_ROW_PX = 32;
+
+const distanceBelowView = (element: HTMLElement): number =>
+  element.scrollHeight - element.scrollTop - element.clientHeight;
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
 const useTimelineDisplaySettings = () => ({
@@ -230,11 +235,27 @@ const useLatestRowRequest = ({
     const release = () => {
       requestRef.current = false;
     };
+    // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
+    // a script or assistive technology): the timeline's own pins scroll down, and a row above
+    // the view that changes size moves the position and the content by the same amount. It
+    // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
+    // synchronously and so would pin the newest row again before this saw the reader's position.
+    let lastTop = scrollElement.scrollTop;
+    let lastBelow = distanceBelowView(scrollElement);
+    const followScroll = () => {
+      const top = scrollElement.scrollTop;
+      const below = distanceBelowView(scrollElement);
+      if (top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX) release();
+      lastTop = top;
+      lastBelow = below;
+    };
     READER_INTENT_EVENTS.forEach((name) =>
       scrollElement.addEventListener(name, release, { passive: true })
     );
+    scrollElement.addEventListener('scroll', followScroll, { capture: true, passive: true });
     return () => {
       READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
+      scrollElement.removeEventListener('scroll', followScroll, { capture: true });
     };
   }, [scrollElement]);
   return requestRef;
@@ -359,11 +380,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const compactRoomScrollStateRef =
     props.compactRoomScrollStateRef ?? fallbackCompactScrollStateRef;
 
+  // No filter bar shows a sort, so the threaded timeline keeps the room's order; only the
+  // Compact cards sort by their latest reply.
+  const viewThreadFilterState = useMemo(
+    () =>
+      viewMode === 'threaded' && threadFilterState.sortBy !== 'natural'
+        ? { ...threadFilterState, sortBy: 'natural' as const }
+        : threadFilterState,
+    [threadFilterState, viewMode]
+  );
   const { effectiveViewMode, focusedRoomOverviewRequested, requestedThreadFilterState } =
     resolveRoomTimelineViewState({
       eventId,
       focusEventInRoom,
-      threadFilterState,
+      threadFilterState: viewThreadFilterState,
       threadId,
       viewMode,
     });
