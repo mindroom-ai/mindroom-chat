@@ -1670,8 +1670,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
           {showRoomFrontSentinel && (
             <div ref={paginator.observeFrontAnchor} style={{ height: 1 }} />
           )}
-          <span ref={atBottomAnchorRef} />
         </Box>
+        {/* After the content's padding, so "at the bottom" means the end of the scroll range,
+            not the last row, which sits a composer's height higher, behind the footer. */}
+        <span ref={atBottomAnchorRef} style={{ display: 'block', height: 0 }} />
         {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
             placed by the timeline box, so it stays between the header and the composer. */}
         <InsetScrollbar
