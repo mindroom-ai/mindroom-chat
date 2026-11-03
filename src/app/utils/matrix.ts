@@ -304,10 +304,13 @@ export type UploadContentOptions = {
   onError: (error: MatrixError) => void;
 };
 
-/** Uploads `file` to the media repository and reports the `mxc://` URI or the error. */
+/**
+ * Uploads `file` to the media repository and reports the `mxc://` URI or the error. Any blob
+ * works, a picked file as well as encrypted bytes; `options.name` names it when it has no name.
+ */
 export const uploadContent = async (
   client: MatrixClient,
-  file: TUploadContent,
+  file: Blob,
   options: UploadContentOptions
 ): Promise<void> => {
   const { name, fileType, hideFilename, onPromise, onProgress, onSuccess, onError } = options;
