@@ -72,9 +72,11 @@ function PasswordStage({ session, action }: StageProps) {
 
   return (
     <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
-      <Text size="T300">{t('sharedUi.actionUia.passwordDescription')}</Text>
+      <Text size="T300">
+        {t('sharedUi.passwordStage.toPerformThisActionYouNeedToAuthenticateYourselfByEnteringYou')}
+      </Text>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('sharedUi.actionUia.password')}</Text>
+        <Text size="L400">{t('sharedUi.passwordStage.password')}</Text>
         <Input
           name="passwordInput"
           type="password"
@@ -87,7 +89,7 @@ function PasswordStage({ session, action }: StageProps) {
         />
       </Box>
       <Button variant="Primary" type="submit">
-        <Text size="B400">{t('sharedUi.actionUia.continue')}</Text>
+        <Text size="B400">{t('sharedUi.passwordStage.continue')}</Text>
       </Button>
     </Box>
   );
@@ -105,13 +107,15 @@ function SsoStage({ session, stage, action }: StageProps) {
 
   return (
     <Box direction="Column" gap="400">
-      <Text size="T300">{t('sharedUi.actionUia.ssoDescription')}</Text>
+      <Text size="T300">
+        {t('sharedUi.sSOStage.toPerformThisActionYouNeedToAuthenticateYourselfBySsoLogin')}
+      </Text>
       <Button variant={opened ? 'Secondary' : 'Primary'} onClick={openSso}>
-        <Text size="B400">{t('sharedUi.actionUia.openSso')}</Text>
+        <Text size="B400">{t('sharedUi.sSOStage.continueWithSso')}</Text>
       </Button>
       {opened && (
         <Button variant="Primary" onClick={() => action({ session })}>
-          <Text size="B400">{t('sharedUi.actionUia.ssoDone')}</Text>
+          <Text size="B400">{t('sharedUi.sSOStage.continue')}</Text>
         </Button>
       )}
     </Box>
@@ -140,16 +144,21 @@ function DummyStage({ session, action }: StageProps) {
   const { session } = authData;
 
   let body: ReactNode;
-  if (stage === AuthType.Password)
+  let title: string | undefined;
+  if (stage === AuthType.Password) {
+    title = t('sharedUi.passwordStage.accountPassword');
     body = <PasswordStage stage={stage} session={session} action={action} />;
-  else if (stage && isSsoStage(stage))
+  } else if (stage && isSsoStage(stage)) {
+    title = t('sharedUi.sSOStage.ssoLogin');
     body = <SsoStage stage={stage} session={session} action={action} />;
-  else if (stage === AuthType.Dummy)
+  } else if (stage === AuthType.Dummy)
     body = <DummyStage stage={stage} session={session} action={action} />;
   else {
     body = (
       <Text size="T300" style={{ color: color.Critical.Main }}>
-        {t('sharedUi.actionUia.unsupported')}
+        {t(
+          'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
+        )}
       </Text>
     );
   }
@@ -157,14 +166,12 @@ function DummyStage({ session, action }: StageProps) {
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true">
       <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
-        <Box grow="Yes">
-          <Text size="H4">{t('sharedUi.actionUia.title')}</Text>
-        </Box>
+        <Box grow="Yes">{title && <Text size="H4">{title}</Text>}</Box>
         <IconButton
           size="300"
           radii="300"
           onClick={onCancel}
-          aria-label={t('sharedUi.actionUia.cancel')}
+          aria-label={t('sharedUi.dummyStage.cancel')}
         >
           <Icon src={Icons.Cross} />
         </IconButton>

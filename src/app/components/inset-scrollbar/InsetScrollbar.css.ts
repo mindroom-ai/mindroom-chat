@@ -39,8 +39,8 @@ export const Thumb = style({
   top: 0,
   width: toRem(4),
   borderRadius: config.radii.Pill,
-  backgroundColor: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.P300,
+  // The same theme variable as the patched folds scrollbars (a translucent color per theme).
+  backgroundColor: `var(--mr-scrollbar-thumb-color, ${color.SurfaceVariant.ContainerLine})`,
   willChange: 'transform',
   transition: 'width 120ms ease',
   selectors: {

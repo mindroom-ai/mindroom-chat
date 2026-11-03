@@ -104,7 +104,7 @@ function nodeToCustomHtml(node: Descendant, opts: OutputOptions): string {
   }
 }
 
-const isParagraph = (node: Descendant): node is Element & { type: BlockType.Paragraph } =>
+const isParagraph = (node: Descendant): node is Element & { type: typeof BlockType.Paragraph } =>
   Element.isElement(node) && node.type === BlockType.Paragraph;
 
 /**

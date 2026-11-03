@@ -1,7 +1,7 @@
 import React, { MouseEventHandler, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Chip, Icon, Icons, PopOut, RectCords, Text, color, config } from 'folds';
+import { Box, Chip, Icon, Icons, PopOut, RectCords, Spinner, Text, color, config } from 'folds';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { SettingTile } from './setting-tile';
 import {
@@ -64,6 +64,7 @@ function ManualVerificationMethodSwitcher({
       >
         <Text size="B300">{label(value)}</Text>
       </Chip>
+      <PopOut
 
 
 
@@ -75,12 +76,11 @@ function ManualVerificationMethodSwitcher({
 
 
 
-
-
-
-
-
-
+            }}
+          >
+            <Menu>
+              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                {methods.map((method) => (
                   <MenuItem
                     key={method}
                     size="300"
@@ -91,19 +91,19 @@ function ManualVerificationMethodSwitcher({
                     <Text size="T300">{label(method)}</Text>
                   </MenuItem>
                 ))}
+              </Box>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+    </>
+  );
+}
 
 
 
 
-
-
-
-
-
-
-
-
-
+};
 
 /** Verifies this device by unlocking secret storage with the recovery key or passphrase. */
 
@@ -145,8 +145,8 @@ function ManualVerificationMethodSwitcher({
   return (
     <Box direction="Column" gap="200">
       <SettingTile
-        title={t('sharedUi.manualVerification.title')}
-        description={t('sharedUi.manualVerification.description')}
+        title={t('sharedUi.manualVerification.verifyManually')}
+        description={t('sharedUi.manualVerification.selectAVerificationMethod')}
         after={
           <ManualVerificationMethodSwitcher
             value={method}
@@ -173,10 +173,6 @@ function ManualVerificationMethodSwitcher({
 
             />
           )}
-          {verifyState.status === AsyncStatus.Loading && (
-            <Text size="T200" priority="300">
-              {t('sharedUi.manualVerification.verifying')}
-            </Text>
 
 
 

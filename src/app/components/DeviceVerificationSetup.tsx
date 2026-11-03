@@ -1,8 +1,22 @@
 import React, { FormEventHandler, useCallback, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
 import { AuthDict, IAuthData, MatrixError, UIAuthCallback } from 'matrix-js-sdk';
-import { Box, Button, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
+import {
+  Box,
+  Button,
+  Chip,
+  Icon,
+  IconButton,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Spinner,
+  Text,
+  color,
+  config,
+} from 'folds';
 import { Dialog, Header } from './glass/GlassPrimitives';
 import { PasswordInput } from './password-input';
 import { ActionUIA, ActionUIAFlowsLoader } from './ActionUIA';
@@ -115,6 +129,11 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
   };
 
   return (
+    <>
+      <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+        <Text size="T300">
+          <Trans
+            i18nKey="sharedUi.deviceVerificationSetup.recoveryDescription"
 
 
 
@@ -145,26 +164,32 @@ const getUIAData = (error: unknown): IAuthData | undefined => {
 
 
 
-
-          unsupported={() => (
-            <Text size="T200" style={{ color: color.Critical.Main }}>
-              {t('sharedUi.deviceVerificationSetup.unsupportedAuth')}
-            </Text>
-          )}
-        >
-
-
-
-
-
-
-
-
-
-
-
-
-
+          <OverlayCenter>
+            <ActionUIAFlowsLoader
+              authData={uiaRequest.authData}
+              unsupported={() => (
+                <Text size="T200" style={{ color: color.Critical.Main }}>
+                  {t(
+                    'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
+                  )}
+                </Text>
+              )}
+            >
+              {(ongoingFlow) => (
+                <ActionUIA
+                  authData={uiaRequest.authData}
+                  ongoingFlow={ongoingFlow}
+                  action={uiaRequest.resolve}
+                  onCancel={() => uiaRequest.reject(new Error(SETUP_AUTH_FAILED))}
+                />
+              )}
+            </ActionUIAFlowsLoader>
+          </OverlayCenter>
+        </Overlay>
+      )}
+    </>
+  );
+}
 
 
 
@@ -188,8 +213,10 @@ function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
 
   return (
     <Box direction="Column" gap="400">
-
-
+      <Text size="T300">
+        {t('sharedUi.deviceVerificationSetup.storeTheRecoveryKeyInASafePlaceForFutureUseAs')}
+      </Text>
+      <Box
 
 
 
@@ -203,19 +230,20 @@ function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
         </Text>
       </Box>
       <Box gap="200" wrap="Wrap">
-        <Chip variant="Secondary" radii="Pill" onClick={handleCopy}>
-          <Text size="B300">
-            {copied
-              ? t('sharedUi.deviceVerificationSetup.copied')
-              : t('sharedUi.deviceVerificationSetup.copy')}
-          </Text>
+        <Chip
+          variant="Secondary"
+          radii="Pill"
+          onClick={handleCopy}
+          after={copied ? <Icon size="50" src={Icons.Check} /> : undefined}
+        >
+          <Text size="B300">{t('sharedUi.deviceVerificationSetup.copy')}</Text>
         </Chip>
         <Chip variant="Secondary" radii="Pill" onClick={handleDownload}>
           <Text size="B300">{t('sharedUi.deviceVerificationSetup.download')}</Text>
         </Chip>
       </Box>
       <Button variant="Primary" onClick={onDone}>
-        <Text size="B400">{t('sharedUi.deviceVerificationSetup.done')}</Text>
+        <Text size="B400">{t('sharedUi.deviceVerification.okay')}</Text>
       </Button>
     </Box>
   );
@@ -237,13 +265,13 @@ export function DeviceVerificationSetup({ onCancel }: DeviceVerificationSetupPro
     <Dialog variant="Surface" role="dialog" aria-modal="true">
       <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
         <Box grow="Yes">
-          <Text size="H4">{t('sharedUi.deviceVerificationSetup.title')}</Text>
+          <Text size="H4">{t('sharedUi.deviceVerificationSetup.setupDeviceVerification')}</Text>
         </Box>
         <IconButton
           size="300"
           radii="300"
           onClick={onCancel}
-          aria-label={t('sharedUi.deviceVerificationSetup.close')}
+          aria-label={t('sharedUi.deviceVerification.close')}
         >
           <Icon src={Icons.Cross} />
         </IconButton>

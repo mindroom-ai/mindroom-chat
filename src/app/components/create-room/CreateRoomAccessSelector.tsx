@@ -30,24 +30,24 @@ type CreateRoomAccessSelectorProps = {
     {
       access: CreateRoomAccess.Private,
       icon: Icons.HashLock,
-      title: t('sharedUi.createRoomAccess.private'),
-      description: t('sharedUi.createRoomAccess.privateDescription'),
+      title: t('sharedUi.createRoomAccessSelector.private'),
+      description: t('sharedUi.createRoomAccessSelector.onlyPeopleWithInviteCanJoin'),
     },
     ...(canRestrict
       ? [
           {
             access: CreateRoomAccess.Restricted,
             icon: Icons.Space,
-            title: t('sharedUi.createRoomAccess.restricted'),
-            description: t('sharedUi.createRoomAccess.restrictedDescription'),
+            title: t('sharedUi.createRoomAccessSelector.restricted'),
+            description: t('sharedUi.createRoomAccessSelector.onlyMemberOfParentSpaceCanJoin'),
           },
         ]
       : []),
     {
       access: CreateRoomAccess.Public,
       icon: Icons.HashGlobe,
-      title: t('sharedUi.createRoomAccess.public'),
-      description: t('sharedUi.createRoomAccess.publicDescription'),
+      title: t('sharedUi.createRoomAccessSelector.public'),
+      description: t('sharedUi.createRoomAccessSelector.anyoneWithTheAddressCanJoin'),
     },
   ];
 

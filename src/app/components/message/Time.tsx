@@ -21,8 +21,8 @@ export const Time = as<'time', TimeProps>(
     let label = time;
     if (!compact && !today(ts)) {
       label = yesterday(ts)
-        ? t('sharedUi.time.yesterdayAt', { time })
-        : t('sharedUi.time.dateAt', { date: dayjs(ts).format(dateFormatString), time });
+        ? t('sharedUi.time.yesterdayValue1', { value1: time })
+        : `${dayjs(ts).format(dateFormatString)} ${time}`;
     }
 
     return (

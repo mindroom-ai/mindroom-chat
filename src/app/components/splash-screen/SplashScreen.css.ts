@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
 export const SplashScreen = style({
@@ -14,12 +14,18 @@ export const SplashScreenPersistentParticle = style({
   backgroundColor: 'transparent',
 });
 
+/**
+ * Over the interactive particle canvas: empty space passes touches and clicks through to the
+ * canvas, while the splash's own controls stay clickable.
+ */
 export const SplashScreenParticle = style({
-  position: 'fixed',
-  inset: 0,
-  zIndex: -1,
   pointerEvents: 'none',
 });
+
+globalStyle(
+  `${SplashScreenParticle} :is(a, button, input, select, textarea, [tabindex]:not([tabindex='-1']))`,
+  { pointerEvents: 'auto' }
+);
 
 export const SplashScreenContent = style({
   position: 'relative',

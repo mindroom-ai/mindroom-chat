@@ -35,7 +35,7 @@ export function VoiceVolumeButton() {
         ref={triggerRef}
         type="button"
         className={css.Button}
-        aria-label={t('sharedUi.voiceVolumeButton.volumeCurrently', { value: percent })}
+        aria-label={t('sharedUi.voiceVolumeButton.voiceVolumeCurrentlyValue1', { value1: percent })}
         aria-haspopup="dialog"
         aria-expanded={!!anchor}
         onClick={handleClick}
@@ -82,7 +82,7 @@ export function VoiceVolumeButton() {
                     {...props}
                     key={props.key}
                     className={css.Thumb}
-                    aria-label={t('sharedUi.voiceVolumeButton.volume')}
+                    aria-label={t('sharedUi.voiceVolumeButton.voiceVolume')}
                     style={{ ...props.style, marginTop: THUMB_CENTERING_OFFSET }}
                   />
                 )}

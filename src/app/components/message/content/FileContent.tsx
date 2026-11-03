@@ -113,122 +113,122 @@ function ViewerOverlay({
 
 
 
-              width: 'min(64rem, calc(100vw - 2rem))',
-              height: 'min(48rem, calc(100vh - 2rem))',
-            }}
-          >
-            {children}
-          </Modal>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
-  );
-}
 
-type TriggerProps = ButtonOptions & {
-  status: 'idle' | 'loading' | 'error';
-  iconOnly?: boolean;
-  label: string;
-  errorLabel: string;
-  /** Accessible names of the icon-only button, which has no visible text. */
-  iconLabel: string;
-  iconErrorLabel: string;
-  onClick: () => void;
-};
 
-function AttachmentActionTrigger({
-  status,
-  iconOnly,
-  label,
-  errorLabel,
-  iconLabel,
-  iconErrorLabel,
-  buttonText,
-  errorButtonText,
-  buttonSize = '400',
-  onClick,
-}: TriggerProps) {
-  const failed = status === 'error';
-  if (iconOnly) {
-    return (
-      <IconButton
-        size="300"
-        radii="300"
-        variant={failed ? 'Critical' : 'SurfaceVariant'}
-        aria-label={failed ? iconErrorLabel : iconLabel}
-        disabled={status === 'loading'}
-        onClick={onClick}
-      >
-        {status === 'loading' ? (
-          <Spinner size="100" variant="Secondary" />
-        ) : (
-          <Icon size="100" src={failed ? Icons.Warning : Icons.Eye} />
-        )}
-      </IconButton>
-    );
-  }
-  return (
-    <Button
-      size={buttonSize}
-      radii="300"
-      variant={failed ? 'Critical' : 'Secondary'}
-      fill="Soft"
-      disabled={status === 'loading'}
-      before={status === 'loading' ? <Spinner size="100" variant="Secondary" /> : undefined}
-      onClick={onClick}
-    >
-      <Text size="B300">{failed ? errorButtonText ?? errorLabel : buttonText ?? label}</Text>
-    </Button>
-  );
-}
 
-export type TextViewerRenderProps = {
-  name: string;
-  text: string;
-  langName: string;
-  requestClose: () => void;
-};
 
-type ReadTextFileProps = AttachmentProps &
-  ButtonOptions & {
-    iconOnly?: boolean;
-    renderViewer: (props: TextViewerRenderProps) => ReactNode;
-  };
 
-/** Opens a text attachment in a viewer dialog. */
-export function ReadTextFile({
-  owner,
-  body,
-  mimeType,
-  url,
-  encInfo,
-  iconOnly,
-  renderViewer,
-  ...buttonOptions
-}: ReadTextFileProps) {
-  const { t } = useTranslation();
-  const [text, setText] = useState<string>();
-  const read = useCallback((blob: Blob) => blob.text(), []);
-  const [status, load] = useAttachmentAction({ owner, url, mimeType, encInfo }, read);
 
-  const open = () => {
-    load().then(
-      (content) => {
-        if (content !== undefined) setText(content);
-      },
-      () => undefined
-    );
-  };
 
-  return (
-    <>
-      <AttachmentActionTrigger
-        status={status}
-        iconOnly={iconOnly}
-        label={t('sharedUi.fileContent.open')}
-        errorLabel={t('sharedUi.fileContent.retryOpen')}
-        iconLabel={t('sharedUi.fileContent.openName', { name: body })}
-        iconErrorLabel={t('sharedUi.fileContent.retryOpenName', { name: body })}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        errorLabel={t('sharedUi.fileContent.loadFailed')}
+        iconLabel={t('sharedUi.fileContent.openValue1', { value1: body })}
+        iconErrorLabel={t('sharedUi.fileContent.loadFailed')}
         onClick={open}
         {...buttonOptions}
       />
@@ -298,10 +298,10 @@ export function ReadPdfFile({
       <AttachmentActionTrigger
         status={status}
         iconOnly={iconOnly}
-        label={t('sharedUi.fileContent.open')}
-        errorLabel={t('sharedUi.fileContent.retryOpen')}
-        iconLabel={t('sharedUi.fileContent.openName', { name: body })}
-        iconErrorLabel={t('sharedUi.fileContent.retryOpenName', { name: body })}
+        label={t('sharedUi.fileContent.openPdf')}
+        errorLabel={t('sharedUi.fileContent.loadFailed')}
+        iconLabel={t('sharedUi.fileContent.openValue1', { value1: body })}
+        iconErrorLabel={t('sharedUi.fileContent.loadFailed')}
         onClick={open}
         {...buttonOptions}
       />
@@ -357,7 +357,10 @@ export function DownloadFile({
     >
       <Text size="B300">
         {failed
-          ? errorButtonText ?? t('sharedUi.fileContent.retryDownloadWithSize', { size })
+          ? errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size })
+          : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
+      </Text>
+    </Button>
 
 
 
@@ -366,10 +369,7 @@ export function DownloadFile({
 
 
 
-
-
-
-
+  /** Trailing actions, usually the download button. */
   children?: ReactNode;
 };
 

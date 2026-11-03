@@ -48,7 +48,10 @@ type VoiceAudioContentProps = {
   filename?: string;
   /** MSC1767 waveform, values from 0 to 1024. */
   waveform?: number[];
-  /** Accessible name of the player; defaults to the file name. */
+  /**
+   * What the controls call this audio ("Play voice message", "Seek audio"); defaults to
+   * "voice message".
+   */
   label?: string;
   /** Voice messages show no title; other audio shows its file name. */
   isVoiceMessage?: boolean;
@@ -70,19 +73,7 @@ export function VoiceAudioContent({
   isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
-  const labels = isVoiceMessage
-    ? {
-        play: t('sharedUi.voiceAudioContent.playVoiceMessage'),
-        pause: t('sharedUi.voiceAudioContent.pauseVoiceMessage'),
-        seek: t('sharedUi.voiceAudioContent.seekVoiceMessage'),
-        fallbackName: t('sharedUi.voiceAudioContent.voiceMessageFileName'),
-      }
-    : {
-        play: t('sharedUi.voiceAudioContent.playAudio'),
-        pause: t('sharedUi.voiceAudioContent.pauseAudio'),
-        seek: t('sharedUi.voiceAudioContent.seekAudio'),
-        fallbackName: t('sharedUi.voiceAudioContent.audioFileName'),
-      };
+  const subject = label ?? t('sharedUi.voiceAudioContent.voiceMessage');
   const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo, owner });
   const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
@@ -221,13 +212,13 @@ export function VoiceAudioContent({
   const sourceFailed = srcState.status === AsyncStatus.Error;
   const loadingSource = srcState.status === AsyncStatus.Loading || (!!src && buffering && playing);
   const errorMessage = playbackFailed
-    ? t('sharedUi.voiceAudioContent.cannotPlay')
+    ? t('sharedUi.voiceAudioContent.playbackError')
     : sourceFailed
-    ? t('sharedUi.voiceAudioContent.loadFailed')
+    ? t('sharedUi.voiceAudioContent.loadError')
     : undefined;
 
   return (
-    <div className={css.Root} role="group" aria-label={label ?? filename}>
+    <div className={css.Root}>
       {!isVoiceMessage && filename && (
         <Text as="div" size="T300" className={css.Title} truncate title={filename}>
           {filename}
@@ -242,7 +233,11 @@ export function VoiceAudioContent({
               size="300"
               radii="Pill"
               disabled={playbackFailed}
-              aria-label={playing ? labels.pause : labels.play}
+              aria-label={
+                playing
+                  ? t('sharedUi.voiceAudioContent.pauseValue1', { value1: subject })
+                  : t('sharedUi.voiceAudioContent.playValue1', { value1: subject })
+              }
               onClick={handlePlay}
             >
               {loadingSource ? (
@@ -262,8 +257,11 @@ export function VoiceAudioContent({
               waveform={waveform}
               progress={progress}
               dimmed={!started}
-              label={labels.seek}
-              valueText={timeText}
+              label={t('sharedUi.voiceAudioContent.seekValue1', { value1: subject })}
+              valueText={t('sharedUi.voiceAudioContent.playbackPosition', {
+                current: formatTime(currentTime),
+                duration: formatTime(duration),
+              })}
               disabled={playbackFailed}
               onSeekProgress={seekTo}
             />
@@ -279,7 +277,7 @@ export function VoiceAudioContent({
               size="300"
               radii="Pill"
               variant="SurfaceVariant"
-              aria-label={t('sharedUi.voiceAudioContent.moreOptions')}
+              aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
               aria-haspopup="menu"
               aria-expanded={!!moreAnchor}
               onClick={handleMoreClick}
@@ -312,7 +310,7 @@ export function VoiceAudioContent({
               <div className={css.MoreMenuAction}>
                 <VoiceVolumeButton />
                 <FileDownloadButton
-                  filename={filename ?? labels.fallbackName}
+                  filename={filename ?? subject}
 
 
 

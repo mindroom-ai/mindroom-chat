@@ -83,7 +83,7 @@ const getRegisterFlows = async (mx: MatrixClient): Promise<RegisterFlowsResponse
       <Box direction="Column" alignItems="Center" gap="300">
         {error?.(state.error) ?? (
           <Text size="T300" align="Center">
-            {t('sharedUi.authFlowsLoader.failed')}
+            {t('sharedUi.authFlowsLoader.failedToLoadAuthenticationFlowInformation')}
           </Text>
         )}
         <Button variant="Secondary" size="300" onClick={retry}>

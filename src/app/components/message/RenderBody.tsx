@@ -11,11 +11,12 @@ import {
   resolveHtmlReactParserOptions,
 } from '../../utils/htmlReactParserOptions';
 
-const highlightStyle = {
+// Read only while highlighting: tests replace folds with partial doubles.
+const highlightStyle = () => ({
   backgroundColor: color.Warning.Container,
   color: color.Warning.OnContainer,
   borderRadius: '0.2em',
-};
+});
 
 /** Marks every match of `regex` in `text`. */
 const highlightText = (regex: RegExp, text: string): ReactNode[] | undefined => {
@@ -32,7 +33,7 @@ const highlightText = (regex: RegExp, text: string): ReactNode[] | undefined => 
     } else {
       if (match.index > last) parts.push(text.slice(last, match.index));
       parts.push(
-        <span key={match.index} data-search-highlight style={highlightStyle}>
+        <span key={match.index} data-search-highlight style={highlightStyle()}>
           {match[0]}
         </span>
       );

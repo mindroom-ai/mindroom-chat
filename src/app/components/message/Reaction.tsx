@@ -1,10 +1,11 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text, as } from 'folds';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMemberDisplayName } from '../../utils/room';
+import { getEmojiByUnicode } from '../../plugins/emoji';
 import * as css from './Reaction.css';
 
 type ReactionProps = {
@@ -54,27 +55,36 @@ export const Reaction = as<'button', ReactionProps>(
 
 
 
+  events: MatrixEvent[];
+};
 
+const MAX_NAMED_REACTORS = 5;
 
-
-
-
-
+/** "Alice, Bob and 3 others reacted with :thumbsup:" for a reaction chip's tooltip. */
+export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMsgProps) {
+  const { t, i18n } = useTranslation();
   const names = events.map((event) => {
     const sender = event.getSender() ?? '';
     return getMemberDisplayName(room, sender) ?? sender;
   });
-  const shortcode = events
+  const shown = names.slice(0, MAX_NAMED_REACTORS);
+  const others = names.length - shown.length;
+  const listed = others > 0 ? [...shown, t('sharedUi.reaction.others', { count: others })] : shown;
+  const customShortcode = events
     .map((event) => event.getContent().shortcode)
     .find((value): value is string => typeof value === 'string');
-  const shown = reaction.startsWith('mxc://') ? `:${shortcode ?? 'emoji'}:` : reaction;
+  const shortcode = reaction.startsWith('mxc://')
+    ? customShortcode ?? reaction
+    : getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction;
 
   return (
-    <>
-      {t('sharedUi.reaction.reactedWith', {
-        names: new Intl.ListFormat(undefined, { type: 'conjunction' }).format(names),
-        reaction: shown,
-      })}
-    </>
+    <Trans
+      i18nKey="sharedUi.reaction.reactionSummary"
+      values={{
+        names: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(listed),
+        reaction: shortcode,
+      }}
+      components={{ names: <b />, reaction: <span /> }}
+    />
   );
 }

@@ -22,7 +22,7 @@ export function CreateRoomAliasInput({ disabled }: CreateRoomAliasInputProps) {
       autoComplete="off"
       spellCheck={false}
       disabled={disabled}
-      aria-label={t('sharedUi.createRoomAccess.address')}
+      aria-label={t('sharedUi.createRoomAliasInput.addressOptional')}
       before={<Text size="T300">#</Text>}
       after={server ? <Text size="T300" priority="300">{`:${server}`}</Text> : undefined}
     />

@@ -21,16 +21,11 @@ export function SplashScreen({ children, background }: SplashScreenProps) {
       direction="Column"
       className={classNames(
         css.SplashScreen,
+        !customBackground && css.SplashScreenParticle,
         !customBackground && persistentBackground && css.SplashScreenPersistentParticle
       )}
     >
-      {customBackground ? (
-        background
-      ) : (
-        <div className={css.SplashScreenParticle}>
-          <ParticleBackgroundSurface position="fixed" />
-        </div>
-      )}
+      {customBackground ? background : <ParticleBackgroundSurface position="fixed" />}
       <Box grow="Yes" direction="Column" className={css.SplashScreenContent}>
         {children}
       </Box>

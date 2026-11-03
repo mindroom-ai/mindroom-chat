@@ -2,7 +2,7 @@ import React, { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { find as findLinks } from 'linkifyjs';
-import { Box, Icon, Icons, Text, toRem } from 'folds';
+import { Box, Icon, Icons, Text, color, config, toRem } from 'folds';
 import {
   BrokenContent,
   MessageBadEncryptedContent,
@@ -185,6 +185,19 @@ const mediaBoxStyle = (info: { w?: number; h?: number }): CSSProperties => {
   };
 };
 
+/**
+ * A hairline around an attachment that sits on a surface of the same color (the pinned
+ * messages menu). An outline paints over the media, so images keep the edge too.
+ */
+const outlineStyle = (outlined: boolean | undefined, radius: string): CSSProperties | undefined =>
+  outlined
+    ? {
+        outline: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+        outlineOffset: `calc(-1 * ${config.borderWidth.B300})`,
+        borderRadius: radius,
+      }
+    : undefined;
+
 type MImageProps = {
   content: MessageContent;
   renderAsFile: () => ReactNode;
@@ -193,7 +206,7 @@ type MImageProps = {
 };
 
 /** An image, or a file row for image types a browser should not render (SVG). */
-export function MImage({ content, renderAsFile, renderImageContent }: MImageProps) {
+export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
   const info = readInfo<IImageInfo>(content);
@@ -205,7 +218,7 @@ export function MImage({ content, renderAsFile, renderImageContent }: MImageProp
     return <>{renderAsFile()}</>;
   }
   return (
-    <Box style={mediaBoxStyle(info)}>
+    <Box style={{ ...mediaBoxStyle(info), ...outlineStyle(outlined, toRem(12)) }}>
       {renderImageContent({
         body: readFileName(content) ?? '',
         info,
@@ -228,20 +241,21 @@ export type RenderVideoContentArgs = {
 type MVideoProps = {
   content: MessageContent;
   renderAsFile: () => ReactNode;
-  renderVideoContent: (args: RenderVideoContentArgs) => ReactNode;
-  outlined?: boolean;
-};
 
-export function MVideo({ content, renderAsFile, renderVideoContent }: MVideoProps) {
-  const { t } = useTranslation();
+
+
+
+
+
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
   const info = readInfo<IVideoInfo>(content);
   const mimeType = readMimeType(info);
   if (getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE) return <>{renderAsFile()}</>;
-  const fileName = readFileName(content) ?? t('sharedUi.msgTypeRenderers.unnamedVideo');
+  const fileName =
+    readFileName(content) ?? t('mindroomUi.message-search.searchResultPreview.video');
   return (
-    <Box style={mediaBoxStyle(info)} title={fileName}>
+    <Box style={{ ...mediaBoxStyle(info), ...outlineStyle(outlined, toRem(12)) }} title={fileName}>
       {renderVideoContent({
         body: fileName,
         info,
@@ -276,7 +290,7 @@ type MAudioProps = {
 };
 
 /** Voice messages and audio files share the voice player; unplayable types become a file row. */
-export function MAudio({ content, renderAsFile, owner }: MAudioProps) {
+export function MAudio({ content, renderAsFile, owner, outlined }: MAudioProps) {
   const { t } = useTranslation();
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
@@ -284,18 +298,23 @@ export function MAudio({ content, renderAsFile, owner }: MAudioProps) {
   const mimeType = readMimeType(info);
   if (getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE) return <>{renderAsFile()}</>;
   const voice = isVoiceMessageContent(content);
-  return (
+  const player = (
     <VoiceAudioContent
       mimeType={mimeType}
       url={source.url}
       info={info}
       encInfo={source.encInfo}
       owner={owner}
-      filename={readFileName(content) ?? t('sharedUi.msgTypeRenderers.unnamedAudio')}
+      filename={readFileName(content) ?? t('mindroomUi.message-search.searchResultPreview.audio')}
       waveform={readWaveform(content)}
       isVoiceMessage={voice}
+      label={
+        voice ? t('sharedUi.msgTypeRenderers.voiceMessage') : t('sharedUi.msgTypeRenderers.audio')
+      }
     />
   );
+  // The player capsule has 16 px corners (VoiceAudioContent.css).
+  return outlined ? <div style={outlineStyle(true, toRem(16))}>{player}</div> : player;
 }
 
 export type RenderFileContentArgs = {
@@ -309,11 +328,11 @@ const useFileTypeLabel = () => {
   const { t } = useTranslation();
   return (mimeType: string): string => {
     const base = getMimeTypeBase(mimeType);
-    if (base === 'application/pdf') return t('sharedUi.msgTypeRenderers.pdfFile');
+    if (base === 'application/pdf') return t('sharedUi.msgTypeRenderers.pdfDocument');
     if (base.startsWith('text/')) return t('sharedUi.msgTypeRenderers.textFile');
-    if (base.startsWith('image/')) return t('sharedUi.msgTypeRenderers.imageFile');
-    if (base.startsWith('video/')) return t('sharedUi.msgTypeRenderers.videoFile');
-    if (base.startsWith('audio/')) return t('sharedUi.msgTypeRenderers.audioFile');
+    if (base.startsWith('image/')) return t('mindroomUi.message-search.searchResultPreview.image');
+    if (base.startsWith('video/')) return t('mindroomUi.message-search.searchResultPreview.video');
+    if (base.startsWith('audio/')) return t('mindroomUi.message-search.searchResultPreview.audio');
     return t('sharedUi.msgTypeRenderers.file');
   };
 };
@@ -321,12 +340,12 @@ const useFileTypeLabel = () => {
 type MFileProps = {
   content: MessageContent;
   renderFileContent: (args: RenderFileContentArgs) => ReactNode;
-  outlined?: boolean;
-};
 
-/** A file as one row: type tile, name, type and size, then the caller's actions. */
-export function MFile({ content, renderFileContent }: MFileProps) {
-  const { t } = useTranslation();
+
+
+
+
+
   const typeLabel = useFileTypeLabel();
   const source = readMediaSource(content);
   if (!source) return <BrokenContent />;
@@ -336,14 +355,14 @@ export function MFile({ content, renderFileContent }: MFileProps) {
   const extension = getFileNameExt(fileName).slice(0, 4).toUpperCase();
   const detail =
     typeof info.size === 'number'
-      ? t('sharedUi.msgTypeRenderers.fileDetail', {
+      ? t('sharedUi.msgTypeRenderers.fileMeta', {
           type: typeLabel(mimeType),
           size: bytesToSize(info.size),
         })
       : typeLabel(mimeType);
 
   return (
-    <div className={fileCss.FileRow}>
+    <div className={fileCss.FileRow} style={outlineStyle(outlined, config.radii.R400)}>
       <div className={fileCss.FileTile} aria-hidden="true">
         {extension || <Icon size="100" src={Icons.File} />}
       </div>
@@ -383,7 +402,7 @@ export function MLocation({ content }: { content: MessageContent }) {
         target="_blank"
         rel="noreferrer noopener"
       >
-        {t('sharedUi.msgTypeRenderers.openLocation', { latitude, longitude })}
+        {t('sharedUi.msgTypeRenderers.openLocation')}
       </Text>
     </Box>
   );

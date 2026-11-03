@@ -40,7 +40,14 @@ const BLOCK_TAGS = new Set([
   'mx-reply',
 ]);
 
-const getText = (node: ChildNode): string => {
+const CONTAINER_BLOCKS: ReadonlySet<string> = new Set([
+
+
+
+
+
+
+
   if (isText(node)) return node.data;
   if (isTag(node)) return node.children.map(getText).join('');
   return '';
@@ -318,19 +325,31 @@ function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
       const items = node.children.filter(
         (child): child is DomElement => isTag(child) && child.name === 'li'
       );
-      const lines = items.map((item) => {
-        const itemLines = dropTrailingEmptyLine(parseBlocks(item.children, markdown));
-        return itemLines.length > 0 ? (itemLines[0] as ParagraphElement) : paragraph([]);
+      // Every line of an item stays: further paragraphs and nested lists follow its first line.
+      const itemLines = items.map((item) => {
+        const lines = dropTrailingEmptyLine(parseBlocks(item.children, markdown));
+        return lines.length > 0 ? lines : [paragraph([])];
       });
       if (markdown) {
-        return lines.map((line, index) =>
-          prefixParagraph(line, ordered ? `${start + index}. ` : `${md || '-'} `)
-        );
+        return itemLines.flatMap((lines, index) => {
+          const marker = ordered ? `${start + index}. ` : `${md || '-'} `;
+          // Continuation lines line up under the item text, which nests them in Markdown.
+          const indent = ' '.repeat(marker.length);
+          return lines.map((line, lineIndex) =>
+            prefixParagraph(line as ParagraphElement, lineIndex === 0 ? marker : indent)
+          );
+        });
       }
+      // Rich text has one level of list items, so the lines of nested lists, quotes, and code
+      // continue the outer list.
+      const flatten = (line: Descendant): Descendant[] =>
+        'type' in line && CONTAINER_BLOCKS.has(line.type)
+          ? (line.children as Descendant[]).flatMap(flatten)
+          : [line];
       return [
         {
           type: ordered ? BlockType.OrderedList : BlockType.UnorderedList,
-          children: lines.map(toListItem),
+          children: itemLines.flatMap((lines) => lines.flatMap(flatten)).map(toListItem),
         },
       ];
     }

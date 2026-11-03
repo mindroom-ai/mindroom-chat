@@ -245,7 +245,7 @@ function RoomAccessSession({
           }
           onSubmit={knock}
           requestClose={closeDialog}
-          fallbackErrorMessage={t('sharedUi.roomAccess.requestFailed')}
+          fallbackErrorMessage={t('sharedUi.roomAccessControl.failedToSendRequest')}
         />
       )}
     </>
@@ -278,6 +278,7 @@ function RoomAccessRequestDialog({
   loadingRef.current = loading;
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     (messageRef.current ?? dialogRef.current)?.focus();
     return () => {
@@ -286,6 +287,7 @@ function RoomAccessRequestDialog({
   }, []);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !loadingRef.current) {
         event.stopPropagation();
@@ -327,7 +329,7 @@ function RoomAccessRequestDialog({
         >
           <Header style={{ padding: `0 ${config.space.S400}` }} size="500">
             <Text id={titleId} as="h2" size="H4" truncate>
-              {t('sharedUi.roomAccess.requestTitle', { name: roomName })}
+              {t('sharedUi.roomAccessControl.requestToJoinValue1', { value1: roomName })}
             </Text>
           </Header>
           <Box
@@ -338,11 +340,11 @@ function RoomAccessRequestDialog({
             onSubmit={handleSubmit}
           >
             <Text size="T300" priority="400">
-              {t('sharedUi.roomAccess.requestDescription')}
+              {t('sharedUi.roomAccessControl.anAdminWillReviewYourRequest')}
             </Text>
             <Box direction="Column" gap="100">
               <Text as="label" htmlFor={messageId} size="L400">
-                {t('sharedUi.roomAccess.message')}
+                {t('sharedUi.roomAccessControl.messageOptional')}
               </Text>
               <TextArea
                 ref={messageRef}
@@ -368,7 +370,7 @@ function RoomAccessRequestDialog({
                 disabled={loading}
                 onClick={requestClose}
               >
-                <Text size="B400">{t('sharedUi.roomAccess.cancel')}</Text>
+                <Text size="B400">{t('sharedUi.roomAccessControl.cancel')}</Text>
               </Button>
               <Button
                 type="submit"
@@ -378,7 +380,9 @@ function RoomAccessRequestDialog({
                 before={loading ? <Spinner size="100" variant="Primary" fill="Solid" /> : undefined}
               >
                 <Text size="B400">
-                  {loading ? t('sharedUi.roomAccess.sending') : t('sharedUi.roomAccess.send')}
+                  {loading
+                    ? t('sharedUi.roomAccessControl.sendingRequest')
+                    : t('sharedUi.roomAccessControl.sendRequest')}
                 </Text>
               </Button>
             </Box>

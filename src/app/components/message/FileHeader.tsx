@@ -50,8 +50,7 @@ export function FileDownloadButton({
       size="300"
       radii="300"
       variant={status === 'error' ? 'Critical' : 'SurfaceVariant'}
-      aria-label={t('sharedUi.fileHeader.downloadName', { name: filename })}
-      title={status === 'error' ? t('sharedUi.fileHeader.retryDownload') : undefined}
+      aria-label={t('sharedUi.fileHeader.downloadValue1', { value1: filename })}
       disabled={status === 'loading'}
       onClick={() => {
         download().catch(() => undefined);
