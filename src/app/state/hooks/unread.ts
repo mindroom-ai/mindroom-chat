@@ -24,38 +24,42 @@ export const useRoomUnread = (
   return useAtomValue(unreadAtom);
 };
 
-/** The combined unread state of several rooms, counting each room once. */
+/**
+ * The combined unread state of several rooms, counting each room once. Callers may pass a new
+ * array on every render: the selector is rebuilt only when the room IDs themselves change.
+ */
 export const useRoomsUnread = (
   roomIds: string[],
   roomToUnreadAtom: Atom<RoomToUnread>
 ): Unread | undefined => {
-  const unreadAtom = useMemo(
-    () =>
-      selectAtom(
-        roomToUnreadAtom,
-        (roomToUnread): Unread | undefined => {
-          const from = new Set<string>();
-          let total = 0;
-
-
-
-
-            // A Space entry already sums its rooms; add only rooms not counted yet.
-            const rooms = unread.from ?? new Set([roomId]);
-            rooms.forEach((leafId) => {
-              if (from.has(leafId)) return;
-              const leaf = unread.from ? roomToUnread.get(leafId) : unread;
-              if (!leaf) return;
-              from.add(leafId);
-              total += leaf.total;
-              highlight += leaf.highlight;
-            });
+  // A fresh selector per render would resubscribe forever, so key it by the IDs' content.
+  const roomIdsKey = JSON.stringify(roomIds);
+  const unreadAtom = useMemo(() => {
+    const ids = JSON.parse(roomIdsKey) as string[];
+    return selectAtom(
+      roomToUnreadAtom,
+      (roomToUnread): Unread | undefined => {
+        const from = new Set<string>();
+        let total = 0;
+        let highlight = 0;
+        ids.forEach((roomId) => {
+          const unread = roomToUnread.get(roomId);
+          if (!unread) return;
+          // A Space entry already sums its rooms; add only rooms not counted yet.
+          const rooms = unread.from ?? new Set([roomId]);
+          rooms.forEach((leafId) => {
+            if (from.has(leafId)) return;
+            const leaf = unread.from ? roomToUnread.get(leafId) : unread;
+            if (!leaf) return;
+            from.add(leafId);
+            total += leaf.total;
+            highlight += leaf.highlight;
           });
-          return from.size > 0 ? { total, highlight, from } : undefined;
-        },
-        sameUnread
-      ),
-    [roomToUnreadAtom, roomIds]
-  );
+        });
+        return from.size > 0 ? { total, highlight, from } : undefined;
+      },
+      sameUnread
+    );
+  }, [roomToUnreadAtom, roomIdsKey]);
   return useAtomValue(unreadAtom);
 };
