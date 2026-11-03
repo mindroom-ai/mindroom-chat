@@ -3,6 +3,10 @@
 
 import { trimTrailingSlash } from './utils/common';
 
+/**
+ * Body of `GET /_matrix/client/versions` (specification "Client-Server API", section "Versions").
+ * Servers may leave out `unstable_features`.
+ */
 
 
 
@@ -12,22 +16,23 @@ import { trimTrailingSlash } from './utils/common';
 
 
 
-
-
-
-
-
+  /** The server, or the base URL it advertises, is plain HTTP outside the local network. */
   FAIL_INSECURE = 'FAIL_INSECURE',
 }
 
+export type AutoDiscoveryError = {
+  /** The server URL that was tried, with its scheme. */
+  host: string;
+  action: AutoDiscoveryAction;
+};
 
-
-
-
-
-
-
-
+/**
+ * Content of `/.well-known/matrix/client` ("Server Discovery", "Well-known URIs"). Only
+ * `m.homeserver.base_url` is required; deployments add their own namespaced keys.
+ */
+export type AutoDiscoveryInfo = {
+  [key: string]: unknown;
+  'm.homeserver': { base_url: string; [key: string]: unknown };
 };
 
 const LOCAL_HOSTNAME = /^(?:localhost|.+\.local|.+\.localhost)$/i;
@@ -78,16 +83,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const fallbackInfo = (baseUrl: string): AutoDiscoveryInfo => ({
   'm.homeserver': { base_url: baseUrl },
+});
+
+/**
+ * Resolves a server name or URL to its client discovery info. Resolves to `[error, undefined]`
+ * when sign-in cannot go on, or to `[undefined, info]`; a missing well-known (404) falls back to
+ * the server URL itself as the homeserver base URL.
+ */
 
 
 
-
-
-
-
-
-
-
+): Promise<[AutoDiscoveryError | undefined, AutoDiscoveryInfo | undefined]> => {
+  const host = trimTrailingSlash(withScheme(server.trim()));
 
   if (!isAllowedHomeserverBaseUrl(host)) {
     return [{ host, action: AutoDiscoveryAction.FAIL_INSECURE }, undefined];

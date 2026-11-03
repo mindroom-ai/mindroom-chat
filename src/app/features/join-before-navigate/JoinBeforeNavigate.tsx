@@ -51,9 +51,9 @@ function JoinedNavigation({
 }
 
 function SummaryCard({
-
-
-
+  summary,
+  roomIdOrAlias,
+  viaServers,
   eventId,
   threadId,
 }: {
@@ -94,9 +94,9 @@ function SummaryCard({
       <Box gap="300" alignItems="Center">
         <Avatar size="500" radii="400">
           <RoomAvatar
-
-
-
+            roomId={roomId}
+            alt={name}
+            src={avatarUrl}
             renderFallback={() => <Icon size="300" src={Icons.Hash} />}
           />
         </Avatar>
@@ -177,20 +177,21 @@ function SummaryCard({
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <Page>
+      <PageHeader balance>
+        <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+          <Icon size="200" src={Icons.Link} />
+          <Text as="h1" size="H4" truncate>
+            {roomIdOrAlias}
+          </Text>
+        </Box>
+      </PageHeader>
+      <Box
+        grow="Yes"
+        direction="Column"
+        justifyContent="Center"
+        style={{ padding: config.space.S400, overflowY: 'auto' }}
       >
         <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
           {(state, retry, resolvedViaServers) => {

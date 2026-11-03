@@ -91,12 +91,13 @@ export function UploadStatusLine({
 
 
 
+
   onRemove: (file: TUploadItem['file']) => void;
   /** The room is encrypted: a file that is not encrypted must never upload. */
-  isEncrypted?: boolean;
-};
 
-/** A staged composer attachment: uploads it at once and shows progress, errors and options. */
+
+
+
 
 
 
@@ -150,9 +151,9 @@ export function UploadStatusLine({
       before={<Icon src={getFileTypeIcon(mimeType)} />}
       after={
         <>
-
-
-
+          {upload.status === UploadStatus.Success && (
+            <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
+          )}
           {isImage && (
             <IconButton
               type="button"

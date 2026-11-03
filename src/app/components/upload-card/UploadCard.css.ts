@@ -18,10 +18,10 @@ export const UploadCard = recipe({
 
 
 
-
     outlined: {
       true: glassOutline,
     },
+    // Settings forms place a single upload in a narrow column, so it sits tighter there.
 
 
 
@@ -41,9 +41,11 @@ export const UploadCard = recipe({
   overflowWrap: 'anywhere',
 });
 
+// A square thumbnail for an image upload, in the place of its file-type icon.
 export const UploadCardPreview = style({
-
-
-
-
+  flexShrink: 0,
+  inlineSize: toRem(36),
+  blockSize: toRem(36),
+  objectFit: 'cover',
+  borderRadius: config.radii.R300,
 });

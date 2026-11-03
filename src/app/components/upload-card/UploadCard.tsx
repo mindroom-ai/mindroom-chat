@@ -24,6 +24,7 @@ export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
     >
       <Box alignItems="Center" gap="200">
         {before}
+        <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
 
 
 
@@ -40,7 +41,7 @@ export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
 
 
 
-
+  // A zero-byte file would otherwise divide by zero.
   const total = Math.max(totalBytes, 1);
   return (
     <Box direction="Column" gap="200">

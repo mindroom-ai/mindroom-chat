@@ -9,31 +9,29 @@ export const CardGrid = style({
   gap: config.space.S400,
 });
 
+// A card is a column: avatar row, name and topic, then the member count and the action.
 export const RoomCardBase = style([
   DefaultReset,
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   {
+    display: 'flex',
 
 
 
 
 
     gap: config.space.S500,
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
+// The topic is a bare button that opens the full text; on the card it is cut at three lines.
+export const RoomCardTopic = style({
   border: 'none',
   padding: 0,
   textAlign: 'start',
+  margin: 0,
+  background: 'none',
+
 
 
 

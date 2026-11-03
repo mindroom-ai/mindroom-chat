@@ -1,12 +1,13 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config } from 'folds';
 
-
-
-
-
-
+// Header on top, the scrolling text below it taking the rest of the dialog.
+export const TextViewer = style([
+  DefaultReset,
+  {
+    display: 'flex',
     flexDirection: 'column',
+    blockSize: '100%',
   },
 ]);
 

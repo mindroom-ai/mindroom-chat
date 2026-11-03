@@ -51,6 +51,7 @@ import {
   THREADS_PATH,
 } from './paths';
 import { getHomeRoomPath } from './pathUtils';
+import { getAppBasePath } from '../utils/basePath';
 import { AuthLayout } from './auth/AuthLayout';
 import { Login } from './auth/login/Login';
 import { Register } from './auth/register/Register';
@@ -183,13 +184,13 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
   const routes = createRoutesFromElements(
     <Route>
       <Route path={ROOT_PATH} element={<RootRedirect />} />
+      <Route path={CONNECT_PATH} element={<ConnectPage />} />
 
 
 
 
 
 
-      <Route path={CONNECTIONS_PATH} element={<ConnectionsPage />} />
       <Route element={<ProtectedRoutes hashRouter={hashRouter} />}>
         <Route path={HOME_PATH} element={<SectionPage path={HOME_PATH} nav={<Home />} />}>
           <Route index element={<WelcomePage />} />
@@ -232,9 +233,9 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
     </Route>
   );
 
-
-
-
-
-
+  // The hash router keeps routes after `#`, for hosts that cannot send every path to index.html;
+  // the browser router lives under the deployment base path.
+  const hashMode = hashRouter?.enabled === true;
+  const makeRouter = hashMode ? createHashRouter : createBrowserRouter;
+  return makeRouter(routes, { basename: hashMode ? hashRouter?.basename : getAppBasePath() });
 };

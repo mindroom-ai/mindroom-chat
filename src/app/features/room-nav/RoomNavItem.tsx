@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
+import {
+  Avatar,
+  Box,
+  Icon,
+  IconButton,
+  type IconSrc,
+  Icons,
+  PopOut,
+  Text,
+  config,
+  toRem,
+} from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { RoomType, type Room } from 'matrix-js-sdk';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { UnreadBadge } from '../../components/unread-badge';
@@ -19,6 +30,7 @@ import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../../utils/matrix';
 import { getRoomAvatarUrl } from '../../utils/room';
 import { copyToClipboard } from '../../utils/dom';
+import { nameInitials } from '../../utils/common';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { useRoomBackgroundJobs } from '../../mindroom/background-jobs/useRoomBackgroundJobs';
 import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
@@ -26,11 +38,13 @@ import { MindroomMarkRoomReadMenuItem } from '../../mindroom/notifications/Mindr
 
 const AVATAR_SIZE = 96;
 
-
-
-
-
-
+type RoomNavItemProps = {
+  room: Room;
+  selected: boolean;
+  /** Where the row links to. */
+  linkPath: string;
+  /** Muted rooms without unread messages show a muted mark. */
+  notificationMode: RoomNotificationMode;
   /** A direct message: shows the other person's avatar with initials as fallback. */
   direct?: boolean;
   showAvatar?: boolean;
@@ -52,97 +66,102 @@ function RoomNavItemMenu({ room, requestClose }: { room: Room; requestClose: () 
   };
 
   return (
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    <Menu style={{ minWidth: toRem(176) }}>
+      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+        <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+        <RoomMenuEntry
+          icon={Icons.Link}
+          label={t('featureUi.roomNav.roomNavItem.copyLink')}
+          onClick={handleCopyLink}
+        />
+        <RoomMenuEntry
+          icon={Icons.Setting}
+          label={t('featureUi.roomNav.roomNavItem.roomSettings')}
+          onClick={() => {
+            openRoomSettings(room.roomId);
+            requestClose();
+          }}
+        />
+        <RoomMenuEntry
+          critical
+          icon={Icons.ArrowGoLeft}
+          label={t('featureUi.roomNav.roomNavItem.leaveRoom')}
+          onClick={handleLeave}
+        />
+      </Box>
+    </Menu>
+  );
+}
+
+type RoomMenuEntryProps = {
+  icon: IconSrc;
+  label: string;
+  onClick: () => void;
+  /** Leaving is styled as a destructive action. */
+  critical?: boolean;
+};
+
+function RoomMenuEntry({ icon, label, onClick, critical }: RoomMenuEntryProps) {
+  return (
+    <MenuItem
+      size="300"
+      radii="300"
+      variant={critical ? 'Critical' : 'Surface'}
+      after={<Icon size="100" src={icon} />}
+      onClick={onClick}
+    >
+      <Text as="span" size="T300" truncate style={{ flexGrow: 1 }}>
+        {label}
+      </Text>
+    </MenuItem>
+  );
+}
+
+/**
+ * Whether the pointer is over the row or focus is inside it; the row swaps its badge for the
+ * options button while either holds. The props go on the row element.
+ */
+const useRowEngagement = () => {
+  const [hovering, setHovering] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const { hoverProps } = useHover({ onHoverChange: setHovering });
+  const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setFocusInside });
+  const engaged = hovering || focusInside;
+  return [engaged, { ...hoverProps, ...focusWithinProps }] as const;
+};
+
+type RoomNavItemAvatarProps = {
+  room: Room;
+  name: string;
+  /** Show a person (direct message partner) with initials, instead of the room privacy icon. */
+  personAvatar: boolean;
+  selected: boolean;
+};
+
+function RoomNavItemAvatar({ room, name, personAvatar, selected }: RoomNavItemAvatarProps) {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const avatarMxc = useRoomAvatar(room, personAvatar);
+
+  let src = avatarMxc
+    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
+    : undefined;
+  // A partner without an avatar shows the room's own, which is only looked up then.
+  if (!src && personAvatar) src = getRoomAvatarUrl(mx, room, AVATAR_SIZE, useAuthentication);
+
+  const renderFallback = () =>
+    personAvatar ? (
+      <Text as="span" size="H6">
+
+
+
+
+
+
+
+        space={room.getType() === RoomType.Space}
+      />
+    );
 
   return (
     <Avatar size="200" radii="400">
@@ -232,16 +251,15 @@ export function RoomNavItem(props: RoomNavItemProps) {
       {...engagementProps}
       variant="Background"
       radii="400"
-      aria-selected={selected}
-      highlight={unread !== undefined}
 
 
 
 
-
-
-
-
+        <NavItemContent>
+          <Box as="span" grow="Yes" alignItems="Center" gap="200">
+            <RoomNavItemAvatar
+              room={room}
+              name={name}
               personAvatar={Boolean(direct && showAvatar)}
               selected={selected}
             />

@@ -145,7 +145,7 @@ describe('upload card renderers', () => {
 
 
 
-
+          },
         },
         setMetadata: vi.fn(),
         onRemove: vi.fn(),
@@ -171,7 +171,7 @@ describe('upload card renderers', () => {
 
 
 
-
+          },
           prepError: toMatrixUploadError(new Error('encryption failed'), 'create'),
         },
         setMetadata: vi.fn(),
@@ -201,7 +201,7 @@ describe('upload card renderers', () => {
 
 
 
-
+          },
           prepError,
         },
         setMetadata: vi.fn(),

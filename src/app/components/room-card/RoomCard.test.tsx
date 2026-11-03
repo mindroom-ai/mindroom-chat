@@ -129,11 +129,11 @@ const renderRoomCard = (
     renderer = create(
       <MatrixClientProvider value={mx as MatrixClient}>
         <RoomCard
-
-
-
-
-
+          roomIdOrAlias={roomIdOrAlias}
+          roomId={roomId}
+          allRooms={allRooms}
+          name="Private room"
+          joinRule={joinRule}
           accessStatus={accessStatus}
           onAccessRetry={onAccessRetry}
           viaServers={['one.example.org', 'two.example.org']}

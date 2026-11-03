@@ -21,6 +21,8 @@ export type LocalRoomSummary = {
   canonicalAlias?: string;
   worldReadable: boolean;
   guestCanJoin: boolean;
+  /** Joined members as the client counts them. */
+
 
 
 
@@ -48,11 +50,11 @@ const getLocalRoomSummary = (room: Room): LocalRoomSummary => {
 
 
 
-  };
-};
 
-/** The summary of a joined room, following its state and name. */
-export const useLocalRoomSummary = (room: Room): LocalRoomSummary => {
+
+
+
+
   const [summary, setSummary] = useState(() => getLocalRoomSummary(room));
 
   useEffect(() => {

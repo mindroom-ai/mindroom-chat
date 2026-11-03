@@ -1,8 +1,9 @@
 // Matrix client-server API error codes (`errcode`). Grouped by where the specification defines
 // them: its "Common error codes" list first, then the codes individual endpoints document
 // (accounts, parameters, rooms, third-party identifiers). Alphabetical inside each group.
-export enum ErrorCode {
-  // Common error codes: the caller is not allowed to do this.
+// Source: Client-Server API, section "Standard error response".
+
+
 
 
 
@@ -17,21 +18,6 @@ export enum ErrorCode {
 
 
 
-  // Per-API codes: accounts, registration and authentication.
-
-
-
-
-
-
-
-  // Per-API codes: request parameters and size limits.
-
-
-
-
-
-  // Per-API codes: rooms.
 
 
 
@@ -41,11 +27,27 @@ export enum ErrorCode {
 
 
 
-  // Per-API codes: third-party identifiers and captchas.
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  M_THREEPID_MEDIUM_NOT_SUPPORTED = 'M_THREEPID_MEDIUM_NOT_SUPPORTED',
+  M_THREEPID_NOT_FOUND = 'M_THREEPID_NOT_FOUND',
 }

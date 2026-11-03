@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
+/** Layout classes the app switches between; the values are what tests and logs see. */
 
 
 
@@ -31,16 +32,14 @@ export const useScreenSize = (): ScreenSize => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-
-
-
-
-
-
-
-
-
-
-
   return screenSize;
 };
+
+// The app root measures once with `useScreenSize` and hands the result down, so components read
+// it from context instead of each adding a resize listener. Without a provider they get Desktop.
+const ScreenSizeContext = createContext<ScreenSize>(ScreenSize.Desktop);
+
+export const ScreenSizeProvider = ScreenSizeContext.Provider;
+
+/** The size class provided by the nearest `ScreenSizeProvider`. */
+export const useScreenSizeContext = (): ScreenSize => useContext(ScreenSizeContext);

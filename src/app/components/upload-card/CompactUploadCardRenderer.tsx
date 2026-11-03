@@ -17,11 +17,11 @@ type CompactUploadCardRendererProps = {
 };
 
 /** A one-file upload (avatar, room icon): starts at once, then reports the result. */
-
-
-
-
+export function CompactUploadCardRenderer({
+  onRemove,
+  uploadAtom,
   uploadKind = 'file',
+  onComplete,
 
 
 
@@ -58,9 +58,9 @@ type CompactUploadCardRendererProps = {
       before={<Icon src={getFileTypeIcon(file.type)} size="100" />}
       after={
         <>
-
-
-
+          {upload.status === UploadStatus.Success && (
+            <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
+          )}
           <IconButton
             type="button"
             size="300"

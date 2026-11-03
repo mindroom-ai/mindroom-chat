@@ -7,6 +7,8 @@ import { PageScroll } from '../page';
 import { copyToClipboard } from '../../utils/dom';
 import * as css from './TextViewer.css';
 
+/** How long the copy chip shows its check mark. */
+const COPIED_FEEDBACK_MS = 2000;
 
 
 
@@ -19,8 +21,8 @@ import * as css from './TextViewer.css';
 
 
 
-
-
+  ({ text, name, langName, requestClose, className, ...props }, ref) => {
+    const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
 
     // The check mark clears itself a moment after a successful copy.

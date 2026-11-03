@@ -14,6 +14,7 @@ export const useStateEvent = (
 
 
 
+
       (event: MatrixEvent) => {
         if (
           event.getRoomId() === room.roomId &&

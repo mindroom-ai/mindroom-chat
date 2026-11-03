@@ -162,12 +162,14 @@ export const EscapeRule: InlineMDRule = {
 
 /** Every inline rule of a chat message, in priority order for matches at the same position. */
 export const INLINE_MD_RULES: InlineMDRule[] = [
-
-
-
-
-
-
+  // Of these, only bold and star italics start on the same character, and a star italic never
+  // opens in front of a second star, so they cannot tie; bold still goes first for clarity.
+  BoldRule,
+  ItalicRule1,
+  ItalicRule2,
+  StrikeRule,
+  SpoilerRule,
+  LinkRule,
   InlineMathRule,
   EscapeRule,
 ];

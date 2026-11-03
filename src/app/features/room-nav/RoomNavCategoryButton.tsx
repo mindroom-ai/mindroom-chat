@@ -19,12 +19,15 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
         background: 'none',
         border: 0,
         padding: '4px',
-
-
-
-
-
-
+        color: 'inherit',
+        cursor: 'pointer',
+        textAlign: 'start',
+        flexGrow: 1,
+        minWidth: 0,
+        ...style,
+      }}
+      {...props}
+      ref={ref}
     >
       <Icon size="50" src={closed ? Icons.ChevronRight : Icons.ChevronBottom} />
       <Box as="span" grow="Yes">

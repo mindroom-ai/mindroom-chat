@@ -24,8 +24,8 @@ import { isRoomId } from '../../utils/matrix';
 import { stopPropagation } from '../../utils/keyboard';
 import * as css from './style.css';
 
-
-
+export const RoomCardGrid = as<'div'>(({ className, ...props }, ref) => (
+  <div {...props} className={classNames(css.CardGrid, className)} ref={ref} />
 ));
 
 
@@ -45,10 +45,14 @@ type RoomCardProps = {
 
 
 
+
+
+
   /** The access rule the room summary reported. */
   joinRule?: RoomAccessJoinRule;
   /** State of the summary request that `joinRule` came from. */
   accessStatus?: AsyncStatus;
+  /** Retries the summary request after it failed. */
 
 
 
@@ -68,9 +72,11 @@ type RoomCardProps = {
 
 
 
-      accessStatus,
-      onAccessRetry,
-      onView,
+
+
+
+
+
 
 
 
@@ -146,6 +152,12 @@ type RoomCardProps = {
               type="button"
               size="T200"
               className={css.RoomCardTopic}
+              onClick={() => setViewTopic(true)}
+            >
+              {topic}
+            </Text>
+          )}
+          {topic && viewTopic && (
 
 
 
@@ -153,15 +165,9 @@ type RoomCardProps = {
 
 
 
-
-
-
-
-
-
-
-
-
+                    initialFocus: false,
+                  }}
+                >
                   {renderTopicViewer(roomName, topic, () => setViewTopic(false))}
                 </FocusTrap>
               </OverlayCenter>
