@@ -48,28 +48,35 @@ export const getAvatarFallbackStyle = (
 type AvatarPictureProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt'> & {
   imageClassName: string;
   fallbackClassName?: string;
-  fallbackStyle?: CSSProperties;
+  /** The user or room ID the fallback color follows. */
+  fallbackId: string;
+  fallbackTone?: AvatarFallbackTone;
   /** Shown while there is no picture: no `src`, still fetching, or failed. */
-  fallback: ReactNode;
+  renderFallback: () => ReactNode;
 };
 
 /**
  * The picture inside a folds `Avatar`, loaded through `useAvatarImage` (so homeserver media also
- * loads without a service worker), with the fallback in its place until there is one.
+ * loads without a service worker), with the fallback in its place until there is one. The
+ * fallback and its colors are only worked out when it shows.
  */
 export function AvatarPicture({
   src,
   alt,
   imageClassName,
   fallbackClassName,
-  fallbackStyle,
-  fallback,
+  fallbackId,
+  fallbackTone,
+  renderFallback,
 }: AvatarPictureProps) {
   const { imageSrc, onImageError } = useAvatarImage(src);
   if (!imageSrc) {
     return (
-      <AvatarFallback className={fallbackClassName} style={fallbackStyle}>
-        {fallback}
+      <AvatarFallback
+        className={fallbackClassName}
+        style={getAvatarFallbackStyle(fallbackId, fallbackTone)}
+      >
+        {renderFallback()}
       </AvatarFallback>
     );
   }
@@ -110,8 +117,9 @@ export function UserAvatar({
       alt={alt}
       imageClassName={classNames(css.UserAvatar, className)}
       fallbackClassName={className}
-      fallbackStyle={getAvatarFallbackStyle(userId, fallbackTone)}
-      fallback={renderFallback()}
+      fallbackId={userId}
+      fallbackTone={fallbackTone}
+      renderFallback={renderFallback}
     />
   );
 }

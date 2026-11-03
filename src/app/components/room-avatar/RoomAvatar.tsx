@@ -1,11 +1,7 @@
 import React, { ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
 import { Icon } from 'folds';
-import {
-  AvatarFallbackTone,
-  AvatarPicture,
-  getAvatarFallbackStyle,
-} from '../user-avatar/UserAvatar';
+import { AvatarFallbackTone, AvatarPicture } from '../user-avatar/UserAvatar';
 import { getRoomIconSrc } from './roomIconSrc';
 import * as css from './RoomAvatar.css';
 
@@ -38,8 +34,9 @@ export function RoomAvatar({
       alt={alt}
       imageClassName={avatarClassName}
       fallbackClassName={avatarClassName}
-      fallbackStyle={getAvatarFallbackStyle(roomId, fallbackTone)}
-      fallback={renderFallback()}
+      fallbackId={roomId}
+      fallbackTone={fallbackTone}
+      renderFallback={renderFallback}
     />
   );
 }
