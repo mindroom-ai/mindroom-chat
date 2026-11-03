@@ -43,6 +43,7 @@ History rewrite of 2026-11-03 (`scripts/upstream-overlap/rewrite_history.py`, gi
 - At the tip (`docs/provenance/overlap.txt`), 5,854 lines in 355 files were blank. Lane C sessions wrote them fresh without the removed code (round 1), then rewrote what still matched, with the check's line ranges for their own files as feedback (round 2). The 821 Lane P lines among them (84 files, `docs/provenance/holes-overlap.tsv`) were filled one line each; `check_holes.py --overlap --rev 54314f8` checks that.
 - `docs/provenance/history-rewrite-commit-map.txt` maps each commit from before the rewrite to its new commit. The old commits exist only in a private backup bundle.
 - Result: 0 findings at the tip and in every blob of every commit.
+- jscpd at 30 tokens against the six snapshots, at the tip after the rewrite: 0 clones in Lane C; 7 ranges in 3 Lane P files Bas wrote (`ConnectPage.tsx`, `MindroomConnectionsSettings.tsx`, `CompactRoomView.tsx`), made of folds JSX tags and attributes with literal values (exempt above) and at most 2 lines that also occur in Cinny. Their lines were not changed.
 
 ## What the orchestrator saw
 
