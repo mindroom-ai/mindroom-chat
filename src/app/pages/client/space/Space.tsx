@@ -2,18 +2,18 @@ import React, { MouseEventHandler, ReactNode, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
-  NavButton,
   NavCategory,
   NavCategoryHeader,
   NavItem,
   NavItemContent,
+  NavLink,
 } from '../../../components/nav';
 import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
 import { JoinBeforeNavigate } from '../../../features/join-before-navigate/JoinBeforeNavigate';
@@ -188,7 +188,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
         </Box>
         <IconButton
           variant="Background"
-          aria-label={t('featureUi.lobby.lobbyHeader.moreOptions')}
+          aria-label={t('featureUi.spaceNav.options')}
           onClick={showMenu}
         >
           <Icon size="200" src={Icons.VerticalDots} />
@@ -199,19 +199,11 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
   );
 }
 
-/** A shortcut row at the top of the space navigation, opening one of the space's pages. */
-function SpacePageLink({
-  icon,
-  label,
-  onOpen,
-}: {
-  icon: IconSrc;
-  label: string;
-  onOpen: () => void;
-}) {
+/** A shortcut row at the top of the space navigation, linking to one of the space's pages. */
+function SpacePageLink({ icon, label, to }: { icon: IconSrc; label: string; to: string }) {
   return (
     <NavItem radii="400" variant="Background">
-      <NavButton onClick={onOpen}>
+      <NavLink to={to}>
         <NavItemContent>
           <Box as="span" alignItems="Center" gap="200" grow="Yes">
             <Avatar radii="400" size="200">
@@ -222,7 +214,7 @@ function SpacePageLink({
             </Text>
           </Box>
         </NavItemContent>
-      </NavButton>
+      </NavLink>
     </NavItem>
   );
 }
@@ -233,7 +225,6 @@ export function Space() {
   const { t } = useTranslation();
   const space = useSpace();
   const title = useRoomName(space);
-  const navigate = useNavigate();
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
   const spaceRooms = useVisibleRooms(useSpaceSearchRooms(space.roomId));
@@ -258,12 +249,12 @@ export function Space() {
             <SpacePageLink
               icon={Icons.Flag}
               label={t('sharedUi.space.lobby')}
-              onOpen={() => navigate(getSpaceLobbyPath(spaceIdOrAlias))}
+              to={getSpaceLobbyPath(spaceIdOrAlias)}
             />
             <SpacePageLink
               icon={Icons.Search}
               label={t('sharedUi.space.messageSearch')}
-              onOpen={() => navigate(getSpaceSearchPath(spaceIdOrAlias))}
+              to={getSpaceSearchPath(spaceIdOrAlias)}
             />
           </NavCategory>
           <NavCategory>

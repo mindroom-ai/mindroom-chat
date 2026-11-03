@@ -82,6 +82,9 @@
     },
     "directNav": {
       "options": "Direct Messages Options"
+    },
+    "spaceNav": {
+      "options": "Space Options"
     }
   },
   "mindroomUi": {
