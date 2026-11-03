@@ -41,6 +41,7 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
   const { event } = item;
   const sender =
     getMemberDisplayName(room, event.sender) ?? getMxIdLocalPart(event.sender) ?? event.sender;
+  const target = getSearchResultOpenTarget(event);
 
   return (
     <SequenceCard
@@ -58,7 +59,9 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
         <Chip
           variant="Secondary"
           radii="400"
-          onClick={() => onOpen(room.roomId, getSearchResultOpenTarget(event))}
+          onClick={() => onOpen(room.roomId, target)}
+          data-event-id={target.mainEventId}
+          data-thread-root-id={target.threadRootId}
         >
           <Text size="B300">{t('mindroomUi.message-search.searchResultGroup.open')}</Text>
         </Chip>
