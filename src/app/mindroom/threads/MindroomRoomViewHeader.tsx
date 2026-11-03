@@ -1,200 +1,437 @@
-import React, { useState } from 'react';
+import React, { useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import { Avatar, Badge, Box, Icon, IconButton, Icons, PopOut, Text, type RectCords } from 'folds';
+import type { Room } from 'matrix-js-sdk';
+import {
+  Avatar,
+  Badge,
+  Box,
+  Icon,
+  IconButton,
+  Icons,
+  PopOut,
+  Text,
+  Tooltip,
+  TooltipProvider,
+  type IconSrc,
+  type RectCords,
+} from 'folds';
 import { PageHeader } from '../../components/page';
-import { RoomAvatar } from '../../components/room-avatar';
+import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
+import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoom } from '../../hooks/useRoom';
+import { useIsDirectRoom, useRoom } from '../../hooks/useRoom';
+import { useSpaceOptionally } from '../../hooks/useSpace';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { mxcUrlToHttp } from '../../utils/mediaUrl';
-import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
+import { useRoomAvatar, useRoomName, useRoomTopic } from '../../hooks/useRoomMeta';
 import { useStateEvent } from '../../hooks/useStateEvent';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
+import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
+import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
+import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
+import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
+import { copyToClipboard } from '../../utils/dom';
+import { getMatrixToRoom } from '../../plugins/matrix-to';
+import { getViaServers } from '../../plugins/via-servers';
+import {
+  getDirectPath,
+  getHomePath,
+  getHomeSearchPath,
+  getSpacePath,
+  getSpaceSearchPath,
+  withSearchParam,
+} from '../../pages/pathUtils';
+import { StateEvent } from '../../../types/matrix/room';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
+import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
+import { CanvasHeaderButton } from '../canvas/CanvasHeaderButton';
+import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useRoomViewMode } from './useRoomViewMode';
 import type { RoomViewMode } from './roomViewMode';
-import type { CanvasListEntry } from '../canvas/canvasIndexStore';
+import { RoomHeaderMenu } from './RoomHeaderMenu';
+import { CompactViewIcon } from './roomViewSwitchIcon';
 import * as css from './MindroomRoomViewHeader.css';
 
 export type RoomViewHeaderProps = {
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
+  /** The open thread, if any: the room's view switch does not apply inside a thread. */
+  threadId?: string;
   computerAvailable?: boolean;
   computerOpen?: boolean;
-  /** Whether an agent showed its computer in this conversation. */
+  /** Whether an agent or the user showed the computer in this conversation before. */
   computerShown?: boolean;
   onComputerToggle?: () => void;
-  /** Whether a canvas holds the side panel; the Members button replaces it. */
   canvasOpen?: boolean;
-  /** This conversation's canvases, newest first; undefined while canvases are off. */
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
-  /** The open thread, undefined for the room's main timeline. */
-  threadId?: string;
 };
 
-/**
- * The room header: avatar, name and topic, the Compact and Full switch (remembered per room),
- * pinned messages, the computer, and the members panel.
- */
-export function RoomViewHeader({
-  joinRequestCount = 0,
-  computerAvailable,
-  computerOpen,
-  onComputerToggle,
-}: RoomViewHeaderProps) {
-  const room = useRoom();
-  const mx = useMatrixClient();
-  const authenticatedMedia = useMediaAuthentication();
-  const { t } = useTranslation();
-  const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(room.roomId);
-  const [membersOpen, setMembersOpen] = useMembersDrawer();
-  const [pinAnchor, setPinAnchor] = useState<RectCords>();
+type HeaderActionProps = {
+  label: string;
+  icon: IconSrc;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** For a toggle whose name stays the same in both states. */
+  pressed?: boolean;
+  /** Tints the button, for a mode that is on. */
+  active?: boolean;
+  /** Drawn over the button's corner, such as a count. */
+  badge?: ReactNode;
+  buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
+};
 
-  // Compact shows threads as cards; Full is the classic timeline. A direct chat offers neither.
+/** An icon-only header button that names itself in a tooltip, as screen readers hear it. */
+function HeaderAction({
+  label,
+  icon,
+  onClick,
+  pressed,
+  active,
+  badge,
+  buttonProps,
+}: HeaderActionProps) {
+  return (
+    <TooltipProvider
+      position="Bottom"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Text size="T200">{label}</Text>
+        </Tooltip>
+      }
+    >
+      {(anchorRef) => (
+        <IconButton
+          ref={anchorRef}
+          size="400"
+          radii="300"
+          variant={active ? 'Primary' : 'Surface'}
+          fill={active ? 'Soft' : 'None'}
+          aria-label={label}
+          aria-pressed={pressed}
+          onClick={onClick}
+          style={badge ? { position: 'relative' } : undefined}
+          {...buttonProps}
+        >
+          <Icon size="400" src={icon} />
+          {badge}
+        </IconButton>
+      )}
+    </TooltipProvider>
+  );
+}
+
+// On the Members button's top end corner, out of the pointer's way.
+const joinRequestBadgeStyle = {
+  position: 'absolute',
+  top: 0,
+  insetInlineEnd: 0,
+  pointerEvents: 'none',
+} as const;
+
+const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
+  const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
+  return { x, y, width, height };
+};
+
+/** Where a phone's back button leads: the list the room was opened from. */
+const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
+  if (spacePathId) return getSpacePath(spacePathId);
+  return isDirect ? getDirectPath() : getHomePath();
+};
+
+/** The Compact and Full switch: Compact shows threads as bars, Full the classic timeline. */
+const useViewSwitch = (room: Room) => {
+  const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(room.roomId);
   const fullMode: RoomViewMode | undefined = availableViewModes.includes('classic')
     ? 'classic'
     : availableViewModes.find((mode) => mode !== 'compact');
-  const canSwitchView = availableViewModes.includes('compact') && fullMode !== undefined;
+  if (!availableViewModes.includes('compact') || fullMode === undefined) return undefined;
   const compact = viewMode === 'compact';
-  const switchLabel = compact
-    ? t('mindroomUi.threads.mindroomRoomViewHeader.classic')
-    : t('mindroomUi.threads.mindroomRoomViewHeader.compact');
-  const membersLabel = membersOpen
-    ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
-    : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
+  return { compact, toggle: () => setViewMode(compact ? fullMode : 'compact') };
+};
+
+/**
+ * The room header: avatar (a back button on phones), name and topic, then the Compact and Full
+ * switch, scheduled tasks, canvases, the computer, pinned messages, members and the room menu.
+ */
+export function RoomViewHeader({
+  hasMindroomAgents,
+  joinRequestCount = 0,
+  threadId,
+  computerAvailable,
+  computerOpen,
+  computerShown,
+  onComputerToggle,
+  canvasOpen,
+  canvases,
+  openCanvasId,
+  onCanvasOpen,
+  onCanvasClose,
+}: RoomViewHeaderProps) {
+  const room = useRoom();
+  const { t } = useTranslation();
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const mx = useMatrixClient();
+  const viewSwitch = useViewSwitch(room);
+  const navigate = useNavigate();
+  const [membersOpen, setMembersOpen] = useMembersDrawer();
+  const openRoomSettings = useOpenRoomSettings();
+  const { navigateRoomThread } = useRoomNavigate();
+  const encrypted = useStateEvent(room, StateEvent.RoomEncryption) !== undefined;
+  const pinnedCount = useRoomPinnedEvents(room).length;
+  const authenticatedMedia = useMediaAuthentication();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const myUserId = mx.getSafeUserId();
+
+  // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
+  const space = useSpaceOptionally();
+  const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
+  const sectionPath = sectionPathOf(spacePathId, useIsDirectRoom());
+
+  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const [pinAnchor, setPinAnchor] = useState<RectCords>();
+  const [prompt, setPrompt] = useState<'invite' | 'leave'>();
 
   const roomName = useRoomName(room);
-  const topicContent = useStateEvent(room, 'm.room.topic')?.getContent();
-  const topic = typeof topicContent?.topic === 'string' ? topicContent.topic : undefined;
+  const topic = useRoomTopic(room);
   const avatarMxc = useRoomAvatar(room);
   // Twice the 36 px avatar, so it stays sharp on high-density screens.
   const avatarSrc = avatarMxc
     ? mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
     : undefined;
 
+  // Canvas and computer take the side panel's place, so the members panel is hidden behind them.
+  const sidePanelTaken = !!computerOpen || !!canvasOpen;
+  const membersVisible = membersOpen && !sidePanelTaken;
+  const toggleMembers = () => {
+    if (membersVisible) {
+      setMembersOpen(false);
+      return;
+    }
+    if (computerOpen) onComputerToggle?.();
+    if (canvasOpen) onCanvasClose?.();
+    setMembersOpen(true);
+  };
+  const membersLabel = membersVisible
+    ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+    : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
+  // Only someone who can let people in (invite) or turn them away (kick) acts on join requests.
+  const canAnswerJoinRequests =
+    permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
+  const pendingRequests = canAnswerJoinRequests ? joinRequestCount : 0;
+
+  // The header keeps a Computer button once the computer was shown; phones have no room for it.
+  const canToggleComputer = !!computerAvailable && !!onComputerToggle;
+  const computerButton = canToggleComputer && !mobile && (!!computerShown || !!computerOpen);
+  const computerInMenu = canToggleComputer && !computerButton;
+
+  const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
+
+  const copyRoomLink = () => {
+    const target = getCanonicalAliasOrRoomId(mx, room.roomId);
+    const via = isRoomAlias(target) ? undefined : getViaServers(room);
+    void copyToClipboard(getMatrixToRoom(target, via));
+  };
+  const searchMessages = () => {
+    const searchPath = spacePathId ? getSpaceSearchPath(spacePathId) : getHomeSearchPath();
+    navigate(withSearchParam(searchPath, { rooms: room.roomId }));
+  };
+
   return (
-    <PageHeader className={css.Header}>
+    <PageHeader className={css.Header} balance={mobile}>
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
-        <Avatar size="300">
-          <RoomAvatar
-            alt={roomName}
-            src={avatarSrc}
-            roomId={room.roomId}
-            renderFallback={() => <Text size="H6">{roomName.slice(0, 1)}</Text>}
+        {mobile ? (
+          <HeaderAction
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
+            icon={Icons.ArrowLeft}
+            onClick={() => navigate(sectionPath)}
           />
-        </Avatar>
+        ) : (
+          <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
+            <RoomAvatar
+              alt={roomName}
+              src={avatarSrc}
+              roomId={room.roomId}
+              renderFallback={() => <RoomIcon size="200" joinRule={room.getJoinRule()} filled />}
+            />
+          </Avatar>
+        )}
         <Box direction="Column" style={{ minWidth: 0 }}>
-          <Text size="H4" truncate>
+          <Text size="H5" truncate>
             {roomName}
           </Text>
           {topic && (
-            <Text className={css.Topic} size="T200" priority="300" truncate>
+            <Text className={css.Topic} size="T200" priority="300" truncate title={topic}>
               {topic}
             </Text>
           )}
         </Box>
       </Box>
-      <Box shrink="No" alignItems="Center" gap="100">
-        {canSwitchView && fullMode && (
-          <IconButton
-            size="300"
-            radii="300"
-            aria-label={switchLabel}
-            title={switchLabel}
-            aria-pressed={compact}
-            data-room-view-switch=""
-            onClick={() => setViewMode(compact ? fullMode : 'compact')}
-          >
-            <Icon size="200" src={compact ? Icons.Message : Icons.Category} />
-          </IconButton>
+      <Box shrink="No" alignItems="Center">
+        {viewSwitch && !threadId && (
+          <HeaderAction
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.compactView')}
+            icon={CompactViewIcon}
+            pressed={viewSwitch.compact}
+            active={viewSwitch.compact}
+            onClick={viewSwitch.toggle}
+            buttonProps={{ 'data-room-view-switch': '' }}
+          />
         )}
-        {computerAvailable && onComputerToggle && (
-          <IconButton
-            size="300"
-            radii="300"
-            aria-label={
+        {hasMindroomAgents && (
+          <RoomSchedulesButton
+            room={room}
+            onOpenThread={(scheduledThreadId) => navigateRoomThread(room.roomId, scheduledThreadId)}
+          />
+        )}
+        {showCanvases && (
+          <CanvasHeaderButton
+            canvases={canvases}
+            openCanvasId={openCanvasId}
+            onOpen={onCanvasOpen}
+            onClose={onCanvasClose}
+          />
+        )}
+        {computerButton && (
+          <HeaderAction
+            label={
               computerOpen
                 ? t('mindroomUi.threads.mindroomRoomViewHeader.hideComputer')
                 : t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')
             }
-            aria-pressed={!!computerOpen}
-            onClick={onComputerToggle}
-          >
-            <Icon size="200" src={Icons.Monitor} />
-          </IconButton>
+            icon={Icons.Monitor}
+            active={!!computerOpen}
+            onClick={() => onComputerToggle?.()}
+          />
         )}
-        <PopOut
-          anchor={pinAnchor}
-          position="Bottom"
-          align="End"
-          offset={4}
-          content={
-            <FocusTrap
-              focusTrapOptions={{
-                initialFocus: false,
-                returnFocusOnDeactivate: false,
-                clickOutsideDeactivates: () => {
-                  setPinAnchor(undefined);
-                  return true;
-                },
-                escapeDeactivates: () => {
-                  setPinAnchor(undefined);
-                  return true;
-                },
-              }}
-            >
-              <RoomPinMenu room={room} requestClose={() => setPinAnchor(undefined)} />
-            </FocusTrap>
+        {pinnedCount > 0 && (
+          <HeaderAction
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
+            icon={Icons.Pin}
+            onClick={(event) => setPinAnchor(rectOf(event))}
+            buttonProps={{ 'aria-haspopup': 'dialog', 'aria-expanded': !!pinAnchor }}
+          />
+        )}
+        <HeaderAction
+          label={
+            pendingRequests > 0
+              ? t('featureUi.room.pendingJoinRequests.accessibleLabel', {
+                  baseLabel: membersLabel,
+                  count: pendingRequests,
+                })
+              : membersLabel
           }
-        >
-          <IconButton
-            size="300"
-            radii="300"
-            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
-            aria-pressed={!!pinAnchor}
-            onClick={(evt: React.MouseEvent<HTMLButtonElement>) => {
-              const rect = evt.currentTarget.getBoundingClientRect();
-              setPinAnchor({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+          icon={Icons.User}
+          onClick={() => toggleMembers()}
+          badge={
+            pendingRequests > 0 && (
+              <Badge
+                style={joinRequestBadgeStyle}
+                size="200"
+                variant="Primary"
+                fill="Solid"
+                radii="Pill"
+                aria-hidden="true"
+              >
+                <Text size="L400">{pendingRequests}</Text>
+              </Badge>
+            )
+          }
+        />
+        <HeaderAction
+          label={t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}
+          icon={Icons.VerticalDots}
+          onClick={(event) => setMenuAnchor(rectOf(event))}
+          buttonProps={{ 'aria-haspopup': 'menu', 'aria-expanded': !!menuAnchor }}
+        />
+      </Box>
+      <PopOut
+        anchor={pinAnchor}
+        position="Bottom"
+        align="End"
+        offset={4}
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              clickOutsideDeactivates: () => {
+                setPinAnchor(undefined);
+                return true;
+              },
+              escapeDeactivates: () => {
+                setPinAnchor(undefined);
+                return true;
+              },
             }}
           >
-            <Icon size="200" src={Icons.Pin} />
-          </IconButton>
-        </PopOut>
-        <Box style={{ position: 'relative' }}>
-          <IconButton
-            size="300"
-            radii="300"
-            aria-label={
-              joinRequestCount > 0
-                ? t('featureUi.room.pendingJoinRequests.accessibleLabel', {
-                    baseLabel: membersLabel,
-                    count: joinRequestCount,
-                  })
-                : membersLabel
-            }
-            aria-pressed={membersOpen}
-            onClick={() => setMembersOpen(!membersOpen)}
+            <RoomPinMenu room={room} requestClose={() => setPinAnchor(undefined)} />
+          </FocusTrap>
+        }
+      />
+      <PopOut
+        anchor={menuAnchor}
+        position="Bottom"
+        align="End"
+        offset={4}
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              clickOutsideDeactivates: () => {
+                setMenuAnchor(undefined);
+                return true;
+              },
+              escapeDeactivates: () => {
+                setMenuAnchor(undefined);
+                return true;
+              },
+            }}
           >
-            <Icon size="200" src={Icons.User} />
-          </IconButton>
-          {joinRequestCount > 0 && (
-            <Badge
-              size="200"
-              variant="Primary"
-              fill="Solid"
-              radii="Pill"
-              style={{ position: 'absolute', top: 0, right: 0, pointerEvents: 'none' }}
-              aria-hidden="true"
-            >
-              <Text size="L400">{joinRequestCount}</Text>
-            </Badge>
-          )}
-        </Box>
-      </Box>
+            <RoomHeaderMenu
+              room={room}
+              requestClose={() => setMenuAnchor(undefined)}
+              onInvite={
+                permissions.action('invite', myUserId) ? () => setPrompt('invite') : undefined
+              }
+              onCopyLink={copyRoomLink}
+              onOpenSettings={() => openRoomSettings(room.roomId, space?.roomId)}
+              onSearchMessages={encrypted ? undefined : searchMessages}
+              onShowComputer={
+                computerInMenu
+                  ? () => {
+                      if (!computerOpen) onComputerToggle?.();
+                    }
+                  : undefined
+              }
+              onLeave={() => setPrompt('leave')}
+            />
+          </FocusTrap>
+        }
+      />
+      {prompt === 'invite' && (
+        <InviteUserPrompt room={room} requestClose={() => setPrompt(undefined)} />
+      )}
+      {prompt === 'leave' && (
+        <LeaveRoomPrompt
+          roomId={room.roomId}
+          requestClose={() => setPrompt(undefined)}
+          onLeft={() => {
+            setPrompt(undefined);
+            navigate(sectionPath);
+          }}
+        />
+      )}
     </PageHeader>
   );
 }
