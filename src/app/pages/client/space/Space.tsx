@@ -5,7 +5,7 @@ import FocusTrap from 'focus-trap-react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { Menu } from '../../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
@@ -33,15 +33,21 @@ import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCat
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { mDirectAtom } from '../../../state/mDirectList';
+import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { getRoomSearchParams } from '../../pathSearchParam';
 import {
+  decodeRouteParam,
   getDirectRoomPath,
   getHomeRoomPath,
+  getRootPath,
   getSpaceLobbyPath,
   getSpaceRoomPath,
   getSpaceSearchPath,
   withSearchParam,
 } from '../../pathUtils';
+import { useClientStartupContext } from '../ClientStartupContext';
 import { RouteResolving } from '../RoomRoute';
+import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../routeVisibility';
 import { useSpaceSearchRooms } from './useSpaceSearchRooms';
 
 const lastActivity = (mx: MatrixClient, roomId: string): number =>
@@ -56,23 +62,32 @@ const readViaServers = (searchParams: URLSearchParams): string[] | undefined => 
   return via.length > 0 ? via : undefined;
 };
 
+/** Room IDs start with `!` and aliases with `#`; any other first segment is no space. */
+const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
+
 /**
  * The `/:spaceIdOrAlias/` routes: the joined space as context for its pages.
  * The same shape is the app's room link (`/<room>` and `/<room>/<$event>`,
  * what matrix-to links open), so a room or an event goes to its room route.
+ * The joined rooms list re-renders the route when a join lands.
  */
 export function SpaceRouteProvider({ children }: { children: ReactNode }) {
-
-
-
+  const mx = useMatrixClient();
+  const directs = useAtomValue(mDirectAtom);
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const { hasCompletedInitialSync } = useClientStartupContext();
+  const [searchParams] = useSearchParams();
   const { spaceIdOrAlias: encoded, roomIdOrAlias: encodedSecond } = useParams();
-  const spaceIdOrAlias = encoded ? decodeURIComponent(encoded) : '';
-  const second = encodedSecond ? decodeURIComponent(encodedSecond) : undefined;
+  const spaceIdOrAlias = encoded ? decodeRouteParam(encoded) : '';
+  const second = encodedSecond ? decodeRouteParam(encodedSecond) : undefined;
   const { roomId, isResolvingAlias } = useResolvedRoomIdOrAlias(spaceIdOrAlias);
   const room = mx.getRoom(roomId ?? '');
-  const joined = room?.getMyMembership() === KnownMembership.Join;
+  const joined = canRenderRoutedRoom(room, joinedRoomIds);
   const eventId = second?.startsWith('$') ? second : undefined;
   const viaServers = readViaServers(searchParams);
+  const { threadId } = getRoomSearchParams(searchParams);
+
+  if (!isRoomIdOrAliasSegment(spaceIdOrAlias)) return <Navigate to={getRootPath()} replace />;
 
   // An alias the client does not know yet resolves through the server first.
   if (isResolvingAlias) return <RouteResolving />;
@@ -82,13 +97,30 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
       room && directs.has(room.roomId)
         ? getDirectRoomPath(spaceIdOrAlias, eventId)
         : getHomeRoomPath(spaceIdOrAlias, eventId);
-    return <Navigate to={withSearchParam(path, { viaServers: viaServers?.join(',') })} replace />;
+    return (
+      <Navigate
+        to={withSearchParam(path, { viaServers: viaServers?.join(','), threadId })}
+        replace
+      />
+    );
+  }
+  // Before the first sync a space missing from the cache may still turn out to be joined.
+  if (
+    shouldDeferRoomRouteFallback({
+      hasCompletedInitialSync,
+      isResolvingAlias,
+      room,
+      routedRoomIds: joinedRoomIds,
+    })
+  ) {
+    return <RouteResolving />;
   }
   if (!room || !joined) {
     return (
       <JoinBeforeNavigate
         key={spaceIdOrAlias}
         roomIdOrAlias={spaceIdOrAlias}
+        threadId={threadId}
         viaServers={viaServers}
       />
     );

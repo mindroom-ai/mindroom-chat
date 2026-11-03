@@ -6,9 +6,12 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../hooks/router/useResolvedRoomIdOrAlias';
 import { IsDirectRoomProvider, RoomProvider } from '../../hooks/useRoom';
 import { mDirectAtom } from '../../state/mDirectList';
+import { allRoomsAtom } from '../../state/room-list/roomList';
 import { JoinBeforeNavigate } from '../../features/join-before-navigate/JoinBeforeNavigate';
 import { getRoomSearchParams } from '../pathSearchParam';
-import { KnownMembership } from 'matrix-js-sdk';
+import { decodeRouteParam } from '../pathUtils';
+import { useClientStartupContext } from './ClientStartupContext';
+import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from './routeVisibility';
 
 /** Shown while a room or space alias in the URL resolves to its room ID. */
 export function RouteResolving() {
@@ -21,35 +24,49 @@ export function RouteResolving() {
 
 /**
  * A room route: `children` (the room) inside the room's providers when joined, otherwise its
- * summary with a way to join.
+ * summary with a way to join. The joined rooms list re-renders the route when a join lands, so
+ * the room opens without another click.
  */
 export function RoomRoute({ children }: { children: ReactNode }) {
   const mx = useMatrixClient();
   const { roomIdOrAlias: encoded, eventId } = useParams();
   const [searchParams] = useSearchParams();
-  const { viaServers } = getRoomSearchParams(searchParams);
-  const roomIdOrAlias = encoded ? decodeURIComponent(encoded) : '';
+  const { viaServers, threadId } = getRoomSearchParams(searchParams);
+  const roomIdOrAlias = encoded ? decodeRouteParam(encoded) : '';
   const { roomId, isResolvingAlias } = useResolvedRoomIdOrAlias(roomIdOrAlias);
+  const { hasCompletedInitialSync } = useClientStartupContext();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
   const directs = useAtomValue(mDirectAtom);
   const room = mx.getRoom(roomId ?? '');
 
-  // An alias the client does not know yet resolves through the server first.
-  if (isResolvingAlias) return <RouteResolving />;
+  // An alias the client does not know yet resolves through the server first, and before the
+  // first sync a room missing from the cache may still turn out to be joined.
+  if (
+    shouldDeferRoomRouteFallback({
+      hasCompletedInitialSync,
+      isResolvingAlias,
+      room,
+      routedRoomIds: joinedRoomIds,
+    })
+  ) {
+    return <RouteResolving />;
+  }
 
-  if (!room || room.getMyMembership() !== KnownMembership.Join) {
+  if (!room || !canRenderRoutedRoom(room, joinedRoomIds)) {
     return (
       <JoinBeforeNavigate
         key={roomIdOrAlias}
         roomIdOrAlias={roomIdOrAlias}
-        eventId={eventId ? decodeURIComponent(eventId) : undefined}
-        viaServers={viaServers?.split(',').filter(Boolean)}
-      />
-    );
-  }
+        eventId={eventId ? decodeRouteParam(eventId) : undefined}
 
-  return (
-    <RoomProvider key={room.roomId} value={room}>
-      <IsDirectRoomProvider value={directs.has(room.roomId)}>{children}</IsDirectRoomProvider>
-    </RoomProvider>
-  );
-}
+
+
+
+
+
+
+
+
+
+
+

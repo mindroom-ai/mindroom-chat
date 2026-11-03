@@ -38,6 +38,18 @@ const optionalSegment = (value: string | undefined): string | null =>
 
 const trimSlashes = (value: string): string => value.replace(/^\/+/, '').replace(/\/+$/, '');
 
+/**
+ * A route parameter built with `encodeURIComponent`, decoded. A value that is not valid
+ * percent-encoding, such as a hand-typed `%`, stays as it is instead of throwing.
+ */
+export const decodeRouteParam = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 /** Joins a stored `{ pathname, search, hash }` back into a single app path. */
 export const joinPathComponent = (path: {
   pathname: string;
@@ -112,7 +124,7 @@ export const getConnectPath = (pairCode?: string): string => {
 
 
 
-
+  generatePath(HOME_ROOM_PATH, {
     roomIdOrAlias: encodeSegment(roomIdOrAlias),
     eventId: optionalSegment(eventId),
 
@@ -120,7 +132,7 @@ export const getConnectPath = (pairCode?: string): string => {
 
 
 
-
+  generatePath(DIRECT_ROOM_PATH, {
     roomIdOrAlias: encodeSegment(roomIdOrAlias),
     eventId: optionalSegment(eventId),
   });

@@ -18,6 +18,7 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { mxcUrlToHttp } from '../../../utils/mediaUrl';
+import { decodeRouteParam } from '../../pathUtils';
 import { renderTopicText } from './exploreRoomCard';
 import * as css from './style.css';
 
@@ -33,7 +34,7 @@ type PublicRoom = IPublicRoomsChunkRoom & { join_rule?: string; room_type?: stri
 
 
   const { server: encodedServer } = useParams();
-  const server = encodedServer ? decodeURIComponent(encodedServer) : undefined;
+  const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term') ?? undefined;
 

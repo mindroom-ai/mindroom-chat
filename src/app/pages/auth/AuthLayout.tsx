@@ -9,6 +9,7 @@ import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 import { createMatrixFetchFn } from '../../mindroom/matrix/matrixClientFactory';
+import { decodeRouteParam } from '../pathUtils';
 import { resolveAuthRouteRedirect } from '../routeSessionGuards';
 import { buildAuthRoutePath, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
@@ -119,7 +120,7 @@ function ServerPicker({
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
   const { auth, homeserverList } = useClientConfig();
-  const requestedServer = encodedServer ? decodeURIComponent(encodedServer) : undefined;
+  const requestedServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const discovery = useServerDiscovery(server);
 
@@ -141,15 +142,15 @@ function ServerPicker({
       }),
       { replace: true }
     );
-  };
 
-  return (
-    <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
-      <Box
-        className={classNames(css.AuthLayout)}
-        direction="Column"
-        alignItems="Center"
-        justifyContent="Center"
+
+
+
+
+
+
+
+
         gap="400"
       >
         <Box className={css.AuthCard} direction="Column">

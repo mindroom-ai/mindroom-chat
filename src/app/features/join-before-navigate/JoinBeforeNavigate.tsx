@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { JoinRule, type RoomSummary } from 'matrix-js-sdk';
+import { JoinRule, RoomType, type RoomSummary } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../components/page';
 import { RoomAvatar } from '../../components/room-avatar';
 import { RoomSummaryLoader } from '../../components/RoomSummaryLoader';
@@ -17,6 +17,8 @@ import { Membership } from '../../../types/matrix/room';
 type JoinBeforeNavigateProps = {
   roomIdOrAlias: string;
   eventId?: string;
+  /** The thread the link opens, kept once the room is joined. */
+  threadId?: string;
   viaServers?: string[];
 };
 
@@ -27,11 +29,24 @@ type SummaryData = Partial<RoomSummary> & {
   membership?: string;
 };
 
-function JoinedNavigation({ roomId, eventId }: { roomId: string; eventId?: string }) {
-  const { navigateRoom } = useRoomNavigate();
+/** Opens what was joined: a space at its space path, a room at its room path and thread. */
+function JoinedNavigation({
+  roomId,
+  eventId,
+  threadId,
+  isSpace,
+}: {
+  roomId: string;
+  eventId?: string;
+  threadId?: string;
+  isSpace: boolean;
+}) {
+  const { navigateRoom, navigateRoomThreadDirect, navigateSpace } = useRoomNavigate();
   useEffect(() => {
-    navigateRoom(roomId, eventId, { replace: true });
-  }, [navigateRoom, roomId, eventId]);
+    if (isSpace) navigateSpace(roomId, { replace: true });
+    else if (threadId) navigateRoomThreadDirect(roomId, threadId, eventId, { replace: true });
+    else navigateRoom(roomId, eventId, { replace: true });
+  }, [navigateRoom, navigateRoomThreadDirect, navigateSpace, roomId, eventId, threadId, isSpace]);
   return null;
 }
 
@@ -40,8 +55,10 @@ function SummaryCard({
 
 
   eventId,
+  threadId,
 }: {
   summary: SummaryData;
+
 
 
 
@@ -114,7 +131,14 @@ function SummaryCard({
         >
           {(access) => (
             <>
-              {access.succeeded && !knock && <JoinedNavigation roomId={roomId} eventId={eventId} />}
+              {access.succeeded && !knock && (
+                <JoinedNavigation
+                  roomId={roomId}
+                  eventId={eventId}
+                  threadId={threadId}
+                  isSpace={summary.room_type === RoomType.Space}
+                />
+              )}
               <Button
                 className={roomCardCss.ActionButton}
                 variant={knock ? 'Secondary' : 'Primary'}
@@ -166,6 +190,7 @@ function SummaryCard({
 
 
 
+
       >
         <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
           {(state, retry, resolvedViaServers) => {
@@ -176,6 +201,7 @@ function SummaryCard({
                   roomIdOrAlias={roomIdOrAlias}
                   viaServers={resolvedViaServers ?? viaServers}
                   eventId={eventId}
+                  threadId={threadId}
                 />
               );
             }

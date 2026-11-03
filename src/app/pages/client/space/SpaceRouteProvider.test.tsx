@@ -1,11 +1,14 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Provider as JotaiProvider, createStore } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../../hooks/useMatrixClient';
 import { useSpace } from '../../../hooks/useSpace';
-import { SPACE_PATH } from '../../paths';
+import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { ROOT_PATH, SPACE_PATH } from '../../paths';
+import { ClientStartupProvider } from '../ClientStartupContext';
 import { SpaceRouteProvider } from './Space';
 
 vi.mock('../../../features/join-before-navigate/JoinBeforeNavigate', () => ({
@@ -23,10 +26,13 @@ vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => (
 const SPACE_ID = '!space:example.org';
 const ALIAS = '#team:example.org';
 
-const makeSpace = (canonicalAlias?: string): Room =>
+const makeSpace = (
+  canonicalAlias?: string,
+  membership = (): string => KnownMembership.Join
+): Room =>
   ({
     roomId: SPACE_ID,
-    getMyMembership: () => KnownMembership.Join,
+    getMyMembership: membership,
     isSpaceRoom: () => true,
     getCanonicalAlias: () => canonicalAlias ?? null,
     getAltAliases: () => [],
@@ -43,28 +49,42 @@ function ShownSpace() {
   return <div data-shown-space={useSpace().roomId} />;
 }
 
-const renderRoute = (mx: MatrixClient, path: string): ReactTestRenderer => {
+const renderRoute = (
+  mx: MatrixClient,
+  path: string,
+  { synced = true, store = createStore() } = {}
+): ReactTestRenderer => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <MatrixClientProvider value={mx}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route
-              path={SPACE_PATH}
-              element={
-                <SpaceRouteProvider>
-                  <ShownSpace />
-                </SpaceRouteProvider>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
-      </MatrixClientProvider>
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <ClientStartupProvider hasCompletedInitialSync={synced}>
+            <MemoryRouter initialEntries={[path]}>
+              <Routes>
+                <Route path={ROOT_PATH} element={<div data-root />} />
+                <Route
+                  path={SPACE_PATH}
+                  element={
+                    <SpaceRouteProvider>
+                      <ShownSpace />
+                    </SpaceRouteProvider>
+                  }
+                />
+              </Routes>
+            </MemoryRouter>
+          </ClientStartupProvider>
+        </MatrixClientProvider>
+      </JotaiProvider>
     );
   });
   return renderer;
 };
+
+const joinOffers = (renderer: ReactTestRenderer) =>
+  renderer.root
+    .findAll((node) => node.props['data-join-before-navigate'] !== undefined)
+    .map((node) => node.props['data-join-before-navigate']);
 
 const shownSpace = (renderer: ReactTestRenderer) =>
   renderer.root.findAll((node) => node.props['data-shown-space'] !== undefined)[0]?.props[
@@ -106,5 +126,40 @@ describe('SpaceRouteProvider', () => {
     expect(
       renderer.root.findByProps({ 'data-join-before-navigate': '!other:example.org' })
     ).toBeDefined();
+  });
+
+  it('opens the space as soon as the join lands, without another click', () => {
+    let membership: string = KnownMembership.Leave;
+    const store = createStore();
+    const renderer = renderRoute(
+      makeClient([makeSpace(undefined, () => membership)]),
+      `/${encodeURIComponent(SPACE_ID)}/`,
+      { store }
+    );
+    expect(joinOffers(renderer)).toEqual([SPACE_ID]);
+
+    act(() => {
+      membership = KnownMembership.Join;
+      store.set(allRoomsAtom, { type: 'PUT', roomId: SPACE_ID });
+    });
+    expect(shownSpace(renderer)).toBe(SPACE_ID);
+  });
+
+  it('waits for the first sync before offering to join a space it does not know', () => {
+    const renderer = renderRoute(makeClient([]), `/${encodeURIComponent('!other:example.org')}/`, {
+      synced: false,
+    });
+    expect(joinOffers(renderer)).toEqual([]);
+  });
+
+  it('sends a first segment that is no room ID or alias to the root', () => {
+    const renderer = renderRoute(makeClient([]), '/not-a-room/');
+    expect(renderer.root.findAll((node) => node.props['data-root'] !== undefined)).toHaveLength(1);
+    expect(joinOffers(renderer)).toEqual([]);
+  });
+
+  it('keeps a space segment that is not valid percent-encoding instead of crashing', () => {
+    const renderer = renderRoute(makeClient([]), '/!%25zz/');
+    expect(joinOffers(renderer)).toEqual(['!%zz']);
   });
 });
