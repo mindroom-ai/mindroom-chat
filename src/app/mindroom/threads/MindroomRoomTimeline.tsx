@@ -1574,7 +1574,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
                       onClick={handleLoadOlderThread}
                     >
                       <Text size="L400">
-                        {t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+                        {threadPaginatingBack
+                          ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
+                          : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
                       </Text>
                     </Chip>
                   </Box>
