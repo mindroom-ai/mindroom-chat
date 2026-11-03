@@ -13,7 +13,8 @@ import { RUNTIME_NAVIGATION_PATHS } from '../../../serviceWorkerNavigation';
 
 type ClientLayoutProps = {
   nav: ReactNode;
-  children: ReactNode;
+  // Optional so `createElement(ClientLayout, { nav }, page)` can pass the page positionally.
+  children?: ReactNode;
 };
 
 /** Pages the MindRoom runtime serves at this origin; the tab only passes through them. */
