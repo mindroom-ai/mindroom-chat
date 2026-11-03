@@ -15,6 +15,7 @@ import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { settingsAtom } from '../../state/settings';
 import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
+import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 import {
   cloudflareAccessAllowsPush,
   useCloudflareAccessSignInRequired,
@@ -100,6 +101,15 @@ export function CanvasIndexFeature() {
   const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
   const computersAvailable = useComputerApiUrls().urls.length > 0;
   useCanvasIndexRecorder(mx, canvasesEnabled || computersAvailable);
+  return null;
+}
+
+/**
+ * Keeps the cross-room thread index (Threads page, recent threads, command palette) current for
+ * the whole session. Mount it once, at client scope.
+ */
+export function CrossRoomThreadIndexFeature() {
+  useCrossRoomThreadIndex();
   return null;
 }
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useCrossRoomThreadIndex } from '../../mindroom/cross-room-threads/useCrossRoomThreadIndex';
 import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
 import {
   CanvasIndexFeature,
+  CrossRoomThreadIndexFeature,
   MindroomAccountSettingsFeature,
   MindroomInviteNotifications,
   MindroomNativeIOSPushFeature,
@@ -11,11 +11,9 @@ import {
 } from '../../mindroom/client/MindroomClientNonUIFeatures';
 import { ServerEmojiJoinFeature } from '../../mindroom/server-emoji/ServerEmojiJoinFeature';
 
-/** The cross-room thread index and the archived rooms list, kept for the whole session. */
-function ClientIndexes() {
-  const mx = useMatrixClient();
-  useCrossRoomThreadIndex();
-  useBindArchivedRoomsAtom(mx);
+/** The archived rooms list, kept for the whole session. */
+function ArchivedRoomsIndex() {
+  useBindArchivedRoomsAtom(useMatrixClient());
   return null;
 }
 
@@ -23,7 +21,8 @@ function ClientIndexes() {
 export function ClientNonUIFeatures() {
   return (
     <>
-      <ClientIndexes />
+      <CrossRoomThreadIndexFeature />
+      <ArchivedRoomsIndex />
       <MindroomAccountSettingsFeature />
       <MindroomInviteNotifications />
       <CanvasIndexFeature />
