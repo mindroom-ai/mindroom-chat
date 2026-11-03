@@ -32,13 +32,13 @@ import {
   type SettingsMenuItem,
 } from './settingsMenu';
 import { SettingsPages, type SettingsPage } from './settingsPages';
-import { General } from './general';
+import { About } from './about';
 import { Account } from './account';
-import { Notifications } from './notifications';
+import { DeveloperTools } from './developer-tools';
 import { Devices } from './devices';
 import { EmojisStickers } from './emojis-stickers';
-import { DeveloperTools } from './developer-tools';
-import { About } from './about';
+import { General } from './general';
+import { Notifications } from './notifications';
 
 type SettingsProps = {
   initialPage?: SettingsPage;

@@ -17,25 +17,24 @@ type RoomAvatarProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' |
 export function RoomAvatar({ roomId, src, alt, className, renderFallback }: RoomAvatarProps) {
   const [failed, setFailed] = useImageFailed(src);
 
-  if (!src || failed) {
+  const avatarClassName = classNames(css.RoomAvatar, className);
+
+  if (src && !failed) {
     return (
-      <AvatarFallback
-        style={getAvatarFallbackStyle(roomId)}
-        className={classNames(css.RoomAvatar, className)}
-      >
-        {renderFallback()}
-      </AvatarFallback>
+      <AvatarImage
+        className={avatarClassName}
+        src={src}
+        alt={alt}
+        draggable={false}
+        onError={() => setFailed()}
+      />
     );
   }
 
   return (
-    <AvatarImage
-      className={classNames(css.RoomAvatar, className)}
-      src={src}
-      alt={alt}
-      onError={() => setFailed()}
-      draggable={false}
-    />
+    <AvatarFallback className={avatarClassName} style={getAvatarFallbackStyle(roomId)}>
+      {renderFallback()}
+    </AvatarFallback>
   );
 }
 

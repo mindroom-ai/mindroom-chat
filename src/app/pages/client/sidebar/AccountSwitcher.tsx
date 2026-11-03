@@ -25,6 +25,9 @@ type AccountSwitcherProps = {
   onClose: () => void;
 };
 
+/** The actions under an account all share one compact button shape. */
+const rowActionProps = { size: '300', radii: '300' } as const;
+
 function AccountRow({
   account,
   busy,
@@ -69,16 +72,15 @@ function AccountRow({
       </Box>
       <Box gap="200" wrap="Wrap">
         {active ? (
-          <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onOpenSettings}>
+          <Button {...rowActionProps} variant="Secondary" fill="Soft" onClick={onOpenSettings}>
             <Text size="B300">{t('accountSwitcher.openSettings')}</Text>
           </Button>
         ) : (
           <>
             <Button
-              size="300"
+              {...rowActionProps}
               variant="Primary"
               fill="Soft"
-              radii="300"
               disabled={busy}
               onClick={() => onSwitchAccount(session)}
             >
@@ -89,10 +91,9 @@ function AccountRow({
               )}
             </Button>
             <Button
-              size="300"
+              {...rowActionProps}
               variant="Critical"
               fill="None"
-              radii="300"
               disabled={busy}
               onClick={() => onRemoveAccount(session)}
             >

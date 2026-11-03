@@ -3,6 +3,11 @@ import { DefaultReset, color, config, toRem } from 'folds';
 
 /** The full-height sign-in page; the card and the footer are centred in it. */
 export const AuthLayout = style({
+  // Laid out by a folds `Box`, which brings `display: flex`.
+  flexFlow: 'column',
+  rowGap: config.space.S400,
+  alignItems: 'center',
+  justifyContent: 'center',
   minBlockSize: '100%',
   color: color.Background.OnContainer,
   backgroundColor: color.Background.Container,

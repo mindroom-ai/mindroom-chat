@@ -13,6 +13,21 @@ type UploadCardProps = HTMLAttributes<HTMLDivElement> & {
   compact?: boolean;
 };
 
+type UploadCardRowProps = Pick<UploadCardProps, 'before' | 'after' | 'children'>;
+
+/** The file row: something leading, the file's details taking the free width, then actions. */
+function UploadCardRow({ before, after, children }: UploadCardRowProps) {
+  return (
+    <Box alignItems="Center" gap="200">
+      {before}
+      <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+        {children}
+      </Box>
+      {after}
+    </Box>
+  );
+}
+
 /** A card for one file being uploaded. */
 export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
   ({ before, after, bottom, outlined, compact, children, className, ...props }, ref) => (
@@ -22,22 +37,22 @@ export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
       {...props}
       ref={ref}
     >
-      <Box alignItems="Center" gap="200">
-        {before}
-        <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-          {children}
-        </Box>
-        {after}
-      </Box>
+      <UploadCardRow before={before} after={after}>
+        {children}
+      </UploadCardRow>
       {bottom}
     </Box>
   )
 );
 
-type UploadCardProgressProps = { sentBytes: number; totalBytes: number };
-
 /** The progress line of an upload: a bar, the percentage, and the bytes sent of the total. */
-export function UploadCardProgress({ sentBytes, totalBytes }: UploadCardProgressProps) {
+export function UploadCardProgress({
+  sentBytes,
+  totalBytes,
+}: {
+  sentBytes: number;
+  totalBytes: number;
+}) {
   // A zero-byte file would otherwise divide by zero.
   const total = Math.max(totalBytes, 1);
   return (

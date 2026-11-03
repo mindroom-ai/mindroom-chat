@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useEffect, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useEffect, useState } from 'react';
 import { Box, Input, Scroll, Spinner, Text, color } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
 import {
@@ -115,12 +115,29 @@ function ServerPicker({
   );
 }
 
+/** The full-height scrolling page the sign-in card sits on, above the particle background. */
+function AuthFrame({ children }: { children: ReactNode }) {
+  const persistentParticle = usePersistentParticleBackground();
+  const layoutClassName = classNames(
+    css.AuthLayout,
+    persistentParticle && css.AuthLayoutPersistentParticle
+  );
+
+  return (
+    <Scroll hideTrack size="300" variant="Background" visibility="Hover">
+      <Box className={layoutClassName}>
+        <ParticleBackgroundSurface />
+        {children}
+      </Box>
+    </Scroll>
+  );
+}
+
 /** The sign-in card around login, registration and password reset, with the homeserver choice. */
 export function AuthLayout() {
   const { t } = useTranslation();
   const { pathname, search, hash } = useLocation();
   const navigate = useNavigate();
-  const persistentParticle = usePersistentParticleBackground();
   const { server: encodedServer } = useParams();
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
@@ -150,51 +167,39 @@ export function AuthLayout() {
   };
 
   return (
-    <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
-      <Box
-        className={classNames(
-          css.AuthLayout,
-          persistentParticle && css.AuthLayoutPersistentParticle
-        )}
-        direction="Column"
-        alignItems="Center"
-        justifyContent="Center"
-        gap="400"
-      >
-        <ParticleBackgroundSurface />
-        <Box className={css.AuthCard} direction="Column">
-          <Header className={css.AuthHeader} size="600" variant="Surface">
-            <Box grow="Yes" alignItems="Center" gap="300">
-              <img
-                className={css.AuthLogo}
-                src={MINDROOM_AUTH_BRANDING.logoSrc}
-                alt={MINDROOM_AUTH_BRANDING.logoAlt}
-              />
-              <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
-            </Box>
-          </Header>
-          <Box className={css.AuthCardContent} direction="Column" gap="500">
-            <ServerPicker server={server} onChange={handleServerChange} />
-            {discovery.status === 'loading' && (
-              <Box justifyContent="Center" alignItems="Center" gap="200">
-                <Spinner variant="Secondary" size="200" />
-                <Text size="T300">{t('sharedUi.authLayout.lookingForServer')}</Text>
-              </Box>
-            )}
-            {discovery.status === 'error' && (
-              <Text style={{ color: color.Critical.Main }} size="T300">
-                {t('sharedUi.authLayout.failedToFindServer')}
-              </Text>
-            )}
-            {discovery.status === 'ready' && (
-              <AutoDiscoveryInfoProvider value={discovery.info}>
-                <Outlet context={{ server }} />
-              </AutoDiscoveryInfoProvider>
-            )}
+    <AuthFrame>
+      <Box className={css.AuthCard} direction="Column">
+        <Header className={css.AuthHeader} size="600" variant="Surface">
+          <Box grow="Yes" alignItems="Center" gap="300">
+            <img
+              className={css.AuthLogo}
+              src={MINDROOM_AUTH_BRANDING.logoSrc}
+              alt={MINDROOM_AUTH_BRANDING.logoAlt}
+            />
+            <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
           </Box>
+        </Header>
+        <Box className={css.AuthCardContent} direction="Column" gap="500">
+          <ServerPicker server={server} onChange={handleServerChange} />
+          {discovery.status === 'loading' && (
+            <Box justifyContent="Center" alignItems="Center" gap="200">
+              <Spinner variant="Secondary" size="200" />
+              <Text size="T300">{t('sharedUi.authLayout.lookingForServer')}</Text>
+            </Box>
+          )}
+          {discovery.status === 'error' && (
+            <Text style={{ color: color.Critical.Main }} size="T300">
+              {t('sharedUi.authLayout.failedToFindServer')}
+            </Text>
+          )}
+          {discovery.status === 'ready' && (
+            <AutoDiscoveryInfoProvider value={discovery.info}>
+              <Outlet context={{ server }} />
+            </AutoDiscoveryInfoProvider>
+          )}
         </Box>
-        <AuthFooter />
       </Box>
-    </Scroll>
+      <AuthFooter />
+    </AuthFrame>
   );
 }

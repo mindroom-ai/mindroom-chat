@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Switch, Text, color } from 'folds';
-import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
-import { SequenceCardStyle } from '../../features/settings/styles.css';
+import { SettingsCard } from '../../features/settings/SettingsCard';
 import { MINDROOM_APP_NAME } from '../branding/branding';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
@@ -22,6 +21,27 @@ import {
   unregisterIOSPush,
 } from './iosPush';
 import { useIOSPushEnabled } from './useIOSPushEnabled';
+
+/** The explanation under the switch: what push does, the device's state, and the last failure. */
+function PushDescription({ status, failed }: { status: string; failed: boolean }) {
+  const { t } = useTranslation();
+  // The tile wraps this in a paragraph, so only inline elements go inside.
+  return (
+    <Box as="span" direction="Column" gap="100">
+      <span>
+        {t(
+          'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
+        )}
+      </span>
+      <span>{status}</span>
+      {failed && (
+        <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
+          {t('mindroomUi.native.iOSPushNotification.failedToUpdateNativePushSettings')}
+        </Text>
+      )}
+    </Box>
+  );
+}
 
 function IOSPushNotificationTile() {
   const matrixClient = useMatrixClient();
@@ -88,32 +108,12 @@ function IOSPushNotificationTile() {
     );
   }
 
-  const failed = toggleState.status === AsyncStatus.Error;
-
   return (
-    <SequenceCard
-      className={SequenceCardStyle}
-      variant="SurfaceVariant"
-      direction="Column"
-      gap="400"
-    >
+    <SettingsCard>
       <SettingTile
         title={t('mindroomUi.native.iOSPushNotification.iosPushNotifications')}
         description={
-          // The tile wraps this in a paragraph, so only inline elements go inside.
-          <Box as="span" direction="Column" gap="100">
-            <span>
-              {t(
-                'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
-              )}
-            </span>
-            <span>{status}</span>
-            {failed && (
-              <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
-                {t('mindroomUi.native.iOSPushNotification.failedToUpdateNativePushSettings')}
-              </Text>
-            )}
-          </Box>
+          <PushDescription status={status} failed={toggleState.status === AsyncStatus.Error} />
         }
         after={
           <Switch
@@ -124,7 +124,7 @@ function IOSPushNotificationTile() {
           />
         }
       />
-    </SequenceCard>
+    </SettingsCard>
   );
 }
 

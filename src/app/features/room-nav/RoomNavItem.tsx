@@ -214,6 +214,71 @@ function RoomNavOptions({ room, anchor, onAnchorChange }: RoomNavOptionsProps) {
   );
 }
 
+/** A clock after the room's name while an agent runs a background job in the room. */
+function BackgroundJobsMark({ room }: { room: Room }) {
+  const { t } = useTranslation();
+  const running = useRoomBackgroundJobs(room).length;
+  if (running === 0) return null;
+  const label = t('mindroomUi.backgroundJobs.inRoom');
+  return (
+    <IconTooltip label={label}>
+      {(triggerRef) => (
+        <Icon
+          ref={triggerRef}
+          src={Icons.Clock}
+          size="50"
+          aria-label={label}
+          style={{ opacity: config.opacity.P500 }}
+        />
+      )}
+    </IconTooltip>
+  );
+}
+
+type RoomNavLinkProps = {
+  to: string;
+  room: Room;
+  name: string;
+  personAvatar: boolean;
+  selected: boolean;
+  hasUnread: boolean;
+  /** Unread badge or muted mark at the end of the row. */
+  status: React.ReactNode;
+};
+
+/** The link of a room row: avatar, name (stronger with unread messages), job clock and status. */
+function RoomNavLink({
+  to,
+  room,
+  name,
+  personAvatar,
+  selected,
+  hasUnread,
+  status,
+}: RoomNavLinkProps) {
+  return (
+    <NavLink to={to}>
+      <NavItemContent>
+        <Box as="span" grow="Yes" alignItems="Center" gap="200">
+          <RoomNavItemAvatar
+            room={room}
+            name={name}
+            personAvatar={personAvatar}
+            selected={selected}
+          />
+          <Box as="span" grow="Yes">
+            <Text as="span" size="Inherit" priority={hasUnread ? '500' : '300'} truncate>
+              {name}
+            </Text>
+          </Box>
+          <BackgroundJobsMark room={room} />
+          {status}
+        </Box>
+      </NavItemContent>
+    </NavLink>
+  );
+}
+
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
  * while agents run background jobs in it, and a menu on hover or focus.
@@ -225,11 +290,9 @@ export function RoomNavItem(props: RoomNavItemProps) {
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
   const name = useRoomName(room);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
-  const jobsRunning = useRoomBackgroundJobs(room).length > 0;
 
   const showOptions = engaged || optionsAnchor !== undefined;
   const mutedMark = notificationMode === RoomNotificationMode.Mute && !unread;
-  const jobsLabel = t('mindroomUi.backgroundJobs.inRoom');
 
   let status: React.ReactNode = null;
   if (!showOptions && unread) {
@@ -248,42 +311,20 @@ export function RoomNavItem(props: RoomNavItemProps) {
   return (
     <NavItem
       {...engagementProps}
+      highlight={Boolean(unread)}
+      aria-selected={selected}
       variant="Background"
       radii="400"
-      aria-selected={selected}
-      highlight={Boolean(unread)}
     >
-      <NavLink to={linkPath}>
-        <NavItemContent>
-          <Box as="span" grow="Yes" alignItems="Center" gap="200">
-            <RoomNavItemAvatar
-              room={room}
-              name={name}
-              personAvatar={Boolean(direct && showAvatar)}
-              selected={selected}
-            />
-            <Box as="span" grow="Yes">
-              <Text as="span" size="Inherit" priority={unread ? '500' : '300'} truncate>
-                {name}
-              </Text>
-            </Box>
-            {jobsRunning ? (
-              <IconTooltip label={jobsLabel}>
-                {(triggerRef) => (
-                  <Icon
-                    ref={triggerRef}
-                    src={Icons.Clock}
-                    size="50"
-                    aria-label={jobsLabel}
-                    style={{ opacity: config.opacity.P500 }}
-                  />
-                )}
-              </IconTooltip>
-            ) : null}
-            {status}
-          </Box>
-        </NavItemContent>
-      </NavLink>
+      <RoomNavLink
+        to={linkPath}
+        room={room}
+        name={name}
+        personAvatar={Boolean(direct && showAvatar)}
+        selected={selected}
+        hasUnread={Boolean(unread)}
+        status={status}
+      />
       {showOptions ? (
         <RoomNavOptions room={room} anchor={optionsAnchor} onAnchorChange={setOptionsAnchor} />
       ) : null}

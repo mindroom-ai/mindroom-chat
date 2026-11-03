@@ -155,6 +155,20 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   );
 }
 
+/** The page header: a link icon and the room alias or ID the link was opened with. */
+function LinkHeader({ target }: { target: string }) {
+  return (
+    <PageHeader balance>
+      <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+        <Icon size="200" src={Icons.Link} />
+        <Text as="h1" size="H4" truncate>
+          {target}
+        </Text>
+      </Box>
+    </PageHeader>
+  );
+}
+
 /**
  * Shown for a room link the user has not joined: the room's summary and the
  * way in its join rule allows (join, request to join, or none), before the
@@ -166,14 +180,7 @@ export function JoinBeforeNavigate(props: JoinBeforeNavigateProps) {
 
   return (
     <Page>
-      <PageHeader balance>
-        <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-          <Icon size="200" src={Icons.Link} />
-          <Text as="h1" size="H4" truncate>
-            {roomIdOrAlias}
-          </Text>
-        </Box>
-      </PageHeader>
+      <LinkHeader target={roomIdOrAlias} />
       <Box
         grow="Yes"
         direction="Column"

@@ -51,6 +51,22 @@ const useSpaceAvatarSrc = (space: Room): string | undefined => {
   return mxcUrlToHttp(client, avatarMxc, authenticated, 96, 96, 'crop') ?? undefined;
 };
 
+type SpaceAvatarProps = { roomId: string; name: string; src?: string };
+
+/** The space's picture in the header, or its initials while it has none. */
+function SpaceAvatar({ roomId, name, src }: SpaceAvatarProps) {
+  return (
+    <Avatar size="300" radii="300">
+      <RoomAvatar
+        roomId={roomId}
+        src={src}
+        alt={name}
+        renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+      />
+    </Avatar>
+  );
+}
+
 /** The header of a space's lobby: back on mobile, the space, members with join requests, options. */
 export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: LobbyHeaderProps) {
   const space = useSpace();
@@ -112,14 +128,7 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
           </IconButton>
         )}
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
-          <Avatar size="300" radii="300">
-            <RoomAvatar
-              roomId={space.roomId}
-              src={avatarSrc}
-              alt={spaceName}
-              renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
-            />
-          </Avatar>
+          <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
           <Text size="H4" truncate>
             {spaceName}
           </Text>

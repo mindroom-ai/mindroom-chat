@@ -73,13 +73,8 @@ type Content = Record<string, unknown>;
 
 /** One preview card per link, keyed by URL; a card asks for its preview as of the sent time. */
 function UrlPreviewList({ urls, sentAt }: { urls: string[]; sentAt: number }) {
-  return (
-    <UrlPreviewHolder>
-      {urls.map((url) => (
-        <UrlPreviewCard key={url} url={url} ts={sentAt} />
-      ))}
-    </UrlPreviewHolder>
-  );
+  const cards = urls.map((url) => <UrlPreviewCard key={url} url={url} ts={sentAt} />);
+  return <UrlPreviewHolder>{cards}</UrlPreviewHolder>;
 }
 
 /** Since Matrix 1.10 a media event with a `filename` and a different `body` has a caption. */
