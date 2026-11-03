@@ -12,17 +12,15 @@ export type IPowerLevels = {
   ban?: number;
   kick?: number;
   redact?: number;
-  invite?: number;
 
 
 
 
 
 
-export type PowerLevelAction = 'invite' | 'redact' | 'kick' | 'ban' | 'historical';
+
 
 const DEFAULT_ACTION_LEVEL: Record<PowerLevelAction, number> = {
-
 
 
 
@@ -52,16 +50,7 @@ export const getPowersLevelFromMatrixEvent = (event?: MatrixEvent | null): IPowe
   const content = event.getContent();
   const levels: IPowerLevels = {};
   (
-    [
-      'users_default',
-      'events_default',
-      'state_default',
-      'ban',
-      'kick',
-      'redact',
-      'invite',
-      'historical',
-    ] as const
+    ['users_default', 'events_default', 'state_default', 'ban', 'kick', 'redact', 'invite'] as const
   ).forEach((key) => {
     if (isLevel(content[key])) levels[key] = content[key];
   });
