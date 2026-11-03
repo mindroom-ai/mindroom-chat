@@ -84,6 +84,10 @@
       "mindroomRoomViewHeader": {
         "compactView": "Compact view"
       }
+    },
+    "computer": {
+      "resize": "Resize computer panel",
+      "close": "Close computer"
     }
   },
   "composer": {
