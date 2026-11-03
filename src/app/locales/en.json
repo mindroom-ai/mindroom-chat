@@ -13,10 +13,10 @@
     "expand": "Expand",
     "collapse": "Collapse"
   },
-
-
-
-
+  "Organisms": {
+    "RoomCommon": {
+      "changed_room_name": " changed the room name"
+    }
   },
   "options": {
     "messageLayout": {
