@@ -27,6 +27,9 @@ type SpaceItemCardProps = {
   item: HierarchyItem;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+  /** The summary is still being fetched. */
+
+
 
 
 
@@ -38,48 +41,55 @@ type SpaceItemCardProps = {
 
 
 
+  /** Extra controls at the end of the heading. */
+  options?: React.ReactNode;
 };
 
+/** The plus button of a joined space: create a room or a subspace inside it. */
 function AddChildMenu({ spaceId }: { spaceId: string }) {
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
   const openCreateRoom = useOpenCreateRoomModal();
+  const openCreateSpace = useOpenCreateSpaceModal();
 
+  // Closing is also the focus trap's outside-click and Escape answer, so it lets both through.
+  const close = () => {
+    setAnchor(undefined);
+    return true;
+  };
+  const choices = [
+    { label: t('featureUi.lobby.spaceItem.addRoom'), create: openCreateRoom },
+    { label: t('featureUi.lobby.spaceItem.newSpace'), create: openCreateSpace },
+  ];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                openCreateRoom(spaceId);
-              }}
-            >
-              <Text size="T300">{t('featureUi.lobby.spaceItem.addRoom')}</Text>
-            </MenuItem>
-            <MenuItem
-              size="300"
-              radii="300"
-              onClick={() => {
-                setAnchor(undefined);
-                (openCreateSpace as (spaceId?: string) => void)(spaceId);
-              }}
-            >
-              <Text size="T300">{t('featureUi.lobby.spaceItem.newSpace')}</Text>
-            </MenuItem>
+  return (
+    <PopOut
+      anchor={anchor}
+      align="End"
+      position="Bottom"
+      content={
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            returnFocusOnDeactivate: false,
+            clickOutsideDeactivates: close,
+            escapeDeactivates: close,
+          }}
+        >
+          <Menu style={{ padding: config.space.S100, minWidth: toRem(160) }}>
+            {choices.map(({ label, create }) => (
+              <MenuItem
+                key={label}
+                size="300"
+                radii="300"
+                onClick={() => {
+                  close();
+                  create(spaceId);
+                }}
+              >
+                <Text size="T300">{label}</Text>
+              </MenuItem>
+            ))}
           </Menu>
         </FocusTrap>
       }
@@ -101,16 +111,16 @@ function AddChildMenu({ spaceId }: { spaceId: string }) {
 /** A space heading in a lobby: its name opens or collapses it, or offers a way in. */
 export function SpaceItemCard({
   item,
-
-
-
-
-
-
-
-
-
-
+  summary,
+  loading = false,
+  joined,
+  categoryId,
+  closed,
+  handleClose,
+  canEditChild,
+  canReorder,
+  onDragging,
+  getRoom,
   options,
 }: SpaceItemCardProps) {
 
@@ -173,15 +183,15 @@ export function SpaceItemCard({
         </div>
       ) : (
         <>
-
-
-
-
-
-
-
-
-
+          <Box alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+            <Avatar size="200" radii="300">
+              <RoomAvatar
+                roomId={roomId}
+                src={avatarUrl}
+                alt={name}
+                renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+              />
+            </Avatar>
             <Text size="H4" truncate>
               {name}
             </Text>

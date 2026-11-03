@@ -32,7 +32,6 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useOpenSpaceSettings } from '../../state/hooks/spaceSettings';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
-import { stopPropagation } from '../../utils/keyboard';
 
 type LobbyHeaderProps = {
   powerLevels: IPowerLevels;
@@ -49,6 +48,7 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
 
 
 
+  const [membersOpen, setMembersOpen] = useMembersDrawer();
 
 
 
@@ -59,12 +59,32 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
 
 
 
-
+  const permissions = useRoomPermissions(useRoomCreators(space), powerLevels);
+  const canInvite = permissions.action('invite', myUserId);
   const canReview = canInvite || permissions.action('kick', myUserId);
   const pendingRequests = canReview ? joinRequestCount : 0;
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [inviteOpen, setInviteOpen] = useState(false);
+  // Also the focus trap's outside-click and Escape handler, so it returns true to let those through.
+  const closeMenu = () => {
+    setMenuAnchor(undefined);
+    return true;
+  };
+  const menuActions = [
+    {
+      label: t('featureUi.lobby.lobbyHeader.invite'),
+      icon: Icons.UserPlus,
+      disabled: !canInvite,
+      run: () => setInviteOpen(true),
+    },
+    {
+      label: t('featureUi.lobby.lobbyHeader.spaceSettings'),
+      icon: Icons.Setting,
+      disabled: false,
+      run: () => openSpaceSettings(space.roomId),
+    },
+  ];
 
   const baseMembersLabel = t('featureUi.lobby.lobbyHeader.members');
   const membersLabel =
@@ -81,20 +101,20 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
         {screenSize === ScreenSize.Mobile && onBack && (
           <IconButton
             onClick={onBack}
+            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
+          >
+            <Icon size="400" src={Icons.ArrowLeft} />
+          </IconButton>
+        )}
+        <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
+          <Avatar size="300" radii="300">
+            <RoomAvatar
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+              renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
+            />
+          </Avatar>
           <Text size="H4" truncate>
             {name}
           </Text>
@@ -129,48 +149,38 @@ export function LobbyHeader({ powerLevels, joinRequestCount = 0, onBack }: Lobby
                 </Badge>
               )}
             </IconButton>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          )}
+        </TooltipProvider>
+        <PopOut
+          anchor={menuAnchor}
+          position="Bottom"
+          align="End"
+          content={
+            <FocusTrap
+              focusTrapOptions={{
+                initialFocus: false,
+                returnFocusOnDeactivate: false,
+                clickOutsideDeactivates: closeMenu,
+                escapeDeactivates: closeMenu,
               }}
             >
-
-
-
-
-
-
-
-
-
-                      setInviteOpen(true);
-                    }}
-                  >
-                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.invite')}</Text>
-                  </MenuItem>
-                  <MenuItem
-                    size="300"
-                    radii="300"
-
-
-
-
-                    }}
-                  >
-                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.spaceSettings')}</Text>
-                  </MenuItem>
+              <Menu style={{ minWidth: toRem(180) }}>
+                <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                  {menuActions.map((action) => (
+                    <MenuItem
+                      key={action.label}
+                      size="300"
+                      radii="300"
+                      disabled={action.disabled}
+                      before={<Icon size="100" src={action.icon} />}
+                      onClick={() => {
+                        closeMenu();
+                        action.run();
+                      }}
+                    >
+                      <Text size="T300">{action.label}</Text>
+                    </MenuItem>
+                  ))}
                 </Box>
               </Menu>
             </FocusTrap>

@@ -68,17 +68,23 @@ const isHomeserverMediaUrl = (url: URL, homeserver: URL): boolean => {
   );
 };
 
+// Everything after `useAuthentication` is passed on to the SDK unchanged: an optional thumbnail size
+// and method (`crop` or `scale`, spec "Thumbnails"), then the SDK's direct-link and redirect flags.
+type MxcHttpExtras = [
+  width?: number,
+  height?: number,
+  resizeMethod?: string,
+  allowDirectLinks?: boolean,
+  allowRedirects?: boolean
+];
+
 /** The HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
 export const mxcUrlToHttp = (
-
-
-
-
-
-
-
-
-
+  mx: MediaClient,
+  mxcUrl: string,
+  useAuthentication?: boolean,
+  ...[width, height, resizeMethod, allowDirectLinks, allowRedirects]: MxcHttpExtras
+): string | null => {
   const httpUrl = mx.mxcUrlToHttp(
     mxcUrl,
     width,

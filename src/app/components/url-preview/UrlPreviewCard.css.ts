@@ -28,6 +28,7 @@ export const UrlPreviewHolderGradient = recipe({
   },
 });
 
+/** The arrow button over an edge, centered vertically on the cards and above the fade. */
 
 
 
@@ -35,10 +36,10 @@ export const UrlPreviewHolderGradient = recipe({
 
 
 
-
-
-
-
+      translate: '0 -50%',
+    },
+  ],
+  variants: {
     position: {
       Left: { insetInlineStart: config.space.S100 },
       Right: { insetInlineEnd: config.space.S100 },

@@ -27,10 +27,10 @@ type UrlPreviewCardProps = {
 };
 
 /** The homeserver's preview of one link; renders nothing when the server has none. */
-
-
-
-
+export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...cardProps }, ref) => {
+  const useAuthentication = useMediaAuthentication();
+  const mx = useMatrixClient();
+  const [previewState, loadPreview] = useAsyncCallback(
     useCallback(() => mx.getUrlPreview(url, ts), [mx, url, ts])
   );
 
@@ -72,27 +72,50 @@ type UrlPreviewCardProps = {
             <b>{typeof title === 'string' && title ? title : url}</b>
           </Text>
           {typeof description === 'string' && description && (
+            <UrlPreviewDescription>{description}</UrlPreviewDescription>
+          )}
+        </UrlPreviewContent>
+      </>
+    );
+  } else {
+    // Idle or loading: the card keeps its size so the row does not jump when the preview lands.
+    content = (
+      <Box grow="Yes" alignItems="Center" justifyContent="Center">
+        <Spinner size="400" variant="Secondary" />
+      </Box>
+    );
+  }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <UrlPreview ref={ref} {...cardProps}>
+      {content}
     </UrlPreview>
   );
 });
 
 type Overflow = { back: boolean; forward: boolean; hasCards: boolean };
+
+type HolderEdgeProps = { side: 'Left' | 'Right'; label: string; onClick: () => void };
+
+/** The fade over one edge of the row and the arrow that scrolls toward it. */
+function HolderEdge({ side, label, onClick }: HolderEdgeProps) {
+  return (
+    <>
+      <div className={css.UrlPreviewHolderGradient({ position: side })} />
+      <IconButton
+        aria-label={label}
+        onClick={onClick}
+        className={css.UrlPreviewHolderBtn({ position: side })}
+        size="300"
+        radii="Pill"
+        variant="Secondary"
+        outlined
+      >
+        <Icon size="300" src={side === 'Left' ? Icons.ArrowLeft : Icons.ArrowRight} />
+      </IconButton>
+    </>
+  );
+}
 
 /** Horizontal row of link previews with arrow buttons where more cards are out of view. */
 export const UrlPreviewHolder = as<'div'>(({ children, style, ...props }, ref) => {
@@ -161,44 +184,26 @@ export const UrlPreviewHolder = as<'div'>(({ children, style, ...props }, ref) =
         ...style,
       }}
       {...props}
-
-
-
-
-
-
-
-
-
-
-
-
-            onClick={() => scrollBy(-1)}
-          >
-            <Icon size="300" src={Icons.ArrowLeft} />
-          </IconButton>
-        </>
+      ref={ref}
+    >
+      {overflow.back && (
+        <HolderEdge
+          side="Left"
+          label={t('sharedUi.urlPreviewHolder.previous')}
+          onClick={() => scrollBy(-1)}
+        />
       )}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            onClick={() => scrollBy(1)}
-          >
-            <Icon size="300" src={Icons.ArrowRight} />
-          </IconButton>
-        </>
+      <Scroll ref={scrollRef} direction="Horizontal" size="0" visibility="Hover" hideTrack>
+        <Box shrink="No" alignItems="Center" gap="200">
+          {children}
+        </Box>
+      </Scroll>
+      {overflow.forward && (
+        <HolderEdge
+          side="Right"
+          label={t('sharedUi.urlPreviewHolder.next')}
+          onClick={() => scrollBy(1)}
+        />
       )}
     </Box>
   );

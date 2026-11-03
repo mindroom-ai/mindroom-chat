@@ -10,6 +10,12 @@ export enum RegisterFlowStatus {
   /** Registration is open; `data` lists the user-interactive auth flows. */
   FlowRequired = 401,
   Disabled = 403,
+  /** `M_LIMIT_EXCEEDED`: the server wants the client to wait before asking again. */
+
+
+
+
+
 
 
 
@@ -37,6 +43,7 @@ const getRegisterFlows = async (mx: MatrixClient): Promise<RegisterFlowsResponse
     }
     if (httpStatus === RegisterFlowStatus.Disabled) return { status: RegisterFlowStatus.Disabled };
     if (httpStatus === RegisterFlowStatus.RateLimited) {
+
 
 
 

@@ -19,6 +19,7 @@ export type MindroomPinnedToolApprovalRenderOptions = {
 
 
 
+
   eventId?: string;
   /** Latest edit of the approval (the backend edits it as the request is decided). */
   editedEvent?: MatrixEvent;

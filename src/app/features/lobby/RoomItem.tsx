@@ -21,6 +21,8 @@ import * as styleCss from './style.css';
 
 
 
+
+
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
 
@@ -28,19 +30,20 @@ import * as styleCss from './style.css';
 
 
 
+  /** Extra controls after the open or join button. */
   options?: React.ReactNode;
 };
 
 /** A room in a space's lobby: open it when joined, otherwise join or ask to join. */
 export function RoomItemCard({
   item,
-
-
-
-
-
-
-
+  loading,
+  error,
+  summary,
+  onOpen,
+  onDragging,
+  canReorder,
+  getRoom,
   options,
 }: RoomItemCardProps) {
 
@@ -73,13 +76,15 @@ export function RoomItemCard({
 
 
 
+          <div className={styleCss.AvatarPlaceholder} />
+        ) : (
+          <RoomAvatar
+            roomId={roomId}
 
 
 
-
-
-
-
+              <RoomIcon size="300" joinRule={summary?.join_rule ?? localRoom?.getJoinRule()} />
+            )}
           />
         )}
       </Avatar>

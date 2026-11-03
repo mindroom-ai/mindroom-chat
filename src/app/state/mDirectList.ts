@@ -24,11 +24,11 @@ export const getMDirects = (event?: MatrixEvent): Set<string> => {
   const content: unknown = event?.getContent();
   if (!isRecord(content)) return rooms;
 
-
-
-
-    });
-  });
+  // Each value is the list of room IDs shared with that user (spec: "Direct Messaging").
+  for (const roomIds of Object.values(content)) {
+    if (!Array.isArray(roomIds)) continue;
+    roomIds.filter((id): id is string => typeof id === 'string').forEach((id) => rooms.add(id));
+  }
   return rooms;
 };
 
@@ -44,11 +44,10 @@ export const useBindMDirectAtom = (mx: MatrixClient, directAtom: MDirectAtom = m
 
     const handleAccountData = (event: MatrixEvent) => {
       if (event.getType() !== AccountDataEvent.Direct) return;
+      setDirects({ type: 'UPDATE', rooms: getMDirects(event) });
+    };
 
-
-
-
-
-
-
+    mx.on(ClientEvent.AccountData, handleAccountData);
+    return () => void mx.off(ClientEvent.AccountData, handleAccountData);
+  }, [mx, setDirects]);
 };

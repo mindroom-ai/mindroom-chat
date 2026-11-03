@@ -22,11 +22,11 @@ export const isDomElementNode = (node: unknown): node is Element =>
   typeof (node as { name?: unknown }).name === 'string' &&
   Array.isArray((node as { children?: unknown }).children);
 
+export const extractTextFromChildren = (children: ChildNode[]): string => {
+  let text = '';
 
-
-
-
-
+  children.forEach((node) => {
+    if (isDomTextNode(node)) {
       text += node.data;
     } else if (isDomElementNode(node)) {
       text += extractTextFromChildren((node as { children: ChildNode[] }).children);

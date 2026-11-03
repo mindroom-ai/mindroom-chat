@@ -114,10 +114,10 @@ export const renderMindroomMessageContent = ({
   content,
   pendingSend,
   failedSend,
-
-
-
-
+  highlightRegex,
+  htmlReactParserOptions,
+  linkifyOpts,
+  renderUrlsPreview,
   showMessageExtras = false,
   hydrateLongText = true,
 }: RenderMindroomMessageContentOptions): ReactNode | undefined => {
@@ -182,9 +182,9 @@ export const renderMindroomMessageContent = ({
         renderableContent,
         <MindroomRenderBody
           {...props}
-
-
-
+          customBody={customBody}
+          highlightRegex={highlightRegex}
+          htmlReactParserOptions={htmlReactParserOptions}
           markerContent={renderableContent}
           linkifyOpts={linkifyOpts}
         />

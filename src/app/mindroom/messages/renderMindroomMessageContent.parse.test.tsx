@@ -135,9 +135,9 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
             displayName: 'Agent',
             msgType: 'm.text',
             content,
-
-
-
+            highlightRegex,
+            htmlReactParserOptions,
+            linkifyOpts,
             showMessageExtras: true,
           })}
         </React.Fragment>

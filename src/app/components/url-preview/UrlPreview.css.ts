@@ -17,10 +17,10 @@ export const UrlPreview = style([
     maxWidth: '100%',
     minHeight: TEXT_BLOCK_HEIGHT,
     display: 'flex',
-
-
-
-
+    alignItems: 'stretch',
+    overflow: 'hidden',
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
     boxSizing: 'border-box',
   },
 ]);
@@ -29,6 +29,7 @@ export const UrlPreviewImg = style([
   DefaultReset,
   {
     width: TEXT_BLOCK_HEIGHT,
+    height: TEXT_BLOCK_HEIGHT,
 
 
 
@@ -46,15 +47,19 @@ export const UrlPreviewImg = style([
 
 
 
+    paddingBlock: config.space.S200,
+    paddingInline: config.space.S300,
+  },
+]);
+
+// At most two lines, cut with an ellipsis (the WebKit box clamp is what every engine supports).
+export const UrlPreviewDescription = style([
+  DefaultReset,
+  {
+    overflow: 'hidden',
+    overflowWrap: 'anywhere',
 
 
 
-
-
-
-
-
-
-
-
-
+  },
+]);

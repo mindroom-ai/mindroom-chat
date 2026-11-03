@@ -17,12 +17,12 @@ export type PdfViewerProps = {
 // object URLs reach it: never a `javascript:` URL or a server response that could be HTML.
 const isBlobUrl = (src: string) => src.startsWith('blob:');
 
+/** Whether a save is running, and whether the last one failed. */
+type SaveProgress = { pending: boolean; failed: boolean };
 
-
-
-
-
-
+export const PdfViewer = as<'div', PdfViewerProps>(
+  ({ name, src, requestClose, className, ...props }, ref) => {
+    const { t } = useTranslation();
     const [progress, setProgress] = useState<SaveProgress>({ pending: false, failed: false });
     const savable = isBlobUrl(src);
     const { pending, failed } = progress;

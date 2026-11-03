@@ -9,17 +9,21 @@ import { useAlive } from '../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 
 /** `m.secret_storage.key.*` passphrase info (PBKDF2 settings). */
+export type SecretStoragePassphraseContent = {
+  algorithm: string;
+  iterations: number;
+  salt: string;
+  /** Length of the derived key; the spec default is 256. */
+  bits?: number;
+};
 
-
-
-
-
-
-
-
-
-
-
+/**
+ * The content of an `m.secret_storage.key.<id>` account data event (spec: "Key storage"). Every
+ * field is optional because the event comes from the server unchecked.
+ */
+export type SecretStorageKeyContent = {
+  algorithm?: string;
+  name?: string;
   iv?: string;
   mac?: string;
   passphrase?: SecretStoragePassphraseContent;
@@ -49,21 +53,21 @@ type RecoveryFormProps = {
 };
 
 function RecoveryForm({ label, inputName, loading, errorText, onValue }: RecoveryFormProps) {
+  const { t } = useTranslation();
 
-
-
-
+  const submit: FormEventHandler<HTMLFormElement> = (evt) => {
+    evt.preventDefault();
     const input = (evt.target as HTMLFormElement & Record<string, HTMLInputElement | undefined>)[
       inputName
     ];
     const value = input?.value.trim();
     if (!value || loading) return;
+    onValue(value);
+  };
 
-
-
-
-
-
+  return (
+    <Box as="form" direction="Column" gap="400" onSubmit={submit}>
+      <Box direction="Column" gap="100">
         <Text size="L400">{label}</Text>
         <PasswordInput
           name={inputName}
@@ -95,18 +99,17 @@ function RecoveryForm({ label, inputName, loading, errorText, onValue }: Recover
   );
 }
 
-
-
-
-
+/** What both recovery prompts share: the key to check against and who receives the accepted key. */
+type RecoveryPromptProps = {
+  keyContent: SecretStorageKeyContent;
+  onDecodedRecoveryKey: (recoveryKey: Uint8Array) => void;
 };
 
 /** Asks for the recovery passphrase and hands on the key it derives once secret storage accepts it. */
-
-
-
-
-
+export function SecretStorageRecoveryPassphrase(
+  props: RecoveryPromptProps & { passphraseContent: SecretStoragePassphraseContent }
+) {
+  const { keyContent, passphraseContent, onDecodedRecoveryKey } = props;
 
 
 
@@ -144,16 +147,9 @@ function RecoveryForm({ label, inputName, loading, errorText, onValue }: Recover
   );
 }
 
-
-
-
-};
-
 /** Asks for the recovery key and hands it on once secret storage accepts it. */
-
-
-
-
+export function SecretStorageRecoveryKey(props: RecoveryPromptProps) {
+  const { keyContent, onDecodedRecoveryKey } = props;
 
 
 
