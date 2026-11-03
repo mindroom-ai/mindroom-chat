@@ -1,0 +1,17 @@
+mindroom-client
+Copyright 2026 MindRoom
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Ported files
+------------
+Files listed in docs/provenance/portable.tsv were authored by Bas Nijholt and
+are licensed under the Apache License, Version 2.0 for this project, per his
+instruction of 2026-11-02 (see docs/provenance.md).
+
+Third-party notices
+-------------------
+mindroom-client installs its dependencies from npm under their own licenses.
+Only MIT, Apache-2.0, BSD, ISC, 0BSD, Zlib, Unicode, CC0, BlueOak, OFL (fonts),
+and MPL-2.0 (used unmodified) are accepted; package-lock.json pins the exact
+versions. The notices that each package ships stay with that package.

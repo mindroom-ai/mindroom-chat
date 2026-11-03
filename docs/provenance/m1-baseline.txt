@@ -1,0 +1,109 @@
+# M1 type-check baseline (Task 1)
+# Taken after the scaffold landed and before any seam or hole fill: Lane P files only, plus the toolchain.
+# Regenerate the first section with: npx tsc --noEmit -p . | grep -o 'error TS[0-9]*' | sort | uniq -c
+# Regenerate the second section with: node scripts/typecheck-all.mjs | grep -o 'error TS[0-9]*' | sort | uniq -c
+
+## 1. just typecheck (tsc --noEmit -p .)
+Total errors: 159
+All of them are syntax errors from blanked lines (docs/provenance/holes.tsv: 655 lines in 233 files).
+tsc reports syntax errors first and stops there, so it prints no semantic error (missing modules, types, names) while any syntax error exists.
+
+Count per error code:
+     10 error TS1003
+     51 error TS1005
+     30 error TS1109
+     44 error TS1128
+      1 error TS1137
+      1 error TS1359
+      2 error TS1381
+      1 error TS1382
+     13 error TS1434
+      3 error TS17002
+      1 error TS17008
+      1 error TS17015
+      1 error TS2657
+
+## 2. just typecheck-all (scripts/typecheck-all.mjs: syntax and semantic errors together)
+Total errors: 4795
+Use this number to measure seam progress until the last hole is filled; after that both commands agree.
+
+Count per error code:
+     10 error TS1003
+     51 error TS1005
+     30 error TS1109
+     44 error TS1128
+      1 error TS1137
+      6 error TS1141
+      3 error TS1355
+      1 error TS1359
+      1 error TS1361
+      2 error TS1381
+      1 error TS1382
+     13 error TS1434
+      3 error TS17002
+      1 error TS17008
+      1 error TS17015
+     17 error TS18004
+     15 error TS18046
+     63 error TS18048
+      1 error TS18050
+   1768 error TS2304
+     37 error TS2305
+    996 error TS2307
+    127 error TS2322
+    250 error TS2339
+     16 error TS2341
+    270 error TS2345
+      1 error TS2347
+      1 error TS2349
+     59 error TS2352
+     83 error TS2353
+      3 error TS2355
+      1 error TS2362
+      2 error TS2365
+      1 error TS2366
+      1 error TS2367
+      1 error TS2418
+      1 error TS2448
+      6 error TS2451
+      2 error TS2454
+     12 error TS2488
+     70 error TS2493
+      1 error TS2503
+      4 error TS2531
+      4 error TS2532
+      1 error TS2538
+     15 error TS2540
+      2 error TS2551
+      2 error TS2552
+     34 error TS2554
+      4 error TS2558
+      1 error TS2559
+     37 error TS2571
+      1 error TS2588
+     29 error TS2607
+      1 error TS2657
+     31 error TS2683
+      5 error TS2686
+      1 error TS2693
+     62 error TS2695
+      7 error TS2698
+      2 error TS2722
+      8 error TS2739
+      9 error TS2740
+     15 error TS2741
+    117 error TS2769
+      1 error TS2774
+     37 error TS2786
+      1 error TS2820
+    339 error TS7006
+      2 error TS7015
+      5 error TS7016
+      7 error TS7017
+      5 error TS7022
+     31 error TS7031
+      2 error TS7053
+
+## 3. Other baselines
+just lint: 144 errors, 47 warnings. Every error is in a file with blanked lines (parse errors and imports lost with them); the Lane P files without holes lint clean.
+just test: 773 test files, all fail until src/app/locales/en.json exists (src/vitest.setup.ts imports it). With an empty stub for that file: 149 files and 1488 of 2096 tests pass; the rest wait on seams.
