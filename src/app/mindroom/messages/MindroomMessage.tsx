@@ -761,15 +761,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             </Text>
           </Username>
           <Box shrink="No" alignItems="Center" gap="100">
-            {controls && (
-              // Muted like the time beside it.
-              <Text as="span" size="T200" priority="300" style={{ display: 'inline-flex' }}>
-                <MindroomMessageHeaderExtensions
-                  controls={controls as never}
-                  onOpenAiRun={openAiRun}
-                />
-              </Text>
-            )}
+            <MindroomMessageHeaderExtensions controls={controls as never} onOpenAiRun={openAiRun} />
             <Time
               ts={mEvent.getTs()}
               compact={compactLayout}

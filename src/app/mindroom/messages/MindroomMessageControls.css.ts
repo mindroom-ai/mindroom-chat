@@ -12,6 +12,8 @@ export const AiRunInfoButton = style([
     border: 0,
     borderRadius: toRem(999),
     padding: 0,
+    backgroundColor: 'transparent',
+    // The text colour at the time's muted strength, so the icon reads as part of the time.
     color: 'inherit',
     opacity: 0.75,
     cursor: 'pointer',
