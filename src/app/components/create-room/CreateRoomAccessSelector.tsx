@@ -4,10 +4,10 @@ import { Box, Icon, IconSrc, Icons, Text, color, config } from 'folds';
 import { CreateRoomAccess } from './types';
 
 type AccessOption = {
-
-
-
-  description: ReactNode;
+  access: CreateRoomAccess;
+  icon: IconSrc;
+  label: ReactNode;
+  hint: ReactNode;
 };
 
 type CreateRoomAccessSelectorProps = {
@@ -27,24 +27,24 @@ export function CreateRoomAccessSelector(props: CreateRoomAccessSelectorProps) {
     {
       access: CreateRoomAccess.Private,
       icon: Icons.HashLock,
-      title: t('sharedUi.createRoomAccessSelector.private'),
-      description: t('sharedUi.createRoomAccessSelector.onlyPeopleWithInviteCanJoin'),
+      label: t('sharedUi.createRoomAccessSelector.private'),
+      hint: t('sharedUi.createRoomAccessSelector.onlyPeopleWithInviteCanJoin'),
     },
     ...(canRestrict
       ? [
           {
             access: CreateRoomAccess.Restricted,
             icon: Icons.Space,
-            title: t('sharedUi.createRoomAccessSelector.restricted'),
-            description: t('sharedUi.createRoomAccessSelector.onlyMemberOfParentSpaceCanJoin'),
+            label: t('sharedUi.createRoomAccessSelector.restricted'),
+            hint: t('sharedUi.createRoomAccessSelector.onlyMemberOfParentSpaceCanJoin'),
           },
         ]
       : []),
     {
       access: CreateRoomAccess.Public,
       icon: Icons.HashGlobe,
-      title: t('sharedUi.createRoomAccessSelector.public'),
-      description: t('sharedUi.createRoomAccessSelector.anyoneWithTheAddressCanJoin'),
+      label: t('sharedUi.createRoomAccessSelector.public'),
+      hint: t('sharedUi.createRoomAccessSelector.anyoneWithTheAddressCanJoin'),
     },
   ];
 
@@ -78,9 +78,9 @@ export function CreateRoomAccessSelector(props: CreateRoomAccessSelectorProps) {
           >
             <Icon size="200" src={option.icon} filled={selected} />
             <Box grow="Yes" direction="Column" gap="100">
-              <Text size="H6">{option.title}</Text>
+              <Text size="H6">{option.label}</Text>
               <Text size="T300" priority="300">
-                {option.description}
+                {option.hint}
               </Text>
             </Box>
             {selected && <Icon size="100" src={Icons.Check} />}

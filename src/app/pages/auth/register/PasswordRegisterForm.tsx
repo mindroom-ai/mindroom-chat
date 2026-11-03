@@ -65,16 +65,13 @@ export function PasswordRegisterForm({ baseUrl }: PasswordRegisterFormProps) {
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
-    const target = event.target as HTMLFormElement & {
-
-
-
-    };
-    const username = target.usernameInput.value.trim();
-    const password = target.passwordInput.value;
+    const fields = new FormData(event.currentTarget);
+    const username = String(fields.get('usernameInput') ?? '').trim();
+    const password = String(fields.get('passwordInput') ?? '');
+    const confirmation = String(fields.get('confirmPasswordInput') ?? '');
     setError(undefined);
-    setMismatch(password !== target.confirmPasswordInput.value);
-    if (password !== target.confirmPasswordInput.value) return;
+    setMismatch(password !== confirmation);
+    if (password !== confirmation) return;
     setBusy(true);
     try {
       const data = {

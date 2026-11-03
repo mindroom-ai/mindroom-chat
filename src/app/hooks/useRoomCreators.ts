@@ -44,17 +44,15 @@ const getCreateEvent = (room: Room): MatrixEvent | undefined =>
 /** The room's privileged creators, following its create event. */
 export const useRoomCreators = (room: Room): Set<string> => {
   const [version, refresh] = useForceUpdate();
-
-
-
-      () => (event: MatrixEvent) => {
-        if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomCreate) {
-          refresh();
-        }
-      },
-      [room.roomId, refresh]
-    )
+  const refreshOnCreateEvent = useMemo(
+    () => (event: MatrixEvent) => {
+      if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomCreate) {
+        refresh();
+      }
+    },
+    [room.roomId, refresh]
   );
+  useStateEventCallback(room.client, refreshOnCreateEvent);
 
   return useMemo(() => {
     void version;

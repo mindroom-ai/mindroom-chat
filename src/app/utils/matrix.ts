@@ -295,24 +295,24 @@ export const getMatrixUploadErrorMessage = (
 
 export type UploadContentOptions = {
   name?: string;
+  fileType?: string;
+  hideFilename?: boolean;
+  /** Receives the request, so the caller can cancel it with `mx.cancelUpload`. */
+  onPromise?: (request: Promise<UploadResponse>) => void;
+  onProgress?: (progress: UploadProgress) => void;
+  onSuccess: (mxcUri: string) => void;
+  onError: (error: MatrixError) => void;
+};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Uploads `file` to the media repository and reports the `mxc://` URI or the error. */
+export const uploadContent = async (
+  client: MatrixClient,
+  file: TUploadContent,
+  options: UploadContentOptions
+): Promise<void> => {
   const { name, fileType, hideFilename, onPromise, onProgress, onSuccess, onError } = options;
   try {
-    const request = mx.uploadContent(file, {
+    const request = client.uploadContent(file, {
       name,
       type: fileType,
       includeFilename: !hideFilename,

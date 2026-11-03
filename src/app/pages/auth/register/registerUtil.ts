@@ -11,20 +11,21 @@ import { CompletedAuth, useCompleteSession } from '../completeSession';
 export type CustomRegisterResponse = CompletedAuth<RegisterResponse>;
 
 /** Why a sign-up failed: the username, the password, or neither of them. */
+export const RegisterError = {
+  UserExclusive: 'UserExclusive',
+  UserInvalid: 'UserInvalid',
+  UserTaken: 'UserTaken',
+  PasswordShort: 'PasswordShort',
+  PasswordWeak: 'PasswordWeak',
+  Forbidden: 'Forbidden',
+  InvalidRequest: 'InvalidRequest',
+  RateLimited: 'RateLimited',
+  Unknown: 'Unknown',
+} as const;
+export type RegisterError = (typeof RegisterError)[keyof typeof RegisterError];
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** One step of a sign-up: done, another auth stage to answer, or a failure. */
+export type RegisterResult =
   | { kind: 'success'; response: RegisterResponse }
   | { kind: 'uia'; authData: IAuthData }
   | { kind: 'error'; error: RegisterError; message?: string };

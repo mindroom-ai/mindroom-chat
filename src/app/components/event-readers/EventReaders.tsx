@@ -18,6 +18,10 @@ const getEventReaders = (room: Room, eventId: string): string[] => {
   return room.getUsersReadUpTo(event).filter((userId) => userId !== sender);
 };
 
+/** The display name in the room, else the localpart of the user ID, else the whole ID. */
+const getReaderName = (room: Room, userId: string): string =>
+  getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
+
 /** Who has read up to the event, following new receipts. */
 const useEventReaders = (room: Room, eventId: string): string[] => {
   const [readers, setReaders] = useState(() => getEventReaders(room, eventId));
@@ -42,10 +46,16 @@ type EventReadersProps = {
 
 /** The list of people who have seen a message, for its read receipts dialog. */
 export function EventReaders({ room, eventId, requestClose }: EventReadersProps) {
-
-
-
+  const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
+  const { t } = useTranslation();
   const readers = useEventReaders(room, eventId);
+
+  const getAvatarSrc = (userId: string): string | undefined => {
+    const mxc = getMemberAvatarMxc(room, userId);
+    if (!mxc) return undefined;
+    return mxcUrlToHttp(client, mxc, authenticatedMedia, 96, 96, 'crop') ?? undefined;
+  };
 
   return (
     <Box direction="Column" style={{ height: '100%', minHeight: 0 }}>
@@ -69,16 +79,12 @@ export function EventReaders({ room, eventId, requestClose }: EventReadersProps)
       >
         <Box direction="Column" style={{ padding: config.space.S200 }}>
           {readers.map((userId) => {
-
-
-
-              ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
-              : undefined;
+            const name = getReaderName(room, userId);
             const avatar = (
               <Avatar size="200">
                 <UserAvatar
                   alt={name}
-                  src={avatarSrc}
+                  src={getAvatarSrc(userId)}
                   userId={userId}
                   renderFallback={() => <Icon size="50" filled src={Icons.User} />}
                 />

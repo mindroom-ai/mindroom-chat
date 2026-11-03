@@ -32,10 +32,10 @@ export const UploadBoard = style([
     maxWidth: config.size.DialogWidth,
     maxHeight: '50vh',
     display: 'flex',
-
-
-
-
+    borderRadius: config.radii.R400,
+    flexFlow: 'column',
+    overflow: 'hidden',
+    color: color.Surface.OnContainer,
     // The anchor passes clicks through; the panel takes them again.
     pointerEvents: 'auto',
   },

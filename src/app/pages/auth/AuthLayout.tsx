@@ -116,10 +116,10 @@ function ServerPicker({
 }
 
 /** The sign-in card around login, registration and password reset, with the homeserver choice. */
-
-
-
-
+export function AuthLayout() {
+  const { t } = useTranslation();
+  const { pathname, search, hash } = useLocation();
+  const navigate = useNavigate();
   const persistentParticle = usePersistentParticleBackground();
   const { server: encodedServer } = useParams();
   const defaultServer = useDefaultServer();
@@ -139,9 +139,9 @@ function ServerPicker({
     if (resolveAuthServer(nextServer, defaultServer, locked, homeserverList) !== nextServer) return;
     navigate(
       buildAuthRoutePath({
-        pathname: location.pathname,
-        search: location.search,
-        hash: location.hash,
+        pathname,
+        search,
+        hash,
         registrationAllowed: auth?.allowRegistration !== false,
         server: nextServer,
       }),

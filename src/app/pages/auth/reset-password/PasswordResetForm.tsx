@@ -34,10 +34,9 @@ type EmailToken = {
  * Resets the password through the account's email: the server sends a link,
  * and once it is opened the new password is set.
  */
-
-
-
-
+export function PasswordResetForm({ defaultEmail }: PasswordResetFormProps) {
+  const baseUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
+  const { t } = useTranslation();
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const serverName = useMemo(() => {
     try {
@@ -81,14 +80,10 @@ type EmailToken = {
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
-    const target = event.target as HTMLFormElement & {
-
-
-
-    };
-    const email = target.emailInput.value.trim();
-    const password = target.passwordInput.value;
-    if (password !== target.confirmPasswordInput.value) {
+    const fields = new FormData(event.currentTarget);
+    const email = String(fields.get('emailInput') ?? '').trim();
+    const password = String(fields.get('passwordInput') ?? '');
+    if (password !== String(fields.get('confirmPasswordInput') ?? '')) {
       setMismatch(true);
       return;
     }

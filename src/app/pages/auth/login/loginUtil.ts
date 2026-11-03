@@ -8,15 +8,16 @@ import { CompletedAuth, useCompleteSession } from '../completeSession';
 export type CustomLoginResponse = CompletedAuth<LoginResponse>;
 
 /** Why a login failed, as the login forms tell the user. */
-
-
-
-
-
-
-
-
-}
+export const LoginError = {
+  Forbidden: 'Forbidden',
+  InvalidRequest: 'InvalidRequest',
+  InvalidServer: 'InvalidServer',
+  RateLimited: 'RateLimited',
+  ServerNotAllowed: 'ServerNotAllowed',
+  Unknown: 'Unknown',
+  UserDeactivated: 'UserDeactivated',
+} as const;
+export type LoginError = (typeof LoginError)[keyof typeof LoginError];
 
 /** The error `login` throws, carrying the reason as a `LoginError`. */
 export class LoginFailure extends Error {

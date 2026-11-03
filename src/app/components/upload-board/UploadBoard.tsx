@@ -30,15 +30,15 @@ export function UploadBoard({ header, children }: UploadBoardProps) {
 export const UploadBoardContent = as<'div'>((props, ref) => {
   const { as: List = 'div', className, ...rest } = props;
   return <List ref={ref} {...rest} className={classNames(css.UploadBoardContent, className)} />;
+});
 
-
-
-
-
-
-
-
-
+type UploadBoardHeaderProps = {
+  /** Whether the card list is shown. */
+  open: boolean;
+  onToggle: VoidFunction;
+  /** The staged uploads, read for the counts and handed to `onCancel`. */
+  uploadFamilyObserverAtom: TUploadFamilyObserverAtom;
+  onCancel: (uploads: Upload[]) => void;
 };
 
 /**

@@ -4,10 +4,11 @@ import { settingsAtom } from '../state/settings';
 import * as palettes from '../../colors.css';
 
 /** Whether a theme is a light or a dark one; picks the system default and the code colors. */
-
-
-
-}
+export const ThemeKind = {
+  Dark: 'dark',
+  Light: 'light',
+} as const;
+export type ThemeKind = (typeof ThemeKind)[keyof typeof ThemeKind];
 
 export interface Theme {
   id: string;

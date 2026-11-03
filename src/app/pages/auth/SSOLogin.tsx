@@ -19,13 +19,17 @@ import {
   sortIdentityProviders,
 } from './ssoProviders';
 
+/** Which flow the buttons start, and how they are laid out. */
+type SSOButtonOptions = {
+  action?: SSOAction;
+  /** Shows providers as compact buttons in a row. */
+  saveScreenSpace?: boolean;
+};
 
-
-
-
-
-
-
+type SSOLoginProps = SSOButtonOptions & {
+  providers?: IIdentityProvider[];
+  /** Where the homeserver sends the browser back with a login token. */
+  redirectUrl: string;
 };
 
 const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeApp();

@@ -21,18 +21,18 @@ const getRoomAndAncestorIds = (roomId: string, roomToParents: Map<string, Set<st
  * The rooms whose image packs the emoji and sticker pickers offer in `roomId`: the room itself,
  * its parent spaces, and the homeserver's shared emoji room when the account has joined it.
  */
-
-
-
-
-
-
+export const useImagePackRooms = (
+  roomId: string,
+  parentsByRoom: Map<string, Set<string>>
+): Room[] => {
+  const client = useMatrixClient();
+  const serverEmojiRoom = useServerEmojiRoom();
 
   return useMemo(() => {
-    const ids = getRoomAndAncestorIds(roomId, roomToParents);
+    const ids = getRoomAndAncestorIds(roomId, parentsByRoom);
     if (serverEmojiRoom && !ids.includes(serverEmojiRoom.roomId)) ids.push(serverEmojiRoom.roomId);
     return ids
-      .map((id) => (id === serverEmojiRoom?.roomId ? serverEmojiRoom : mx.getRoom(id)))
+      .map((id) => (id === serverEmojiRoom?.roomId ? serverEmojiRoom : client.getRoom(id)))
       .filter((room): room is Room => !!room);
-  }, [mx, roomId, roomToParents, serverEmojiRoom]);
+  }, [client, roomId, parentsByRoom, serverEmojiRoom]);
 };

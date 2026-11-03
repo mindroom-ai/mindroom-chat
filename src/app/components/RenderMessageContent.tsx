@@ -39,33 +39,48 @@ import {
 } from '../mindroom/matrix/agentIdentity';
 import { MessageEvent } from '../../types/matrix/room';
 
-type RenderMessageContentProps = {
+/** How text bodies are parsed and decorated. */
+type BodyOptions = {
+  urlPreview?: boolean;
+  highlightRegex?: RegExp;
+  hydrateLongText?: boolean;
+  htmlReactParserOptions: HTMLReactParserOptions;
+  linkifyOpts: LinkifyOpts;
+};
+
+type RenderMessageContentProps = BodyOptions & {
   mEvent?: MatrixEvent;
   eventId?: string;
   displayName: string;
   msgType: string;
   eventType?: string;
   roomId?: string;
-
-
-
-
-
-
-
-
-
-
-
-
-
-  showMessageExtras?: boolean;
+  threadId?: string;
+  getContent: <T>() => T;
+  /** Sent time, which link previews are requested for. */
+  ts: number;
+  edited?: boolean;
   pendingSend?: boolean;
   failedSend?: boolean;
-  hydrateLongText?: boolean;
+  /** Load images and videos without a click. */
+  mediaAutoLoad?: boolean;
+  /** Draw a hairline around attachments that sit on a surface of their own color. */
+  outlineAttachment?: boolean;
+  showMessageExtras?: boolean;
 };
 
 type Content = Record<string, unknown>;
+
+/** One preview card per link, keyed by URL; a card asks for its preview as of the sent time. */
+function UrlPreviewList({ urls, sentAt }: { urls: string[]; sentAt: number }) {
+  return (
+    <UrlPreviewHolder>
+      {urls.map((url) => (
+        <UrlPreviewCard key={url} url={url} ts={sentAt} />
+      ))}
+    </UrlPreviewHolder>
+  );
+}
 
 /** Since Matrix 1.10 a media event with a `filename` and a different `body` has a caption. */
 const getCaption = (content: Content): string | undefined => {
@@ -83,33 +98,33 @@ const getCaption = (content: Content): string | undefined => {
  * The body of one timeline event. MindRoom's renderer goes first (agent replies, tool calls,
  * approvals, summaries, long text); standard Matrix message types follow.
  */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export function RenderMessageContent({
+  mEvent,
+  eventId,
+  roomId,
+  threadId,
+  eventType,
+  msgType,
+  displayName,
+  ts,
+  edited,
+  getContent,
+  mediaAutoLoad,
+  urlPreview,
+  outlineAttachment,
+  highlightRegex,
+  htmlReactParserOptions,
+  linkifyOpts,
+  showMessageExtras,
+  pendingSend,
+  failedSend,
+  hydrateLongText,
+}: RenderMessageContentProps) {
+  const client = useMatrixClient();
   const content = getContent<Content>();
   const fromMindroomAgent = isMindroomAgentUserIdForViewer(
     mEvent?.getSender(),
-    mx.getUserId() ?? undefined
+    client.getUserId() ?? undefined
   );
   // Agents stream by editing; their replies are not "edited" in the human sense.
   const agentManaged =
@@ -118,14 +133,8 @@ const getCaption = (content: Content): string | undefined => {
   const showEdited = !!edited && !agentManaged;
 
   const renderUrlsPreview = urlPreview
-
-
-
-
-
-
-
-
+    ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
+    : undefined;
 
   const mindroomContent = renderMindroomMessageContent({
     mEvent,
@@ -287,11 +296,9 @@ const getCaption = (content: Content): string | undefined => {
     case MsgType.File:
       return withCaption(renderFile());
     case MsgType.Location:
-
-
-
-
-
-
+      return <MLocation content={content} />;
+    default:
+      // Matrix 1.x leaves events the client cannot decrypt as `m.bad.encrypted` placeholders.
+      return msgType === 'm.bad.encrypted' ? <MBadEncrypted /> : <UnsupportedContent />;
   }
 }

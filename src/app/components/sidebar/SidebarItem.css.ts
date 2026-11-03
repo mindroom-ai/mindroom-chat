@@ -7,30 +7,34 @@ import { DefaultReset, color, config, toRem } from 'folds';
 // apart (S300), starting 12 px from the top (S300). Task 8's sidebar/Sidebar.css.ts keeps only
 // the drag source styles; the rail and stack are defined here once.
 
+/** A flex column, which the rail and its stacks both are. */
+const FlexColumn = style({ display: 'flex', flexFlow: 'column' });
+
+/** Centres whatever it holds on both axes. */
+const Centered = style({ display: 'flex', alignItems: 'center', justifyContent: 'center' });
+
 /** The rail: a fixed-width column, as tall as the client. */
-
-
-
-
-
-
+export const Sidebar = style([
+  DefaultReset,
+  FlexColumn,
+  {
+    flex: 'none',
+    color: color.Background.OnContainer,
+    backgroundColor: color.Background.Container,
     inlineSize: toRem(66),
     blockSize: '100%',
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
-
-
+/** A group of rail items, centred, `S300` apart and inset from the group's edges. */
+export const SidebarStack = style([
+  DefaultReset,
+  FlexColumn,
+  {
     inlineSize: '100%',
     paddingBlock: config.space.S300,
+    alignItems: 'center',
+    gap: config.space.S300,
   },
 ]);
 
@@ -40,28 +44,26 @@ export const SidebarStackSeparator = style({
   height: config.borderWidth.B300,
   backgroundColor: color.Background.ContainerLine,
   marginInline: 'auto',
+  flex: 'none',
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** A rail entry: the avatar button with its selection pill and unread badge. */
+export const SidebarItem = recipe({
+  base: [
+    DefaultReset,
+    // Centring also places the absolutely positioned pill vertically.
+    Centered,
+    {
+      position: 'relative',
+      selectors: {
+        // The selected tab's indicator: a pill on the rail's left edge. home.png: 4 px wide and
+        // 24 px tall when selected, flush with the edge (12 px left of the 42 px avatar).
+        '&::before': {
           content: '',
           position: 'absolute',
           left: `calc(-1 * ${toRem(12)})`,
-          width: toRem(4),
-          height: toRem(16),
+          inlineSize: toRem(4),
+          blockSize: toRem(16),
           borderRadius: `0 ${config.radii.Pill} ${config.radii.Pill} 0`,
           backgroundColor: color.Background.OnContainer,
           transform: 'scaleY(0)',
@@ -82,22 +84,23 @@ export const SidebarStackSeparator = style({
   },
 });
 
+/** A hairline drawn inside the avatar's edge, so it does not change the avatar's size. */
+const OutlineRing = `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`;
+
 /** The 42 px rounded square that a rail entry's icon or avatar fills. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export const SidebarAvatar = recipe({
+  base: [
+    DefaultReset,
+    Centered,
+    {
+      flex: 'none',
+      overflow: 'hidden',
+      padding: 0,
+      border: 0,
+      borderRadius: config.radii.R400,
+      color: color.Background.OnContainer,
+      background: 'none',
+      cursor: 'pointer',
       outline: 'none',
       selectors: {
         '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
@@ -117,27 +120,26 @@ export const SidebarStackSeparator = style({
     },
     outlined: {
       true: {
-
-
-
+        color: color.SurfaceVariant.OnContainer,
+        backgroundColor: color.SurfaceVariant.Container,
+        boxShadow: OutlineRing,
       },
     },
   },
   defaultVariants: { size: '400', outlined: false },
 });
 
+/** Offsets that put the badge's top-left corner `distance` px outside the entry's. */
+const cornerOffset = (distance: number) => ({ top: toRem(distance), left: toRem(distance) });
+
 /** The unread badge, pinned over the top-left corner of the rail entry. */
-
-
-
-
-
-
-
-
-
-      true: { top: toRem(-6), left: toRem(-6) },
-      false: { top: toRem(-2), left: toRem(-2) },
+export const SidebarItemBadge = recipe({
+  base: { position: 'absolute', zIndex: 1, pointerEvents: 'none' },
+  variants: {
+    // home.png: the unread count sits 6 px outside the avatar's top-left corner.
+    hasCount: {
+      true: cornerOffset(-6),
+      false: cornerOffset(-2),
     },
   },
   defaultVariants: { hasCount: false },

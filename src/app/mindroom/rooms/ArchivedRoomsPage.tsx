@@ -80,12 +80,12 @@ type ArchivedRoomsProps = {
  * Each can be opened as it is or brought back into the list.
  */
 export function ArchivedRooms({ requestClose, onNavigate }: ArchivedRoomsProps) {
-
-
-
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { navigateRoom } = useRoomNavigate();
   const roomIds = useAtomValue(joinedArchivedRoomsAtom);
   const rooms = roomIds
-    .map((roomId) => mx.getRoom(roomId))
+    .map((roomId) => client.getRoom(roomId))
     .filter((room): room is NonNullable<typeof room> => !!room)
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -99,13 +99,13 @@ export function ArchivedRooms({ requestClose, onNavigate }: ArchivedRoomsProps) 
           {rooms.length === 0 ? (
             <SettingTile title={t('archivedRooms.empty')} />
           ) : (
-            rooms.map((room) => (
+            rooms.map(({ roomId, name }) => (
               <ArchivedRoomRow
-
-
-
+                key={roomId}
+                roomId={roomId}
+                name={name}
                 onOpen={() => {
-                  navigateRoom(room.roomId);
+                  navigateRoom(roomId);
                   onNavigate();
                 }}
               />

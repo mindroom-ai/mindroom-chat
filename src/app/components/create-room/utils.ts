@@ -37,20 +37,15 @@ const PINNED_STATE_LEVEL = 100;
  * upgrade (`m.room.tombstone`) level above every assignable level, to 150.
  */
 export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
-  // Spec `m.room.*` state events, alphabetical.
-  const pinned = [
-
-
-
-    StateEvent.RoomServerAcl,
-  ];
-  const events: Record<string, number> = {};
-  pinned.forEach((type) => {
-    events[type] = PINNED_STATE_LEVEL;
-  });
-  events[StateEvent.RoomTombstone] = creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL;
-  // MSC3401 call membership: any member may join the call.
-  events[StateEvent.GroupCallMemberPrefix] = 0;
+  const events: Record<string, number> = {
+    [StateEvent.RoomEncryption]: PINNED_STATE_LEVEL,
+    [StateEvent.RoomHistoryVisibility]: PINNED_STATE_LEVEL,
+    [StateEvent.RoomPowerLevels]: PINNED_STATE_LEVEL,
+    [StateEvent.RoomServerAcl]: PINNED_STATE_LEVEL,
+    [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL,
+    // MSC3401 call membership: any member may join the call.
+    [StateEvent.GroupCallMemberPrefix]: 0,
+  };
   return { events };
 };
 
@@ -58,10 +53,10 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
  * The new room's `creation_content` (Client-Server API, `POST /createRoom`): its room type, and
  * `m.federate: false` when only users of this server may ever join.
  */
-
-
-
-): Record<string, unknown> => {
+export const createRoomCreationContent = ({
+  type,
+  allowFederation,
+}: Pick<CreateRoomData, 'type' | 'allowFederation'>): Record<string, unknown> => {
   const content: Record<string, unknown> = {};
   if (type) content.type = type;
   if (!allowFederation) content['m.federate'] = false;
@@ -72,11 +67,11 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
  * The `m.room.join_rules` state for `access`. A restricted room admits the members of `parent`;
  * with `knock`, everyone else may ask to join (`knock_restricted`, or `knock` for invite-only).
  */
-
-
-
-
-): ICreateRoomStateEvent => {
+export const createRoomJoinRulesState = ({
+  access,
+  parent,
+  knock,
+}: Pick<CreateRoomData, 'access' | 'parent' | 'knock'>): ICreateRoomStateEvent => {
   const joinRules = (content: Record<string, unknown>): ICreateRoomStateEvent => ({
     type: StateEvent.RoomJoinRules,
     state_key: '',
@@ -102,25 +97,35 @@ export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
   };
 };
 
-/** What `createRoom` needs; `CreateRoomForm` fills it in from the form. */
+/** What the room is called and how people find it. */
+type RoomIdentity = {
+  name: string;
+  topic?: string;
+  /** Local part of the room alias; the room gets none when left out. */
+  aliasLocalPart?: string;
+};
 
-
-
-
-
+/** Who may join the room and which protocol features it uses. */
+type RoomPolicy = {
+  access: CreateRoomAccess;
+  knock: boolean;
   /** Room version; the server default when left out. */
   version?: string;
-  /** `RoomType.Space` or `RoomType.Call`; a chat room when left out. */
+  allowFederation: boolean;
+  encryption?: boolean;
+};
 
+/** What `createRoom` needs; `CreateRoomForm` fills it in from the form. */
+export type CreateRoomData = RoomIdentity &
+  RoomPolicy & {
+    /** `RoomType.Space` or `RoomType.Call`; a chat room when left out. */
+    type?: RoomType;
+    /** The space to add the room to. */
+    parent?: Room;
+  };
 
-
-
-
-
-
-
-
-
+/** Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. */
+export const createRoom = async (client: MatrixClient, data: CreateRoomData): Promise<string> => {
   const { access, parent, type, version } = data;
   const isPublic = access === CreateRoomAccess.Public;
   const isVoice = type === RoomType.Call;
@@ -128,7 +133,7 @@ export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
   const initialState = [
     data.encryption ? createRoomEncryptionState() : undefined,
     parent && createRoomParentState(parent),
-    createRoomJoinRulesState(access, parent, data.knock),
+    createRoomJoinRulesState(data),
     isVoice ? createRoomCallState() : undefined,
   ].filter((event): event is ICreateRoomStateEvent => event !== undefined);
 
@@ -140,18 +145,18 @@ export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
     preset: isPublic ? Preset.PublicChat : Preset.PrivateChat,
     visibility: isPublic ? Visibility.Public : Visibility.Private,
     initial_state: initialState,
-    creation_content: createRoomCreationContent(type, data.allowFederation),
+    creation_content: createRoomCreationContent(data),
     ...(isVoice
       ? { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }
       : {}),
   };
 
-  const result = await mx.createRoom(options);
+  const result = await client.createRoom(options);
 
   const roomId = result.room_id;
   if (parent) {
     const childContent = { via: getViaServers(parent), suggested: false, auto_join: false };
-    await mx.sendStateEvent(
+    await client.sendStateEvent(
       parent.roomId,
       StateEvent.SpaceChild as never,
       childContent as never,

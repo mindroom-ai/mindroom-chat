@@ -40,10 +40,10 @@ export type IEmoji = {
 };
 
 /** One picker section and its emoji, in Unicode order. */
-
-
-
-};
+export interface IEmojiGroup {
+  id: EmojiGroupId;
+  emojis: IEmoji[];
+}
 
 type CompactEmojiData = {
   hexcode: string;

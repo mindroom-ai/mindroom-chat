@@ -43,13 +43,11 @@ export const useBindRoomListAtom = (
   const setRooms = useSetAtom(roomListAtom);
 
   useEffect(() => {
-    setRooms({
-
-
-
-        .filter(belongs)
-        .map((room) => room.roomId),
-    });
+    const initialRoomIds = mx
+      .getRooms()
+      .filter(belongs)
+      .map((room) => room.roomId);
+    setRooms({ type: 'INITIALIZE', rooms: initialRoomIds });
 
     const update = (room: Room) => {
       setRooms(

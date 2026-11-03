@@ -29,15 +29,15 @@ export const AuthLayoutPersistentParticle = style({
 /** The sign-in card: full width on phones, capped on wider screens. */
 export const AuthCard = style({
   inlineSize: '100%',
-  maxInlineSize: toRem(460),
-  overflow: 'hidden',
-
-
-
-
-  boxShadow: color.Surface.Container,
-  zIndex: 1,
   position: 'relative',
+  zIndex: 1,
+  maxInlineSize: toRem(460),
+  borderRadius: config.radii.R400,
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  boxShadow: color.Surface.Container,
+  overflow: 'hidden',
+  color: color.Surface.OnContainer,
+  backgroundColor: color.Surface.Container,
   pointerEvents: 'auto',
 });
 
@@ -45,17 +45,16 @@ export const AuthCard = style({
 export const AuthLogo = style([
   DefaultReset,
   {
+    objectFit: 'cover',
+    borderRadius: '100%',
     blockSize: config.size.X500,
     inlineSize: config.size.X500,
+  },
+]);
 
-
-
-
-
-
-
-  paddingBlock: 0,
-  paddingInline: config.space.S400,
+/** The card's title bar with the logo and the app name. */
+export const AuthHeader = style({
+  padding: `0 ${config.space.S400}`,
 });
 
 /** Space between the card's sections, and under the last one. */
