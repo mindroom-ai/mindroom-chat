@@ -410,7 +410,7 @@ export const useTimelineMessageFeature = ({
         : undefined;
       if (summaryInfo && marker) {
         return (
-          <MessageAside key={eventId}>
+          <MessageAside key={eventId} spaced>
             <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
           </MessageAside>
         );
