@@ -13,6 +13,8 @@
     <link rel="icon" type="image/png" sizes="128x128" href="/res/branding/mindroom-favicon.png" />
     <link rel="apple-touch-icon" href="/res/icons/apple-touch-icon.png" />
     <script src="/runtime-config.js"></script>
+    <!-- Also loaded on its own, so a deployment's custom runtime-config.js cannot drop it. -->
+    <script src="/authentication-recovery.js"></script>
   </head>
   <body>
     <noscript>MindRoom needs JavaScript enabled.</noscript>
