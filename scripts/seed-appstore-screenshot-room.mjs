@@ -179,17 +179,18 @@ const MODEL = {
   provider: 'anthropic',
 };
 
-/** An agent's finished reply; `tools` are [name, arguments, result] rows shown above the text. */
+/**
+ * An agent's finished reply; `tools` are [name, arguments, result] rows shown above the text. Each
+ * tool marker is a paragraph of its own, as MindRoom sends them, so the client groups them.
+ */
 const answer = (agent, roomId, rootId, { body, html, tools = [] }) => {
-  const markers = tools.map(([name], index) => `🔧 \`${name}\` [${index + 1}]`);
-  const markerHtml = tools
-    .map(([name], index) => `🔧 <code>${name}</code> [${index + 1}]`)
-    .join('<br>');
+  const markers = tools.map(([name], index) => `🔧 \`${name}\` [${index + 1}]\n\n`);
+  const markerHtml = tools.map(([name], index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`);
   return send(agent, roomId, {
     msgtype: 'm.text',
-    body: markers.length > 0 ? `${markers.join('\n')}\n\n${body}` : body,
+    body: `${markers.join('')}${body}`,
     format: 'org.matrix.custom.html',
-    formatted_body: markerHtml ? `<p>${markerHtml}</p>${html}` : html,
+    formatted_body: `${markerHtml.join('')}${html}`,
     'm.relates_to': threadRelation(rootId, rootId),
     'io.mindroom.stream_status': 'completed',
     'io.mindroom.ai_run': {
@@ -202,7 +203,7 @@ const answer = (agent, roomId, rootId, { body, html, tools = [] }) => {
     ...(tools.length > 0
       ? {
           'io.mindroom.tool_trace': {
-            version: 1,
+            version: 2,
             events: tools.map(([name, args, result]) => ({
               type: 'tool_call_completed',
               tool_name: name,
