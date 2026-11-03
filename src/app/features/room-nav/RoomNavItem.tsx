@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -68,8 +68,14 @@ type RoomNavItemMenuProps = {
 };
 
 const menuGroupStyle = { padding: config.space.S100 } as const;
+const roomMenuStyle = { minWidth: toRem(200) } as const;
 
-function RoomNavItemMenu({ room, requestClose, onPrompt }: RoomNavItemMenuProps) {
+// The focus trap around the menu finds its container through this ref, so Escape and a click
+// outside close the menu.
+const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(function RoomNavItemMenu(
+  { room, requestClose, onPrompt },
+  ref
+) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const openRoomSettings = useOpenRoomSettings();
@@ -81,12 +87,11 @@ function RoomNavItemMenu({ room, requestClose, onPrompt }: RoomNavItemMenuProps)
     action();
   };
 
-  const copyLink = () => {
-    void copyToClipboard(getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId)));
-  };
+  // A matrix.to link, which opens the room in any Matrix client.
+  const shareableLink = getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId));
 
   return (
-    <Menu style={{ minWidth: toRem(200) }}>
+    <Menu style={roomMenuStyle} ref={ref}>
       <Box direction="Column" gap="100" style={menuGroupStyle}>
         <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
         {canInvite && (
@@ -99,7 +104,7 @@ function RoomNavItemMenu({ room, requestClose, onPrompt }: RoomNavItemMenuProps)
         <RoomMenuEntry
           icon={Icons.Link}
           label={t('featureUi.roomNav.roomNavItem.copyLink')}
-          onClick={closeThen(copyLink)}
+          onClick={closeThen(() => copyToClipboard(shareableLink))}
         />
         <RoomMenuEntry
           icon={Icons.Setting}
@@ -119,7 +124,7 @@ function RoomNavItemMenu({ room, requestClose, onPrompt }: RoomNavItemMenuProps)
       </Box>
     </Menu>
   );
-}
+});
 
 type RoomMenuEntryProps = {
   icon: IconSrc;
@@ -138,7 +143,7 @@ function RoomMenuEntry({ icon, label, onClick, critical }: RoomMenuEntryProps) {
       after={<Icon size="100" src={icon} />}
       onClick={onClick}
     >
-      <Text as="span" size="T300" truncate style={{ flexGrow: 1 }}>
+      <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
         {label}
       </Text>
     </MenuItem>

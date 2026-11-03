@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import React, { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Line, Text, config, toRem, type IconSrc } from 'folds';
@@ -59,70 +59,76 @@ function MenuGroup({ children }: { children: ReactNode }) {
 
 /**
  * The room header's options menu: read state, sharing, settings, search, the computer when the
- * header does not show it, then archiving and leaving the room.
+ * header does not show it, then archiving and leaving the room. The ref reaches the menu element,
+ * which the focus trap around it needs to close on Escape and outside clicks.
  */
-export function RoomHeaderMenu({
-  room,
-  requestClose,
-  onInvite,
-  onCopyLink,
-  onOpenSettings,
-  onSearchMessages,
-  onShowComputer,
-  onLeave,
-}: RoomHeaderMenuProps) {
-  const { t } = useTranslation();
-  const closeThen = (action: () => void) => () => {
-    requestClose();
-    action();
-  };
+export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
+  function RoomHeaderMenu(
+    {
+      room,
+      requestClose,
+      onInvite,
+      onCopyLink,
+      onOpenSettings,
+      onSearchMessages,
+      onShowComputer,
+      onLeave,
+    },
+    ref
+  ) {
+    const { t } = useTranslation();
+    const closeThen = (action: () => void) => () => {
+      requestClose();
+      action();
+    };
 
-  return (
-    <Menu style={{ minWidth: toRem(200), maxWidth: toRem(280) }}>
-      <MenuGroup>
-        <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
-        {onInvite && (
+    return (
+      <Menu ref={ref} style={{ minWidth: toRem(200), maxWidth: toRem(280) }}>
+        <MenuGroup>
+          <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+          {onInvite && (
+            <HeaderMenuEntry
+              icon={Icons.UserPlus}
+              label={t('mindroomUi.threads.mindroomRoomViewHeader.invite')}
+              onSelect={closeThen(onInvite)}
+            />
+          )}
           <HeaderMenuEntry
-            icon={Icons.UserPlus}
-            label={t('mindroomUi.threads.mindroomRoomViewHeader.invite')}
-            onSelect={closeThen(onInvite)}
+            icon={Icons.Link}
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.copyLink')}
+            onSelect={closeThen(onCopyLink)}
           />
-        )}
-        <HeaderMenuEntry
-          icon={Icons.Link}
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.copyLink')}
-          onSelect={closeThen(onCopyLink)}
-        />
-        <HeaderMenuEntry
-          icon={Icons.Setting}
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.roomSettings')}
-          onSelect={closeThen(onOpenSettings)}
-        />
-        {onSearchMessages && (
           <HeaderMenuEntry
-            icon={Icons.Search}
-            label={t('nav.messageSearch')}
-            onSelect={closeThen(onSearchMessages)}
+            icon={Icons.Setting}
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.roomSettings')}
+            onSelect={closeThen(onOpenSettings)}
           />
-        )}
-        {onShowComputer && (
+          {onSearchMessages && (
+            <HeaderMenuEntry
+              icon={Icons.Search}
+              label={t('nav.messageSearch')}
+              onSelect={closeThen(onSearchMessages)}
+            />
+          )}
+          {onShowComputer && (
+            <HeaderMenuEntry
+              icon={Icons.Monitor}
+              label={t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
+              onSelect={closeThen(onShowComputer)}
+            />
+          )}
+        </MenuGroup>
+        <Line variant="Surface" size="300" />
+        <MenuGroup>
+          <ArchiveRoomMenuItem room={room} onClose={requestClose} />
           <HeaderMenuEntry
-            icon={Icons.Monitor}
-            label={t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
-            onSelect={closeThen(onShowComputer)}
+            critical
+            icon={Icons.ArrowGoLeft}
+            label={t('mindroomUi.threads.mindroomRoomViewHeader.leaveRoom')}
+            onSelect={closeThen(onLeave)}
           />
-        )}
-      </MenuGroup>
-      <Line variant="Surface" size="300" />
-      <MenuGroup>
-        <ArchiveRoomMenuItem room={room} onClose={requestClose} />
-        <HeaderMenuEntry
-          critical
-          icon={Icons.ArrowGoLeft}
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.leaveRoom')}
-          onSelect={closeThen(onLeave)}
-        />
-      </MenuGroup>
-    </Menu>
-  );
-}
+        </MenuGroup>
+      </Menu>
+    );
+  }
+);
