@@ -31,12 +31,13 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
 
 /**
  * A pinned approval request through the message renderer, so it shows the same card as in the
- * timeline. A relation-only edit (an encrypted pin whose edit was found by relation) carries the
- * decided status in `m.new_content`, which is merged onto the original request.
+ * timeline and answers the request in the approval's room and thread. A relation-only edit (an
+ * encrypted pin whose edit was found by relation) carries the decided status in `m.new_content`,
+ * which is merged onto the original request.
  */
 export const renderMindroomPinnedToolApprovalEvent = (
   event: MatrixEvent,
-  { displayName, editedEvent, ...options }: MindroomPinnedToolApprovalRenderOptions
+  { displayName, editedEvent, eventId, ...options }: MindroomPinnedToolApprovalRenderOptions
 ): ReactNode => {
   const newContent = asRecord(editedEvent?.getContent()?.['m.new_content']);
   const getContent = (() =>
@@ -58,6 +59,9 @@ export const renderMindroomPinnedToolApprovalEvent = (
       linkifyOpts={options.linkifyOpts}
       outlineAttachment={options.outlineAttachment}
       mEvent={event}
+      roomId={options.roomId}
+      eventId={eventId ?? event.getId()}
+      threadId={event.threadRootId}
     />
   );
 };

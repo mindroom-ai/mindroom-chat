@@ -101,8 +101,13 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
   return replyEventId !== previousEventId;
 };
 
+const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
+
 /**
- * Re-render the host when an encrypted row on screen decrypts. Listens to exactly the events the
+ * Re-render the host when an encrypted row on screen decrypts or gets new content from an edit.
+ * An encrypted edit, such as each step of an agent reply streaming in an encrypted room, replaces
+ * its target only once decrypted, after the timeline change that brought it; an edit in a room
+ * without encryption replaces its target before that change. Listens to exactly the events the
  * last render showed: new rows subscribe, rows that left the screen unsubscribe.
  */
 const useDecryptionRepaint = (renderedEventsRef: RefObject<MatrixEvent[]>): number => {
@@ -115,19 +120,19 @@ const useDecryptionRepaint = (renderedEventsRef: RefObject<MatrixEvent[]>): numb
     );
     subscribed.forEach((event) => {
       if (current.has(event)) return;
-      event.removeListener(MatrixEventEvent.Decrypted, repaint);
+      REPAINT_EVENTS.forEach((name) => event.removeListener(name, repaint));
       subscribed.delete(event);
     });
     current.forEach((event) => {
       if (subscribed.has(event)) return;
-      event.on(MatrixEventEvent.Decrypted, repaint);
+      REPAINT_EVENTS.forEach((name) => event.on(name, repaint));
       subscribed.add(event);
     });
   });
   useEffect(
     () => () => {
       subscribedRef.current.forEach((event) =>
-        event.removeListener(MatrixEventEvent.Decrypted, repaint)
+        REPAINT_EVENTS.forEach((name) => event.removeListener(name, repaint))
       );
       subscribedRef.current.clear();
     },
@@ -359,6 +364,9 @@ export const useTimelineMessageFeature = ({
       const contentProps = {
         mEvent: event,
         eventId,
+        // Approval cards send their responses to this room and thread.
+        roomId: room.roomId,
+        threadId: threadId ?? event.threadRootId,
         displayName: room.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
         msgType,
         eventType: event.getType(),
