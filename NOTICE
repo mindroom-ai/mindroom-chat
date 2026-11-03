@@ -11,7 +11,8 @@ from MindRoom Chat (mindroom-ai/mindroom-chat) at commit fc3a5905. Per his
 instruction of 2026-11-02, he licenses the lines he wrote in the files of both
 imports under the Apache License, Version 2.0 for this project. Lines by any
 other author were blanked when copied (docs/provenance/holes.tsv and
-holes-wave2.tsv) and written fresh here. docs/provenance/import.txt names the
+holes-wave2.tsv) and written fresh here, as were lines that matched the upstream client
+(docs/provenance/holes-overlap*.tsv). docs/provenance/import.txt names the
 import commits; docs/provenance.md describes the process.
 
 Third-party notices

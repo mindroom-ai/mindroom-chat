@@ -4,15 +4,16 @@ This repository has two kinds of code. The spec (`docs/baspowers/specs/2026-11-0
 
 ## Lane P: files ported from MindRoom Chat
 
-- Source: `mindroom-ai/mindroom-chat` at `fc3a5905` (`dev`, 2026-11-02), imported in two waves.
+- Source: `mindroom-ai/mindroom-chat` at `fc3a5905` (`dev`, 2026-11-02), imported in three waves (wave 3: binary assets, `portable-wave3.tsv`, verified by blob hash).
 - Selection: `git blame -w -M -C -C` attributes at least 95% of the file's lines to Bas Nijholt (`bas@nijho.lt`). Every line attributed to anyone else was blanked when copied and listed in the wave's hole file (path, line). Lane C rewrites the blanked lines.
-- Wave 1: `docs/provenance/portable.tsv` (path, Bas lines, blanked lines): 1581 files, 329,229 Bas lines, 655 blanked lines in `docs/provenance/holes.tsv`. The TypeScript code and tests under `src/` and `e2e/`.
-- Wave 2: `docs/provenance/portable-wave2.tsv`, same columns: 192 files, 93,171 Bas lines, 4 blanked lines in `docs/provenance/holes-wave2.tsv`. The other files Bas wrote: the native shells (`ios/`, `android/`), `patches/`, locales, test fixtures and traces, `public/` assets, `scripts/`, `serve.py`, the Docker entrypoint, and repository tooling.
+- Wave 1: `docs/provenance/portable.tsv` (path, Bas lines, blanked lines): 1580 files, 329,093 Bas lines, 655 blanked lines in `docs/provenance/holes.tsv`. The TypeScript code and tests under `src/` and `e2e/`.
+- Wave 2: `docs/provenance/portable-wave2.tsv`, same columns: 177 files, 73,719 Bas lines, 4 blanked lines in `docs/provenance/holes-wave2.tsv`. The other files Bas wrote: the native shells (`ios/`, `android/`), `patches/`, locales, test fixtures and traces, `public/` assets, `scripts/`, `serve.py`, and the Docker entrypoint.
 - `docs/provenance/import.txt` has one line per wave: the import commit in this repository, then the source (`mindroom-chat fc3a5905`).
 - Grant: per Bas Nijholt's instruction of 2026-11-02, as the author of the lines in the files of both waves he licenses them under the Apache License 2.0 for this project. `NOTICE` records this.
 - Tool: `scripts/port_files.py <chat checkout> <commit> [--wave N]` performs an import; `--verify` recomputes it and compares it with that wave's import commit. `scripts/verify-ported.sh <chat checkout>` (`just verify-ported`) runs the verification for every wave in `import.txt`.
-- Holes: `scripts/check_holes.py --wave N --rev <commit>` (`just check-holes`) checks that each wave's files differ from the import only in their blanked lines, at the commit that filled them (`f824c82` for wave 1, `2717365` for wave 2).
-- Dropped: `docs/provenance/dropped.tsv` (path, wave, reason) lists the Lane P files deleted because their feature is not part of this client (Element Call, the room-level thread filter bar, Simple Mode) or because they are MindRoom Chat repository tooling (`.envrc`, `.github/`, `.claude/`, `.agents/skills`, `.gitattributes` with its merge driver, the release-tag and merge-driver scripts, the test of the release workflow). `FORK_CHANGES.md` (wave 2) was deleted (a repository-wide grep by the F4 implementer printed about 15 of its lines, all mentions of tooling file names; see the session log for other sessions that read it): it describes MindRoom Chat internals that were not ported, and Lane C must not read it. Dropped files stay in the portable lists as imported: `check_holes.py` skips them, `verify-ported.sh` still verifies them (it reads the import commit, not the working tree), and the similarity audit counts them in neither lane.
+- Holes: `scripts/check_holes.py --wave N --rev <commit>` (`just check-holes`) checks that each wave's files differ from the import only in their blanked lines, at the commit that filled them (`feed1b4` for wave 1, `ec7dca5` for wave 2). Lines blanked for Cinny overlap count as holes too (see below).
+- Dropped: `docs/provenance/dropped.tsv` (path, wave, reason) lists the Lane P files deleted because their feature is not part of this client (Element Call, the room-level thread filter bar, Simple Mode). They stay in the portable lists as imported: `check_holes.py` skips them, `verify-ported.sh` still verifies them (it reads the import commit, not the working tree), and the similarity audit counts them in neither lane.
+- Removed from history: MindRoom Chat repository tooling (`.envrc`, `.github/`, `.claude/`, `.agents/skills`, `.gitattributes` with its merge driver, the release-tag and merge-driver scripts, the test of the release workflow) and `FORK_CHANGES.md` were imported in waves 1 and 2 and later deleted; the 2026-11-03 history rewrite removed them from every commit and their rows from the portable and dropped lists. `FORK_CHANGES.md` describes MindRoom Chat internals that were not ported, and no session may read it from any copy (see the session log for the sessions that saw parts of it before it was dropped).
 
 ## Lane C: clean code
 
@@ -26,9 +27,26 @@ Supporting inventories, computed by the orchestrator from blame and imports only
 
 `scripts/similarity-audit.sh <corpus dir>...` compares Lane C with each corpus: Lane P is both portable lists minus `dropped.tsv`; Lane C is every other file, tracked or untracked but not ignored, under `src/`, `scripts/` and `e2e/`, plus the root config files. Only the orchestrator runs it against Cinny and MindRoom Chat, and only its report (paths and line ranges) is kept.
 
+## Cinny overlap check
+
+Bas's requirement of 2026-11-03: no line of Cinny's (AGPL-3.0) code in this repository, in any commit. `scripts/upstream-overlap/check.py --corpus <Cinny git repository>` (`just upstream-overlap <corpus>`, part of `just check`, skipped without a corpus) compares files with every version of every Cinny file in the corpus's history and prints only paths and line ranges of this repository. It flags:
+
+- **Line runs:** 3 or more consecutive counted lines that each occur in Cinny. A counted line has at least 8 characters after trimming and is not trivial. Trivial lines are skipped (they neither count nor break a run): import and re-export statements (the ported files keep Cinny's module paths), JSX closing tags, JSX tags or attributes whose values are all literals (folds design tokens such as `variant="Surface"`), lines that are only a Matrix namespaced identifier (`'m.relates_to': {`), lines that are only a name or pass a prop under its own name (`eventId,`, `room={room}`; the ported code fixes these names), and comment lines. Lines that also occur in third-party code under `node_modules` are skipped as generic. `package.json` and `package-lock.json` are not checked (dependency names and versions).
+- **Token runs:** 30 or more consecutive tokens of JavaScript, TypeScript or CSS (comments, imports and trivial lines left out) that occur in the same order in a Cinny file.
+
+`--history` checks every blob of every commit. jscpd at 30 tokens against six Cinny release snapshots (`--jscpd`) was used in addition for the rewrite; its ranges are coarser.
+
+History rewrite of 2026-11-03 (`scripts/upstream-overlap/rewrite_history.py`, git-filter-repo; the commits and their messages stay, one commit that became empty was pruned, and the history still starts at the repository's initial commit):
+
+- Every flagged range in every blob was replaced by empty lines (imports kept, line numbers unchanged), and each blob was checked again and blanked further until it passed. `docs/provenance/history-blanked.tsv` lists every blanked line by blob. The rewrite ran three times on 2026-11-03: once over the history up to the M1 branch, once to drop a removed file's row from `portable.tsv`, and once over the fill commits below after the check learned the name-only and comment rules.
+- Lane P lines blanked in the import commits are listed in `docs/provenance/holes-overlap-import.tsv` (path, line, wave); `port_files.py --verify` blanks them too, so every wave still verifies against MindRoom Chat `fc3a5905`.
+- At the tip (`docs/provenance/overlap.txt`), 5,854 lines in 355 files were blank. Lane C sessions wrote them fresh without the removed code (round 1), then rewrote what still matched, with the check's line ranges for their own files as feedback (round 2). The 821 Lane P lines among them (84 files, `docs/provenance/holes-overlap.tsv`) were filled one line each; `check_holes.py --overlap --rev 54314f8` checks that.
+- `docs/provenance/history-rewrite-commit-map.txt` maps each commit from before the rewrite to its new commit. The old commits exist only in a private backup bundle.
+- Result: 0 findings at the tip and in every blob of every commit.
+
 ## What the orchestrator saw
 
-The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5905` locally and captured `docs/design/reference/`; computed blame and import graphs over MindRoom Chat; read MindRoom Chat repository metadata (license, package manifest, path names, settings labels in the running app); and read the MindRoom backend docs and source (Apache-2.0). It never opened a Cinny-authored source file.
+The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5905` locally and captured `docs/design/reference/`; computed blame and import graphs over MindRoom Chat; read MindRoom Chat repository metadata (license, package manifest, path names, settings labels in the running app); and read the MindRoom backend docs and source (Apache-2.0). It never opened a Cinny-authored source file. On 2026-11-03 it built the overlap check, which reads a full Cinny clone; it looked at lines of this repository that the check reported (to classify trivial lines and tune the rules) but not at Cinny's files.
 
 ## Session log
 
@@ -54,6 +72,9 @@ The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5
 | 2026-11-03 | types pin and Signal fix | Claude Sonnet 5.5, Claude Haiku 5.5 | pinned @types/react 18.2.39 and @types/react-dom 18.2.17; Signal voice override audio/aac | this repository; no MindRoom Chat or Cinny source |
 | 2026-11-03 | audit rewriters R1 to R5 and one follow-up | Claude Opus 5.5, Claude Sonnet 5.5 | rewrote 135 Lane C spans the similarity audit flagged (given file and line ranges only, never the matched code) | this repository, library documentation; no MindRoom Chat, Cinny or audit report contents |
 | 2026-11-03 | credit change | Claude Sonnet 5.5 | removed the Cinny credit from the UI at Bas's request; Bas-directed edit to Lane P authUi.ts (also branding.ts, their tests, the App Store description, NOTICE) | this repository; no MindRoom Chat or Cinny source |
+| 2026-11-03 | orchestrator | Claude Opus 5.5 | Cinny overlap check, history rewrite (three passes), overlap holes in the port tools, fill assignments | ran the overlap check over a full Cinny clone and jscpd over six Cinny release snapshots without reading their sources; this repository |
+| 2026-11-03 | overlap fillers, round 1 (12 parallel sessions, areas a to l) | Claude Opus 5.5 | wrote the 5,854 blanked lines fresh (`fix: rewrite code blanked for Cinny overlap in <area>`) | this repository (blanked files, their importers and tests, `seams.tsv`, `docs/design/reference/`), library type definitions; no MindRoom Chat or Cinny source, no older git content |
+| 2026-11-03 | overlap rewriters, round 2 (12 parallel sessions, areas a to l) | Claude Sonnet 5.5 | rewrote what still matched (`refactor: remove remaining Cinny overlap in <area>`) | as round 1, plus the overlap check's paths and line ranges for their own files; no corpus contents |
 
 ## Similarity audit
 

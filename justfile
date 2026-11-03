@@ -44,7 +44,7 @@ build:
     npx vite build
 
 # Everything CI runs.
-check: typecheck lint test license-check verify-ported check-holes
+check: typecheck lint test license-check verify-ported check-holes upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
@@ -58,7 +58,15 @@ verify-ported *checkout:
 # Lane P files may differ from each import only in their blanked lines. Later Lane P edits are allowed, so each wave is checked at the commit that filled its blanks, not the working tree.
 check-holes:
     python3 scripts/check_holes.py --wave 1 --rev feed1b4
-    python3 scripts/check_holes.py --wave 2 --rev d5ddbcf
+    python3 scripts/check_holes.py --wave 2 --rev ec7dca5
+    python3 scripts/check_holes.py --overlap --rev 54314f8
+
+# No run of 3+ shared lines or 30+ shared tokens with any version of the upstream client (docs/provenance.md); pass a full upstream git clone, skipped without one. Add --history to check every commit.
+upstream-overlap corpus='' *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
+    python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
 
 # Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:
