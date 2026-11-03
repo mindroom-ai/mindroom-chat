@@ -18,10 +18,13 @@ import {
 } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
+import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
+import { INBOX_PATH } from '../../paths';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { getMemberDisplayName, getRoomAvatarUrl } from '../../../utils/room';
 import { getMxIdLocalPart } from '../../../utils/matrix';
 import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
@@ -169,33 +172,40 @@ export function Notifications() {
     ['all', t('sharedUi.notifications.allNotifications')],
     ['highlight', t('sharedUi.notifications.highlighted')],
   ];
+  // A phone's header holds only the way back and the title; the filters open the list instead.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const filterChips = (
+    <Box shrink="No" gap="200" role="group" aria-label={t('sharedUi.notifications.filter')}>
+      {filters.map(([value, label]) => (
+        <Chip
+          key={value}
+          radii="Pill"
+          variant={filter === value ? 'Primary' : 'SurfaceVariant'}
+          aria-pressed={filter === value}
+          onClick={() => setFilter(value)}
+        >
+          <Text size="T200">{label}</Text>
+        </Chip>
+      ))}
+    </Box>
+  );
 
   return (
     <Page>
       <PageHeader balance>
+        <PhoneBackButton to={INBOX_PATH} />
         <Box grow="Yes" alignItems="Center" justifyContent="SpaceBetween" gap="200">
           <Text size="H4" truncate>
             {t('sharedUi.notifications.notificationMessages')}
           </Text>
-          <Box shrink="No" gap="200" role="group" aria-label={t('sharedUi.notifications.filter')}>
-            {filters.map(([value, label]) => (
-              <Chip
-                key={value}
-                radii="Pill"
-                variant={filter === value ? 'Primary' : 'SurfaceVariant'}
-                aria-pressed={filter === value}
-                onClick={() => setFilter(value)}
-              >
-                <Text size="T200">{label}</Text>
-              </Chip>
-            ))}
-          </Box>
+          {!phone && filterChips}
         </Box>
       </PageHeader>
       <PageScroll>
         <PageContent>
           <PageContentCenter>
             <Box direction="Column" gap="400">
+              {phone && filterChips}
               {shouldRenderNotificationLoadingPlaceholders(status, groups.length) && (
                 <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
                   <Spinner variant="Secondary" size="400" />

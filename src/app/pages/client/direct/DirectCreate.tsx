@@ -5,10 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { EventType, KnownMembership, Preset, Visibility } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
+import { PhonePageHeader } from '../../../components/page/PhonePageHeader';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { addRoomIdToMDirect, isUserId } from '../../../utils/matrix';
 import { getDirectCreateSearchParams } from '../../pathSearchParam';
 import { getDirectRoomPath } from '../../pathUtils';
+import { DIRECT_PATH } from '../../paths';
 
 type MDirectContent = Record<string, string[] | undefined>;
 
@@ -45,6 +48,8 @@ export function DirectCreate() {
   const [creating, setCreating] = useState(false);
   const [invalid, setInvalid] = useState(false);
   const [failed, setFailed] = useState(false);
+  // On phones the title moves into a title bar that leads back to Direct Messages.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   const existingRoomId = requestedUserId ? findDirectRoom(client, requestedUserId) : undefined;
   useEffect(() => {
@@ -115,54 +120,59 @@ export function DirectCreate() {
   );
 
   return (
-    <Box
-      direction="Column"
-      gap="500"
-      style={{
-        padding: config.space.S400,
-        width: '100%',
-        maxWidth: '640px',
-        margin: '0 auto',
-        overflowY: 'auto',
-      }}
-    >
-      <Box direction="Column" gap="100">
-        <Text size="H3">{t('sharedUi.directCreate.createChat')}</Text>
-        <Text size="T300" priority="300">
-          {t('sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId')}
-        </Text>
-      </Box>
-      <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
-        {userIdField}
+    <Box direction="Column" grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
+      <PhonePageHeader to={DIRECT_PATH} title={t('sharedUi.directCreate.createChat')} />
+      <Box
+        direction="Column"
+        gap="500"
+        style={{
+          padding: config.space.S400,
+          width: '100%',
+          maxWidth: '640px',
+          margin: '0 auto',
+          overflowY: 'auto',
+          flexGrow: 1,
+          minHeight: 0,
+        }}
+      >
         <Box direction="Column" gap="100">
-          <Text size="L400">{t('featureUi.createChat.options')}</Text>
-          <SequenceCard
-            direction="Column"
-            variant="SurfaceVariant"
-            style={{ padding: config.space.S300 }}
-          >
-            <SettingTile
-              after={encryptionToggle}
-              description={t('featureUi.createChat.onceThisFeatureIsEnabledItCan')}
-              title={t('featureUi.createChat.endToEndEncryption')}
-            />
-          </SequenceCard>
-        </Box>
-        {failed && (
-          <Text size="T300" style={{ color: color.Critical.Main }}>
-            {t('featureUi.createChat.failed')}
+          {!phone && <Text size="H3">{t('sharedUi.directCreate.createChat')}</Text>}
+          <Text size="T300" priority="300">
+            {t('sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId')}
           </Text>
-        )}
-        <Button
-          type="submit"
-          variant="Primary"
-          size="500"
-          radii="400"
-          disabled={creating}
-          before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
-        >
-          <Text size="B500">{t('featureUi.createChat.create')}</Text>
-        </Button>
+        </Box>
+        <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+          {userIdField}
+          <Box direction="Column" gap="100">
+            <Text size="L400">{t('featureUi.createChat.options')}</Text>
+            <SequenceCard
+              direction="Column"
+              variant="SurfaceVariant"
+              style={{ padding: config.space.S300 }}
+            >
+              <SettingTile
+                after={encryptionToggle}
+                description={t('featureUi.createChat.onceThisFeatureIsEnabledItCan')}
+                title={t('featureUi.createChat.endToEndEncryption')}
+              />
+            </SequenceCard>
+          </Box>
+          {failed && (
+            <Text size="T300" style={{ color: color.Critical.Main }}>
+              {t('featureUi.createChat.failed')}
+            </Text>
+          )}
+          <Button
+            type="submit"
+            variant="Primary"
+            size="500"
+            radii="400"
+            disabled={creating}
+            before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
+          >
+            <Text size="B500">{t('featureUi.createChat.create')}</Text>
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

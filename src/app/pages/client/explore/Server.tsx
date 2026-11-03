@@ -15,6 +15,9 @@ import {
 import { RoomCard, RoomCardGrid } from '../../../components/room-card';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
+import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
+import { EXPLORE_PATH } from '../../paths';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { mxcUrlToHttp } from '../../../utils/mediaUrl';
@@ -37,6 +40,8 @@ export function PublicRooms() {
   const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term') ?? undefined;
+  // Phones lead with the way back to the Explore list, so the title starts beside it.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-rooms', server, term],
@@ -62,7 +67,13 @@ export function PublicRooms() {
       <PageScroll
         header={
           <PageHeader balance>
-            <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
+            <PhoneBackButton to={EXPLORE_PATH} />
+            <Box
+              grow="Yes"
+              justifyContent={phone ? 'Start' : 'Center'}
+              alignItems="Center"
+              gap="200"
+            >
               <Icon size="400" src={Icons.Server} />
               <Text size="H3" truncate>
                 {server}
@@ -85,6 +96,7 @@ export function PublicRooms() {
                     size="500"
                     radii="400"
                     before={<Icon size="200" src={Icons.Search} />}
+                    style={{ flexGrow: 1 }}
                   />
                 </Box>
                 <Button type="submit" size="500" radii="400" variant="Secondary">

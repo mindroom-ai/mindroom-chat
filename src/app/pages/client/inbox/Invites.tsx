@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
+import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
@@ -14,6 +15,13 @@ import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import { getRoomAvatarUrl } from '../../../utils/room';
 import { acceptInvite, acceptInvites } from './acceptInvite';
+import {
+  INVITE_CATEGORIES,
+  InviteFilterChips,
+  categorizeInvite,
+  type InviteCategory,
+} from './inviteFilter';
+import { INBOX_PATH } from '../../paths';
 
 const FSI = '\u2068';
 const LRI = '\u2066';
@@ -239,7 +247,10 @@ export function InviteCard({
   );
 }
 
-/** Pending invites. One that looks like spam shows no avatar and is left out of Accept All. */
+/**
+ * Pending invites, in three lists: from people the user knows, from anyone else, and spam. A spam
+ * invite shows no avatar and is never in Accept All.
+ */
 export function Invites() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -258,6 +269,23 @@ export function Invites() {
     [client, pendingRoomIds]
   );
 
+  const [pickedCategory, setPickedCategory] = useState<InviteCategory>();
+  const categories = useMemo(
+    () => invites.map((invite) => categorizeInvite(client, invite, hasBadWords(invite))),
+    [client, invites]
+  );
+  const counts = useMemo(() => {
+    const tally: Record<InviteCategory, number> = { primary: 0, public: 0, spam: 0 };
+    categories.forEach((category) => {
+      tally[category] += 1;
+    });
+    return tally;
+  }, [categories]);
+  // Until the user picks a list, the first one holding invites is shown.
+  const category =
+    pickedCategory ?? INVITE_CATEGORIES.find((candidate) => counts[candidate] > 0) ?? 'primary';
+  const shownInvites = invites.filter((_, index) => categories[index] === category);
+
   const handleNavigate = (roomId: string, isSpace: boolean) =>
     isSpace ? navigateSpace(roomId) : navigateRoom(roomId);
 
@@ -266,7 +294,7 @@ export function Invites() {
     try {
       await acceptInvites(
         client,
-        invites.filter((invite) => !hasBadWords(invite)).map((invite) => invite.room)
+        shownInvites.filter((invite) => !hasBadWords(invite)).map((invite) => invite.room)
       );
     } finally {
       setAcceptingAll(false);
@@ -275,9 +303,12 @@ export function Invites() {
 
   return (
     <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-      <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-        <Text size="H4">{t('sharedUi.invites.invites')}</Text>
-        {invites.length > 1 && (
+      <Box alignItems="Center" gap="200">
+        <PhoneBackButton to={INBOX_PATH} />
+        <Text size="H4" style={{ flexGrow: 1 }}>
+          {t('sharedUi.invites.invites')}
+        </Text>
+        {category !== 'spam' && shownInvites.length > 1 && (
           <Button
             size="300"
             radii="300"
@@ -290,8 +321,15 @@ export function Invites() {
           </Button>
         )}
       </Box>
-      {invites.length === 0 && <Text size="T300">{t('sharedUi.invites.noInvites')}</Text>}
-      {invites.map((invite) => (
+      <InviteFilterChips counts={counts} selected={category} onSelect={setPickedCategory} />
+      {shownInvites.length === 0 && (
+        <Text size="T300">
+          {category === 'spam'
+            ? t('sharedUi.invites.noSpamInvites')
+            : t('sharedUi.invites.noInvites')}
+        </Text>
+      )}
+      {shownInvites.map((invite) => (
         <InviteCard
           {...timeFormat}
           key={invite.roomId}

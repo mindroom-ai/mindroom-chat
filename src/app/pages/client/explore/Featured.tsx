@@ -15,6 +15,9 @@ import {
 import { RoomCard, RoomCardGrid } from '../../../components/room-card';
 import { RoomSummaryLoader } from '../../../components/RoomSummaryLoader';
 import { useClientConfig } from '../../../hooks/useClientConfig';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
+import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
+import { EXPLORE_PATH } from '../../paths';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
@@ -90,10 +93,13 @@ export function FeaturedRooms() {
   const spaces = featured?.spaces ?? [];
   const rooms = featured?.rooms ?? [];
   const nothingFeatured = spaces.length + rooms.length === 0;
+  // Phones lead with the way back to the Explore list, so the title starts beside it.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   const header = (
     <PageHeader balance>
-      <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
+      <PhoneBackButton to={EXPLORE_PATH} />
+      <Box grow="Yes" justifyContent={phone ? 'Start' : 'Center'} alignItems="Center" gap="200">
         <Icon size="400" src={Icons.Bulb} />
         <Text size="H3" truncate>
           {t('sharedUi.explore.featured')}
