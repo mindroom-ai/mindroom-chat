@@ -61,6 +61,11 @@ type VirtualPaginatorOptions = PaginatorDom &
      * and will call it once the layout settles; false to paginate now.
      */
     deferAutomaticPagination?: (retry: () => boolean) => boolean;
+    /**
+     * The owner keeps the rows on screen in place when the window grows towards older items
+     * (an offset ledger, say), so the paginator leaves the scroll position alone then.
+     */
+    externalBackwardScrollRestore?: boolean;
   };
 
 type ScrollApi = { scrollToElement: ScrollToElement; scrollToItem: ScrollToItem };
@@ -211,8 +216,18 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
   const changeRange = useCallback(
     (nextRange: ItemRange, preserveAnchorIndex?: number) => {
-      const { range: currentRange, getItemElement, onRangeChange } = optionsRef.current;
+      const {
+        range: currentRange,
+        getItemElement,
+        onRangeChange,
+        externalBackwardScrollRestore,
+      } = optionsRef.current;
       if (nextRange.start === currentRange.start && nextRange.end === currentRange.end) return;
+      if (externalBackwardScrollRestore && nextRange.start < currentRange.start) {
+        anchorRef.current = undefined;
+        onRangeChange(nextRange);
+        return;
+      }
       const anchorIndex = preserveAnchorIndex ?? findVisibleIndex(currentRange);
       const anchorElement = anchorIndex === undefined ? undefined : getItemElement(anchorIndex);
       anchorRef.current =
@@ -368,6 +383,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
           scrollToElement(element, opts);
           return true;
         }
+        // Inside the window but not in the DOM: a virtualized owner scrolls its own list there.
+        return false;
       }
       pendingScrollRef.current = { index, opts };
       const start = Math.max(0, Math.min(index - Math.floor(limit / 2), count - limit));
