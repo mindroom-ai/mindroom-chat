@@ -15,9 +15,36 @@ import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
 
 const matchesPaletteShortcut = isKeyHotkey('mod+k');
 
-// A bottom sheet on phones: as tall as most of the small viewport, so the on-screen keyboard
-// and browser bars never push the search field out of reach.
+// A sheet at the bottom on phones: as tall as most of the small viewport, so the on-screen
+// keyboard and browser bars never push the search field out of reach. It keeps the rounded
+// corners of the desktop palette on every side.
 const MOBILE_SHEET_HEIGHT = 'min(85svh, 700px)';
+
+const mobileSheetStyle = {
+  borderRadius: config.radii.R400,
+  height: MOBILE_SHEET_HEIGHT,
+  maxHeight: MOBILE_SHEET_HEIGHT,
+  maxWidth: '100vw',
+  width: '100vw',
+} as const;
+
+// Pins the sheet to the bottom of the viewport.
+const mobileSheetFrameStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  minHeight: '100svh',
+  height: '100dvh',
+} as const;
+
+// The dialog fills its glass shell, so the results scroll inside the shell's corners.
+const dialogStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minHeight: 0,
+} as const;
 
 type PaletteDialogProps = {
   mobile: boolean;
@@ -36,24 +63,12 @@ function PaletteDialog({ mobile, requestClose, onLogout }: PaletteDialogProps) {
   const { dialogProps } = useDialog({ 'aria-label': t('commandPalette.inputAria') }, ref);
   usePreventScroll();
 
-  const modal = (
-    <Modal
-      size="500"
-      flexHeight
-      variant="Surface"
-      style={
-        mobile
-          ? {
-              borderRadius: config.radii.R400,
-              height: MOBILE_SHEET_HEIGHT,
-              maxHeight: MOBILE_SHEET_HEIGHT,
-              maxWidth: '100vw',
-              width: '100vw',
-            }
-          : undefined
-      }
-    >
-      <CommandPalette requestClose={requestClose} source={source} mobileSheet={mobile} />
+  // The glass shell holds the dialog, so the dialog's parent carries the palette's corners.
+  const shell = (
+    <Modal size="500" flexHeight variant="Surface" style={mobile ? mobileSheetStyle : undefined}>
+      <div ref={ref} style={dialogStyle} {...mergeProps(overlayProps, dialogProps)}>
+        <CommandPalette requestClose={requestClose} source={source} mobileSheet={mobile} />
+      </div>
     </Modal>
   );
 
@@ -61,26 +76,9 @@ function PaletteDialog({ mobile, requestClose, onLogout }: PaletteDialogProps) {
     <Overlay open backdrop={<OverlayBackdrop />}>
       <FocusScope contain restoreFocus autoFocus>
         {mobile ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              minHeight: '100svh',
-              height: '100dvh',
-            }}
-          >
-            <div ref={ref} {...mergeProps(overlayProps, dialogProps)}>
-              {modal}
-            </div>
-          </div>
+          <div style={mobileSheetFrameStyle}>{shell}</div>
         ) : (
-          <OverlayCenter>
-            <div ref={ref} {...mergeProps(overlayProps, dialogProps)}>
-              {modal}
-            </div>
-          </OverlayCenter>
+          <OverlayCenter>{shell}</OverlayCenter>
         )}
       </FocusScope>
     </Overlay>
