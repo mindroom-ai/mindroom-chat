@@ -96,11 +96,16 @@ const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: n
   return { top: toPixels(style.scrollPaddingTop), bottom: toPixels(style.scrollPaddingBottom) };
 };
 
+/**
+ * A sentinel is in view only where the reader can see it: the scroll padding is the band that
+ * floating bars (a room header, the composer) cover, and a sentinel under them stays hidden.
+ */
 const isAnchorVisible = (root: HTMLElement, anchor: Element | null): boolean => {
   if (!anchor) return false;
   const view = root.getBoundingClientRect();
+  const padding = readScrollPadding(root);
   const rect = anchor.getBoundingClientRect();
-  return rect.bottom > view.top && rect.top < view.bottom;
+  return rect.bottom > view.top + padding.top && rect.top < view.bottom - padding.bottom;
 };
 
 /** The item's top within the scroll content, comparable to `scrollTop`. */
@@ -313,12 +318,14 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginateVisibleAnchor]
   );
 
-  const handleIntersection = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
+  // Sentinels the observer reports in view that still sit under the scroll padding. They count
+  // once scrolling brings them out from under it, which the observer does not report.
+  const coveredRef = useRef(new Set<string>());
+
+  /** Paginates towards the sentinels that came into view, history first. */
+  const paginateShown = useCallback(
+    (directions: readonly (string | null)[]) => {
       if (optionsRef.current.shouldSuppressPagination?.()) return;
-      const directions = entries
-        .filter((entry) => entry.isIntersecting)
-        .map((entry) => entry.target.getAttribute(PAGINATOR_ANCHOR_ATTRIBUTE));
       const back = directions.includes(BACK_ANCHOR);
       if (!back && !directions.includes(FRONT_ANCHOR)) return;
       runAutomatic(() => {
@@ -327,6 +334,47 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     },
     [paginate, runAutomatic]
   );
+
+  const handleIntersection = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const root = optionsRef.current.getScrollElement();
+      const covered = coveredRef.current;
+      const shown: (string | null)[] = [];
+      entries.forEach((entry) => {
+        const direction = entry.target.getAttribute(PAGINATOR_ANCHOR_ATTRIBUTE);
+        if (direction) covered.delete(direction);
+        if (!entry.isIntersecting) return;
+        if (direction && root && !isAnchorVisible(root, entry.target)) covered.add(direction);
+        else shown.push(direction);
+      });
+      paginateShown(shown);
+    },
+    [paginateShown]
+  );
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const recheckCovered = (event: Event) => {
+      const covered = coveredRef.current;
+      const root = optionsRef.current.getScrollElement();
+      if (covered.size === 0 || !root || event.target !== root) return;
+      const { back, front } = anchorsRef.current;
+      const shown = [
+        { direction: BACK_ANCHOR, element: back },
+        { direction: FRONT_ANCHOR, element: front },
+      ]
+        .filter(
+          ({ direction, element }) =>
+            covered.has(direction) && isAnchorVisible(root, element ?? null)
+        )
+        .map(({ direction }) => direction);
+      shown.forEach((direction) => covered.delete(direction));
+      paginateShown(shown);
+    };
+    // Scroll events do not bubble; the capture phase sees the scroll area's whichever it is.
+    document.addEventListener('scroll', recheckCovered, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', recheckCovered, { capture: true });
+  }, [paginateShown]);
 
   // Read through the ref, so a new `getScrollElement` each render keeps the same observer.
   const getObserverOptions = useCallback(
@@ -350,6 +398,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     (key: 'back' | 'front', direction: string, element: HTMLElement | null) => {
       const previous = anchorsRef.current[key];
       if (previous === element) return;
+      coveredRef.current.delete(direction);
       if (previous) observer?.unobserve(previous);
       anchorsRef.current[key] = element ?? undefined;
       if (!element) return;
