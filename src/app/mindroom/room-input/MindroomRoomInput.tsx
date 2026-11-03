@@ -105,8 +105,9 @@ const isEnter = isKeyHotkey('enter');
 // The composer card lines up with the approval and typing bars above it.
 const COMPOSER_STYLE: React.CSSProperties = { marginInline: config.space.S400 };
 
-// Shown over the composer while files are dragged in; it never takes the drop itself.
-const DROP_ZONE_STYLE: React.CSSProperties = {
+// Shown over the composer while files are dragged in; it never takes the drop itself. Built
+// on first use, so the theme tokens are read once the app has loaded them.
+const dropZoneStyle = (): React.CSSProperties => ({
   pointerEvents: 'none',
   color: color.Primary.OnContainer,
   backgroundColor: color.Primary.Container,
@@ -114,7 +115,7 @@ const DROP_ZONE_STYLE: React.CSSProperties = {
   borderRadius: config.radii.R400,
   padding: config.space.S400,
   marginBlockEnd: config.space.S200,
-};
+});
 const isModEnter = isKeyHotkey('mod+enter');
 
 /** A leading `/me` or `/notice` picks the message type; the command itself is not sent. */
@@ -479,7 +480,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             alignItems="Center"
             gap="100"
             role="status"
-            style={DROP_ZONE_STYLE}
+            style={dropZoneStyle()}
           >
             <Icon size="400" src={Icons.File} />
             <Text size="H5" align="Center">
