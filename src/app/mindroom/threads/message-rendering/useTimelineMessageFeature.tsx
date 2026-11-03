@@ -285,6 +285,7 @@ export const useTimelineMessageFeature = ({
   editor,
   threadId,
   scrollRef,
+  showThreadRepliesInRoom,
   hideActivity,
   messageLayout,
   messageSpacing,
@@ -460,17 +461,19 @@ export const useTimelineMessageFeature = ({
         canSendRedaction &&
         !event.isRedacted() &&
         (event.getSender() === userId || canRedactOthers);
-      // Room rows show the thread they start under their reactions; an open thread shows none.
-      const threadBadge = threadId
-        ? null
-        : renderMindroomRoomTimelineThreadBadge({
-            eventId,
-            event,
-            threadRecordMap: data.threadRecordMap,
-            room,
-            onClick: handleOpenThread,
-            includeRecentSummaryData: true,
-          });
+      // Room rows show the thread they start under their reactions. An open thread shows none,
+      // and neither does the classic view, which shows the replies themselves.
+      const threadBadge =
+        threadId || showThreadRepliesInRoom
+          ? null
+          : renderMindroomRoomTimelineThreadBadge({
+              eventId,
+              event,
+              threadRecordMap: data.threadRecordMap,
+              room,
+              onClick: handleOpenThread,
+              includeRecentSummaryData: true,
+            });
 
       return (
         <React.Fragment key={eventId}>
@@ -563,6 +566,7 @@ export const useTimelineMessageFeature = ({
       messageLayout,
       messageSpacing,
       room,
+      showThreadRepliesInRoom,
       showUrlPreview,
       threadId,
       toggleReaction,
