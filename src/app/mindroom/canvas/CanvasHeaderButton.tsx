@@ -89,7 +89,7 @@ export function CanvasHeaderButton({
         {(anchorRef) => (
           <IconButton
             ref={anchorRef}
-            size="300"
+            size="400"
             radii="300"
             variant={openHere ? 'Primary' : 'Surface'}
             fill={openHere ? 'Soft' : 'None'}
@@ -99,7 +99,7 @@ export function CanvasHeaderButton({
             aria-expanded={several ? !!menuAnchor : undefined}
             onClick={handleClick}
           >
-            <Icon size="200" src={Icons.Category} filled={openHere} />
+            <Icon size="400" src={Icons.Category} filled={openHere} />
           </IconButton>
         )}
       </TooltipProvider>
