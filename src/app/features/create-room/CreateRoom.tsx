@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useState } from 'react';
 import {
   Box,
   Button,
@@ -42,6 +42,45 @@ type CreateRoomFormElements = HTMLFormElement & {
 
 const DEFAULT_ROOM_VERSION = '10';
 
+const OPTION_CARD_STYLE = { padding: '12px' };
+
+type LabeledFieldProps = {
+  label: string;
+  children: ReactNode;
+};
+
+function LabeledField({ label, children }: LabeledFieldProps) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{label}</Text>
+      {children}
+    </Box>
+  );
+}
+
+type OptionToggleProps = {
+  title: string;
+  description: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+};
+
+function OptionToggle({ title, description, value, onChange, disabled }: OptionToggleProps) {
+  const toggle = <Switch variant="Primary" value={value} onChange={onChange} disabled={disabled} />;
+  return (
+    <SequenceCard variant="SurfaceVariant" direction="Column" gap="300" style={OPTION_CARD_STYLE}>
+      <SettingTile title={title} description={description} after={toggle} />
+    </SequenceCard>
+  );
+}
+
+const optionalValue = (field?: HTMLInputElement | HTMLTextAreaElement): string | undefined =>
+  field?.value.trim() || undefined;
+
+const describeError = (reason: unknown): string =>
+  reason instanceof Error ? reason.message : String(reason);
+
 /**
  * The create room form. Deployments can hide the encryption and federation
  * choices and preset them; public rooms are never encrypted, since anyone can
@@ -51,18 +90,15 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
 
 
 
-  const { createRoom: createRoomConfig } = useClientConfig();
+  const { createRoom: policy } = useClientConfig();
   const roomVersions = capabilities['m.room_versions'];
   const versions = Object.keys(roomVersions?.available ?? {});
 
-  const showEncryption = createRoomConfig?.showEncryptionOption ?? true;
-  const showFederation = createRoomConfig?.showFederationOption ?? true;
-
-  const [access, setAccess] = useState<CreateRoomAccess>(
-    defaultAccess ?? (space ? CreateRoomAccess.Restricted : CreateRoomAccess.Private)
-  );
-  const [encryption, setEncryption] = useState(createRoomConfig?.defaultEncryption ?? true);
-  const [federation, setFederation] = useState(createRoomConfig?.defaultFederation ?? true);
+  const initialAccess =
+    defaultAccess ?? (space ? CreateRoomAccess.Restricted : CreateRoomAccess.Private);
+  const [access, setAccess] = useState<CreateRoomAccess>(initialAccess);
+  const [encryption, setEncryption] = useState(policy?.defaultEncryption ?? true);
+  const [federation, setFederation] = useState(policy?.defaultFederation ?? true);
   const [knock, setKnock] = useState(false);
   const [version, setVersion] = useState(roomVersions?.default ?? DEFAULT_ROOM_VERSION);
   const [advanced, setAdvanced] = useState(false);
@@ -70,171 +106,141 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
   const [error, setError] = useState<string>();
 
   const isPublic = access === CreateRoomAccess.Public;
+  const encryptionToggleVisible = !isPublic && (policy?.showEncryptionOption ?? true);
+  const federationToggleVisible = policy?.showFederationOption ?? true;
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget as CreateRoomFormElements;
-    const name = form.nameInput?.value.trim() ?? '';
+  const submitRoom = async (form: CreateRoomFormElements) => {
+    const name = form.nameInput?.value.trim();
     if (!name) return;
-    const topic = form.topicTextAria?.value.trim() || undefined;
-    const aliasLocalPart = isPublic ? form.aliasInput?.value.trim() || undefined : undefined;
 
-    setCreating(true);
     setError(undefined);
+    setCreating(true);
     try {
-      const roomId = await createRoom(mx, {
+      const createdRoomId = await createRoom(mx, {
         version,
         parent: space,
         access,
         name,
-        topic,
-        aliasLocalPart,
-        encryption: isPublic ? false : encryption,
+        topic: optionalValue(form.topicTextAria),
+        aliasLocalPart: isPublic ? optionalValue(form.aliasInput) : undefined,
+        encryption: !isPublic && encryption,
         knock: !isPublic && knock,
         allowFederation: federation,
       });
-      onCreate?.(roomId);
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : String(createError));
+      onCreate?.(createdRoomId);
+    } catch (reason) {
+      setError(describeError(reason));
     } finally {
       setCreating(false);
     }
+  };
 
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+    event.preventDefault();
+    return submitRoom(event.currentTarget as CreateRoomFormElements);
+  };
 
+  const spinner = <Spinner variant="Primary" fill="Solid" size="200" />;
+  const chevron = advanced ? Icons.ChevronTop : Icons.ChevronBottom;
 
-
-
-
+  return (
+    <Box as="form" grow="Yes" direction="Column" gap="500" onSubmit={handleSubmit}>
+      <LabeledField label={t('featureUi.createRoom.access')}>
         <CreateRoomAccessSelector
           value={access}
-          onSelect={setAccess}
-          canRestrict={!!space}
+          canRestrict={Boolean(space)}
           disabled={creating}
+          onSelect={setAccess}
         />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.createRoom.name')}</Text>
+      </LabeledField>
+      <LabeledField label={t('featureUi.createRoom.name')}>
         <Input
-          required
           name="nameInput"
-          autoFocus
-          size="500"
           variant="SurfaceVariant"
+          size="500"
           radii="400"
           autoComplete="off"
+          autoFocus
+          required
           disabled={creating}
         />
-      </Box>
-      <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.createRoom.topicOptional')}</Text>
+      </LabeledField>
+      <LabeledField label={t('featureUi.createRoom.topicOptional')}>
         <TextArea
           name="topicTextAria"
-          size="500"
           variant="SurfaceVariant"
+          size="500"
           radii="400"
           disabled={creating}
         />
-      </Box>
-      {isPublic && (
-        <Box direction="Column" gap="100">
-          <Text size="L400">{t('sharedUi.createRoomAliasInput.addressOptional')}</Text>
+      </LabeledField>
+      {isPublic ? (
+        <LabeledField label={t('sharedUi.createRoomAliasInput.addressOptional')}>
           <CreateRoomAliasInput disabled={creating} />
-        </Box>
-      )}
-      <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.createRoom.options')}</Text>
+        </LabeledField>
+      ) : null}
+      <LabeledField label={t('featureUi.createRoom.options')}>
         <Box direction="Column" gap="200">
-          {!isPublic && showEncryption && (
-            <SequenceCard
-              variant="SurfaceVariant"
-              direction="Column"
-              gap="300"
-              style={{ padding: '12px' }}
-            >
-              <SettingTile
-                title={t('featureUi.createRoom.endToEndEncryption')}
-                description={t('featureUi.createRoom.onceThisFeatureIsEnabledItCan')}
-                after={
-                  <Switch
-                    variant="Primary"
+          {encryptionToggleVisible ? (
+            <OptionToggle
+              title={t('featureUi.createRoom.endToEndEncryption')}
+              description={t('featureUi.createRoom.onceThisFeatureIsEnabledItCan')}
 
 
 
+            />
+          ) : null}
+          {isPublic ? null : (
+            <OptionToggle
+              title={t('featureUi.createRoom.knockToJoin')}
+              description={t('featureUi.createRoom.anyoneCanSendRequestToJoinThis')}
 
 
 
-
-
-
-            <SequenceCard
-              variant="SurfaceVariant"
-              direction="Column"
-              gap="300"
-              style={{ padding: '12px' }}
-            >
-              <SettingTile
-                title={t('featureUi.createRoom.knockToJoin')}
-                description={t('featureUi.createRoom.anyoneCanSendRequestToJoinThis')}
-                after={
-                  <Switch variant="Primary" value={knock} onChange={setKnock} disabled={creating} />
-                }
-              />
-            </SequenceCard>
+            />
           )}
-          {showFederation && (
-            <SequenceCard
-              variant="SurfaceVariant"
-              direction="Column"
-              gap="300"
-              style={{ padding: '12px' }}
-            >
-              <SettingTile
-                title={t('featureUi.createRoom.allowFederation')}
-                description={t('featureUi.createRoom.usersFromOtherServersCanJoin')}
-                after={
-                  <Switch
-                    variant="Primary"
+          {federationToggleVisible ? (
+            <OptionToggle
+              title={t('featureUi.createRoom.allowFederation')}
+              description={t('featureUi.createRoom.usersFromOtherServersCanJoin')}
 
 
 
-                  />
-                }
-              />
-            </SequenceCard>
-          )}
+            />
+          ) : null}
           <Box>
             <Chip
-              variant={advanced ? 'Success' : 'SurfaceVariant'}
               radii="Pill"
-              onClick={() => setAdvanced(!advanced)}
-              before={<Icon size="50" src={advanced ? Icons.ChevronTop : Icons.ChevronBottom} />}
+              variant={advanced ? 'Success' : 'SurfaceVariant'}
+              before={<Icon size="50" src={chevron} />}
+              onClick={() => setAdvanced((open) => !open)}
             >
               <Text size="T200">{t('featureUi.createRoom.advancedOptions')}</Text>
             </Chip>
           </Box>
-          {advanced && (
+          {advanced ? (
             <RoomVersionSelector
-              versions={versions.length > 0 ? versions : [version]}
               value={version}
+              versions={versions.length === 0 ? [version] : versions}
+              disabled={creating}
               onChange={setVersion}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
+            />
+          ) : null}
+        </Box>
+      </LabeledField>
+      {error ? (
+        <Text size="T300" style={{ color: color.Critical.Main }}>
+          {error}
+        </Text>
+      ) : null}
+      <Box direction="Column" shrink="No">
+        <Button
+          type="submit"
+          variant="Primary"
+          size="500"
+          radii="400"
+          disabled={creating}
+          before={creating ? spinner : undefined}
         >
           <Text size="B500">{t('featureUi.createRoom.create')}</Text>
         </Button>

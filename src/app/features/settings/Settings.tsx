@@ -26,7 +26,11 @@ import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { useShowLocalMindroom } from '../../mindroom/local-mindroom/useShowLocalMindroom';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
-import { getSettingsMenuItems, resolveSettingsInitialPage } from './settingsMenu';
+import {
+  getSettingsMenuItems,
+  resolveSettingsInitialPage,
+  type SettingsMenuItem,
+} from './settingsMenu';
 import { SettingsPages, type SettingsPage } from './settingsPages';
 import { General } from './general';
 import { Account } from './account';
@@ -36,7 +40,7 @@ import { EmojisStickers } from './emojis-stickers';
 import { DeveloperTools } from './developer-tools';
 import { About } from './about';
 
-type SettingsProps = {
+
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
@@ -71,24 +75,98 @@ function SettingsPageContent({
   }
 }
 
+const AVATAR_PX = 96;
+
+/** The signed-in user's ID, display name (localpart as fallback) and avatar URL. */
+function useOwnProfile() {
+  const mx = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const userId = mx.getUserId() ?? '';
+  const { displayName, avatarUrl: avatarMxc } = useUserProfile(userId);
+  const thumbnail = (mxc: string) =>
+    mxcUrlToHttp(mx, mxc, authenticated, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined;
+  return {
+    userId,
+    displayName: displayName ?? getMxIdLocalPart(userId) ?? userId,
+    avatarUrl: avatarMxc ? thumbnail(avatarMxc) : undefined,
+  };
+}
+
+type SettingsMenuListProps = {
+  items: SettingsMenuItem[];
+  activePage: SettingsPage | undefined;
+  onSelect: (page: SettingsPage) => void;
+};
+
+function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {
+  const entries = items.map(({ page, name, icon }) => {
+    const current = page === activePage;
+    const labelStyle = current ? { fontWeight: config.fontWeight.W600 } : undefined;
+    return (
+      <MenuItem
+        key={page}
+        radii="400"
+        variant="Background"
+        before={<Icon size="100" src={icon} filled={current} />}
+        aria-pressed={current}
+        onClick={() => onSelect(page)}
+      >
+        <Text size="T300" style={labelStyle} truncate>
+          {name}
+        </Text>
+      </MenuItem>
+    );
+  });
+  return <div style={{ flexGrow: 1 }}>{entries}</div>;
+}
+
+function LogoutButton() {
+  const { t } = useTranslation();
+  const [confirming, setConfirming] = useState(false);
+  const dismiss = () => setConfirming(false);
+
+  const confirmation = (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap
+          focusTrapOptions={{
+            clickOutsideDeactivates: true,
+            initialFocus: false,
+            onDeactivate: dismiss,
+          }}
+        >
+          <LogoutDialog handleClose={dismiss} />
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+
+  return (
+    <Box direction="Column" shrink="No" style={{ padding: config.space.S200 }}>
+      <Button
+        variant="Critical"
+        fill="None"
+        size="300"
+        radii="300"
+        before={<Icon size="100" src={Icons.Power} />}
+        onClick={() => setConfirming(true)}
+      >
+        <Text size="B400">{t('settings.logout')}</Text>
+      </Button>
+      {confirming ? confirmation : null}
+    </Box>
+  );
+}
+
 /** The settings dialog: account header and page menu beside the selected page. */
 
 
 
-
-
   const showLocalMindroom = useShowLocalMindroom();
-
-
-
-
-
-
-
-
+  const { userId, displayName, avatarUrl } = useOwnProfile();
+  const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindroom)
   );
-  const [logoutOpen, setLogoutOpen] = useState(false);
 
   const menuItems = useMemo(
     () => getSettingsMenuItems(showLocalMindroom, t),
@@ -96,102 +174,49 @@ function SettingsPageContent({
   );
   const isMobile = screenSize === ScreenSize.Mobile;
 
-  const handlePageRequestClose = useCallback(() => {
-    if (isMobile) {
-      setActivePage(undefined);
-      return;
-    }
-    requestClose();
-  }, [isMobile, requestClose]);
+  // On mobile a page closes back to the menu; on desktop it closes the dialog.
+  const handlePageRequestClose = useCallback(
+    () => (isMobile ? setActivePage(undefined) : requestClose()),
+    [isMobile, requestClose]
+  );
 
-  const showNav = !isMobile || activePage === undefined;
+  const nav = (
+    <PageNav size="300">
+      <PageNavHeader outlined={false}>
+        <Box grow="Yes" gap="200" alignItems="Center">
+          <Avatar size="200" radii="300">
+            <UserAvatar
+
+
+
+              renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
+            />
+          </Avatar>
+          <Text size="H4" truncate>
+            {t('settings.title')}
+          </Text>
+        </Box>
+        {isMobile && (
+          <IconButton
+            variant="Background"
+            aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+            onClick={requestClose}
+          >
+            <Icon src={Icons.Cross} />
+          </IconButton>
+        )}
+      </PageNavHeader>
+      <Box grow="Yes" direction="Column">
+        <PageNavContent>
+          <SettingsMenuList items={menuItems} activePage={activePage} onSelect={setActivePage} />
+        </PageNavContent>
+        <LogoutButton />
+      </Box>
+    </PageNav>
+  );
 
   return (
-    <PageRoot
-      nav={
-        showNav && (
-          <PageNav size="300">
-            <PageNavHeader outlined={false}>
-              <Box grow="Yes" gap="200" alignItems="Center">
-                <Avatar size="200" radii="300">
-                  <UserAvatar
-
-
-
-                    renderFallback={() => <Text size="H6">{displayName.slice(0, 1)}</Text>}
-                  />
-                </Avatar>
-                <Text size="H4" truncate>
-                  {t('settings.title')}
-                </Text>
-              </Box>
-              {isMobile && (
-                <IconButton
-                  onClick={requestClose}
-                  variant="Background"
-                  aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                <Button
-                  size="300"
-                  radii="300"
-                  variant="Critical"
-                  fill="None"
-                  onClick={() => setLogoutOpen(true)}
-                  before={<Icon size="100" src={Icons.Power} />}
-                >
-                  <Text size="B400">{t('settings.logout')}</Text>
-                </Button>
-                {logoutOpen && (
-                  <Overlay open backdrop={<OverlayBackdrop />}>
-                    <OverlayCenter>
-                      <FocusTrap
-                        focusTrapOptions={{
-                          initialFocus: false,
-                          onDeactivate: () => setLogoutOpen(false),
-                          clickOutsideDeactivates: true,
-                        }}
-                      >
-                        <LogoutDialog handleClose={() => setLogoutOpen(false)} />
-                      </FocusTrap>
-                    </OverlayCenter>
-                  </Overlay>
-                )}
-              </Box>
-            </Box>
-          </PageNav>
-        )
-      }
-    >
+    <PageRoot nav={(!isMobile || activePage === undefined) && nav}>
       {activePage !== undefined && (
         <SettingsPageContent
           page={activePage}

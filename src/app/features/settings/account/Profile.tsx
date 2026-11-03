@@ -7,74 +7,74 @@ import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
 import { SequenceCardStyle } from '../styles.css';
 
+const CARD_PROPS = {
+  className: SequenceCardStyle,
+  variant: 'SurfaceVariant',
+  direction: 'Column',
+  gap: '400',
+} as const;
+
 /** Display name editor for the signed-in account. */
 
 
 
-
-
-  const [displayName, setDisplayName] = useState(profile.displayName ?? '');
+  const { displayName: savedName } = useUserProfile(mx.getSafeUserId());
+  const [draft, setDraft] = useState(savedName ?? '');
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    setDisplayName(profile.displayName ?? '');
-  }, [profile.displayName]);
+  // A new name from the server (or another device) replaces the draft.
+  useEffect(() => setDraft(savedName ?? ''), [savedName]);
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  const nextName = draft.trim();
+  const canSave = nextName !== '' && nextName !== savedName;
+
+  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
-    const name = displayName.trim();
-    if (!name || name === profile.displayName) return;
-    setSaving(true);
+    if (!canSave) return;
     setFailed(false);
-    try {
-      await mx.setDisplayName(name);
-    } catch {
-      setFailed(true);
-    } finally {
-      setSaving(false);
-    }
+    setSaving(true);
+    mx.setDisplayName(nextName)
+      .catch(() => setFailed(true))
+      .finally(() => setSaving(false));
   };
+
+  const label = t('featureUi.settings.account.profile.displayName');
 
   return (
     <Box direction="Column" gap="100">
       <Text size="L400">{t('featureUi.settings.account.profile.profile')}</Text>
-      <SequenceCard
-        className={SequenceCardStyle}
-        variant="SurfaceVariant"
-        direction="Column"
-        gap="400"
-      >
-        <SettingTile title={t('featureUi.settings.account.profile.displayName')}>
-          <Box as="form" onSubmit={handleSubmit} gap="200" alignItems="Center">
+      <SequenceCard {...CARD_PROPS}>
+        <SettingTile title={label}>
+          <Box as="form" alignItems="Center" gap="200" onSubmit={handleSubmit}>
             <Box grow="Yes">
               <Input
-                value={displayName}
-                onChange={(event) => setDisplayName(event.currentTarget.value)}
+                aria-label={label}
                 variant="Secondary"
                 radii="300"
-                aria-label={t('featureUi.settings.account.profile.displayName')}
+                value={draft}
+                onChange={(event) => setDraft(event.currentTarget.value)}
               />
             </Box>
             <Button
               type="submit"
-              size="400"
               variant="Success"
               fill="Solid"
+              size="400"
               radii="300"
-              disabled={saving || !displayName.trim() || displayName.trim() === profile.displayName}
-              before={saving ? <Spinner size="100" variant="Success" fill="Solid" /> : undefined}
+              disabled={saving || !canSave}
+              before={saving ? <Spinner variant="Success" fill="Solid" size="100" /> : undefined}
             >
               <Text size="B400">{t('featureUi.settings.account.profile.save')}</Text>
             </Button>
           </Box>
-          {failed && (
+          {failed ? (
             <Text size="T200" style={{ color: 'var(--mr-critical, #c62828)' }}>
               {t(
                 'featureUi.settings.emojisStickers.globalPacks.failedToApplyChangesPleaseTryAgain'
               )}
             </Text>
-          )}
+          ) : null}
         </SettingTile>
       </SequenceCard>
     </Box>

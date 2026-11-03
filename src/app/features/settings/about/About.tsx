@@ -177,182 +177,190 @@ type AboutProps = {
   requestClose: () => void;
 };
 
+const CC_BY_4 = 'https://creativecommons.org/licenses/by/4.0/';
+
+/**
+ * Third-party work the client ships, in display order. Each translation names
+ * the project in its own tag (`project`), the copyright holder in `<owner>`,
+ * and the license in `<license>`.
+ */
+const CREDITS = [
+  {
+    i18nKey: 'featureUi.settings.about.matrixSdkCredit',
+    tag: 'sdk',
+    project: 'https://github.com/matrix-org/matrix-js-sdk',
+    license: 'https://github.com/matrix-org/matrix-js-sdk/blob/develop/LICENSE',
+  },
+  {
+    i18nKey: 'featureUi.settings.about.emojiArtCredit',
+    tag: 'art',
+    project: 'https://github.com/jdecked/twemoji',
+    license: CC_BY_4,
+  },
+  {
+    i18nKey: 'featureUi.settings.about.emojiFontCredit',
+    tag: 'font',
+    project: 'https://github.com/mozilla/twemoji-colr',
+    license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  },
+  {
+    i18nKey: 'featureUi.settings.about.soundResourcesCredit',
+    tag: 'resources',
+    project: 'https://material.io/design/sound/sound-resources.html',
+    license: CC_BY_4,
+  },
+] as const;
+
 /** A credit's link; `Trans` fills in the linked text. */
 function CreditLink({ href, children }: { href: string; children?: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer noopener">
+    <a target="_blank" rel="noreferrer noopener" href={href}>
       {children}
     </a>
+  );
+}
+
+function CreditsList() {
+  return (
+    <Box
+      as="ul"
+      direction="Column"
+      gap="200"
+      style={{ margin: 0, paddingInlineStart: config.space.S400 }}
+    >
+      {CREDITS.map(({ i18nKey, tag, project, license }) => {
+        const components = {
+          [tag]: <CreditLink href={project} />,
+          owner: <span />,
+          license: <CreditLink href={license} />,
+        };
+        return (
+          <li key={i18nKey}>
+            <Text size="T300">
+              <Trans i18nKey={i18nKey} components={components} />
+            </Text>
+          </li>
+        );
+      })}
+    </Box>
+  );
+}
+
+/** A titled group of setting tiles. */
+function AboutSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{title}</Text>
+      <SequenceCard
+        variant="SurfaceVariant"
+        className={SequenceCardStyle}
+        direction="Column"
+        gap="400"
+      >
+        {children}
+      </SequenceCard>
+    </Box>
+  );
+}
+
+/** Logo, app name, release version, tagline and the source code link. */
+function AppIdentity() {
+  const { t } = useTranslation();
+  const { welcome } = useClientConfig();
+  const { subtitle } = getMindroomWelcomePageContent(welcome as never, t);
+  const { appName, logoAlt, logoSrc, sourceUrl } = MINDROOM_CLIENT_BRANDING;
+  const logoSize = toRem(60);
+
+  return (
+    <Box alignItems="Center" gap="400">
+      <img src={logoSrc} alt={logoAlt} style={{ height: logoSize, width: logoSize }} />
+      <Box direction="Column" gap="100">
+        <Box alignItems="End" gap="100">
+          <Text size="H3">{appName}</Text>
+          <Text size="T200">{APP_RELEASE_VERSION}</Text>
+        </Box>
+        <Text size="T300">{subtitle}</Text>
+        <Box wrap="Wrap" gap="200" style={{ paddingTop: config.space.S400 }}>
+          <Button
+            as="a"
+            href={sourceUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            size="300"
+            radii="300"
+            variant="Secondary"
+            fill="Soft"
+            before={<Icon size="100" src={Icons.Code} filled />}
+          >
+            <Text size="B300">{t('featureUi.settings.about.sourceCode')}</Text>
+          </Button>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
 
 
 
-  const { welcome } = useClientConfig();
-  const { subtitle } = getMindroomWelcomePageContent(welcome as never, t);
-  const showDiagnostics = isNativeIOS();
+  const nativeDiagnostics = isNativeIOS();
+
+  const header = (
+    <PageHeader outlined={false}>
+      <Box grow="Yes" gap="200">
+        <Box grow="Yes" alignItems="Center" gap="200">
+          <Text size="H3" truncate>
+            {t('settings.nav.about')}
+          </Text>
+        </Box>
+        <Box shrink="No">
+          <IconButton
+            variant="Surface"
+            aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+            onClick={requestClose}
+          >
+            <Icon src={Icons.Cross} />
+          </IconButton>
+        </Box>
+      </Box>
+    </PageHeader>
+  );
+
+  const clearCacheButton = (
+    <Button
+      size="300"
+      radii="300"
+      variant="Secondary"
+      fill="Soft"
+      outlined
+      onClick={() => clearAllCacheAndReload(mx)}
+    >
+      <Text size="B300">{t('featureUi.settings.about.clearCache')}</Text>
+    </Button>
+  );
 
   return (
     <Page>
-      <PageScroll
-        header={
-          <PageHeader outlined={false}>
-            <Box grow="Yes" gap="200">
-              <Box grow="Yes" alignItems="Center" gap="200">
-                <Text size="H3" truncate>
-                  {t('settings.nav.about')}
-                </Text>
-              </Box>
-              <Box shrink="No">
-                <IconButton
-                  onClick={requestClose}
-                  variant="Surface"
-                  aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-                >
-                  <Icon src={Icons.Cross} />
-                </IconButton>
-              </Box>
-            </Box>
-          </PageHeader>
-        }
-      >
+      <PageScroll header={header}>
         <PageContent>
           <Box direction="Column" gap="700">
-            <Box gap="400" alignItems="Center">
-              <img
-                style={{ width: toRem(60), height: toRem(60) }}
-                src={MINDROOM_CLIENT_BRANDING.logoSrc}
-                alt={MINDROOM_CLIENT_BRANDING.logoAlt}
+            <AppIdentity />
+            <AboutSection title={t('featureUi.settings.about.options')}>
+              <SettingTile
+                title={t('featureUi.settings.about.clearCacheAndReload')}
+                description={t('featureUi.settings.about.clearCacheDescription')}
+                after={clearCacheButton}
               />
-              <Box direction="Column" gap="100">
-                <Box gap="100" alignItems="End">
-                  <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
-                  <Text size="T200">{APP_RELEASE_VERSION}</Text>
-                </Box>
-                <Text size="T300">{subtitle}</Text>
-                <Box gap="200" wrap="Wrap" style={{ paddingTop: config.space.S400 }}>
-                  <Button
-                    as="a"
-                    href={MINDROOM_CLIENT_BRANDING.sourceUrl}
-                    rel="noreferrer noopener"
-                    target="_blank"
-                    variant="Secondary"
-                    fill="Soft"
-                    size="300"
-                    radii="300"
-                    before={<Icon src={Icons.Code} size="100" filled />}
-                  >
-                    <Text size="B300">{t('featureUi.settings.about.sourceCode')}</Text>
-                  </Button>
-                </Box>
-              </Box>
-            </Box>
-
-            <Box direction="Column" gap="100">
-              <Text size="L400">{t('featureUi.settings.about.options')}</Text>
-              <SequenceCard
-                className={SequenceCardStyle}
-                variant="SurfaceVariant"
-                direction="Column"
-                gap="400"
-              >
-                <SettingTile
-                  title={t('featureUi.settings.about.clearCacheAndReload')}
-                  description={t('featureUi.settings.about.clearCacheDescription')}
-                  after={
-                    <Button
-                      onClick={() => clearAllCacheAndReload(mx)}
-                      variant="Secondary"
-                      fill="Soft"
-                      size="300"
-                      radii="300"
-                      outlined
-                    >
-                      <Text size="B300">{t('featureUi.settings.about.clearCache')}</Text>
-                    </Button>
-                  }
-                />
-                {showDiagnostics && <DiagnosticsExport />}
-                {showDiagnostics && <DeepTraceSetting />}
-              </SequenceCard>
-            </Box>
-
-            <Box direction="Column" gap="100">
-              <Text size="L400">{t('featureUi.settings.about.credits')}</Text>
-              <SequenceCard
-                className={SequenceCardStyle}
-                variant="SurfaceVariant"
-                direction="Column"
-                gap="400"
-              >
-                <Box
-                  as="ul"
-                  direction="Column"
-                  gap="200"
-                  style={{ margin: 0, paddingInlineStart: config.space.S400 }}
-                >
-                  <li>
-                    <Text size="T300">
-                      <Trans
-                        i18nKey="featureUi.settings.about.matrixSdkCredit"
-                        components={{
-                          sdk: <CreditLink href="https://github.com/matrix-org/matrix-js-sdk" />,
-                          owner: <span />,
-                          license: (
-                            <CreditLink href="https://github.com/matrix-org/matrix-js-sdk/blob/develop/LICENSE" />
-                          ),
-                        }}
-                      />
-                    </Text>
-                  </li>
-                  <li>
-                    <Text size="T300">
-                      <Trans
-                        i18nKey="featureUi.settings.about.emojiArtCredit"
-                        components={{
-                          art: <CreditLink href="https://github.com/jdecked/twemoji" />,
-                          owner: <span />,
-                          license: (
-                            <CreditLink href="https://creativecommons.org/licenses/by/4.0/" />
-                          ),
-                        }}
-                      />
-                    </Text>
-                  </li>
-                  <li>
-                    <Text size="T300">
-                      <Trans
-                        i18nKey="featureUi.settings.about.emojiFontCredit"
-                        components={{
-                          font: <CreditLink href="https://github.com/mozilla/twemoji-colr" />,
-                          owner: <span />,
-                          license: (
-                            <CreditLink href="https://www.apache.org/licenses/LICENSE-2.0" />
-                          ),
-                        }}
-                      />
-                    </Text>
-                  </li>
-                  <li>
-                    <Text size="T300">
-                      <Trans
-                        i18nKey="featureUi.settings.about.soundResourcesCredit"
-                        components={{
-                          resources: (
-                            <CreditLink href="https://material.io/design/sound/sound-resources.html" />
-                          ),
-                          owner: <span />,
-                          license: (
-                            <CreditLink href="https://creativecommons.org/licenses/by/4.0/" />
-                          ),
-                        }}
-                      />
-                    </Text>
-                  </li>
-                </Box>
-              </SequenceCard>
-            </Box>
+              {nativeDiagnostics ? (
+                <>
+                  <DiagnosticsExport />
+                  <DeepTraceSetting />
+                </>
+              ) : null}
+            </AboutSection>
+            <AboutSection title={t('featureUi.settings.about.credits')}>
+              <CreditsList />
+            </AboutSection>
           </Box>
         </PageContent>
       </PageScroll>

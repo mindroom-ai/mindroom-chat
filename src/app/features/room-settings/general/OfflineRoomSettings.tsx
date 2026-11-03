@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useSyncExternalStore } from 'react';
+import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import {
   Box,
   Button,
@@ -37,92 +37,94 @@ const formatBytes = (bytes: number): string => {
   return `${rounded} ${SIZE_UNITS[unit]}`;
 };
 
+const OFFLINE_KEY = 'featureUi.roomSettings.general.offline';
+
+/** Message keys for the engine statuses that pause or block saving. */
 const PAUSE_MESSAGE_KEYS = {
-  space: 'featureUi.roomSettings.general.offline.spacePause',
-  'read-only': 'featureUi.roomSettings.general.offline.readOnlyPause',
-  offline: 'featureUi.roomSettings.general.offline.offlinePause',
-  hidden: 'featureUi.roomSettings.general.offline.backgroundPause',
-  limited: 'featureUi.roomSettings.general.offline.connectionPause',
-  error: 'featureUi.roomSettings.general.offline.errorPause',
-  unavailable: 'featureUi.roomSettings.general.offline.unavailable',
+  error: `${OFFLINE_KEY}.errorPause`,
+  hidden: `${OFFLINE_KEY}.backgroundPause`,
+  limited: `${OFFLINE_KEY}.connectionPause`,
+  offline: `${OFFLINE_KEY}.offlinePause`,
+  'read-only': `${OFFLINE_KEY}.readOnlyPause`,
+  space: `${OFFLINE_KEY}.spacePause`,
+  unavailable: `${OFFLINE_KEY}.unavailable`,
 } as const;
 
 const useOfflineRoomSnapshot = (roomId: string): OfflineRoomSnapshot => {
   const { offline } = useMindroomSyncEngine();
-  const subscribe = useCallback(
-    (listener: () => void) => offline.subscribe(roomId, listener),
+  const store = useMemo(
+    () => ({
+      listen: (onStoreChange: () => void) => offline.subscribe(roomId, onStoreChange),
+      read: () => offline.getSnapshot(roomId),
+    }),
     [offline, roomId]
   );
-  const getSnapshot = useCallback(() => offline.getSnapshot(roomId), [offline, roomId]);
-  return useSyncExternalStore(subscribe, getSnapshot);
+  return useSyncExternalStore(store.listen, store.read);
 };
 
-function ClearContentDialog({
-  onCancel,
-  onConfirm,
-  clearing,
-  failed,
-}: {
+type ClearContentDialogProps = {
   onCancel: () => void;
   onConfirm: () => void;
   clearing: boolean;
   failed: boolean;
-}) {
+};
 
+const DIALOG_HEADER_STYLE = {
+  paddingBlock: 0,
+  paddingInlineStart: config.space.S400,
+  paddingInlineEnd: config.space.S200,
+};
 
+function ClearContentDialog({ onCancel, onConfirm, clearing, failed }: ClearContentDialogProps) {
+  const { t } = useTranslation();
+  const cancelLabel = t(`${OFFLINE_KEY}.cancel`);
+  const trapOptions = {
+    initialFocus: false as const,
+    clickOutsideDeactivates: true,
+    onDeactivate: onCancel,
+  };
 
+  const header = (
+    <Header variant="Surface" size="500" style={DIALOG_HEADER_STYLE}>
+      <Box grow="Yes">
+        <Text size="H4">{t(`${OFFLINE_KEY}.clearTitle`)}</Text>
+      </Box>
+      <IconButton aria-label={cancelLabel} size="300" radii="300" onClick={onCancel}>
+        <Icon src={Icons.Cross} />
+      </IconButton>
+    </Header>
+  );
 
+  const actions = (
+    <Box direction="Column" gap="200">
+      <Button
+        variant="Critical"
+        disabled={clearing}
+        before={clearing ? <Spinner variant="Critical" fill="Solid" size="100" /> : undefined}
+        onClick={onConfirm}
+      >
+        <Text size="B400">{t(`${OFFLINE_KEY}.clearConfirm`)}</Text>
+      </Button>
+      <Button variant="Secondary" fill="Soft" disabled={clearing} onClick={onCancel}>
+        <Text size="B400">{cancelLabel}</Text>
+      </Button>
+    </Box>
+  );
 
-
-
-
-
-
-
-
-
-
-              variant="Surface"
-              size="500"
-            >
-              <Box grow="Yes">
-                <Text size="H4">{t('featureUi.roomSettings.general.offline.clearTitle')}</Text>
-              </Box>
-              <IconButton
-                size="300"
-                onClick={onCancel}
-                radii="300"
-
-
-
-
-
-
-
-
-              </Text>
-              {failed && (
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={trapOptions}>
+          <Dialog variant="Surface">
+            {header}
+            <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+              <Text priority="400">{t(`${OFFLINE_KEY}.clearDescription`)}</Text>
+              {failed ? (
                 <Text style={{ color: color.Critical.Main }}>
-                  {t('featureUi.roomSettings.general.offline.clearFailed')}
+                  {t(`${OFFLINE_KEY}.clearFailed`)}
                 </Text>
-              )}
-              <Box direction="Column" gap="200">
-                <Button
-                  variant="Critical"
-                  onClick={onConfirm}
-                  disabled={clearing}
-                  before={
-                    clearing ? <Spinner size="100" variant="Critical" fill="Solid" /> : undefined
-                  }
-                >
-                  <Text size="B400">
-                    {t('featureUi.roomSettings.general.offline.clearConfirm')}
-                  </Text>
-                </Button>
-                <Button variant="Secondary" fill="Soft" onClick={onCancel} disabled={clearing}>
-                  <Text size="B400">{t('featureUi.roomSettings.general.offline.cancel')}</Text>
-                </Button>
-              </Box>
+              ) : null}
+              {actions}
             </Box>
           </Dialog>
         </FocusTrap>
@@ -131,40 +133,35 @@ function ClearContentDialog({
   );
 }
 
+/** Where clearing the downloaded content stands; the dialog shows unless `closed`. */
+type ClearPhase = 'closed' | 'confirming' | 'clearing' | 'failed';
+
 /**
  * Offline copy of one room: what is saved and what is not, downloading the
  * whole room, keeping it offline, and clearing what was downloaded.
  */
 export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
-  const { t } = useTranslation();
   const { offline } = useMindroomSyncEngine();
+  const { t } = useTranslation();
   const snapshot = useOfflineRoomSnapshot(roomId);
-  const [includeAllMedia, setIncludeAllMedia] = useState(false);
+  const [clearPhase, setClearPhase] = useState<ClearPhase>('closed');
   const [pinFailed, setPinFailed] = useState(false);
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [clearFailed, setClearFailed] = useState(false);
+  const [includeAllMedia, setIncludeAllMedia] = useState(false);
 
-  const handlePinned = async (pinned: boolean) => {
+  const handlePinned = (pinned: boolean) => {
     setPinFailed(false);
-    try {
-      await offline.setPinned(roomId, pinned);
-    } catch {
-      setPinFailed(true);
-    }
+    return offline.setPinned(roomId, pinned).catch(() => setPinFailed(true));
   };
 
   const handleClear = async () => {
-    setClearing(true);
-    setClearFailed(false);
+    setClearPhase('clearing');
     try {
       await offline.clear(roomId);
-      setConfirmClear(false);
     } catch {
-      setClearFailed(true);
-    } finally {
-      setClearing(false);
+      setClearPhase('failed');
+      return;
     }
+    setClearPhase('closed');
   };
 
   const pauseKey = PAUSE_MESSAGE_KEYS[snapshot.status as keyof typeof PAUSE_MESSAGE_KEYS];
@@ -252,25 +249,25 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
       </Box>
       <Box gap="200" wrap="Wrap">
         {snapshot.downloading ? (
-          <Button
-            variant="Secondary"
-            fill="Soft"
-            size="300"
-            radii="300"
-            onClick={() => offline.cancel(roomId)}
-          >
-            <Text size="B300">{t('featureUi.roomSettings.general.offline.cancelDownload')}</Text>
+
+
+
+
+
+
+
+
           </Button>
         ) : (
           <Button
-            variant="Primary"
-            fill="Soft"
-            size="300"
-            radii="300"
-            onClick={() => offline.download(roomId, { includeAllMedia })}
-          >
-            <Text size="B300">
-              {t('featureUi.roomSettings.general.offline.downloadEntireRoom')}
+
+
+
+
+
+
+
+
             </Text>
           </Button>
         )}
@@ -279,10 +276,7 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
           fill="None"
           size="300"
           radii="300"
-          onClick={() => {
-            setClearFailed(false);
-            setConfirmClear(true);
-          }}
+          onClick={() => setClearPhase('confirming')}
         >
           <Text size="B300">
             {t('featureUi.roomSettings.general.offline.clearDownloadedContent')}
@@ -307,11 +301,11 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
           {t('featureUi.roomSettings.general.offline.pinFailed')}
         </Text>
       )}
-      {confirmClear && (
+      {clearPhase === 'closed' ? null : (
         <ClearContentDialog
-          clearing={clearing}
-          failed={clearFailed}
-          onCancel={() => setConfirmClear(false)}
+          clearing={clearPhase === 'clearing'}
+          failed={clearPhase === 'failed'}
+          onCancel={() => setClearPhase('closed')}
           onConfirm={handleClear}
         />
       )}

@@ -35,6 +35,11 @@ const packName = (pack: ImagePack, fallback: string): string => {
   return like.meta?.name ?? (typeof contentName === 'string' ? contentName : undefined) ?? fallback;
 };
 
+const SERVER_PACK_KEY = 'featureUi.settings.emojisStickers.serverPack';
+
+/** Shared look of the section's tile buttons; Permissions adds an outline. */
+const tileButton = { size: '300', variant: 'Secondary', fill: 'Soft', radii: '300' } as const;
+
 type ServerPackSectionProps = {
   room: Room;
   onViewPack: (pack: ImagePack) => void;
@@ -64,56 +69,46 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
     readPowerLevel.user(powerLevels, userId) >=
       readPowerLevel.state(powerLevels, 'm.room.power_levels');
 
-  const server = getMxIdServer(userId) ?? '';
+  const sectionTitle = t(`${SERVER_PACK_KEY}.title`);
+  const viewLabel = t('featureUi.settings.emojisStickers.globalPacks.view');
+  const openPermissions = () =>
+    openRoomSettings(room.roomId, undefined, RoomSettingsPage.PermissionsPage);
+
+  const permissionsButton = canChangePermissions ? (
+    <Button {...tileButton} outlined onClick={openPermissions}>
+      <Text size="B300">{t(`${SERVER_PACK_KEY}.permissions`)}</Text>
+    </Button>
+  ) : undefined;
+
+  const packTiles = shownPacks.map((pack) => (
+    <SettingTile
+      key={pack.address?.stateKey ?? pack.id}
+      title={packName(pack, sectionTitle)}
+      after={
+        <Button {...tileButton} onClick={() => onViewPack(pack)}>
+          <Text size="B300">{viewLabel}</Text>
+        </Button>
+      }
+    />
+  ));
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.emojisStickers.serverPack.title')}</Text>
+      <Text size="L400">{sectionTitle}</Text>
       <SequenceCard
-        className={SequenceCardStyle}
         variant="SurfaceVariant"
-        direction="Column"
+        className={SequenceCardStyle}
         gap="400"
+        direction="Column"
       >
         <SettingTile
-          title={t('featureUi.settings.emojisStickers.serverPack.title')}
-          description={t('featureUi.settings.emojisStickers.serverPack.description', { server })}
-          after={
-            canChangePermissions ? (
-              <Button
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                radii="300"
-                outlined
-                onClick={() =>
-                  openRoomSettings(room.roomId, undefined, RoomSettingsPage.PermissionsPage)
-                }
-              >
-                <Text size="B300">
-                  {t('featureUi.settings.emojisStickers.serverPack.permissions')}
-                </Text>
-              </Button>
-            ) : undefined
-          }
+          title={sectionTitle}
+          description={t(`${SERVER_PACK_KEY}.description`, {
+            server: getMxIdServer(userId) ?? '',
+          })}
+          after={permissionsButton}
         />
-        {shownPacks.map((pack) => (
-          <SettingTile
-            key={pack.address?.stateKey ?? pack.id}
-            title={packName(pack, t('featureUi.settings.emojisStickers.serverPack.title'))}
-            after={
-              <Button
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                radii="300"
-                onClick={() => onViewPack(pack)}
-              >
-                <Text size="B300">{t('featureUi.settings.emojisStickers.globalPacks.view')}</Text>
-              </Button>
-            }
-          />
-        ))}
+        {packTiles}
       </SequenceCard>
     </Box>
   );

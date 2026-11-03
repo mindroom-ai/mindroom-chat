@@ -13,40 +13,36 @@ export type SettingsMenuItem = {
   icon: IconSrc;
 };
 
+// Core pages above the MindRoom entries, then the ones below them.
+const CORE_ENTRIES_ABOVE = [
+  [SettingsPages.GeneralPage, 'settings.nav.general', Icons.Setting],
+  [SettingsPages.AccountPage, 'settings.nav.account', Icons.User],
+  [SettingsPages.NotificationPage, 'settings.nav.notifications', Icons.Bell],
+  [SettingsPages.DevicesPage, 'settings.nav.devices', Icons.Monitor],
+  [SettingsPages.EmojisStickersPage, 'settings.nav.emojisStickers', Icons.Smile],
+] as const;
+const CORE_ENTRIES_BELOW = [
+  [SettingsPages.DeveloperToolsPage, 'settings.nav.developerTools', Icons.Terminal],
+  [SettingsPages.AboutPage, 'settings.nav.about', Icons.Info],
+] as const;
+
+type CoreMenuEntry = (typeof CORE_ENTRIES_ABOVE | typeof CORE_ENTRIES_BELOW)[number];
+
 /** Settings dialog menu entries, in display order. */
 export const getSettingsMenuItems = (
   showLocalMindroom: boolean,
   t: TFunction
-): SettingsMenuItem[] => [
-  {
-    page: SettingsPages.GeneralPage,
-    name: t('settings.nav.general'),
-    icon: Icons.Setting,
-  },
-  { page: SettingsPages.AccountPage, name: t('settings.nav.account'), icon: Icons.User },
-  {
-    page: SettingsPages.NotificationPage,
-    name: t('settings.nav.notifications'),
-    icon: Icons.Bell,
-  },
-  {
-    page: SettingsPages.DevicesPage,
-    name: t('settings.nav.devices'),
-    icon: Icons.Monitor,
-  },
-  {
-    page: SettingsPages.EmojisStickersPage,
-    name: t('settings.nav.emojisStickers'),
-    icon: Icons.Smile,
-  },
-  ...getMindroomSettingsMenuItems(showLocalMindroom, t),
-  {
-    page: SettingsPages.DeveloperToolsPage,
-    name: t('settings.nav.developerTools'),
-    icon: Icons.Terminal,
-  },
-  { page: SettingsPages.AboutPage, name: t('settings.nav.about'), icon: Icons.Info },
-];
+): SettingsMenuItem[] => {
+  const translate = ([page, labelKey, icon]: CoreMenuEntry): SettingsMenuItem => ({
+    page,
+    icon,
+    name: t(labelKey),
+  });
+  return CORE_ENTRIES_ABOVE.map(translate).concat(
+    getMindroomSettingsMenuItems(showLocalMindroom, t),
+    CORE_ENTRIES_BELOW.map(translate)
+  );
+};
 
 /**
  * The page the dialog opens on. Without a request, desktop opens General and
