@@ -72,7 +72,7 @@ const lightAccents = {
   Other: {
     FocusRing: 'rgba(105, 76, 205, 0.5)',
     Shadow: 'rgba(31, 30, 38, 0.18)',
-    Overlay: 'rgba(31, 30, 38, 0.24)',
+    Overlay: 'rgba(31, 30, 38, 0.45)',
   },
 };
 
