@@ -76,7 +76,15 @@ const useReplyDetailsLabel = (): string =>
   useTranslation().t('mindroomUi.messages.mindroomMessageControls.replyDetails');
 
 /** Title on the left, a close button on the right; stays put while the details scroll. */
-function ReplyDetailsHeader({ title, onClose }: { title: string; onClose: () => void }) {
+function ReplyDetailsHeader({
+  title,
+  onClose,
+  closeRef,
+}: {
+  title: string;
+  onClose: () => void;
+  closeRef: Ref<HTMLButtonElement>;
+}) {
   const { t } = useTranslation();
   const closeLabel = t('mindroomUi.messages.mindroomMessageControls.close');
   return (
@@ -84,7 +92,7 @@ function ReplyDetailsHeader({ title, onClose }: { title: string; onClose: () => 
       <Box alignItems="Center" grow="Yes">
         <Text size="H4">{title}</Text>
       </Box>
-      <IconButton onClick={onClose} aria-label={closeLabel} size="300">
+      <IconButton ref={closeRef} onClick={onClose} aria-label={closeLabel} size="300">
         <Icon src={Icons.Cross} />
       </IconButton>
     </Header>
@@ -114,6 +122,8 @@ export function MindroomAiRunControls({
     [open, openDetails, closeDetails]
   );
   const title = useReplyDetailsLabel();
+  // The dialog opens with focus on Close, so Escape, Enter or Space can dismiss it at once.
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
@@ -122,7 +132,7 @@ export function MindroomAiRunControls({
         <OverlayCenter>
           <FocusTrap
             focusTrapOptions={{
-              initialFocus: false,
+              initialFocus: () => closeRef.current ?? false,
               clickOutsideDeactivates: true,
               escapeDeactivates: true,
               onDeactivate: closeDetails,
@@ -138,7 +148,9 @@ export function MindroomAiRunControls({
               style={{ width: '28rem', maxWidth: 'calc(100vw - 24px)' }}
             >
               <PageScroll
-                header={<ReplyDetailsHeader title={title} onClose={closeDetails} />}
+                header={
+                  <ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />
+                }
                 className={css.ReplyDetailsScroll}
               >
                 <MindroomReplyDetails info={info} eventId={eventId} />
