@@ -13,11 +13,15 @@ type NavItemProps = {
   highlight?: boolean;
 };
 
-/** One row of sidebar navigation; selected rows set `aria-selected`. */
+/**
+ * One row of sidebar navigation; selected rows set `aria-selected`, and `data-highlight` tells
+ * whether the row shows as unread.
+ */
 export const NavItem = as<'div', NavItemProps>(
   ({ as: AsNavItem = 'div', className, variant, radii, highlight, ...props }, ref) => (
     <AsNavItem
       className={classNames(css.NavItem({ variant, radii, highlight }), className)}
+      data-highlight={highlight ? 'true' : 'false'}
       {...props}
       ref={ref}
     />
