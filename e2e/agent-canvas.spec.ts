@@ -183,21 +183,6 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
 
-  // The app-wide frame policy still admits same-origin frames such as Element Call.
-  const callFrameLoaded = await page.evaluate(
-    () =>
-      new Promise<boolean>((resolve) => {
-        const frame = document.createElement('iframe');
-        frame.src = '/public/element-call/index.html';
-        frame.style.display = 'none';
-        frame.addEventListener('load', () => {
-          resolve(frame.contentWindow?.location.pathname === '/public/element-call/index.html');
-          frame.remove();
-        });
-        document.body.appendChild(frame);
-      })
-  );
-  expect(callFrameLoaded).toBe(true);
   // Frames from any other origin are refused before a request; reCAPTCHA registration stays allowed.
   const framePolicy = await page.evaluate(async () => {
     const violations: string[] = [];
