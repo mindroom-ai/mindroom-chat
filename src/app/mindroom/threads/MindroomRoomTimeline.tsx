@@ -1228,7 +1228,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     return (
       <CompactRoomView
         room={room}
-        threadRootIds={threadIndex.compactFilteredThreadRootIds}
+        threadRootIds={threadIndex.compactOverviewOrdering.displayOrderedIds}
         threadRecordMap={threadIndex.compactThreadRecordMap}
         onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
         compactRoomScrollStateRef={compactRoomScrollStateRef}
