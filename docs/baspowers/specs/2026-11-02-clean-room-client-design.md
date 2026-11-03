@@ -1,262 +1,113 @@
-# MindRoom Client: Clean-Room Matrix Client on matrix-rust-sdk
+# MindRoom Client: Apache-2.0 Rebuild of MindRoom Chat
 
-Date: 2026-11-02
-Status: approved for implementation (milestones M0 and M1)
+Date: 2026-11-02 (revised: option C)
+Status: approved for implementation
 
 ## 1. Purpose
 
-MindRoom Chat, the current client for MindRoom agents, is a fork of the upstream client named in `docs/provenance.md` and is licensed AGPL-3.0.
-Organizations with a no-GPL policy cannot run it.
-This project builds a new client under Apache-2.0 that offers the same MindRoom experience, written without access to the upstream client or MindRoom Chat source code.
+MindRoom Chat is a fork of the upstream client named in `docs/provenance.md` and is licensed AGPL-3.0, so organizations with a no-GPL policy cannot run it.
+This project rebuilds it under Apache-2.0 so it looks and works like MindRoom Chat today.
 
-What Bas said:
+What Bas decided:
 
-- Build a clean-room implementation based on the Matrix Rust SDK.
-- Choose the technology (JavaScript, Rust, SolidJS, React, Svelte, or something else).
-- Make a plan and start implementing now.
-
-Assumptions:
-
-- The first users are organizations that forbid GPL code (Apple is the motivating case). They need a web client and later Apple platforms.
-- "Works identically" means the MindRoom workflows behave the same: chatting with agents in rooms and threads, streamed replies, tool-call markers, stop, approvals, and so on. Pixel-identical copies of the upstream client's interface are neither needed nor wanted.
-- The license is Apache-2.0, the same as MindRoom core, because it carries a patent grant.
+- Keep the components Bas wrote himself as close to today's code as possible: liquid glass, the collapsible thread banner, the compact room view, tool calls, model badges, approvals, the command palette, canvas, computer, and the rest of `src/app/mindroom/`.
+- Drop the thread filter bar and Simple Mode.
+- Option C: React and `matrix-js-sdk` (both permissive), Bas's files ported nearly verbatim, everything the upstream client owns rebuilt clean.
 
 Success criteria:
 
-- Every line in this repository is original or comes from a dependency with a permissive license (MIT, Apache-2.0, BSD, ISC, MPL-2.0 at file level).
-- A provenance record (see section 3) and a similarity audit back the clean-room claim.
-- At M1, a user can log in to a MindRoom homeserver, see the rooms, read and send messages in rooms and threads, and watch an agent reply stream in, end to end encrypted where the room is.
+- Every file is either a ported file wholly authored by Bas (recorded in `docs/provenance/ported-files.tsv`) or new code written without access to the upstream client or MindRoom Chat source.
+- No dependency under GPL, AGPL, LGPL, or SSPL. `@element-hq/element-call-embedded` (AGPL) is excluded; calls use LiveKit directly.
+- The app matches the reference screenshots in `docs/design/reference/` and passes the ported tests.
 
-## 2. Scope and decomposition
+## 2. Two provenance lanes
 
-The full MindRoom Chat feature set is too large for one spec. It splits into milestones, and each gets its own plan:
+### Lane P: ported (Bas-authored)
 
-| Milestone | Content |
-|---|---|
-| M0 Foundations | Repository, clean-room rules, Nix toolchain, Rust core compiled to wasm, SolidJS shell, test harness, local Tuwunel test homeserver, license and similarity audit scripts |
-| M1 Core chat | Password login with `.well-known` discovery, session restore, sync, room list, full room view, full-screen thread view, sending text (Markdown), back pagination, edits applied in place (this is how MindRoom streams), `io.mindroom.stream_status`, the tool-call row from `io.mindroom.tool_trace`, the model badge from `io.mindroom.ai_run`, design tokens with the Paper, Midnight, and Studio themes, E2EE through the SDK defaults |
-| M2 MindRoom UX | Compact room view (threads as equal-height bars, titles, tags, the Unresolved filter, last-reply sort), thread titles on the full room view's thread rows (M1 shows them in the thread header), interactive questions, tool approval, the Stop action, `!` command autocomplete, model picker, live reply frames (needs a Tuwunel sliding-sync extension) |
-| M3 Account and security | SSO (OIDC), recovery key and cross-signing verification, devices, media upload and authenticated media download, notifications |
-| M4 Platforms | Desktop and mobile shells (Tauri 2), push notifications |
-| M5 Advanced | Panel dock with the Canvas, Computer (noVNC, MPL-2.0), and Members panels; calls through LiveKit; Connections portal; settings |
+- Source: `mindroom-ai/mindroom-chat` at a recorded commit (first import: `dev` at `fc3a5905`).
+- A file qualifies only when `git blame -w -M -C -C` attributes every line to Bas Nijholt (`bas@nijho.lt`). Files with any other author's line do not qualify, whatever the share.
+- Per Bas Nijholt's instruction of 2026-11-02, as sole author he licenses the qualifying files under Apache-2.0 for this project.
+- `docs/provenance/ported-files.tsv` lists path, source commit, line count, and the blame command. `scripts/verify-ported.sh <chat checkout>` recomputes the blame for every listed file and fails when a file no longer qualifies.
+- The orchestrator copies these files. Implementers may then change them only to re-point imports to Lane C modules, adapt to Lane C interfaces, and remove dead code for dropped features (filter bar, Simple Mode, Element Call). Each such change is a normal commit.
+- Paths stay the same as in MindRoom Chat (`src/app/mindroom/**`, `src/app/components/glass/**`, and so on), so later changes Bas makes there can be ported again with the same tooling.
 
-This document designs the whole architecture and specifies M0 and M1 in detail.
+### Lane C: clean (everything else)
 
-## 3. Clean-room rules
+- Covers what the upstream client wrote or co-wrote: the app shell, client setup, sync, room list, room timeline, message rendering, composer, settings frame, auth pages, emoji and stickers, media viewers, members, spaces, and every module a ported file imports that is not itself ported (the seams).
+- Implementers work from: this spec, the plans, `docs/design/reference/` screenshots, the seam inventory (`docs/provenance/seams.tsv`: module path, the names ported files import from it, and which files import it), the ported files themselves (to see how a seam is used), the Matrix specification, library documentation (React, `matrix-js-sdk`, folds, vanilla-extract, jotai, TanStack Query, React Router, Slate), and the MindRoom backend docs and source (`mindroom/docs/` except `docs/baspowers/` and `docs/dev/`, `mindroom/src/`).
+- Forbidden: the upstream client (any repository, fork, mirror, or package source other than `folds` as an installed dependency), MindRoom Chat outside the files ported into this repository, Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat.
+- A seam keeps the module path and the names the ported files import, so ported files compile unchanged where possible. Its implementation is new: behavior comes from the ported call sites, the screenshots, and the Matrix and library docs.
+- The orchestrator (this session) is the dirty side. It ran the reference app, captured the screenshots, computed blame and the seam inventory, and copied Lane P files. It never read upstream-authored source.
+- `scripts/similarity-audit.sh` compares Lane C files against the upstream client and MindRoom Chat before each release; the orchestrator runs it and keeps only the report. Lane P files are excluded from the comparison against MindRoom Chat.
+- `docs/provenance.md` logs every session: date, agent, model, task, sources consulted.
 
-These rules bind every person and agent that writes code in this repository.
+## 3. Architecture
 
-Forbidden sources (never open, search, fetch, or paste from them):
-
-- the upstream client named in `docs/provenance.md` (its repository, any fork or mirror), MindRoom Chat (`mindroom-ai/mindroom-chat`, the `mindroom-chat` submodule or any checkout of it), and the `folds` design system.
-- Other copyleft Matrix clients and SDK users: Element Web, Element X (iOS, Android), Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat.
-
-Allowed sources:
-
-- The Matrix specification and MSC documents.
-- `matrix-rust-sdk` source, docs, and examples (Apache-2.0), and `ruma` (MIT).
-- MindRoom backend documentation in `mindroom/docs/` and the MindRoom backend source in `mindroom/src/` (Apache-2.0, owned by Bas). These define the `io.mindroom.*` event formats. Not `mindroom/docs/baspowers/` or `mindroom/docs/dev/`: their plans name MindRoom Chat internals.
-- Documentation of the libraries we use (SolidJS, Vite, wasm-bindgen, Playwright, Tauri).
-- The Robrix (MIT) and iamb (Apache-2.0) clients, for how they use `matrix-rust-sdk`. Do not copy their code without keeping their license notice.
-- This spec and the implementation plans.
-
-Process:
-
-- The orchestrating session writes specs and plans from behavior and from the MindRoom backend documentation. It has seen repository metadata of MindRoom Chat (license, authorship statistics, dependency list, directory names, a test-stack Docker Compose file written by Bas), never its source files. For the look of MindRoom-specific features (tool-call row, model badge, compact thread bars, thread view, approval card) it viewed screenshots and recordings of the running app in the `demo` repository and Bas's Apache-2.0 landing-page mock (`mindroom/saas-platform/platform-frontend/src/components/landing/ProductPreview.tsx`). Those features are Bas's own designs; the mockup in `docs/design/mockup.html` is the reference implementers use.
-- Implementing agents receive only the spec, the plan, and this repository.
-- Agent transcripts are kept (Claude Code stores them under `~/.claude/projects/`). `docs/provenance.md` records each implementation session: date, agent, model, task.
-- Before each release, `scripts/similarity-audit.sh` compares `web/src` against the upstream client and MindRoom Chat with a clone detector. The orchestrator runs it, outside the implementers' context, and stores only the report. Any match longer than a trivial idiom gets rewritten from the spec.
-- The language models used may have seen public Matrix clients in training. The audit is the control for that.
-
-## 4. Approaches considered
-
-1. **Rust core (matrix-rust-sdk compiled to wasm) with a SolidJS and TypeScript interface.** One codebase runs in the browser, in desktop and mobile shells later, and against one SDK. The SDK handles sync, E2EE, the room list, and timelines. The interface uses the web ecosystem: Markdown, HTML sanitizing, virtualization, noVNC.
-2. **Native SwiftUI with `matrix-rust-components-swift`.** Best on Apple devices and furthest from the upstream client, but no web client, and MindRoom users need one.
-3. **All-Rust interface (Dioxus or Leptos) calling the SDK directly.** One language and no bindings layer, but slow rebuilds for interface work (the SDK is a big compile), a thinner ecosystem for rich chat interfaces, and weaker agent fluency.
-
-**Decision: approach 1.**
-
-Interface framework, chosen within approach 1:
-
-| Framework | For | Against |
-|---|---|---|
-| **SolidJS** (chosen) | Fine-grained reactivity: a streamed edit updates one text node, and the SDK's `VectorDiff` updates map one to one onto store operations. Small runtime. JSX with full TypeScript checking. Structurally unlike the upstream client (React), which keeps the clean room clean. | Smaller ecosystem; props must not be destructured (lint rule enforces it). |
-| React | Largest ecosystem, most familiar to agents | Same framework as the upstream client, which invites reproducing patterns from training data; re-renders whole subtrees on each diff |
-| Svelte 5 | Fine-grained, compact | Agents mix Svelte 4 and 5 syntax; `.svelte` files need their own checker |
-
-## 5. Architecture
+Same stack as MindRoom Chat, so ported files run unchanged: React 18.2, TypeScript 5.4, Vite 5.4, vanilla-extract, folds 2.7.1 (Apache-2.0), jotai 2, TanStack Query 5, React Router 6, Slate 0.123, i18next, `matrix-js-sdk` 41.7 with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`), Capacitor 8 for native shells later. Versions match MindRoom Chat `fc3a5905`; the M0 plan pins them.
 
 ```
 mindroom-client/
-  crates/model/    Rust crate `mindroom-model`: serializable view models and pure mapping
-                   functions; no SDK dependency, so its tests run natively in seconds
-  crates/core/     Rust crate `mindroom-core`, built to wasm with wasm-bindgen
-    src/lib.rs        wasm exports (thin)
-    src/client.rs     login, restore, logout, sync service, session persistence
-    src/rooms.rs      room list subscription
-    src/timeline.rs   room and thread timelines, sending, pagination, retry
-  web/             SolidJS + TypeScript + Vite
-    src/core/         typed wrapper around the wasm module (the only file that imports it)
-    src/state/        Solid stores fed by core subscriptions; diff application
-    src/ui/           components: login, room list, timeline, message, composer, thread panel
-    src/render/       message body rendering (sanitized HTML, MindRoom markers)
-  e2e/             Playwright tests and the Tuwunel Docker Compose stack
-  scripts/         license check, similarity audit
-  flake.nix        dev shell: rustc, cargo, lld, wasm-bindgen-cli, binaryen (wasm-opt), just, cargo-deny, bun, chromium for tests
+  src/app/mindroom/**         Lane P (plus Lane C files where a module there is not ported)
+  src/app/components/glass/** Lane P
+  src/**                      Lane C: seams at the paths ported files import, plus the shell
+  e2e/                        ported Playwright tests (Lane P) and new ones (Lane C), Tuwunel stack
+  docs/provenance/            ported-files.tsv, seams.tsv, external.tsv, audit reports
+  scripts/                    port-files.sh, verify-ported.sh, license-check.mjs, similarity-audit.sh
 ```
 
-### 5.1 Rust core (`mindroom-core`)
+State management and component structure follow what the ported files expect: `matrix-js-sdk` `MatrixClient` in a React context, jotai atoms for UI state, TanStack Query for server reads. Lane C decides the internals of each seam.
 
-The core owns all Matrix state. It exposes a small, coarse, asynchronous API to JavaScript, and every value that crosses the boundary is a plain serializable view model, never an SDK type.
+## 4. Product decisions
 
-Dependencies: `matrix-sdk` and `matrix-sdk-ui` 0.19.x with `default-features = false` and features `js`, `indexeddb`, `e2e-encryption`, `markdown`; `wasm-bindgen` pinned to the version of the Nix `wasm-bindgen-cli`; `serde`, `serde-wasm-bindgen`; `futures-util`.
+- No thread filter bar and no Simple Mode. Advanced features (command palette) are always on.
+- The room view has two modes, Compact (threads as equal-height bars, MindRoom Chat's compact room view) and Full (classic timeline). Without the filter bar, the switch is an icon button in the room header; the choice is remembered per room as today.
+- Thread view: the thread replaces the room view in the main area, with the collapsible thread banner (tags, title, pin, resolve, options).
+- Look: today's MindRoom Chat look in light and dark (Inter, folds tokens, liquid glass), per `docs/design/reference/`.
+- Canvas and Computer panels, approvals, background jobs, schedules, voice, connections, and bug reports come over with the ported files and their seams.
+- Calls: LiveKit client directly; no Element Call widget (later milestone).
 
-Storage: `matrix-sdk-indexeddb` stores (state, crypto, event cache) named per account (`mindroom-<hash of user id>`), protected by a passphrase. M1 keeps the passphrase and the session tokens in `localStorage`, which matches other web clients' practice. M3 revisits this with the recovery key.
+## 5. MindRoom contracts
 
-Exported API (TypeScript view of the wasm-bindgen exports):
-
-```ts
-class Core {
-  static restore(): Promise<Core | null>;                  // session from localStorage
-  static login(homeserverOrServerName: string, user: string, password: string): Promise<Core>;
-  logout(): Promise<void>;
-  session(): SessionInfo;                                  // userId, deviceId, homeserver
-  startSync(onState: (state: SyncState) => void): Promise<void>;
-  subscribeRooms(onDiff: (diffs: ListDiff<RoomSummary>[]) => void): Subscription;
-  openTimeline(roomId: string, threadRoot: string | null,
-               onDiff: (diffs: ListDiff<TimelineEntry>[]) => void): Promise<TimelineHandle>;
-}
-interface TimelineHandle {
-  paginateBack(count: number): Promise<boolean>;           // true when the start is reached
-  sendMarkdown(text: string): Promise<void>;               // into the thread when threadRoot is set
-  retrySend(uniqueId: string): Promise<void>;              // retry a failed local echo
-  close(): void;
-}
-interface Subscription { close(): void }
-```
-
-`ListDiff<T>` mirrors `eyeball_im::VectorDiff`: `append`, `clear`, `pushFront`, `pushBack`, `popFront`, `popBack`, `insert`, `set`, `remove`, `truncate`, `reset`. Each carries indexes and values as JSON.
-
-`RoomSummary`: `id`, `name`, `avatarUrl` (`mxc://` or null), `isDirect`, `isEncrypted`, `unreadCount`, `highlightCount`, `lastActivity` (ms), `latestPreview` (sender and text or null).
-
-`TimelineEntry` is either a virtual item (`dayDivider` with timestamp, `readMarker`, `timelineStart`) or an event:
-
-- identity: `uniqueId` (stable across updates; used as the key), `eventId` or null, `transactionId` or null
-- sender: `userId`, `displayName`, `avatarUrl`, `isOwn`
-- `timestamp`, `sendState` (`sending`, `sent`, `failed` with error text)
-- `content`: `kind` (`text`, `notice`, `emote`, `image`, `file`, `redacted`, `unableToDecrypt`, `state`, `other`), `body`, `formattedHtml` or null, `isEdited`
-- `mindroom`: `streamStatus` (string or null, from `io.mindroom.stream_status` of the latest edit, falling back to the original event), `toolTrace` (raw JSON or null, from `io.mindroom.tool_trace`)
-- `thread`: for a thread root in a room timeline, `replyCount` and the latest reply's sender and preview
-- `reactions`: list of key, count, and whether the user reacted
-
-The pure mapping logic (diff conversion, MindRoom field extraction, previews, error classification) lives in `mindroom-model`. It is unit-tested on the native target with JSON fixtures, so most core tests run without a browser. `mindroom-core` only adapts SDK types to those functions.
-
-Sync: `matrix_sdk_ui::sync_service::SyncService` drives `RoomListService` (sliding sync, MSC4186, served by Tuwunel as `sync/v5`) and the encryption sync. `SyncState` is `idle`, `running`, `offline`, `error` with text, or `sessionExpired` (the server rejected the access token).
-
-Timelines: `Room::timeline_builder()`. The room timeline uses `TimelineFocus::Live { hide_threaded_events: true }` and shows thread summaries on roots, which is how MindRoom conversations look. A thread timeline uses `TimelineFocus::Thread` with the root event ID. Both exist in 0.19.1.
-
-Sending: `RoomMessageEventContent::text_markdown` through the timeline's send queue (local echo comes free). Thread replies set the thread relation through the timeline in thread focus.
-
-### 5.2 Web interface
-
-- `web/src/core/` loads the wasm module once, wraps the exports with types, and converts thrown `JsValue` errors into `CoreError { code, message }`.
-- `web/src/state/` keeps one Solid store per subscription and applies `ListDiff` batches with `produce`, keyed by `uniqueId`, so a streamed edit changes one entry and Solid updates only that message's text node.
-- Routes (`@solidjs/router`): `/login`; `/` (room list only); `/room/:roomId`; `/room/:roomId/thread/:eventId` (room timeline with the thread panel open).
-- Layout: room list sidebar, room timeline in the middle, thread panel on the right (full screen on narrow viewports).
-- Message rendering: `formattedHtml` sanitized with DOMPurify (Apache-2.0 or MPL-2.0) against an allowlist of the Matrix spec's HTML tags and attributes; otherwise `body` as plain text with line breaks. `mxc://` images are out of scope until M3. Links open in a new tab with `rel="noopener noreferrer"`.
-- MindRoom markers: a message whose `streamStatus` is `pending` or `streaming` shows a progress indicator next to the sender. Tool markers (`🔧 \`name\` [N] ⏳`) already arrive in the text and render as is in M1. M2 adds the tool-trace view.
-- Composer: textarea; Enter sends, Shift+Enter adds a newline; the core converts Markdown to HTML.
-- Styling: own CSS with custom properties, light and dark through `prefers-color-scheme`, system font stack. No component kit in M1.
-- Lint and format: ESLint with `eslint-plugin-solid`, TypeScript `strict`, Prettier.
-
-### 5.3 Data flow
-
-1. On start, the app calls `Core.restore()`; with no session it shows `/login`.
-2. Login resolves the homeserver (`.well-known`, done by the SDK's `server_name_or_homeserver_url`), logs in, stores the session, and starts sync.
-3. `subscribeRooms` streams the room list; the sidebar renders from the store.
-4. Opening a room calls `openTimeline(roomId, null)`. Opening a thread also calls `openTimeline(roomId, rootId)`. Each handle is closed when its view unmounts.
-5. Agent streaming arrives as `m.replace` edits; the SDK folds them into the original timeline item, the core emits a `set` diff, and the store updates that entry.
-
-### 5.4 Error handling
-
-- Every core call rejects with `CoreError { code, message }`. Codes: `network`, `auth` (wrong password, expired session), `rateLimited` (with retry seconds), `notFound`, `internal`.
-- A session that the server rejects (`M_UNKNOWN_TOKEN`) clears the stored session and returns to `/login` with a message.
-- Sync errors show a banner; the sync service restarts with backoff.
-- A failed send keeps the message in the timeline with a retry action.
-- A panic in Rust is caught by `console_error_panic_hook` and reported as `internal`.
-
-## 5.5 Visual design
-
-Reference: `docs/design/mockup.html` (open it in a browser; tabs switch views and themes).
-
-Design tokens:
-
-- `web/src/theme/tokens.css` defines every color, radius, shadow, and font as a CSS custom property, one block per theme selected with `[data-theme="paper"|"midnight"|"studio"]` on `<html>`.
-- Components use only `var(--…)` tokens. Stylelint rejects hex, `rgb()`, and `hsl()` colors and raw `box-shadow` values outside `tokens.css`. No component branches on the theme in TypeScript.
-- Themes: Paper (warm light, ember accent) is the light default, Midnight (dark, aurora accent) the dark default, chosen by `prefers-color-scheme`; Studio (monochrome, lime highlight) is selectable. The choice is stored in `localStorage` (`mindroom.theme`: `system`, `paper`, `midnight`, `studio`).
-- Fonts: Geist and Geist Mono (SIL Open Font License), bundled with `@fontsource`.
-
-Layout:
-
-- Sidebar (268 px): workspace header, search, then sections Agents (accounts whose localpart starts with `mindroom_`, with model and presence), Rooms, Direct.
-- Main area: the room view or the thread view, content column at most 860 px wide, floating composer.
-- Panel dock on the right (M5): Canvas, Computer, or Members, one at a time, resizable, expandable to the full width; full screen below 900 px.
-
-Views:
-
-- **Full room view**: every message in the room timeline; a thread root shows a summary row with participants, the thread title, the reply count, the last reply time, and the thread status. Clicking it opens the thread view.
-- **Compact room view** (M2): one equal-height bar (96 px) per thread, newest last reply first: title with time; `Sender: preview` of the latest reply; participants, tags, status, reply count. A filter bar offers Unresolved (default) or All, and sort by last reply or by creation. The room header has a Compact and Full switch, remembered per room.
-- **Thread view**: replaces the room view in the main area (full screen on narrow viewports); header with a back button to the room, the thread title, participants, message count, status.
-
-Message parts:
-
-- Agent replies sit in a card; human messages have no card. Agents have a rounded-square avatar, people a round one.
-- Model badge under the agent's avatar: `io.mindroom.ai_run.model.display_name`, else `config`.
-- Tool-call row: one row per message, collapsed by default: a check (completed) or spinner (any call still running), `Ran N tool calls` or `Running N tool calls` (N counts every call in the message, singular for one), then the tool names in order with repeats folded (`google_drive_read_file ×2`), and a chevron. Expanded: one line per call with name, `args_preview`, and `result_preview`.
-- Status pill: `Streaming` (pending, streaming), `Pending approval` (approval_pending), nothing for completed; cancelled, interrupted, and error show a muted pill with that word.
-- Approval card (M2): tool name, `Pending approval`, what and details, Approve and Deny.
-- Composer: attach, voice (M3), model picker (M2), `!` hint, send.
-
-## 5.6 MindRoom contracts
-
-All from the Apache-2.0 backend (`mindroom/src/mindroom/`) and its user-facing docs:
+Unchanged event formats; the ported files implement them. Reference for Lane C, from the Apache-2.0 backend:
 
 | Contract | Shape | Source |
 |---|---|---|
 | Stream status | `io.mindroom.stream_status`: `pending`, `streaming`, `approval_pending`, `completed`, `cancelled`, `interrupted`, `error`; in the edit's `m.new_content` and at the top level of the edit content | `constants.py`, `matrix/client_delivery.py`, `docs/streaming.md` |
-| Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type: tool_call_started or tool_call_completed, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}`; call `[N]` in the text is `events[N-1]` | `tool_system/events.py` |
+| Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}` | `tool_system/events.py` |
 | Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model: {config, display_name?, id?, provider?}, usage?}` | `ai_run_metadata.py` |
-| Thread title | `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}`; the current title is the newest by (event or edit timestamp, `generated_at`), its `summary`, else `body` | `thread_summary/state.py`, `thread_summary/notices.py` |
-| Thread tags | room state `com.mindroom.thread.tags`, state key JSON `["<root event id>","<tag>"]`, content `{set_by, set_at, note?, data?}`, empty content means removed; tag `resolved` marks a resolved thread | `thread_tags.py` |
-| Canvas page API | `window.mindroom.submit`, `saveState`, `state`, `colorScheme`; theme variables `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, `--mr-font` | `docs/canvases.md`, `docs/tools/chat-ui.md` |
-| Computer | `/api/computers/*` on the MindRoom runtime, WebSocket, Matrix OpenID token; watch, take control, resume agent, close | `docs/tools/worker-computer.md` |
+| Thread title | `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `thread_summary/state.py` |
+| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root>","<tag>"]`, content `{set_by, set_at, note?, data?}`; tag `resolved` | `thread_tags.py` |
+| Tool approval | event type `io.mindroom.tool_approval`, content `{msgtype, body, tool_name, arguments, status, approval_id, approver_user_id, requester_id, requested_at, expires_at, thread_id, agent_name?}` | `approval/manager.py` |
+| Canvas page API | `window.mindroom.submit`, `saveState`, `state`, `colorScheme`; `--mr-*` theme variables | `docs/canvases.md` |
+| Computer | `/api/computers/*`, WebSocket, Matrix OpenID token | `docs/tools/worker-computer.md` |
 
-## 6. Testing
+## 6. Milestones
 
-- **Rust unit tests** (`cargo test`, native target): view-model mapping from JSON fixtures, including edits with `io.mindroom.stream_status` and `io.mindroom.tool_trace`.
-- **Wasm build check**: `cargo build -p mindroom-core --target wasm32-unknown-unknown --release`, then `wasm-bindgen --target web` and `wasm-opt -Oz` (the Nix versions, so the CLI matches the pinned crate).
-- **TypeScript unit tests** (Vitest): diff application, HTML sanitizing (script tags, `javascript:` links, event handler attributes all removed), route guards.
-- **End-to-end tests** (Playwright with the system Chromium) against a disposable Tuwunel from `ghcr.io/mindroom-ai/mindroom-tuwunel` (Apache-2.0) in Docker Compose with open registration. Accounts are registered through the client-server API in test setup. M1 cases: login and restore after reload; room list shows a room another account created; sending a message appears for both accounts; a thread reply shows in the thread panel and as a summary in the room; an edit sent by another account (simulating a streamed agent reply with `io.mindroom.stream_status: streaming`, then `completed`) updates the message in place; the same flows in an encrypted room.
-- Tuwunel limits password logins per account, so tests reuse stored sessions and use one account per browser context.
+| Milestone | Content |
+|---|---|
+| M0 Foundations | Scaffold with pinned stack, lint and type check, license check, provenance scripts (port, verify, audit), Tuwunel test stack, Playwright harness, reference screenshots committed |
+| M1 Port and compile | Copy Lane P files and their tests; implement every seam at least to its type signature so `tsc --noEmit` passes and the ported unit tests run; app boots to the login screen |
+| M2 Core parity | Lane C shell: login (password and SSO), client start and sync, room list and sidebar (rooms, threads, recently opened), room header, Full timeline, message rendering, composer, members panel, settings frame; Compact view, thread view, tool calls, approvals working end to end; screenshots match the reference |
+| M3 Full parity | Everything else MindRoom Chat users rely on: media, emoji and stickers, profiles, room settings, spaces, notifications, device verification and key backup, canvas, computer, voice, schedules, connections, bug reports |
+| M4 Platforms and calls | Capacitor iOS and Android shells, push, LiveKit calls |
 
-## 7. Licensing
+## 7. Testing
 
-- `LICENSE`: Apache-2.0; `NOTICE` names the project and lists bundled third-party notices.
-- `scripts/license-check.sh` fails on any GPL, AGPL, LGPL, SSPL, or unknown license in `web` dependencies (`license-checker`-style scan of `node_modules`) and in Rust dependencies (`cargo deny check licenses` with an allowlist).
-- MPL-2.0 is allowed only for unmodified dependency files.
+- Ported unit tests (Vitest) run as they do in MindRoom Chat once their seams exist.
+- Ported Playwright tests run against the Tuwunel stack (`ghcr.io/mindroom-ai/mindroom-tuwunel`, Apache-2.0) where their selectors target ported components; Lane C writes its own end-to-end tests for shell behavior.
+- Visual check per milestone: capture the same screens as `docs/design/reference/` and compare.
+- `just check`: type check, lint, unit tests, license check, `verify-ported.sh`.
 
-## 8. Risks
+## 8. Licensing
+
+- `LICENSE` Apache-2.0; `NOTICE` names Bas Nijholt as author of the ported files and lists third-party notices.
+- `scripts/license-check.mjs` fails on GPL, AGPL, LGPL, SSPL, or unknown licenses in the installed tree. MPL-2.0 is allowed for unmodified dependency files (noVNC).
+
+## 9. Risks
 
 | Risk | Mitigation |
 |---|---|
-| `matrix-sdk-ui` on wasm hits a runtime gap (IndexedDB event cache, timers) | M0 ends with a smoke test that logs in and syncs in a real browser against Tuwunel; fall back to the SDK's in-memory stores for M1 if a store fails |
-| Large wasm bundle (SDK plus crypto) | `opt-level = "z"`, LTO, `wasm-opt`; measure in M0; load it with a splash screen |
-| Thread summaries on roots incomplete in SDK 0.19 (both focus types exist) | Verified during M1; fallback counts replies from the thread timeline |
-| Live frames need custom ephemeral events over sliding sync | Deferred to M2; streaming works through edits without them |
-| Training-data contamination | Similarity audit before each release |
-
-## 9. Decisions not needing input now
-
-- Repository `mindroom-ai/mindroom-client`, private.
-- Bun as package manager and script runner; Vite for the dev server and builds.
-- Main-thread wasm in M1; the API is asynchronous and message-shaped, so moving the core into a Web Worker later is mechanical.
+| A seam must reproduce a large upstream subsystem (timeline, editor) | Seams keep signatures, not internals; behavior from screenshots and ported call sites; one plan task per subsystem |
+| A seam's signature copies upstream structure | Signatures are interfaces the ported code needs; each is recorded in `seams.tsv`; internals stay new |
+| Ported files change upstream | Re-run `port-files.sh` and `verify-ported.sh` for a new commit |
+| Training-data contamination in Lane C | Similarity audit before release |
