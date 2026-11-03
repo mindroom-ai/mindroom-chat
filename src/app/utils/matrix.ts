@@ -4,6 +4,7 @@ import {
   type MatrixClient,
   type Room,
   type UploadProgress,
+  type UploadResponse,
 } from 'matrix-js-sdk';
 import {
   decryptAttachment,
@@ -43,16 +44,15 @@ export const getMxIdServer = (userId: string): string | undefined =>
     : undefined;
 
 /** The room this client knows under `alias` as its canonical or alternative alias. */
+export const getCanonicalAliasRoomId = (mx: MatrixClient, alias: string): string | undefined => {
+  const knowsAlias = (room: Room): boolean =>
+    room.getCanonicalAlias?.() === alias || (room.getAltAliases?.() ?? []).includes(alias);
+  return mx.getRooms().find(knowsAlias)?.roomId;
+};
 
-
-
-
-
-        room.getCanonicalAlias?.() === alias || (room.getAltAliases?.() ?? []).includes(alias)
-
-
-
-
+/** The room's canonical alias for links and routes, or its ID when it has none. */
+export const getCanonicalAliasOrRoomId = (mx: MatrixClient, roomId: string): string => {
+  const room = mx.getRoom(roomId);
   return room?.getCanonicalAlias() ?? roomId;
 };
 
@@ -295,8 +295,6 @@ export const getMatrixUploadErrorMessage = (
 
 export type UploadContentOptions = {
   name?: string;
-  fileType?: string;
-  hideFilename?: boolean;
 
 
 
@@ -307,18 +305,21 @@ export type UploadContentOptions = {
 
 
 
-  options: UploadContentOptions
-): Promise<void> => {
 
 
 
 
 
-
-
-
-
-
+  const { name, fileType, hideFilename, onPromise, onProgress, onSuccess, onError } = options;
+  try {
+    const request = mx.uploadContent(file, {
+      name,
+      type: fileType,
+      includeFilename: !hideFilename,
+      progressHandler: onProgress,
+    });
+    onPromise?.(request);
+    const { content_uri: mxc } = await request;
     if (!mxc) throw new Error('The upload returned no content URI.');
     onSuccess(mxc);
   } catch (error) {

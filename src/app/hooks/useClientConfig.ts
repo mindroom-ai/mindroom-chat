@@ -56,6 +56,8 @@ export const useClientConfig = (): ClientConfig => {
 
 
 
+
+  sidebar?: {
     showThreads?: boolean;
     showExploreCommunity?: boolean;
     /** The Local MindRoom tab; on unless set to false. */

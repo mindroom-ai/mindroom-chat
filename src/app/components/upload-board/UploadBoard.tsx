@@ -26,12 +26,10 @@ export function UploadBoard({ header, children }: UploadBoardProps) {
   );
 }
 
-
-
-
-
-
-
+/** The file cards under the header, shown while the board is open. */
+export const UploadBoardContent = as<'div'>((props, ref) => {
+  const { as: List = 'div', className, ...rest } = props;
+  return <List ref={ref} {...rest} className={classNames(css.UploadBoardContent, className)} />;
 
 
 
@@ -47,14 +45,10 @@ export function UploadBoard({ header, children }: UploadBoardProps) {
  * The board's title row: how many files, how many are still uploading or failed, a toggle for
  * the card list and Remove All. Sending happens from the composer, so there is no Send here.
  */
-
-
-
-
-
-
-
-
+export function UploadBoardHeader(props: UploadBoardHeaderProps) {
+  const { open, onToggle, uploadFamilyObserverAtom, onCancel } = props;
+  const uploads = useAtomValue(uploadFamilyObserverAtom);
+  const { t } = useTranslation();
   const loading = uploads.filter((upload) => upload.status === UploadStatus.Loading).length;
   const failed = uploads.filter((upload) => upload.status === UploadStatus.Error).length;
 

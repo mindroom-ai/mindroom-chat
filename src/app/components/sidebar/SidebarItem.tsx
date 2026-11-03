@@ -4,30 +4,33 @@ import { Text, Tooltip, TooltipProvider, as } from 'folds';
 import * as css from './SidebarItem.css';
 
 /** The icon rail at the left edge of the client. */
-
-
-
+export const Sidebar = as<'nav'>((props, ref) => {
+  const { as: Rail = 'nav', className, ...rest } = props;
+  return <Rail ref={ref} {...rest} className={classNames(css.Sidebar, className)} />;
+});
 
 /** A column of rail items. */
-
-
-));
+export const SidebarStack = as<'div'>((props, ref) => {
+  const { as: Stack = 'div', className, ...rest } = props;
+  return <Stack ref={ref} {...rest} className={classNames(css.SidebarStack, className)} />;
+});
 
 export function SidebarStackSeparator() {
   return <div role="separator" className={css.SidebarStackSeparator} />;
 }
 
 /** One rail entry; `active` shows the selected-tab indicator. */
-export const SidebarItem = as<'div', { active?: boolean }>(
-
-
-
-      data-active={active || undefined}
-      {...props}
+export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
+  const { as: Item = 'div', active, className, ...rest } = props;
+  return (
+    <Item
       ref={ref}
+      {...rest}
+      data-active={active || undefined}
+      className={classNames(css.SidebarItem({ active }), className)}
     />
-  )
-);
+  );
+});
 
 type SidebarItemTooltipProps = {
   tooltip?: ReactNode;
@@ -55,22 +58,21 @@ export function SidebarItemTooltip({ tooltip, children }: SidebarItemTooltipProp
 
 /** The rounded square holding a rail entry's icon or avatar. */
 export const SidebarAvatar = as<'div', { size?: '400' | '300' | '200'; outlined?: boolean }>(
+  (props, ref) => {
+    const { as: Square = 'div', size, outlined, className, ...rest } = props;
+    const variantClass = css.SidebarAvatar({ size, outlined });
+    return <Square ref={ref} {...rest} className={classNames(variantClass, className)} />;
+  }
+);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** The unread badge on a rail entry; `hasCount` moves it out to fit a number. */
+export const SidebarItemBadge = as<'div', { hasCount?: boolean }>((props, ref) => {
+  const { as: Badge = 'div', hasCount, className, ...rest } = props;
+  return (
+    <Badge
+      ref={ref}
+      {...rest}
+      className={classNames(css.SidebarItemBadge({ hasCount }), className)}
+    />
+  );
+});

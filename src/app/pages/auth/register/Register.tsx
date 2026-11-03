@@ -138,33 +138,32 @@ export function Register() {
     [hashRouter, server, addAccount]
   );
 
+  const loginLink = withAddAccountSearchIf(getLoginPath(server), addAccount);
   if (auth?.allowRegistration === false) {
-    return <Navigate to={withAddAccountSearchIf(getLoginPath(server), addAccount)} replace />;
+    return <Navigate to={loginLink} replace />;
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  return (
+    <Box gap="500" direction="Column">
+      <Text as="h1" size="H2" priority="400">
+        {t('sharedUi.register.register')}
+      </Text>
+      <AuthFlowsLoader>
+        {(authFlows) => (
+          <RegisterMethods
+            authFlows={authFlows}
+            baseUrl={baseUrl}
+            server={server}
+            ssoRedirectUrl={ssoRedirectUrl}
+          />
+        )}
+      </AuthFlowsLoader>
+      <Text align="Center">
+        <Trans
+          i18nKey="sharedUi.register.accountLink"
+          components={{ authLink: <Link to={loginLink} /> }}
+        />
+      </Text>
+    </Box>
+  );
+}

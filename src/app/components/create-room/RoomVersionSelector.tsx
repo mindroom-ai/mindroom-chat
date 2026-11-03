@@ -97,9 +97,9 @@ export function RoomVersionSelector({
     <PopOut anchor={menuAnchor} content={menu} position="Bottom" align="End" offset={5}>
       <Chip
         type="button"
-
-
-
+        onClick={openMenu}
+        aria-pressed={open}
+        disabled={disabled}
         after={<Icon src={open ? Icons.ChevronTop : Icons.ChevronBottom} size="50" />}
         variant="Secondary"
         radii="300"

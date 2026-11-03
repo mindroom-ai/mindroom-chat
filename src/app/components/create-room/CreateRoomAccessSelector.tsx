@@ -19,12 +19,9 @@ type CreateRoomAccessSelectorProps = {
 };
 
 /** Who may join a new room: invited people, members of the parent space, or anyone. */
-
-
-
-
-
-
+export function CreateRoomAccessSelector(props: CreateRoomAccessSelectorProps) {
+  const { value, onSelect, canRestrict = false, disabled = false } = props;
+  const { t } = useTranslation();
 
   const options: AccessOption[] = [
     {
@@ -65,9 +62,9 @@ type CreateRoomAccessSelectorProps = {
             onClick={() => onSelect(option.access)}
             style={{
               display: 'flex',
-
-
-
+              alignItems: 'center',
+              gap: config.space.S300,
+              padding: `${config.space.S300} ${config.space.S400}`,
               textAlign: 'start',
               font: 'inherit',
               color: 'inherit',

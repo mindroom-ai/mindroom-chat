@@ -4,7 +4,8 @@
 
 
 
-  /** Anyone may join. */
+
+
 
 
 

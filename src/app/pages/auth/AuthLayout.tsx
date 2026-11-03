@@ -1,6 +1,10 @@
 import React, { FormEventHandler, useEffect, useState } from 'react';
 import { Box, Input, Scroll, Spinner, Text, color } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
+import {
+  ParticleBackgroundSurface,
+  usePersistentParticleBackground,
+} from '../../components/particle-background';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
@@ -116,6 +120,7 @@ function ServerPicker({
 
 
 
+  const persistentParticle = usePersistentParticleBackground();
   const { server: encodedServer } = useParams();
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
@@ -142,17 +147,21 @@ function ServerPicker({
       }),
       { replace: true }
     );
+  };
 
-
-
-
-
-
-
-
-
+  return (
+    <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
+      <Box
+        className={classNames(
+          css.AuthLayout,
+          persistentParticle && css.AuthLayoutPersistentParticle
+        )}
+        direction="Column"
+        alignItems="Center"
+        justifyContent="Center"
         gap="400"
       >
+        <ParticleBackgroundSurface />
         <Box className={css.AuthCard} direction="Column">
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" alignItems="Center" gap="300">

@@ -72,26 +72,28 @@ export function EventReaders({ room, eventId, requestClose }: EventReadersProps)
 
 
 
-
+              ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
               : undefined;
+            const avatar = (
+              <Avatar size="200">
+                <UserAvatar
+                  alt={name}
+                  src={avatarSrc}
+                  userId={userId}
+                  renderFallback={() => <Icon size="50" filled src={Icons.User} />}
+                />
+              </Avatar>
+            );
             return (
               <MenuItem
                 key={userId}
                 as="div"
                 radii="400"
-
-
-
-
-
-
-
-
-
-
-
-
-
+                before={avatar}
+                size="400"
+                style={{ paddingInline: config.space.S200 }}
+              >
+                <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
                   <Text size="T300" truncate>
                     {name}
                   </Text>

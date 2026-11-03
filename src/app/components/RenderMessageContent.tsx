@@ -56,6 +56,9 @@ type RenderMessageContentProps = {
 
 
 
+
+
+
   showMessageExtras?: boolean;
   pendingSend?: boolean;
   failedSend?: boolean;
@@ -97,12 +100,12 @@ const getCaption = (content: Content): string | undefined => {
 
 
 
-  showMessageExtras,
-  pendingSend,
-  failedSend,
-  hydrateLongText,
-}: RenderMessageContentProps) {
-  const mx = useMatrixClient();
+
+
+
+
+
+
   const content = getContent<Content>();
   const fromMindroomAgent = isMindroomAgentUserIdForViewer(
     mEvent?.getSender(),
@@ -137,10 +140,10 @@ const getCaption = (content: Content): string | undefined => {
     content,
     pendingSend,
     failedSend,
-
-
-
-
+    highlightRegex,
+    htmlReactParserOptions,
+    linkifyOpts,
+    renderUrlsPreview,
     showMessageExtras,
     hydrateLongText,
   });
@@ -155,15 +158,15 @@ const getCaption = (content: Content): string | undefined => {
 
   const renderBody = ({ body, customBody }: { body: string; customBody?: string }) => (
     <RenderBody
+      body={body}
+      customBody={customBody}
+      highlightRegex={highlightRegex}
+      linkifyOpts={linkifyOpts}
+      htmlReactParserOptions={htmlReactParserOptions}
+    />
+  );
 
-
-
-
-
-
-
-
-
+  const renderCaption = () => {
     const caption = getCaption(content);
     if (!caption) return null;
     return (
@@ -177,21 +180,18 @@ const getCaption = (content: Content): string | undefined => {
     );
   };
 
-
-
-
-
-      renderFileContent={({ body, mimeType, url, encInfo }) => (
+  const renderFile = () => (
+    <MFile
+      content={content}
+      outlined={outlineAttachment}
+      renderFileContent={(file) => (
         <FileContent
-
-
-
+          body={file.body}
+          mimeType={file.mimeType}
+          renderAsTextFile={() => (
             <ReadTextFile
               owner={owner}
-
-
-
-
+              {...file}
               iconOnly
               renderViewer={(props) => <TextViewer {...props} />}
             />
@@ -199,20 +199,17 @@ const getCaption = (content: Content): string | undefined => {
           renderAsPdfFile={() => (
             <ReadPdfFile
               owner={owner}
-
-
-
-
+              {...file}
               iconOnly
               renderViewer={(props) => <PdfViewer {...props} />}
             />
           )}
         >
           <FileDownloadButton
-            filename={body}
-
-
-
+            filename={file.body}
+            mimeType={file.mimeType}
+            url={file.url}
+            encInfo={file.encInfo}
             owner={owner}
           />
         </FileContent>
@@ -220,13 +217,9 @@ const getCaption = (content: Content): string | undefined => {
     />
   );
 
-  const renderImageContent = ({ body, info, mimeType, url, encInfo }: RenderImageContentArgs) => (
+  const renderImageContent = (image: RenderImageContentArgs) => (
     <ImageContent
-
-
-
-
-
+      {...image}
       owner={owner}
       autoPlay={mediaAutoLoad}
       renderImage={(props) => <Image {...props} />}
@@ -249,33 +242,30 @@ const getCaption = (content: Content): string | undefined => {
     case MsgType.Image:
       return withCaption(
         <MImage
-
-
-
+          content={content}
+          outlined={outlineAttachment}
+          renderAsFile={renderFile}
           renderImageContent={renderImageContent}
         />
       );
     case MsgType.Video:
       return withCaption(
         <MVideo
-
-
-
-
-
-
-
-
-
-
+          content={content}
+          outlined={outlineAttachment}
+          renderAsFile={renderFile}
+          renderVideoContent={(video) => (
+            <VideoContent
+              {...video}
+              autoPlay={mediaAutoLoad}
               owner={owner}
               renderThumbnail={
-                info.thumbnail_url || info.thumbnail_file
+                video.info.thumbnail_url || video.info.thumbnail_file
                   ? () => (
                       <ThumbnailContent
-                        info={info}
+                        info={video.info}
                         owner={owner}
-                        renderImage={(src) => <Image src={src} alt={body} />}
+                        renderImage={(src) => <Image src={src} alt={video.body} />}
                       />
                     )
                   : undefined
@@ -297,6 +287,7 @@ const getCaption = (content: Content): string | undefined => {
     case MsgType.File:
       return withCaption(renderFile());
     case MsgType.Location:
+
 
 
 

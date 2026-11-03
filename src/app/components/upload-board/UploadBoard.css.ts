@@ -36,20 +36,24 @@ export const UploadBoard = style([
 
 
 
+    // The anchor passes clicks through; the panel takes them again.
+    pointerEvents: 'auto',
+  },
+]);
 
+/** The header row: the file count toggle on the start side, Remove All at the end. */
+export const UploadBoardHeaderContent = style({
+  minWidth: 0,
+  height: '100%',
+  gap: config.space.S200,
+  paddingInline: config.space.S300,
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
+/** The file cards; this part scrolls when the board reaches its height limit. */
+export const UploadBoardContent = style({
+  minHeight: 0,
+  flexGrow: 1,
+  padding: `0 ${config.space.S300} ${config.space.S300}`,
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',

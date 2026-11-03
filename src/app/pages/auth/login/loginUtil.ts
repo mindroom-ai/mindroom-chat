@@ -4,6 +4,10 @@ import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory
 import { trimTrailingSlash } from '../../../utils/common';
 import { CompletedAuth, useCompleteSession } from '../completeSession';
 
+/** A finished login: the credentials and the homeserver URL to keep using. */
+export type CustomLoginResponse = CompletedAuth<LoginResponse>;
+
+/** Why a login failed, as the login forms tell the user. */
 
 
 
@@ -12,11 +16,10 @@ import { CompletedAuth, useCompleteSession } from '../completeSession';
 
 
 
+}
 
-
-
-
-
+/** The error `login` throws, carrying the reason as a `LoginError`. */
+export class LoginFailure extends Error {
   readonly code: LoginError;
 
   constructor(code: LoginError, message?: string) {

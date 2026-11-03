@@ -106,12 +106,12 @@ export function Login() {
         `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(getLoginPath(server), addAccount)}`
       ),
     [hashRouter, server, addAccount]
+  );
 
-
-
-
-
-
+  return (
+    <Box direction="Column" gap="500">
+      <Text as="h1" size="H2" priority="400">
+        {t('sharedUi.login.login')}
       </Text>
       {loginToken ? (
         <TokenLogin baseUrl={baseUrl} token={loginToken} />

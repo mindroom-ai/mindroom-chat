@@ -7,7 +7,10 @@ import type {
 } from 'matrix-js-sdk';
 import { CompletedAuth, useCompleteSession } from '../completeSession';
 
+/** A finished registration: the new account's credentials and its homeserver URL. */
+export type CustomRegisterResponse = CompletedAuth<RegisterResponse>;
 
+/** Why a sign-up failed: the username, the password, or neither of them. */
 
 
 

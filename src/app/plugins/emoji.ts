@@ -4,19 +4,24 @@ import emojibaseShortcodes from 'emojibase-data/en/shortcodes/emojibase.json';
 // Unicode emoji from Emojibase (MIT): its compact English dataset for labels, tags and order,
 // and its own shortcode preset for `:shortcodes:`.
 
-/** The sections of the emoji picker, in the order it shows them. */
+/**
+ * The sections of the emoji picker, in the order it shows them: the Unicode CLDR emoji groups
+ * (Unicode Technical Standard #51, `emoji-test.txt`) in Unicode order, with "Smileys & Emotion"
+ * and "People & Body" in one section.
+ */
+export enum EmojiGroupId {
+  People = 'people',
+  Nature = 'nature',
+  Food = 'food',
+  Travel = 'travel',
+  Activity = 'activity',
+  Object = 'object',
+  Symbol = 'symbol',
+  Flag = 'flag',
+}
 
-
-
-
-
-
-
-
-
-
-
-
+/** One Unicode emoji with what the picker and the shortcode search need. */
+export type IEmoji = {
   /** The emoji itself. */
   unicode: string;
   /** Its code points in hexadecimal, joined by `-`, as Emojibase names emoji. */
@@ -34,6 +39,7 @@ import emojibaseShortcodes from 'emojibase-data/en/shortcodes/emojibase.json';
   skins?: IEmoji[];
 };
 
+/** One picker section and its emoji, in Unicode order. */
 
 
 

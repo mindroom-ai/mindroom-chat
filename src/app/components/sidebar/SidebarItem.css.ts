@@ -7,6 +7,15 @@ import { DefaultReset, color, config, toRem } from 'folds';
 // apart (S300), starting 12 px from the top (S300). Task 8's sidebar/Sidebar.css.ts keeps only
 // the drag source styles; the rail and stack are defined here once.
 
+/** The rail: a fixed-width column, as tall as the client. */
+
+
+
+
+
+
+    inlineSize: toRem(66),
+    blockSize: '100%',
 
 
 
@@ -20,21 +29,17 @@ import { DefaultReset, color, config, toRem } from 'folds';
 
 
 
+    inlineSize: '100%',
+    paddingBlock: config.space.S300,
+  },
+]);
 
-
-
-
-
-
-
-
-
-
-
+/** A short rule between two stacks. */
 export const SidebarStackSeparator = style({
   width: toRem(24),
   height: config.borderWidth.B300,
   backgroundColor: color.Background.ContainerLine,
+  marginInline: 'auto',
 
 
 
@@ -46,11 +51,12 @@ export const SidebarStackSeparator = style({
 
 
 
-      position: 'relative',
-      selectors: {
-        // The selected tab's indicator: a pill on the rail's left edge. home.png: 4 px wide and
-        // 24 px tall when selected, flush with the edge (12 px left of the 42 px avatar).
-        '&::before': {
+
+
+
+
+
+
           content: '',
           position: 'absolute',
           left: `calc(-1 * ${toRem(12)})`,
@@ -76,6 +82,7 @@ export const SidebarStackSeparator = style({
   },
 });
 
+/** The 42 px rounded square that a rail entry's icon or avatar fills. */
 
 
 
@@ -108,15 +115,18 @@ export const SidebarStackSeparator = style({
       '300': { width: toRem(34), height: toRem(34) },
       '200': { width: toRem(26), height: toRem(26) },
     },
+    outlined: {
+      true: {
 
 
 
-
-
-
-
+      },
+    },
+  },
+  defaultVariants: { size: '400', outlined: false },
 });
 
+/** The unread badge, pinned over the top-left corner of the rail entry. */
 
 
 
@@ -124,8 +134,8 @@ export const SidebarStackSeparator = style({
 
 
 
-    // home.png: the unread count sits 6 px outside the avatar's top-left corner.
-    hasCount: {
+
+
       true: { top: toRem(-6), left: toRem(-6) },
       false: { top: toRem(-2), left: toRem(-2) },
     },

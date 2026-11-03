@@ -79,16 +79,17 @@ const useActiveTheme = (): Theme => {
     return systemKind === ThemeKind.Dark
       ? getThemeById(darkThemeId) ?? DarkTheme
       : getThemeById(lightThemeId) ?? LightTheme;
+  }, [useSystemTheme, themeId, systemKind, lightThemeId, darkThemeId]);
+};
 
+// Set by `AppTheme`; outside it, `useTheme` falls back to the settings' choice.
+const ThemeContext = createContext<Theme | undefined>(undefined);
 
+export const ThemeContextProvider = ThemeContext.Provider;
 
-
-
-
-
-
-
-
+/** The theme the app shows: the provided one, or the one the settings select. */
+export const useTheme = (): Theme => {
+  const provided = useContext(ThemeContext);
   const active = useActiveTheme();
   return provided ?? active;
 };
