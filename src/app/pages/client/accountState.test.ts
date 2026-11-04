@@ -47,7 +47,8 @@ const APP_MODULES = import.meta.glob([
   '!../../**/*.d.ts',
 ]);
 
-type PrimitiveAtom = { init: unknown; write: (...args: unknown[]) => unknown; toString(): string };
+type AtomWrite = (get: unknown, set: (atom: unknown, value: unknown) => void) => unknown;
+type PrimitiveAtom = { init: unknown; write: AtomWrite; toString(): string };
 
 const isPrimitive = (atom: object): atom is PrimitiveAtom => 'init' in atom;
 
@@ -138,7 +139,7 @@ const leftBehind = (init: unknown, module: string): unknown => {
 const putValue = (store: ReturnType<typeof CreateStore>, atom: PrimitiveAtom, value: unknown) => {
   const { write } = atom;
   // The store writes an atom's own value when its write sets the atom itself.
-  atom.write = (_get: unknown, set: (target: unknown, next: unknown) => void) => set(atom, value);
+  atom.write = (_get, set) => set(atom, value);
   try {
     store.set(atom as never, undefined as never);
   } finally {
