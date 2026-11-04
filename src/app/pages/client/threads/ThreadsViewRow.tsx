@@ -20,7 +20,8 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { navigateRoomThread } = useRoomNavigate();
-  useInitializeShownThread(entry.roomId, entry.threadRootId);
+  // A card on screen loads its thread's latest page, as in the room's Compact view.
+  const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
 
   const room = mx.getRoom(entry.roomId);
   const spaceName = entry.parentSpaceIds
@@ -44,7 +45,7 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
   );
 
   return (
-    <div className={css.Row}>
+    <div className={css.Row} ref={shownRef}>
       <Box className={css.RowChrome}>
         <span className={css.Chip}>
           <Icon size="50" src={Icons.Hash} />
