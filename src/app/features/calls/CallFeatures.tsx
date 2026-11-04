@@ -2,12 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useClientStartupContext } from '../../pages/client/ClientStartupContext';
 import { startAgentCall } from '../../mindroom/calls/agentCaller';
 import { activeCallAtom, callPanelRoomAtom, useCallActions } from './callStore';
 import {
   rememberCallForResume,
   takeCallResume,
+  whenServerSynced,
   withdrawLeftoverMemberships,
   withdrawOwnMemberships,
   type CallResumeRecord,
@@ -72,21 +72,24 @@ const resumeCall = async (
 };
 
 /**
- * Once the first sync is done: takes up the call this tab was in before a reload, and withdraws
- * the memberships this device left in other calls.
+ * Once the first sync from the server is in: takes up the call this tab was in before a reload,
+ * and withdraws the memberships this device left in other calls.
  */
 function CallResume() {
   const mx = useMatrixClient();
   const store = useStore();
-  const { hasCompletedInitialSync } = useClientStartupContext();
   const { startCall } = useCallActions(mx);
   const done = useRef(false);
 
   useEffect(() => {
-    if (!hasCompletedInitialSync || done.current) return;
+    if (done.current) return undefined;
     done.current = true;
     const record = takeCallResume(mx);
+    // The account signed out or switched before its first sync.
+    let cancelled = false;
     (async () => {
+      await whenServerSynced(mx);
+      if (cancelled) return;
       await withdrawLeftoverMemberships(mx, record?.roomId);
       if (!record) return;
       await resumeCall(mx, startCall, record).catch(() => undefined);
@@ -97,7 +100,10 @@ function CallResume() {
       const room = mx.getRoom(record.roomId);
       if (room) await withdrawOwnMemberships(mx, [room]);
     })();
-  }, [hasCompletedInitialSync, mx, startCall, store]);
+    return () => {
+      cancelled = true;
+    };
+  }, [mx, startCall, store]);
   return null;
 }
 

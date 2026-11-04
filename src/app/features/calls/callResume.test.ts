@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { EventEmitter } from 'node:events';
+import { ClientEvent, SyncState, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { CallState, RoomCall } from './RoomCall';
 import type { ActiveCall } from './callStore';
 import {
@@ -7,6 +8,7 @@ import {
   holdDeviceCallLock,
   rememberCallForResume,
   takeCallResume,
+  whenServerSynced,
   withdrawLeftoverMemberships,
 } from './callResume';
 
@@ -198,5 +200,36 @@ describe('withdrawLeftoverMemberships', () => {
     await Promise.resolve();
     await withdrawLeftoverMemberships(mx);
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('whenServerSynced', () => {
+  const syncingClient = (state: SyncState | null) => {
+    const emitter = new EventEmitter();
+    const mx = {
+      getSyncState: () => state,
+      on: emitter.on.bind(emitter),
+      off: emitter.off.bind(emitter),
+    } as unknown as MatrixClient;
+    return { mx, emitter };
+  };
+
+  it('waits past a start from the cache for a sync from the server', async () => {
+    const { mx, emitter } = syncingClient(SyncState.Prepared);
+    let synced = false;
+    whenServerSynced(mx).then(() => {
+      synced = true;
+    });
+    emitter.emit(ClientEvent.Sync, SyncState.Prepared);
+    await Promise.resolve();
+    expect(synced).toBe(false);
+    emitter.emit(ClientEvent.Sync, SyncState.Syncing);
+    await Promise.resolve();
+    expect(synced).toBe(true);
+    expect(emitter.listenerCount(ClientEvent.Sync)).toBe(0);
+  });
+
+  it('answers at once when the client already synced with the server', async () => {
+    await expect(whenServerSynced(syncingClient(SyncState.Syncing).mx)).resolves.toBeUndefined();
   });
 });

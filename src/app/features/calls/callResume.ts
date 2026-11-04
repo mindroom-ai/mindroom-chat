@@ -1,4 +1,11 @@
-import { EventTimeline, KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  EventTimeline,
+  KnownMembership,
+  SyncState,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { StateEvent } from '../../../types/matrix/room';
 import {
   getStorageItemSafe,
@@ -167,3 +174,22 @@ export const withdrawLeftoverMemberships = async (
     .filter((room) => room.getMyMembership() === KnownMembership.Join);
   await withdrawOwnMemberships(mx, rooms);
 };
+
+/**
+ * Resolves after the client applied a sync from the server. Rooms restored from the cache can
+ * miss what happened since it was saved, such as a membership a crashed tab left behind.
+ */
+export const whenServerSynced = (mx: MatrixClient): Promise<void> =>
+  new Promise((resolve) => {
+    // The SDK reports SYNCING after each sync from the server; a cached start reports PREPARED.
+    if (mx.getSyncState() === SyncState.Syncing) {
+      resolve();
+      return;
+    }
+    const onSync = (state: SyncState) => {
+      if (state !== SyncState.Syncing) return;
+      mx.off(ClientEvent.Sync, onSync);
+      resolve();
+    };
+    mx.on(ClientEvent.Sync, onSync);
+  });
