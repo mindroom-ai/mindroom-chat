@@ -29,7 +29,7 @@ type ControlProps = {
   label: string;
   icon: IconSrc;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  /** Off-state toggles (muted microphone, camera off) are tinted so they stand out. */
+  /** Silenced audio (a muted microphone, sound off) is tinted red so nobody talks unheard. */
   off?: boolean;
   critical?: boolean;
   pressed?: boolean;
@@ -48,9 +48,7 @@ export function CallControl({
   expanded,
   disabled,
 }: ControlProps) {
-  let variant: 'Critical' | 'Warning' | 'SurfaceVariant' = 'SurfaceVariant';
-  if (critical) variant = 'Critical';
-  else if (off) variant = 'Warning';
+  const variant = critical || off ? 'Critical' : 'SurfaceVariant';
   return (
     <TooltipProvider
       position="Top"

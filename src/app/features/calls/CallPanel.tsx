@@ -106,6 +106,9 @@ const PROBLEM_KEYS = {
   device: 'featureUi.calls.problems.device',
 } as const satisfies Record<CallProblem, string>;
 
+/** MindRoom starts its notices with "Voice call error:"; the panel names the error itself. */
+const withoutErrorPrefix = (message: string) => message.replace(/^voice call error:\s*/i, '');
+
 /** The panel's status line: how the connection goes, then how many people are in. */
 const usePhaseLabel = (state: CallState): string | undefined => {
   const { t } = useTranslation();
@@ -159,7 +162,6 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
               : t('featureUi.call.controls.startCamera')
           }
           icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-          off={!state.camera}
           onClick={() => call.setCamera(!state.camera)}
         />
       )}
@@ -205,7 +207,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
             </IconButton>
           }
         >
-          {`${t('featureUi.call.callView.voiceCallError')}: ${visibleFailure.message}`}
+          {`${t('featureUi.call.callView.voiceCallError')}: ${withoutErrorPrefix(
+            visibleFailure.message
+          )}`}
         </Notice>
       )}
       {state.audioBlocked && (
@@ -328,7 +332,6 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                     : t('featureUi.call.controls.startCamera')
                 }
                 icon={camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-                off={!camera}
                 pressed={camera}
                 onClick={() => setCamera((on) => !on)}
               />

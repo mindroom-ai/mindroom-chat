@@ -40,8 +40,11 @@ export const Body = style(
   })
 );
 
-// Tiles fill the panel's width: one column in a narrow panel, more as it widens.
+// Tiles fill the panel's width: one column in a narrow panel, more as it widens. They sit in the
+// middle of the space under the notices, as a call of two leaves most of a tall panel free.
 export const Tiles = style({
+  flex: '1 1 auto',
+  alignContent: 'center',
   display: 'grid',
   gridTemplateColumns: `repeat(auto-fill, minmax(${toRem(160)}, 1fr))`,
   gap: space.S200,
