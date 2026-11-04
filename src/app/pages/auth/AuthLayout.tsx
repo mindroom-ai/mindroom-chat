@@ -225,7 +225,10 @@ export function AuthLayout() {
               src={MINDROOM_AUTH_BRANDING.logoSrc}
               alt={MINDROOM_AUTH_BRANDING.logoAlt}
             />
-            <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
+            {/* The page's one heading; each page's own title is a paragraph under the server. */}
+            <Text as="h1" size="H3">
+              {MINDROOM_AUTH_BRANDING.appName}
+            </Text>
           </Box>
         </Header>
         <Box className={css.AuthCardContent} direction="Column" gap="500">
