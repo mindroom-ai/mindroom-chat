@@ -14,6 +14,7 @@
 # `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv) is printed at the start; --out copies results.tsv there too.
+# Each start deletes the output/ and json/ of runs untouched for two days (logs and results stay).
 # --resume finishes an interrupted run in its directory: the same commit and spec list, every spec
 # it has no result for yet, including runs that left no report (pass the Playwright options again
 # if the run had its own).
@@ -94,6 +95,13 @@ main() {
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
   snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
+  # Traces, videos and reports of runs untouched for two days go; their logs and results.tsv stay.
+  if [ -d "$snapshots" ]; then
+    find "$snapshots" -mindepth 1 -maxdepth 1 -type d -name 'suite-*' -mmin +2880 -print0 |
+      while IFS= read -r -d '' old; do
+        if [ -z "$resume" ] || ! [ "$old" -ef "$resume" ]; then rm -rf "$old/output" "$old/json"; fi
+      done
+  fi
   if [ -n "$resume" ]; then
     run="$resume"
     # A run that left no Playwright report (Docker or the app server failed first) has no result.
