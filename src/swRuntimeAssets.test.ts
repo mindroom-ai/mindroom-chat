@@ -25,16 +25,19 @@ const answer = (body: string, init: ResponseInit = {}, type: ResponseType = 'bas
 const assetEvent = (url: string) => {
   const kept: Promise<unknown>[] = [];
   return {
-    event: { request: new Request(url), waitUntil: (promise: Promise<unknown>) => kept.push(promise) },
+    event: {
+      request: new Request(url),
+      waitUntil: (promise: Promise<unknown>) => kept.push(promise),
+    },
     kept,
   };
 };
 
 describe('isBuildAssetRequest', () => {
   it('takes GET requests for files in the assets directory beside the worker', () => {
-    expect(isBuildAssetRequest(new Request('https://app.example/assets/emoji-1a2b.js'), WORKER)).toBe(
-      true
-    );
+    expect(
+      isBuildAssetRequest(new Request('https://app.example/assets/emoji-1a2b.js'), WORKER)
+    ).toBe(true);
     expect(
       isBuildAssetRequest(
         new Request('https://app.example/app/assets/emoji-1a2b.js'),

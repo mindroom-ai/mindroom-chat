@@ -8,6 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
+import { startupPrecache } from './scripts/precache-plan.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
 /**
@@ -34,6 +35,25 @@ export const copyFiles = {
 // authentication recovery script also serves shells cached by older workers.
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
+// The precache holds what a signed-in start needs before it shows a room: the entry chunk and the
+// chunks of these modules with their static imports, style sheets, fonts and the crypto wasm, plus
+// the shell pages (scripts/precache-plan.mjs). Every room header shows the call buttons, and the
+// thread actions menu opens from the first room's cards and banner (lazily, in Lane P code that
+// has no fallback for a missing chunk), so both come with the start. Everything else under assets/
+// is kept by the worker on first use (src/swRuntimeAssets.ts).
+const startup = startupPrecache({
+  startupModules: [
+    'src/app/pages/client/clientPages.tsx',
+    'src/app/mindroom/threads/MindroomRoom.tsx',
+    'src/app/mindroom/calls/HeaderCallButtons.tsx',
+    'src/app/mindroom/threads/ThreadActionsMenu.tsx',
+    'matrix-js-sdk/lib/rust-crypto/index.js',
+  ],
+  // The PDF viewer's frame page (public/pdf-frame.html) has no hash in its name, so the worker
+  // could not keep it at runtime without serving an old copy after an update.
+  shellFiles: ['index.html', 'pdf-frame.html'],
+});
+
 // src/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
 // classic script and public/manifest.json is the web manifest, so the plugin adds neither.
 const serviceWorkerPlugin = VitePWA({
@@ -43,8 +63,9 @@ const serviceWorkerPlugin = VitePWA({
     injectionPoint: 'self.__WB_MANIFEST',
     // The Rust crypto wasm module is several MiB and belongs in the precache.
     maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-    globPatterns: ['**/*.{js,css,html,wasm,woff2,svg,png,ico}'],
+    globPatterns: ['**/*.{js,css,html,wasm,woff2}'],
     globIgnores: precacheGlobIgnores,
+    manifestTransforms: [startup.manifestTransform],
   },
   srcDir: 'src',
   filename: 'sw.ts',
@@ -96,7 +117,7 @@ export default defineConfig({
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),
     ...sourcePlugins,
-    ...(fixturePagesOnly ? [] : [viteStaticCopy(copyFiles), serviceWorkerPlugin]),
+    ...(fixturePagesOnly ? [] : [viteStaticCopy(copyFiles), startup.plugin, serviceWorkerPlugin]),
   ],
   server: {
     // 127.0.0.1 rather than localhost: Node can resolve localhost to ::1 only,
