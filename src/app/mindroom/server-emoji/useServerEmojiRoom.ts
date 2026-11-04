@@ -43,11 +43,12 @@ export const findServerEmojiRoom = (
     .find((room) => room.getCanonicalAlias() === address && isUsable(room) && isLocalOnly(room));
 };
 
+// Not membership: the user's own joins and leaves come through the room list, and everyone
+// else's member events, thousands during a first sync with lazy-loaded members, change nothing.
 const WATCHED_STATE = new Set<string>([
   EventType.RoomTombstone,
   EventType.RoomCanonicalAlias,
   EventType.RoomCreate,
-  EventType.RoomMember,
 ]);
 
 /**
