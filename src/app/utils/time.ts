@@ -3,6 +3,41 @@ export const minutesToMs = (minutes: number): number => secondsToMs(minutes * 60
 export const hoursToMs = (hours: number): number => minutesToMs(hours * 60);
 export const daysToMs = (days: number): number => hoursToMs(days * 24);
 
+// Building an Intl formatter resolves its locale and options, which costs far more than formatting
+// with it, and lists such as the Compact view format a time for every row on each render. So each
+// formatter is built once per language and option set and then reused.
+const MAX_CACHED_FORMATTERS = 64;
+const formatters = new Map<string, unknown>();
+
+const cachedFormatter = <T>(
+  kind: string,
+  language: string | undefined,
+  options: object,
+  create: () => T
+): T => {
+  const key = `${kind}|${language ?? ''}|${JSON.stringify(options)}`;
+  const known = formatters.get(key) as T | undefined;
+  if (known) return known;
+  const created = create();
+  if (formatters.size >= MAX_CACHED_FORMATTERS) formatters.clear();
+  formatters.set(key, created);
+  return created;
+};
+
+const dateTimeFormat = (language: string | undefined, options: Intl.DateTimeFormatOptions) =>
+  cachedFormatter('date', language, options, () => new Intl.DateTimeFormat(language, options));
+
+const relativeTimeFormat = (language: string, options: Intl.RelativeTimeFormatOptions) =>
+  cachedFormatter(
+    'relative',
+    language,
+    options,
+    () => new Intl.RelativeTimeFormat(language, options)
+  );
+
+const numberFormat = (language: string, options: Intl.NumberFormatOptions) =>
+  cachedFormatter('number', language, options, () => new Intl.NumberFormat(language, options));
+
 /** Whether both timestamps fall on the same local calendar day. */
 export const inSameDay = (ts1: number, ts2: number): boolean => {
   const a = new Date(ts1);
@@ -24,7 +59,7 @@ export const minuteDifference = (ts1: number, ts2: number): number =>
 
 /** A calendar date for a day divider: weekday, day, month and year ("Tuesday, 3 November 2026"). */
 export const timeDayMonthYear = (ts: number, language?: string): string =>
-  new Intl.DateTimeFormat(language, {
+  dateTimeFormat(language, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -33,7 +68,7 @@ export const timeDayMonthYear = (ts: number, language?: string): string =>
 
 // Two-digit hours on both clocks ("08:44 PM"), so the times down a timeline line up.
 export const timeHourMinute = (ts: number, hour24Clock = false, language?: string): string =>
-  new Intl.DateTimeFormat(language, {
+  dateTimeFormat(language, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: !hour24Clock,
@@ -51,7 +86,7 @@ const largestUnit = (ageMs: number): [number, RelativeUnit] => {
 };
 
 const formatNow = (language: string): string =>
-  new Intl.RelativeTimeFormat(language, { numeric: 'auto' }).format(0, 'second');
+  relativeTimeFormat(language, { numeric: 'auto' }).format(0, 'second');
 
 /**
  * How long ago `ts` was: "now" under five seconds, then the largest whole unit up to days
@@ -65,7 +100,7 @@ export const formatRelativeTime = (
   const ageMs = ageOf(ts);
   if (ageMs < secondsToMs(5)) return formatNow(language);
   const [value, unit] = largestUnit(ageMs);
-  return new Intl.RelativeTimeFormat(language, {
+  return relativeTimeFormat(language, {
     numeric: 'always',
     style: style === 'long' ? 'long' : 'narrow',
   }).format(-value, unit);
@@ -80,7 +115,7 @@ export const formatCompactRelativeTime = (ts: number, language = 'en'): string =
   if (ageMs < minutesToMs(1)) return formatNow(language);
   if (ageMs < daysToMs(7)) {
     const [value, unit] = largestUnit(ageMs);
-    return new Intl.NumberFormat(language, {
+    return numberFormat(language, {
       style: 'unit',
       unit,
       unitDisplay: 'narrow',
@@ -88,9 +123,9 @@ export const formatCompactRelativeTime = (ts: number, language = 'en'): string =
   }
   const date = new Date(ts);
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(language, {
+  return dateTimeFormat(language, {
     month: 'short',
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),
-  });
+  }).format(date);
 };
