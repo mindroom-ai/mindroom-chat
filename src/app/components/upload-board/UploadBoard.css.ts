@@ -9,7 +9,12 @@ export const UploadBoardBase = style([
   { pointerEvents: 'none', position: 'relative' },
 ]);
 
-/** Spans the anchor's width S200 above it and pushes the panel to the end edge. */
+// In a room view the approvals and background jobs dock floats between the timeline and the
+// composer; its height is the footer inset minus the composer's (MindroomRoomView). The panel
+// rises above the dock, so neither covers the other's controls.
+const dockHeight = 'calc(var(--room-footer-height, 0px) - var(--room-composer-height, 0px))';
+
+/** Spans the anchor's width S200 above it (and above the dock) and pushes the panel to the end. */
 export const UploadBoardContainer = style([
   DefaultReset,
   {
@@ -17,7 +22,7 @@ export const UploadBoardContainer = style([
     justifyContent: 'flex-end',
     position: 'absolute',
     insetInline: 0,
-    bottom: config.space.S200,
+    bottom: `calc(${config.space.S200} + ${dockHeight})`,
   },
 ]);
 
