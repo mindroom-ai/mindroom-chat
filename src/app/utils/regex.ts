@@ -62,16 +62,17 @@ export const createInsideUrlTest = (text: string): ((index: number) => boolean) 
   let schemeEnd = -1;
   let space = -1;
   for (let index = 0; index <= text.length; index += 1) {
-    if (index > 0 && WHITESPACE.test(text[index - 1])) space = index - 1;
+    if (index > 0 && WHITESPACE.test(text.charAt(index - 1))) space = index - 1;
     if (schemeEnds.has(index)) schemeEnd = index;
     lastSchemeEnd[index] = schemeEnd;
     lastSpace[index] = space;
   }
 
   return (index: number) => {
-    if (index < 0 || index > text.length) return false;
     const end = lastSchemeEnd[index];
-    return end >= 0 && lastSpace[index] < end;
+    const space = lastSpace[index];
+    // Positions outside the text read as undefined.
+    return end !== undefined && space !== undefined && end >= 0 && space < end;
   };
 };
 
@@ -93,7 +94,7 @@ export const execOutsideUrl = (regex: RegExp, text: string): RegExpExecArray | n
 
     // Skip to the first whitespace after the match start: the URL ends there.
     let next = match.index;
-    while (next < text.length && !WHITESPACE.test(text[next])) next += 1;
+    while (next < text.length && !WHITESPACE.test(text.charAt(next))) next += 1;
     search.lastIndex = Math.max(next + 1, match.index + 1);
   }
   return null;

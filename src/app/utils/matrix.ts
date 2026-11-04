@@ -143,11 +143,11 @@ export const rateLimitedActions = async <T>(
   action: (item: T, index: number) => Promise<unknown>,
   maxRetries = 3
 ): Promise<void> => {
-  for (let index = 0; index < items.length; index += 1) {
+  for (const [index, item] of items.entries()) {
     for (let attempt = 0; ; attempt += 1) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        await action(items[index], index);
+        await action(item, index);
         break;
       } catch (error) {
         const delay = getRateLimitDelay(error);

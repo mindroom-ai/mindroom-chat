@@ -288,9 +288,12 @@ export function EmojiBoard(props: EmojiBoardProps) {
   const virtualizer = useVirtualizer({
     count: visibleGroups.length,
     getScrollElement: () => scrollRef.current,
-    getItemKey: (index) => groupKey(visibleGroups[index]),
+    getItemKey: (index) => {
+      const group = visibleGroups[index];
+      return group ? groupKey(group) : index;
+    },
     estimateSize: (index) => {
-      const { items } = visibleGroups[index];
+      const items = visibleGroups[index]?.items ?? [];
       // Stickers take four 88 px cells to a row, emoji eight 44 px ones.
       return stickerTab
         ? 40 + Math.ceil(items.length / 4) * 88
@@ -432,6 +435,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const group = visibleGroups[virtualItem.index];
+              if (!group) return null;
               return (
                 <VirtualTile
                   key={groupKey(group)}

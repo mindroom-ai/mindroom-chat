@@ -78,8 +78,8 @@ const PAGE_SIZE = 30;
 
 type NotificationFilter = 'all' | 'highlight';
 
-/** A run of notifications from one room, in the order the server listed them. */
-type RoomNotifications = { room: Room; notifications: INotification[] };
+/** A run of notifications from one room, in the order the server listed them; never empty. */
+type RoomNotifications = { room: Room; notifications: [INotification, ...INotification[]] };
 
 type NotificationPages = {
   status: AsyncStatus;
@@ -150,7 +150,7 @@ const groupByRoom = (mx: MatrixClient, notifications: INotification[]): RoomNoti
   notifications.reduce<RoomNotifications[]>((groups, notification) => {
     const room = mx.getRoom(notification.room_id);
     if (!room || room.getMyMembership() !== 'join') return groups;
-    const last = groups[groups.length - 1];
+    const last = groups.at(-1);
     if (last?.room.roomId === room.roomId) last.notifications.push(notification);
     else groups.push({ room, notifications: [notification] });
     return groups;

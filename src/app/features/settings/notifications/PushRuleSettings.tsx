@@ -125,12 +125,18 @@ function RuleSection({ title, rows }: { title: string; rows: RuleRow[] }) {
 export function AllMessagesNotifications() {
   const { t } = useTranslation();
   const key = `${NOTIFY}.allMessages`;
-  const rows: RuleRow[] = [
+  const defaults: [id: string, title: string][] = [
     ['.m.rule.room_one_to_one', t(`${key}.1To1Chats`)],
     ['.m.rule.encrypted_room_one_to_one', t(`${key}.1To1ChatsEncrypted`)],
     ['.m.rule.message', t(`${key}.rooms`)],
     ['.m.rule.encrypted', t(`${key}.roomsEncrypted`)],
-  ].map(([id, title]) => ({ id, title, kind: PushRuleKind.Underride, highlight: false }));
+  ];
+  const rows: RuleRow[] = defaults.map(([id, title]) => ({
+    id,
+    title,
+    kind: PushRuleKind.Underride,
+    highlight: false,
+  }));
 
   return <RuleSection title={t(`${key}.allMessages`)} rows={rows} />;
 }

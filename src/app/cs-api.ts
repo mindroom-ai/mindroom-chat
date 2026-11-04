@@ -42,13 +42,15 @@ const LOCAL_HOSTNAME = /^(?:localhost|.+\.local|.+\.localhost)$/i;
 
 const isPrivateIPv4 = (hostname: string): boolean => {
   const parts = hostname.split('.').map(Number);
+  const [a, b] = parts;
   if (
+    a === undefined ||
+    b === undefined ||
     parts.length !== 4 ||
     parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
   ) {
     return false;
   }
-  const [a, b] = parts;
   return (
     a === 10 ||
     a === 127 ||

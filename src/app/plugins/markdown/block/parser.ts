@@ -13,10 +13,12 @@ const renderText = (text: string, parseInline: InlineMDParser): string =>
     .map((line) => parseInline(line))
     .join('<br/>');
 
+type BlockFinder = (from: number) => FoundBlock | null;
+
 /** Finds a rule's first block at or after `from`, through its scanner when it has one. */
-const createBlockFinder = (text: string, rule: BlockMDRule) => {
+const createBlockFinder = (text: string, rule: BlockMDRule): BlockFinder => {
   let scanned: ((from: number) => RegExpMatchArray | null) | undefined;
-  return (from: number): FoundBlock | null => {
+  return (from) => {
     if (rule.scan) scanned ??= rule.scan(text);
     const match = scanned ? scanned(from) : rule.match(from === 0 ? text : text.slice(from));
     if (!match || match.index === undefined || match[0].length === 0) return null;
@@ -34,22 +36,23 @@ export const parseBlockMDWithRules = (
   rules: BlockMDRule[],
   parseInline: InlineMDParser = plainText
 ): string => {
-  const finders = rules.map((rule) => createBlockFinder(text, rule));
-  const found: Array<FoundBlock | null | undefined> = rules.map(() => undefined);
+  // `found` is unset until the rule is searched, and null once it has no block left.
+  const searches: { rule: BlockMDRule; find: BlockFinder; found?: FoundBlock | null }[] = rules.map(
+    (rule) => ({ rule, find: createBlockFinder(text, rule) })
+  );
   let output = '';
   let cursor = 0;
   while (cursor < text.length) {
     let best: FoundBlock | null = null;
     let bestRule: BlockMDRule | undefined;
-    for (let index = 0; index < rules.length; index += 1) {
-      let candidate = found[index];
-      if (candidate === undefined || (candidate !== null && candidate.index < cursor)) {
-        candidate = finders[index](cursor);
-        found[index] = candidate;
+    for (const search of searches) {
+      if (search.found === undefined || (search.found !== null && search.found.index < cursor)) {
+        search.found = search.find(cursor);
       }
+      const candidate = search.found;
       if (candidate && (!best || candidate.index < best.index)) {
         best = candidate;
-        bestRule = rules[index];
+        bestRule = search.rule;
       }
     }
     if (!best || !bestRule) break;

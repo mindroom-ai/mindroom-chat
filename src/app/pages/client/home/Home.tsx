@@ -274,9 +274,12 @@ export function Home() {
                     >
                       <RoomNavItem
                         room={room}
-                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId))}
+                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
                         selected={roomId === selectedRoomId}
-                        notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
+                        notificationMode={getRoomNotificationMode(
+                          notificationPreferences,
+                          room.roomId
+                        )}
                       />
                     </VirtualTile>
                   );

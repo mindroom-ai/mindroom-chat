@@ -87,8 +87,7 @@ const isEmptyBlock = (node: Descendant): boolean =>
 
 /** True when the composer holds nothing but one empty line. */
 export const isEmptyEditor = (editor: Editor): boolean =>
-  editor.children.length === 0 ||
-  (editor.children.length === 1 && isEmptyBlock(editor.children[0]));
+  editor.children.length <= 1 && editor.children.every(isEmptyBlock);
 
 /** Replaces the whole document with one empty paragraph and puts the caret in it. */
 export const resetEditor = (editor: Editor) => {

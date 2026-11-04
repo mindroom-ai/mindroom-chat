@@ -12,6 +12,9 @@ const isEscaped = (text: string, index: number): boolean => {
   return backslashes % 2 === 1;
 };
 
+/** A capture group of `match`; every group these rules read always takes part in a match. */
+const capture = (match: RegExpMatchArray, group: number): string => match[group] ?? '';
+
 /** A match in the shape `String.prototype.match` returns: the whole match, then its parts. */
 const toMatch = (parts: string[], index: number, input: string): RegExpMatchArray =>
   Object.assign(parts, { index, input }) as RegExpMatchArray;
@@ -77,7 +80,7 @@ const delimitedMatcher =
 /** `**bold**` */
 export const BoldRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '**', notAfterCloser: '*' }),
-  html: (parseInline, match) => `<strong data-md="**">${parseInline(match[1])}</strong>`,
+  html: (parseInline, match) => `<strong data-md="**">${parseInline(capture(match, 1))}</strong>`,
 };
 
 /** `*italic*`; a single star next to another one belongs to bold text, as in `*a **b** c*`. */
@@ -88,7 +91,7 @@ export const ItalicRule1: InlineMDRule = {
     notBeforeCloser: '*',
     notAfterCloser: '*',
   }),
-  html: (parseInline, match) => `<i data-md="*">${parseInline(match[1])}</i>`,
+  html: (parseInline, match) => `<i data-md="*">${parseInline(capture(match, 1))}</i>`,
 };
 
 /**
@@ -97,20 +100,20 @@ export const ItalicRule1: InlineMDRule = {
  */
 export const ItalicRule2: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '_', notAfterCloser: '_' }),
-  html: (parseInline, match) => `<i data-md="_">${parseInline(match[1])}</i>`,
+  html: (parseInline, match) => `<i data-md="_">${parseInline(capture(match, 1))}</i>`,
 };
 
 /** `~~strikethrough~~` */
 export const StrikeRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '~~', notAfterCloser: '~' }),
-  html: (parseInline, match) => `<s data-md="~~">${parseInline(match[1])}</s>`,
+  html: (parseInline, match) => `<s data-md="~~">${parseInline(capture(match, 1))}</s>`,
 };
 
 /** `||spoiler||`, sent as a Matrix spoiler. */
 export const SpoilerRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '||', notAfterCloser: '|' }),
   html: (parseInline, match) =>
-    `<span data-md="||" data-mx-spoiler>${parseInline(match[1])}</span>`,
+    `<span data-md="||" data-mx-spoiler>${parseInline(capture(match, 1))}</span>`,
 };
 
 // The destination may hold one level of parentheses, as Wikipedia links do, but no brackets, so
@@ -126,11 +129,12 @@ export const LinkRule: InlineMDRule = {
   match: (text) => {
     LINK_REG.lastIndex = 0;
     for (let match = LINK_REG.exec(text); match; match = LINK_REG.exec(text)) {
-      if (LINK_SCHEME_REG.test(match[2])) return match;
+      if (LINK_SCHEME_REG.test(capture(match, 2))) return match;
     }
     return null;
   },
-  html: (parseInline, match) => `<a data-md href="${match[2]}">${parseInline(match[1])}</a>`,
+  html: (parseInline, match) =>
+    `<a data-md href="${capture(match, 2)}">${parseInline(capture(match, 1))}</a>`,
 };
 
 /**
@@ -144,7 +148,7 @@ export const InlineMathRule: InlineMDRule = {
     return found ? toMatch([found.fullMatch, found.latex], found.start, text) : null;
   },
   html: (_parseInline, match) => {
-    const latex = restoreCodeSource(match[1]);
+    const latex = restoreCodeSource(capture(match, 1));
     return `<span data-mx-maths="${latex}">${latex}</span>`;
   },
 };
@@ -154,7 +158,7 @@ const ESCAPE_REG = /\\([\\`*_~|$[\]()#+\-.!>{}:;=?@^%,/])/;
 /** `\*`: a backslash before punctuation shows the punctuation as written. */
 export const EscapeRule: InlineMDRule = {
   match: (text) => text.match(ESCAPE_REG),
-  html: (_parseInline, match) => match[1],
+  html: (_parseInline, match) => capture(match, 1),
 };
 
 /** Every inline rule of a chat message, in priority order for matches at the same position. */

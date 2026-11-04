@@ -18,7 +18,7 @@ const applyRules = (text: string, rules: InlineMDRule[], parseInline: InlineMDPa
   const insideUrl = createInsideUrlTest(text);
   const urlEnd = (index: number): number => {
     let end = index;
-    while (end < text.length && !WHITESPACE.test(text[end])) end += 1;
+    while (end < text.length && !WHITESPACE.test(text.charAt(end))) end += 1;
     return end;
   };
   const find = (rule: InlineMDRule, from: number): FoundMatch | null => {
@@ -33,21 +33,23 @@ const applyRules = (text: string, rules: InlineMDRule[], parseInline: InlineMDPa
     return null;
   };
 
-  const found: Array<FoundMatch | null | undefined> = rules.map(() => undefined);
+  // `found` is unset until the rule is searched, and null once it has no match left.
+  const searches: { rule: InlineMDRule; found?: FoundMatch | null }[] = rules.map((rule) => ({
+    rule,
+  }));
   let output = '';
   let cursor = 0;
   while (cursor < text.length) {
     let best: FoundMatch | null = null;
     let bestRule: InlineMDRule | undefined;
-    for (let index = 0; index < rules.length; index += 1) {
-      let candidate = found[index];
-      if (candidate === undefined || (candidate !== null && candidate.index < cursor)) {
-        candidate = find(rules[index], cursor);
-        found[index] = candidate;
+    for (const search of searches) {
+      if (search.found === undefined || (search.found !== null && search.found.index < cursor)) {
+        search.found = find(search.rule, cursor);
       }
+      const candidate = search.found;
       if (candidate && (!best || candidate.index < best.index)) {
         best = candidate;
-        bestRule = rules[index];
+        bestRule = search.rule;
       }
     }
     if (!best || !bestRule) break;

@@ -93,7 +93,7 @@ const httpBackend: BackendModule = {
 const applyDocumentLanguage = (language: string): void => {
   if (typeof document === 'undefined' || !document.documentElement) return;
   const code = toSupportedLanguageCode(language);
-  const base = code.split('-')[0];
+  const [base = code] = code.split('-');
   document.documentElement.setAttribute('lang', code);
   document.documentElement.setAttribute('dir', RTL_LANGUAGES.has(base) ? 'rtl' : 'ltr');
 };

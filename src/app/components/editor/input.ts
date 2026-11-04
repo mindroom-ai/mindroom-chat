@@ -66,7 +66,7 @@ const parseMatrixToLink = (
   href: string
 ): { id: string; eventId?: string; viaServers?: string[] } | undefined => {
   if (!href.startsWith(MATRIX_TO_PREFIX)) return undefined;
-  const [path, query] = href.slice(MATRIX_TO_PREFIX.length).split('?');
+  const [path = '', query] = href.slice(MATRIX_TO_PREFIX.length).split('?');
   const [rawId, rawEventId] = path.split('/');
   if (!rawId) return undefined;
   const id = decodeURIComponent(rawId);
@@ -217,8 +217,10 @@ const isEmptyParagraph = (line: Descendant): boolean =>
   line.type === BlockType.Paragraph &&
   line.children.every((child) => 'text' in child && !('type' in child) && child.text === '');
 
-const dropTrailingEmptyLine = (lines: Descendant[]): Descendant[] =>
-  lines.length > 0 && isEmptyParagraph(lines[lines.length - 1]) ? lines.slice(0, -1) : lines;
+const dropTrailingEmptyLine = (lines: Descendant[]): Descendant[] => {
+  const last = lines.at(-1);
+  return last && isEmptyParagraph(last) ? lines.slice(0, -1) : lines;
+};
 
 const toQuoteLine = (line: Descendant): QuoteLineElement => ({
   type: BlockType.QuoteLine,

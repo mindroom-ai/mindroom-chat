@@ -78,7 +78,8 @@ const findCodeSpans = (text: string): FoundSpan[] => {
   const findCloser = (length: number, from: number): BacktickRun | undefined => {
     const list = runsOfLength.get(length) ?? [];
     let position = passed.get(length) ?? 0;
-    while (position < list.length && list[position].start < from) position += 1;
+    // Past the end of the list, `start` reads as `from` and the loop stops.
+    while ((list[position]?.start ?? from) < from) position += 1;
     passed.set(length, position);
     return list[position];
   };
@@ -139,13 +140,8 @@ export const withProtectedCode = (text: string, render: (masked: string) => stri
   }
 };
 
-const lookUp = (placeholder: string): CodeSpan | undefined => {
-  for (let index = activeSpans.length - 1; index >= 0; index -= 1) {
-    const span = activeSpans[index].get(placeholder);
-    if (span) return span;
-  }
-  return undefined;
-};
+const lookUp = (placeholder: string): CodeSpan | undefined =>
+  activeSpans.findLast((spans) => spans.has(placeholder))?.get(placeholder);
 
 /** `text` with the placeholders of the running parses turned back into the code as written. */
 export const restoreCodeSource = (text: string): string =>

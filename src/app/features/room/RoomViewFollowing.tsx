@@ -15,11 +15,7 @@ import * as css from './RoomViewFollowing.css';
 const latestSyncedEvent = (room: Room, threadId?: string): MatrixEvent | undefined => {
   const timeline = threadId ? room.getThread(threadId)?.liveTimeline : room.getLiveTimeline();
   const events = timeline?.getEvents() ?? [];
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const id = events[index].getId();
-    if (id?.startsWith('$')) return events[index];
-  }
-  return undefined;
+  return events.findLast((event) => event.getId()?.startsWith('$'));
 };
 
 type Following = { eventId: string; userIds: string[] };

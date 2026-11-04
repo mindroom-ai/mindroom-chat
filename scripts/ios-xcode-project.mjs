@@ -74,7 +74,7 @@ const scalar = (body, key) => settingPattern(key).exec(body)?.[2];
 const idList = (body, key) => {
   const match = new RegExp(`${escapeRegex(key)}\\s*=\\s*\\(([^)]*)\\)`).exec(body);
   if (!match) return [];
-  return match[1]
+  return (match[1] ?? '')
     .replace(/\/\*[^*]*\*\//g, '')
     .split(',')
     .map((item) => item.trim())

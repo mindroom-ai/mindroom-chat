@@ -107,10 +107,10 @@ export const appStoreVersionProblems = ({
     problems.push(`iOS CURRENT_PROJECT_VERSION must be a positive integer, got '${buildNumber}'.`);
   }
 
-  [
-    ['CFBundleShortVersionString', 'MARKETING_VERSION'],
-    ['CFBundleVersion', 'CURRENT_PROJECT_VERSION'],
-  ].forEach(([key, setting]) => {
+  Object.entries({
+    CFBundleShortVersionString: 'MARKETING_VERSION',
+    CFBundleVersion: 'CURRENT_PROJECT_VERSION',
+  }).forEach(([key, setting]) => {
     const value = plistString(infoPlistText, key);
     if (value !== `$(${setting})`) {
       problems.push(`Info.plist ${key} must be $(${setting}), got '${value ?? '(missing)'}'.`);

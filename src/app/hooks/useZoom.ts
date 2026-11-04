@@ -6,9 +6,11 @@ const ZOOM_MAX = 5;
 const clampZoom = (zoom: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, zoom));
 
+/** The distance between the first two touches; 0 with fewer than two. */
 const touchDistance = (touches: TouchList): number => {
   const first = touches[0];
   const second = touches[1];
+  if (!first || !second) return 0;
   return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 };
 

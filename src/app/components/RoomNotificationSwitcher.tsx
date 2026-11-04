@@ -60,9 +60,9 @@ export function RoomNotificationModeSwitcher({
   const close = () => setAnchor(undefined);
 
   const choose = (index: number) => {
-    const [next] = MODE_CHOICES[index];
+    const next = MODE_CHOICES[index]?.[0];
     close();
-    if (next === value) return;
+    if (next === undefined || next === value) return;
     onChange?.(next);
     setPending(next);
     setRoomNotificationPreference(client, roomId, next, value)

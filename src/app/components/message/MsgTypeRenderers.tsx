@@ -402,8 +402,8 @@ export function MFile(props: MFileProps) {
 
 /** Parses `geo:lat,lon` URIs. */
 const parseGeoUri = (geoUri: string): { latitude: string; longitude: string } | undefined => {
-  const match = /^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(geoUri);
-  return match ? { latitude: match[1], longitude: match[2] } : undefined;
+  const [, latitude, longitude] = /^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(geoUri) ?? [];
+  return latitude && longitude ? { latitude, longitude } : undefined;
 };
 
 export function MLocation({ content }: { content: MessageContent }) {

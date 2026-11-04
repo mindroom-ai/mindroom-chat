@@ -26,11 +26,11 @@ export const MembershipFilter = {
   filterBanned: (member: RoomMember): boolean => member.membership === Membership.Ban,
 };
 
-/** The membership filters the members list offers, in menu order. */
-export const useMembershipFilterMenu = (): MembershipFilterItem[] => {
+/** The membership filters the members list offers, in menu order; the first is the default. */
+export const useMembershipFilterMenu = (): [MembershipFilterItem, ...MembershipFilterItem[]] => {
   const { t } = useTranslation();
   return useMemo(
-    () => [
+    (): [MembershipFilterItem, ...MembershipFilterItem[]] => [
       { name: t('sharedUi.memberFilters.joined'), filterFn: MembershipFilter.filterJoined },
       { name: t('sharedUi.memberFilters.invited'), filterFn: MembershipFilter.filterInvited },
       { name: t('sharedUi.memberFilters.left'), filterFn: MembershipFilter.filterLeft },

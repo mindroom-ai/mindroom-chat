@@ -90,9 +90,9 @@ export const changePackImage = (
   if (body) changed.body = body;
   if (changes.usage) changed.usage = optionToUsage(changes.usage);
   const next: PackImages = {};
-  Object.keys(images).forEach((shortcode) => {
+  Object.entries(images).forEach(([shortcode, image]) => {
     if (shortcode === from) next[changes.shortcode] = changed;
-    else next[shortcode] = images[shortcode];
+    else next[shortcode] = image;
   });
   return { ...pack, images: next };
 };

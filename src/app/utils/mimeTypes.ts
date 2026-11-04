@@ -18,7 +18,7 @@ const BLOB_SAFE_MIMETYPES = new Set([
 
 /** The type without parameters, lower case: `Text/Plain; charset=utf-8` is `text/plain`. */
 export const getMimeTypeBase = (mimeType: string): string =>
-  mimeType.split(';')[0].trim().toLowerCase();
+  (mimeType.split(';')[0] ?? '').trim().toLowerCase();
 
 /** A type safe to give a blob URL; anything else is served as a download. */
 export const getBlobSafeMimeType = (mimeType: string): string => {

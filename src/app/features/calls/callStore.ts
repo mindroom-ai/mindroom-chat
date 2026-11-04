@@ -103,10 +103,8 @@ export type StartCallOptions = {
 export type StartCallResult = 'started' | 'busy' | 'failed';
 
 /** The newest event's server time in a room's loaded live timeline. */
-const newestEventTs = (room: Room): number | undefined => {
-  const events = room.getLiveTimeline().getEvents();
-  return events.length > 0 ? events[events.length - 1].getTs() : undefined;
-};
+const newestEventTs = (room: Room): number | undefined =>
+  room.getLiveTimeline().getEvents().at(-1)?.getTs();
 
 /**
  * Starting and ending the call. Starting while another call is active does nothing and answers

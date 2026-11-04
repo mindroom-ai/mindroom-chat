@@ -288,6 +288,7 @@ export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
 
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const event = timeline[index];
+    if (!event) continue;
     if (readUpToId && event.getId() === readUpToId) return false;
     if (event.getSender() === selfId) {
       if (isUnreadWorthy(event)) return false;

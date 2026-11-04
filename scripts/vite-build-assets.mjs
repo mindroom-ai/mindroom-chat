@@ -75,7 +75,7 @@ export const mindroomBuildAssets = (env = process.env) => {
         '/sw.js': buildDevelopmentServiceWorker,
       };
       server.middlewares.use((req, res, next) => {
-        const pathname = (req.url ?? '').split('?')[0];
+        const [pathname = ''] = (req.url ?? '').split('?');
         const script = Object.hasOwn(scripts, pathname) ? scripts[pathname] : undefined;
         if (!script) {
           next();

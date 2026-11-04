@@ -72,9 +72,13 @@ const EMOJIBASE_GROUPS: Record<number, EmojiGroupId> = {
 
 const shortcodesByHexcode = emojibaseShortcodes as Record<string, string | string[]>;
 
-const shortcodesOf = (data: CompactEmojiData): string[] => {
+/** The emoji's shortcodes, the preferred one first; never empty. */
+const shortcodesOf = (data: CompactEmojiData): [string, ...string[]] => {
   const listed = shortcodesByHexcode[data.hexcode];
-  if (Array.isArray(listed) && listed.length > 0) return listed;
+  if (Array.isArray(listed)) {
+    const [first, ...rest] = listed;
+    if (first !== undefined) return [first, ...rest];
+  }
   if (typeof listed === 'string' && listed !== '') return [listed];
   return [
     data.label

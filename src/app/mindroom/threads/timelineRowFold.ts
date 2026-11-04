@@ -80,9 +80,9 @@ export const foldTimelineRowContexts = ({
   readUptoAbsoluteIndex,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
-  if (indexes.length === 0) return contexts;
   const firstIndex = indexes[0];
-  const lastIndex = indexes[indexes.length - 1];
+  const lastIndex = indexes.at(-1);
+  if (firstIndex === undefined || lastIndex === undefined) return contexts;
   const primed = primeTimelineRenderContextBefore(getEvent, firstIndex, isSkipped);
   let above: MatrixEvent | undefined = primed?.prevEvent;
   let aboveHasRow = primed?.isPrevRendered ?? false;

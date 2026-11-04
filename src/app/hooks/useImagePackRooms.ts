@@ -7,8 +7,9 @@ import { useServerEmojiRoom } from '../mindroom/server-emoji/useServerEmojiRoom'
 const getRoomAndAncestorIds = (roomId: string, roomToParents: Map<string, Set<string>>) => {
   const ids = [roomId];
   const seen = new Set(ids);
-  for (let index = 0; index < ids.length; index += 1) {
-    roomToParents.get(ids[index])?.forEach((parentId) => {
+  // The loop also visits the parents pushed while it runs.
+  for (const id of ids) {
+    roomToParents.get(id)?.forEach((parentId) => {
       if (seen.has(parentId)) return;
       seen.add(parentId);
       ids.push(parentId);

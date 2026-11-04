@@ -128,13 +128,13 @@ const readPolicies = (authData: IAuthData, language: string): TermsPolicy[] => {
   const params = authData.params?.[SignUpStage.Terms] as
     | { policies?: Record<string, PolicyParams> }
     | undefined;
+  const [baseLanguage = language] = language.split('-');
   return Object.entries(params?.policies ?? {}).flatMap(([id, policy]) => {
     const translations = Object.entries(policy).filter(([key]) => key !== 'version');
     const pick = (lang: string) => translations.find(([key]) => key === lang)?.[1];
-    const chosen = (pick(language) ??
-      pick(language.split('-')[0]) ??
-      pick('en') ??
-      translations[0]?.[1]) as { name?: unknown; url?: unknown } | undefined;
+    const chosen = (pick(language) ?? pick(baseLanguage) ?? pick('en') ?? translations[0]?.[1]) as
+      | { name?: unknown; url?: unknown }
+      | undefined;
     // The URL becomes a link on the sign-up page, so it must be http or https.
     const url = toHttpUrl(chosen?.url);
     if (!chosen || !url) return [];

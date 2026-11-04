@@ -51,8 +51,9 @@ export function CanvasHeaderButton({
       setMenuAnchor(event.currentTarget.getBoundingClientRect());
       return;
     }
+    const [only] = canvases;
     if (openHere) onClose();
-    else onOpen(canvases[0].canvasId);
+    else if (only) onOpen(only.canvasId);
   };
 
   const choose = (canvasId: string) => {

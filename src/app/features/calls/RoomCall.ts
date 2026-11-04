@@ -90,6 +90,7 @@ const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.every((item, index) => {
     const other = b[index];
     return (
+      other !== undefined &&
       item.key === other.key &&
       item.connected === other.connected &&
       item.speaking === other.speaking &&

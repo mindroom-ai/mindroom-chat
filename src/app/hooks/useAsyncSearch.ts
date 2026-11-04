@@ -61,8 +61,9 @@ export const useAsyncSearch = <T>(
 
       const runSlice = () => {
         const end = Math.min(index + SEARCH_SLICE_SIZE, source.length);
-        for (; index < end; index += 1) {
-          const item = source[index];
+        const slice = source.slice(index, end);
+        index = end;
+        for (const item of slice) {
           const strings = toStrings(getItemStrRef.current(item)).map(normalizeSearchString);
           if (strings.some((value) => value.startsWith(needle))) prefixMatches.push(item);
           else if (strings.some((value) => value.includes(needle))) otherMatches.push(item);

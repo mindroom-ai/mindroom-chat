@@ -12,7 +12,7 @@ export const escapeMarkdownInlineSequences = (text: string): string => {
   const insideUrl = createInsideUrlTest(text);
   let escaped = '';
   for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
+    const character = text.charAt(index);
     escaped +=
       INLINE_MARKDOWN_CHARACTERS.includes(character) && !insideUrl(index)
         ? `\\${character}`

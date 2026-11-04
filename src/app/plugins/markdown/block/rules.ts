@@ -53,7 +53,7 @@ const findFencedCodeBlocks = (text: string, firstOnly: boolean): FencedCodeBlock
         opener.closer = line;
       });
       openByLength.delete(run);
-      if (firstOnly && openers[0].closer) break;
+      if (firstOnly && openers[0]?.closer) break;
     }
     if (run >= 3 && lineBreak >= 0 && !hasBacktickRun(text, line.start + run, line.end, run)) {
       const opener: Opener = {
@@ -102,10 +102,12 @@ const scanCodeBlocks = (text: string) => {
     let high = blocks.length;
     while (low < high) {
       const middle = (low + high) >> 1;
-      if (blocks[middle].opener.start < from) low = middle + 1;
+      const start = blocks[middle]?.opener.start ?? from;
+      if (start < from) low = middle + 1;
       else high = middle;
     }
-    return low < blocks.length ? toCodeBlockMatch(text, blocks[low]) : null;
+    const block = blocks[low];
+    return block ? toCodeBlockMatch(text, block) : null;
   };
 };
 
@@ -114,7 +116,7 @@ export const CodeBlockRule: BlockMDRule = {
   match: matchCodeBlock,
   scan: scanCodeBlocks,
   html: (_parseInline, match) => {
-    const [, fence, info, code] = match;
+    const [, fence = '', info = '', code = ''] = match;
     const language = info.trim().split(/\s+/)[0];
     const languageClass = language ? ` class="language-${language}"` : '';
     return `<pre data-md="${fence}"><code${languageClass}>${code}</code></pre>`;
@@ -145,7 +147,7 @@ const headingText = (line: string): string => {
   const trimmed = line.trimEnd();
   let end = trimmed.length;
   while (end > 0 && trimmed[end - 1] === '#') end -= 1;
-  if (end === trimmed.length || end === 0 || !/[ \t]/.test(trimmed[end - 1])) return trimmed;
+  if (end === trimmed.length || end === 0 || !/[ \t]/.test(trimmed.charAt(end - 1))) return trimmed;
   return trimmed.slice(0, end).trimEnd();
 };
 
@@ -153,7 +155,7 @@ const headingText = (line: string): string => {
 export const HeadingRule: BlockMDRule = {
   match: (text) => text.match(HEADING_REG),
   html: (parseInline, match) => {
-    const [, hashes, line] = match;
+    const [, hashes = '', line = ''] = match;
     const level = hashes.length;
     return `<h${level} data-md="${hashes}">${parseInline(headingText(line))}</h${level}>`;
   },
@@ -189,26 +191,28 @@ const parseListLines = (lines: string[]): List[] => {
   lines.forEach((line) => {
     const item = line.match(LIST_ITEM_REG);
     if (!item) {
-      const current = open[open.length - 1];
-      current?.items[current.items.length - 1].lines.push(line.trim());
+      open.at(-1)?.items.at(-1)?.lines.push(line.trim());
       return;
     }
-    const [, spaces, marker, content] = item;
+    const [, spaces = '', marker = '', content = ''] = item;
     const indent = spaces.length;
     const ordered = marker !== '*' && marker !== '-';
-    while (open.length > 0 && open[open.length - 1].indent > indent) open.pop();
-    let list = open[open.length - 1];
+    let list = open.at(-1);
+    while (list && list.indent > indent) {
+      open.pop();
+      list = open.at(-1);
+    }
     if (
       list &&
       list.indent === indent &&
       (list.ordered !== ordered || (!ordered && list.marker !== marker))
     ) {
       open.pop();
-      list = open[open.length - 1];
+      list = open.at(-1);
     }
     if (!list || list.indent !== indent) {
       const created: List = { indent, marker, ordered, items: [] };
-      if (list) list.items[list.items.length - 1].lists.push(created);
+      if (list) list.items.at(-1)?.lists.push(created);
       else roots.push(created);
       open.push(created);
       list = created;

@@ -34,11 +34,9 @@ const parseVersion = (version) => {
  * @param {string} b
  */
 const compareVersions = (a, b) => {
-  const [left, right] = [parseVersion(a), parseVersion(b)];
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] - right[index];
-  }
-  return 0;
+  const [leftMajor, leftMinor, leftPatch] = parseVersion(a);
+  const [rightMajor, rightMinor, rightPatch] = parseVersion(b);
+  return leftMajor - rightMajor || leftMinor - rightMinor || leftPatch - rightPatch;
 };
 
 /**
@@ -52,18 +50,23 @@ const tagFromRef = (ref) => {
 };
 
 /**
+ * A release tag with its release iteration; undefined for any other tag.
+ * @param {string | undefined} tag
+ * @returns {{ tag: string; iteration: string } | undefined}
+ */
+const releaseOf = (tag) => {
+  const iteration = tag === undefined ? undefined : RELEASE_TAG.exec(tag)?.[2];
+  return tag !== undefined && iteration !== undefined ? { tag, iteration } : undefined;
+};
+
+/**
  * The release iteration of the newest release tag among `tags`.
  * @param {string[]} tags
  * @returns {{ tag: string; iteration: string } | undefined}
  */
 const newestReleaseTag = (tags) =>
   tags
-    .map((tag) => ({ tag, match: RELEASE_TAG.exec(tag.trim()) }))
-    .filter((entry) => entry.match)
-    .map(({ tag, match }) => ({
-      tag: tag.trim(),
-      iteration: /** @type {RegExpExecArray} */ (match)[2],
-    }))
+    .flatMap((tag) => releaseOf(tag.trim()) ?? [])
     .sort((a, b) => Number(b.iteration) - Number(a.iteration))[0];
 
 /**
@@ -96,16 +99,16 @@ export const resolveIosCiVersionMetadata = ({
 
   /** @type {[string, string]} */
   let build = [checkedInBuildNumber, CHECKED_IN];
-  const envTag = [env.CI_TAG, env.GITHUB_REF_NAME, env.GITHUB_REF]
-    .map(tagFromRef)
-    .find((tag) => tag && RELEASE_TAG.test(tag));
+  const envRelease = [env.CI_TAG, env.GITHUB_REF_NAME, env.GITHUB_REF]
+    .map((ref) => releaseOf(tagFromRef(ref)))
+    .find((release) => release !== undefined);
   const headTag = newestReleaseTag(headTags);
   if (clean(env.IOS_BUILD_NUMBER)) {
     build = [/** @type {string} */ (clean(env.IOS_BUILD_NUMBER)), 'IOS_BUILD_NUMBER'];
   } else if (ciCounter) {
     build = [ciCounter, 'CI_BUILD_NUMBER'];
-  } else if (envTag) {
-    build = [/** @type {RegExpExecArray} */ (RELEASE_TAG.exec(envTag))[2], `env-tag:${envTag}`];
+  } else if (envRelease) {
+    build = [envRelease.iteration, `env-tag:${envRelease.tag}`];
   } else if (headTag) {
     build = [headTag.iteration, `head-tag:${headTag.tag}`];
   }

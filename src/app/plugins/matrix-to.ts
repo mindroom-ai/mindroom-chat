@@ -77,11 +77,14 @@ const fromPathAndQuery = (path: string, query: string): Permalink | undefined =>
 const MATRIX_URI_SIGILS: Record<string, string> = { u: '@', r: '#', roomid: '!', e: '$' };
 
 const fromMatrixUri = (href: string): Permalink | undefined => {
-  const [path, query = ''] = href.slice('matrix:'.length).split('?');
+  const [path = '', query = ''] = href.slice('matrix:'.length).split('?');
   const parts = path.split('/').map(safeDecode);
   if (parts.some((part) => !part)) return undefined;
-  const [kind, id, eventKind, eventId] = parts as string[];
-  const sigil = Object.hasOwn(MATRIX_URI_SIGILS, kind) ? MATRIX_URI_SIGILS[kind] : undefined;
+  const [kind, id, eventKind, eventId] = parts;
+  const sigil =
+    kind !== undefined && Object.hasOwn(MATRIX_URI_SIGILS, kind)
+      ? MATRIX_URI_SIGILS[kind]
+      : undefined;
   if (!sigil || sigil === '$' || !id) return undefined;
   if (eventKind !== undefined && (eventKind !== 'e' || !eventId || sigil === '@')) return undefined;
   const viaServers = new URLSearchParams(query).getAll('via').filter((server) => server !== '');

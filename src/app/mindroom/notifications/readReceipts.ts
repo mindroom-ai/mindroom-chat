@@ -34,16 +34,6 @@ const newer = (
   return preferred.getTs() >= current.getTs() ? preferred : current;
 };
 
-const lastMatching = (
-  events: readonly MatrixEvent[],
-  predicate: (event: MatrixEvent) => boolean
-): MatrixEvent | undefined => {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    if (predicate(events[index])) return events[index];
-  }
-  return undefined;
-};
-
 const isConfirmedReply = (event: MatrixEvent): boolean =>
   isConfirmed(event) && isVisibleThreadReplyEvent(event);
 
@@ -52,7 +42,7 @@ const isConfirmedReply = (event: MatrixEvent): boolean =>
  * names, whichever is newer. The summary wins a tie, since it is the server's view of the tail.
  */
 const latestThreadReply = (thread: Thread): MatrixEvent | undefined => {
-  const loaded = lastMatching(thread.events ?? [], isConfirmedReply);
+  const loaded = thread.events?.findLast(isConfirmedReply);
   const summary = thread.replyToEvent ?? undefined;
   return newer(loaded, summary && isConfirmedReply(summary) ? summary : undefined);
 };
@@ -75,10 +65,10 @@ export const markMainTimelineAsRead = async (
 ): Promise<void> => {
   const room = mx.getRoom(roomId);
   if (!room) return;
-  const target = lastMatching(
-    room.getLiveTimeline().getEvents(),
-    (event) => isConfirmed(event) && inMainTimelineForReceipt(event)
-  );
+  const target = room
+    .getLiveTimeline()
+    .getEvents()
+    .findLast((event) => isConfirmed(event) && inMainTimelineForReceipt(event));
   if (!target) return;
   const userId = mx.getUserId();
   if (userId && room.getEventReadUpTo(userId) === target.getId()) return;
@@ -139,17 +129,17 @@ export const markThreadAsRead = async (
   } else {
     target =
       (await fetchThreadTail(mx, roomId, threadId)) ??
-      lastMatching(
-        room.getLiveTimeline().getEvents(),
-        (event) => isConfirmedReply(event) && event.threadRootId === threadId
-      );
+      room
+        .getLiveTimeline()
+        .getEvents()
+        .findLast((event) => isConfirmedReply(event) && event.threadRootId === threadId);
   }
   if (!target || !isConfirmed(target)) return;
   await send(mx.sendReceipt(target, receiptTypeFor(privateReceipt), { thread_id: threadId }));
 };
 
 const latestRoomEvent = (room: Room): MatrixEvent | undefined => {
-  let latest = lastMatching(room.getLiveTimeline().getEvents(), isConfirmed);
+  let latest: MatrixEvent | undefined = room.getLiveTimeline().getEvents().findLast(isConfirmed);
   room.getThreads().forEach((thread) => {
     // A thread's tail wins a tie with a main event: it is what the room still shows as unread.
     latest = newer(latest, latestThreadReply(thread));

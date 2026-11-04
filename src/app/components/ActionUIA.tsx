@@ -15,7 +15,7 @@ const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
 const isSsoStage = (stage: string) => stage === AuthType.Sso || stage === AuthType.SsoUnstable;
 
 const isSingleStage = (flow: UIAFlow, test: (stage: string) => boolean) =>
-  flow.stages.length === 1 && test(flow.stages[0]);
+  flow.stages.length === 1 && flow.stages.every(test);
 
 /**
  * Chooses the flow to authenticate an action with: single sign-on first (accounts created

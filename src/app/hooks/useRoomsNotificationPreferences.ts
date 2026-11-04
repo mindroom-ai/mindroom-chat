@@ -30,13 +30,15 @@ type RoomToNotificationMode = Map<string, RoomNotificationMode>;
 const notifies = (rule: IPushRule): boolean =>
   rule.actions.some((action) => action === PushRuleActionName.Notify);
 
-const isRoomMuteRule = (rule: IPushRule): boolean =>
-  rule.enabled &&
-  !notifies(rule) &&
-  rule.conditions?.length === 1 &&
-  rule.conditions[0].kind === ConditionKind.EventMatch &&
-  (rule.conditions[0] as { key?: string }).key === 'room_id' &&
-  (rule.conditions[0] as { pattern?: string }).pattern === rule.rule_id;
+const isRoomMuteRule = (rule: IPushRule): boolean => {
+  if (!rule.enabled || notifies(rule) || rule.conditions?.length !== 1) return false;
+  const [condition] = rule.conditions;
+  return (
+    condition?.kind === ConditionKind.EventMatch &&
+    condition.key === 'room_id' &&
+    condition.pattern === rule.rule_id
+  );
+};
 
 /** Every room with its own notification setting, read from the account's push rules. */
 const getRoomsNotificationPreferences = (

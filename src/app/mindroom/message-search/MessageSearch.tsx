@@ -306,14 +306,19 @@ export function MessageSearch({
     );
   };
 
+  const recentOrder = {
+    name: t('mindroomUi.message-search.searchFilters.recent'),
+    value: SearchOrderBy.Recent,
+  };
   const orders = [
-    { name: t('mindroomUi.message-search.searchFilters.recent'), value: SearchOrderBy.Recent },
+    recentOrder,
     { name: t('mindroomUi.message-search.searchFilters.relevance'), value: SearchOrderBy.Rank },
   ];
   const orderIndex = Math.max(
     orders.findIndex((choice) => choice.value === order),
     0
   );
+  const currentOrder = orders[orderIndex] ?? recentOrder;
   const scopeChosen = !global && !explicitRooms;
   // The rooms picked by hand, each a chip that removes it, in the order of their names.
   const pickedRooms = (explicitRooms ?? [])
@@ -446,7 +451,8 @@ export function MessageSearch({
                 current={orderIndex}
                 onChoose={(index) => {
                   setOrderAnchor(undefined);
-                  chooseOrder(orders[index].value);
+                  const chosen = orders[index];
+                  if (chosen) chooseOrder(chosen.value);
                 }}
                 onDismiss={() => setOrderAnchor(undefined)}
               />
@@ -460,12 +466,12 @@ export function MessageSearch({
               aria-haspopup="menu"
               aria-expanded={!!orderAnchor}
               aria-label={`${t('mindroomUi.message-search.searchFilters.sortBy')}: ${
-                orders[orderIndex].name
+                currentOrder.name
               }`}
               after={<Icon size="50" src={Icons.Sort} />}
               onClick={openOrder}
             >
-              <Text size="T200">{orders[orderIndex].name}</Text>
+              <Text size="T200">{currentOrder.name}</Text>
             </Chip>
           </PopOut>
         </Box>

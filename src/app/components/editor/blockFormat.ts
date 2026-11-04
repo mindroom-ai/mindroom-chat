@@ -29,8 +29,11 @@ const isTopLevelBlock = (node: Node, path: Path): node is Element =>
 const blocksInSelection = (editor: Editor): Element[] => {
   if (!editor.selection) return [];
   const [start, end] = Range.edges(editor.selection);
+  const first = start.path[0];
+  const last = end.path[0];
+  if (first === undefined || last === undefined) return [];
   return editor.children
-    .slice(start.path[0], end.path[0] + 1)
+    .slice(first, last + 1)
     .filter((node): node is Element => Element.isElement(node));
 };
 
