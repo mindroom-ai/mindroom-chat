@@ -862,6 +862,10 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 onReactionToggle(mxc, shortcode);
                 setEmojiAnchor(undefined);
               }}
+              onTextReaction={(text) => {
+                onReactionToggle(text);
+                setEmojiAnchor(undefined);
+              }}
             />
           }
         />

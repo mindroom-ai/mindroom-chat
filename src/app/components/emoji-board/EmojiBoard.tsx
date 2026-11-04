@@ -125,10 +125,11 @@ type ItemButtonProps = {
 };
 
 function ItemButton({ item, client, authMedia }: ItemButtonProps) {
+  const { t } = useTranslation();
   const common = {
     type: 'button' as const,
     title: item.label,
-    'aria-label': item.label,
+    'aria-label': t('sharedUi.item.value1Emoji', { value1: item.label }),
     'data-emoji-type': item.type,
     'data-emoji-data': item.data,
     'data-emoji-shortcode': item.shortcode,
@@ -164,6 +165,8 @@ type EmojiPickHandlers = {
   onCustomEmojiSelect?: ImagePick;
   /** `label` is the sticker's description, sent as the body of the sticker event. */
   onStickerSelect?: (mxc: string, shortcode: string, label: string) => void;
+  /** Offered by reaction pickers: the search text itself, sent as a reaction. */
+  onTextReaction?: (text: string) => void;
 };
 
 type EmojiBoardProps = EmojiPickHandlers & {
@@ -199,6 +202,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
     onEmojiSelect,
     onCustomEmojiSelect,
     onStickerSelect,
+    onTextReaction,
     keepOpenOnSelect,
     returnFocusOnDeactivate,
     requestClose,
@@ -313,6 +317,10 @@ export function EmojiBoard(props: EmojiBoardProps) {
   };
 
   const noStickerPacks = stickerTab && groups.length === 0;
+  const textReaction = onTextReaction && !stickerTab ? query.trim() : '';
+  const searchLabel = onTextReaction
+    ? t('sharedUi.searchInput.searchOrTextReaction').trim()
+    : t('sharedUi.searchInput.search');
 
   let content: ReactNode;
   if (addFile) {
@@ -347,12 +355,29 @@ export function EmojiBoard(props: EmojiBoardProps) {
             variant="SurfaceVariant"
             size="400"
             radii="400"
-            placeholder={t('sharedUi.searchInput.search')}
-            aria-label={t('sharedUi.searchInput.search')}
+            placeholder={searchLabel}
+            aria-label={searchLabel}
             value={query}
             onChange={handleQueryChange}
             autoFocus={!mobileOrTablet()}
             before={<Icon src={Icons.Search} size="50" />}
+            after={
+              textReaction ? (
+                <Chip
+                  type="button"
+                  radii="Pill"
+                  variant="Primary"
+                  onClick={() => {
+                    onTextReaction?.(textReaction);
+                    if (!keepOpenOnSelect) requestClose();
+                  }}
+                >
+                  <Text as="span" size="B300">
+                    {t('sharedUi.searchInput.react')}
+                  </Text>
+                </Chip>
+              ) : undefined
+            }
           />
         </Box>
         {noStickerPacks && (
