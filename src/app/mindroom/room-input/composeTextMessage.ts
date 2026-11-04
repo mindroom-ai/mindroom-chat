@@ -53,7 +53,7 @@ const isParagraph = (node: Descendant | undefined): node is ParagraphElement =>
  * Only plain text at the start of the first paragraph counts, so a command inside a code block
  * or a quote is sent as written, and so is any other `/word`.
  */
-export const takeMessageCommand = (
+const takeMessageCommand = (
   document: Descendant[]
 ): { command?: MessageCommand; document: Descendant[] } => {
   const asWritten = { document };
