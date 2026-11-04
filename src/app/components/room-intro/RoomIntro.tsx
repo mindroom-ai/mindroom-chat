@@ -4,8 +4,11 @@ import { Avatar, Box, Text, config } from 'folds';
 import { RoomAvatar, RoomIcon } from '../room-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useRoomAvatar, useRoomName, useRoomTopic } from '../../hooks/useRoomMeta';
+import { nameInitials } from '../../utils/common';
 import { mxcUrlToHttp } from '../../utils/matrix';
+import { getDirectPartnerId } from '../../utils/room';
 
 type RoomIntroProps = {
   room: Room;
@@ -16,10 +19,12 @@ export function RoomIntro({ room }: RoomIntroProps) {
   const mx = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   const name = useRoomName(room);
+  // A direct chat starts with the other person, as its header shows them.
+  const withPerson = useIsDirectRoom();
   const topic = useRoomTopic(room);
-  const avatarMxc = useRoomAvatar(room);
-  const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined
+  const pictureMxc = useRoomAvatar(room, withPerson);
+  const avatarSrc = pictureMxc
+    ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined
     : undefined;
 
   return (
@@ -33,7 +38,16 @@ export function RoomIntro({ room }: RoomIntroProps) {
           alt={name}
           src={avatarSrc}
           roomId={room.roomId}
-          renderFallback={() => <RoomIcon size="400" joinRule={room.getJoinRule()} filled />}
+          fallbackId={withPerson ? getDirectPartnerId(room) : undefined}
+          renderFallback={() =>
+            withPerson ? (
+              <Text as="span" size="H2">
+                {nameInitials(name)}
+              </Text>
+            ) : (
+              <RoomIcon size="400" joinRule={room.getJoinRule()} filled />
+            )
+          }
         />
       </Avatar>
       <Box direction="Column" gap="100">

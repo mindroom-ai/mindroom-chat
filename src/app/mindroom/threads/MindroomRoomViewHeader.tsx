@@ -39,6 +39,7 @@ import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { copyToClipboard } from '../../utils/dom';
 import { nameInitials } from '../../utils/common';
+import { getDirectPartnerId } from '../../utils/room';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import {
@@ -268,7 +269,7 @@ export function RoomViewHeader({
               alt={roomName}
               src={avatarSrc}
               roomId={room.roomId}
-              fallbackTone="solid"
+              fallbackId={direct ? getDirectPartnerId(room) : undefined}
               renderFallback={() =>
                 direct ? (
                   <Text as="span" size="H5">

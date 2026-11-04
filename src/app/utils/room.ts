@@ -78,6 +78,14 @@ export const getDirectRoomAvatarUrl = (
     : undefined;
 };
 
+/**
+ * The other person of a direct room, whose picture its avatar shows; a tile without one takes
+ * that person's color too, so they look the same in the room list as next to their messages.
+ */
+export const getDirectPartnerId = (room: Room): string | undefined =>
+  // Optional call: room list tests pass room stand-ins without member lookups.
+  room.getAvatarFallbackMember?.()?.userId;
+
 /** Whether our pending invite to the room is marked as a direct chat (`is_direct`). */
 export const isDirectInvite = (room: Room, myUserId: string): boolean =>
   room.getMember(myUserId)?.events.member?.getContent().is_direct === true;

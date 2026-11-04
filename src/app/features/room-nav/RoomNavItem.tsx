@@ -29,7 +29,7 @@ import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../../utils/matrix';
-import { getRoomAvatarUrl } from '../../utils/room';
+import { getDirectPartnerId, getRoomAvatarUrl } from '../../utils/room';
 import { copyToClipboard } from '../../utils/dom';
 import { nameInitials } from '../../utils/common';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
@@ -212,6 +212,7 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
     <Avatar size="200" radii="400">
       <RoomAvatar
         fallbackTone={failedTone}
+        fallbackId={personAvatar ? getDirectPartnerId(room) : undefined}
         renderFallback={renderFallback}
         alt={name}
         src={src}
