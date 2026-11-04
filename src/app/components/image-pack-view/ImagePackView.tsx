@@ -128,8 +128,8 @@ const PENDING_BAR_STYLE: CSSProperties = {
 };
 
 // The same insets as the settings pages beside this view (settings.png).
-const HEADER_INSET = { paddingRight: '1.5rem' };
-const CONTENT_INSET = { paddingRight: '1.75rem' };
+const HEADER_INSET = { paddingInlineEnd: '1.5rem' };
+const CONTENT_INSET = { paddingInlineEnd: '1.75rem' };
 const CARD_STYLE = { padding: config.space.S300 };
 
 /**

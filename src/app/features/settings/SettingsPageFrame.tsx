@@ -17,11 +17,12 @@ export type SettingsPageProps = Pick<SettingsPageFrameProps, 'requestClose'>;
 
 type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 
-// settings.png: the close button sits 24 px from the dialog's right edge and the cards end 28 px
-// from it. Inline and in plain units, because the shared page header and content set their own
-// padding and the unit tests of the pages load this frame with folds and styles mocked.
-const HEADER_INSET = { paddingRight: '1.5rem' };
-const CONTENT_INSET = { paddingRight: '1.75rem' };
+// settings.png: the close button sits 24 px from the dialog's end edge (the right, or the left in
+// a right-to-left language) and the cards end 28 px from it. Inline and in plain units, because
+// the shared page header and content set their own padding and the unit tests of the pages load
+// this frame with folds and styles mocked.
+const HEADER_INSET = { paddingInlineEnd: '1.5rem' };
+const CONTENT_INSET = { paddingInlineEnd: '1.75rem' };
 
 /**
  * On phones a page covers the menu, so its header leads with a back arrow to the menu (the
