@@ -1,0 +1,220 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "滚动"
+    },
+    "passwordInput": {
+      "show": "显示密码",
+      "hide": "隐藏密码"
+    },
+    "pdfViewer": {
+      "close": "关闭"
+    },
+    "urlPreviewHolder": {
+      "previous": "上一组链接预览",
+      "next": "更多链接预览"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "名称",
+      "cancel": "取消",
+      "skinTone": "肤色",
+      "skinTones": {
+        "default": "默认肤色",
+        "light": "浅肤色",
+        "mediumLight": "中等偏浅肤色",
+        "medium": "中等肤色",
+        "mediumDark": "中等偏深肤色",
+        "dark": "深肤色"
+      }
+    },
+    "eventReaders": {
+      "close": "关闭"
+    },
+    "imagePackContent": {
+      "uploadFailed": "无法上传图片，请重试。",
+      "noImages": "还没有图片。"
+    },
+    "imagePackView": {
+      "close": "关闭",
+      "back": "返回"
+    },
+    "imageTile": {
+      "remove": "移除",
+      "editImage": "编辑 :{{shortcode}}:",
+      "removeImage": "移除 :{{shortcode}}:",
+      "keepImage": "保留 :{{shortcode}}:",
+      "removedOnApply": "应用更改后将被移除",
+      "usage": "用作",
+      "shortcodeTaken": "另一张图片已使用此简码。",
+      "shortcodeInvalid": "简码不能包含空格或冒号。"
+    },
+    "imageUsageOption": {
+      "pack": "与包相同"
+    },
+    "imageViewer": {
+      "close": "关闭"
+    },
+    "inviteUserPrompt": {
+      "close": "关闭"
+    },
+    "joinAddressPrompt": {
+      "close": "关闭"
+    },
+    "textViewer": {
+      "close": "关闭"
+    },
+    "invites": {
+      "actionFailed": "出了点问题，请重试。"
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "搜索用户或输入用户 ID"
+    },
+    "leaveRoomPrompt": {
+      "close": "关闭",
+      "forget": "忘记此房间",
+      "forgetDescription": "同时将它从您的账户中移除，包括聊天记录。如果房间允许，您以后仍可重新加入。"
+    },
+    "memberFilters": {
+      "label": "显示成员"
+    },
+    "memberSort": {
+      "label": "成员排序"
+    },
+    "a11y": {
+      "mainNavigation": "主导航",
+      "skipToContent": "跳到内容",
+      "newMessage": "{{sender}}：{{body}}"
+    },
+    "roomCard": {
+      "forget": "忘记房间"
+    },
+    "userRoomProfile": {
+      "editProfile": "编辑个人资料"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "删除 {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "请为事件指定类型，并提供一个 JSON 对象作为内容。"
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "个人包",
+          "imageCount_other": "{{count}} 张图片，可在每个房间中使用"
+        }
+      },
+      "devices": {
+        "loadFailed": "无法加载您的设备。"
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "取消屏蔽"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "移除"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "无法开始聊天，请重试。"
+    },
+    "homeNav": {
+      "options": "首页选项"
+    },
+    "directNav": {
+      "options": "私信选项"
+    },
+    "spaceNav": {
+      "options": "空间选项"
+    },
+    "calls": {
+      "panel": {
+        "title": "通话",
+        "close": "关闭通话面板",
+        "participants": "通话中的人",
+        "connecting": "正在连接…",
+        "reconnecting": "正在重新连接…",
+        "ended": "通话已结束。",
+        "waitingFor": "正在等待 {{name}}…",
+        "you": "{{name}}（您）",
+        "microphoneOff": "麦克风已关闭",
+        "inCall_other": "通话中有 {{count}} 人",
+        "startCall": "开始通话",
+        "startVideoCall": "开始视频通话",
+        "dismiss": "关闭",
+        "audioBlocked": "浏览器暂停了通话的声音。",
+        "playSound": "播放声音",
+        "resize": "调整通话面板大小"
+      },
+      "problems": {
+        "service": "无法连接到通话服务，请稍后重试。",
+        "connection": "通话连接已断开。",
+        "device": "无法使用您的麦克风或摄像头。"
+      },
+      "devices": {
+        "title": "设备",
+        "microphone": "麦克风",
+        "camera": "摄像头",
+        "speaker": "扬声器",
+        "systemDefault": "系统默认",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "发起通话",
+        "joinCall": "加入通话",
+        "joinCallCount_other": "加入通话，当前有 {{count}} 人",
+        "showCall": "显示通话",
+        "hideCall": "隐藏通话"
+      },
+      "rail": {
+        "returnToCall": "返回 {{room}} 中的通话"
+      },
+      "incoming": {
+        "calling": "{{name}} 来电",
+        "callingIn": "{{name}} 在 {{room}} 中发起通话",
+        "videoCall": "视频通话",
+        "voiceCall": "语音通话"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "已思考"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "搜索失败，请重试。"
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "邀请",
+        "body_other": "您有 {{count}} 条新邀请。"
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "紧凑视图"
+      }
+    },
+    "computer": {
+      "resize": "调整计算机面板大小",
+      "close": "关闭计算机"
+    }
+  },
+  "composer": {
+    "emoji": "表情符号",
+    "cancelReply": "取消回复"
+  }
+}
