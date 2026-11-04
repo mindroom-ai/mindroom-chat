@@ -124,9 +124,10 @@ function TextMessage({
       {/* The body reads in the direction of its plain text, so an English message keeps its
           punctuation at the end in a right-to-left interface, and an Arabic one in a
           left-to-right one. The interface's labels inside it, such as an agent's tool calls,
-          keep the interface's direction (index.css). */}
+          keep the interface's direction (index.css). A body reads at P400 opacity and a notice
+          at P300, as in thread-light.png. */}
       <MessageTextBody
-        priority={notice ? '300' : 'Inherit'}
+        priority={notice ? '300' : '400'}
         jumboEmoji={jumboEmoji}
         dir={textDirection(trimmedBody) ?? 'auto'}
         style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
