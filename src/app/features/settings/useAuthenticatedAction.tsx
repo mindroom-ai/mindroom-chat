@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, config } from 'folds';
 import type { AuthDict, IAuthData, MatrixError } from 'matrix-js-sdk';
@@ -56,19 +56,41 @@ function UnsupportedStages({ onClose }: { onClose: () => void }) {
 /** Account actions that need the password or single sign-on again (deactivate, sign out). */
 export function useAuthenticatedAction(): AuthenticatedAction {
   const [waiting, setWaiting] = useState<Waiting>();
+  // What gives up each prompt still open when the component goes away (an account switch, a
+  // navigation): its action would otherwise wait for an answer that can no longer come.
+  const abandons = useRef<Set<() => void> | undefined>(new Set());
+
+  useEffect(() => {
+    // Mounted again (StrictMode): prompts open from here on are given up at the next unmount.
+    const open = abandons.current ?? new Set<() => void>();
+    abandons.current = open;
+    return () => {
+      abandons.current = undefined;
+      open.forEach((abandon) => abandon());
+    };
+  }, []);
 
   const ask = useCallback(
     (authData: IAuthData) =>
       new Promise<AuthDict>((resolve, reject) => {
+        const open = abandons.current;
+        if (!open) {
+          reject(new AuthenticationCancelled());
+          return;
+        }
+        const abandon = () => reject(new AuthenticationCancelled());
+        open.add(abandon);
         const entry: Waiting = {
           authData,
           answer: (auth) => {
+            open.delete(abandon);
             setWaiting((current) => (current === entry ? undefined : current));
             resolve(auth);
           },
           cancel: () => {
+            open.delete(abandon);
             setWaiting((current) => (current === entry ? undefined : current));
-            reject(new AuthenticationCancelled());
+            abandon();
           },
         };
         setWaiting(entry);

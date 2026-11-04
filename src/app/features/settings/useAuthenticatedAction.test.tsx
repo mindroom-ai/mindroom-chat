@@ -150,6 +150,23 @@ describe('useAuthenticatedAction', () => {
     expect(overlays()).toHaveLength(0);
   });
 
+  it('stops with AuthenticationCancelled when it goes away with the prompt open', async () => {
+    mount();
+    const request = vi.fn(async () => {
+      throw uiaError(['m.login.password']);
+    });
+    const result = action.run(request);
+    await flush();
+    expect(overlays()).toHaveLength(1);
+
+    // An account switch or a navigation unmounts the settings that asked.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+
+    await expect(result).rejects.toBeInstanceOf(AuthenticationCancelled);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it('says so when no flow has only stages it can do, and Cancel stops', async () => {
     mount();
     const result = action.run(async () => {
