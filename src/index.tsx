@@ -5,6 +5,7 @@ import { App as NativeApp } from '@capacitor/app';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import './index.css';
+import './app/styles/Typography.css';
 import './app/i18n';
 import App from './app/pages/App';
 import {

@@ -25,9 +25,12 @@ export const NavItem = recipe({
       position: 'relative',
       minBlockSize: toRem(36),
       inlineSize: '100%',
-      // Rows read at body size T300 (14 px), as in docs/design/reference/home.png.
+      // Rows read at body size T300 (14 px) in medium weight, as in docs/design/reference/home.png:
+      // at 500 a row's text matches the reference's width and ink to the pixel, at 400 it has
+      // about 18% less ink and reads thin.
       fontSize: config.fontSize.T300,
       lineHeight: config.lineHeight.T300,
+      fontWeight: config.fontWeight.W500,
       color: 'var(--nav-item-on)',
       outline: 'none',
       selectors: {
