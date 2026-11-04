@@ -145,7 +145,8 @@ export const UploadCardRenderer = ({
   };
 
   const mimeType = originalFile.type || file.type;
-  const isImage = mimeType.startsWith('image/');
+  // Pictures and videos can be sent as spoilers (MSC4193); other files have no preview to hide.
+  const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
   const name = fileNameOf(originalFile as File) || fileNameOf(file as File);
 
   return (
@@ -157,7 +158,7 @@ export const UploadCardRenderer = ({
           {upload.status === UploadStatus.Success && (
             <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
           )}
-          {isImage && (
+          {canBeSpoiler && (
             <IconButton
               type="button"
               size="300"

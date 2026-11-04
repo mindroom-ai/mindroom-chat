@@ -1,7 +1,7 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { CSSProperties, ReactNode, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import { Box, Button, Icon, Icons, Spinner, Text } from 'folds';
+import { Box, Button, Chip, Icon, Icons, Spinner, Text } from 'folds';
 import type { IVideoInfo } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { getBlobSafeMimeType } from '../../../utils/mimeTypes';
@@ -22,6 +22,8 @@ type VideoContentProps = {
   body: string;
   mimeType: string;
   url: string;
+  /** The sender marked it as a spoiler: the preview stays blurred and nothing loads until revealed. */
+  markedAsSpoiler?: boolean;
   /** Dimensions and duration, for callers that size the player box. */
   info?: IVideoInfo;
   encInfo?: EncryptedAttachmentInfo;
@@ -33,6 +35,14 @@ type VideoContentProps = {
   renderVideo: RenderVideo;
 };
 
+/** The thumbnail and BlurHash under the controls; a spoiler keeps them blurred. */
+const previewLayerStyle = (revealed: boolean): CSSProperties => ({
+  position: 'absolute',
+  inset: 0,
+  overflow: 'hidden',
+  filter: revealed ? undefined : 'blur(44px)',
+});
+
 /** An `m.video` attachment: a thumbnail until the video is loaded, then the player. */
 export function VideoContent({
   body,
@@ -42,12 +52,14 @@ export function VideoContent({
   encInfo,
   owner,
   autoPlay = false,
+  markedAsSpoiler = false,
   renderThumbnail,
   renderVideo,
 }: VideoContentProps) {
   const { t } = useTranslation();
   const [src, setSrc] = useState<string>();
   const [playRequested, setPlayRequested] = useState(false);
+  const [revealed, setRevealed] = useState(!markedAsSpoiler);
   const toUrl = useCallback(
     async (blob: Blob) =>
       URL.createObjectURL(new Blob([blob], { type: getBlobSafeMimeType(mimeType) })),
@@ -65,8 +77,8 @@ export function VideoContent({
   }, [load]);
 
   useEffect(() => {
-    if (autoPlay) start();
-  }, [autoPlay, start]);
+    if (autoPlay && revealed) start();
+  }, [autoPlay, revealed, start]);
 
   useEffect(
     () => () => {
@@ -77,7 +89,8 @@ export function VideoContent({
 
   const blurHash = getInfoBlurHash(info);
 
-  if (src) return <>{renderVideo({ src, title: body, autoPlay: playRequested, controls: true })}</>;
+  if (src && revealed)
+    return <>{renderVideo({ src, title: body, autoPlay: playRequested, controls: true })}</>;
 
   return (
     <Box
@@ -85,17 +98,24 @@ export function VideoContent({
       justifyContent="Center"
       style={{ position: 'relative', width: '100%', height: '100%', minHeight: '8rem' }}
     >
-      {blurHash && <BlurHash hash={blurHash} />}
-      {renderThumbnail?.()}
+      <div style={previewLayerStyle(revealed)}>
+        {blurHash && <BlurHash hash={blurHash} />}
+        {renderThumbnail?.()}
+      </div>
       <Box style={{ position: 'absolute' }} direction="Column" alignItems="Center" gap="200">
-        {status === 'loading' ? (
-          <Spinner variant="Secondary" size="400" />
-        ) : (
+        {!revealed && (
+          <Chip variant="Secondary" radii="Pill" onClick={() => setRevealed(true)}>
+            <Text size="B300">{t('sharedUi.videoContent.spoiler')}</Text>
+          </Chip>
+        )}
+        {revealed && status === 'loading' && <Spinner variant="Secondary" size="400" />}
+        {revealed && status !== 'loading' && (
           <Button
             variant={status === 'error' ? 'Critical' : 'Secondary'}
             fill="Solid"
             radii="300"
             size="300"
+            title={status === 'error' ? t('sharedUi.videoContent.failedToLoadVideo') : undefined}
             before={
               <Icon size="100" src={status === 'error' ? Icons.Warning : Icons.Play} filled />
             }

@@ -264,6 +264,7 @@ export function RenderMessageContent({
             <VideoContent
               {...video}
               autoPlay={mediaAutoLoad}
+              markedAsSpoiler={content[MEDIA_SPOILER_PROPERTY] === true}
               owner={owner}
               renderThumbnail={
                 video.info.thumbnail_url || video.info.thumbnail_file
