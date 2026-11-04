@@ -10,13 +10,21 @@ import {
 type PartModule<P> = { default: ComponentType<P> };
 type Attempt<P> = { Part: LazyExoticComponent<ComponentType<P>> };
 
+function NothingLoaded() {
+  return null;
+}
+
 /**
  * `React.lazy` for a part of a screen that loads on demand. The service worker keeps such a chunk
  * only once a page has loaded it (src/swRuntimeAssets.ts), so it can be missing offline, or gone
- * from the server after a deploy while an older page still runs. Then the part renders nothing
+ * from the server after a deploy while an older page still runs. Then the part renders
+ * `Unavailable` with its props (nothing by default; a popover or panel can close itself there)
  * instead of taking the whole app down with it, and the next mount tries the load again.
  */
-export function lazyPart<P extends object>(load: () => Promise<PartModule<P>>): ComponentType<P> {
+export function lazyPart<P extends object>(
+  load: () => Promise<PartModule<P>>,
+  Unavailable: ComponentType<P> = NothingLoaded
+): ComponentType<P> {
   const attempt = (): Attempt<P> => {
     const current: Attempt<P> = {
       Part: lazy(() =>
@@ -25,13 +33,13 @@ export function lazyPart<P extends object>(load: () => Promise<PartModule<P>>): 
           // Parts mount from the attempt they started with; only once this failure is on screen
           // do later mounts get a fresh one. A mount that suspends is thrown away and starts
           // over, so switching any earlier would load again and again while it fails.
-          function Unavailable() {
+          function Failed(props: P) {
             useEffect(() => {
               if (latest === current) latest = attempt();
             }, []);
-            return null;
+            return createElement(Unavailable, props);
           }
-          return { default: Unavailable };
+          return { default: Failed };
         })
       ),
     };

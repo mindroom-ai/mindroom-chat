@@ -49,6 +49,16 @@ describe('lazyPart', () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it('renders its fallback with the part props when the chunk cannot load', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    function Offline({ name }: { name: string }) {
+      return <p>{name} is offline</p>;
+    }
+    const Part = lazyPart<{ name: string }>(offline, Offline);
+    renderPart(Part);
+    expect(await screen.findByText('Ada is offline')).toBeTruthy();
+  });
+
   it('tries once per mount, so a failed part does not keep loading while it stays up', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const load = vi.fn<() => Promise<typeof loaded>>(offline);

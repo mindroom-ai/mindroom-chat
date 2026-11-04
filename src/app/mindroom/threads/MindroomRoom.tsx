@@ -1,4 +1,12 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -44,14 +52,22 @@ import { useThreadRootEvent } from './useThreadRootEvent';
 import { useInitializeOpenThread } from './useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../../features/room/RoomMessageAnnouncer';
 import { useCallPanel } from '../../features/calls/callStore';
+import type { CallPanel as CallPanelComponent } from '../../features/calls/CallPanel';
 import { lazyPart } from '../../utils/lazyPart';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
+/** Without its chunk (offline before any call here) the call panel closes again. */
+function CallPanelUnavailable({ onClose }: ComponentProps<typeof CallPanelComponent>) {
+  useEffect(() => onClose(), [onClose]);
+  return null;
+}
+
 // Calls load on first use, so rooms without one never load them.
-const CallPanel = lazyPart(() =>
-  import('../../features/calls/CallPanel').then((module) => ({ default: module.CallPanel }))
+const CallPanel = lazyPart(
+  () => import('../../features/calls/CallPanel').then((module) => ({ default: module.CallPanel })),
+  CallPanelUnavailable
 );
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
