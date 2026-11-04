@@ -358,6 +358,9 @@ REAL_INSTRUCTIONS = [
     "a fenced Python code block of two lines, a bulleted list of three items, some inline code, and a link to "
     "https://example.org.",
     "#think: think the question through first, then reply with the answer to: what is 17 times 23?",
+    "#widetable: reply in Markdown with one sentence, then a table of 6 columns (Region, Quarter, Revenue in USD, "
+    "Change versus last year, Main driver, Notes for the board) and 4 rows whose cells hold a few words each, then "
+    "one closing sentence.",
     "#shell: call run_shell_command once with args 'echo hello from the stub', then reply with its output.",
     "#multi: call run_shell_command three times, one call at a time, each only after the previous result arrived: "
     "first with args 'echo step one', then with args 'sleep 10; echo step two', then with args 'echo step three'. "
