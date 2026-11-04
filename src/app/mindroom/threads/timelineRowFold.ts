@@ -87,7 +87,9 @@ export const foldTimelineRowContexts = ({
   let above: MatrixEvent | undefined = primed?.prevEvent;
   let aboveHasRow = primed?.isPrevRendered ?? false;
   let dayChanged = primed?.pendingDayDivider ?? false;
-  let lastRowAbsoluteIndex = firstIndex > 0 ? getAbsoluteIndex?.(firstIndex - 1) : undefined;
+  // The row before the window's first one may be outside the window (index -1): without it, a
+  // read marker above the window would put the unread divider over the window's first row.
+  let lastRowAbsoluteIndex = getAbsoluteIndex?.(firstIndex - 1);
 
   for (let index = firstIndex; index <= lastIndex; index += 1) {
     const event = getEvent(index);

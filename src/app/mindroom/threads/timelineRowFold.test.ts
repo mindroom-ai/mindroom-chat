@@ -64,4 +64,35 @@ describe('foldTimelineRowContexts', () => {
       ['$f', false],
     ]);
   });
+
+  describe('the unread divider at the first row of a window that starts after the read marker', () => {
+    // The room's rows by their place in the loaded timeline; the window mounts the last three.
+    const loaded = [10, 20, 30, 40, 50];
+    const windowStart = 2;
+    const unreadAt = (readUptoAbsoluteIndex: number) => {
+      const events = loaded.map((absolute) =>
+        toEvent({ id: `$${absolute}`, sender: '@maya:x', type: 'm.room.message', minute: 0 })
+      );
+      const contexts = foldTimelineRowContexts({
+        indexes: [0, 1, 2],
+        getEvent: (index) => events[windowStart + index],
+        isSkipped: () => false,
+        getAbsoluteIndex: (index) => loaded[windowStart + index],
+        readUptoAbsoluteIndex,
+      });
+      return [0, 1, 2].filter((index) => contexts.get(index)?.unreadDivider);
+    };
+
+    it('goes nowhere while the first unread row is above the window', () => {
+      expect(unreadAt(10)).toEqual([]);
+    });
+
+    it('goes above the first row when the read marker is the row just before the window', () => {
+      expect(unreadAt(20)).toEqual([0]);
+    });
+
+    it('goes above the first unread row inside the window', () => {
+      expect(unreadAt(30)).toEqual([1]);
+    });
+  });
 });
