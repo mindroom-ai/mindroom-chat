@@ -21,6 +21,11 @@
 #                       (e2e/fixtures/*.html) and is shared by every slot that tests the same commit.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
+#
+# At most E2E_MAX_CONCURRENT runs (default 6; 0 turns the cap off) go at once on this machine, over
+# all slots and sessions: a run first takes one of that many lock files in
+# $E2E_SNAPSHOT_ROOT/tokens (each names its holder), and waits, saying so once, while all are taken.
+# Its exit releases it, also on failure or Ctrl-C. `down` takes none.
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next.
@@ -74,12 +79,14 @@ main() {
     exit
   fi
 
+  snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
+  take_run_token "$@"
+
   if [ -n "$snapshot_rev" ]; then
     sha="$(git rev-parse --verify --quiet "$snapshot_rev^{commit}")" || {
       echo "e2e-slot: $snapshot_rev is not a commit" >&2
       exit 2
     }
-    snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
     tree="$snapshots/slot-$slot"
     rm -rf "$tree"
     mkdir -p "$tree"
@@ -138,11 +145,46 @@ main() {
   export E2E_NO_WATCH="${E2E_NO_WATCH:-1}"
   export CHROMIUM_PATH="${CHROMIUM_PATH:-$(command -v chromium || true)}"
   export PLAYWRIGHT_CHROMIUM_EXECUTABLE="${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-$CHROMIUM_PATH}"
-  if [ "$fresh" = 0 ]; then
-    exec "$@"
+  if [ "$fresh" = 1 ]; then
+    trap 'compose down --volumes --remove-orphans >/dev/null 2>&1 || true; agent_stack_down' EXIT
   fi
-  trap 'compose down --volumes --remove-orphans >/dev/null 2>&1 || true; agent_stack_down' EXIT
-  "$@"
+  # The command does not inherit the token's descriptor: only this script holds it, so a server the
+  # command leaves running in the background cannot keep the token after the run.
+  if [ -n "${token_fd:-}" ]; then
+    "$@" {token_fd}>&-
+  else
+    "$@"
+  fi
+}
+
+# Takes one of E2E_MAX_CONCURRENT lock files (token_fd stays open on it until this script exits).
+take_run_token() {
+  local max="${E2E_MAX_CONCURRENT:-6}" tokens="$snapshots/tokens" i round=0 said=0
+  [ "$max" -gt 0 ] || return 0
+  mkdir -p "$tokens"
+  while :; do
+    for ((i = 1; i <= max; i++)); do
+      exec {token_fd}<>"$tokens/token-$i"
+      if flock -n "$token_fd"; then
+        printf 'slot %s, pid %s, since %s: %s\n' "$slot" "$$" "$(date +%H:%M:%S)" "$*" >"$tokens/token-$i"
+        return 0
+      fi
+      exec {token_fd}>&-
+    done
+    if [ "$said" = 0 ]; then
+      echo "e2e-slot $slot: waiting: all $max e2e runs this machine allows (E2E_MAX_CONCURRENT) are going; each file in $tokens names its last holder" >&2
+      said=1
+    fi
+    # Block on one token at a time, up to a second each, instead of spinning.
+    i=$((round % max + 1))
+    round=$((round + 1))
+    exec {token_fd}<>"$tokens/token-$i"
+    if flock -w 1 "$token_fd"; then
+      printf 'slot %s, pid %s, since %s: %s\n' "$slot" "$$" "$(date +%H:%M:%S)" "$*" >"$tokens/token-$i"
+      return 0
+    fi
+    exec {token_fd}>&-
+  done
 }
 
 # One line, read whole before main runs, so nothing after it is read from a file edited meanwhile.
