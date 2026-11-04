@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -101,6 +103,74 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(summary["calls"], 1)
         self.assertEqual(summary["usd"], 0)
         self.assertNotIn("usd", summary["models"]["default"])
+
+
+class CallsTests(unittest.TestCase):
+    SERVICE = "http://127.0.0.1:29521"
+
+    def calls(self, profile: str = "realtime") -> dict | None:
+        args = mock.Mock(calls=self.SERVICE + "/", calls_profile=profile)
+        return stack.calls_setting(args)
+
+    def test_no_calls_without_the_option(self) -> None:
+        self.assertIsNone(stack.calls_setting(mock.Mock(calls=None, calls_profile="realtime")))
+        self.assertNotIn("calls:", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003))
+
+    def test_the_helper_answers_calls_on_the_slot_service_with_the_cheap_realtime_model(self) -> None:
+        calls = self.calls()
+        self.assertEqual(calls, {"serviceUrl": self.SERVICE, "profile": "realtime", "model": "gpt-realtime-2.1-mini"})
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, calls)
+        self.assertIn(f"calls:\n  enabled: true\n  livekit_service_url: {self.SERVICE}\n", config)
+        self.assertIn("      backend: realtime\n      model: gpt-realtime-2.1-mini\n", config)
+        self.assertIn("      credentials_service: openai\n", config)
+        self.assertIn("  agents:\n    helper: voice\n", config)
+
+    def test_the_live_profile_speaks_through_gpt_live(self) -> None:
+        config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, self.calls("live"))
+        self.assertIn("      backend: live\n      model: gpt-live-1\n", config)
+
+    def test_the_stub_models_keep_a_key_of_their_own_when_calls_bring_the_real_one(self) -> None:
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, self.calls())
+        # MindRoom gives a model's own key precedence over OPENAI_API_KEY, so the stub never receives the real one.
+        self.assertEqual(config.count("      api_key: stub-key-no-model-is-called\n"), 2)
+
+    def test_voice_usage_comes_from_the_session_database(self) -> None:
+        usage = {
+            "kind": "realtime_voice",
+            "model": "gpt-realtime-2.1-mini",
+            "metrics": {
+                "input_tokens": 14392,
+                "output_tokens": 542,
+                "audio_input_tokens": 52,
+                "audio_output_tokens": 355,
+            },
+            "requests": [{}, {}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            slot_dir = Path(directory)
+            folder = slot_dir / "storage" / "agents" / "helper" / "sessions"
+            folder.mkdir(parents=True)
+            with contextlib.closing(sqlite3.connect(folder / "helper.db")) as connection:
+                connection.execute("CREATE TABLE helper_sessions_usage (id INTEGER PRIMARY KEY, usage_data TEXT)")
+                connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", (json.dumps(usage),))
+                connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", ('{"kind": "run"}',))
+                connection.commit()
+            summary = stack.usage_summary({"model": "stub", "calls": self.calls()}, slot_dir)
+        self.assertEqual(
+            summary["voice"],
+            [
+                {
+                    "kind": "realtime_voice",
+                    "model": "gpt-realtime-2.1-mini",
+                    "responses": 2,
+                    "input_tokens": 14392,
+                    "output_tokens": 542,
+                    "cache_read_tokens": 0,
+                    "audio_input_tokens": 52,
+                    "audio_output_tokens": 355,
+                }
+            ],
+        )
 
 
 if __name__ == "__main__":

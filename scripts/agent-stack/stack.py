@@ -2,7 +2,7 @@
 """Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
 Usage: python3 scripts/agent-stack/stack.py <slot 0-50> up|down|status|usage [--model stub|real]
-       [--checkout DIR] [--ref REV]
+       [--calls SERVICE_URL [--calls-profile realtime|live]] [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
   down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
@@ -29,6 +29,13 @@ them into the command that runs it (`set -a; . <key file>; set +a; ...`), and th
 environment and nothing else; no file this script writes holds one. The backend may still put them in its own state,
 so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down` writes the stack's model calls and
 tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
+
+--calls SERVICE_URL (or $E2E_AGENT_CALLS) makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
+service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
+(--calls-profile realtime, the default) or gpt-live-1 (live). It needs OPENAI_API_KEY in the environment, which, like
+the real model's keys, reaches only the backend's process; the stub models keep a placeholder key of their own. The
+backend then runs from an environment with MindRoom's matrix_calls extra ($E2E_AGENT_STACK_ROOT/src/<sha>-matrix_calls).
+`usage` and `down` also report the voice models' tokens, which the backend keeps in the helper's session database.
 """
 
 from __future__ import annotations
@@ -42,6 +49,7 @@ import re
 import secrets
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -84,6 +92,12 @@ REAL_PRICING = {
 }
 PROVIDER_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY")
 REQUIRED_REAL_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+# The voice models a calls stack can give the helper, as MindRoom call profiles (docs/voice-calls.md).
+CALL_PROFILES = {
+    "realtime": {"backend": "realtime", "model": "gpt-realtime-2.1-mini"},
+    "live": {"backend": "live", "model": "gpt-live-1"},
+}
+CALLS_EXTRA = "matrix_calls"
 
 
 class StackError(Exception):
@@ -191,10 +205,15 @@ def package_version(checkout: Path, sha: str) -> str:
     return version if distance == "0" else f"{version}.post{distance}"
 
 
-def prepare_source(checkout: Path, sha: str) -> Path:
-    """Copy the commit out of the checkout once and give it a virtual environment."""
-    source = stack_root() / "src" / sha
-    with locked(stack_root() / "src" / f"{sha}.lock"):
+def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Path:
+    """Copy the commit out of the checkout once and give it a virtual environment (with MindRoom's `extras`).
+
+    Each set of extras has its own copy: `uv sync` without an extra would take it out of an environment another
+    stack runs from.
+    """
+    name = "-".join((sha, *extras))
+    source = stack_root() / "src" / name
+    with locked(stack_root() / "src" / f"{name}.lock"):
         if (source / ".complete").exists():
             return source
         shutil.rmtree(source, ignore_errors=True)
@@ -214,7 +233,7 @@ def prepare_source(checkout: Path, sha: str) -> Path:
         }
         env.pop("VIRTUAL_ENV", None)
         result = subprocess.run(
-            ["uv", "sync", "--frozen", "--no-dev", "--project", str(source)],
+            ["uv", "sync", "--frozen", "--no-dev", *(f"--extra={extra}" for extra in extras), "--project", str(source)],
             env=env,
             capture_output=True,
             text=True,
@@ -285,6 +304,7 @@ def stub_models_yaml(stub_url: str) -> str:
     context_window: 128000
     extra_kwargs:
       base_url: {stub_url}
+      api_key: stub-key-no-model-is-called
   deep:
     provider: openai
     id: stub-deep
@@ -293,6 +313,7 @@ def stub_models_yaml(stub_url: str) -> str:
     context_window: 128000
     extra_kwargs:
       base_url: {stub_url}
+      api_key: stub-key-no-model-is-called
 """
 
 
@@ -342,6 +363,11 @@ REAL_INSTRUCTIONS = [
     "first with args 'echo step one', then with args 'sleep 10; echo step two', then with args 'echo step three'. "
     "Then reply 'Finished multi after 3 tool calls. Last result:' followed by the last call's output in a code "
     "block, and nothing about the other calls.",
+    "#narrate (a real model's usual shape, which the stub has no scenario for): first write one sentence saying "
+    "you will run a command, then call run_shell_command once with args 'echo narrated', then write two sentences "
+    "about its output.",
+    "#parallel: call run_shell_command twice in the same step, without waiting between them, with args "
+    "'echo left' and 'echo right'; then reply with both outputs.",
     "#approve: call run_shell_command once with args 'echo needs-approval: deploy the stub'. When it returns, reply "
     "with its output. When the call was denied, reply 'The call was denied: ' followed by the reason, word for word.",
     "#title: call set_thread_summary once with summary 'Stub picked this title from a tool call', then reply 'Done.'",
@@ -365,7 +391,29 @@ REAL_INSTRUCTIONS = [
 ]
 
 
-def config_yaml(mode: str, tester_id: str, stub_url: str, approval_expiry_days: float) -> str:
+def calls_yaml(calls: dict | None) -> str:
+    """The calls section: the helper answers voice calls on the slot's MatrixRTC service with the chosen profile."""
+    if not calls:
+        return ""
+    profile = CALL_PROFILES[calls["profile"]]
+    return f"""
+calls:
+  enabled: true
+  livekit_service_url: {calls["serviceUrl"]}
+  profiles:
+    voice:
+      backend: {profile["backend"]}
+      model: {profile["model"]}
+      credentials_service: openai
+      voice: marin
+  agents:
+    helper: voice
+"""
+
+
+def config_yaml(
+    mode: str, tester_id: str, stub_url: str, approval_expiry_days: float, calls: dict | None = None
+) -> str:
     agent_tools = """      - shell
       - scheduler
       - thread_summary
@@ -443,7 +491,7 @@ room_defaults:
 
 timezone: UTC
 memory: none
-"""
+{calls_yaml(calls)}"""
 
 
 SHELL_REVIEW = '''import json
@@ -557,13 +605,60 @@ def usage_summary(state: dict, slot_dir: Path) -> dict:
         "calls": sum(entry["calls"] for entry in models.values()),
         "usd": round(total_usd, 4),
         "models": models,
+        # Unpriced: the realtime models bill text and audio tokens at different rates.
+        "voice": voice_usage(slot_dir),
     }
 
 
+VOICE_USAGE_KINDS = ("realtime_voice", "live_voice")
+
+
+def voice_usage(slot_dir: Path) -> list[dict]:
+    """Each voice call's speech-model tokens, which the backend keeps in the agents' session databases, not its log."""
+    calls = []
+    for database in sorted((slot_dir / "storage" / "agents").glob("*/sessions/*.db")):
+        try:
+            with contextlib.closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as connection:
+                tables = [
+                    name
+                    for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+                    if name.endswith("_sessions_usage")
+                ]
+                rows = [row for table in tables for row in connection.execute(f'SELECT usage_data FROM "{table}"')]
+        except sqlite3.Error:
+            continue
+        for (data,) in rows:
+            try:
+                usage = json.loads(data)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(usage, dict) or usage.get("kind") not in VOICE_USAGE_KINDS:
+                continue
+            metrics = usage.get("metrics") or {}
+            calls.append(
+                {
+                    "kind": usage["kind"],
+                    "model": usage.get("model"),
+                    "responses": len(usage.get("requests") or []),
+                    **{
+                        field: int(metrics.get(field) or 0)
+                        for field in (
+                            "input_tokens",
+                            "output_tokens",
+                            "cache_read_tokens",
+                            "audio_input_tokens",
+                            "audio_output_tokens",
+                        )
+                    },
+                }
+            )
+    return calls
+
+
 def save_usage(slot_dir: Path) -> None:
-    """Keeps a real-model stack's usage after `down` deletes its directory."""
+    """Keeps a real-model or calls stack's usage after `down` deletes its directory."""
     state = read_state(slot_dir)
-    if not state or state.get("model") != "real" or not (slot_dir / "backend.log").exists():
+    if not state or not (state.get("model") == "real" or state.get("calls")) or not (slot_dir / "backend.log").exists():
         return
     summary = usage_summary(state, slot_dir)
     folder = stack_root() / "usage"
@@ -571,7 +666,19 @@ def save_usage(slot_dir: Path) -> None:
     stamp = time.strftime("%Y%m%dT%H%M%S")
     path = folder / f"slot-{state.get('slot')}-{state.get('namespace')}-{stamp}.json"
     path.write_text(json.dumps(summary, indent=1) + "\n")
-    log(f"{summary['calls']} model calls, about {summary['usd']} USD; saved to {path}")
+    voice = f", {len(summary['voice'])} voice calls" if summary["voice"] else ""
+    log(f"{summary['calls']} model calls, about {summary['usd']} USD{voice}; saved to {path}")
+
+
+def calls_setting(args: argparse.Namespace) -> dict | None:
+    """What --calls asks for, as the state records it, or None without calls."""
+    if not args.calls:
+        return None
+    return {
+        "serviceUrl": args.calls.rstrip("/"),
+        "profile": args.calls_profile,
+        "model": CALL_PROFILES[args.calls_profile]["model"],
+    }
 
 
 def up(slot: int, args: argparse.Namespace) -> dict:
@@ -583,11 +690,13 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             f"no homeserver at {homeserver}; start the slot's homeserver first", EXIT_NO_HOMESERVER
         )
     sha = resolve_commit(checkout, args.ref)
+    calls = calls_setting(args)
     slot_dir = stack_root() / f"slot-{slot}"
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
         and state.get("model", "stub") == args.model
+        and state.get("calls") == calls
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
@@ -596,14 +705,19 @@ def up(slot: int, args: argparse.Namespace) -> dict:
         return state
     if state:
         log(
-            "the stack is stale (other commit or model, stopped, a start that failed, or its homeserver was reset); "
+            "the stack is stale (other commit, model or calls, stopped, a start that failed, or its homeserver was "
+            "reset); "
             "restarting it"
         )
-    keys = provider_keys() if args.model == "real" else {}
-    missing = [name for name in REQUIRED_REAL_KEYS if name not in keys] if args.model == "real" else []
+    real = args.model == "real"
+    keys = provider_keys() if real or calls else {}
+    # A voice call speaks through OpenAI's realtime models.
+    required = (*(REQUIRED_REAL_KEYS if real else ()), *(("OPENAI_API_KEY",) if calls else ()))
+    missing = [name for name in dict.fromkeys(required) if name not in keys]
     if missing:
+        needs = " and ".join(option for option, on in (("--model real", real), ("--calls", calls)) if on)
         raise StackError(
-            f"--model real needs {' and '.join(missing)} in the environment; source the key file into the command",
+            f"{needs} needs {' and '.join(missing)} in the environment; source the key file into the command",
             EXIT_NO_KEYS,
         )
     stop(slot_dir)
@@ -625,13 +739,14 @@ def start(
     slot_dir: Path,
     keys: dict[str, str],
 ) -> dict:
-    """Starts the stack; `keys` (real model only) go to the backend's process environment and nowhere else."""
-    source = prepare_source(checkout, sha)
+    """Starts the stack; `keys` (real model or calls only) go to the backend's process environment and nowhere else."""
+    calls = calls_setting(args)
+    source = prepare_source(checkout, sha, (CALLS_EXTRA,) if calls else ())
     venv_bin = source / ".venv" / "bin"
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)
-    if real:
+    if keys:
         slot_dir.chmod(0o700)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
@@ -649,7 +764,7 @@ def start(
     (slot_dir / "stub").mkdir()
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
-    config_path.write_text(config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days))
+    config_path.write_text(config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days, calls))
     api_url = f"http://127.0.0.1:{port['api']}"
     (slot_dir / ".env").write_text(
         "\n".join(
@@ -658,7 +773,7 @@ def start(
                 f"MATRIX_SERVER_NAME={SERVER_NAME}",
                 "MATRIX_SSL_VERIFY=false",
                 f"MINDROOM_NAMESPACE={namespace}",
-                *([] if real else ["OPENAI_API_KEY=stub-key-no-model-is-called"]),
+                *([] if keys else ["OPENAI_API_KEY=stub-key-no-model-is-called"]),
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
                 "",
@@ -674,7 +789,7 @@ def start(
         "PYTHONUNBUFFERED": "1",
     }
     backend_env = dict(env)
-    if real:
+    if keys:
         backend_env.update(keys)
         # uv's Python may not find this machine's CA store, and the providers are HTTPS.
         ca_file = os.environ.get("SSL_CERT_FILE") or "/etc/ssl/certs/ca-certificates.crt"
@@ -684,6 +799,7 @@ def start(
         "slot": slot,
         "model": args.model,
         "models": MODELS[args.model],
+        "calls": calls,
         "sha": sha,
         "checkout": str(checkout),
         "namespace": namespace,
@@ -716,7 +832,8 @@ def start(
         (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
         wait_until("the stub model", lambda: http_json("GET", f"{stub_url}/models")[0] == 200, 60, 0.5)
 
-    log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model) on {api_url}")
+    voice = f", calls on {calls['model']}" if calls else ""
+    log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model{voice}) on {api_url}")
     state["pids"]["backend"] = start_process(
         [
             str(venv_bin / "mindroom"),
@@ -857,6 +974,18 @@ def main() -> int:
         default=os.environ.get("E2E_AGENT_MODEL") or "stub",
         help="stub (default, or $E2E_AGENT_MODEL) or real: Claude Haiku 5.5 and GPT-6 Luna, with the keys of the "
         "environment",
+    )
+    parser.add_argument(
+        "--calls",
+        metavar="SERVICE_URL",
+        help="the helper answers voice calls on this MatrixRTC authorization service (scripts/e2e-rtc.sh env's "
+        "E2E_LIVEKIT_SERVICE_URL); needs OPENAI_API_KEY in the environment",
+    )
+    parser.add_argument(
+        "--calls-profile",
+        choices=sorted(CALL_PROFILES),
+        default="realtime",
+        help="the helper's voice: realtime (gpt-realtime-2.1-mini, the default) or live (gpt-live-1)",
     )
     parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
