@@ -1,8 +1,9 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
+import { lazyPart } from '../../utils/lazyPart';
 import { useActiveCall } from './callStore';
 
 // The tab's look loads with the first call, like the rest of the call UI.
-const ActiveCallTab = lazy(() =>
+const ActiveCallTab = lazyPart(() =>
   import('./ActiveCallTab').then((module) => ({ default: module.ActiveCallTab }))
 );
 

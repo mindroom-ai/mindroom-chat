@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -44,18 +44,19 @@ import { useThreadRootEvent } from './useThreadRootEvent';
 import { useInitializeOpenThread } from './useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../../features/room/RoomMessageAnnouncer';
 import { useCallPanel } from '../../features/calls/callStore';
+import { lazyPart } from '../../utils/lazyPart';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
 // Calls load on first use, so rooms without one never load them.
-const CallPanel = lazy(() =>
+const CallPanel = lazyPart(() =>
   import('../../features/calls/CallPanel').then((module) => ({ default: module.CallPanel }))
 );
-const HeaderCallButtons = lazy(() =>
+const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
-const HeaderCallMenuEntries = lazy(() =>
+const HeaderCallMenuEntries = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({
     default: module.HeaderCallMenuEntries,
   }))

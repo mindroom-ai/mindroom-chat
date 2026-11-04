@@ -1,10 +1,11 @@
-import { type ComponentProps, Suspense, lazy } from 'react';
+import { type ComponentProps, Suspense } from 'react';
 import { Box } from 'folds';
+import { lazyPart } from '../../utils/lazyPart';
 import type { EmojiBoard as EmojiBoardComponent } from './EmojiBoard';
 import * as css from './components/styles.css';
 
 // The board comes with the Emojibase data (about 850 kB), so it loads when a board first opens.
-const Board = lazy(() =>
+const Board = lazyPart(() =>
   import('./EmojiBoard').then(({ EmojiBoard }) => ({ default: EmojiBoard }))
 );
 

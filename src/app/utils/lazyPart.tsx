@@ -1,0 +1,48 @@
+import {
+  type ComponentType,
+  type LazyExoticComponent,
+  createElement,
+  lazy,
+  useEffect,
+  useState,
+} from 'react';
+
+type PartModule<P> = { default: ComponentType<P> };
+type Attempt<P> = { Part: LazyExoticComponent<ComponentType<P>> };
+
+/**
+ * `React.lazy` for a part of a screen that loads on demand. The service worker keeps such a chunk
+ * only once a page has loaded it (src/swRuntimeAssets.ts), so it can be missing offline, or gone
+ * from the server after a deploy while an older page still runs. Then the part renders nothing
+ * instead of taking the whole app down with it, and the next mount tries the load again.
+ */
+export function lazyPart<P extends object>(load: () => Promise<PartModule<P>>): ComponentType<P> {
+  const attempt = (): Attempt<P> => {
+    const current: Attempt<P> = {
+      Part: lazy(() =>
+        load().catch((error: unknown) => {
+          console.warn('[lazy-part] could not load a part of the app', error);
+          // Parts mount from the attempt they started with; only once this failure is on screen
+          // do later mounts get a fresh one. A mount that suspends is thrown away and starts
+          // over, so switching any earlier would load again and again while it fails.
+          function Unavailable() {
+            useEffect(() => {
+              if (latest === current) latest = attempt();
+            }, []);
+            return null;
+          }
+          return { default: Unavailable };
+        })
+      ),
+    };
+    return current;
+  };
+  let latest = attempt();
+
+  function LazyPart(props: P) {
+    // A lazy component takes the props of the one it loads; React's types cannot say so for P.
+    const [Part] = useState(() => latest.Part as unknown as ComponentType<P>);
+    return createElement(Part, props);
+  }
+  return LazyPart;
+}
