@@ -4,6 +4,7 @@ import { createStore, Provider } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   activeCallAtom,
+  callPanelRoomAtom,
   callStartProblemAtom,
   forgetCallState,
   noteCallStart,
@@ -79,6 +80,58 @@ describe('useCallActions endCall', () => {
 
     expect(store.get(activeCallAtom)).toBeUndefined();
     expect(onEnded).toHaveBeenCalledTimes(1);
+  });
+
+  /** A call this device is in, left at once: an agent call from `!planning`, or a room call. */
+  const callIn = (kind: 'agent' | 'room') =>
+    ({
+      kind,
+      call: { room: { roomId: '!callroom:calls.test' }, leave: vi.fn(async () => undefined) },
+      ...(kind === 'agent' && {
+        agentUserId: '@mindroom_helper:calls.test',
+        origin: { roomId: '!planning:calls.test' },
+      }),
+    } as unknown as ActiveCall);
+
+  it("closes the agent call's panel in its conversation, which would show that room's own call", async () => {
+    const store = createStore();
+    store.set(activeCallAtom, callIn('agent'));
+    store.set(callPanelRoomAtom, '!planning:calls.test');
+
+    await actionsIn(store).endCall();
+
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+  });
+
+  it("keeps a room call's panel open on the call to join again", async () => {
+    const store = createStore();
+    store.set(activeCallAtom, callIn('room'));
+    store.set(callPanelRoomAtom, '!callroom:calls.test');
+
+    await actionsIn(store).endCall();
+
+    expect(store.get(callPanelRoomAtom)).toBe('!callroom:calls.test');
+  });
+
+  it('leaves the panel of another room open after an agent call', async () => {
+    const store = createStore();
+    store.set(activeCallAtom, callIn('agent'));
+    store.set(callPanelRoomAtom, '!elsewhere:calls.test');
+
+    await actionsIn(store).endCall();
+
+    expect(store.get(callPanelRoomAtom)).toBe('!elsewhere:calls.test');
+  });
+
+  it('closes the panel of an agent call dismissed after it failed', () => {
+    const store = createStore();
+    store.set(activeCallAtom, callIn('agent'));
+    store.set(callPanelRoomAtom, '!planning:calls.test');
+
+    actionsIn(store).dismissCall();
+
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
   });
 });
 

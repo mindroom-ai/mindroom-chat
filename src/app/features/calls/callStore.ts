@@ -52,12 +52,28 @@ export const leaveCallNow = (active: ActiveCall): void => {
   active.onEnded?.().catch(() => undefined);
 };
 
+/** The room the call panel is shown in for this call. */
+export const callHomeRoomId = (active: ActiveCall): string =>
+  active.origin?.roomId ?? active.call.room.roomId;
+
+/**
+ * Closes the panel an agent call had in its conversation once that call is over: the panel would
+ * go on to that room's own call ("be the first to hop in"), which is not the call that just ended.
+ * A room call's panel stays, on the call to join again.
+ */
+const closeAgentCallPanel = (store: Store, ended: ActiveCall): void => {
+  if (ended.kind === 'agent' && store.get(callPanelRoomAtom) === callHomeRoomId(ended)) {
+    store.set(callPanelRoomAtom, undefined);
+  }
+};
+
 /** Leaves the active call without waiting and forgets it, so the next start finds none. */
 export const dropActiveCall = (store: Store): void => {
   const active = store.get(activeCallAtom);
   if (!active) return;
   leaveCallNow(active);
   store.set(activeCallAtom, undefined);
+  closeAgentCallPanel(store, active);
 };
 
 /**
@@ -105,10 +121,6 @@ const idleState = () => IDLE_STATE;
 /** A call's current state, re-rendering on each change. */
 export const useCallState = (call: RoomCall | undefined): CallState =>
   useSyncExternalStore(call?.subscribe ?? noSubscription, call?.getState ?? idleState);
-
-/** The room the call panel is shown in for this call. */
-export const callHomeRoomId = (active: ActiveCall): string =>
-  active.origin?.roomId ?? active.call.room.roomId;
 
 /** Whether the room's call panel shows the active call (its own, or an agent call started there). */
 export const isActiveCallShownIn = (active: ActiveCall | undefined, roomId: string): boolean =>
@@ -186,7 +198,10 @@ export const useCallActions = (mx: MatrixClient) => {
       await active.call.leave();
     } finally {
       await active.onEnded?.().catch(() => undefined);
-      if (store.get(activeCallAtom) === active) store.set(activeCallAtom, undefined);
+      if (store.get(activeCallAtom) === active) {
+        store.set(activeCallAtom, undefined);
+        closeAgentCallPanel(store, active);
+      }
     }
   }, [store]);
 
