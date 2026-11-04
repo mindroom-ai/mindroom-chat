@@ -1,10 +1,11 @@
-import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import type { Editor } from 'slate';
 import type { Room, RoomMember } from 'matrix-js-sdk';
 import { AutocompleteMenu } from './AutocompleteMenu';
 import type { AutocompleteQuery } from './autocompleteQuery';
+import { pickOnTab, useAutocompletePick } from './useAutocompletePick';
 import { createMentionElement, moveCursor, replaceWithElement } from '../utils';
 import { MenuItem } from '../../glass/GlassPrimitives';
 import { UserAvatar } from '../../user-avatar';
@@ -12,8 +13,6 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../../hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { SEARCH_NOW_SCAN_LIMIT, useAsyncSearch } from '../../../hooks/useAsyncSearch';
-import { useKeyDown } from '../../../hooks/useKeyDown';
-import { onTabPress } from '../../../utils/keyboard';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 
 const MAX_SUGGESTIONS = 20;
@@ -95,13 +94,7 @@ function MentionRow({
         </Text>
       }
       onClick={() => onSelect(member)}
-      onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) =>
-        onTabPress(event, () => {
-          // The window listener would insert the first suggestion as well.
-          event.stopPropagation();
-          onSelect(member);
-        })
-      }
+      onKeyDown={pickOnTab(() => onSelect(member))}
     >
       <Text size="B400" align="Left" truncate style={{ flexGrow: 1 }}>
         {displayName}
@@ -138,11 +131,6 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
       .slice(0, MAX_SUGGESTIONS);
   }, [members, queryText, result]);
 
-  const hasSuggestions = suggestions.length > 0;
-  useEffect(() => {
-    onSuggestionsChange?.(hasSuggestions);
-  }, [hasSuggestions, onSuggestionsChange]);
-
   const handleSelect = useCallback(
     (member: RoomMember) => {
       const ownUserId = client.getUserId();
@@ -157,16 +145,7 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
     [client, editor, query.range, requestClose]
   );
 
-  const handleKeyDown = useCallback(
-    (evt: KeyboardEvent) => {
-      onTabPress(evt, () => {
-        const [first] = suggestions;
-        if (first) handleSelect(first);
-      });
-    },
-    [suggestions, handleSelect]
-  );
-  useKeyDown(typeof window === 'undefined' ? undefined : window, handleKeyDown);
+  const hasSuggestions = useAutocompletePick(suggestions, handleSelect, onSuggestionsChange);
 
   if (!hasSuggestions) return null;
 

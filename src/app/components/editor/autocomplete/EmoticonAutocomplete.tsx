@@ -1,4 +1,4 @@
-import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { Box, Text, toRem } from 'folds';
@@ -6,6 +6,7 @@ import { Editor, Transforms } from 'slate';
 import type { Room } from 'matrix-js-sdk';
 import { AutocompleteMenu } from './AutocompleteMenu';
 import type { AutocompleteQuery } from './autocompleteQuery';
+import { pickOnTab, useAutocompletePick } from './useAutocompletePick';
 import {
   type EmoticonSuggestion,
   getEmoticonSuggestions,
@@ -16,12 +17,10 @@ import { MenuItem } from '../../glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRelevantImagePacks } from '../../../hooks/useImagePacks';
-import { useKeyDown } from '../../../hooks/useKeyDown';
 import { ImageUsage } from '../../../plugins/custom-emoji';
 import { useEmojiData } from '../../../plugins/emojiData';
 import { addRecentEmoji } from '../../../plugins/recent-emoji-list';
 import { emojiSkinToneAtom } from '../../../state/emojiSkinTone';
-import { onTabPress } from '../../../utils/keyboard';
 import { mxcUrlToHttp } from '../../../utils/matrix';
 
 /** Where the `:` query sits, whose packs to search, and how the composer hears back. */
@@ -93,13 +92,7 @@ function SuggestionRow({
         ) : undefined
       }
       onClick={() => onSelect(suggestion)}
-      onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) =>
-        onTabPress(event, () => {
-          // The window listener would insert the first suggestion as well.
-          event.stopPropagation();
-          onSelect(suggestion);
-        })
-      }
+      onKeyDown={pickOnTab(() => onSelect(suggestion))}
     >
       <Text size="B400" align="Left" truncate style={{ flexGrow: 1 }}>
         {`:${suggestion.shortcode}:`}
@@ -127,11 +120,6 @@ export function EmoticonAutocomplete(props: EmoticonAutocompleteProps) {
     [needle, packs, emojiData, tone]
   );
 
-  const hasSuggestions = suggestions.length > 0;
-  useEffect(() => {
-    onSuggestionsChange?.(hasSuggestions);
-  }, [hasSuggestions, onSuggestionsChange]);
-
   const handleSelect = useCallback(
     (suggestion: EmoticonSuggestion) => {
       if (suggestion.kind === 'custom') {
@@ -151,16 +139,7 @@ export function EmoticonAutocomplete(props: EmoticonAutocompleteProps) {
     [client, editor, query.range, requestClose]
   );
 
-  const handleKeyDown = useCallback(
-    (evt: KeyboardEvent) => {
-      onTabPress(evt, () => {
-        const [first] = suggestions;
-        if (first) handleSelect(first);
-      });
-    },
-    [suggestions, handleSelect]
-  );
-  useKeyDown(typeof window === 'undefined' || !hasSuggestions ? undefined : window, handleKeyDown);
+  const hasSuggestions = useAutocompletePick(suggestions, handleSelect, onSuggestionsChange);
 
   if (!hasSuggestions) return null;
 
