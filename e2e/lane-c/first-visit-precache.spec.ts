@@ -82,7 +82,8 @@ const emojiButton = (page: Page) => page.getByRole('button', { name: 'Emoji', ex
 const anEmoji = (page: Page) => page.getByRole('button', { name: /^grinning face/i }).first();
 
 const expectRoom = async (page: Page): Promise<void> => {
-  await expect(page.getByText(GREETING, { exact: true })).toBeVisible({ timeout: 60_000 });
+  // The Compact view shows a thread's first message as its title and its preview.
+  await expect(page.getByText(GREETING, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
@@ -141,7 +142,7 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
   expect(startup.length).toBeGreaterThan(0);
   expect(startup.filter((path) => !shell.includes(path))).toEqual([]);
 
-  // Offline, the emoji board was never loaded: it opens empty and the app stays up.
+  // Offline, the emoji board was never loaded: it closes again and the app stays up.
   await reloadOffline(context, page);
   const failedLoad = page.waitForEvent('console', {
     predicate: (message) => message.text().includes('[lazy-part] could not load'),
@@ -149,8 +150,8 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
   });
   await emojiButton(page).click();
   await failedLoad;
+  await expect(emojiButton(page)).toHaveAttribute('aria-pressed', 'false');
   await expect(anEmoji(page)).toHaveCount(0);
-  await page.keyboard.press('Escape');
   await expectRoom(page);
 
   // Online again, the next open loads the board, and the worker keeps its chunks.
