@@ -59,12 +59,17 @@ export function HomeSearchPage() {
   );
 }
 
-/** `/<space>/search/`: the rooms of the space, at any depth. */
+/** `/<space>/search/`: the rooms of the space, at any depth; Home's search reaches the rest. */
 export function SpaceSearchPage() {
   const space = useSpace();
   const rooms = useSpaceSearchRooms(space.roomId);
   const spaceName = useRoomName(space);
   return (
-    <SearchPage backTo={getSpacePath(space.roomId)} defaultRooms={rooms} scopeName={spaceName} />
+    <SearchPage
+      backTo={getSpacePath(space.roomId)}
+      defaultRooms={rooms}
+      scopeName={spaceName}
+      allowGlobal={false}
+    />
   );
 }
