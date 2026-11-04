@@ -20,8 +20,8 @@ import { useAgentCaller } from './agentCaller';
 type AgentCallHeaderButtonProps = {
   /** The open thread; the call is offered to the agents that took part in it. */
   threadId?: string;
-  /** The agents to offer, when the header already looked them up (`useAgentCallCandidates`). */
-  candidates?: AgentCallCandidate[];
+  /** The agents to offer, as the header looked them up (`useAgentCallCandidates`). */
+  candidates: AgentCallCandidate[];
 };
 
 /** The room's voice-capable agents; in a thread, the ones that took part in it when any did. */
@@ -96,11 +96,9 @@ const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChoo
  * once, several open a menu to choose from. The call is about the open thread, or the room's
  * timeline outside a thread. Call rooms have their call in the room itself, so they show none.
  */
-export function AgentCallHeaderButton({ threadId, candidates: given }: AgentCallHeaderButtonProps) {
+export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderButtonProps) {
   const { t } = useTranslation();
   const room = useRoom();
-  const found = useAgentCallCandidates(room, given ? undefined : threadId);
-  const candidates = given ?? found;
   // The header has no room for the reason a call did not start; the call notices show it.
   const { call, pending } = useAgentCaller({ announce: true });
   const [anchor, setAnchor] = useState<RectCords>();

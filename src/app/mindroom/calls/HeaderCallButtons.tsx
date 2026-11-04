@@ -13,17 +13,24 @@ import { MenuEntry } from '../../components/MenuEntry';
 import { AgentCallHeaderButton, useAgentCallCandidates } from './AgentCallHeaderButton';
 import { useAgentCaller } from './agentCaller';
 
+/** Whether a call is on in the room: someone is in it here, or this device shows it. */
+const useLiveCall = () => {
+  const mx = useMatrixClient();
+  const room = useRoom();
+  const shownHere = isActiveCallShownIn(useActiveCall(), room.roomId);
+  const live = useRoomCallMembers(mx, room).length > 0 || shownHere;
+  return { room, shownHere, live };
+};
+
 /**
  * What the header offers for calls. Where a voice-capable agent is in the room, calling it takes
  * the place of the room's own call; call rooms and rooms without such an agent offer the room's
- * call. A call that is on (someone is in it here, or this device shows it) is always offered.
+ * call. A call that is on is always offered. The agents are looked up once per header: by the
+ * wide header, or on phones by the room menu while it is open.
  */
 const useHeaderCalls = (threadId: string | undefined) => {
-  const mx = useMatrixClient();
-  const room = useRoom();
+  const { room, shownHere, live } = useLiveCall();
   const candidates = useAgentCallCandidates(room, threadId);
-  const shownHere = isActiveCallShownIn(useActiveCall(), room.roomId);
-  const live = useRoomCallMembers(mx, room).length > 0 || shownHere;
   const offerAgent = candidates.length > 0 && !room.isCallRoom() && !shownHere;
   return { room, candidates, offerAgent, live };
 };
@@ -34,16 +41,25 @@ type HeaderCallButtonsProps = {
   phone?: boolean;
 };
 
-/** The room header's call buttons (see `useHeaderCalls`). */
-export function HeaderCallButtons({ threadId, phone = false }: HeaderCallButtonsProps) {
+/** A phone's header: only a call that is on; the room menu offers the rest. */
+function PhoneHeaderCallButton() {
+  const { room, live } = useLiveCall();
+  return live ? <RoomCallButton room={room} /> : null;
+}
+
+function WideHeaderCallButtons({ threadId }: { threadId?: string }) {
   const { room, candidates, offerAgent, live } = useHeaderCalls(threadId);
-  if (phone) return live ? <RoomCallButton room={room} /> : null;
   return (
     <>
       {(!offerAgent || live) && <RoomCallButton room={room} />}
       {offerAgent && <AgentCallHeaderButton threadId={threadId} candidates={candidates} />}
     </>
   );
+}
+
+/** The room header's call buttons (see `useHeaderCalls`). */
+export function HeaderCallButtons({ threadId, phone = false }: HeaderCallButtonsProps) {
+  return phone ? <PhoneHeaderCallButton /> : <WideHeaderCallButtons threadId={threadId} />;
 }
 
 /**

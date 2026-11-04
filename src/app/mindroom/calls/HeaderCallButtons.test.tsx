@@ -6,6 +6,8 @@ import { defined } from '../../test-utils/defined';
 
 const state = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
+  /** How often a component looked the room's agents up (members and presence). */
+  lookups: 0,
   callMembers: 0,
   shownHere: false,
   callRoom: false,
@@ -35,7 +37,10 @@ vi.mock('../../features/calls/callStore', () => ({
 }));
 vi.mock('./AgentCallHeaderButton', () => ({
   AgentCallHeaderButton: () => React.createElement('button', { 'data-kind': 'agent-call' }),
-  useAgentCallCandidates: () => state.candidates,
+  useAgentCallCandidates: () => {
+    state.lookups += 1;
+    return state.candidates;
+  },
 }));
 vi.mock('./agentCaller', () => ({ useAgentCaller: () => ({ call: state.call, pending: false }) }));
 vi.mock('../../components/MenuEntry', () => ({
@@ -60,6 +65,7 @@ const agent = { userId: '@mindroom_code:example.org', displayName: 'Code' };
 
 beforeEach(() => {
   state.candidates = [];
+  state.lookups = 0;
   state.callMembers = 0;
   state.shownHere = false;
   state.callRoom = false;
@@ -89,6 +95,11 @@ describe('HeaderCallButtons', () => {
     expect(kinds(render(<HeaderCallButtons phone />))).toEqual([]);
     state.candidates = [];
     expect(kinds(render(<HeaderCallButtons phone />))).toEqual([]);
+  });
+
+  it("leaves a phone's agent lookup to the room menu", () => {
+    render(<HeaderCallButtons phone />);
+    expect(state.lookups).toBe(0);
   });
 
   it.each([

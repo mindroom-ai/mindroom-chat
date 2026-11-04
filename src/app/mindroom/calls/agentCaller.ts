@@ -161,5 +161,5 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
     [mx, setError, startCall, store]
   );
 
-  return { call, pending, error, clearError: () => setOwnError(undefined) };
+  return { call, pending, error };
 };
