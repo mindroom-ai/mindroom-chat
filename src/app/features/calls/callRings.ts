@@ -1,12 +1,12 @@
 import {
   EventType,
-  MatrixEventEvent,
   RelationType,
   RoomEvent,
   type MatrixClient,
   type MatrixEvent,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
+import { createDecryptionWaits } from '../../mindroom/matrix/decryptionWaits';
 import { matchesEnum } from '../../utils/matchesEnum';
 
 /** A ring this device has not answered yet. */
@@ -95,8 +95,7 @@ export type RingWatcher = {
 export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void) => {
   const myUserId = mx.getSafeUserId();
   let stopped = false;
-  // Each encrypted event still waiting for its key, with what ends the wait.
-  const waiting = new Map<MatrixEvent, () => void>();
+  const decryptions = createDecryptionWaits();
 
   const read = (event: MatrixEvent) => {
     const declined = declinedRingId(event, myUserId);
@@ -107,29 +106,15 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     }
   };
 
-  const awaitKey = (event: MatrixEvent) => {
-    const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    if (left <= 0 || waiting.has(event)) return;
-    const onAttempt = () => {
-      if (event.isDecryptionFailure()) return;
-      endWait();
-      read(event);
-    };
-    const timer = setTimeout(() => endWait(), left);
-    const endWait = () => {
-      clearTimeout(timer);
-      event.removeListener(MatrixEventEvent.Decrypted, onAttempt);
-      waiting.delete(event);
-    };
-    event.on(MatrixEventEvent.Decrypted, onAttempt);
-    waiting.set(event, endWait);
-  };
-
   const consider = async (event: MatrixEvent) => {
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
-    if (event.isDecryptionFailure()) awaitKey(event);
-    else read(event);
+    if (!event.isDecryptionFailure()) {
+      read(event);
+      return;
+    }
+    const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
+    decryptions.wait(event, left, () => read(event));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
@@ -140,7 +125,7 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   mx.on(RoomEvent.Timeline, onTimeline);
   return () => {
     stopped = true;
-    [...waiting.values()].forEach((endWait) => endWait());
+    decryptions.stop();
     mx.off(RoomEvent.Timeline, onTimeline);
   };
 };

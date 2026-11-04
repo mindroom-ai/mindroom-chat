@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  MatrixEventEvent,
   RoomEvent,
   type MatrixClient,
   type MatrixEvent,
@@ -22,6 +21,7 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { MINDROOM_FAVICON_SRC } from '../branding/branding';
+import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
 import {
   getLocalizedThreadMessagePreviewText,
   replaceMatrixUserIdsWithDisplayNames,
@@ -134,45 +134,21 @@ export function MessageNotificationsFeature() {
     if (!hasCompletedInitialSync) return undefined;
     // An agent's reply notifies once, however many times its finished text arrives.
     const notified = new Set<string>();
-    // Encrypted messages waiting for their keys, each with what stops the wait.
-    const waiting = new Map<MatrixEvent, () => void>();
     const consider = (event: MatrixEvent, room: Room) => {
       const notice = readMessageNotice(client, room, event, Date.now());
       if (!notice || notified.has(notice.eventId) || !settings.current) return;
       notified.add(notice.eventId);
       showNotice(client, notice, settings.current);
     };
-    // Push rules need the clear content, so an encrypted message waits for its keys. A key that
-    // arrives late (to-device lag, a key backup, a forwarded key) makes the SDK decrypt again
-    // after a first failure, so the wait lasts until a decryption works or the message is too
-    // old to notify anyway.
-    const awaitKeys = (event: MatrixEvent, room: Room) => {
-      if (waiting.has(event)) return;
-      const left = MESSAGE_NOTIFY_MAX_AGE_MS - (Date.now() - event.getTs());
-      if (left <= 0) return;
-      const onDecrypted = () => {
-        if (event.isDecryptionFailure()) return;
-        stop();
-        consider(event, room);
-      };
-      const timer = setTimeout(() => stop(), left);
-      const stop = () => {
-        clearTimeout(timer);
-        event.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
-        waiting.delete(event);
-      };
-      event.on(MatrixEventEvent.Decrypted, onDecrypted);
-      waiting.set(event, stop);
-    };
+    // Push rules need the clear content, so an encrypted message waits for its keys, until a
+    // decryption works or the message is too old to notify anyway.
+    const decryptions = createDecryptionWaits();
     const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, room, older, gone, at) => {
       // Back-pagination and removals are history; only events the sync just delivered are news.
       if (!room || older || gone || !at.liveEvent) return;
-      if (
-        event.isBeingDecrypted() ||
-        event.shouldAttemptDecryption() ||
-        event.isDecryptionFailure()
-      ) {
-        awaitKeys(event, room);
+      if (isAwaitingDecryption(event)) {
+        const left = MESSAGE_NOTIFY_MAX_AGE_MS - (Date.now() - event.getTs());
+        decryptions.wait(event, left, () => consider(event, room));
         return;
       }
       consider(event, room);
@@ -180,7 +156,7 @@ export function MessageNotificationsFeature() {
     client.on(RoomEvent.Timeline, onTimeline);
     return () => {
       // A message still waiting when the account signs out or switches stays quiet.
-      [...waiting.values()].forEach((stop) => stop());
+      decryptions.stop();
       client.removeListener(RoomEvent.Timeline, onTimeline);
     };
   }, [client, hasCompletedInitialSync]);
