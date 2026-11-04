@@ -31,7 +31,8 @@ const deepMerge = (base, override) => {
 /**
  * @param {string} source the text of config.mindroom.json
  * @param {Record<string, unknown>} settings the iOS overrides
- * @param {string} [computerApiUrl] the computer service URL; an empty string turns it off
+ * @param {string} [computerApiUrl] the computer service origin; an empty string clears the shared
+ *   config's value, which the app reads as unset (it then uses the origin the room's agents publish)
  * @returns {string}
  */
 export const iosClientConfig = (source, settings, computerApiUrl) => {

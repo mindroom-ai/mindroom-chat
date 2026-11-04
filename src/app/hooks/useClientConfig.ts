@@ -56,7 +56,7 @@ type SidebarConfig = {
   showExploreCommunity?: boolean;
   /** The Local MindRoom tab; on unless set to false. */
   showMindRoom?: boolean;
-  /** Where the Local MindRoom tab links for more about MindRoom. */
+  /** Read by nothing; kept because the ported WelcomePage test's config still sets it. */
   mindRoomUrl?: string;
   /** Provisioning service the Local MindRoom pairing flow talks to. */
   mindRoomProvisioningUrl?: string;
@@ -131,7 +131,11 @@ export type ClientConfig = {
       libraries?: boolean;
     };
     computers?: {
-      /** Base URL of the computer API; empty means this deployment's origin. */
+      /**
+       * Origin of the MindRoom server for agent computers and Connections. Empty, or a value
+       * `resolveComputerApiUrl` rejects, counts as unset: the client then uses the origin the room's
+       * agents publish.
+       */
       apiUrl?: string;
     };
     uiActions?: {

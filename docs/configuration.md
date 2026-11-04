@@ -120,7 +120,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 
 ### Declared but not read
 
-`sidebar.mindRoomUrl` is in the `ClientConfig` type, but no code reads it.
+`sidebar.mindRoomUrl` is in the `ClientConfig` type, but no code reads it, so setting it changes nothing. It stays in the type because the ported welcome page test's configuration sets it.
 
 ## runtime-config.js
 
@@ -153,7 +153,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 | `MINDROOM_BUILD_VERSION` | `scripts/build-version.mjs` | Build version in `version.json` and the service worker URL. Otherwise Netlify's `COMMIT_REF`, then `GITHUB_SHA`, then the checked-out Git commit, then Netlify's `DEPLOY_ID`; with none of them the app reports `development-build`. |
 | `MINDROOM_RELEASE_VERSION` | `scripts/build-version.mjs` | Release name shown in Settings > About. Otherwise the nearest Git tag `v<package version>-mindroom.<n>`, else `v<package version>`. |
 | `VITE_ENABLE_REACT_QUERY_DEVTOOLS` | `src/app/components/ReactQueryDevtoolsToggle.tsx` | `true` shows the TanStack Query devtools. At run time `?reactQueryDevtools=1` turns them on for that browser and `?reactQueryDevtools=0` off. |
-| `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. |
+| `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. An empty value leaves it unset, so the app uses the origin the room's agents publish; it does not turn computers off. |
 
 `npm run build:ios` writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config.mindroom.json` as it is.
 
