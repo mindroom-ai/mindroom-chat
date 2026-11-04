@@ -1,6 +1,17 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
+/**
+ * The page's scroller. A folds vertical `Scroll` always scrolls, which keeps a gutter at the end
+ * edge, and pads that edge where scrollbars overlay the page; either way a strip at the edge shows
+ * the plain page instead of the particles. Here a scrollbar appears only when the page overflows.
+ */
+export const AuthScroll = style({
+  selectors: {
+    '&&&': { overflowY: 'auto', paddingInlineEnd: 0 },
+  },
+});
+
 /** The full-height sign-in page; the card and the footer are centred in it. */
 export const AuthLayout = style({
   // Laid out by a folds `Box`, which brings `display: flex`.

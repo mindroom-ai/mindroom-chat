@@ -162,7 +162,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Scroll hideTrack size="300" variant="Background" visibility="Hover">
+    <Scroll className={css.AuthScroll} hideTrack size="300" variant="Background" visibility="Hover">
       <Box className={layoutClassName}>
         <ParticleBackgroundSurface />
         {children}
