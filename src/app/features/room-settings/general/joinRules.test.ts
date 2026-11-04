@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { JoinRule } from '../../../../types/matrix/room';
 import { availableAccessChoices, joinRulesContent, versionAllows } from './joinRules';
 
 describe('room access choices', () => {
   it('offers knocking and space members only to room versions that know them', () => {
-    expect(versionAllows('knock', '6')).toBe(false);
-    expect(versionAllows('knock', '7')).toBe(true);
-    expect(versionAllows('restricted', '7')).toBe(false);
-    expect(versionAllows('restricted', '8')).toBe(true);
-    expect(versionAllows('knock_restricted', '9')).toBe(false);
-    expect(versionAllows('knock_restricted', '12')).toBe(true);
-    expect(versionAllows('public', '1')).toBe(true);
-    expect(versionAllows('knock', 'org.example.unstable')).toBe(false);
+    expect(versionAllows(JoinRule.Knock, '6')).toBe(false);
+    expect(versionAllows(JoinRule.Knock, '7')).toBe(true);
+    expect(versionAllows(JoinRule.Restricted, '7')).toBe(false);
+    expect(versionAllows(JoinRule.Restricted, '8')).toBe(true);
+    expect(versionAllows(JoinRule.KnockRestricted, '9')).toBe(false);
+    expect(versionAllows(JoinRule.KnockRestricted, '12')).toBe(true);
+    expect(versionAllows(JoinRule.Public, '1')).toBe(true);
+    expect(versionAllows(JoinRule.Knock, 'org.example.unstable')).toBe(false);
   });
 
   it('leaves out the space member rules for a room outside every space', () => {
@@ -40,18 +41,18 @@ describe('join rules content', () => {
       join_rule: 'restricted',
       allow: [{ type: 'm.room_membership', room_id: '!s' }],
     };
-    expect(joinRulesContent('invite', current, ['!s'])).toEqual({ join_rule: 'invite' });
+    expect(joinRulesContent(JoinRule.Invite, current, ['!s'])).toEqual({ join_rule: 'invite' });
   });
 
   it('keeps the spaces a restricted room already admits from', () => {
     const allow = [{ type: 'm.room_membership', room_id: '!old' }];
     expect(
-      joinRulesContent('knock_restricted', { join_rule: 'restricted', allow }, ['!new'])
+      joinRulesContent(JoinRule.KnockRestricted, { join_rule: 'restricted', allow }, ['!new'])
     ).toEqual({ join_rule: 'knock_restricted', allow });
   });
 
   it('admits the members of the given spaces when the room had no allow list', () => {
-    expect(joinRulesContent('restricted', { join_rule: 'invite' }, ['!a', '!b'])).toEqual({
+    expect(joinRulesContent(JoinRule.Restricted, { join_rule: 'invite' }, ['!a', '!b'])).toEqual({
       join_rule: 'restricted',
       allow: [
         { type: 'm.room_membership', room_id: '!a' },
