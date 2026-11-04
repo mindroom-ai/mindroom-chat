@@ -88,6 +88,16 @@ export const getLatestTimelineRange = (count: number, limit: number): TimelineRa
   end: count,
 });
 
+/**
+ * `range` once the row at `rowIndex` has left the rows it counts. The rows after that one move up
+ * a place, so the window keeps every other row it held.
+ */
+export const getRangeWithoutRow = (range: TimelineRange, rowIndex: number): TimelineRange => {
+  if (rowIndex >= range.end) return range;
+  if (rowIndex < range.start) return { start: range.start - 1, end: range.end - 1 };
+  return { start: range.start, end: range.end - 1 };
+};
+
 /** Keep `range` when it is a non-empty window inside `count`; otherwise fall back to the latest rows. */
 export const getVisibleTimelineRange = (
   range: TimelineRange,

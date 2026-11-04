@@ -14,7 +14,14 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, EventType, ThreadEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  EventType,
+  ThreadEvent,
+  type EventTimeline,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
 import {
@@ -79,6 +86,7 @@ import {
 import {
   getInitialTimeline,
   getLiveTimeline,
+  getRangeWithoutRow,
   getRoomUnreadInfo,
   type RecalibrateFilterOpts,
   type Timeline,
@@ -90,6 +98,7 @@ import { useRoomCachedBackState } from './useRoomCachedBackState';
 import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useRoomTimelineWindowController } from './roomTimelineWindowController';
 import { useRoomLiveRenderController } from './roomLiveRenderController';
+import { useLiveEventRemove } from './roomLiveEventArrive';
 import {
   useRoomFocusScrollController,
   type RoomTimelineFocusItem,
@@ -290,6 +299,68 @@ const useRoomThreadDeleted = (room: Room, threadId: string | undefined, onDelete
       room.removeListener(ThreadEvent.Delete, onDeleted);
     };
   }, [room, threadId, onDeleted]);
+};
+
+/**
+ * Takes a row that left the room's timeline (a cancelled send, say) out of the window, which
+ * keeps every other row it held: the rows after it move up a place, and a window that reached the
+ * newest row still ends there. Thread views keep their own rows.
+ *
+ * A back page in flight counted the rows before it started and sets its window when it lands,
+ * which leaves the removed row out. The removal waits for it, so the window is not drawn again
+ * over the page's new rows with the range from before the page.
+ */
+const useRoomRowRemoval = ({
+  room,
+  timelineRef,
+  roomRowsRef,
+  activeRangeRef,
+  windowFollowsRowsRef,
+  paginatingBackRef,
+  threadIdRef,
+  setTimeline,
+}: {
+  room: Room;
+  timelineRef: MutableRefObject<Timeline>;
+  roomRowsRef: MutableRefObject<MatrixEvent[]>;
+  activeRangeRef: MutableRefObject<Timeline['range']>;
+  /** False while the filtered overview mounts every row, whatever the window. */
+  windowFollowsRowsRef: MutableRefObject<boolean>;
+  paginatingBackRef: MutableRefObject<boolean>;
+  threadIdRef: MutableRefObject<string | undefined>;
+  setTimeline: Dispatch<SetStateAction<Timeline>>;
+}) => {
+  const handleRemove = useCallback(
+    (mEvent: MatrixEvent, removedFrom: EventTimeline | undefined) => {
+      if (threadIdRef.current || paginatingBackRef.current) return;
+      const shown = timelineRef.current;
+      // The room's thread lists drop and add again roots that stay in the room; only the
+      // timelines the window shows take its rows away.
+      if (!removedFrom || !shown.linkedTimelines.includes(removedFrom)) return;
+      const eventId = mEvent.getId();
+      const rowIndex = roomRowsRef.current.findIndex(
+        (row) => row === mEvent || (eventId !== undefined && row.getId() === eventId)
+      );
+      const range =
+        rowIndex === -1 || !windowFollowsRowsRef.current
+          ? undefined
+          : getRangeWithoutRow(activeRangeRef.current, rowIndex);
+      // A window set since the last render is newer than the rows the index came from.
+      setTimeline((current) =>
+        range && current.range === shown.range ? { ...current, range } : { ...current }
+      );
+    },
+    [
+      activeRangeRef,
+      paginatingBackRef,
+      roomRowsRef,
+      setTimeline,
+      threadIdRef,
+      timelineRef,
+      windowFollowsRowsRef,
+    ]
+  );
+  useLiveEventRemove(room, handleRemove);
 };
 
 /**
@@ -835,6 +906,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const roomRowsRef = useLatestRef(roomRows);
   const { activeTimelineRange } = windowState;
   const activeRangeRef = useLatestRef(activeTimelineRange);
+  const timelineRef = useLatestRef(timeline);
+  const windowFollowsRowsRef = useLatestRef(!threadIndex.roomThreadFilterActive);
   const roomWindowRows = useMemo(
     () => roomRows.slice(activeTimelineRange.start, activeTimelineRange.end),
     [activeTimelineRange.end, activeTimelineRange.start, roomRows]
@@ -1549,6 +1622,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadIdRef,
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
+  });
+
+  useRoomRowRemoval({
+    room,
+    timelineRef,
+    roomRowsRef,
+    activeRangeRef,
+    windowFollowsRowsRef,
+    paginatingBackRef: roomPaginatingBackRef,
+    threadIdRef,
+    setTimeline,
   });
 
   // Live rows. This registers the room's last timeline listener, after every other one.
