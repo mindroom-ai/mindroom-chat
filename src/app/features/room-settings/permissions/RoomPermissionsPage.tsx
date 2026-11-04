@@ -87,6 +87,51 @@ const PERMISSION_GROUPS: Array<{ group: string; items: Permission[] }> = [
   },
 ];
 
+const SPACE_PERMISSIONS = 'featureUi.spaceSettings.permissions';
+const inSpace = (name: string, slot: LevelSlot): Permission => ({
+  labelKey: `${SPACE_PERMISSIONS}.${name}`,
+  slot,
+});
+
+/** A space holds rooms rather than messages, so its page leads with who may manage them. */
+const SPACE_PERMISSION_GROUPS: Array<{ group: string; items: Permission[] }> = [
+  { group: 'manage', items: [inSpace('manageSpaceRooms', state('m.space.child'))] },
+  {
+    group: 'moderation',
+    items: [
+      inSpace('invite', { kind: 'action', action: 'invite' }),
+      inSpace('kick', { kind: 'action', action: 'kick' }),
+      inSpace('ban', { kind: 'action', action: 'ban' }),
+    ],
+  },
+  {
+    group: 'spaceOverview',
+    items: [
+      inSpace('spaceAvatar', state('m.room.avatar')),
+      inSpace('spaceName', state('m.room.name')),
+      inSpace('spaceTopic', state('m.room.topic')),
+    ],
+  },
+  {
+    group: 'settings',
+    items: [
+      inSpace('changeSpaceAccess', state('m.room.join_rules')),
+      inSpace('publishAddress', state('m.room.canonical_alias')),
+      inSpace('editPowerLevels', state('m.room.power_levels')),
+      inSpace('manageEmojisStickers', state('im.ponies.room_emotes')),
+      inSpace('changeServerAcls', state('m.room.server_acl')),
+      inSpace('upgradeSpace', state('m.room.tombstone')),
+    ],
+  },
+  {
+    group: 'other',
+    items: [
+      inSpace('messageEvents', { kind: 'field', field: 'events_default' }),
+      inSpace('otherSettings', { kind: 'field', field: 'state_default' }),
+    ],
+  },
+];
+
 // The levels menu closes on Escape, which stays inside the dialog, or on a click beside it.
 const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
 const menuTrap = (close: () => void): FocusTrapOptions => ({
@@ -159,18 +204,19 @@ function LevelPicker({
   );
 }
 
+type PermissionsPageProps = {
+  room: Room;
+  /** Lists the permissions a space has, in a space's words. */
+  space?: boolean;
+  requestClose: () => void;
+};
+
 /**
  * Who may do what in the room: the named power levels (edited in the levels editor), the level a
  * new member gets, and the level each permission needs. Changes apply at once; nobody can hand
  * out a level above their own.
  */
-export function RoomPermissionsPage({
-  room,
-  requestClose,
-}: {
-  room: Room;
-  requestClose: () => void;
-}) {
+export function RoomPermissionsPage({ room, space = false, requestClose }: PermissionsPageProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const levels = usePowerLevels(room);
@@ -240,7 +286,10 @@ export function RoomPermissionsPage({
   };
 
   return (
-    <SettingsPageFrame title={t(`${PERMISSIONS}.permissions`)} requestClose={requestClose}>
+    <SettingsPageFrame
+      title={t(space ? `${SPACE_PERMISSIONS}.permissions` : `${PERMISSIONS}.permissions`)}
+      requestClose={requestClose}
+    >
       <Box direction="Column" gap="100">
         <Text size="L400">{t(`${POWERS}.powerLevels`)}</Text>
         <SettingsCard>
@@ -288,9 +337,11 @@ export function RoomPermissionsPage({
           })}
         </SettingsCard>
       </Box>
-      {PERMISSION_GROUPS.map(({ group, items }) => (
+      {(space ? SPACE_PERMISSION_GROUPS : PERMISSION_GROUPS).map(({ group, items }) => (
         <Box key={group} direction="Column" gap="100">
-          <Text size="L400">{t(`${PERMISSIONS}.groups.${group}` as never)}</Text>
+          <Text size="L400">
+            {t(`${space ? SPACE_PERMISSIONS : PERMISSIONS}.groups.${group}` as never)}
+          </Text>
           <SettingsCard>{items.map(tile)}</SettingsCard>
         </Box>
       ))}

@@ -96,7 +96,13 @@ function SelectedPage({ page, ...props }: PageProps & { page: RoomSettingsPage }
     case RoomSettingsPage.MembersPage:
       return <RoomMembersPage room={props.room} requestClose={props.requestClose} />;
     case RoomSettingsPage.PermissionsPage:
-      return <RoomPermissionsPage room={props.room} requestClose={props.requestClose} />;
+      return (
+        <RoomPermissionsPage
+          room={props.room}
+          requestClose={props.requestClose}
+          space={props.space}
+        />
+      );
     case RoomSettingsPage.EmojisStickersPage:
       return <RoomPacksPage room={props.room} requestClose={props.requestClose} />;
     case RoomSettingsPage.DeveloperToolsPage:
