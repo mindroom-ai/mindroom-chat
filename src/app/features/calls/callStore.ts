@@ -96,7 +96,11 @@ export type StartCallOptions = {
   notify?: 'ring' | 'notification';
 } & Omit<ActiveCall, 'call'>;
 
-export type StartCallResult = 'started' | 'busy';
+/**
+ * `busy`: another call runs. `failed`: the call could not start, or its account signed out or
+ * switched while it was starting.
+ */
+export type StartCallResult = 'started' | 'busy' | 'failed';
 
 /** The newest event's server time in a room's loaded live timeline. */
 const newestEventTs = (room: Room): number | undefined => {
@@ -129,6 +133,10 @@ export const useCallActions = (mx: MatrixClient) => {
       const { RoomCall } = await import('./RoomCall');
       if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
       await room.loadMembersIfNeeded().catch(() => undefined);
+      // The store is app-wide: a call whose account went away while this waited would become
+      // the next account's call.
+      if (!mx.clientRunning) return 'failed' as StartCallResult;
+      if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
       const call = new RoomCall({ mx, room, video, microphone, devices, notify });
       const active: ActiveCall = {
         ...meta,

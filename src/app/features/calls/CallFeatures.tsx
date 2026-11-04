@@ -105,8 +105,10 @@ function CallResume() {
       // Read only now: a shell that went away before acting leaves the record to the next one.
       const record = takeCallResume(mx);
       await withdrawLeftoverMemberships(mx, record?.roomId);
-      if (!record) return;
+      // Each step waits; an account that signed out or switched meanwhile gets nothing more.
+      if (cancelled || !record) return;
       await resumeCall(mx, startCall, record).catch(() => undefined);
+      if (cancelled) return;
       const active = store.get(activeCallAtom);
       const inRoom = active?.call.room.roomId === record.roomId;
       if (inRoom && active?.call.getState().phase !== 'failed') return;

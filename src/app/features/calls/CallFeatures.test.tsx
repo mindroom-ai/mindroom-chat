@@ -6,15 +6,31 @@ import { createStore, Provider } from 'jotai';
 import { CallFeatures } from './CallFeatures';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from './callStore';
 
-// CallResume waits for a server sync before it reads the reload's call record; this client never
-// syncs, so the test stays about the panel and nothing resumes after it ends.
+// CallResume waits for a server sync before it reads the reload's call record; this client
+// syncs only in the tests that set `syncState`, so the others stay about the page and the panel.
 const client = vi.hoisted(() => ({
-  getSyncState: () => null,
+  syncState: null as string | null,
+  clientRunning: true,
+  getSyncState(): string | null {
+    return this.syncState;
+  },
   on: () => undefined,
   off: () => undefined,
   getSafeUserId: () => '@me:calls.test',
   getUserId: () => '@me:calls.test',
   getDeviceId: () => 'TABDEVICE',
+  getRoom: (): unknown => undefined,
+}));
+// Withdrawing leftover memberships finishes when a test says so.
+const leftovers = vi.hoisted(() => ({ withdrawn: Promise.resolve() }));
+vi.mock('./callResume', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./callResume')>()),
+  withdrawLeftoverMemberships: vi.fn(() => leftovers.withdrawn),
+}));
+vi.mock('./RoomCall', () => ({
+  RoomCall: class {
+    join = async () => undefined;
+  },
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../pages/client/ClientStartupContext', () => ({
@@ -59,7 +75,12 @@ const pageTransition = (type: 'pagehide' | 'pageshow', persisted: boolean) =>
     window.dispatchEvent(new PageTransitionEvent(type, { persisted }));
   });
 
-afterEach(() => sessionStorage.clear());
+afterEach(() => {
+  sessionStorage.clear();
+  client.syncState = null;
+  client.getRoom = () => undefined;
+  leftovers.withdrawn = Promise.resolve();
+});
 
 describe('CallFeatures', () => {
   it('ends the call for good when the page goes into the back/forward cache', () => {
@@ -100,6 +121,45 @@ describe('CallFeatures', () => {
 
     expect(sessionStorage.getItem(RESUME_KEY)).toBeNull();
     unmount();
+  });
+
+  it('takes up no call for an account that signed out or switched while leftovers went', async () => {
+    const roomId = '!call:calls.test';
+    const room = {
+      roomId,
+      getMyMembership: () => 'join',
+      loadMembersIfNeeded: vi.fn(async () => undefined),
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    };
+    client.getRoom = (id: unknown) => (id === roomId ? room : undefined);
+    client.syncState = 'SYNCING';
+    sessionStorage.setItem(
+      RESUME_KEY,
+      JSON.stringify({
+        userId: '@me:calls.test',
+        deviceId: 'TABDEVICE',
+        roomId,
+        kind: 'room',
+        microphone: true,
+        camera: false,
+        devices: {},
+        savedAt: Date.now(),
+      })
+    );
+    let withdrawn!: () => void;
+    leftovers.withdrawn = new Promise<void>((resolve) => {
+      withdrawn = resolve;
+    });
+    const store = createStore();
+    const unmount = mount(store);
+    await vi.waitFor(() => expect(sessionStorage.getItem(RESUME_KEY)).toBeNull());
+
+    unmount();
+    withdrawn();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(store.get(activeCallAtom)).toBeUndefined();
   });
 
   it('closes the call panel when the account it belongs to goes away', () => {
