@@ -1,4 +1,4 @@
-import React, { MouseEvent, useMemo, useState } from 'react';
+import { MouseEvent, useMemo, useState } from 'react';
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Capacitor } from '@capacitor/core';
@@ -149,9 +149,9 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     const url = ssoUrl();
     return (
       <Box direction="Column" gap="200">
-        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), (event) =>
-          openInNativeBrowser(event, url)
-        )}
+        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), (event) => {
+          void openInNativeBrowser(event, url);
+        })}
       </Box>
     );
   }
@@ -173,10 +173,11 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
           provider.id,
           url,
           getSSOProviderButtonTitle(provider, t, action),
-          (event) =>
-            apple && nativeAppleAvailable
+          (event) => {
+            void (apple && nativeAppleAvailable
               ? signInWithApple(event, provider, url)
-              : openInNativeBrowser(event, url),
+              : openInNativeBrowser(event, url));
+          },
           icon
         );
       })}
