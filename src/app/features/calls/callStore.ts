@@ -44,6 +44,34 @@ export type CallStartProblem = { roomId: string; result: Exclude<StartCallResult
 
 export const callStartProblemAtom = atom<CallStartProblem | undefined>(undefined);
 
+type Store = ReturnType<typeof useStore>;
+
+/** Leaves the call without waiting for the server, then runs what follows its end. */
+export const leaveCallNow = (active: ActiveCall): void => {
+  active.call.leave().catch(() => undefined);
+  active.onEnded?.().catch(() => undefined);
+};
+
+/** Leaves the active call without waiting and forgets it, so the next start finds none. */
+export const dropActiveCall = (store: Store): void => {
+  const active = store.get(activeCallAtom);
+  if (!active) return;
+  leaveCallNow(active);
+  store.set(activeCallAtom, undefined);
+};
+
+/**
+ * What an account leaves in the call state when its screens go: its call (left), the open call
+ * panel, a start still running (which gives up, its client being stopped) and why the last start
+ * failed. The next account would otherwise find them in a room both accounts are in.
+ */
+export const forgetCallState = (store: Store): void => {
+  dropActiveCall(store);
+  store.set(callPanelRoomAtom, undefined);
+  store.set(callStartingAtom, false);
+  store.set(callStartProblemAtom, undefined);
+};
+
 const IDLE_STATE: CallState = {
   phase: 'ended',
   microphone: false,
@@ -225,13 +253,7 @@ export const useCallActions = (mx: MatrixClient) => {
   );
 
   /** Closes a call that failed to start, so another can begin. */
-  const dismissCall = useCallback(() => {
-    const active = store.get(activeCallAtom);
-    if (!active) return;
-    active.call.leave().catch(() => undefined);
-    active.onEnded?.().catch(() => undefined);
-    store.set(activeCallAtom, undefined);
-  }, [store]);
+  const dismissCall = useCallback(() => dropActiveCall(store), [store]);
 
   return { startCall, endCall, dismissCall };
 };
