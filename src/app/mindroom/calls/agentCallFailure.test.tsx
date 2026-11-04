@@ -7,16 +7,19 @@ import { activeCallAtom } from '../../features/calls/callStore';
 import { agentCallFailureAtom, useAgentCaller } from './agentCaller';
 import { AgentCallFailureNotice } from './AgentCallFailureNotice';
 
-const support = vi.hoisted(() => ({ browser: true, service: undefined as string | undefined }));
-
-vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getRoom: () => null }),
+const support = vi.hoisted(() => ({
+  browser: true,
+  /** The call service lookup; a test can hold it to switch accounts meanwhile. */
+  service: async (): Promise<string | undefined> => undefined,
 }));
+const client = vi.hoisted(() => ({ clientRunning: true, getRoom: () => null }));
+
+vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../features/calls/callSupport', () => ({
   browserSupportsCalls: () => support.browser,
 }));
 vi.mock('../../features/calls/rtcFocus', () => ({
-  getLivekitServiceUrl: async () => support.service,
+  getLivekitServiceUrl: () => support.service(),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('folds', () => {
@@ -63,7 +66,8 @@ const target = { agentUserId: '@mindroom_helper:example.org', roomId: '!room:exa
 
 beforeEach(() => {
   support.browser = true;
-  support.service = undefined;
+  support.service = async () => undefined;
+  client.clientRunning = true;
 });
 
 afterEach(() => {
@@ -95,6 +99,28 @@ describe('agent calls started from the header or the phone menu', () => {
       await second.caller.current?.call(target);
     });
     expect(store.get(agentCallFailureAtom)?.error).toBe('busy');
+  });
+
+  it('tell the next account nothing when the account that started one went away meanwhile', async () => {
+    const store = createStore();
+    const { caller } = mountCaller(store, true);
+    let answerLookup: ((url: string | undefined) => void) | undefined;
+    support.service = () =>
+      new Promise((resolve) => {
+        answerLookup = resolve;
+      });
+    let starting: Promise<boolean> | undefined;
+    act(() => {
+      starting = caller.current?.call(target);
+    });
+    // The account switches while the call service is looked up: its client stops, and the
+    // lookup fails as a request of a stopped client does.
+    client.clientRunning = false;
+    await act(async () => {
+      answerLookup?.(undefined);
+      expect(await starting).toBe(false);
+    });
+    expect(store.get(agentCallFailureAtom)).toBeUndefined();
   });
 
   it('leave the account-wide notice alone when the caller shows its own error', async () => {

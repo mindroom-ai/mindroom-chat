@@ -14,12 +14,7 @@ import { MINDROOM_FAVICON_SRC } from '../../mindroom/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { startRingtone } from './ringtone';
-import {
-  callPanelRoomAtom,
-  callStartProblemAtom,
-  useActiveCall,
-  useCallActions,
-} from './callStore';
+import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import * as css from './IncomingCalls.css';
 
@@ -197,11 +192,9 @@ export function IncomingCalls() {
     setRing(undefined);
     navigateRoom(room.roomId);
     void startCall({ room, kind: 'room', microphone: true, video: ring.video }).then((result) => {
-      if (result === 'started') return;
       // Another tab of this session is in a call, or the call could not start: the room's call
       // panel says which, with Join to try again.
-      store.set(callStartProblemAtom, { roomId: room.roomId, result });
-      store.set(callPanelRoomAtom, room.roomId);
+      if (noteCallStart(store, mx, room.roomId, result)) store.set(callPanelRoomAtom, room.roomId);
     });
   };
   const decline = () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import classNames from 'classnames';
@@ -15,6 +15,7 @@ import type { CallDevices, CallProblem, CallState } from './RoomCall';
 import {
   callStartProblemAtom,
   isActiveCallShownIn,
+  noteCallStart,
   useActiveCall,
   useCallActions,
   useCallState,
@@ -332,6 +333,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const support = useCallSupport(mx);
   const access = useCallAccess(mx, room);
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
+  const store = useStore();
   const { startCall } = useCallActions(mx);
   const [microphone, setMicrophone] = useState(true);
   const [camera, setCamera] = useState(false);
@@ -369,9 +371,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       // Starting a call rings the other person of a direct chat and notifies a group.
       notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
     })
-      .then((result) =>
-        setLastStart(result === 'started' ? undefined : { roomId: room.roomId, result })
-      )
+      .then((result) => {
+        noteCallStart(store, mx, room.roomId, result);
+      })
       .finally(() => setJoining(false));
   };
 

@@ -115,12 +115,14 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
   const setError = useCallback(
     (next: AgentCallError | undefined) => {
       setOwnError(next);
-      if (next && announce) {
+      // A start still running when its account signed out or switched fails once the client
+      // stops; the store is app-wide by then, so the next account would show the notice.
+      if (next && announce && mx.clientRunning) {
         failureCount += 1;
         store.set(agentCallFailureAtom, { error: next, id: failureCount });
       }
     },
-    [announce, store]
+    [announce, mx, store]
   );
 
   const call = useCallback(

@@ -2,7 +2,14 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { activeCallAtom, useCallActions, type ActiveCall } from './callStore';
+import {
+  activeCallAtom,
+  callStartProblemAtom,
+  forgetCallState,
+  noteCallStart,
+  useCallActions,
+  type ActiveCall,
+} from './callStore';
 import {
   fakeWebLocks,
   holdLockInOtherTab,
@@ -272,6 +279,28 @@ describe('useCallActions startCall', () => {
     expect(call.fail).toHaveBeenCalledWith('service');
   });
 
+  it("lets a start its account left behind end without ending the next account's start", async () => {
+    const store = createStore();
+    const alice = runningClient();
+    const left = slowRoom();
+    const leftStart = actionsIn(store, alice).startCall({ room: left.room, kind: 'room' });
+    const bob = actionsIn(store, runningClient());
+    const next = slowRoom();
+    let nextStart: Promise<string> | undefined;
+    // Alice switches to Bob while her call room's members load; Bob starts a call of his own.
+    await left.finishLoading(() => {
+      alice.clientRunning = false;
+      forgetCallState(store);
+      nextStart = bob.startCall({ room: next.room, kind: 'room' });
+    });
+    await expect(leftStart).resolves.toBe('failed');
+
+    // Bob's start is still the one running: a second start of his waits its turn.
+    await expect(bob.startCall({ room: next.room, kind: 'room' })).resolves.toBe('busy');
+    await next.finishLoading();
+    await expect(nextStart).resolves.toBe('started');
+  });
+
   it('leaves the store alone when the account signed out or switched while the call started', async () => {
     const store = createStore();
     const mx = runningClient();
@@ -285,5 +314,28 @@ describe('useCallActions startCall', () => {
 
     await expect(starting).resolves.toBe('failed');
     expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+});
+
+describe('noteCallStart', () => {
+  const ROOM = '!call:calls.test';
+
+  it("keeps why the room's call did not start until a start that does", () => {
+    const store = createStore();
+    const mx = runningClient();
+
+    expect(noteCallStart(store, mx, ROOM, 'busy')).toBe(true);
+    expect(store.get(callStartProblemAtom)).toEqual({ roomId: ROOM, result: 'busy' });
+    expect(noteCallStart(store, mx, ROOM, 'started')).toBe(false);
+    expect(store.get(callStartProblemAtom)).toBeUndefined();
+  });
+
+  it('notes nothing for a start whose account signed out or switched meanwhile', () => {
+    const store = createStore();
+    const mx = runningClient();
+    mx.clientRunning = false;
+
+    expect(noteCallStart(store, mx, ROOM, 'failed')).toBe(false);
+    expect(store.get(callStartProblemAtom)).toBeUndefined();
   });
 });

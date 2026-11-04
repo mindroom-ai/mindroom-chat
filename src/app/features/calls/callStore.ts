@@ -32,8 +32,8 @@ export const callPanelRoomAtom = atom<string | undefined>(undefined);
 
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
-/** A call is starting in this tab; a second start would race it for the one call. */
-const callStartingAtom = atom(false);
+/** The start running in this tab, if any; a second start would race it for the one call. */
+const callStartingAtom = atom<object | undefined>(undefined);
 
 /**
  * Why the newest start of a room's call in this tab did not start it: `busy` while another tab
@@ -68,8 +68,25 @@ export const dropActiveCall = (store: Store): void => {
 export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
-  store.set(callStartingAtom, false);
+  store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);
+};
+
+/**
+ * Keeps why the newest start of a room's call did not start it, for the room's call panel (a
+ * start that did clears it), and answers whether there was a problem to show. A start whose
+ * account signed out or switched meanwhile notes nothing: the store is app-wide, and the next
+ * account's panel would show the problem as its own.
+ */
+export const noteCallStart = (
+  store: Store,
+  mx: MatrixClient,
+  roomId: string,
+  result: StartCallResult
+): boolean => {
+  if (!mx.clientRunning) return false;
+  store.set(callStartProblemAtom, result === 'started' ? undefined : { roomId, result });
+  return result !== 'started';
 };
 
 const IDLE_STATE: CallState = {
@@ -236,12 +253,14 @@ export const useCallActions = (mx: MatrixClient) => {
   const startCall = useCallback(
     async (options: StartCallOptions): Promise<StartCallResult> => {
       if (store.get(activeCallAtom) || store.get(callStartingAtom)) return 'busy';
-      store.set(callStartingAtom, true);
+      const start = {};
+      store.set(callStartingAtom, start);
       let made: Awaited<ReturnType<typeof makeCall>>;
       try {
         made = await makeCall(options);
       } finally {
-        store.set(callStartingAtom, false);
+        // A start its account left behind ends only itself, not a start of the next account.
+        if (store.get(callStartingAtom) === start) store.set(callStartingAtom, undefined);
       }
       if (typeof made === 'string') return made;
       const call = made;
