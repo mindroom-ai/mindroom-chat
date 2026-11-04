@@ -14,7 +14,7 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, EventType, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { Direction, EventType, ThreadEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
 import {
@@ -275,6 +275,21 @@ const useRoomUnreadInfo = (
     [roomId]
   );
   return [current.info, setInfo];
+};
+
+/**
+ * Calls `onDeleted` when one of the room's threads goes away while the room (not a thread) is
+ * shown. The SDK edits the room's timeline in place for it, without a timeline event: it takes
+ * the thread off the root and its replies, and a root may leave the timeline with it.
+ */
+const useRoomThreadDeleted = (room: Room, threadId: string | undefined, onDeleted: () => void) => {
+  useEffect(() => {
+    if (threadId) return undefined;
+    room.on(ThreadEvent.Delete, onDeleted);
+    return () => {
+      room.removeListener(ThreadEvent.Delete, onDeleted);
+    };
+  }, [room, threadId, onDeleted]);
 };
 
 /**
@@ -684,6 +699,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     room,
     threadId
   );
+  // The room's rows come from its timeline once more, so a deleted thread's root leaves the
+  // overview, a frozen sort order included.
+  const rederiveRoomRows = useCallback(() => setTimeline((current) => ({ ...current })), []);
+  useRoomThreadDeleted(room, threadId, rederiveRoomRows);
 
   // Thread rows.
   const threadState = useThreadTimelineState({
