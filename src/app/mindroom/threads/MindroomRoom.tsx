@@ -29,6 +29,7 @@ import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';
 import { ComputerPanel } from '../computer/ComputerPanel';
+import { CloseComputerPanelContext } from '../computer/ComputerScreenUnavailable';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
@@ -437,21 +438,24 @@ export function Room() {
               onCollapse={closeComputer}
               testId="resizable-computer-panel"
             >
-              <ComputerPanel
-                agents={computerTarget.agents}
-                apiUrl={computerTarget.apiUrl}
-                mx={client}
-                roomId={roomId}
-                threadId={threadId}
-                continuationReady={routeReady}
-                requestedAgent={computer.requestedAgent}
-                onInteractionChange={reportInteraction}
-                onClose={closeComputer}
-                expanded={!mobile && computerExpanded}
-                onToggleExpanded={
-                  mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
-                }
-              />
+              {/* A screen whose chunk cannot load closes the panel through this. */}
+              <CloseComputerPanelContext.Provider value={closeComputer}>
+                <ComputerPanel
+                  agents={computerTarget.agents}
+                  apiUrl={computerTarget.apiUrl}
+                  mx={client}
+                  roomId={roomId}
+                  threadId={threadId}
+                  continuationReady={routeReady}
+                  requestedAgent={computer.requestedAgent}
+                  onInteractionChange={reportInteraction}
+                  onClose={closeComputer}
+                  expanded={!mobile && computerExpanded}
+                  onToggleExpanded={
+                    mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
+                  }
+                />
+              </CloseComputerPanelContext.Provider>
             </ResizablePanel>
           )}
           {canvas && (
