@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -7,6 +7,7 @@ import classNames from 'classnames';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
+import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { mDirectAtom } from '../../state/mDirectList';
 import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice';
 import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
@@ -27,11 +28,23 @@ import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
 import * as css from './CallPanel.css';
 
-/** Members need power to publish their call membership (`org.matrix.msc3401.call.member`). */
-const useCallAccess = (mx: MatrixClient, room: Room): CallAccess => {
-  // Re-read when the room's power levels change.
-  usePowerLevelsContext();
-  return readCallAccess(room, mx.getSafeUserId());
+/** The access of a call this device is in, where it shows no access notice (agent calls). */
+const NOT_READ: CallAccess = { canJoin: true, canLetMembersIn: false };
+
+/**
+ * Members need power to publish their call membership (`org.matrix.msc3401.call.member`). Read
+ * again only when the room's power levels or members change, not on every change of the call
+ * (active speakers change several times a second).
+ */
+const useCallAccess = (mx: MatrixClient, room: Room, needed = true): CallAccess => {
+  // Followed for its changes only: the checks read the levels from the room's state.
+  const levels = usePowerLevelsContext();
+  const knownMembers = useRoomMembers(mx, room.roomId);
+  return useMemo(() => {
+    void levels;
+    if (!needed) return NOT_READ;
+    return readCallAccess(room, mx.getSafeUserId(), knownMembers);
+  }, [levels, knownMembers, mx, needed, room]);
 };
 
 function Notice({
@@ -176,7 +189,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, failure);
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
-  const access = useCallAccess(mx, call.room);
+  const access = useCallAccess(mx, call.room, !agentCall && !finished);
 
   const controls = finished ? (
     <div className={css.Controls}>
@@ -287,9 +300,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           {t('featureUi.calls.panel.audioBlocked')}
         </Notice>
       )}
-      {!finished && !agentCall && access.canAllow && access.blocked.length > 0 && (
-        <MembersCannotCallNotice room={call.room} />
-      )}
+      {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {!finished && (
         <ul className={css.Tiles} aria-label={t('featureUi.calls.panel.participants')}>
           {state.participants
@@ -393,9 +404,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
             ? t('featureUi.calls.panel.inCall', { count: people.length })
             : t('featureUi.call.callView.voiceChatSEmptyBeTheFirst')}
         </Text>
-        {!blocker && access.canAllow && access.blocked.length > 0 && (
-          <MembersCannotCallNotice room={room} />
-        )}
+        {!blocker && access.canLetMembersIn && <MembersCannotCallNotice room={room} />}
         {blocker ? (
           <Notice>{blocker}</Notice>
         ) : (

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room, RoomMember } from 'matrix-js-sdk';
 import { allowMembersToCall, readCallAccess } from './callAccess';
 
 const CALL_MEMBER = 'org.matrix.msc3401.call.member';
@@ -39,23 +39,15 @@ describe('readCallAccess', () => {
   };
   const room = roomWith(levels, { [admin]: 'join', [member]: 'join', [invited]: 'invite' });
 
-  it('names the joined members a private_chat room keeps out of its calls', () => {
-    expect(readCallAccess(room, admin)).toEqual({
-      canJoin: true,
-      blocked: [member],
-      canAllow: true,
-    });
+  it('offers the admin to let in the joined members a private_chat room keeps out of its calls', () => {
+    expect(readCallAccess(room, admin)).toEqual({ canJoin: true, canLetMembersIn: true });
   });
 
   it('lets a member see they cannot join, without offering them the fix', () => {
-    expect(readCallAccess(room, member)).toEqual({
-      canJoin: false,
-      blocked: [member],
-      canAllow: false,
-    });
+    expect(readCallAccess(room, member)).toEqual({ canJoin: false, canLetMembersIn: false });
   });
 
-  it('blocks nobody once call membership is at the members level', () => {
+  it('offers nothing once call membership is at the members level', () => {
     const open = roomWith(
       { ...levels, events: { ...levels.events, [CALL_MEMBER]: 0 } },
       {
@@ -63,7 +55,7 @@ describe('readCallAccess', () => {
         [member]: 'join',
       }
     );
-    expect(readCallAccess(open, admin).blocked).toEqual([]);
+    expect(readCallAccess(open, admin).canLetMembersIn).toBe(false);
   });
 
   it('offers no fix to a moderator who cannot change the power levels', () => {
@@ -71,7 +63,28 @@ describe('readCallAccess', () => {
       { ...levels, users: { [admin]: 100, [member]: 50 } },
       { [admin]: 'join', [member]: 'join' }
     );
-    expect(readCallAccess(moderated, member)).toMatchObject({ canJoin: true, canAllow: false });
+    expect(readCallAccess(moderated, member)).toEqual({ canJoin: true, canLetMembersIn: false });
+  });
+
+  it('counts only joined members, from the list it is given, and stops at the first kept out', () => {
+    const maySendStateEvent = vi.fn(
+      (type: string, userId: string) => type !== CALL_MEMBER || userId === admin
+    );
+    const checked = {
+      getLiveTimeline: () => ({ getState: () => ({ maySendStateEvent }) }),
+      getMembers: () => {
+        throw new Error('reads the members it is given');
+      },
+    } as unknown as Room;
+    const members = [admin, invited, member, '@other:calls.test'].map((userId) => ({
+      userId,
+      membership: userId === invited ? 'invite' : 'join',
+    })) as RoomMember[];
+
+    expect(readCallAccess(checked, admin, members).canLetMembersIn).toBe(true);
+    const callChecks = maySendStateEvent.mock.calls.filter(([type]) => type === CALL_MEMBER);
+    // This account, the admin as a member, then the first member kept out; nobody after.
+    expect(callChecks.map(([, userId]) => userId)).toEqual([admin, admin, member]);
   });
 });
 
