@@ -16,7 +16,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRtcKeyProvider } from './callKeyProvider';
 import { firstLivekitServiceUrl, getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
-import { holdDeviceCallLock } from './callResume';
+import { holdDeviceCallLock, withdrawOwnMemberships } from './callResume';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -82,6 +82,8 @@ export type RoomCallOptions = {
 
 /** How long a leave waits for the membership update before the call is given up locally. */
 const LEAVE_TIMEOUT_MS = 5000;
+/** How long a join waits for this device's leftover membership to go before joining anyway. */
+const LEFTOVER_TIMEOUT_MS = 10_000;
 
 const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.length === b.length &&
@@ -298,6 +300,37 @@ export class RoomCall {
     this.teardown().catch(() => undefined);
   }
 
+  /**
+   * Withdraws the membership this device still has in the call from an earlier page (a reload,
+   * or a tab that crashed) and waits until the session no longer lists it. Joining over it would
+   * send the same membership again (the SDK keeps its creation time), which nobody sees as a
+   * join, so no media keys would be exchanged.
+   */
+  private async withdrawLeftover(deviceId: string): Promise<void> {
+    const userId = this.mx.getSafeUserId();
+    const listed = () =>
+      this.session.memberships.some(
+        (membership) => membership.userId === userId && membership.deviceId === deviceId
+      );
+    if (!listed()) return;
+    await withdrawOwnMemberships(this.mx, [this.room]);
+    await new Promise<void>((resolve) => {
+      let timer = 0;
+      const check = () => {
+        if (listed()) return;
+        window.clearTimeout(timer);
+        this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
+        resolve();
+      };
+      timer = window.setTimeout(() => {
+        this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
+        resolve();
+      }, LEFTOVER_TIMEOUT_MS);
+      this.session.on(MatrixRTCSessionEvent.MembershipsChanged, check);
+      check();
+    });
+  }
+
   /** Joins the call: media connection first, then the membership others see, then the devices. */
   async join(): Promise<void> {
     const { mx, room } = this;
@@ -310,6 +343,8 @@ export class RoomCall {
     this.session.on(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
     this.releaseDeviceLock = holdDeviceCallLock(mx);
+    await this.withdrawLeftover(deviceId);
+    if (this.leaving) return;
 
     const serviceUrl = await this.findService();
     if (this.leaving) return;
