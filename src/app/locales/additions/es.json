@@ -216,6 +216,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "Pensó"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "No se pudo cambiar tu reacción. Inténtalo de nuevo."
       }
     },
     "message-search": {

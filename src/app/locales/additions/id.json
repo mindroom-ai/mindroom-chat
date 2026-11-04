@@ -208,6 +208,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "Selesai berpikir"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "Reaksi Anda tidak dapat diubah. Coba lagi."
       }
     },
     "message-search": {

@@ -212,6 +212,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "सोचा"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "आपकी प्रतिक्रिया बदली नहीं जा सकी। फिर से कोशिश करें।"
       }
     },
     "message-search": {

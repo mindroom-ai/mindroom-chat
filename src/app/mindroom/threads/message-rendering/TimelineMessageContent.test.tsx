@@ -9,6 +9,9 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import { MessageEvent } from '../../../../types/matrix/room';
 
+const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
+vi.mock('../../messages/reactionToggle', () => ({ toggleReaction: reactionMocks.toggleReaction }));
+
 const emptyData = () => ({
   threadRecordMap: new Map(),
   threadEventMap: new Map(),
@@ -116,6 +119,47 @@ describe('timeline message extras', () => {
     const { content } = await renderRow(event);
 
     expect(content().showMessageExtras).toBe(true);
+  });
+});
+
+describe('timeline reactions', () => {
+  it('tell the user under the message when changing their reaction failed', async () => {
+    vi.useFakeTimers();
+    try {
+      reactionMocks.toggleReaction.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
+      const event = makeEvent('$liked', {
+        content: { msgtype: 'm.text', body: 'Lunch?' },
+      }) as unknown as MatrixEvent;
+      const { renderer } = await renderRow(event);
+      const message = () =>
+        renderer.root.find(
+          (node) =>
+            node.props.eventId === '$liked' && typeof node.props.onReactionToggle === 'function'
+        );
+      // The row's reaction slot, which the real message draws under its body.
+      const alerts = () => {
+        const slot = create(<>{message().props.reactions}</>);
+        const found = slot.root.findAll((node) => node.props.role === 'alert');
+        return found.map((node) => JSON.stringify(node.children));
+      };
+
+      await act(async () => {
+        message().props.onReactionToggle('👍');
+      });
+
+      expect(reactionMocks.toggleReaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ targetEventId: '$liked', key: '👍' })
+      );
+      expect(alerts()).toEqual([expect.stringContaining("Couldn't change your reaction")]);
+
+      act(() => {
+        vi.advanceTimersByTime(6000);
+      });
+      expect(alerts()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -220,6 +220,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "Подумал"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "Не удалось изменить вашу реакцию. Повторите попытку."
       }
     },
     "message-search": {

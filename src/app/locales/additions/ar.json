@@ -228,6 +228,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "فكّر"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "تعذر تغيير تفاعلك. حاول مرة أخرى."
       }
     },
     "message-search": {

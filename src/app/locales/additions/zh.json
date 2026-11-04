@@ -208,6 +208,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "已思考"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "无法更改你的反应，请重试。"
       }
     },
     "message-search": {

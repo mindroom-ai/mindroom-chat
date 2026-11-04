@@ -212,6 +212,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "Düşündü"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "Tepkiniz değiştirilemedi. Tekrar deneyin."
       }
     },
     "message-search": {

@@ -212,6 +212,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "Thought"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "Couldn't change your reaction. Try again."
       }
     },
     "message-search": {

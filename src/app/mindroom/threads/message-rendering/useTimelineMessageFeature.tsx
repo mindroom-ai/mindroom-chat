@@ -8,9 +8,10 @@ import React, {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Text, color } from 'folds';
 import {
   EventStatus,
-  EventType,
   MatrixEventEvent,
   RelationType,
   type MatrixClient,
@@ -65,6 +66,7 @@ import {
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
 import { isMindroomAgentUserId } from '../../matrix/agentIdentity';
 import { FailedSendActions } from '../../messages/FailedSendActions';
+import { toggleReaction as sendReactionToggle } from '../../messages/reactionToggle';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
@@ -201,58 +203,71 @@ type ReactionToggle = (
   relations?: Relations
 ) => void;
 
-/** The reaction chips under a message; renders nothing until it has reactions. */
+/** How long the note that a reaction could not be changed stays under its message. */
+const REACTION_FAILURE_MS = 6000;
+
+/**
+ * The reaction chips under a message, and a note while a change to the user's own reaction has
+ * just failed; renders nothing otherwise.
+ */
 function TimelineReactions({
   room,
   event,
   relations,
+  failed,
   onReactionToggle,
 }: {
   room: Room;
   event: MatrixEvent;
   relations: Relations | undefined;
+  failed: boolean;
   onReactionToggle: ReactionToggle;
 }) {
+  const { t } = useTranslation();
   const eventId = event.getId();
-  if (!relations || !eventId) return null;
+  if (!eventId) return null;
   return (
-    <Reactions
-      room={room}
-      mEventId={eventId}
-      targetEvent={event}
-      canSendReaction
-      relations={relations}
-      onReactionToggle={onReactionToggle}
-    />
+    <>
+      {relations && (
+        <Reactions
+          room={room}
+          mEventId={eventId}
+          targetEvent={event}
+          canSendReaction
+          relations={relations}
+          onReactionToggle={onReactionToggle}
+        />
+      )}
+      {failed && (
+        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+          {t('mindroomUi.messages.messageReactionActions.reactionFailed')}
+        </Text>
+      )}
+    </>
   );
 }
 
-/** Toggle the user's reaction `key` on `targetEventId`: redact it when present, send it otherwise. */
+/**
+ * Toggles the user's reaction `key` on `targetEventId`, and which message's reaction failed to
+ * change last, for a few seconds. A failed change is undone locally by `sendReactionToggle`.
+ */
 const useReactionToggle = (room: Room, threadId: string | undefined) => {
   const client = useMatrixClient();
-  return useCallback(
-    (targetEventId: string, key: string, shortcode: string | undefined, relations?: Relations) => {
-      const userId = client.getUserId();
-      const own = relations
-        ?.getSortedAnnotationsByKey()
-        ?.find(([annotationKey]) => annotationKey === key)?.[1];
-      const ownEvent =
-        own && [...own].find((event) => event.getSender() === userId && !event.isRedacted());
-      const ownEventId = ownEvent?.getId();
-      if (ownEventId) {
-        client.redactEvent(room.roomId, ownEventId).catch(() => undefined);
-        return;
-      }
-      const content = {
-        'm.relates_to': { rel_type: RelationType.Annotation, event_id: targetEventId, key },
-        ...(shortcode ? { shortcode } : {}),
-      };
-      client
-        .sendEvent(room.roomId, threadId ?? null, EventType.Reaction, content as never)
-        .catch(() => undefined);
+  const [failure, setFailure] = useState<{ eventId: string }>();
+  useEffect(() => {
+    if (!failure) return undefined;
+    const timer = setTimeout(() => setFailure(undefined), REACTION_FAILURE_MS);
+    return () => clearTimeout(timer);
+  }, [failure]);
+  const toggle = useCallback<ReactionToggle>(
+    (targetEventId, key, shortcode, relations) => {
+      sendReactionToggle(client, { room, threadId, targetEventId, key, shortcode, relations }).catch(
+        () => setFailure({ eventId: targetEventId })
+      );
     },
-    [client, room.roomId, threadId]
+    [client, room, threadId]
   );
+  return { toggle, failedEventId: failure?.eventId };
 };
 
 /** What the user may do with the room's events, for the actions of a message row. */
@@ -374,7 +389,10 @@ export const useTimelineMessageFeature = ({
   const userId = client.getUserId();
   const { canPinEvent, canSendRedaction, canRedactOthers } = useMessagePermissions(room, userId);
 
-  const toggleReaction = useReactionToggle(room, threadId);
+  const { toggle: toggleReaction, failedEventId: reactionFailedEventId } = useReactionToggle(
+    room,
+    threadId
+  );
   const useAuthentication = useMediaAuthentication();
   const { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview } =
     useMessageDisplaySettings();
@@ -593,6 +611,7 @@ export const useTimelineMessageFeature = ({
                     room={room}
                     event={event}
                     relations={relations}
+                    failed={reactionFailedEventId === eventId}
                     onReactionToggle={toggleReaction}
                   />
                   {threadBadge}
@@ -666,6 +685,7 @@ export const useTimelineMessageFeature = ({
       mediaAutoLoad,
       messageLayout,
       messageSpacing,
+      reactionFailedEventId,
       room,
       showThreadRepliesInRoom,
       showUrlPreview,

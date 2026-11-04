@@ -208,6 +208,9 @@
     "messages": {
       "mindroomReasoning": {
         "thought": "考えました"
+      },
+      "messageReactionActions": {
+        "reactionFailed": "反応を変更できませんでした。もう一度試してください。"
       }
     },
     "message-search": {
