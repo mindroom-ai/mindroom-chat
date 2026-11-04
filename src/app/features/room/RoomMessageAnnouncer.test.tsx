@@ -46,6 +46,30 @@ const createRoom = () => {
   return { room, receive };
 };
 
+/**
+ * An encrypted message from the agent whose decryption the test runs: until an attempt works it
+ * reads as the SDK shows a failure, a notice that it could not be decrypted.
+ */
+const lateKeyMessage = (body: string) => {
+  const event = message(AGENT, { msgtype: 'm.text', body });
+  const clear = event.getContent();
+  let state: 'pending' | 'failed' | 'decrypted' = 'pending';
+  vi.spyOn(event, 'shouldAttemptDecryption').mockImplementation(() => state === 'pending');
+  vi.spyOn(event, 'isDecryptionFailure').mockImplementation(() => state === 'failed');
+  vi.spyOn(event, 'getContent').mockImplementation(() =>
+    state === 'decrypted' ? clear : { msgtype: 'm.bad.encrypted', body: '** Unable to decrypt **' }
+  );
+  const fail = () => {
+    state = 'failed';
+  };
+  const attempt = (outcome: 'fails' | 'works') =>
+    act(() => {
+      state = outcome === 'fails' ? 'failed' : 'decrypted';
+      event.emit(MatrixEventEvent.Decrypted, event);
+    });
+  return { event, attempt, fail };
+};
+
 const logLines = (renderer: ReactTestRenderer): string[] =>
   renderer.root.findAllByType('p').map((line) => String(line.children.join('')));
 
@@ -154,6 +178,52 @@ describe('RoomMessageAnnouncer', () => {
 
     expect(logLines(view)).toEqual(['Code: Decrypted later']);
     expect(pending.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('reads a message whose first decryption fails once its key arrives, not the failure', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+    const late = lateKeyMessage('Key came later');
+    receive(late.event);
+
+    late.attempt('fails');
+    expect(logLines(view)).toEqual([]);
+
+    late.attempt('works');
+    expect(logLines(view)).toEqual(['Code: Key came later']);
+    expect(late.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('reads a message that arrives with its decryption already failed once its key arrives', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+    const late = lateKeyMessage('Forwarded key');
+    late.fail();
+    receive(late.event);
+    expect(logLines(view)).toEqual([]);
+
+    late.attempt('works');
+    expect(logLines(view)).toEqual(['Code: Forwarded key']);
+  });
+
+  it('stops waiting for a key that comes too late to be news', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, receive } = createRoom();
+      const view = render(room);
+      const late = lateKeyMessage('Old news');
+      receive(late.event);
+
+      act(() => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      late.attempt('works');
+
+      expect(logLines(view)).toEqual([]);
+      expect(late.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('cuts long messages', () => {

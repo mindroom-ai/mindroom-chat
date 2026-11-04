@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import {
   EventType,
   MatrixEvent,
-  MatrixEventEvent,
   RelationType,
   RoomEvent,
   type IRoomTimelineData,
   type Room,
 } from 'matrix-js-sdk';
+import { createDecryptionWaits, isAwaitingDecryption } from '../../mindroom/matrix/decryptionWaits';
 import { isMindroomAiRunStreaming } from '../../mindroom/messages/aiRun';
 import { readCanvasNoticeTitle } from '../../mindroom/ui-actions/chatUiProtocol';
 import { matchesEnum } from '../../utils/matchesEnum';
@@ -19,6 +19,8 @@ const KEPT = 5;
 const MAX_BODY = 200;
 /** Events this much older than the room view are history arriving late, not new messages. */
 const STALE_MS = 10_000;
+/** A message whose room key comes this long after it was sent is no longer read out. */
+const KEY_WAIT_MS = 2 * 60_000;
 
 const THREAD_SUMMARY_KEY = 'io.mindroom.thread_summary';
 
@@ -132,17 +134,9 @@ export function RoomMessageAnnouncer({
       announce(event, shownContent(event));
     };
 
-    /** Messages still encrypted, with the handler that reads each once it decrypts. */
-    const awaitingDecryption = new Map<MatrixEvent, () => void>();
-    const considerOnceDecrypted = (event: MatrixEvent) => {
-      if (awaitingDecryption.has(event)) return;
-      const onDecrypted = () => {
-        awaitingDecryption.delete(event);
-        consider(event);
-      };
-      awaitingDecryption.set(event, onDecrypted);
-      event.once(MatrixEventEvent.Decrypted, onDecrypted);
-    };
+    // A message still encrypted is read once a decryption works: the first attempt can fail and
+    // the SDK tries again when the key comes, and an event can arrive already failed.
+    const decryptions = createDecryptionWaits();
 
     const onTimeline = (
       event: MatrixEvent,
@@ -152,8 +146,8 @@ export function RoomMessageAnnouncer({
       data: IRoomTimelineData
     ) => {
       if (toStartOfTimeline || !data?.liveEvent) return;
-      if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-        considerOnceDecrypted(event);
+      if (isAwaitingDecryption(event)) {
+        decryptions.wait(event, KEY_WAIT_MS - (Date.now() - event.getTs()), () => consider(event));
         return;
       }
       consider(event);
@@ -163,10 +157,7 @@ export function RoomMessageAnnouncer({
     return () => {
       room.removeListener(RoomEvent.Timeline, onTimeline);
       // A message that decrypts after the reader moved on belongs to the view they left.
-      awaitingDecryption.forEach((onDecrypted, event) =>
-        event.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
-      );
-      awaitingDecryption.clear();
+      decryptions.stop();
     };
   }, [room, threadId, myUserId]);
 
