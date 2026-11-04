@@ -6,10 +6,19 @@ import { SettingTile } from '../../../components/setting-tile';
 import { useStateEventCallback } from '../../../hooks/useStateEventCallback';
 import { useForceUpdate } from '../../../hooks/useForceUpdate';
 import { copyToClipboard } from '../../../utils/dom';
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { type JsonEventDraft, JsonEventEditor, type JsonEventKind } from './JsonEventEditor';
 import { SettingsCard } from '../../settings/SettingsCard';
 import { SettingsPageFrame } from '../../settings/SettingsPageFrame';
 
 const TOOLS = 'featureUi.commonSettings.developerTools.developTools';
+const EDITOR = 'featureUi.commonSettings.developerTools.stateEventEditor';
+
+/** What the page's editor is writing, if anything. */
+type Editing = {
+  kind: JsonEventKind;
+  initial?: { type: string; stateKey?: string; content: object };
+};
 
 const JSON_STYLE = {
   margin: 0,
@@ -38,11 +47,15 @@ const useRoomStateByType = (room: Room): Array<[string, MatrixEvent[]]> => {
     .sort(([a], [b]) => a.localeCompare(b));
 };
 
-/** A chip per entry that unfolds its JSON below, one at a time. */
+type JsonEntry = { id: string; label: string; content: object };
+
+/** A chip per entry that unfolds its JSON below, one at a time, with Edit when it may change. */
 function JsonChips({
   entries,
+  onEdit,
 }: {
-  entries: Array<{ id: string; label: string; content: object }>;
+  entries: JsonEntry[];
+  onEdit?: (entry: JsonEntry) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState<string>();
@@ -72,15 +85,48 @@ function JsonChips({
           {JSON.stringify(shown.content, null, 2)}
         </Text>
       )}
+      {shown && onEdit && (
+        <Box>
+          <Button
+            size="300"
+            radii="300"
+            variant="Secondary"
+            fill="Soft"
+            onClick={() => onEdit(shown)}
+          >
+            <Text size="B300">{t(`${EDITOR}.edit`)}</Text>
+          </Button>
+        </Box>
+      )}
     </>
   );
 }
 
-/** One state event type: its count, and its events by state key. */
-function StateTypeTile({ type, events }: { type: string; events: MatrixEvent[] }) {
+/** One state event type: its count, and its events by state key, each editable. */
+function StateTypeTile({
+  type,
+  events,
+  onEdit,
+}: {
+  type: string;
+  events: MatrixEvent[];
+  onEdit: (editing: Editing) => void;
+}) {
   return (
     <SettingTile title={type} description={String(events.length)}>
       <JsonChips
+        onEdit={(entry) =>
+          onEdit({
+            kind: 'state',
+            initial: {
+              type,
+              stateKey: entry.id,
+              content:
+                events.find((event) => (event.getStateKey() ?? '') === entry.id)?.getContent() ??
+                {},
+            },
+          })
+        }
         entries={events.map((event) => {
           const stateKey = event.getStateKey() ?? '';
           return {
@@ -106,7 +152,20 @@ const useRoomAccountData = (room: Room): MatrixEvent[] => {
   return [...room.accountData.values()].sort((a, b) => a.getType().localeCompare(b.getType()));
 };
 
-/** Read-only room internals for developers: the room ID, its state and its account data. */
+/** A small soft button beside a section's title. */
+function SideButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={onClick}>
+      <Text size="B300">{label}</Text>
+    </Button>
+  );
+}
+
+/**
+ * Room internals for developers: the room ID; a raw message event to compose and send; the room
+ * state, each event editable and new ones addable; and this account's room data, editable too.
+ * The server checks power levels, and its refusals show in the editor.
+ */
 export function RoomDeveloperToolsPage({
   room,
   requestClose,
@@ -115,10 +174,34 @@ export function RoomDeveloperToolsPage({
   requestClose: () => void;
 }) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState<Editing>();
   const state = useRoomStateByType(room);
   const accountData = useRoomAccountData(room);
   const total = state.reduce((sum, [, events]) => sum + events.length, 0);
+  const done = () => setEditing(undefined);
+
+  const write = ({ type, stateKey, content }: JsonEventDraft) => {
+    if (editing?.kind === 'message') {
+      return client.sendEvent(room.roomId, type as never, content as never);
+    }
+    if (editing?.kind === 'state') {
+      return client.sendStateEvent(room.roomId, type as never, content as never, stateKey);
+    }
+    return client.setRoomAccountData(room.roomId, type as never, content as never);
+  };
+
+  const editor = (kind: JsonEventKind) =>
+    editing?.kind === kind && (
+      <JsonEventEditor
+        key={`${editing.initial?.type ?? ''}:${editing.initial?.stateKey ?? ''}`}
+        kind={kind}
+        initial={editing.initial}
+        onSubmit={write}
+        onDone={done}
+      />
+    );
 
   return (
     <SettingsPageFrame title={t(`${TOOLS}.developerTools`)} requestClose={requestClose}>
@@ -142,14 +225,41 @@ export function RoomDeveloperToolsPage({
         />
       </SettingsCard>
       <Box direction="Column" gap="100">
+        <Text size="L400">{t(`${TOOLS}.data`)}</Text>
+        <SettingsCard>
+          <SettingTile
+            title={t(`${TOOLS}.newMessageEvent`)}
+            description={t(`${TOOLS}.createAndSendANewMessageEvent`)}
+            after={
+              editing?.kind !== 'message' && (
+                <SideButton
+                  label={t(`${TOOLS}.compose`)}
+                  onClick={() => setEditing({ kind: 'message' })}
+                />
+              )
+            }
+          />
+          {editor('message')}
+        </SettingsCard>
+      </Box>
+      <Box direction="Column" gap="100">
         <Text size="L400">{t(`${TOOLS}.roomState`)}</Text>
         <SettingsCard>
           <SettingTile
             title={t(`${TOOLS}.stateEventsOfTheRoom`)}
             description={t(`${TOOLS}.total`, { count: total })}
+            after={
+              editing?.kind !== 'state' && (
+                <SideButton
+                  label={t(`${TOOLS}.addNew`)}
+                  onClick={() => setEditing({ kind: 'state' })}
+                />
+              )
+            }
           />
+          {editor('state')}
           {state.map(([type, events]) => (
-            <StateTypeTile key={type} type={type} events={events} />
+            <StateTypeTile key={type} type={type} events={events} onEdit={setEditing} />
           ))}
         </SettingsCard>
       </Box>
@@ -159,11 +269,25 @@ export function RoomDeveloperToolsPage({
           <SettingTile
             title={t(`${TOOLS}.accountData`)}
             description={t(`${TOOLS}.privatePersonalizationDataStoredWithinRoom`)}
+            after={
+              editing?.kind !== 'accountData' && (
+                <SideButton
+                  label={t(`${TOOLS}.addNew`)}
+                  onClick={() => setEditing({ kind: 'accountData' })}
+                />
+              )
+            }
           >
             <Text size="T200" priority="300">
               {t(`${TOOLS}.total`, { count: accountData.length })}
             </Text>
             <JsonChips
+              onEdit={(entry) =>
+                setEditing({
+                  kind: 'accountData',
+                  initial: { type: entry.id, content: entry.content },
+                })
+              }
               entries={accountData.map((event) => ({
                 id: event.getType(),
                 label: event.getType(),
@@ -171,6 +295,7 @@ export function RoomDeveloperToolsPage({
               }))}
             />
           </SettingTile>
+          {editor('accountData')}
         </SettingsCard>
       </Box>
     </SettingsPageFrame>
