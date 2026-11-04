@@ -1,0 +1,220 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "スクロール"
+    },
+    "passwordInput": {
+      "show": "パスワードを表示",
+      "hide": "パスワードを隠す"
+    },
+    "pdfViewer": {
+      "close": "閉じる"
+    },
+    "urlPreviewHolder": {
+      "previous": "前のリンクプレビュー",
+      "next": "その他のリンクプレビュー"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "名前",
+      "cancel": "キャンセル",
+      "skinTone": "肌の色",
+      "skinTones": {
+        "default": "デフォルトの肌の色",
+        "light": "明るい肌の色",
+        "mediumLight": "やや明るい肌の色",
+        "medium": "中間の肌の色",
+        "mediumDark": "やや暗い肌の色",
+        "dark": "暗い肌の色"
+      }
+    },
+    "eventReaders": {
+      "close": "閉じる"
+    },
+    "imagePackContent": {
+      "uploadFailed": "画像をアップロードできませんでした。もう一度試してください。",
+      "noImages": "画像はまだありません。"
+    },
+    "imagePackView": {
+      "close": "閉じる",
+      "back": "戻る"
+    },
+    "imageTile": {
+      "remove": "削除",
+      "editImage": ":{{shortcode}}: を編集",
+      "removeImage": ":{{shortcode}}: を削除",
+      "keepImage": ":{{shortcode}}: を残す",
+      "removedOnApply": "変更を適用すると削除されます",
+      "usage": "用途",
+      "shortcodeTaken": "このショートコードは別の画像で使われています。",
+      "shortcodeInvalid": "ショートコードにはスペースやコロンを使えません。"
+    },
+    "imageUsageOption": {
+      "pack": "パックと同じ"
+    },
+    "imageViewer": {
+      "close": "閉じる"
+    },
+    "inviteUserPrompt": {
+      "close": "閉じる"
+    },
+    "joinAddressPrompt": {
+      "close": "閉じる"
+    },
+    "textViewer": {
+      "close": "閉じる"
+    },
+    "invites": {
+      "actionFailed": "問題が発生しました。もう一度試してください。"
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "ユーザーを検索するか、ユーザー ID を入力"
+    },
+    "leaveRoomPrompt": {
+      "close": "閉じる",
+      "forget": "このルームを忘れる",
+      "forgetDescription": "履歴を含めてアカウントからも削除します。ルームが許可していれば、後で再び参加できます。"
+    },
+    "memberFilters": {
+      "label": "メンバーを表示"
+    },
+    "memberSort": {
+      "label": "メンバーを並べ替え"
+    },
+    "a11y": {
+      "mainNavigation": "メインナビゲーション",
+      "skipToContent": "コンテンツへスキップ",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "ルームを忘れる"
+    },
+    "userRoomProfile": {
+      "editProfile": "プロフィールを編集"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} を削除"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "イベントに種類を指定し、内容には JSON オブジェクトを入力してください。"
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "パーソナルパック",
+          "imageCount_other": "{{count}} 枚の画像、すべてのルームで使えます"
+        }
+      },
+      "devices": {
+        "loadFailed": "デバイスを読み込めませんでした。"
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "ブロックを解除"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "削除"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "チャットを開始できませんでした。もう一度試してください。"
+    },
+    "homeNav": {
+      "options": "ホームのオプション"
+    },
+    "directNav": {
+      "options": "ダイレクトメッセージのオプション"
+    },
+    "spaceNav": {
+      "options": "スペースのオプション"
+    },
+    "calls": {
+      "panel": {
+        "title": "通話",
+        "close": "通話パネルを閉じる",
+        "participants": "通話中の人",
+        "connecting": "接続中…",
+        "reconnecting": "再接続中…",
+        "ended": "通話が終了しました。",
+        "waitingFor": "{{name}} を待っています…",
+        "you": "{{name}}（あなた）",
+        "microphoneOff": "マイクオフ",
+        "inCall_other": "通話中 {{count}} 人",
+        "startCall": "通話を開始",
+        "startVideoCall": "ビデオ通話を開始",
+        "dismiss": "閉じる",
+        "audioBlocked": "ブラウザーが通話の音声を一時停止しました。",
+        "playSound": "音声を再生",
+        "resize": "通話パネルのサイズを変更"
+      },
+      "problems": {
+        "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
+        "connection": "通話の接続が切れました。",
+        "device": "マイクまたはカメラを使用できませんでした。"
+      },
+      "devices": {
+        "title": "デバイス",
+        "microphone": "マイク",
+        "camera": "カメラ",
+        "speaker": "スピーカー",
+        "systemDefault": "システムのデフォルト",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "通話を開始",
+        "joinCall": "通話に参加",
+        "joinCallCount_other": "通話に参加（{{count}} 人が参加中）",
+        "showCall": "通話を表示",
+        "hideCall": "通話を非表示"
+      },
+      "rail": {
+        "returnToCall": "{{room}} の通話に戻る"
+      },
+      "incoming": {
+        "calling": "{{name}} から着信中",
+        "callingIn": "{{room}} で {{name}} から着信中",
+        "videoCall": "ビデオ通話",
+        "voiceCall": "音声通話"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "考えました"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "検索に失敗しました。もう一度試してください。"
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "招待",
+        "body_other": "新しい招待が {{count}} 件あります。"
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "コンパクト表示"
+      }
+    },
+    "computer": {
+      "resize": "コンピューターパネルのサイズを変更",
+      "close": "コンピューターを閉じる"
+    }
+  },
+  "composer": {
+    "emoji": "絵文字",
+    "cancelReply": "返信をキャンセル"
+  }
+}
