@@ -190,6 +190,10 @@
         "callingIn": "{{name}} {{room}} में कॉल कर रहे हैं",
         "videoCall": "वीडियो कॉल",
         "voiceCall": "वॉइस कॉल"
+      },
+      "access": {
+        "membersCannotJoin": "इस रूम के सदस्य इसकी कॉल में शामिल नहीं हो सकते।",
+        "allowMembers": "सदस्यों को शामिल होने दें"
       }
     }
   },

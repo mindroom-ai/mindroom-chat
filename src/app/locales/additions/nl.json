@@ -190,6 +190,10 @@
         "callingIn": "{{name}} belt in {{room}}",
         "videoCall": "Video-oproep",
         "voiceCall": "Spraakoproep"
+      },
+      "access": {
+        "membersCannotJoin": "Leden van deze ruimte kunnen niet aan de gesprekken deelnemen.",
+        "allowMembers": "Leden laten deelnemen"
       }
     }
   },

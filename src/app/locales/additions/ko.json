@@ -186,6 +186,10 @@
         "callingIn": "{{room}}에서 {{name}} 님의 전화",
         "videoCall": "영상 통화",
         "voiceCall": "음성 통화"
+      },
+      "access": {
+        "membersCannotJoin": "이 방의 멤버는 통화에 참여할 수 없습니다.",
+        "allowMembers": "멤버 참여 허용"
       }
     }
   },

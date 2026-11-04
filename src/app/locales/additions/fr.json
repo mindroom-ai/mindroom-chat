@@ -194,6 +194,10 @@
         "callingIn": "{{name}} appelle dans {{room}}",
         "videoCall": "Appel vidéo",
         "voiceCall": "Appel vocal"
+      },
+      "access": {
+        "membersCannotJoin": "Les membres de ce salon ne peuvent pas rejoindre ses appels.",
+        "allowMembers": "Autoriser les membres"
       }
     }
   },

@@ -190,6 +190,10 @@
         "callingIn": "{{name}} {{room}}-এ কল করছেন",
         "videoCall": "ভিডিও কল",
         "voiceCall": "ভয়েস কল"
+      },
+      "access": {
+        "membersCannotJoin": "এই রুমের সদস্যরা এর কলে যোগ দিতে পারেন না।",
+        "allowMembers": "সদস্যদের যোগ দিতে দিন"
       }
     }
   },

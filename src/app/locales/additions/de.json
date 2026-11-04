@@ -190,6 +190,10 @@
         "callingIn": "{{name}} ruft in {{room}} an",
         "videoCall": "Videoanruf",
         "voiceCall": "Sprachanruf"
+      },
+      "access": {
+        "membersCannotJoin": "Mitglieder dieses Raums können seinen Anrufen nicht beitreten.",
+        "allowMembers": "Mitglieder beitreten lassen"
       }
     }
   },

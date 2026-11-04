@@ -194,6 +194,10 @@
         "callingIn": "{{name}} está llamando en {{room}}",
         "videoCall": "Videollamada",
         "voiceCall": "Llamada de voz"
+      },
+      "access": {
+        "membersCannotJoin": "Los miembros de esta sala no pueden unirse a sus llamadas.",
+        "allowMembers": "Permitir que se unan"
       }
     }
   },

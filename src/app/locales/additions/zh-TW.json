@@ -186,6 +186,10 @@
         "callingIn": "{{name}} 在 {{room}} 中發起通話",
         "videoCall": "視訊通話",
         "voiceCall": "語音通話"
+      },
+      "access": {
+        "membersCannotJoin": "此聊天室的成員無法加入其中的通話。",
+        "allowMembers": "允許成員加入"
       }
     }
   },

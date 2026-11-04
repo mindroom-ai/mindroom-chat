@@ -190,6 +190,10 @@
         "callingIn": "{{name}} is calling in {{room}}",
         "videoCall": "Video call",
         "voiceCall": "Voice call"
+      },
+      "access": {
+        "membersCannotJoin": "Members of this room can't join its calls.",
+        "allowMembers": "Let members join"
       }
     }
   },

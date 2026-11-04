@@ -186,6 +186,10 @@
         "callingIn": "{{name}} menelepon di {{room}}",
         "videoCall": "Panggilan video",
         "voiceCall": "Panggilan suara"
+      },
+      "access": {
+        "membersCannotJoin": "Anggota ruangan ini tidak bisa bergabung ke panggilannya.",
+        "allowMembers": "Izinkan anggota bergabung"
       }
     }
   },

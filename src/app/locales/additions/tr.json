@@ -190,6 +190,10 @@
         "callingIn": "{{name}}, {{room}} içinde arıyor",
         "videoCall": "Görüntülü arama",
         "voiceCall": "Sesli arama"
+      },
+      "access": {
+        "membersCannotJoin": "Bu odanın üyeleri odanın aramalarına katılamıyor.",
+        "allowMembers": "Üyelerin katılmasına izin ver"
       }
     }
   },

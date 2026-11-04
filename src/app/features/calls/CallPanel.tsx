@@ -1,14 +1,13 @@
 import React, { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import classNames from 'classnames';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { mDirectAtom } from '../../state/mDirectList';
-import { StateEvent } from '../../../types/matrix/room';
 import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice';
 import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
 import type { CallDevices, CallProblem, CallState } from './RoomCall';
@@ -22,16 +21,16 @@ import {
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { browserSupportsCalls, useCallSupport } from './callSupport';
+import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, CallTile } from './CallTile';
 import * as css from './CallPanel.css';
 
 /** Members need power to publish their call membership (`org.matrix.msc3401.call.member`). */
-const useCanJoinCall = (mx: MatrixClient, room: Room): boolean => {
+const useCallAccess = (mx: MatrixClient, room: Room): CallAccess => {
   // Re-read when the room's power levels change.
   usePowerLevelsContext();
-  const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-  return !!state?.maySendStateEvent(StateEvent.GroupCallMemberPrefix as string, mx.getSafeUserId());
+  return readCallAccess(room, mx.getSafeUserId());
 };
 
 function Notice({
@@ -98,6 +97,46 @@ function PanelShell(props: PanelShellProps) {
   );
 }
 
+/**
+ * For those who may change it: members of the room cannot join its calls (rooms made with the
+ * `private_chat` preset keep call membership at the moderator level), and one click lets them.
+ */
+function MembersCannotCallNotice({ room }: { room: Room }) {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const allow = () => {
+    setSaving(true);
+    setFailed(false);
+    allowMembersToCall(mx, room)
+      .catch(() => setFailed(true))
+      .finally(() => setSaving(false));
+  };
+  return (
+    <Notice
+      action={
+        <Button
+          size="300"
+          radii="300"
+          variant="Warning"
+          fill="Solid"
+          disabled={saving}
+          onClick={allow}
+        >
+          <Text size="B300">{t('featureUi.calls.access.allowMembers')}</Text>
+        </Button>
+      }
+    >
+      {failed
+        ? t(
+            'featureUi.commonSettings.permissions.permissionGroups.failedToApplyChangesPleaseTryAgain'
+          )
+        : t('featureUi.calls.access.membersCannotJoin')}
+    </Notice>
+  );
+}
+
 const PROBLEM_KEYS = {
   browser: 'featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich',
   homeserver: 'featureUi.call.callView.yourHomeserverDoesNotSupportCalling',
@@ -135,6 +174,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, failure);
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
+  const access = useCallAccess(mx, call.room);
 
   const controls = finished ? (
     <div className={css.Controls}>
@@ -229,6 +269,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           {t('featureUi.calls.panel.audioBlocked')}
         </Notice>
       )}
+      {!finished && !agentCall && access.canAllow && access.blocked.length > 0 && (
+        <MembersCannotCallNotice room={call.room} />
+      )}
       {!finished && (
         <ul className={css.Tiles} aria-label={t('featureUi.calls.panel.participants')}>
           {state.participants.map((participant) => (
@@ -249,7 +292,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const members = useRoomCallMembers(mx, room);
   const people = callUserIds(members);
   const support = useCallSupport(mx);
-  const canJoin = useCanJoinCall(mx, room);
+  const access = useCallAccess(mx, room);
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   const { startCall } = useCallActions(mx);
   const [microphone, setMicrophone] = useState(true);
@@ -265,7 +308,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   else if (!supported && support === 'unsupported') {
     blocker = t('featureUi.call.callView.yourHomeserverDoesNotSupportCalling');
   } else if (active) blocker = t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent');
-  else if (!canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
+  else if (!access.canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
 
   const join = () => {
     setJoining(true);
@@ -309,6 +352,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
             ? t('featureUi.calls.panel.inCall', { count: people.length })
             : t('featureUi.call.callView.voiceChatSEmptyBeTheFirst')}
         </Text>
+        {!blocker && access.canAllow && access.blocked.length > 0 && (
+          <MembersCannotCallNotice room={room} />
+        )}
         {blocker ? (
           <Notice>{blocker}</Notice>
         ) : (
