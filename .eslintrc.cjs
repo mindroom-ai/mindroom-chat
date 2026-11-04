@@ -93,6 +93,7 @@ const SAFE_AREA = '/safe-area-inset-(left|right)/';
 // Positions that take keywords (`transform-origin: left top`, `background-position: right`).
 const POSITION_NAME = String.raw`/^(transformOrigin|transform-origin|backgroundPosition|background-position|backgroundPositionX|background-position-x|objectPosition|object-position|perspectiveOrigin|perspective-origin|maskPosition|mask-position)$/`;
 const NAMES_SIDE = String.raw`/\b(left|right)\b/`;
+const HAS_SIDE_KEYWORD = `:matches(:has(Literal[value=${NAMES_SIDE}]), :has(TemplateElement[value.raw=${NAMES_SIDE}]))`;
 const RADIUS_NAME = String.raw`/^(borderRadius|border-radius)$/`;
 // A property of an object literal (not of a destructuring pattern) with a key that matches; keys
 // may be identifiers or strings.
@@ -161,7 +162,7 @@ const LOGICAL_SIDES = [
     message: RADIUS_MESSAGE,
   },
   {
-    selector: `${styleProperty(POSITION_NAME)}:matches(:has(Literal[value=${NAMES_SIDE}]), :has(TemplateElement[value.raw=${NAMES_SIDE}]))`,
+    selector: `${styleProperty(POSITION_NAME)}${HAS_SIDE_KEYWORD}`,
     message: POSITION_KEYWORD_MESSAGE,
   },
   {
