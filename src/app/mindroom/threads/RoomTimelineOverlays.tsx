@@ -170,9 +170,16 @@ export function ExpandAllLine(props: ExpandAllProps) {
 }
 
 /**
+ * Holds a thread's banner. The banner ends 20 px before the scroll area's content edge (its own
+ * 12 px margin plus this 8), so the message times reach a little past its end, as in the
+ * original.
+ */
+export const threadBannerSlotStyle: CSSProperties = { paddingInlineEnd: config.space.S200 };
+
+/**
  * Under a thread's banner the toggle hangs in the gap above the first row, 12 px below the
  * banner's edge (the banner's own 8 px margin plus 4), and ends above the first row, which a
- * reader at the top sees unobstructed.
+ * reader at the top sees unobstructed. Its end is 4 px inside the banner's.
  */
 export function BannerExpandAllToggle(props: ExpandAllProps) {
   return (
@@ -182,7 +189,7 @@ export function BannerExpandAllToggle(props: ExpandAllProps) {
       style={{
         position: 'absolute',
         top: config.space.S100,
-        insetInlineEnd: config.space.S500,
+        insetInlineEnd: config.space.S600,
         display: 'flex',
       }}
     >

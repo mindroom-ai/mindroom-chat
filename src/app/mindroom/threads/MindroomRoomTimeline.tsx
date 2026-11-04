@@ -150,6 +150,7 @@ import {
   ThreadLoadingLines,
   footerProbeStyle,
   roomViewStyleUnder,
+  threadBannerSlotStyle,
   threadViewStyle,
 } from './RoomTimelineOverlays';
 
@@ -1298,7 +1299,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >
-                  {threadHeader}
+                  <div style={threadBannerSlotStyle}>{threadHeader}</div>
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.threadLeadingRef}>
