@@ -103,6 +103,9 @@
     "commands": {
       "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan",
       "CommandHtml": "Kirim pesan sebagai HTML, tanpa Markdown. Contoh: /html pesan"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Proses masuk ini tidak dimulai di sini, jadi tidak digunakan. Masuk lagi."
     }
   },
   "featureUi": {
@@ -176,7 +179,8 @@
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
         "connection": "Koneksi panggilan terputus.",
-        "device": "Mikrofon atau kamera Anda tidak dapat digunakan."
+        "device": "Mikrofon atau kamera Anda tidak dapat digunakan.",
+        "untrustedService": "Panggilan ini berjalan di layanan panggilan yang tidak disediakan homeserver Anda, jadi Anda tidak dapat bergabung dari sini."
       },
       "devices": {
         "title": "Perangkat",

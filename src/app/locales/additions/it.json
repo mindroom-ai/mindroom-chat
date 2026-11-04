@@ -105,6 +105,9 @@
     "commands": {
       "CommandPlain": "Invia un messaggio come testo semplice, senza Markdown. Esempio: /plain messaggio",
       "CommandHtml": "Invia un messaggio come HTML, senza Markdown. Esempio: /html messaggio"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Questo accesso non è stato avviato qui, quindi non è stato usato. Accedi di nuovo."
     }
   },
   "featureUi": {
@@ -182,7 +185,8 @@
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
         "connection": "La connessione della chiamata si è interrotta.",
-        "device": "Impossibile usare il microfono o la fotocamera."
+        "device": "Impossibile usare il microfono o la fotocamera.",
+        "untrustedService": "Questa chiamata usa un servizio di chiamata che il tuo homeserver non offre, quindi non puoi partecipare da qui."
       },
       "devices": {
         "title": "Dispositivi",

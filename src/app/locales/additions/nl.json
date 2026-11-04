@@ -104,6 +104,9 @@
     "commands": {
       "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht",
       "CommandHtml": "Stuur een bericht als HTML, zonder Markdown. Voorbeeld: /html bericht"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Deze aanmelding is hier niet gestart en is daarom niet gebruikt. Meld je opnieuw aan."
     }
   },
   "featureUi": {
@@ -179,7 +182,8 @@
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
         "connection": "De verbinding van de oproep is verbroken.",
-        "device": "Je microfoon of camera kon niet worden gebruikt."
+        "device": "Je microfoon of camera kon niet worden gebruikt.",
+        "untrustedService": "Deze oproep loopt via een oproepdienst die je homeserver niet aanbiedt, dus je kunt hier niet deelnemen."
       },
       "devices": {
         "title": "Apparaten",

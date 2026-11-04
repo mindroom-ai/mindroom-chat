@@ -104,6 +104,9 @@
     "commands": {
       "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht",
       "CommandHtml": "Nachricht als HTML ohne Markdown senden. Beispiel: /html Nachricht"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Diese Anmeldung wurde nicht hier gestartet und deshalb nicht verwendet. Melde dich erneut an."
     }
   },
   "featureUi": {
@@ -179,7 +182,8 @@
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",
         "connection": "Die Verbindung zum Anruf ist abgebrochen.",
-        "device": "Dein Mikrofon oder deine Kamera konnte nicht verwendet werden."
+        "device": "Dein Mikrofon oder deine Kamera konnte nicht verwendet werden.",
+        "untrustedService": "Dieser Anruf läuft über einen Anrufdienst, den dein Homeserver nicht anbietet. Du kannst ihm deshalb hier nicht beitreten."
       },
       "devices": {
         "title": "Geräte",

@@ -104,6 +104,9 @@
     "commands": {
       "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
       "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
     }
   },
   "featureUi": {
@@ -179,7 +182,8 @@
       "problems": {
         "service": "The call service could not be reached. Try again later.",
         "connection": "The call's connection was lost.",
-        "device": "Your microphone or camera could not be used."
+        "device": "Your microphone or camera could not be used.",
+        "untrustedService": "This call runs on a call service your homeserver does not offer, so you cannot join it here."
       },
       "devices": {
         "title": "Devices",

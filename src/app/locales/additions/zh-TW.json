@@ -103,6 +103,9 @@
     "commands": {
       "CommandPlain": "以純文字傳送訊息，不使用 Markdown。範例：/plain message",
       "CommandHtml": "以 HTML 傳送訊息，不使用 Markdown。範例：/html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "此登入不是從這裡發起的，因此未被使用。請重新登入。"
     }
   },
   "featureUi": {
@@ -176,7 +179,8 @@
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
         "connection": "通話連線已中斷。",
-        "device": "無法使用您的麥克風或攝影機。"
+        "device": "無法使用您的麥克風或攝影機。",
+        "untrustedService": "此通話使用的通話服務並非由您的主伺服器提供，因此無法從這裡加入。"
       },
       "devices": {
         "title": "裝置",

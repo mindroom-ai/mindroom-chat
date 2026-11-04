@@ -103,6 +103,9 @@
     "commands": {
       "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message",
       "CommandHtml": "Markdown を使わずに HTML としてメッセージを送信します。例: /html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "このサインインはここで開始されていないため、使用されませんでした。もう一度サインインしてください。"
     }
   },
   "featureUi": {
@@ -176,7 +179,8 @@
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
         "connection": "通話の接続が切れました。",
-        "device": "マイクまたはカメラを使用できませんでした。"
+        "device": "マイクまたはカメラを使用できませんでした。",
+        "untrustedService": "この通話はホームサーバーが提供していない通話サービスで行われているため、ここからは参加できません。"
       },
       "devices": {
         "title": "デバイス",

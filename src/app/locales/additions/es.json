@@ -105,6 +105,9 @@
     "commands": {
       "CommandPlain": "Enviar un mensaje como texto sin formato, sin Markdown. Ejemplo: /plain mensaje",
       "CommandHtml": "Enviar un mensaje como HTML, sin Markdown. Ejemplo: /html mensaje"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Este inicio de sesión no empezó aquí, así que no se usó. Vuelve a iniciar sesión."
     }
   },
   "featureUi": {
@@ -182,7 +185,8 @@
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
         "connection": "Se perdió la conexión de la llamada.",
-        "device": "No se pudo usar tu micrófono o tu cámara."
+        "device": "No se pudo usar tu micrófono o tu cámara.",
+        "untrustedService": "Esta llamada usa un servicio de llamadas que tu servidor no ofrece, así que no puedes unirte desde aquí."
       },
       "devices": {
         "title": "Dispositivos",

@@ -103,6 +103,9 @@
     "commands": {
       "CommandPlain": "以纯文本发送消息，不使用 Markdown。示例：/plain message",
       "CommandHtml": "以 HTML 发送消息，不使用 Markdown。示例：/html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "此登录不是从这里发起的，因此未被使用。请重新登录。"
     }
   },
   "featureUi": {
@@ -176,7 +179,8 @@
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
         "connection": "通话连接已断开。",
-        "device": "无法使用您的麦克风或摄像头。"
+        "device": "无法使用您的麦克风或摄像头。",
+        "untrustedService": "此通话使用的通话服务并非由您的主服务器提供，因此无法从这里加入。"
       },
       "devices": {
         "title": "设备",

@@ -104,6 +104,9 @@
     "commands": {
       "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj",
       "CommandHtml": "Mesajı Markdown olmadan HTML olarak gönder. Örnek: /html mesaj"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Bu oturum açma işlemi burada başlatılmadı, bu yüzden kullanılmadı. Yeniden oturum açın."
     }
   },
   "featureUi": {
@@ -179,7 +182,8 @@
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
         "connection": "Aramanın bağlantısı koptu.",
-        "device": "Mikrofonunuz veya kameranız kullanılamadı."
+        "device": "Mikrofonunuz veya kameranız kullanılamadı.",
+        "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız."
       },
       "devices": {
         "title": "Cihazlar",

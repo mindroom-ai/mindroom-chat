@@ -105,6 +105,9 @@
     "commands": {
       "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message",
       "CommandHtml": "Envoyer un message en HTML, sans Markdown. Exemple : /html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "Cette connexion n’a pas été lancée ici, elle n’a donc pas été utilisée. Reconnectez-vous."
     }
   },
   "featureUi": {
@@ -182,7 +185,8 @@
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
         "connection": "La connexion de l’appel a été perdue.",
-        "device": "Impossible d’utiliser votre micro ou votre caméra."
+        "device": "Impossible d’utiliser votre micro ou votre caméra.",
+        "untrustedService": "Cet appel passe par un service d’appel que votre serveur d’accueil ne propose pas, vous ne pouvez donc pas le rejoindre ici."
       },
       "devices": {
         "title": "Appareils",

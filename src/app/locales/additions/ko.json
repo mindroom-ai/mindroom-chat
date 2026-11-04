@@ -103,6 +103,9 @@
     "commands": {
       "CommandPlain": "Markdown 없이 일반 텍스트로 메시지를 보냅니다. 예: /plain message",
       "CommandHtml": "Markdown 없이 HTML로 메시지를 보냅니다. 예: /html message"
+    },
+    "tokenLogin": {
+      "signInNotStartedHere": "이 로그인은 여기에서 시작되지 않아 사용되지 않았습니다. 다시 로그인하세요."
     }
   },
   "featureUi": {
@@ -176,7 +179,8 @@
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
         "connection": "통화 연결이 끊어졌습니다.",
-        "device": "마이크 또는 카메라를 사용할 수 없습니다."
+        "device": "마이크 또는 카메라를 사용할 수 없습니다.",
+        "untrustedService": "이 통화는 홈서버가 제공하지 않는 통화 서비스에서 진행되므로 여기에서 참여할 수 없습니다."
       },
       "devices": {
         "title": "기기",
