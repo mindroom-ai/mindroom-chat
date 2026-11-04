@@ -17,7 +17,7 @@ import {
 } from 'folds';
 import classNames from 'classnames';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import type { IImageInfo } from '../../../../types/matrix/common';
+import type { IEncryptedFile, IImageInfo } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Modal } from '../../glass/GlassPrimitives';
 import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
@@ -113,6 +113,58 @@ type ImageContentProps = {
   renderViewer: (props: RenderImageViewerProps) => ReactNode;
 };
 
+type ImageThumbnail = {
+  mxcUri: string;
+  mimeType: string;
+  encryptedFile?: IEncryptedFile;
+};
+
+/** The thumbnail the sender attached (plain or encrypted), if any. */
+const getImageThumbnail = (info: IImageInfo | undefined): ImageThumbnail | undefined => {
+  const encryptedFile = info?.thumbnail_file;
+  const mxcUri = encryptedFile?.url ?? info?.thumbnail_url;
+  if (typeof mxcUri !== 'string' || !mxcUri) return undefined;
+  const declared = info?.thumbnail_info?.mimetype;
+  return {
+    mxcUri,
+    encryptedFile,
+    mimeType: declared ? getBlobSafeMimeType(declared) : FALLBACK_MIMETYPE,
+  };
+};
+
+/**
+ * While `active`, loads the original picture for the viewer and returns its blob URL once it is
+ * there; the URL is revoked when the viewer closes. A failed load closes the viewer again.
+ */
+const useOriginalForViewer = (
+  active: boolean,
+  loadOriginal: () => Promise<string>,
+  onFailure: () => void
+): string | undefined => {
+  const [original, setOriginal] = useState<string>();
+  useEffect(() => {
+    if (!active) return undefined;
+    let current = true;
+    let objectUrl: string | undefined;
+    loadOriginal().then(
+      (url) => {
+        objectUrl = url;
+        if (current) setOriginal(url);
+        else revokeBlobUrl(url);
+      },
+      () => {
+        if (current) onFailure();
+      }
+    );
+    return () => {
+      current = false;
+      if (objectUrl) revokeBlobUrl(objectUrl);
+      setOriginal(undefined);
+    };
+  }, [active, loadOriginal, onFailure]);
+  return original;
+};
+
 /** A layer over the whole image box that centres what it holds, such as a button or spinner. */
 function CenteredLayer({ children }: { children: ReactNode }) {
   return (
@@ -161,19 +213,38 @@ export const ImageContent = as<'div', ImageContentProps>(
     const ownerKey = owner ? `${owner.roomId}|${owner.eventId}|${owner.revisionTs}` : '';
     const encKey = encInfo ? `${encInfo.iv}|${encInfo.hashes?.sha256 ?? ''}` : '';
 
+    // The timeline shows the sender's thumbnail when there is one; the viewer loads the original.
+    const thumbnail = getImageThumbnail(info);
+    const thumbnailRef = useRef(thumbnail);
+    thumbnailRef.current = thumbnail;
+    const thumbnailKey = thumbnail ? `${thumbnail.mxcUri}|${thumbnail.mimeType}` : '';
+
+    const loadOriginal = useCallback(async () => {
+      const file = encInfoRef.current;
+      const blob = await downloadCachedAttachment(mx, {
+        owner: ownerRef.current,
+        mxcUri: url,
+        encryptedFile: file ? { ...file, url } : undefined,
+        // A type the browser would run (SVG) is loaded as plain bytes instead.
+        mimeType: getBlobSafeMimeType(mimeType ?? FALLBACK_MIMETYPE),
+      });
+      return URL.createObjectURL(blob);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mx, ownerKey, url, encKey, mimeType]);
+
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
-        const file = encInfoRef.current;
+        const preview = thumbnailRef.current;
+        if (!preview) return loadOriginal();
         const blob = await downloadCachedAttachment(mx, {
           owner: ownerRef.current,
-          mxcUri: url,
-          encryptedFile: file ? { ...file, url } : undefined,
-          // A type the browser would run (SVG) is loaded as plain bytes instead.
-          mimeType: getBlobSafeMimeType(mimeType ?? FALLBACK_MIMETYPE),
+          mxcUri: preview.mxcUri,
+          encryptedFile: preview.encryptedFile,
+          mimeType: preview.mimeType,
         });
         return URL.createObjectURL(blob);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [mx, ownerKey, url, encKey, mimeType]),
+      }, [mx, ownerKey, thumbnailKey, loadOriginal]),
       revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);
@@ -189,6 +260,7 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     const closeViewer = useCallback(() => setViewerOpen(false), []);
     useViewerHistoryEntry(viewerOpen, closeViewer);
+    const original = useOriginalForViewer(viewerOpen && !!thumbnail, loadOriginal, closeViewer);
 
     useEffect(() => {
       if (!viewerOpen) return undefined;
@@ -197,6 +269,8 @@ export const ImageContent = as<'div', ImageContentProps>(
     }, [viewerOpen, setImageViewerOpen]);
 
     const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+    // The viewer saves what it shows, so it waits for the original rather than show the thumbnail.
+    const viewerSrc = thumbnail ? original : src;
     const blurHash = getInfoBlurHash(info);
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
     const caption = { alt: body, title: body };
@@ -215,7 +289,7 @@ export const ImageContent = as<'div', ImageContentProps>(
         ref={ref}
       >
         {blurHash && !loaded && <BlurHash hash={blurHash} />}
-        {src && (
+        {viewerSrc && (
           <Overlay open={viewerOpen} backdrop={<OverlayBackdrop />}>
             <OverlayCenter>
               <FocusTrap
@@ -231,7 +305,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                   size="500"
                   onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
                 >
-                  {renderViewer({ src, alt: body, requestClose: closeViewer })}
+                  {renderViewer({ src: viewerSrc, alt: body, requestClose: closeViewer })}
                 </Modal>
               </FocusTrap>
             </OverlayCenter>
@@ -264,7 +338,9 @@ export const ImageContent = as<'div', ImageContentProps>(
             </Button>
           </CenteredLayer>
         )}
-        {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
+        {(srcState.status === AsyncStatus.Loading ||
+          (src && !loaded && !failed) ||
+          (viewerOpen && !viewerSrc)) &&
           (spoilerRevealed || !src) && (
             <CenteredLayer>
               <Spinner variant="Secondary" size="400" />

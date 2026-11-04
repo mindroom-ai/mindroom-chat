@@ -54,9 +54,14 @@ const withFileSource = (content: IContent, item: TUploadItem, mxc: string): ICon
 };
 
 const withSpoiler = (content: IContent, item: TUploadItem): IContent =>
-  item.metadata.markedAsSpoiler
-    ? { ...content, [MEDIA_SPOILER_PROPERTY]: true }
-    : content;
+  item.metadata.markedAsSpoiler ? { ...content, [MEDIA_SPOILER_PROPERTY]: true } : content;
+
+type ThumbnailOptions = {
+  /** The encoding of the thumbnail; JPEG unless the picture may be transparent. */
+  mimeType?: string;
+  /** Skip the thumbnail unless it is smaller than this many bytes. */
+  smallerThan?: number;
+};
 
 /** Uploads a thumbnail, encrypted when the attachment is, and returns its info fields. */
 const uploadThumbnail = async (
@@ -64,14 +69,16 @@ const uploadThumbnail = async (
   item: TUploadItem,
   source: HTMLImageElement | HTMLVideoElement,
   width: number,
-  height: number
+  height: number,
+  { mimeType, smallerThan }: ThumbnailOptions = {}
 ): Promise<Partial<IImageInfo>> => {
   if (!width || !height || typeof mx.uploadContent !== 'function') return {};
   const scale = Math.min(1, THUMBNAIL_MAX_SIZE / Math.max(width, height));
   const thumbWidth = Math.max(1, Math.round(width * scale));
   const thumbHeight = Math.max(1, Math.round(height * scale));
-  const thumbnail = await getThumbnail(source, thumbWidth, thumbHeight);
+  const thumbnail = await getThumbnail(source, thumbWidth, thumbHeight, mimeType);
   if (!thumbnail) return {};
+  if (smallerThan !== undefined && thumbnail.size >= smallerThan) return {};
 
   const thumbnailInfo: IThumbnailInfo = {
     w: thumbWidth,
@@ -110,8 +117,15 @@ const mediaMsgContent = (
   return withSpoiler(withFileSource(content, item, mxc), item);
 };
 
-/** Image content with its size, dimensions, and blurhash when the browser can decode it. */
-export const getImageMsgContent: MediaContentBuilder = async (_mx, item, mxc) => {
+/**
+ * A picture larger than the timeline shows gets a thumbnail, so timelines load that instead of
+ * the whole file. Animated GIFs keep only the original, which a thumbnail would freeze.
+ */
+const needsImageThumbnail = (info: IImageInfo): boolean =>
+  info.mimetype !== 'image/gif' && Math.max(info.w ?? 0, info.h ?? 0) > THUMBNAIL_MAX_SIZE;
+
+/** Image content with its size, dimensions, blurhash and thumbnail when the browser can decode it. */
+export const getImageMsgContent: MediaContentBuilder = async (mx, item, mxc) => {
   const { originalFile } = item;
   let info: IImageInfo = { mimetype: originalFile.type, size: originalFile.size };
   const objectUrl = URL.createObjectURL(originalFile);
@@ -120,6 +134,21 @@ export const getImageMsgContent: MediaContentBuilder = async (_mx, item, mxc) =>
     info = getImageInfo(img, originalFile);
     const blurHash = encodeBlurHash(img);
     if (blurHash) info[BLURHASH_PROPERTY] = blurHash;
+    if (needsImageThumbnail(info)) {
+      try {
+        Object.assign(
+          info,
+          await uploadThumbnail(mx, item, img, img.width, img.height, {
+            // JPEG has no transparency; other pictures keep it in a PNG thumbnail.
+            mimeType: info.mimetype === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+            smallerThan: originalFile.size,
+          })
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn('Could not upload image thumbnail', error);
+      }
+    }
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('Could not read image metadata for upload', error);
