@@ -169,11 +169,13 @@ const knownPortedFindings = (code: string) => [
   // body is the div with a React id (`:r1:`) and `aria-expanded`.
   /^aria-allowed-attr: <div id=":[^"]+:" class="[^"]*" aria-expanded="(true|false)"/,
   // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
-  // Matched by its attributes: production builds shorten the class names the dev server spells out.
+  // Matched by its attributes: production builds shorten the class names the dev server spells out,
+  // and axe-core cuts a long element short, sometimes before the label (an Arabic label with a
+  // full event ID in front of it), so the label is matched only when it is there.
   new RegExp(
-    `^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"[^>]*aria-label="${escapeRegExp(
+    `^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"(?:[^>]*aria-label="${escapeRegExp(
       textBefore(label(code, 'thread.aria.openThread'))
-    )}`
+    )}| [^>]*\\.\\.\\.>$)`
   ),
 ];
 
