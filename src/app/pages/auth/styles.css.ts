@@ -46,12 +46,11 @@ export const AuthCard = style({
   pointerEvents: 'auto',
 });
 
-/** The round logo in the card header; `X500` is 28px. */
+/** The logo in the card header, whole and uncropped, 28px (`X500`) high. */
 export const AuthLogo = style([
   DefaultReset,
   {
-    objectFit: 'cover',
-    borderRadius: '100%',
+    objectFit: 'contain',
     blockSize: config.size.X500,
     inlineSize: config.size.X500,
   },
