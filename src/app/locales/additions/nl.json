@@ -1,0 +1,224 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Scrollen"
+    },
+    "passwordInput": {
+      "show": "Wachtwoord tonen",
+      "hide": "Wachtwoord verbergen"
+    },
+    "pdfViewer": {
+      "close": "Sluiten"
+    },
+    "urlPreviewHolder": {
+      "previous": "Vorige linkvoorvertoningen",
+      "next": "Meer linkvoorvertoningen"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Naam",
+      "cancel": "Annuleren",
+      "skinTone": "Huidskleur",
+      "skinTones": {
+        "default": "Standaardhuidskleur",
+        "light": "Lichte huidskleur",
+        "mediumLight": "Middellichte huidskleur",
+        "medium": "Middelste huidskleur",
+        "mediumDark": "Middeldonkere huidskleur",
+        "dark": "Donkere huidskleur"
+      }
+    },
+    "eventReaders": {
+      "close": "Sluiten"
+    },
+    "imagePackContent": {
+      "uploadFailed": "De afbeeldingen konden niet worden geüpload. Probeer het opnieuw.",
+      "noImages": "Nog geen afbeeldingen."
+    },
+    "imagePackView": {
+      "close": "Sluiten",
+      "back": "Terug"
+    },
+    "imageTile": {
+      "remove": "Verwijderen",
+      "editImage": ":{{shortcode}}: bewerken",
+      "removeImage": ":{{shortcode}}: verwijderen",
+      "keepImage": ":{{shortcode}}: behouden",
+      "removedOnApply": "Wordt verwijderd zodra je de wijzigingen toepast",
+      "usage": "Gebruikt als",
+      "shortcodeTaken": "Een andere afbeelding heeft deze korte code al.",
+      "shortcodeInvalid": "Een korte code mag geen spaties of dubbele punten bevatten."
+    },
+    "imageUsageOption": {
+      "pack": "Zelfde als pakket"
+    },
+    "imageViewer": {
+      "close": "Sluiten"
+    },
+    "inviteUserPrompt": {
+      "close": "Sluiten"
+    },
+    "joinAddressPrompt": {
+      "close": "Sluiten"
+    },
+    "textViewer": {
+      "close": "Sluiten"
+    },
+    "invites": {
+      "actionFailed": "Er ging iets mis. Probeer het opnieuw."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Zoek gebruikers of voer een gebruikers-ID in"
+    },
+    "leaveRoomPrompt": {
+      "close": "Sluiten",
+      "forget": "Deze kamer vergeten",
+      "forgetDescription": "Verwijdert hem ook uit je account, inclusief de geschiedenis. Je kunt later opnieuw deelnemen als de kamer dat toestaat."
+    },
+    "memberFilters": {
+      "label": "Leden weergeven"
+    },
+    "memberSort": {
+      "label": "Leden sorteren"
+    },
+    "a11y": {
+      "mainNavigation": "Hoofdnavigatie",
+      "skipToContent": "Naar inhoud springen",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "Kamer vergeten"
+    },
+    "userRoomProfile": {
+      "editProfile": "Profiel bewerken"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} verwijderen"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Geef de gebeurtenis een type en inhoud die een JSON-object is."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Persoonlijk pakket",
+          "imageCount_one": "{{count}} afbeelding, van jou in elke kamer",
+          "imageCount_other": "{{count}} afbeeldingen, van jou in elke kamer"
+        }
+      },
+      "devices": {
+        "loadFailed": "Je apparaten konden niet worden geladen."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Deblokkeren"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Verwijderen"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "De chat kon niet worden gestart. Probeer het opnieuw."
+    },
+    "homeNav": {
+      "options": "Opties voor Home"
+    },
+    "directNav": {
+      "options": "Opties voor directe berichten"
+    },
+    "spaceNav": {
+      "options": "Opties voor space"
+    },
+    "calls": {
+      "panel": {
+        "title": "Oproep",
+        "close": "Oproepvenster sluiten",
+        "participants": "Mensen in de oproep",
+        "connecting": "Verbinden…",
+        "reconnecting": "Opnieuw verbinden…",
+        "ended": "De oproep is beëindigd.",
+        "waitingFor": "Wachten op {{name}}…",
+        "you": "{{name}} (jij)",
+        "microphoneOff": "Microfoon uit",
+        "inCall_one": "{{count}} persoon in de oproep",
+        "inCall_other": "{{count}} mensen in de oproep",
+        "startCall": "Oproep starten",
+        "startVideoCall": "Video-oproep starten",
+        "dismiss": "Sluiten",
+        "audioBlocked": "Je browser heeft het geluid van de oproep gepauzeerd.",
+        "playSound": "Geluid afspelen",
+        "resize": "Grootte van het oproepvenster wijzigen"
+      },
+      "problems": {
+        "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
+        "connection": "De verbinding van de oproep is verbroken.",
+        "device": "Je microfoon of camera kon niet worden gebruikt."
+      },
+      "devices": {
+        "title": "Apparaten",
+        "microphone": "Microfoon",
+        "camera": "Camera",
+        "speaker": "Luidspreker",
+        "systemDefault": "Systeemstandaard",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Een oproep starten",
+        "joinCall": "Deelnemen aan de oproep",
+        "joinCallCount_one": "Deelnemen aan de oproep, {{count}} persoon is er al",
+        "joinCallCount_other": "Deelnemen aan de oproep, {{count}} mensen zijn er al",
+        "showCall": "Oproep tonen",
+        "hideCall": "Oproep verbergen"
+      },
+      "rail": {
+        "returnToCall": "Terug naar de oproep in {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} belt",
+        "callingIn": "{{name}} belt in {{room}}",
+        "videoCall": "Video-oproep",
+        "voiceCall": "Spraakoproep"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "Nagedacht"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "Zoeken mislukt. Probeer het opnieuw."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Uitnodiging",
+        "body_one": "Je hebt {{count}} nieuwe uitnodiging.",
+        "body_other": "Je hebt {{count}} nieuwe uitnodigingen."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Compacte weergave"
+      }
+    },
+    "computer": {
+      "resize": "Grootte van het computerpaneel wijzigen",
+      "close": "Computer sluiten"
+    }
+  },
+  "composer": {
+    "emoji": "Emoji",
+    "cancelReply": "Antwoord annuleren"
+  }
+}
