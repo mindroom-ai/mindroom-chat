@@ -9,10 +9,10 @@ export const Overview = style([
   glassFloating,
   {
     margin: `${config.space.S200} ${config.space.S300}`,
-    position: 'relative',
+    position: 'relative', minWidth: 0,
     borderRadius: config.radii.R500,
     padding: config.space.S200,
-    minWidth: 0,
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // room-light.png: a line outside the glass rim
   },
 ]);
 
