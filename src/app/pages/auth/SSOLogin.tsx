@@ -1,4 +1,4 @@
-import { MouseEvent, useMemo } from 'react';
+import React, { MouseEvent, useMemo, useState } from 'react';
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Capacitor } from '@capacitor/core';
@@ -18,6 +18,12 @@ import {
   isAppleIdentityProvider,
   sortIdentityProviders,
 } from './ssoProviders';
+import {
+  createSsoNonce,
+  rememberIssuedLoginToken,
+  rememberSsoAttempt,
+  withSsoNonce,
+} from './ssoReturn';
 
 /** Which flow the buttons start, and how they are laid out. */
 type SSOButtonOptions = {
@@ -35,9 +41,30 @@ type SSOLoginProps = SSOButtonOptions & {
 const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeApp();
 
 /**
+ * The fetch for the native Apple exchange, which answers with a login token for `baseUrl`. The
+ * token is noted before the exchange hands it to the login page, whose address has no nonce.
+ */
+const noteIssuedToken =
+  (request: typeof fetch, baseUrl: string): typeof fetch =>
+  async (input, init) => {
+    const response = await request(input, init);
+    if (!response.ok) return response;
+    const body: unknown = await response.json();
+    const token =
+      body && typeof body === 'object' ? (body as Record<string, unknown>).loginToken : '';
+    if (typeof token === 'string' && token) rememberIssuedLoginToken(token, baseUrl);
+    return new Response(JSON.stringify(body), {
+      status: response.status,
+      headers: response.headers,
+    });
+  };
+
+/**
  * Single sign-on buttons. On the web they are plain links to the
  * homeserver's SSO redirect; in the native app they open an in-app browser
  * (or Sign in with Apple), since leaving the app would lose the callback.
+ * Each press first notes the sign-in (`ssoReturn.ts`), so the login page
+ * exchanges only a token that this sign-in brought back.
  */
 export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SSOLoginProps) {
   const homeserverUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
@@ -49,9 +76,11 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     [homeserverUrl]
   );
   const inNativeShell = runningNatively();
+  const [nonce] = useState(createSsoNonce);
+  const returnUrl = useMemo(() => withSsoNonce(redirectUrl, nonce), [redirectUrl, nonce]);
 
   const ssoUrl = (providerId?: string): string =>
-    loginClient.getSsoLoginUrl(redirectUrl, 'sso', providerId, action);
+    loginClient.getSsoLoginUrl(returnUrl, 'sso', providerId, action);
 
   const openInNativeBrowser = async (event: MouseEvent, url: string) => {
     event.preventDefault();
@@ -72,7 +101,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
         ephemeral: hasCloudflareAccess(homeserverUrl),
         providerId: provider.id,
         redirectUrl,
-        request: createMatrixFetchFn(fetch),
+        request: noteIssuedToken(createMatrixFetchFn(fetch), homeserverUrl),
       });
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -99,6 +128,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
       outlined
       {...(inNativeShell ? {} : { as: 'a' as const, href: url })}
       onClick={(event: MouseEvent) => {
+        rememberSsoAttempt(nonce, homeserverUrl);
         if (inNativeShell) onNativeClick(event);
       }}
       before={
@@ -119,11 +149,8 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     const url = ssoUrl();
     return (
       <Box direction="Column" gap="200">
-        {renderButton(
-          'sso',
-          url,
-          t('sharedUi.sSOLogin.continueWithSso'),
-          (event) => void openInNativeBrowser(event, url)
+        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), (event) =>
+          openInNativeBrowser(event, url)
         )}
       </Box>
     );
@@ -147,9 +174,9 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
           url,
           getSSOProviderButtonTitle(provider, t, action),
           (event) =>
-            void (apple && nativeAppleAvailable
+            apple && nativeAppleAvailable
               ? signInWithApple(event, provider, url)
-              : openInNativeBrowser(event, url)),
+              : openInNativeBrowser(event, url),
           icon
         );
       })}

@@ -63,10 +63,12 @@ type SsoStub = { redirectUrls: string[] };
 /**
  * Advertises one identity provider and answers its redirect by returning to the client's
  * `redirectUrl` with `loginToken`, the way the homeserver does after the provider signs in.
+ * `alterReturn` changes the return address first, as a crafted `redirectUrl` would.
  */
 const stubIdentityProvider = async (
   page: Page,
-  loginToken: () => string | Promise<string>
+  loginToken: () => string | Promise<string>,
+  alterReturn?: (back: URL) => void
 ): Promise<SsoStub> => {
   const stub: SsoStub = { redirectUrls: [] };
   await page.route(`${HOMESERVER}/_matrix/client/v3/login`, async (route) => {
@@ -90,6 +92,7 @@ const stubIdentityProvider = async (
       const redirectUrl = new URL(route.request().url()).searchParams.get('redirectUrl') ?? '';
       stub.redirectUrls.push(redirectUrl);
       const back = new URL(redirectUrl);
+      alterReturn?.(back);
       back.searchParams.set('loginToken', await loginToken());
       await route.fulfill({ status: 302, headers: { location: back.href } });
     }
@@ -114,6 +117,47 @@ const expectActiveUser = async (page: Page, username: string) => {
       return store.sessions.find((session) => session.sessionId === store.activeSessionId)?.userId;
     })
     .toMatch(new RegExp(`^@${username}:`));
+};
+
+// A server that a crafted link names: it answers discovery and the login flows like a homeserver
+// and records every request, so a test can tell whether a login token ever reached it.
+const OTHER_SERVER = 'https://other-server.example';
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+};
+
+/** The login requests that reached the other server, where a login token would go. */
+const loginPosts = (requests: string[]) =>
+  requests.filter((request) => request === 'POST /_matrix/client/v3/login');
+
+const stubOtherServer = async (page: Page): Promise<string[]> => {
+  const requests: string[] = [];
+  await page.route(`${OTHER_SERVER}/**`, async (route) => {
+    const request = route.request();
+    const { pathname } = new URL(request.url());
+    requests.push(`${request.method()} ${pathname}`);
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: CORS });
+    } else if (pathname === '/.well-known/matrix/client') {
+      await route.fulfill({ headers: CORS, json: { 'm.homeserver': { base_url: OTHER_SERVER } } });
+    } else if (pathname === '/_matrix/client/versions') {
+      await route.fulfill({ headers: CORS, json: { versions: ['v1.11'] } });
+    } else if (pathname === '/_matrix/client/v3/login' && request.method() === 'GET') {
+      await route.fulfill({
+        headers: CORS,
+        json: { flows: [{ type: 'm.login.token' }, { type: 'm.login.password' }] },
+      });
+    } else {
+      await route.fulfill({
+        status: 403,
+        headers: CORS,
+        json: { errcode: 'M_FORBIDDEN', error: 'Recorded by the e2e stub' },
+      });
+    }
+  });
+  return requests;
 };
 
 test.beforeEach(async () => {
@@ -188,4 +232,62 @@ test('explains a login token the homeserver rejects', async ({ page }) => {
   await expect(page).not.toHaveURL(/loginToken=/);
   await expect(page.getByRole('link', { name: `Continue with ${PROVIDER.name}` })).toBeVisible();
   await expect(page.locator('input[name="passwordInput"]')).toBeVisible();
+});
+
+test('never uses a login token from a link that no sign-in in this tab started', async ({
+  page,
+}) => {
+  test.slow();
+  const username = `sso_link_${Date.now().toString(36)}`;
+  const token = await mintLoginToken(username);
+  const otherServerRequests = await stubOtherServer(page);
+
+  // A link naming another server (it would receive the token), and one naming the real server
+  // with the attacker's own token (the victim would end up in the attacker's account).
+  const crafted = [
+    `/login/${encodeURIComponent(OTHER_SERVER)}/?addAccount=1&loginToken=${token}`,
+    loginPath(`?addAccount=1&loginToken=${token}`),
+  ];
+  for (const link of crafted) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.goto(link);
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByRole('alert')).toContainText('This sign-in was not started here', {
+      timeout: 30_000,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page).not.toHaveURL(/loginToken=/);
+  }
+
+  expect(loginPosts(otherServerRequests)).toEqual([]);
+  expect((await readSessionStore(page)).sessions).toHaveLength(0);
+  // The token was never spent: it still signs in.
+  const redeemed = await postJson('/v3/login', { type: 'm.login.token', token });
+  expect(redeemed.status, 'the unused token still signs in').toBe(200);
+});
+
+test('exchanges a returning token at the server the sign-in went to, not one the address names', async ({
+  page,
+}) => {
+  test.slow();
+  const username = `sso_ret_${Date.now().toString(36)}`;
+  const token = await mintLoginToken(username);
+  const otherServerRequests = await stubOtherServer(page);
+  // The return address names another server but carries this sign-in's nonce.
+  await stubIdentityProvider(
+    page,
+    () => token,
+    (back) => {
+      back.pathname = `/login/${encodeURIComponent(OTHER_SERVER)}/`;
+    }
+  );
+
+  await page.goto(loginPath());
+  await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
+
+  await waitForShell(page);
+  await expectActiveUser(page, username);
+  const store = await readSessionStore(page);
+  expect(store.sessions.map((session) => session.baseUrl)).toEqual([HOMESERVER]);
+  expect(loginPosts(otherServerRequests)).toEqual([]);
 });

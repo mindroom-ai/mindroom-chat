@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from 'folds';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ import { isAddAccountSearch, withAddAccountSearchIf } from '../addAccount';
 import { SSOLogin } from '../SSOLogin';
 import { FieldError } from '../FiledError';
 import { hasAppleIdentityProvider } from '../ssoProviders';
+import { claimSsoLogin, SSO_NONCE_PARAM } from '../ssoReturn';
 import { PasswordLoginForm } from './PasswordLoginForm';
 import { TokenLogin, TokenLoginError } from './TokenLogin';
 import type { LoginError } from './loginUtil';
@@ -90,6 +91,13 @@ function LoginMethods({ server, baseUrl, flows, ssoRedirectUrl }: LoginMethodsPr
   );
 }
 
+/** A login token in the address that no sign-in from this tab asked for. */
+const NOT_STARTED_HERE = 'notStartedHere';
+type TokenProblem = LoginError | typeof NOT_STARTED_HERE;
+
+/** The token from an SSO return and the homeserver this tab sent that sign-in to. */
+type TokenExchange = { token: string; baseUrl: string };
+
 /** Sign in with a password, single sign-on, or a login token from an SSO redirect. */
 export function Login() {
   const { t } = useTranslation();
@@ -98,25 +106,43 @@ export function Login() {
   const { hashRouter, auth } = useClientConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const loginToken = searchParams.get('loginToken');
+  const returnNonce = searchParams.get(SSO_NONCE_PARAM);
   const addAccount = isAddAccountSearch(searchParams);
-  const [tokenError, setTokenError] = useState<LoginError>();
+  const [exchange, setExchange] = useState<TokenExchange>();
+  const [tokenProblem, setTokenProblem] = useState<TokenProblem>();
+  const handledToken = useRef<string>();
 
-  // A rejected token leaves the address, so a reload does not try it again, and the
-  // sign-in methods come back under the explanation.
-  const handleTokenFailure = useCallback(
-    (error: LoginError) => {
-      setTokenError(error);
-      setSearchParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          next.delete('loginToken');
-          return next;
-        },
-        { replace: true }
-      );
-    },
-    [setSearchParams]
-  );
+  // A token is exchanged only when a sign-in started in this tab brought it back, and only at
+  // the homeserver that sign-in went to: the server named in the address is not trusted, since
+  // a link can name any server (and carry anyone's token). Either way the token and the nonce
+  // leave the address, so a reload does not try them again.
+  useEffect(() => {
+    if (!loginToken || handledToken.current === loginToken) return;
+    handledToken.current = loginToken;
+    const homeserver = claimSsoLogin(loginToken, returnNonce);
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('loginToken');
+        next.delete(SSO_NONCE_PARAM);
+        return next;
+      },
+      { replace: true }
+    );
+    if (homeserver) {
+      setTokenProblem(undefined);
+      setExchange({ token: loginToken, baseUrl: homeserver });
+    } else {
+      setExchange(undefined);
+      setTokenProblem(NOT_STARTED_HERE);
+    }
+  }, [loginToken, returnNonce, setSearchParams]);
+
+  // A rejected token brings the sign-in methods back under the explanation.
+  const handleTokenFailure = useCallback((error: LoginError) => {
+    setExchange(undefined);
+    setTokenProblem(error);
+  }, []);
 
   // The homeserver sends the browser (or, in the native app, the app link) back here.
   const ssoRedirectUrl = useMemo(
@@ -132,10 +158,20 @@ export function Login() {
       <Text size="H2" priority="400">
         {t('sharedUi.login.login')}
       </Text>
-      {tokenError && !loginToken && <TokenLoginError error={tokenError} />}
-      {loginToken ? (
-        <TokenLogin baseUrl={baseUrl} token={loginToken} onFailure={handleTokenFailure} />
-      ) : (
+      {!exchange && tokenProblem === NOT_STARTED_HERE && (
+        <FieldError message={t('sharedUi.tokenLogin.signInNotStartedHere')} />
+      )}
+      {!exchange && tokenProblem && tokenProblem !== NOT_STARTED_HERE && (
+        <TokenLoginError error={tokenProblem} />
+      )}
+      {exchange && (
+        <TokenLogin
+          baseUrl={exchange.baseUrl}
+          token={exchange.token}
+          onFailure={handleTokenFailure}
+        />
+      )}
+      {!exchange && !loginToken && (
         <AuthFlowsLoader>
           {({ loginFlows }) => (
             <LoginMethods
