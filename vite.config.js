@@ -19,7 +19,8 @@ export const copyFiles = {
     // The MindRoom defaults are served as the runtime client config.
     { src: 'config.mindroom.json', dest: '', rename: 'config.json' },
     // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n.ts).
-    // English ships in the bundle, with its overlay in src/app/locales/additions/en.json.
+    // English ships in the bundle, with its overlay in src/app/locales/additions/en.json; the other
+    // languages' overlays in that directory load as chunks (src/app/localeAdditions.ts).
     { src: 'src/app/locales/*.json', dest: 'public/locales' },
     // License texts and notices for the bundled code (NOTICE: noVNC source, Inter font license).
     // Under public/, so the service worker never answers them with the app shell.

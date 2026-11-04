@@ -5,7 +5,8 @@ import i18n, {
   type ResourceKey,
 } from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import en from './englishResources';
+import en, { mergeLocaleTrees, type LocaleTree } from './englishResources';
+import { loadLocaleAdditions } from './localeAdditions';
 import { syncDayjsLocale } from './appLocale';
 import {
   APP_LANGUAGE_CODES,
@@ -60,11 +61,15 @@ const languageDetector: LanguageDetectorModule = {
   cacheUserLanguage: (language: string) => storeLanguage(language),
 };
 
-/** Fetches non-English catalogs from the deployed `public/locales/` directory on demand. */
+/**
+ * Fetches non-English catalogs from the deployed `public/locales/` directory on demand, with the
+ * language's overlay of Lane C keys (locales/additions/<code>.json) merged in.
+ */
 const httpBackend: BackendModule = {
   type: 'backend',
   init: () => undefined,
   read: (language: string, _namespace: string, callback: ReadCallback) => {
+    const additions = loadLocaleAdditions(language);
     fetch(getLocaleUrl(language), {
       method: 'GET',
       credentials: 'same-origin',
@@ -75,7 +80,9 @@ const httpBackend: BackendModule = {
           callback(new Error(`Failed to load locale ${language}: HTTP ${response.status}`), false);
           return;
         }
-        callback(null, (await response.json()) as ResourceKey);
+        const catalog = (await response.json()) as LocaleTree;
+        const overlay = await additions;
+        callback(null, (overlay ? mergeLocaleTrees(catalog, overlay) : catalog) as ResourceKey);
       })
       .catch((error: unknown) => {
         callback(error instanceof Error ? error : new Error(String(error)), false);

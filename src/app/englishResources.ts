@@ -3,9 +3,10 @@ import enAdditions from './locales/additions/en.json';
 
 // The English catalog the app ships: the ported en.json plus the Lane C overlay in
 // locales/additions/en.json. The overlay holds keys that the Lane C code uses and the
-// ported catalog does not define. Other languages fall back to English for them.
+// ported catalog does not define. The other languages translate them in their own overlays
+// (locales/additions/<code>.json), which localeAdditions.ts merges the same way.
 
-type LocaleTree = { [key: string]: string | LocaleTree };
+export type LocaleTree = { [key: string]: string | LocaleTree };
 
 const isTree = (value: string | LocaleTree | undefined): value is LocaleTree =>
   typeof value === 'object' && value !== null;
