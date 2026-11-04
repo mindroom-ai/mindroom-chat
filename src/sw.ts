@@ -15,6 +15,7 @@ import {
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+import { fetchWithDevelopmentCache } from './swDevelopmentCache';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 import {
   fetchNavigationWithShellFallback,
@@ -92,13 +93,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Paths the app shell must never answer: the homeserver, the MindRoom runtime and static
-// documents under public/ served beside the app, also under a path prefix.
-const navigationFallbackDenylist = [
+// What the homeserver and the MindRoom runtime answer beside the app, also under a path prefix.
+const backendPaths = [
   /^\/api(?:\/|$)/,
   /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,
   /^\/(?:[^/]+\/)?_synapse(?:\/|$)/,
   /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
+];
+
+// Paths the app shell must never answer: the backends and static documents under public/.
+const navigationFallbackDenylist = [
+  ...backendPaths,
   /^\/(?:[^/]+\/)?public(?:\/|\?|$)/,
   // The PDF viewer's frame page (public/pdf-frame.html).
   /^\/(?:[^/]+\/)?pdf-frame\.html(?:\?|$)/,
@@ -123,6 +128,19 @@ if (precachesAppShell) {
         ),
       { denylist: navigationFallbackDenylist }
     )
+  );
+}
+// The development worker precaches nothing; it keeps what it serves for offline starts instead:
+// app pages (not the paths the shell never answers) and every file but the backends' answers.
+if (!precachesAppShell) {
+  registerRoute(
+    ({ request, url }) =>
+      request.method === 'GET' &&
+      url.origin === self.location.origin &&
+      !(request.mode === 'navigate' ? navigationFallbackDenylist : backendPaths).some((pattern) =>
+        pattern.test(url.pathname)
+      ),
+    ({ event }) => fetchWithDevelopmentCache(event as unknown as FetchEventLike, self.location.href)
   );
 }
 registerRoute(new PrecacheRoute(precacheController));
