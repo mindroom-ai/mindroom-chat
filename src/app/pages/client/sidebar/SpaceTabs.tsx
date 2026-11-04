@@ -31,7 +31,6 @@ import { useRoomUnread } from '../../../state/hooks/unread';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
-import { nameInitials } from '../../../utils/common';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
 import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
@@ -114,10 +113,13 @@ function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
             <RoomAvatar
-              alt={name}
-              roomId={roomId}
-              src={avatarUrl}
-              renderFallback={() => <Text size="H4">{nameInitials(name, 2)}</Text>}
+
+
+
+
+                // Its first two letters as written ("Mi" for MindRoom), not two words' initials.
+                <Text size="H4">{Array.from(name.trim()).slice(0, 2).join('')}</Text>
+              )}
             />
           </SidebarAvatar>
         )}
