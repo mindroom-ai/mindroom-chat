@@ -533,6 +533,8 @@ export const useTimelineMessageFeature = ({
         getContent: (() => content) as <T>() => T,
         mediaAutoLoad: !!mediaAutoLoad,
         urlPreview: !!showUrlPreview,
+        // The collapsible tool and output sections MindRoom attaches to a message.
+        showMessageExtras: true,
         htmlReactParserOptions,
         linkifyOpts,
       };
