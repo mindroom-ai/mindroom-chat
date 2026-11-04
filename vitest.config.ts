@@ -9,5 +9,8 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/vitest.setup.ts', './src/vitest.katex.setup.ts'],
+    // Setting process.env.TZ moves the time zone only in a process of its own: a worker thread
+    // keeps the zone it started in, so this file stays in a fork under `--pool=threads` too.
+    poolMatchGlobs: [['**/src/app/utils/time.formatterCache.test.ts', 'forks']],
   },
 });
