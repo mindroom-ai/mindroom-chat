@@ -144,6 +144,7 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
     // Focusable itself, so the focus trap has a place while the browser still lists the devices.
     <Menu
       ref={ref}
+      role="menu"
       tabIndex={-1}
       className={css.DeviceMenu}
       aria-label={t('featureUi.calls.devices.title')}
@@ -188,7 +189,7 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
                       requestClose();
                     }}
                   >
-                    <Text as="span" size="T300" truncate style={{ flexGrow: 1 }}>
+                    <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
                       {name}
                     </Text>
                   </MenuItem>

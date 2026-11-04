@@ -72,6 +72,7 @@ const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChoo
   return (
     <Menu
       ref={ref}
+      role="menu"
       aria-label={t('mindroomUi.calls.agentCallHeaderButton.chooseAgent')}
       style={{ minWidth: toRem(200), maxWidth: toRem(280) }}
     >
@@ -85,10 +86,11 @@ const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChoo
             size="300"
             radii="300"
             variant="Surface"
+            role="menuitem"
             after={<Icon size="100" src={Icons.Phone} />}
             onClick={() => onChoose(candidate)}
           >
-            <Text as="span" size="T300" truncate style={{ flexGrow: 1 }}>
+            <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
               {t('mindroomUi.calls.agentCallHeaderButton.callAgent', {
                 name: candidate.displayName,
               })}
