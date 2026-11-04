@@ -94,6 +94,24 @@ const forwardRedactions = (room: Room, event: MatrixEvent): void => {
 };
 
 /**
+ * The saved sync can replay a reply and its redaction in one batch. The SDK looks for the reply
+ * before it adds the batch to the thread, so the reply came back unredacted and counted. Apply
+ * such redactions again once the thread holds the reply.
+ */
+const reappliedRedactions = new WeakSet<MatrixEvent>();
+const applyLateRedactions = (room: Room, thread: Thread): void => {
+  const late = thread.events.filter((event) => {
+    if (!event.isRedaction() || reappliedRedactions.has(event)) return false;
+    const target = event.getAssociatedId();
+    return !!target && thread.findEventById(target)?.isRedacted() === false;
+  });
+  if (late.length === 0) return;
+  // Applying one updates the thread, which comes back here before the reply is redacted.
+  late.forEach((event) => reappliedRedactions.add(event));
+  room.processThreadedEvents(late, false);
+};
+
+/**
  * Keeps thread reply counts right for the client's whole life; call it before the client starts,
  * so it sees the saved sync. Returns a function that stops it.
  */
@@ -105,6 +123,7 @@ export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
     // The SDK announces a thread once its first batch is in, and updates it once each later batch
     // is counted, also when it read the summary again.
     const onThread = (thread: Thread) => {
+      applyLateRedactions(room, thread);
       settleThreadReplyCount(thread);
     };
     // The same test as the SDK's, which lowers the thread's own count before the redaction.

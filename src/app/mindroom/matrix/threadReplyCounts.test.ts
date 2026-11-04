@@ -265,6 +265,18 @@ describe('thread reply counts', () => {
       expect(f.shownCount()).toBe(3);
     });
 
+    it('applies a saved redaction of a reply saved with it', async () => {
+      const f = fixture({
+        replies: [replies[0], replies[2]],
+        saved: savedSync([summarizedRoot(replies.slice(0, 2)), ...replies, redaction(2, 300)]),
+      });
+      await f.start();
+
+      expect(f.room().findEventById('$reply-2')?.isRedacted()).toBe(true);
+      expect(f.thread().length).toBe(2);
+      expect(f.shownCount()).toBe(2);
+    });
+
     it('keeps the replies after the summary while server discovery is pending', async () => {
       const f = fixture({ replies, saved, cachedVersions: false });
       await f.start();
