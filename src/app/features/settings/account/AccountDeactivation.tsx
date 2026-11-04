@@ -37,7 +37,10 @@ function ConfirmDeactivation({ busy, error, onCancel, onConfirm }: ConfirmProps)
 
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
-      <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+      <Header
+        size="500"
+        style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+      >
         <Box grow="Yes">
           <Text id="deactivate-title" size="H4">
             {t(`${KEY}.deleteDeactivateAccount`)}

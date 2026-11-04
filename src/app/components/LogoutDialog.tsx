@@ -76,7 +76,10 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
 
   return (
     <Dialog ref={ref} role="dialog" aria-labelledby="logout-dialog-title" variant="Surface">
-      <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+      <Header
+        size="500"
+        style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+      >
         <Box grow="Yes">
           <Text id="logout-dialog-title" size="H4">
             {t('sharedUi.logoutDialog.logout')}

@@ -54,7 +54,10 @@ export function RoomTopicViewer({ name, topic, requestClose }: RoomTopicViewerPr
   const { t } = useTranslation();
   const closeLabel = t('sharedUi.textViewer.close');
   const title = (
-    <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+    <Header
+      size="500"
+      style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+    >
       <Box grow="Yes" style={{ minWidth: 0 }}>
         <Text size="H4" truncate>
           {name}

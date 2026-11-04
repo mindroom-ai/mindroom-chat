@@ -48,18 +48,21 @@ const toSetupAuthError = (error: unknown): unknown => {
   return error;
 };
 
-const TITLE_BAR_PADDING = `0 ${config.space.S200} 0 ${config.space.S400}`;
+const TITLE_BAR_STYLE = {
+  paddingBlock: 0,
+  paddingInline: `${config.space.S400} ${config.space.S200}`,
+};
 
 type DialogTitleBarProps = {
   onClose: () => void;
-  /** The title, left of the close button. */
+  /** The title, before the close button. */
   children?: ReactNode;
 };
 
 function DialogTitleBar({ onClose, children }: DialogTitleBarProps) {
   const { t } = useTranslation();
   return (
-    <Header size="500" style={{ padding: TITLE_BAR_PADDING }}>
+    <Header size="500" style={TITLE_BAR_STYLE}>
       <Box grow="Yes">{children}</Box>
       <IconButton
         size="300"

@@ -90,7 +90,10 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
 
   return (
     <Box direction="Column" style={{ maxHeight: '75vh' }}>
-      <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+      <Header
+        size="500"
+        style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+      >
         <Box grow="Yes" style={{ minWidth: 0 }}>
           {selectedShortcode && (
             <Text size="H4" truncate>

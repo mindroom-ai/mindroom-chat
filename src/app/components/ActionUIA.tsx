@@ -166,7 +166,10 @@ export function ActionUIA(props: ActionUIAProps) {
 
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true">
-      <Header style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }} size="500">
+      <Header
+        style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+        size="500"
+      >
         <Box grow="Yes">{title && <Text size="H4">{title}</Text>}</Box>
         <IconButton
           size="300"

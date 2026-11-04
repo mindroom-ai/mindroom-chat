@@ -96,7 +96,7 @@ export function JoinAddressForm({ onOpen, style = FORM_STYLE }: JoinAddressFormP
           as="ul"
           direction="Column"
           gap="100"
-          style={{ margin: 0, paddingLeft: config.space.S400 }}
+          style={{ margin: 0, paddingInlineStart: config.space.S400 }}
         >
           {EXAMPLE_ADDRESSES.map((example) => (
             <Text as="li" key={example} size="T200" priority="300">

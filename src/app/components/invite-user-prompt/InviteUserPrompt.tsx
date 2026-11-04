@@ -38,11 +38,10 @@ const TITLE_ID = 'invite-user-prompt-title';
 /** Title row: the heading the dialog is labelled by, and a close button at the end. */
 function InvitePromptTitle({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const inset = { left: config.space.S400, right: config.space.S200 };
   return (
     <Header
       size="500"
-      style={{ paddingBlock: 0, paddingLeft: inset.left, paddingRight: inset.right }}
+      style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
     >
       <Text size="H4" id={TITLE_ID} style={{ flexGrow: 1 }}>
         {t('sharedUi.inviteUserPrompt.invite')}

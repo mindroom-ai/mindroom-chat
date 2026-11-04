@@ -76,7 +76,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
           >
             <Header
               size="500"
-              style={{ paddingLeft: config.space.S400, paddingRight: config.space.S200 }}
+              style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}
             >
               <Text id={TITLE_ID} size="H4" style={{ flexGrow: 1 }}>
                 {t('sharedUi.leaveSpacePrompt.leaveSpace')}

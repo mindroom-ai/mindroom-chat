@@ -65,7 +65,10 @@ export function EventReaders({ room, eventId, readers: known, requestClose }: Ev
       <PageScroll
         style={{ flexGrow: 1, minHeight: 0 }}
         header={
-          <Header size="500" style={{ padding: `0 ${config.space.S200} 0 ${config.space.S400}` }}>
+          <Header
+            size="500"
+            style={{ paddingBlock: 0, paddingInline: `${config.space.S400} ${config.space.S200}` }}
+          >
             <Box grow="Yes">
               <Text size="H4">{t('sharedUi.eventReaders.seenBy')}</Text>
             </Box>
