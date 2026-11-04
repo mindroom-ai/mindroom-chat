@@ -1,7 +1,7 @@
 import { JoinRule } from '../../../../types/matrix/room';
 
 /** The access choices of the settings page, in the order the menu lists them. */
-export const ACCESS_CHOICES = [
+const ACCESS_CHOICES = [
   JoinRule.Invite,
   JoinRule.Knock,
   JoinRule.KnockRestricted,

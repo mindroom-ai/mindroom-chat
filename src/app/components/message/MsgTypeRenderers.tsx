@@ -246,7 +246,7 @@ export function MImage({ content, renderAsFile, renderImageContent, outlined }: 
   );
 }
 
-export type RenderVideoContentArgs = {
+type RenderVideoContentArgs = {
   body: string;
   info: IVideoInfo;
   mimeType: string;
@@ -334,7 +334,7 @@ export function MAudio({ content, renderAsFile, owner, outlined }: MAudioProps) 
   return outlined ? <div style={outlineStyle(true, toRem(16))}>{player}</div> : player;
 }
 
-export type RenderFileContentArgs = {
+type RenderFileContentArgs = {
   body: string;
   mimeType: string;
   url: string;

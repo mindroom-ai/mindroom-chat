@@ -7,7 +7,7 @@ import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { isValidTagName, normalizeTagName } from './threadTags';
 import * as css from './ThreadContextBanner.css';
 
-export type ThreadTagPickerProps = {
+type ThreadTagPickerProps = {
   /** Tags used elsewhere in the room, offered as suggestions. */
   availableTags: string[];
   onAddTag: (tagName: string) => void;

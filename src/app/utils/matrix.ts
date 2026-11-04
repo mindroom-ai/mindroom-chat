@@ -265,7 +265,7 @@ const isTooLargeError = (error: unknown): boolean =>
 
 const formatMegabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-export type MatrixUploadErrorMessageOptions = {
+type MatrixUploadErrorMessageOptions = {
   uploadKind?: 'file' | 'avatar';
   fileSize?: number;
   maxUploadSize?: number;
@@ -306,7 +306,7 @@ export const getMatrixUploadErrorMessage = (
   return errorMessage(error) || "Couldn't send. Try again.";
 };
 
-export type UploadContentOptions = {
+type UploadContentOptions = {
   name?: string;
   fileType?: string;
   hideFilename?: boolean;

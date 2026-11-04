@@ -84,7 +84,7 @@ const isLiveLink = (link: SpaceChildLink): boolean =>
   link.content.via.every((server) => typeof server === 'string');
 
 /** The children a joined space lists in its synced state. */
-export const getLocalSpaceChildren = (space: Room): SpaceChildLink[] =>
+const getLocalSpaceChildren = (space: Room): SpaceChildLink[] =>
   space.currentState.getStateEvents(StateEvent.SpaceChild).map((event: MatrixEvent) => ({
     roomId: event.getStateKey() ?? '',
     content: event.getContent<Partial<SpaceChildContent>>(),
@@ -159,7 +159,7 @@ const fetchHierarchy = async (client: MatrixClient, rootId: string): Promise<IHi
   return rooms;
 };
 
-export const spaceHierarchyQueryKey = (rootId: string) => ['space-hierarchy', rootId] as const;
+const spaceHierarchyQueryKey = (rootId: string) => ['space-hierarchy', rootId] as const;
 
 /**
  * Counts changes that alter a lobby: a child link added, edited or removed in any space the
@@ -184,7 +184,7 @@ const useSpaceTreeVersion = (client: MatrixClient): number => {
   return version;
 };
 
-export type SpaceHierarchy = {
+type SpaceHierarchy = {
   items: HierarchyItem[];
   /** What `/hierarchy` says about each room it could see, by room ID. */
   summaries: Map<string, IHierarchyRoom>;

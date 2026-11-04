@@ -68,7 +68,7 @@ type Scope = { myUserId: string; threadId: string | undefined; since: number };
  * Whether `event` is a new message from someone else in the open room, or in the open thread
  * when one is open. Thread titles, edits and redactions are not new messages.
  */
-export const isAnnounceable = (event: MatrixEvent, { myUserId, threadId, since }: Scope) => {
+const isAnnounceable = (event: MatrixEvent, { myUserId, threadId, since }: Scope) => {
   if (!matchesEnum(event.getType(), EventType.RoomMessage) || event.isRedacted()) return false;
   if (event.getSender() === myUserId || event.getTs() < since - STALE_MS) return false;
   if (event.getContent<Content>()[THREAD_SUMMARY_KEY] !== undefined) return false;

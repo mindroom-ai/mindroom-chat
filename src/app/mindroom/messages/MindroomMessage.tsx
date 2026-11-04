@@ -290,7 +290,7 @@ export function MessageCopyTextItem({
 }
 
 /** "Copy Link": a matrix.to permalink of the message. */
-export function MessageCopyLinkItem({
+function MessageCopyLinkItem({
   room,
   eventId,
   onClose,

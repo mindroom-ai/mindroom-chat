@@ -480,7 +480,7 @@ const withoutAttribute = (attribs: Record<string, string>, name: string) => {
   return rest;
 };
 
-export type ReactCustomHtmlParserParams = {
+type ReactCustomHtmlParserParams = {
   linkifyOpts: LinkifyOpts;
   /** Search matches to mark in the text. */
   highlightRegex?: RegExp;

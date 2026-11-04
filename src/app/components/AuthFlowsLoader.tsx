@@ -23,7 +23,7 @@ type OpenRegistration = { status: RegisterFlowStatus.FlowRequired; data: IAuthDa
 type ClosedRegistration = { status: Exclude<RegisterFlowStatus, RegisterFlowStatus.FlowRequired> };
 
 /** The answer to an empty `POST /register` (spec: User-Interactive Authentication API). */
-export type RegisterFlowsResponse = OpenRegistration | ClosedRegistration;
+type RegisterFlowsResponse = OpenRegistration | ClosedRegistration;
 
 export type AuthFlows = { loginFlows: ILoginFlowsResponse; registerFlows: RegisterFlowsResponse };
 

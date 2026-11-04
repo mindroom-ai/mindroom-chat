@@ -76,7 +76,7 @@ type VirtualPaginatorOptions = PaginatorDom &
 
 type ScrollApi = { scrollToElement: ScrollToElement; scrollToItem: ScrollToItem };
 
-export type VirtualPaginator = ScrollApi & {
+type VirtualPaginator = ScrollApi & {
   /** Indices of the items in the current window, in order. */
   getItems: () => number[];
   /** Paginates again towards a sentinel that is still in view. */

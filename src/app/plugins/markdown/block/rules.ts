@@ -127,7 +127,7 @@ export const CodeBlockRule: BlockMDRule = {
  * Display math between `$$` at the start of a line and `$$` at the end of one, found by
  * `findDisplayLatexBlockMatch`, sent as Matrix math with the LaTeX as written (already escaped).
  */
-export const BlockMathRule: BlockMDRule = {
+const BlockMathRule: BlockMDRule = {
   match: (text) => {
     const found = findDisplayLatexBlockMatch(text);
     if (!found) return null;
@@ -152,7 +152,7 @@ const headingText = (line: string): string => {
 };
 
 /** `# Heading` to `###### Heading`. */
-export const HeadingRule: BlockMDRule = {
+const HeadingRule: BlockMDRule = {
   match: (text) => text.match(HEADING_REG),
   html: (parseInline, match) => {
     const [, hashes = '', line = ''] = match;
@@ -166,7 +166,7 @@ const BLOCKQUOTE_REG = /^(?:>|&gt;)[^\n]*(?:\n(?:>|&gt;)[^\n]*)*\n?/m;
 const QUOTE_MARKER_REG = /^(?:>|&gt;) ?/;
 
 /** Lines starting with `>`; each line of the quote ends with a line break. */
-export const BlockQuoteRule: BlockMDRule = {
+const BlockQuoteRule: BlockMDRule = {
   match: (text) => text.match(BLOCKQUOTE_REG),
   html: (parseInline, match) => {
     const lines = match[0]
@@ -241,7 +241,7 @@ const renderList = (list: List, parseInline: InlineMDParser): string => {
  * Bulleted (`*` or `-`) and numbered (`1.`) lists. More indented items nest; an indented line that
  * is not an item continues the item above it; a blank line or an unindented line ends the list.
  */
-export const ListRule: BlockMDRule = {
+const ListRule: BlockMDRule = {
   match: (text) => {
     const start = text.match(LIST_START_REG);
     if (!start || start.index === undefined) return null;

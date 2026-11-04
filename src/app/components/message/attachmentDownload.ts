@@ -6,7 +6,7 @@ import { saveFile } from '../../mindroom/native/nativeFileSave';
 import { useAlive } from '../../hooks/useAlive';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
-export type AttachmentSource = {
+type AttachmentSource = {
   owner?: EventAttachmentOwner;
   url: string;
   mimeType: string;

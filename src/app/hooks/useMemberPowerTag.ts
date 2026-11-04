@@ -24,7 +24,7 @@ export const getPowerTagIconSrc = (
 export type MemberPowerTag = PowerLevelTag & { level: number };
 
 /** The level the creators' tag sorts at (room version 12 creators outrank every power level). */
-export const CREATOR_TAG_LEVEL = Number.POSITIVE_INFINITY;
+const CREATOR_TAG_LEVEL = Number.POSITIVE_INFINITY;
 
 /**
  * Looks up the power tag of a member: "Founder" for the room's creators, else the tag of their

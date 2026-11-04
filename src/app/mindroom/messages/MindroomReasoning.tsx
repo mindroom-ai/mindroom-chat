@@ -10,7 +10,7 @@ import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from './aiRun';
 import * as css from './MindroomReasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
-export const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
+const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
 type FinalReasoning = { text: string; durationMs?: number };
 

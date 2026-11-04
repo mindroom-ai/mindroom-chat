@@ -18,7 +18,7 @@ const LIST_STYLE = { maxHeight: toRem(320), overflowY: 'auto' as const, minWidth
 type Shared = { spaces: Room[]; rooms: Room[]; directs: Room[] };
 
 /** The joined rooms `userId` is also joined to, as spaces, rooms and direct messages. */
-export const getMutualRooms = (
+const getMutualRooms = (
   client: MatrixClient,
   roomIds: string[],
   directIds: Set<string>,

@@ -86,7 +86,7 @@ const TOOLBAR_BUTTON_STYLE: CSSProperties = {
 };
 
 /** A room member; only the membership and user ID are required to place it. */
-export type MembersDrawerMember = Pick<RoomMember, 'userId' | 'membership'> & Partial<RoomMember>;
+type MembersDrawerMember = Pick<RoomMember, 'userId' | 'membership'> & Partial<RoomMember>;
 
 type MembersDrawerProps = {
   room: Room;

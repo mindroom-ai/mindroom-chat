@@ -187,7 +187,7 @@ const normalizeAdditionalSchemes = (value: unknown): string[] => {
   });
 };
 
-export type SanitizeCustomHtmlOptions = {
+type SanitizeCustomHtmlOptions = {
   /** Additions to the allowlist; they extend the base rules and never replace them. */
   policy?: IOptions;
   /** Extra link schemes, such as `obsidian`, from the client configuration. */

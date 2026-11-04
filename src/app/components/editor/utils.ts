@@ -61,9 +61,9 @@ const VOID_TYPES: ReadonlySet<string> = new Set([
   BlockType.PasteMarker,
 ]);
 
-export const isInlineElement = (element: CustomElement): boolean => INLINE_TYPES.has(element.type);
+const isInlineElement = (element: CustomElement): boolean => INLINE_TYPES.has(element.type);
 
-export const isVoidElement = (element: CustomElement): boolean => VOID_TYPES.has(element.type);
+const isVoidElement = (element: CustomElement): boolean => VOID_TYPES.has(element.type);
 
 /** Teaches an editor which elements are inline and which are atomic (void). */
 export const withInlineElements = <T extends Editor>(editor: T): T => {
@@ -160,7 +160,7 @@ export function getPrevWorldRange(editor: Editor): BaseRange | undefined {
   return { anchor: { path: caret.path, offset: wordStart }, focus: caret };
 }
 
-export type EditorMentions = {
+type EditorMentions = {
   users: Set<string>;
   room: boolean;
 };

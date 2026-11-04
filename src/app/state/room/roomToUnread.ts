@@ -22,12 +22,12 @@ import { roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../utils/matchesEnum';
 import { getAncestorSpaceIds } from './spaceAncestors';
 
-export type RoomToUnreadAction =
+type RoomToUnreadAction =
   | { type: 'RESET'; unreadInfos: UnreadInfo[] }
   | { type: 'PUT'; unreadInfo: UnreadInfo }
   | { type: 'DELETE'; roomId: string };
 
-export type RoomToUnreadAtom = WritableAtom<RoomToUnread, [RoomToUnreadAction], void>;
+type RoomToUnreadAtom = WritableAtom<RoomToUnread, [RoomToUnreadAction], void>;
 
 type RoomUnread = Pick<Unread, 'total' | 'highlight'>;
 
@@ -99,7 +99,7 @@ export const getRoomUnreadAction = (mx: MatrixClient, room: Room): RoomToUnreadA
   toUnreadAction(mx, room, getUnreadInfo(room));
 
 /** A read receipt of the user: for one thread (`threadId`, `main` for the room) or unthreaded. */
-export type OwnReadReceipt = {
+type OwnReadReceipt = {
   threadId?: string;
   unthreaded: boolean;
 };
@@ -136,7 +136,7 @@ export const getOptimisticReceiptUnreadInfo = (
 const READ_RECEIPT_TYPES = new Set(['m.read', 'm.read.private']);
 
 /** The user's own read receipts in an `m.receipt` event. */
-export const getOwnReadReceipts = (event: MatrixEvent, userId: string): OwnReadReceipt[] => {
+const getOwnReadReceipts = (event: MatrixEvent, userId: string): OwnReadReceipt[] => {
   const content: unknown = event.getContent();
   if (!isRecord(content)) return [];
   const receipts: OwnReadReceipt[] = [];

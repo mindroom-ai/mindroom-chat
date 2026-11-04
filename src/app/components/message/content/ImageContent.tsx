@@ -82,7 +82,7 @@ const useViewerHistoryEntry = (open: boolean, close: () => void) => {
   }, [open, close]);
 };
 
-export type RenderImageContentProps = {
+type RenderImageContentProps = {
   src: string;
   alt: string;
   title: string;
@@ -94,7 +94,7 @@ export type RenderImageContentProps = {
   onError: () => void;
 };
 
-export type RenderImageViewerProps = {
+type RenderImageViewerProps = {
   src: string;
   alt: string;
   requestClose: () => void;

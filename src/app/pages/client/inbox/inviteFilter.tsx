@@ -11,7 +11,7 @@ export type InviteCategory = 'primary' | 'public' | 'spam';
 export const INVITE_CATEGORIES: readonly InviteCategory[] = ['primary', 'public', 'spam'];
 
 /** The inviter has a direct chat with the user, or is a member of a room the user joined. */
-export const isKnownInviter = (mx: MatrixClient, senderId: string | undefined): boolean => {
+const isKnownInviter = (mx: MatrixClient, senderId: string | undefined): boolean => {
   if (!senderId) return false;
   const directRooms = mx.getAccountData(EventType.Direct)?.getContent()?.[senderId];
   if (Array.isArray(directRooms) && directRooms.length > 0) return true;

@@ -6,7 +6,7 @@ import { primeTimelineRenderContextBefore } from './threadRenderUtils';
 import { getTimelineMessageKind } from './timelineRowTypes';
 
 /** How one mounted row relates to the rows before it. */
-export type TimelineRowContext = {
+type TimelineRowContext = {
   /** Shown under the row above it without its own author line. */
   collapse: boolean;
   /** The row above, which a reply quote compares its target with. */

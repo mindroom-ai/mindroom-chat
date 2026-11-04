@@ -41,7 +41,7 @@ export const readPowerLevelTags = (content: unknown): PowerLevelTags => {
 };
 
 /** Translation keys of the names levels get when the room's tags leave them unnamed. */
-export const DEFAULT_POWER_LEVEL_TAG_KEYS = {
+const DEFAULT_POWER_LEVEL_TAG_KEYS = {
   100: 'sharedUi.powerLevels.admin',
   50: 'sharedUi.powerLevels.moderator',
   0: 'sharedUi.powerLevels.member',

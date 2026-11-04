@@ -26,9 +26,9 @@ export type TypingReceipt = {
   isTyping: () => boolean;
 };
 
-export type RoomIdToTypingMembers = Map<string, TypingReceipt[]>;
+type RoomIdToTypingMembers = Map<string, TypingReceipt[]>;
 
-export type TypingMembersAction =
+type TypingMembersAction =
   | {
       type: 'PUT';
       roomId: string;
@@ -41,7 +41,7 @@ export type TypingMembersAction =
   | { type: 'PRUNE' }
   | { type: 'RESET' };
 
-export type TypingMembersAtom = WritableAtom<RoomIdToTypingMembers, [TypingMembersAction], void>;
+type TypingMembersAtom = WritableAtom<RoomIdToTypingMembers, [TypingMembersAction], void>;
 
 const typingMembersAtom = atom<RoomIdToTypingMembers>(new Map());
 

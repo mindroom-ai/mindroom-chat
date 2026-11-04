@@ -1,5 +1,5 @@
 /** The parts of a `sanitize-html` policy MindRoom adds to the client's base sanitizer. */
-export type MindroomCustomHtmlSanitizerPolicy = {
+type MindroomCustomHtmlSanitizerPolicy = {
   allowedTags: string[];
   allowedAttributes: Record<string, string[]>;
 };

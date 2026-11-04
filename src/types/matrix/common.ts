@@ -5,7 +5,7 @@
  * A JSON Web Key for AES-CTR, as carried in encrypted attachment metadata. The specification has
  * senders set `ext` to true, but decryption imports the key without it, so received keys may omit it.
  */
-export type IEncryptedFileKey = {
+type IEncryptedFileKey = {
   alg: string;
   ext?: boolean;
   key_ops: string[];
@@ -75,8 +75,3 @@ export const MATRIX_VOICE_MESSAGE_PROPERTY_NAME = 'm.voice';
 export const MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME = 'org.matrix.msc3245.voice';
 export const MATRIX_AUDIO_DETAILS_PROPERTY_NAME = 'm.audio';
 export const MATRIX_AUDIO_DETAILS_UNSTABLE_PROPERTY_NAME = 'org.matrix.msc1767.audio';
-
-export type MessageMention = {
-  user_ids?: string[];
-  room?: boolean;
-};

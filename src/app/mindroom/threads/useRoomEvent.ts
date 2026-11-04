@@ -77,7 +77,7 @@ export const useFetchRoomEvent = (room: Room): FetchRoomEvent => {
 const isNotFound = (error: unknown): boolean =>
   (error as { errcode?: string } | null)?.errcode === 'M_NOT_FOUND';
 
-export type UseRoomEventOptions = {
+type UseRoomEventOptions = {
   /** Thread the event belongs to, so the thread cache is tried first. */
   threadId?: string;
 };

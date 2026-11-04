@@ -58,7 +58,7 @@ export const useSavedSidebarItems = (): SidebarItem[] => {
 };
 
 /** Every space ID the entries mention, inside folders too. */
-export const sidebarSpaceIds = (items: SidebarItem[]): Set<string> => {
+const sidebarSpaceIds = (items: SidebarItem[]): Set<string> => {
   const ids = new Set<string>();
   items.forEach((item) => {
     if (isFolder(item)) item.content.forEach((id) => ids.add(id));

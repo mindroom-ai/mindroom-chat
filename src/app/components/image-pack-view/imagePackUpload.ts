@@ -5,7 +5,7 @@ import { getImageInfo } from '../../utils/matrix';
 import { getFileNameWithoutExt } from '../../utils/mimeTypes';
 
 /** An uploaded image, ready to add to an image pack under `shortcode`. */
-export type ImagePackUploadImage = {
+type ImagePackUploadImage = {
   shortcode: string;
   url: string;
   body: string;
@@ -13,7 +13,7 @@ export type ImagePackUploadImage = {
 };
 
 /** A shortcode from a file name: the name without its extension, spaces and colons replaced. */
-export const shortcodeFromFileName = (fileName: string): string =>
+const shortcodeFromFileName = (fileName: string): string =>
   getFileNameWithoutExt(fileName).trim().replace(/:/g, '').replace(/\s+/g, '-');
 
 /**

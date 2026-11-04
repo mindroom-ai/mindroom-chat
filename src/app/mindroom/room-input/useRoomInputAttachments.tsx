@@ -38,7 +38,7 @@ import {
   getMindroomRoomInputPasteMarkerFileNames,
 } from './RoomInputMindroomExtensions';
 
-export type CreateRoomInputUploadItems = (
+type CreateRoomInputUploadItems = (
   files: File[],
   getMetadata?: (file: File, index: number) => TUploadMetadata
 ) => Promise<TUploadItem[]>;

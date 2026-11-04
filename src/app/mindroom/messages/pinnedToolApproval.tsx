@@ -12,7 +12,7 @@ export const isMindroomPinnedToolApprovalEvent = (eventType: string): boolean =>
 type ContentProps = ComponentProps<typeof RenderMessageContent>;
 
 /** Parsing and media settings come straight from the message renderer; the pin menu owns the rest. */
-export type MindroomPinnedToolApprovalRenderOptions = Pick<
+type MindroomPinnedToolApprovalRenderOptions = Pick<
   ContentProps,
   'htmlReactParserOptions' | 'linkifyOpts' | 'mediaAutoLoad' | 'outlineAttachment' | 'urlPreview'
 > & {

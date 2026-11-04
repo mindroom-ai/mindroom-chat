@@ -14,7 +14,7 @@ import { MindroomMarkRoomReadMenuItem } from '../notifications/MindroomMarkRoomR
 import { ArchiveRoomMenuItem } from '../rooms/ArchiveRoomMenuItem';
 
 /** What the room header's options menu offers; an action left out hides its entry. */
-export type RoomHeaderMenuActions = {
+type RoomHeaderMenuActions = {
   onInvite?: () => void;
   onCopyLink: () => void;
   onOpenSettings: () => void;

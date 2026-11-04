@@ -96,13 +96,13 @@ export const isTokenStage = (stage: string): boolean =>
   stage === SignUpStage.Token || stage === SignUpStage.TokenUnstable;
 
 /** Whether a sign-up form asks for a value: in every flow, in some, or never. */
-export type SignUpField = 'required' | 'optional' | undefined;
+type SignUpField = 'required' | 'optional' | undefined;
 
 /** A policy the `m.login.terms` stage asks the user to accept, in one language. */
 export type TermsPolicy = { id: string; name: string; url: string };
 
 /** What the sign-up form shows for the flows a homeserver offers. */
-export type SignUpPlan = {
+type SignUpPlan = {
   token: SignUpField;
   email: SignUpField;
   /** The policies to accept; empty when no usable flow has a terms stage. */

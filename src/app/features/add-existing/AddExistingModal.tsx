@@ -31,7 +31,7 @@ import { CreateDialogFrame } from '../create-space/CreateDialogFrame';
 import { addSpaceChild } from '../lobby/spaceChildren';
 
 /** Which of the user's joined rooms the picker lists. */
-export type AddExistingKind = 'rooms' | 'spaces';
+type AddExistingKind = 'rooms' | 'spaces';
 
 type AddExistingModalProps = {
   kind: AddExistingKind;

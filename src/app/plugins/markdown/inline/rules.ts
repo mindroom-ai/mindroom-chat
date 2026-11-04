@@ -110,7 +110,7 @@ export const StrikeRule: InlineMDRule = {
 };
 
 /** `||spoiler||`, sent as a Matrix spoiler. */
-export const SpoilerRule: InlineMDRule = {
+const SpoilerRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '||', notAfterCloser: '|' }),
   html: (parseInline, match) =>
     `<span data-md="||" data-mx-spoiler>${parseInline(capture(match, 1))}</span>`,
@@ -142,7 +142,7 @@ export const LinkRule: InlineMDRule = {
  * which leaves prices such as `$5` and `$1,000.00$` alone. The LaTeX goes into the attribute and
  * the fallback text as written: the input is already HTML-escaped.
  */
-export const InlineMathRule: InlineMDRule = {
+const InlineMathRule: InlineMDRule = {
   match: (text) => {
     const found = findInlineLatexMatch(text);
     return found ? toMatch([found.fullMatch, found.latex], found.start, text) : null;

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { atom, type WritableAtom, useSetAtom } from 'jotai';
 import { ClientEvent, type MatrixClient, type Room, RoomEvent } from 'matrix-js-sdk';
 
-export type RoomsAction =
+type RoomsAction =
   | { type: 'INITIALIZE'; rooms: string[] }
   | { type: 'PUT'; roomId: string }
   | { type: 'DELETE'; roomId: string };

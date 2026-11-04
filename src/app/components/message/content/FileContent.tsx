@@ -43,13 +43,13 @@ const TEXT_MIME_TYPES = new Set([
 ]);
 
 /** Whether a file can be shown in the text viewer. */
-export const isTextFileMimeType = (mimeType: unknown): boolean => {
+const isTextFileMimeType = (mimeType: unknown): boolean => {
   if (typeof mimeType !== 'string') return false;
   const base = getMimeTypeBase(mimeType);
   return base.startsWith('text/') || TEXT_MIME_TYPES.has(base);
 };
 
-export const isPdfFileMimeType = (mimeType: unknown): boolean =>
+const isPdfFileMimeType = (mimeType: unknown): boolean =>
   typeof mimeType === 'string' && getMimeTypeBase(mimeType) === 'application/pdf';
 
 // The PDF viewer hands the file to the browser's own PDF display. Browsers without one (Android's
@@ -77,7 +77,7 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
 };
 
 /** Highlighting language for the text viewer, from the file name and type. */
-export const getFileLanguageName = (fileName: string, mimeType: string): string => {
+const getFileLanguageName = (fileName: string, mimeType: string): string => {
   const fromExtension = LANGUAGE_BY_EXTENSION[getFileNameExt(fileName).toLowerCase()];
   if (fromExtension) return fromExtension;
   const base = getMimeTypeBase(mimeType);
@@ -262,7 +262,7 @@ export function ReadTextFile({
 }
 
 /** What a PDF viewer is rendered with; matches the PdfViewer component's props. */
-export type RenderPdfViewerProps = {
+type RenderPdfViewerProps = {
   name: string;
   /** A `blob:` URL of the file, typed as PDF. */
   src: string;

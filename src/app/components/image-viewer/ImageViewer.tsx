@@ -20,7 +20,7 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  * Downloads `src` once and saves it as `fileName`. A failed save keeps the downloaded blob, so
  * Retry only saves again.
  */
-export const useSaveMedia = (src: string, fileName: string) => {
+const useSaveMedia = (src: string, fileName: string) => {
   const [state, setState] = useState<DownloadState>('idle');
   const blobRef = useRef<{ src: string; blob: Blob }>();
 

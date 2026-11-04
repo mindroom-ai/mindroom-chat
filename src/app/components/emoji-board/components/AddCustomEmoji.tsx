@@ -28,8 +28,7 @@ import { mobileOrTablet } from '../../../utils/user-agent';
 import * as css from './styles.css';
 
 /** A shortcode from what the user typed: no spaces or colons. */
-export const toShortcode = (name: string): string =>
-  name.trim().replace(/:/g, '').replace(/\s+/g, '-');
+const toShortcode = (name: string): string => name.trim().replace(/:/g, '').replace(/\s+/g, '-');
 
 const getPersonalPackContent = (client: MatrixClient): PackContent =>
   getAccountData(client, AccountDataEvent.PoniesUserEmotes)?.getContent<PackContent>() ?? {};

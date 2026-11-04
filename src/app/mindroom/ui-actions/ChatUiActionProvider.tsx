@@ -27,7 +27,7 @@ export type ChatUiActionOptions = {
   unavailable: (action: ChatUiAction) => string | undefined;
 };
 
-export type ChatUiActions = {
+type ChatUiActions = {
   /** The action a message requests of this viewer, read from the event as it is now. */
   read: (event: MatrixEvent) => ChatUiAction | undefined;
   unavailable: (action: ChatUiAction) => string | undefined;

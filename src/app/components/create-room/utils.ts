@@ -54,7 +54,7 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
  * The new room's `creation_content` (Client-Server API, `POST /createRoom`): its room type, and
  * `m.federate: false` when only users of this server may ever join.
  */
-export const createRoomCreationContent = ({
+const createRoomCreationContent = ({
   type,
   allowFederation,
 }: Pick<CreateRoomData, 'type' | 'allowFederation'>): Record<string, unknown> => {
@@ -68,7 +68,7 @@ export const createRoomCreationContent = ({
  * The `m.room.join_rules` state for `access`. A restricted room admits the members of `parent`;
  * with `knock`, everyone else may ask to join (`knock_restricted`, or `knock` for invite-only).
  */
-export const createRoomJoinRulesState = ({
+const createRoomJoinRulesState = ({
   access,
   parent,
   knock,
@@ -89,7 +89,7 @@ export const createRoomJoinRulesState = ({
 };
 
 /** `m.space.parent` pointing at `parent`, marked canonical. */
-export const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
+const createRoomParentState = (parent: Room): ICreateRoomStateEvent => {
   const via = getViaServers(parent);
   return {
     type: StateEvent.SpaceParent,

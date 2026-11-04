@@ -24,7 +24,7 @@ type SidebarAccountData = {
   [key: string]: unknown;
 };
 
-export type CommitSidebarReorderOptions = {
+type CommitSidebarReorderOptions = {
   mx: MatrixClient;
   /** Joined spaces with no parent space that the sidebar lists after its saved items. */
   orphanSpaces: string[];
@@ -39,7 +39,7 @@ export type CommitSidebarReorderOptions = {
   setSpaceOrder: (action: SpaceOrderAction) => void;
 };
 
-export type CommitSidebarReorderResult = {
+type CommitSidebarReorderResult = {
   items: SidebarItem[];
   shouldPersistAccountData: boolean;
 };

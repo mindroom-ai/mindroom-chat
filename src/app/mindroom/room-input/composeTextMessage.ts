@@ -69,15 +69,6 @@ export const takeMessageCommand = (
   return { command, document: [paragraph, ...otherBlocks] };
 };
 
-/** The message type a leading `/me` or `/notice` picks, and the document without it. */
-export const takeMsgtypeCommand = (
-  document: Descendant[]
-): { msgtype: MsgType; document: Descendant[] } => {
-  const taken = takeMessageCommand(document);
-  const msgtype = taken.command && MSGTYPE_BY_COMMAND.get(taken.command);
-  return msgtype ? { msgtype, document: taken.document } : { msgtype: MsgType.Text, document };
-};
-
 const HTML_ENTITIES: Record<string, string> = {
   amp: '&',
   lt: '<',

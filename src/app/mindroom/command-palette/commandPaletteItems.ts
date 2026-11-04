@@ -57,7 +57,7 @@ type Executable<T> = T & { onSelect?: () => void };
 export type ExecutableCommandPaletteItem = Executable<CommandPaletteItem>;
 
 /** How far the Users section looks: past its caps for a typed query, into other rooms when asked. */
-export type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boolean };
+type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boolean };
 
 /** Everything the palette can show; users and message searches are built on demand. */
 export type CommandPaletteSource = {

@@ -101,7 +101,7 @@ type TimelineSettings = Pick<
   | 'showHiddenEvents'
 >;
 
-export type UseTimelineMessageFeatureOptions = TimelineSettings & {
+type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
   editor: Editor;
   threadId?: string;

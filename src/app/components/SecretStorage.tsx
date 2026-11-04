@@ -10,7 +10,7 @@ import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { errorMessage } from '../utils/errorMessage';
 
 /** `m.secret_storage.key.*` passphrase info (PBKDF2 settings). */
-export type SecretStoragePassphraseContent = {
+type SecretStoragePassphraseContent = {
   algorithm: string;
   iterations: number;
   salt: string;

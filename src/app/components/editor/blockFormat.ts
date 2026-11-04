@@ -3,7 +3,7 @@ import type { Node, Path } from 'slate';
 import { BlockType } from './types';
 
 /** Line formats the formatting toolbar switches: a heading, or a quote, code block or list. */
-export type BlockFormat =
+type BlockFormat =
   | typeof BlockType.Heading
   | typeof BlockType.BlockQuote
   | typeof BlockType.CodeBlock

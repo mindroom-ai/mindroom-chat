@@ -23,7 +23,7 @@ export const AutoDiscoveryAction = {
 
 export type AutoDiscoveryAction = (typeof AutoDiscoveryAction)[keyof typeof AutoDiscoveryAction];
 
-export type AutoDiscoveryError = {
+type AutoDiscoveryError = {
   /** The server URL that was tried, with its scheme. */
   host: string;
   action: AutoDiscoveryAction;
@@ -88,7 +88,7 @@ const fallbackInfo = (baseUrl: string): AutoDiscoveryInfo => ({
 });
 
 /** `[error, undefined]` when sign-in cannot go on, otherwise `[undefined, info]`. */
-export type AutoDiscoveryResult = [AutoDiscoveryError | undefined, AutoDiscoveryInfo | undefined];
+type AutoDiscoveryResult = [AutoDiscoveryError | undefined, AutoDiscoveryInfo | undefined];
 
 /**
  * Resolves a server name or URL to its client discovery info (see `AutoDiscoveryResult`). A

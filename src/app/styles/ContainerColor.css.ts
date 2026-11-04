@@ -1,4 +1,4 @@
-import { recipe, type RecipeVariants } from '@vanilla-extract/recipes';
+import { recipe } from '@vanilla-extract/recipes';
 import { color } from 'folds';
 
 // Paints an element with one of the folds container colours: its background, text and the
@@ -29,5 +29,3 @@ export const ContainerColor = recipe({
     },
   },
 });
-
-export type ContainerColorVariants = RecipeVariants<typeof ContainerColor>;

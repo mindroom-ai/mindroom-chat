@@ -12,7 +12,7 @@ import {
 const CLOSED_NAV_CATEGORIES = 'closedNavCategories';
 const INITIALIZED_NAV_CATEGORIES = 'initializedNavCategories';
 
-export type ClosedNavCategoriesAction =
+type ClosedNavCategoriesAction =
   | { type: 'PUT'; categoryId: string }
   | { type: 'DELETE'; categoryId: string };
 

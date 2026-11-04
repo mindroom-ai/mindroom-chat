@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { type WritableAtom, useAtomValue, useStore } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 
-export type SettingSetter<V> = (value: V | ((current: V) => V)) => void;
+type SettingSetter<V> = (value: V | ((current: V) => V)) => void;
 
 /**
  * One field of a settings atom (the generic settings or MindRoom's) and a setter that changes

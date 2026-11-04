@@ -16,7 +16,7 @@ export type EmoticonSuggestion =
     };
 
 /** The most suggestions the menu lists. */
-export const MAX_EMOTICON_SUGGESTIONS = 20;
+const MAX_EMOTICON_SUGGESTIONS = 20;
 
 // Shortcodes are letters, digits, `_`, `-` and `+` (as in `+1`). Two characters at least, so a
 // colon in ordinary text (`:)`, `:D`, `10 :x`) opens no menu.

@@ -181,7 +181,7 @@ export const roomIdToReplyDraftAtomFamily = atomFamily((_key: string) =>
 
 // Attachments.
 
-export type TUploadListAction =
+type TUploadListAction =
   | { type: 'PUT'; item: TUploadItem | TUploadItem[] }
   | { type: 'DELETE'; item: TUploadItem | TUploadItem[] }
   | { type: 'REPLACE'; item: TUploadItem; replacement: TUploadItem }

@@ -46,7 +46,7 @@ export type PasteMarkerElement = {
 };
 
 /** Inline elements that are atoms: one unit in the composer, never edited character by character. */
-export type AtomElement = MentionElement | EmoticonElement | PasteMarkerElement;
+type AtomElement = MentionElement | EmoticonElement | PasteMarkerElement;
 
 export type InlineElement = LinkElement | AtomElement;
 
@@ -68,7 +68,7 @@ export type CodeLineElement = {
   children: FormattedText[];
 };
 
-export type CodeBlockElement = {
+type CodeBlockElement = {
   type: typeof BlockType.CodeBlock;
   children: CodeLineElement[];
 };
@@ -78,7 +78,7 @@ export type QuoteLineElement = {
   children: InlineContent[];
 };
 
-export type BlockQuoteElement = {
+type BlockQuoteElement = {
   type: typeof BlockType.BlockQuote;
   children: QuoteLineElement[];
 };
@@ -88,12 +88,12 @@ export type ListItemElement = {
   children: InlineContent[];
 };
 
-export type OrderedListElement = {
+type OrderedListElement = {
   type: typeof BlockType.OrderedList;
   children: ListItemElement[];
 };
 
-export type UnorderedListElement = {
+type UnorderedListElement = {
   type: typeof BlockType.UnorderedList;
   children: ListItemElement[];
 };

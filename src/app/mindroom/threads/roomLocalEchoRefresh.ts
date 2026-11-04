@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { RoomEvent, type MatrixEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 
-export type LocalEchoRefreshMeta = {
+type LocalEchoRefreshMeta = {
   /** The echo was just added; later calls report a status change (sent, failed, cancelled). */
   initial: boolean;
 };

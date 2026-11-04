@@ -4,7 +4,7 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useLiveReplyContent } from '../../live/useLiveReplyContent';
 
-export type LiveReplyMessageContentProps = ComponentProps<typeof RenderMessageContent>;
+type LiveReplyMessageContentProps = ComponentProps<typeof RenderMessageContent>;
 
 /**
  * Message content of an agent reply with its live reply frames (MSC2477 ephemeral events) laid

@@ -1,13 +1,13 @@
 // Typed readers for the search parameters that app routes understand.
 
-export type RoomSearchParams = {
+type RoomSearchParams = {
   /** Comma-separated server names to join an unknown room through. */
   viaServers?: string;
   /** Root event of the thread to open in the room view. */
   threadId?: string;
 };
 
-export type DirectCreateSearchParams = {
+type DirectCreateSearchParams = {
   userId?: string;
 };
 

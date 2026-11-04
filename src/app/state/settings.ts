@@ -118,7 +118,7 @@ const isMessageLayout = (value: unknown): value is MessageLayout =>
   value === MessageLayout.Bubble;
 
 /** The settings in `value`, with defaults for missing or invalid fields and unknown fields dropped. */
-export const sanitizeSettings = (value: unknown): Settings => {
+const sanitizeSettings = (value: unknown): Settings => {
   const record = isRecord(value) ? value : {};
   const settings: Settings = {
     ...DEFAULT_SETTINGS,

@@ -7,7 +7,7 @@ import { saveFile } from '../../mindroom/native/nativeFileSave';
 import { appUrl } from '../../utils/basePath';
 import * as css from './PdfViewer.css';
 
-export type PdfViewerProps = {
+type PdfViewerProps = {
   name: string;
   /** Object URL (`blob:`) of the PDF. Any other URL is neither shown nor saved. */
   src: string;
@@ -20,7 +20,7 @@ const isBlobUrl = (src: string) => src.startsWith('blob:');
 
 // The app's frame-src policy (index.html) refuses blob: frames, so the PDF opens in the app's own
 // frame page, which hands the object URL named after its # sign to the browser's viewer.
-export const pdfFrameUrl = (src: string): string =>
+const pdfFrameUrl = (src: string): string =>
   `${appUrl('pdf-frame.html')}#${encodeURIComponent(src)}`;
 
 /** Whether a save is running, and whether the last one failed. */

@@ -27,7 +27,7 @@ type JoinAddress = {
 };
 
 /** Reads what the user typed as a room alias, a room ID, or a matrix.to link to a room or event. */
-export const parseJoinAddress = (value: string): JoinAddress | undefined => {
+const parseJoinAddress = (value: string): JoinAddress | undefined => {
   const address = value.trim();
   if (isRoomAlias(address) || isRoomId(address)) return { roomIdOrAlias: address };
   const event = parseMatrixToRoomEvent(address);

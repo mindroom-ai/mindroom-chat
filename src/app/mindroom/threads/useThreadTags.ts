@@ -22,7 +22,7 @@ import {
 } from './threadTagPending';
 import { usePinnedEventIds } from './useThreadPinning';
 
-export type ThreadTagsState = {
+type ThreadTagsState = {
   /** Every tag on the thread, `resolved` included. */
   tags: Record<string, TagMetadata>;
   /** Tags to show as pills: everything but `resolved`. */

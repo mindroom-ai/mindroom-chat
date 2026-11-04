@@ -12,7 +12,7 @@ import * as css from './ThreadIndicator.css';
 
 const MAX_PARTICIPANTS = 3;
 
-export type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'> & {
+type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'> & {
   as?: 'button' | 'div' | 'span';
   room: Room;
   /** Root of the thread; without one the indicator only labels the composer as replying in a thread. */

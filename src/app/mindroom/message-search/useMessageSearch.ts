@@ -20,7 +20,7 @@ export type ResultItem = {
 /** Consecutive hits from one room, in the order the server returned them. */
 export type ResultGroup = { roomId: string; items: ResultItem[] };
 
-export type MessageSearchParams = {
+type MessageSearchParams = {
   /** Undefined or blank keeps the search idle. */
   term?: string;
   order?: SearchOrderBy;

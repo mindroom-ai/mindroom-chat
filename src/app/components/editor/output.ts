@@ -13,7 +13,7 @@ import {
 import { BlockType } from './types';
 import type { CustomElement, FormattedText, MentionElement } from './slate';
 
-export type OutputOptions = {
+type OutputOptions = {
   /** Render text marks (bold, italic, ...) as HTML. */
   readonly allowTextFormatting?: boolean;
   /** Read inline Markdown (emphasis, code, links, math) in typed text. */

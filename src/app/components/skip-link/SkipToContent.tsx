@@ -8,7 +8,7 @@ import * as css from './SkipToContent.css';
  * Where the skip link lands: the page's title, which screen readers then read, or else its first
  * control. Titles are not tabbable, so the title gets `tabindex="-1"` to take focus.
  */
-export const skipTarget = (doc: Document): HTMLElement | undefined => {
+const skipTarget = (doc: Document): HTMLElement | undefined => {
   const main = doc.getElementById(PAGE_MAIN_ID) ?? doc.querySelector('main');
   if (!main) return undefined;
   const title = main.querySelector<HTMLElement>('h1');

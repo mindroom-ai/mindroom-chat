@@ -16,14 +16,14 @@ import {
 import { type RoomToParents, StateEvent } from '../../../types/matrix/room';
 import { matchesEnum } from '../../utils/matchesEnum';
 
-export type RoomToParentsAction =
+type RoomToParentsAction =
   | { type: 'INITIALIZE'; roomToParents: RoomToParents }
   /** Sets the children of one Space. */
   | { type: 'PUT'; parent: string; children: string[] }
   /** Forgets a Space, for example after leaving it. */
   | { type: 'DELETE'; parent: string };
 
-export type RoomToParentsAtom = WritableAtom<RoomToParents, [RoomToParentsAction], void>;
+type RoomToParentsAtom = WritableAtom<RoomToParents, [RoomToParentsAction], void>;
 
 const parentsAtom = atom<RoomToParents>(new Map());
 

@@ -32,7 +32,7 @@ const PHONE_CENTER: CSSProperties = {
   justifyContent: 'stretch',
 };
 
-export type ViewerFrame = {
+type ViewerFrame = {
   /** For the `OverlayCenter` around the viewer. */
   centerStyle?: CSSProperties;
   /** For the `Modal` that holds the viewer. */

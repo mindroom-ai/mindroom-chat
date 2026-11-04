@@ -18,11 +18,11 @@ import { appUrl } from './utils/basePath';
 
 // The language choice persists under the key i18next's browser detector
 // uses, so existing installs keep their language.
-export const LANGUAGE_STORAGE_KEY = 'i18nextLng';
+const LANGUAGE_STORAGE_KEY = 'i18nextLng';
 
 const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
 
-export const getLocaleUrl = (language: string): string =>
+const getLocaleUrl = (language: string): string =>
   appUrl(`public/locales/${encodeURIComponent(language)}.json`);
 
 const readStoredLanguage = (): string | undefined => {

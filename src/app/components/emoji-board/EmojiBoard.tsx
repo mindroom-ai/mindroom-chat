@@ -49,12 +49,12 @@ export const EmojiBoardTab = { Emoji: 'Emoji', Sticker: 'Sticker' } as const;
 export type EmojiBoardTab = (typeof EmojiBoardTab)[keyof typeof EmojiBoardTab];
 
 /** What a board item inserts, kept in each item button's `data-emoji-type`. */
-export const EmojiType = {
+const EmojiType = {
   Emoji: 'emoji',
   CustomEmoji: 'customEmoji',
   Sticker: 'sticker',
 } as const;
-export type EmojiType = (typeof EmojiType)[keyof typeof EmojiType];
+type EmojiType = (typeof EmojiType)[keyof typeof EmojiType];
 
 /** How each unicode group appears in the board: its rail icon and the key of its section title. */
 const EMOJI_GROUP_PRESENTATION = {

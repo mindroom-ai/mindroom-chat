@@ -40,7 +40,7 @@ import 'prismjs/components/prism-haskell';
 import 'prismjs/components/prism-elixir';
 
 /** Prism's grammar for a language name or alias, such as `ts` or `sh`. */
-export const getPrismGrammar = (language: string | undefined): Prism.Grammar | undefined => {
+const getPrismGrammar = (language: string | undefined): Prism.Grammar | undefined => {
   if (!language) return undefined;
   const name = language.toLowerCase();
   return Object.prototype.hasOwnProperty.call(Prism.languages, name)

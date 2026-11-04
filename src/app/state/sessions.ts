@@ -54,15 +54,15 @@ export type SessionStore = {
   activeSessionId?: string;
 };
 
-export type SessionInput = Pick<StoredSession, 'baseUrl' | 'userId' | 'deviceId' | 'accessToken'> &
+type SessionInput = Pick<StoredSession, 'baseUrl' | 'userId' | 'deviceId' | 'accessToken'> &
   Partial<Omit<StoredSession, 'sessionId' | 'baseUrl' | 'userId' | 'deviceId' | 'accessToken'>>;
 
-export type PutSessionOptions = {
+type PutSessionOptions = {
   /** Make the account active (the default). An inactive account keeps the current one active. */
   setActive?: boolean;
 };
 
-export type SessionProfile = Partial<
+type SessionProfile = Partial<
   Pick<StoredSession, 'lastKnownDisplayName' | 'lastKnownAvatarUrl' | 'lastKnownAvatarDataUrl'>
 >;
 

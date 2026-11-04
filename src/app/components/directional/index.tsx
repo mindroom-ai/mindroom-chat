@@ -10,7 +10,7 @@ import {
  * Where a pop-out or tooltip goes relative to its anchor, in folds' terms: `position` is the
  * anchor's side it opens on, and `align` the end of that side it lines up with.
  */
-export type Placement = { position?: Position; align?: Align };
+type Placement = { position?: Position; align?: Align };
 
 const otherSide: Partial<Record<Position, Position>> = { Left: 'Right', Right: 'Left' };
 const otherEnd: Partial<Record<Align, Align>> = { Start: 'End', End: 'Start' };

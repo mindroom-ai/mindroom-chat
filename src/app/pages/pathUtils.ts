@@ -28,7 +28,7 @@ import {
 } from './paths';
 
 /** Hash router settings from the client config; `true` means enabled without a basename. */
-export type HashRouterOption = { enabled?: boolean; basename?: string } | boolean | undefined;
+type HashRouterOption = { enabled?: boolean; basename?: string } | boolean | undefined;
 
 const encodeSegment = (value: string): string => encodeURIComponent(value);
 const optionalSegment = (value: string | undefined): string | null =>

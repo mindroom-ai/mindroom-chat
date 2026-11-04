@@ -4,7 +4,7 @@ import type { StoredSession } from '../../../state/sessions';
 import { UserAvatar } from '../../../components/user-avatar';
 import { nameInitials } from '../../../utils/common';
 
-export type AccountSwitcherAccount = {
+type AccountSwitcherAccount = {
   session: StoredSession;
   active: boolean;
   displayName?: string;

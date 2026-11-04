@@ -10,7 +10,7 @@ import { getMxIdServer } from '../../utils/matrix';
 const KEY = 'featureUi.room.roomTombstone';
 
 /** The room `tombstone` (`m.room.tombstone`) points to, if it names one. */
-export const replacementRoomOf = (tombstone: MatrixEvent | undefined): string | undefined => {
+const replacementRoomOf = (tombstone: MatrixEvent | undefined): string | undefined => {
   const roomId = tombstone?.getContent().replacement_room;
   return typeof roomId === 'string' && roomId ? roomId : undefined;
 };

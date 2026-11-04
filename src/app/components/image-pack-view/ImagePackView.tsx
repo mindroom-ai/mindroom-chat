@@ -37,7 +37,7 @@ import { getAccountData, getStateEvent } from '../../utils/room';
 import { matchesEnum } from '../../utils/matchesEnum';
 
 /** Where a room pack lives: the room and the state key of its `im.ponies.room_emotes` event. */
-export type ImagePackAddress = PackAddress;
+type ImagePackAddress = PackAddress;
 
 const readPack = (mx: MatrixClient, address: ImagePackAddress | undefined): PackContent => {
   if (!address) {

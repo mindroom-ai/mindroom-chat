@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { IEmoji, IEmojiGroup } from './emoji';
 
 /** The Emojibase emoji and their look-ups (`emoji.ts`), which load on first use. */
-export type EmojiData = {
+type EmojiData = {
   emojis: IEmoji[];
   emojiGroups: IEmojiGroup[];
   getEmojiByUnicode: (unicode: string) => IEmoji | undefined;

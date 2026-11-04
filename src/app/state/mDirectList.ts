@@ -5,11 +5,11 @@ import { AccountDataEvent } from '../../types/matrix/accountData';
 import { isRecord } from '../utils/isRecord';
 import { matchesEnum } from '../utils/matchesEnum';
 
-export type MDirectAction =
+type MDirectAction =
   | { type: 'INITIALIZE'; rooms: Set<string> }
   | { type: 'UPDATE'; rooms: Set<string> };
 
-export type MDirectAtom = WritableAtom<Set<string>, [MDirectAction], void>;
+type MDirectAtom = WritableAtom<Set<string>, [MDirectAction], void>;
 
 const directRoomsAtom = atom(new Set<string>());
 
@@ -20,7 +20,7 @@ export const mDirectAtom: MDirectAtom = atom<Set<string>, [MDirectAction], void>
 );
 
 /** The room IDs listed in an `m.direct` event (user ID to room IDs). */
-export const getMDirects = (event?: MatrixEvent): Set<string> => {
+const getMDirects = (event?: MatrixEvent): Set<string> => {
   const rooms = new Set<string>();
   const content: unknown = event?.getContent();
   if (!isRecord(content)) return rooms;

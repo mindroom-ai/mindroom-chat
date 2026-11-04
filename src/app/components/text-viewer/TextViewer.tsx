@@ -13,7 +13,7 @@ const COPIED_FEEDBACK_MS = 2000;
 /** The title (file name), the content, and its language (a `language-<langName>` class on the `pre`). */
 type TextSource = { name: string; langName: string; text: string };
 
-export type TextViewerProps = TextSource & { requestClose: () => void };
+type TextViewerProps = TextSource & { requestClose: () => void };
 
 /** Full-height read-only view of a text file or event source, with copy and close actions. */
 export const TextViewer = as<'div', TextViewerProps>(

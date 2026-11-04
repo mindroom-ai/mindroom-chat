@@ -26,15 +26,10 @@ type StatusFields = {
 
 type UploadAt<S extends UploadStatus> = { file: TUploadContent; status: S } & StatusFields[S];
 
-export type UploadIdle = UploadAt<UploadStatus.Idle>;
-export type UploadLoading = UploadAt<UploadStatus.Loading>;
-export type UploadSuccess = UploadAt<UploadStatus.Success>;
-export type UploadError = UploadAt<UploadStatus.Error>;
-
 /** One file's upload in any status; `status` tells the variants apart. */
 export type Upload = { [S in UploadStatus]: UploadAt<S> }[UploadStatus];
 
-export type UploadAtomAction =
+type UploadAtomAction =
   | { promise: Promise<UploadResponse> }
   | { progress: UploadProgress }
   | { mxc: string }
@@ -118,14 +113,14 @@ export const createUploadFamilyObserverAtom = (
   files: TUploadContent[]
 ): TUploadFamilyObserverAtom => atom((get) => files.map((file) => get(uploadFamily(file))));
 
-export type BindUploadOptions = {
+type BindUploadOptions = {
   /** Upload without the file name, as encrypted rooms require. */
   hideFilename?: boolean;
   /** A preparation failure (such as encryption) that turns any start into this error. */
   blockUploadError?: MatrixError;
 };
 
-export type BoundUpload = {
+type BoundUpload = {
   upload: Upload;
   startUpload: () => Promise<void>;
   cancelUpload: () => Promise<void>;

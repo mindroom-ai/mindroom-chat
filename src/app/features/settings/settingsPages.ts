@@ -11,6 +11,6 @@ export const SettingsPages = {
   AboutPage: 'about',
 } as const;
 
-export type CoreSettingsPage = (typeof SettingsPages)[keyof typeof SettingsPages];
+type CoreSettingsPage = (typeof SettingsPages)[keyof typeof SettingsPages];
 
 export type SettingsPage = CoreSettingsPage | 'archived-rooms' | 'mindroom.local-mindroom';

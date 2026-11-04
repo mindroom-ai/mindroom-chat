@@ -89,7 +89,7 @@ type InviteTraits = {
 };
 
 /** One pending invite, read from the stripped state the server sent with it. */
-export type InviteData = InvitedRoom & InvitedRoomListing & InviteOrigin & InviteTraits;
+type InviteData = InvitedRoom & InvitedRoomListing & InviteOrigin & InviteTraits;
 
 const cleanName = (name: string): string =>
   name.replace(BIDI_CONTROLS, '').replace(LINE_SEPARATORS, '');

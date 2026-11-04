@@ -8,7 +8,7 @@ export type InlineMDParser = (text: string) => string;
 export type InlineMDMatcher = (text: string) => RegExpMatchArray | null;
 
 /** Renders one match as HTML; `parseInline` renders nested Markdown, such as a link label. */
-export type InlineMDRenderer = (parseInline: InlineMDParser, match: RegExpMatchArray) => string;
+type InlineMDRenderer = (parseInline: InlineMDParser, match: RegExpMatchArray) => string;
 
 /** One kind of inline Markdown, such as bold text or a link. */
 export type InlineMDRule = {

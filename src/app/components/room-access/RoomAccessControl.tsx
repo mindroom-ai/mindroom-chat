@@ -31,9 +31,9 @@ import { matchesEnum } from '../../utils/matchesEnum';
 /** The join rules access can be decided from. */
 export type RoomAccessJoinRule = JoinRule;
 
-export type RoomAccessKind = 'join' | 'knock';
+type RoomAccessKind = 'join' | 'knock';
 
-export type RoomAccess = {
+type RoomAccess = {
   /** Join directly, or ask to join (knock). */
   kind: RoomAccessKind;
   /** Joins, or opens the request dialog. */

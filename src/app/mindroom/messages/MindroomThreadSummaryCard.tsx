@@ -8,7 +8,7 @@ import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass'
 import type { MindroomThreadSummaryInfo } from './threadSummary';
 import * as css from './MindroomThreadSummaryCard.css';
 
-export type MindroomThreadSummaryCardProps = {
+type MindroomThreadSummaryCardProps = {
   summaryInfo: MindroomThreadSummaryInfo;
   /** Thread badges and overview rows: a single provenance line, no chip and no time. */
   compact?: boolean;

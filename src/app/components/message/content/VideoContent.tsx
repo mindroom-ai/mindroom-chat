@@ -8,7 +8,7 @@ import { getBlobSafeMimeType } from '../../../utils/mimeTypes';
 import { useAttachmentObjectUrl } from '../attachmentDownload';
 import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
 
-export type RenderVideoProps = {
+type RenderVideoProps = {
   src: string;
   title: string;
   autoPlay: boolean;

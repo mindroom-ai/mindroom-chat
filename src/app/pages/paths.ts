@@ -39,5 +39,3 @@ export const SPACE_PATH = '/:spaceIdOrAlias/';
 export const SPACE_LOBBY_PATH = '/:spaceIdOrAlias/lobby/';
 export const SPACE_SEARCH_PATH = '/:spaceIdOrAlias/search/';
 export const SPACE_ROOM_PATH = '/:spaceIdOrAlias/:roomIdOrAlias/:eventId?/';
-
-export const CREATE_PATH = '/create/';
