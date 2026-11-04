@@ -40,6 +40,7 @@ test.describe('agent reply whose final edit has no formatted_body', () => {
     );
     const roomId = await createPrivateRoom(homeserver, accessToken, {
       name: `Agent Markdown ${Date.now()}`,
+      topic: 'Agent reply with a Markdown-only final edit',
     });
     const agent = await registerAgentAccount(homeserver, 'helper');
     await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
