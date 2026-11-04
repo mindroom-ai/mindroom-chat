@@ -339,8 +339,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     ]
   );
   const filterOptsRef = useLatestRef(filterOpts);
-  const recalibrateFilterOptsRef = useRef<RecalibrateFilterOpts | undefined>(filterOpts);
-  recalibrateFilterOptsRef.current = filterOpts;
   // Reads the newest filters, so it changes identity only with the room.
   const buildInitialTimeline = useCallback((): Timeline => {
     const { room: filterRoom, ...filters } = filterOptsRef.current;
@@ -673,14 +671,14 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timeline,
     setTimeline,
     ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
-    recalibrateFilterOptsRef
+    filterOptsRef
   );
   const paginateRoom = useRoomPaginationCommandController({
     alive,
     handleTimelinePagination,
     mx,
     beginRoomCacheWrite,
-    recalibrateFilterOptsRef,
+    recalibrateFilterOptsRef: filterOptsRef,
     room,
     roomIdRef,
     roomPaginatingBackRef,
@@ -784,7 +782,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   }, [backController, readerScrolledRef]);
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
-  const threadFilteredEventsRef = useLatestRef(roomRows);
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
     cancelThreadBottomSettle,
@@ -798,7 +795,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
     threadTargets: session.targets,
     readUptoEventIdRef,
-    recalibrateFilterOptsRef,
+    recalibrateFilterOptsRef: filterOptsRef,
     room,
     roomOverviewOrderActive: threadIndex.roomOverviewOrderActive,
     roomThreadListThreads: threadIndex.roomThreadListThreads,
@@ -862,7 +859,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents: roomRows,
-    threadFilteredEventsRef,
+    threadFilteredEventsRef: roomRowsRef,
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
