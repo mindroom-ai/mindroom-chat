@@ -17,8 +17,14 @@ type CommandAutocompleteProps = {
   requestClose: () => void;
 };
 
-// A button centers its text; the command name starts at the reading edge like other menus.
-const nameStyle = { flexGrow: 1, fontFamily: 'var(--font-mono)', textAlign: 'start' } as const;
+// A button centers its text; the command name starts at the reading edge like other menus, and
+// keeps its width on narrow screens, where the description is cut instead.
+const nameStyle = {
+  flexGrow: 1,
+  flexShrink: 0,
+  fontFamily: 'var(--font-mono)',
+  textAlign: 'start',
+} as const;
 
 /**
  * The slash command menu, open while the message's first word starts with `/`: each command
