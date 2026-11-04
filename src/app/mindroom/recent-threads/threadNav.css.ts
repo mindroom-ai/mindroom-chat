@@ -151,13 +151,13 @@ export const EntryActions = style({
       visibility: 'visible',
       pointerEvents: 'auto',
     },
-    [`.${Entry}[aria-selected='true'] &`]: {
+    [`.${Entry}[data-selected='true'] &`]: {
       background: `linear-gradient(to right, transparent, ${color.Background.ContainerActive} 45%)`,
     },
     'html[dir=rtl] &': {
       background: `linear-gradient(to left, transparent, ${color.Background.ContainerHover} 45%)`,
     },
-    [`html[dir=rtl] .${Entry}[aria-selected='true'] &`]: {
+    [`html[dir=rtl] .${Entry}[data-selected='true'] &`]: {
       background: `linear-gradient(to left, transparent, ${color.Background.ContainerActive} 45%)`,
     },
   },

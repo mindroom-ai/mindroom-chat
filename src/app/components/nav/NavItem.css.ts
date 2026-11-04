@@ -32,7 +32,7 @@ export const NavItem = recipe({
       outline: 'none',
       selectors: {
         '&:hover, &:focus-within': { backgroundColor: 'var(--nav-item-hover)' },
-        '&[aria-selected=true]': { backgroundColor: 'var(--nav-item-active)' },
+        '&[data-selected=true]': { backgroundColor: 'var(--nav-item-active)' },
       },
     },
   ],

@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode } from 'react';
+import React, { ComponentProps, ReactNode, createContext, useContext } from 'react';
 import classNames from 'classnames';
 import { Link } from 'react-router-dom';
 import { Box, as } from 'folds';
@@ -13,34 +13,77 @@ type NavItemProps = {
   highlight?: boolean;
 };
 
+/** Whether the enclosing row is the open page, for its action's `aria-current`. */
+const NavItemSelectedContext = createContext(false);
+
+/** Roles that may carry `aria-selected`; a plain row is none of them. */
+const SELECTABLE_ROLES = new Set(['option', 'tab', 'row', 'gridcell', 'treeitem']);
+
 /**
- * One row of sidebar navigation; selected rows set `aria-selected`, and `data-highlight` tells
+ * One row of sidebar navigation. Callers mark the open row with `aria-selected`; the row shows it
+ * as `data-selected` and its action (`NavLink`, `NavButton`) tells assistive technology with
+ * `aria-current`, since `aria-selected` belongs to options and tabs. `data-highlight` tells
  * whether the row shows as unread.
  */
 export const NavItem = as<'div', NavItemProps>(
-  ({ as: AsNavItem = 'div', className, variant, radii, highlight, ...props }, ref) => (
-    <AsNavItem
-      className={classNames(css.NavItem({ variant, radii, highlight }), className)}
-      data-highlight={highlight ? 'true' : 'false'}
-      {...props}
-      ref={ref}
-    />
-  )
+  (
+    {
+      as: AsNavItem = 'div',
+      className,
+      variant,
+      radii,
+      highlight,
+      'aria-selected': ariaSelected,
+      ...props
+    },
+    ref
+  ) => {
+    const selected = ariaSelected === true || ariaSelected === 'true';
+    const keepsAriaSelected = SELECTABLE_ROLES.has(props.role ?? '');
+    return (
+      <NavItemSelectedContext.Provider value={selected}>
+        <AsNavItem
+          className={classNames(css.NavItem({ variant, radii, highlight }), className)}
+          data-highlight={highlight ? 'true' : 'false'}
+          data-selected={selected ? 'true' : undefined}
+          aria-selected={keepsAriaSelected ? ariaSelected : undefined}
+          {...props}
+          ref={ref}
+        />
+      </NavItemSelectedContext.Provider>
+    );
+  }
 );
 
 /** The row's main action as a button; it takes the row's full width up to the options. */
-export const NavButton = as<'button'>(({ as: AsButton = 'button', className, ...props }, ref) => (
-  <AsButton className={classNames(css.NavAction, className)} {...props} ref={ref} />
-));
+export const NavButton = as<'button'>(({ as: AsButton = 'button', className, ...props }, ref) => {
+  const selected = useContext(NavItemSelectedContext);
+  return (
+    <AsButton
+      className={classNames(css.NavAction, className)}
+      aria-current={selected ? 'true' : undefined}
+      {...props}
+      ref={ref}
+    />
+  );
+});
 
 type NavLinkProps = ComponentProps<typeof Link>;
 
-/** The row's main action as a router link. */
+/** The row's main action as a router link; the open row's link is the current page. */
 export const NavLink = React.forwardRef<HTMLAnchorElement, NavLinkProps>(function NavLink(
   { className, ...linkProps },
   ref
 ) {
-  return <Link {...linkProps} ref={ref} className={classNames(css.NavAction, className)} />;
+  const selected = useContext(NavItemSelectedContext);
+  return (
+    <Link
+      aria-current={selected ? 'page' : undefined}
+      {...linkProps}
+      ref={ref}
+      className={classNames(css.NavAction, className)}
+    />
+  );
 });
 
 /** Icon and label inside a row's action. */
