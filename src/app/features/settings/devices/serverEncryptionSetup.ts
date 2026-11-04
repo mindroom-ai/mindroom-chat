@@ -6,10 +6,12 @@ import { fetchKeyBackupVersion } from '../../../utils/keyBackupVersion';
  * cross-signing keys, a default secret storage key, or a key backup. Setting up verification
  * over any of them replaces it, so the caller asks first.
  *
- * Every answer comes from the server at call time. This session's own view is not enough: it
- * learns the account's cross-signing keys from its first `/keys/query`, which may not have
- * finished, or may have failed. Rejects when any of the three cannot be checked, because an
- * unanswered question is not a "no".
+ * The cross-signing keys and the backup are asked of the server at call time. This session's
+ * own view is not enough: it learns the account's cross-signing keys from its first
+ * `/keys/query`, which may not have finished, or may have failed. The default secret storage key
+ * is account data: once the first sync is done the SDK answers from its synced copy, which every
+ * sync keeps current, and asks the server only before that. Rejects when any of the three cannot
+ * be checked, because an unanswered question is not a "no".
  */
 export const hasServerEncryptionSetup = async (
   client: Pick<MatrixClient, 'getCrypto' | 'getSafeUserId' | 'secretStorage' | 'http'>
