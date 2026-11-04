@@ -1,40 +1,116 @@
-# mindroom-client
+# MindRoom Client
 
-An Apache-2.0 web client for [MindRoom](https://github.com/mindroom-ai/mindroom), built on `matrix-js-sdk` with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`).
+MindRoom Client is an Apache-2.0 [Matrix](https://matrix.org) client for [MindRoom](https://github.com/mindroom-ai/mindroom), which runs AI agents as Matrix users in your chat rooms. It is a web app (React, TypeScript, Vite) on `matrix-js-sdk` with its Rust crypto, served as static files, and it has iOS and Android shells built with Capacitor. In its interface the app calls itself MindRoom Chat.
 
-This is a clean-room rebuild of MindRoom Chat. Files authored by Bas Nijholt are ported at their original paths; everything else is written without access to the upstream client or MindRoom Chat source. `docs/provenance.md` explains the two lanes, and `AGENTS.md` holds the rules for working here.
+[`docs/provenance.md`](docs/provenance.md) explains where each file came from, and [`AGENTS.md`](AGENTS.md) holds the rules for changing code here.
 
-The stack matches MindRoom Chat so ported files run unchanged: React 18.2, TypeScript 5.4, Vite 5.4, vanilla-extract, folds, jotai, TanStack Query, React Router, Slate, and i18next.
+## Features
 
-## Status
+- Sign-in with a password or single sign-on, registration, and several accounts side by side.
+- Rooms, direct messages, spaces, invites, and an Explore page for public room directories.
+- Threads: the Compact view shows one card per thread under a filter bar (count, status filters, sort, search, tags); the Full view shows the whole timeline. An open thread fills the main area under a banner where you rename, tag, pin or resolve it.
+- MindRoom agent replies: streaming status, tool calls, model and usage details, tool approval cards, and thread titles written by the agents.
+- Agent canvases (HTML pages in sandboxed frames), the agent's computer (a remote desktop panel), schedules, background jobs, Connections, and pairing with a Local MindRoom.
+- A rich-text composer with Markdown, mentions, emoji, custom emoji and stickers, attachments, and voice messages.
+- End-to-end encryption with device verification, key backup and a recovery key.
+- Calls over LiveKit (MatrixRTC), a command palette, message search, an Inbox for notifications and invites, and bug reports.
+- 17 languages (Arabic is right to left), light and dark themes, and a start from cache when offline.
 
-Early. The ported files are in place and the missing modules ("seams") are being written until the project compiles and its tests pass. `docs/provenance/m1-baseline.txt` records where the compile started.
+## Quick start
 
-## Development
-
-Use the Nix dev shell, which provides Node 22, npm, Chromium (`CHROMIUM_PATH`), Python 3, and `just`:
+The Nix dev shell provides Node 24, npm, Python 3, `just`, Git and Chromium (`CHROMIUM_PATH`). Docker is needed for the test homeserver.
 
 ```bash
 nix develop
-just install
-just dev
+just install   # npm ci; applies patches/ with patch-package
+just dev       # http://127.0.0.1:4200
 ```
 
-| Recipe | What it does |
-|---|---|
-| `just install` | Install the locked dependencies (`npm ci`) |
-| `just typecheck` | Type-check the app sources (`tsconfig.app.json`, no tests) |
-| `just typecheck-tests` | Type-check everything, tests included; reports without failing |
-| `just typecheck-all` | Type-check everything, reporting semantic errors while syntax errors remain |
-| `just test [args]` | Unit tests (`vitest run`) |
-| `just lint` | ESLint |
-| `just format <paths>` | Prettier on files you wrote |
-| `just dev` | Vite dev server on `http://127.0.0.1:4200` |
-| `just build` | Production build into `dist/` |
-| `just e2e [args]` | Playwright end-to-end specs (`just hs-up` / `just hs-down` start and stop the test homeserver) |
-| `just check` | Typecheck, lint, test, license check, ported-file verification, hole check |
+Without Nix, use Node 22 or newer (`package.json` `engines`), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
 
-`AGENTS.md` lists every recipe.
+The dev server answers `/config.json` with `config.mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
+
+`just --list` shows every recipe; `AGENTS.md` describes each one.
+
+## Homeserver and MindRoom backend
+
+- **Homeserver.** `config.json` decides which homeservers the sign-in page offers and whether people may type their own (`homeserverList`, `defaultHomeserver`, `allowCustomHomeservers`). For local work, `just hs-up` starts a disposable Tuwunel homeserver with open registration at `http://127.0.0.1:28008` (server name `matrix.localhost`); `just hs-down` stops it and deletes its data.
+- **MindRoom agents.** A MindRoom backend (`mindroom run`) signs its agents in to a homeserver as ordinary Matrix accounts (`@mindroom_<name>:<server>`). Sign the client in to the same homeserver and talk to the agents in their rooms; chat needs nothing else.
+- **MindRoom API.** Agent computers and Connections talk to the backend's HTTP API. Each agent publishes the backend's origin (its `MINDROOM_PUBLIC_URL`) as `io.mindroom.server` room state, and the client uses it. Set `mindroom.computers.apiUrl` in `config.json` to pin one origin instead; each user can override it in Settings > General > Computers.
+- **Local MindRoom.** Pairing a MindRoom that runs on someone's own machine goes through the provisioning service at `sidebar.mindRoomProvisioningUrl` (default: the account's homeserver).
+- **Test backend.** `just agent-stack <slot> up` runs a real backend with a stub model (no model is called) against an end-to-end slot's homeserver; the `e2e/lane-c/agent-*.spec.ts` specs start it themselves.
+
+Every `config.json` key, its default and its effect: [`docs/configuration.md`](docs/configuration.md).
+
+## Checks
+
+| Command | What it does |
+|---|---|
+| `just check` | Everything CI runs: `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
+| `just typecheck` | `tsc` over the app sources without tests; must report 0 errors |
+| `just strict` | `tsc` with `tsconfig.strict.json`; fails on errors in Lane C files only |
+| `just lint` | ESLint, with type-aware rules for Lane C TypeScript |
+| `just test [files]` | Vitest unit tests (next to the code as `*.test.ts(x)`; DOM tests opt in with `// @vitest-environment jsdom`) |
+| `just typecheck-tests` | `tsc` over everything, tests and `e2e/` included; reports its errors without failing |
+
+### End-to-end specs
+
+The specs in `e2e/` run in Playwright with the Chromium from `CHROMIUM_PATH`. `e2e/global-setup.ts` lists the environment variables they read. Without `E2E_USERNAME`, it registers its own accounts on the local test homeserver and seeds a fixture room.
+
+```bash
+just hs-up
+just e2e e2e/password-login.spec.ts   # starts the dev server on port 4200 unless one is running
+just hs-down
+```
+
+Several runs can share a machine through slots. Slot `n` has its own homeserver on port 28100+n and its own app port 4300+n:
+
+```bash
+just e2e-slot 3 npx playwright test e2e/password-login.spec.ts             # dev server on the working tree
+just e2e-slot 3 --snapshot npx playwright test e2e/password-login.spec.ts  # dev server on a clean copy of HEAD
+just e2e-slot 3 --preview npx playwright test e2e/password-login.spec.ts   # production build of HEAD
+just e2e-slot 3 down                                                        # stop the slot, delete its data
+```
+
+- `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
+- `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once. Runs that share `E2E_SNAPSHOT_ROOT` share the cap. Its default is `${TMPDIR:-/tmp}/mindroom-client-e2e`, and `nix develop` gives each shell its own `TMPDIR`, so set `E2E_SNAPSHOT_ROOT=/tmp/mindroom-client-e2e` to share the cap with other shells.
+- `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average). `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Playwright options default to `--retries 1`.
+- `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs.
+
+## Build and deploy
+
+`just build` writes a static site to `dist/`:
+
+| File | Purpose |
+|---|---|
+| `index.html`, `assets/`, `res/`, `sound/`, `public/locales/`, `manifest.json` | the app |
+| `config.json` | a copy of `config.mindroom.json`; replace it per deployment ([`docs/configuration.md`](docs/configuration.md)) |
+| `runtime-config.js` | sets the deployment globals before the app starts (base path, service worker, sign-in recovery) |
+| `authentication-recovery.js` | recovers sign-in behind an authenticating proxy |
+| `sw.js` | the service worker: caches the app for offline starts, fetches authenticated media |
+| `version.json` | the build version, polled by running clients to notice a new deployment |
+| `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
+
+To deploy, serve `dist/` from the root of an origin and answer every path that is not a file with `index.html`; with `hashRouter.enabled` in `config.json`, routes live after `#` and no rewrite is needed. `config.json`, `runtime-config.js`, `authentication-recovery.js` and `version.json` are not precached by the service worker, so a deployment can change them without a new build. The build is not usable under a sub-path: its asset URLs start at `/`.
+
+- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git).
+- `cd dist && python3 ../serve.py 8090` serves a build with the `index.html` fallback. It generates its own `runtime-config.js` from `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER`.
+- The repository has no Dockerfile. `docker-entrypoint.d/99-runtime-config.sh` is a start script for an image based on the official `nginx` image, with `dist/` in `/usr/share/nginx/html` and the build's `runtime-config.js` copied to `/opt/mindroom/runtime-config.js`. At start it writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own. The nginx site needs the same `index.html` fallback.
+
+## Native shells
+
+`capacitor.config.ts` (app ID `chat.mindroom.app`) points both shells at `dist/`.
+
+- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
+- **Android**: `npm run build`, then `npx cap sync android`, then build `android/` with Android Studio or Gradle.
+
+## Documentation
+
+- [`docs/configuration.md`](docs/configuration.md): `config.json`, `runtime-config.js` and build variables.
+- [`docs/architecture.md`](docs/architecture.md): folders, the two code lanes, and how the MindRoom event formats are handled.
+- [`AGENTS.md`](AGENTS.md): rules and the full recipe list.
+- [`docs/provenance.md`](docs/provenance.md): where the code came from.
+- [`docs/design/reference/`](docs/design/reference/): the screenshots the app is compared with.
 
 ## License
 

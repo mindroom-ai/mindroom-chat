@@ -1,0 +1,183 @@
+# Configuration
+
+A deployment configures the client in three places:
+
+1. `config.json`, fetched each time the app starts. It holds nearly every setting.
+2. `runtime-config.js`, a script that sets a few window globals before the app loads.
+3. Environment variables at build time, for the version and the iOS bundle.
+
+The homeserver adds a few settings of its own through `/.well-known/matrix/client` (last section).
+
+## config.json
+
+The app fetches `/config.json` from the root of its origin before it shows anything (`src/app/components/ClientConfigLoader.tsx`). The file must hold a JSON object. Every key is optional, and a missing key means the default in the tables below, so `{}` is a valid configuration. The TypeScript type is `ClientConfig` in `src/app/hooks/useClientConfig.ts`.
+
+- **Where it comes from.** `vite build` copies `config.mindroom.json` to `dist/config.json`, and the dev server answers `/config.json` with the same file. A deployment replaces `dist/config.json` with its own; no new build is needed.
+- **When a change applies.** On the web the app starts with the copy it stored in `localStorage` at the previous start and fetches a fresh one in the background, so a changed file takes effect on the second load after the change. The native apps fetch it at every start.
+- **Failures.** If the fetch fails, the app shows an error with a retry button, plus a button to go on with the stored copy when there is one. A redirect or a 401 or 403 answer counts as an expired sign-in at an authenticating proxy and starts sign-in recovery (see `__AUTHENTICATION_RECOVERY_CONFIG__` below).
+- **Requests.** `cache: no-store`, same-origin credentials, and redirects are not followed.
+
+The configuration this repository ships (`config.mindroom.json`) sets `homeserverList` (`mindroom.chat`, `matrix.org`), `defaultHomeserver`, `allowCustomHomeservers`, `hashRouter` (off), `auth.allowRegistration`, `auth.requireAppleProvider`, `sidebar.showMindRoom`, `sidebar.mindRoomProvisioningUrl` (`https://mindroom.chat`), `welcome`, `splash`, `mindroom` (its own thinking messages, canvases off, no computer API origin), `messageRendering` (`obsidian`, `readdlespark`) and part of `push.ios` (push stays off).
+
+### Sign-in
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `homeserverList` | string[] | none | Homeservers the sign-in, registration and password reset pages offer: suggestions under the Server field, or a drop-down when the choice is locked (below). Each entry is a server name (looked up through `/.well-known/matrix/client`) or a URL. HTTP is accepted only for localhost and private network addresses. |
+| `defaultHomeserver` | number | `0` | Index in `homeserverList` of the preselected server. Out of range: the first entry. Without a list: `mindroom.chat`. |
+| `allowCustomHomeservers` | boolean | `true` | `false` locks sign-in to the listed servers: the Server field becomes a drop-down, and a server named in a link that is not on the list is replaced by the default, so a crafted link cannot send credentials elsewhere. |
+| `auth.hideServerPickerWhenSingle` | boolean | `false` | With `true` and exactly one server in `homeserverList`, the Server field is hidden and sign-in is locked to that server. |
+| `auth.allowRegistration` | boolean | `true` | `false` removes the Register link and sends `/register/...` to the login page. |
+| `auth.disablePasswordLogin` | boolean | `false` | `true` hides the password form, and password registration, on every server. On `mindroom.chat` both are always off and registration is single sign-on only, whatever this says. |
+| `auth.requireAppleProvider` | boolean | `false` | With `true`, on `mindroom.chat` only: when the server offers no Apple sign-in, the single sign-on buttons are replaced by an error (an App Store rule). |
+| `auth.poweredBy` | `{label, url}[]` | MindRoom (`https://mindroom.chat`) and Matrix (`https://matrix.org`) | The "Powered by" links under the sign-in card. `[]` hides the line. |
+| `auth.supportUrl` | string | none | A Support link under the sign-in card. |
+| `auth.privacyUrl` | string | none | A Privacy link under the sign-in card. |
+| `auth.termsUrl` | string | none | A Terms link under the sign-in card. |
+
+### Routing
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `hashRouter.enabled` | boolean | `false` | `true` keeps routes after `#` (`/#/home/`), for hosts that cannot answer every path with `index.html`. |
+| `hashRouter.basename` | string | `/` | Prefix of the routes inside the hash. Read only when `enabled` is `true`. |
+
+### Navigation and Local MindRoom
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `sidebar.showThreads` | boolean | `true` | `false` hides the Threads button in the icon rail. |
+| `sidebar.showExploreCommunity` | boolean | `true` | `false` hides the Explore and Create Space buttons in the icon rail. |
+| `sidebar.showMindRoom` | boolean | `true` | `false` hides Local MindRoom in the icon rail and in Settings. The `/connect` page and the welcome page's setup steps do not read it. |
+| `sidebar.mindRoomProvisioningUrl` | string (URL) | the account's homeserver | Origin of the provisioning service that pairs a Local MindRoom (the `/connect` page, Settings, and the setup steps the welcome page shows a day after first use while nothing is paired). An account whose homeserver has another origin cannot sign in to that service, so it gets no Local MindRoom entry. |
+
+### Explore
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `featuredCommunities.spaces` | string[] (room IDs or aliases) | `[]` | Spaces on the Explore page's Featured section. |
+| `featuredCommunities.rooms` | string[] (room IDs or aliases) | `[]` | Rooms on the Featured section. |
+| `featuredCommunities.servers` | string[] (server names) | `[]` | Servers whose public room directories the Explore navigation lists, after the account's own server. |
+| `featuredCommunities.openAsDefault` | boolean | `false` | `true` makes the Explore button open the Featured section instead of the own server's directory, when there is no Explore page to return to. |
+
+### Creating rooms
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `createRoom.defaultEncryption` | boolean | `true` | Initial state of the encryption switch for new private rooms. Public rooms are never encrypted. |
+| `createRoom.showEncryptionOption` | boolean | `true` | `false` hides the encryption switch; the default above still applies. |
+| `createRoom.defaultFederation` | boolean | `true` | Initial state of the federation switch for new rooms and spaces. |
+| `createRoom.showFederationOption` | boolean | `true` | `false` hides the federation switch for rooms and spaces. |
+
+With `showEncryptionOption: false` and `defaultEncryption: false` together, the welcome page also stops asking people to set up key backup.
+
+### Copy and branding
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `welcome.title` | string | `Welcome to MindRoom Chat` | Heading of the welcome page (shown when no room is open). |
+| `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under the heading; also shown in Settings > About. |
+| `welcome.sourceLabel` | string | `Source Code` | Label of the first welcome button. |
+| `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the button. Settings > About always links to the default. |
+| `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |
+| `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the button. |
+| `welcome.poweredBy` | `{label, url}[]` | MindRoom and Matrix | The "Powered by" links on the welcome page. `[]` hides the line. |
+| `splash.loadingMessages` | string[] | `Loading MindRoom Chat`, translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
+| `mindroom.thinkingPlaceholderMessages` | string[] | `Making progress`, `Almost there`, `Boosting the GPUs`, `Checking the thread`, `Composing the reply` | Shown in turn, every 3.6 seconds, while an agent's reply still reads `Thinking...`. Blank and non-string entries are skipped; an empty list means the defaults. |
+
+A `welcome` text equal to its English default is shown translated into the app language; any other text is shown as written in every language.
+
+### Messages
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `messageRendering.additionalAllowedUriSchemes` | string[] | `[]` | Link schemes that message HTML may use besides `https`, `http`, `ftp`, `mailto` and `magnet` (for example `obsidian`). Entries are lower-cased and a trailing `:` or `://` is dropped. Schemes that run script, read local files or embed documents (`javascript`, `vbscript`, `data`, `file`, `blob`, `about` and others) are always refused. |
+
+### MindRoom features
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `mindroom.canvas.enabled` | boolean | `false` | `true` turns on agent canvases: the canvas panel in rooms, the Canvases button in the icon rail (each user can hide it), and the Interface group in Settings > General. |
+| `mindroom.canvas.libraries` | boolean | `false` | `true` lets canvas pages load scripts, styles and fonts from `https://cdn.jsdelivr.net/npm/`. The CDN then sees which files a viewer loads, and a page can put data in those addresses. Off, a canvas page can load nothing from outside. |
+| `mindroom.computers.apiUrl` | string (origin) | `""` | Origin of the MindRoom backend for agent computers and Connections, for example `https://mindroom.example.org`. It must be HTTPS (HTTP only for localhost and private addresses) with no path, query or credentials; any other value counts as unset. Unset, the client uses the origin the room's agents publish as `io.mindroom.server` state. A value a user saves in Settings > General > Computers wins over both, and an empty value there turns computers off on that device. |
+| `mindroom.uiActions.autoOpenFromHomeservers` | string[] (server names) | none | Agents whose user ID is on one of these servers may open panels in the client without a click (`io.mindroom.ui_action` events: show the computer, show a canvas, open the members panel, open a Settings section). Only events that arrive live, within 60 seconds, while the app is in the foreground count. Without the key no agent can. |
+
+### Push notifications (iOS app)
+
+Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is set and `gatewayUrl` is an HTTPS URL. The values go into the Matrix pusher the app registers with the homeserver.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `push.ios.enabled` | boolean | `false` | Turns push on. |
+| `push.ios.appId` | string | none | The pusher's `app_id`, as the push gateway knows the app. |
+| `push.ios.gatewayUrl` | string (HTTPS URL) | none | The push gateway's notify URL (pusher `data.url`). |
+| `push.ios.appDisplayName` | string | `MindRoom Chat iOS` | The pusher's `app_display_name`; also the title of `event_id_only` notifications. |
+| `push.ios.deviceDisplayName` | string | `MindRoom Chat iOS` | The pusher's `device_display_name`. |
+| `push.ios.profileTag` | string | a random tag per account, stored on the device | The pusher's `profile_tag`. |
+| `push.ios.append` | boolean | `true` | The pusher's `append`. |
+| `push.ios.format` | `"full"` or other | `event_id_only` | `"full"` sends the whole event to the gateway; anything else sends only its ID, and the notification reads "New message". |
+| `push.ios.lang` | string | the app language | The pusher's `lang`. |
+
+### Declared but not read
+
+`sidebar.mindRoomUrl` is in the `ClientConfig` type, but no code reads it.
+
+## runtime-config.js
+
+`index.html` loads `/runtime-config.js` and then `/authentication-recovery.js` before the app. The built `runtime-config.js` (from `src/runtimeConfig.ts`) sets each global below only when it is not set yet, so a deployment prepends its own assignments to the file, as the Docker start script does. `serve.py` instead answers with a script of its own that sets only the first two.
+
+| Global | Default | Effect |
+|---|---|---|
+| `window.__APP_BASE_PATH__` | `"/"` | Base path of the router and of the app's own URLs. Sub-paths do not work with the current build, whose asset URLs and `config.json` request start at `/`. |
+| `window.__ENABLE_SERVICE_WORKER__` | `true` | Anything but `true` or the string `"true"` registers no service worker. The web app then has no offline start and no check for new deployments, and it loads media from the unauthenticated media endpoints. |
+| `window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__` | `[]` | Up to 8 root-relative paths (each with everything under it) that the service worker sends to the network instead of answering with the app. `/connections`, `/mcp` and `/reports`, which a MindRoom backend serves on a shared origin, are always excluded. |
+| `window.__AUTHENTICATION_RECOVERY_CONFIG__` | `null` | For a deployment behind an authenticating proxy: `{probeUrl, navigationUrl?, timeoutMs?}`. The client requests `probeUrl` at start, every minute, and when the window regains focus, becomes visible or comes back online. `204` means the proxy session holds; `401` or a redirect means it expired, and the client removes its service worker and navigates to `navigationUrl` (default: the current page) so the proxy can sign the person in, at most once per tab session. The Sign in button of the configuration error screen does the same. Both URLs must be on the app's origin, root-relative or absolute. `timeoutMs` is 1000 to 30000 (default 5000). An invalid value turns recovery off; with `null`, the Sign in button reloads the current page. |
+
+### Docker start script
+
+`docker-entrypoint.d/99-runtime-config.sh` writes `/usr/share/nginx/html/runtime-config.js` at container start, then appends the build's own `runtime-config.js` from `/opt/mindroom/runtime-config.js`:
+
+| Variable | Default | Sets |
+|---|---|---|
+| `APP_BASE_PATH` | `/` | `__APP_BASE_PATH__` |
+| `APP_ENABLE_SERVICE_WORKER` | `true` | `__ENABLE_SERVICE_WORKER__`: `true` for `1`, `true`, `TRUE`, `yes`, `YES`, `on` or `ON`, else `false` |
+| `APP_AUTHENTICATION_RECOVERY_PROBE_URL` | none | `__AUTHENTICATION_RECOVERY_CONFIG__.probeUrl`; without it the config is `null` |
+| `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL` | none | `__AUTHENTICATION_RECOVERY_CONFIG__.navigationUrl` |
+
+`serve.py` reads `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER` too (the latter in any letter case), and takes its port as the first argument (default 8090).
+
+## Build-time variables
+
+| Variable | Read by | Effect |
+|---|---|---|
+| `MINDROOM_BUILD_VERSION` | `scripts/build-version.mjs` | Build version in `version.json` and the service worker URL. Otherwise Netlify's `COMMIT_REF`, then `GITHUB_SHA`, then the checked-out Git commit, then Netlify's `DEPLOY_ID`; with none of them the app reports `development-build`. |
+| `MINDROOM_RELEASE_VERSION` | `scripts/build-version.mjs` | Release name shown in Settings > About. Otherwise the nearest Git tag `v<package version>-mindroom.<n>`, else `v<package version>`. |
+| `VITE_ENABLE_REACT_QUERY_DEVTOOLS` | `src/app/components/ReactQueryDevtoolsToggle.tsx` | `true` shows the TanStack Query devtools. At run time `?reactQueryDevtools=1` turns them on for that browser and `?reactQueryDevtools=0` off. |
+| `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. |
+
+`npm run build:ios` writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config.mindroom.json` as it is.
+
+### Development and test variables
+
+The e2e scripts set these; they are listed so their effect is not a surprise.
+
+| Variable | Effect |
+|---|---|
+| `MINDROOM_E2E_PROVISIONING_URL` | The dev and preview servers answer `/config.json` with `config.mindroom.json` whose `sidebar.mindRoomProvisioningUrl` is this origin (Playwright sets it to the app's own origin, where the specs stub the service). |
+| `E2E_APP_PORT`, `E2E_MATRIX_PORT` | App and homeserver ports of an end-to-end slot (`scripts/e2e-slot.sh`). A slot's dev server keeps its own Vite cache. |
+| `E2E_NO_WATCH` | `1` makes the dev server serve files as they were at its start. |
+| `E2E_PORT`, `E2E_SERVER_COMMAND`, `E2E_REUSE_EXISTING_SERVER` | Override Playwright's app port, server command, and whether it reuses a server already listening (`playwright.config.ts`). |
+| `E2E_SNAPSHOT_ROOT`, `E2E_MAX_CONCURRENT` | Where slot snapshots, builds and run tokens live, and how many slot runs go at once (README). |
+
+The variables the specs themselves read are listed at the top of `e2e/global-setup.ts`.
+
+## Homeserver well-known
+
+The client reads these keys from the homeserver's `/.well-known/matrix/client`:
+
+| Key | Effect |
+|---|---|
+| `m.homeserver.base_url` | The client-server API base URL. Without a well-known (404), the address typed or configured is used as the base URL. |
+| `org.matrix.msc4143.rtc_foci` | The first `livekit` entry's `livekit_service_url` is the MatrixRTC service for calls. The client reads it from `https://<server name>/.well-known/matrix/client` first, then asks the homeserver's `/rtc/transports`, then reads the well-known at the homeserver's base URL. |
+| `io.mindroom.bug_reports.admins` | Matrix user IDs that receive bug reports. |
+| `io.mindroom.emoji.room` | Alias or ID of the room that holds the server's shared custom emoji. |
