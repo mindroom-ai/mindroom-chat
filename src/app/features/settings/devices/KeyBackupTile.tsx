@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Chip, Icon, Icons, Spinner, Text, color } from 'folds';
-import { ClientPrefix, MatrixError, Method, type MatrixClient } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 import {
   CryptoEvent,
   ImportRoomKeyStage,
@@ -12,6 +12,7 @@ import {
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { SettingTile } from '../../../components/setting-tile';
+import { fetchKeyBackupVersion } from '../../../utils/keyBackupVersion';
 
 const KEY = 'sharedUi.backupRestore';
 
@@ -24,30 +25,15 @@ type BackupState = {
   activeVersion: string | null;
 };
 
-const isNotFound = (error: unknown): boolean =>
-  error instanceof MatrixError && (error.errcode === 'M_NOT_FOUND' || error.httpStatus === 404);
+/** The server could not say whether there is a backup, which is not the same as "none". */
+const CHECK_FAILED = 'failed';
 
 /** Asks the server itself, because the SDK's cached copy keeps the key count of its last check. */
-const fetchLatestBackup = async (client: MatrixClient): Promise<KeyBackupInfo | null> => {
-  try {
-    return await client.http.authedRequest<KeyBackupInfo>(
-      Method.Get,
-      '/room_keys/version',
-      undefined,
-      undefined,
-      { prefix: ClientPrefix.V3 }
-    );
-  } catch (error) {
-    if (isNotFound(error)) return null;
-    throw error;
-  }
-};
-
-const readBackupState = async (client: MatrixClient): Promise<BackupState | undefined> => {
+const readBackupState = async (client: MatrixClient): Promise<BackupState> => {
   const crypto = client.getCrypto();
-  if (!crypto) return undefined;
+  if (!crypto) throw new Error('No crypto module to read the key backup with');
   const [info, activeVersion] = await Promise.all([
-    fetchLatestBackup(client),
+    fetchKeyBackupVersion(client),
     crypto.getActiveSessionBackupVersion(),
   ]);
   const trust = info ? await crypto.isKeyBackupTrusted(info) : undefined;
@@ -61,16 +47,20 @@ const BACKUP_EVENTS = [
   CryptoEvent.KeysChanged,
 ] as const;
 
-/** The backup state, read again on backup events and once uploads finish; `remaining` counts keys still to upload. */
+/**
+ * The backup state, read again on backup events and once uploads finish; `remaining` counts keys
+ * still to upload. `undefined` while the first read runs, and `failed` when no read has worked yet
+ * or a requested one failed; a failed read after a good one keeps the good answer.
+ */
 const useBackupState = () => {
   const client = useMatrixClient();
-  const [state, setState] = useState<BackupState | null>();
+  const [state, setState] = useState<BackupState | typeof CHECK_FAILED>();
   const [remaining, setRemaining] = useState(0);
 
   const refresh = useCallback(() => {
     readBackupState(client).then(
-      (next) => setState(next ?? null),
-      () => setState(null)
+      (next) => setState(next),
+      () => setState(CHECK_FAILED)
     );
   }, [client]);
 
@@ -78,8 +68,8 @@ const useBackupState = () => {
     let mounted = true;
     const read = () => {
       readBackupState(client).then(
-        (next) => mounted && setState(next ?? null),
-        () => mounted && setState((current) => current ?? null)
+        (next) => mounted && setState(next),
+        () => mounted && setState((current) => current ?? CHECK_FAILED)
       );
     };
     const uploading = (count: number) => {
@@ -98,7 +88,13 @@ const useBackupState = () => {
     };
   }, [client]);
 
-  return { state, remaining, refresh };
+  /** Asks again after a failed check, showing the spinner meanwhile. */
+  const recheck = useCallback(() => {
+    setState(undefined);
+    refresh();
+  }, [refresh]);
+
+  return { state, remaining, refresh, recheck };
 };
 
 /** Restore progress in percent; `0` until the keys are downloaded and their count is known. */
@@ -131,7 +127,7 @@ export function KeyBackupTile() {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
-  const { state, remaining, refresh } = useBackupState();
+  const { state, remaining, refresh, recheck } = useBackupState();
   const [showDetails, setShowDetails] = useState(false);
   const [restoring, setRestoring] = useState<ImportRoomKeyProgressData | 'starting'>();
   const [error, setError] = useState<string>();
@@ -145,7 +141,25 @@ export function KeyBackupTile() {
     );
   }
 
-  const info = state?.info;
+  if (state === CHECK_FAILED) {
+    return (
+      <SettingTile
+        title={t(`${KEY}.encryptionBackup`)}
+        description={
+          <span role="alert" style={{ color: color.Warning.Main }}>
+            {t(`${KEY}.checkFailed`)}
+          </span>
+        }
+        after={
+          <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={recheck}>
+            <Text size="B300">{t('sharedUi.clientRoot.retry')}</Text>
+          </Button>
+        }
+      />
+    );
+  }
+
+  const { info } = state;
   if (!info) {
     return (
       <SettingTile
