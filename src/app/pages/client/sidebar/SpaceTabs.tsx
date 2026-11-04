@@ -68,6 +68,8 @@ type SpaceTabProps = {
 function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
   const client = useMatrixClient();
   const { roomId, name } = space;
+  // Without a picture: its first two letters as written ("Mi" for MindRoom).
+  const letters = Array.from(name.trim()).slice(0, 2).join('');
   const navigate = useNavigate();
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const useAuthentication = useMediaAuthentication();
@@ -113,13 +115,10 @@ function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
             onContextMenu={toggleContextMenu(setMenuAnchor)}
           >
             <RoomAvatar
-
-
-
-
-                // Its first two letters as written ("Mi" for MindRoom), not two words' initials.
-                <Text size="H4">{Array.from(name.trim()).slice(0, 2).join('')}</Text>
-              )}
+              alt={name}
+              roomId={roomId}
+              src={avatarUrl}
+              renderFallback={() => <Text size="H4">{letters}</Text>}
             />
           </SidebarAvatar>
         )}
