@@ -107,8 +107,7 @@ export const addRoomIdToMDirect = (
 /** Takes `roomId` out of the account's `m.direct` data, for every person it was listed under. */
 export const removeRoomIdFromMDirect = (mx: MatrixClient, roomId: string): Promise<void> =>
   runDirectUpdate(mx, async () => {
-    const current =
-      (mx.getAccountData(EventType.Direct)?.getContent() as MDirectContent | undefined) ?? {};
+    const current = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>() ?? {};
     const next: MDirectContent = {};
     let listed = false;
     Object.entries(current).forEach(([userId, rooms]) => {

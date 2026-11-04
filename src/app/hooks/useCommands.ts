@@ -12,6 +12,7 @@ import {
 } from '../utils/matrix';
 import { getDirectCreatePath, getHomePath, withSearchParam } from '../pages/pathUtils';
 import { readableReason } from '../utils/errorReason';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /**
  * The composer's slash commands, by the name typed after the `/`. The first group changes the
@@ -272,7 +273,7 @@ const deleteRecent: CommandAction = async ({ mx, room }, args) => {
   const doomed = (await eventsSince(mx, room.roomId, since)).filter(
     (event) =>
       sentByTarget(event.sender) &&
-      event.type !== EventType.RoomRedaction &&
+      !matchesEnum(event.type, EventType.RoomRedaction) &&
       !('state_key' in event) &&
       !event.unsigned?.redacted_because &&
       (types.length === 0 || types.includes(typeOf(event)))
