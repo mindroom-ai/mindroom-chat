@@ -2,7 +2,7 @@
  * Composer state per room and thread: the unsent message (kept in localStorage per account),
  * the message being replied to, staged attachments, and a voice message whose send failed.
  */
-import { atom, type WritableAtom } from 'jotai';
+import { atom, type createStore, type WritableAtom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
 import type { Descendant } from 'slate';
 import type { IEventRelation, MatrixError, Room } from 'matrix-js-sdk';
@@ -237,3 +237,25 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
+
+// Leaving an account.
+
+type JotaiStore = ReturnType<typeof createStore>;
+
+const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null) => void }) => {
+  family.setShouldRemove(() => true);
+  family.setShouldRemove(null);
+};
+
+/**
+ * Forgets what an account left in its composers when its session ends: reply targets, staged
+ * files and a voice send in progress. These are keyed by room alone, so the next account to open
+ * a room both accounts are in would otherwise show them and send them as its own. Unsent
+ * messages stay, since they are kept per account. A recorded voice message waiting for a retry
+ * stays too: it names its account and no other one sends it.
+ */
+export const forgetComposerStateOfSession = (store: JotaiStore): void => {
+  dropEveryEntry(roomIdToReplyDraftAtomFamily);
+  dropEveryEntry(roomIdToUploadItemsAtomFamily);
+  store.set(voiceAutoSendPendingAtom, false);
+};
