@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { atom, useStore } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { RoomStateEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import {
@@ -12,6 +12,7 @@ import {
 import type { CallDevices } from '../../features/calls/RoomCall';
 import { browserSupportsCalls } from '../../features/calls/callSupport';
 import { getLivekitServiceUrl } from '../../features/calls/rtcFocus';
+import { createRoomEncryptionState } from '../../components/create-room/utils';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
@@ -20,8 +21,42 @@ import {
   toAgentCallOrigin,
 } from './agentCall';
 
-/** How long a new call room may take to arrive in sync before the call is given up. */
+/** How long a new call room (or its new encryption) may take to arrive in sync before the call gives up. */
 const ROOM_SYNC_TIMEOUT_MS = 20_000;
+
+/** Resolves once sync shows the room encrypted; rejects after the timeout. */
+const whenRoomEncrypted = (mx: MatrixClient, room: Room): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => settle(() => reject(new Error('The call room was not encrypted in time.'))),
+      ROOM_SYNC_TIMEOUT_MS
+    );
+    function settle(done: () => void) {
+      clearTimeout(timer);
+      mx.off(RoomStateEvent.Events, onState);
+      done();
+    }
+    function onState(event: MatrixEvent) {
+      if (event.getRoomId() === room.roomId && room.hasEncryptionStateEvent()) settle(resolve);
+    }
+    mx.on(RoomStateEvent.Events, onState);
+    if (room.hasEncryptionStateEvent()) settle(resolve);
+  });
+
+/**
+ * A call about an encrypted conversation is encrypted too. The permanent call room is made once,
+ * encrypted or not as the first call's conversation was, so a later call from an encrypted
+ * conversation turns its encryption on (for good) and waits until sync shows it: this device and
+ * the agent each decide on media encryption from the room's state when they join.
+ */
+const encryptCallRoomFor = async (mx: MatrixClient, room: Room, origin: CallOrigin) => {
+  if (!mx.getRoom(origin.roomId)?.hasEncryptionStateEvent() || room.hasEncryptionStateEvent()) {
+    return;
+  }
+  const { type, content } = createRoomEncryptionState();
+  await mx.sendStateEvent(room.roomId, type as never, content as never, '');
+  await whenRoomEncrypted(mx, room);
+};
 
 export type AgentCallTarget = {
   agentUserId: string;
@@ -64,7 +99,8 @@ export type AgentCallStart = {
 };
 
 /**
- * Writes which conversation the call is about into the agent call room, then joins its call;
+ * Writes which conversation the call is about into the agent call room (encrypting the room first
+ * when the conversation is encrypted and the room is not), then joins its call;
  * ending the call clears that again, and so does a start that gives up after writing it (the
  * account switched meanwhile). Also takes an agent call up again after a reload.
  */
@@ -83,13 +119,15 @@ export const startAgentCall = (
     devices,
     // Written only once the call may start: a start that answers busy, such as while another
     // tab of this session is in a call in the same call room, leaves that call's origin alone.
-    prepare: () =>
-      prepareAgentCallRoom(
+    prepare: async () => {
+      await encryptCallRoomFor(mx, room, origin);
+      await prepareAgentCallRoom(
         mx,
         room,
         agentUserId,
         toAgentCallOrigin(origin.roomId, origin.threadId)
-      ),
+      );
+    },
     onEnded: () => cleanupMindroomAgentCall(mx, room),
   });
 
