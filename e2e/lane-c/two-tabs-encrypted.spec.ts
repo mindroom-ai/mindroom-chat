@@ -23,20 +23,25 @@ import { buildLoginPath } from '../env';
 // `crypto-evidence.json` in its output directory. Needs the slot homeserver:
 //   scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/lane-c/two-tabs-encrypted.spec.ts
 //
-// Expected to fail (workstream A1, 2026-11-04; full evidence in the A1 report,
-// .baspowers/sdd/2026-11-03-m2-core-parity/A1-report.md). Over 10 runs:
+// Two of these checks fail today (workstream A1, 2026-11-04; full evidence in the A1 report,
+// .baspowers/sdd/2026-11-03-m2-core-parity/A1-report.md), and the spec expects exactly those, so
+// any other failure fails it. Over 10 runs:
 // - 10 of 10: the two tabs encrypt with one shared outbound Megolm session, each from its own
 //   copy of the ratchet, so two of Alice's messages go out under the same message index (the
-//   same message key).
+//   same message key). The spec requires a reused index; once tabs of one session no longer run
+//   two crypto machines at once, that check fails and must then require none.
 // - 2 of 10: Bob's new device claims a one-time key that neither tab holds any more ("Failed to
 //   create a new Olm session from a pre-key message: InboundCreation(MissingOneTimeKey(..))" in
 //   both tabs), so its room key is lost and its message never decrypts for Alice, not even
-//   after minutes; in 2 more runs one tab lacked the key and the other still had it.
-// Remove `test.fail` once tabs of one session no longer run two crypto machines at once.
+//   after minutes; in 2 more runs one tab lacked the key and the other still had it. A tab that
+//   logged the missing key may miss the new device's messages; nothing else may go unread.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'two-tabs-spec-password';
 // Long enough for a busy machine; a message that never decrypts fails after it.
 const READ_TIMEOUT_MS = 30_000;
+/** Bob's second device, which signs in last and claims one of the shared device's one-time keys. */
+const NEW_DEVICE = 'bob device 2';
+const MISSING_KEY = /MissingOneTimeKey/;
 // Each message in the timeline is one row, so the whole conversation stays rendered.
 test.use({ viewport: { width: 1440, height: 1600 } });
 
@@ -104,7 +109,9 @@ const watch = (name: string, page: Page, readsFrom: number): Reader => {
     const text = message.text();
     if (CRYPTO_LINE.test(text)) log.push(`${new Date().toISOString()} ${message.type()} ${text}`);
   });
-  page.on('pageerror', (error) => log.push(`${new Date().toISOString()} pageerror ${error.message}`));
+  page.on('pageerror', (error) =>
+    log.push(`${new Date().toISOString()} pageerror ${error.message}`)
+  );
   return { name, page, log, readsFrom };
 };
 
@@ -232,8 +239,6 @@ const failedStep = ({ missing, unreadable, joinedLate }: Phase) =>
 
 test('two tabs of one session read every message of an encrypted room', async ({ browser }) => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
-  // Known to fail: see the comment at the top of this file.
-  test.fail();
   test.setTimeout(420_000);
 
   const run = `${Date.now().toString(36)}${test.info().repeatEachIndex}`;
@@ -274,12 +279,18 @@ test('two tabs of one session read every message of an encrypted room', async ({
       // A device that joined later has no key for what came before it; only its own rows count.
       const joinedLate = reader.readsFrom > 0;
       outcomes.push({ phase, reader: reader.name, missing, unreadable, joinedLate });
-      expect.soft(missing, `${phase}: ${reader.name} cannot read`).toEqual([]);
-      if (!joinedLate) {
-        expect.soft(unreadable, `${phase}: ${reader.name} undecryptable rows`).toEqual([]);
-      }
     }
   };
+
+  /**
+   * The known one-time key loss: one of Alice's tabs logged the missing key, and all it cannot
+   * read are the messages of Bob's new device (their rows show as undecryptable).
+   */
+  const knownKeyLoss = ({ reader, missing }: Phase) =>
+    reader.startsWith('alice tab') &&
+    missing.length > 0 &&
+    missing.every((text) => text.includes(`from ${NEW_DEVICE} `)) &&
+    readers.some((tab) => tab.name === reader && tab.log.some((line) => MISSING_KEY.test(line)));
 
   /** One message from the reader, then every reader must show it before the next one. */
   const say = async (from: Reader, phase: string) => {
@@ -310,7 +321,7 @@ test('two tabs of one session read every message of an encrypted room', async ({
 
     // Bob's new device claims one of the shared device's one-time keys for its first message.
     const bobLaptop = watch(
-      'bob device 2',
+      NEW_DEVICE,
       await signedIn(await context(browser), bob.username),
       messages.length
     );
@@ -322,7 +333,12 @@ test('two tabs of one session read every message of an encrypted room', async ({
     await say(bobPhone, 'new device');
 
     reused = await reusedMegolmIndexes(roomId, bob.username, alice.userId);
-    expect.soft(reused, 'no Megolm message index carries two of the messages').toEqual([]);
+    const unexpected = outcomes.filter(failedStep).filter((outcome) => !knownKeyLoss(outcome));
+    expect(unexpected, 'every reader reads every message it holds a key for').toEqual([]);
+    expect(
+      reused,
+      'known: two tabs reuse Megolm message indexes; once none are, require none here'
+    ).not.toEqual([]);
   } finally {
     // Written on every run, so a passing run also shows that the late device's history rows
     // were seen as undecryptable (the check can see a failure); attached when one failed.
