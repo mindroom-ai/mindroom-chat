@@ -7,8 +7,9 @@ import { defined } from '../../src/app/test-utils/defined';
 // cameras: a direct chat call that rings (card, ringtone, system notification), is answered,
 // carries sound both ways (encrypted too), mutes, shows video and survives a reload; a group
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
-// start; and a call to a MindRoom agent, which runs in the agent call room with the conversation
-// as its origin. Needs the slot's LiveKit server and authorization service:
+// start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
+// moment, and on a ring's Answer); and a call to a MindRoom agent, which runs in the agent call
+// room with the conversation as its origin. Needs the slot's LiveKit server and authorization service:
 //   eval "$(scripts/e2e-rtc.sh <slot> env)"; scripts/e2e-slot.sh <slot> down
 //   scripts/e2e-rtc.sh <slot> up; scripts/e2e-slot.sh <slot> npx playwright test e2e/lane-c/calls.spec.ts
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -493,6 +494,140 @@ test.describe('calls', () => {
       );
     await secondTab.waitForTimeout(3_000);
     expect(await membership()).toMatchObject({ device_id: browserDevice });
+    await expect(tileOf(firstTab, alice.userId)).toHaveAttribute('data-connected', 'true');
+    await callPanel(firstTab).getByRole('button', { name: 'End' }).click();
+  });
+
+  test('two tabs of the same session that press Join at the same moment: one joins, the other answers busy', async ({
+    browser,
+  }) => {
+    const alice = await register(`alicej${RUN}`, 'Alice Join');
+    const bob = await register(`bobj${RUN}`, 'Bob Join');
+    const roomId = await createDirectChat(alice, bob, false);
+    const firstTab = await signIn(browser, `alicej${RUN}`);
+    const secondTab = await firstTab.context().newPage();
+    const tabs = [firstTab, secondTab];
+    for (const tab of tabs) {
+      // eslint-disable-next-line no-await-in-loop
+      await openRoom(tab, roomId);
+      // eslint-disable-next-line no-await-in-loop
+      await tab.locator('[data-room-call-button]').click();
+      // eslint-disable-next-line no-await-in-loop
+      await expect(callPanel(tab).getByRole('button', { name: 'Join', exact: true })).toBeEnabled({
+        timeout: 30_000,
+      });
+    }
+
+    // Both press Join at the same agreed moment, within a millisecond or so of each other.
+    const at = Date.now() + 1_500;
+    await Promise.all(
+      tabs.map((tab) =>
+        tab.evaluate(async (moment) => {
+          const join = [
+            ...document.querySelectorAll<HTMLButtonElement>('[data-testid="call-panel"] button'),
+          ].find((button) => button.textContent?.trim() === 'Join');
+          if (!join) throw new Error('no Join button');
+          while (Date.now() < moment) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => {
+              setTimeout(resolve, 0);
+            });
+          }
+          join.click();
+        }, at)
+      )
+    );
+
+    const connected = async () => {
+      const states = await Promise.all(
+        tabs.map(async (tab) => tileOf(tab, alice.userId).getAttribute('data-connected'))
+      );
+      return states.filter((state) => state === 'true').length;
+    };
+    await expect.poll(connected, { timeout: 60_000 }).toBe(1);
+    const busy = await Promise.all(
+      tabs.map(async (tab) =>
+        (await callPanel(tab).textContent())?.includes('Already in another call')
+      )
+    );
+    expect(busy.filter(Boolean)).toHaveLength(1);
+    // A while later still one call: the busy tab did not join on top of the other.
+    await firstTab.waitForTimeout(3_000);
+    expect(await connected()).toBe(1);
+    const inCall = defined(tabs[busy.indexOf(false)], 'the tab in the call');
+    await callPanel(inCall).getByRole('button', { name: 'End' }).click();
+  });
+
+  test('answering a ring in a second tab while the first is in a call says so in the call panel', async ({
+    browser,
+  }) => {
+    const alice = await register(`alicer${RUN}`, 'Alice Ring');
+    const bob = await register(`bobr${RUN}`, 'Bob Ring');
+    const carol = await register(`carolr${RUN}`, 'Carol Ring');
+    const bobRoom = await createDirectChat(alice, bob, false);
+    const carolRoom = await createDirectChat(alice, carol, false);
+    const firstTab = await signIn(browser, `alicer${RUN}`);
+    await openRoom(firstTab, bobRoom);
+    await firstTab.locator('[data-room-call-button]').click();
+    await callPanel(firstTab).getByRole('button', { name: 'Join', exact: true }).click();
+    await expect(tileOf(firstTab, alice.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+    const secondTab = await firstTab.context().newPage();
+    await secondTab.goto('/home/');
+
+    // Carol calls Alice from another client: her membership, then a ring that mentions Alice.
+    const { device_id: carolDevice } = await matrix<{ device_id: string }>('/account/whoami', {
+      token: carol.token,
+    });
+    await matrix(
+      `/rooms/${encodeURIComponent(
+        carolRoom
+      )}/state/org.matrix.msc3401.call.member/${encodeURIComponent(
+        `_${carol.userId}_${carolDevice}_m.call`
+      )}`,
+      {
+        token: carol.token,
+        method: 'PUT',
+        body: {
+          application: 'm.call',
+          call_id: '',
+          scope: 'm.room',
+          device_id: carolDevice,
+          expires: 14_400_000,
+          focus_active: { type: 'livekit', focus_selection: 'oldest_membership' },
+          foci_preferred: [],
+        },
+      }
+    );
+    await matrix(
+      `/rooms/${encodeURIComponent(carolRoom)}/send/org.matrix.msc4075.rtc.notification/ring${RUN}`,
+      {
+        token: carol.token,
+        method: 'PUT',
+        body: {
+          notification_type: 'ring',
+          'm.mentions': { user_ids: [alice.userId] },
+          sender_ts: Date.now(),
+          lifetime: 60_000,
+        },
+      }
+    );
+
+    const ring = secondTab.getByRole('alertdialog', { name: 'Incoming Call' });
+    await expect(ring).toBeVisible({ timeout: 60_000 });
+    await ring.getByRole('button', { name: 'Answer' }).click();
+
+    // The second tab opens Carol's room with its call panel, which says why the call did not
+    // start and offers Join again; the first tab's call goes on.
+    await expect(callPanel(secondTab)).toContainText('Carol Ring', { timeout: 30_000 });
+    await expect(callPanel(secondTab)).toContainText('Already in another call', {
+      timeout: 30_000,
+    });
+    await expect(
+      callPanel(secondTab).getByRole('button', { name: 'Join', exact: true })
+    ).toBeVisible();
+    await expect(ring).toHaveCount(0);
     await expect(tileOf(firstTab, alice.userId)).toHaveAttribute('data-connected', 'true');
     await callPanel(firstTab).getByRole('button', { name: 'End' }).click();
   });
