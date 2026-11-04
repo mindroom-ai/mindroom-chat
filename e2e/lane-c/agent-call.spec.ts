@@ -5,6 +5,7 @@ import {
   bodyOf,
   composer,
   expect,
+  messageRow,
   openThread,
   sendFromComposer,
   startThread,
@@ -278,7 +279,9 @@ test('the agent hears a spoken question in a call from a thread and answers it a
     { timeout: 60_000, description: 'the call posted back into the thread' }
   );
   expect(bodyOf(writeback)).toMatch(/capital of France/i);
-  await expect(page.getByText(/Voice call · \d+ min/)).toBeVisible({ timeout: 30_000 });
+  await expect(messageRow(page, writeback.event_id)).toContainText(/Voice call · \d+ min/, {
+    timeout: 30_000,
+  });
 });
 
 test('a call about an encrypted conversation is encrypted end to end', async ({ page, stack }) => {
@@ -334,5 +337,5 @@ test('a call about an encrypted conversation is encrypted end to end', async ({ 
   expect(log.some((line) => line.includes('call_frame_key_installed'))).toBe(true);
   expect(log.some((line) => line.includes('call_key_sent'))).toBe(true);
   // Its call notice in the encrypted room decrypts here.
-  await expect(page.getByText(/Voice call · \d+ min/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Voice call · \d+ min/).first()).toBeVisible({ timeout: 60_000 });
 });
