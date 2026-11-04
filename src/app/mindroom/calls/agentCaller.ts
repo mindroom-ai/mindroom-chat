@@ -97,7 +97,7 @@ export const useAgentCaller = () => {
           setError('homeserver');
           return false;
         }
-        const encrypted = mx.isRoomEncrypted(roomId);
+        const encrypted = !!mx.getRoom(roomId)?.hasEncryptionStateEvent();
         let callRoom = findAgentCallRoom(mx, agentUserId);
         if (!callRoom) {
           const created = await createAgentVoiceRoom(mx, agentUserId, displayName, encrypted);

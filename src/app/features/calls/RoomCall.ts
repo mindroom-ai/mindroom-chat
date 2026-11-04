@@ -127,7 +127,7 @@ export class RoomCall {
     this.mx = options.mx;
     this.room = options.room;
     this.session = options.mx.matrixRTC.getRoomSession(options.room);
-    this.encrypted = options.mx.isRoomEncrypted(options.room.roomId);
+    this.encrypted = options.room.hasEncryptionStateEvent();
     this.state = {
       phase: 'connecting',
       microphone: options.microphone ?? true,
