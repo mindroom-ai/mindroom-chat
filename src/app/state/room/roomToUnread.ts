@@ -15,7 +15,7 @@ import {
   RoomEvent,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
-import type { RoomToParents, RoomToUnread, Unread, UnreadInfo } from '../../../types/matrix/room';
+import type { RoomToUnread, Unread, UnreadInfo } from '../../../types/matrix/room';
 import { getUnreadInfo, roomHaveUnread } from '../../utils/room';
 import { isRecord } from '../../utils/isRecord';
 import { roomToParentsAtom } from './roomToParents';
