@@ -131,6 +131,18 @@ export function RoomMessageAnnouncer({
       announce(event, shownContent(event));
     };
 
+    /** Messages still encrypted, with the handler that reads each once it decrypts. */
+    const awaitingDecryption = new Map<MatrixEvent, () => void>();
+    const considerOnceDecrypted = (event: MatrixEvent) => {
+      if (awaitingDecryption.has(event)) return;
+      const onDecrypted = () => {
+        awaitingDecryption.delete(event);
+        consider(event);
+      };
+      awaitingDecryption.set(event, onDecrypted);
+      event.once(MatrixEventEvent.Decrypted, onDecrypted);
+    };
+
     const onTimeline = (
       event: MatrixEvent,
       _room: Room | undefined,
@@ -140,7 +152,7 @@ export function RoomMessageAnnouncer({
     ) => {
       if (toStartOfTimeline || !data?.liveEvent) return;
       if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-        event.once(MatrixEventEvent.Decrypted, () => consider(event));
+        considerOnceDecrypted(event);
         return;
       }
       consider(event);
@@ -149,6 +161,11 @@ export function RoomMessageAnnouncer({
     room.on(RoomEvent.Timeline, onTimeline);
     return () => {
       room.removeListener(RoomEvent.Timeline, onTimeline);
+      // A message that decrypts after the reader moved on belongs to the view they left.
+      awaitingDecryption.forEach((onDecrypted, event) =>
+        event.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
+      );
+      awaitingDecryption.clear();
     };
   }, [room, threadId, myUserId]);
 

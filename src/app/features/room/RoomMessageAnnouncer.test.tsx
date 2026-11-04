@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixEvent, RoomEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent, RoomEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomMessageAnnouncer, announcementBody } from './RoomMessageAnnouncer';
 
@@ -119,6 +119,42 @@ describe('RoomMessageAnnouncer', () => {
     );
 
     expect(logLines(view)).toEqual(['Code: In this thread']);
+  });
+
+  it('drops a message that decrypts after the reader left its room', () => {
+    const first = createRoom();
+    const second = createRoom();
+    const view = render(first.room);
+    const pending = message(AGENT, { msgtype: 'm.text', body: 'Late secret' });
+    pending.shouldAttemptDecryption = () => true;
+    first.receive(pending);
+    expect(pending.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
+
+    act(() => {
+      view.update(<RoomMessageAnnouncer room={second.room} threadId={undefined} myUserId={ME} />);
+    });
+    expect(pending.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    act(() => {
+      pending.emit(MatrixEventEvent.Decrypted, pending);
+    });
+
+    expect(logLines(view)).toEqual([]);
+  });
+
+  it('reads a message once it decrypts in the open room', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+    const pending = message(AGENT, { msgtype: 'm.text', body: 'Decrypted later' });
+    pending.shouldAttemptDecryption = () => true;
+    receive(pending);
+    expect(logLines(view)).toEqual([]);
+
+    act(() => {
+      pending.emit(MatrixEventEvent.Decrypted, pending);
+    });
+
+    expect(logLines(view)).toEqual(['Code: Decrypted later']);
+    expect(pending.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
   it('cuts long messages', () => {
