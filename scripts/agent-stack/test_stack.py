@@ -135,6 +135,7 @@ class CallsTests(unittest.TestCase):
         self.assertEqual(config.count("      api_key: stub-key-no-model-is-called\n"), 2)
 
     def test_voice_usage_comes_from_the_session_database(self) -> None:
+        # Realtime calls count tokens; GPT-Live bills the call's seconds.
         usage = {
             "kind": "realtime_voice",
             "model": "gpt-realtime-2.1-mini",
@@ -154,6 +155,8 @@ class CallsTests(unittest.TestCase):
                 connection.execute("CREATE TABLE helper_sessions_usage (id INTEGER PRIMARY KEY, usage_data TEXT)")
                 connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", (json.dumps(usage),))
                 connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", ('{"kind": "run"}',))
+                live = {"kind": "live_voice", "model": "gpt-live-1", "voice": {"seconds": 15.94, "finalized": True}}
+                connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", (json.dumps(live),))
                 connection.commit()
             summary = stack.usage_summary({"model": "stub", "calls": self.calls()}, slot_dir)
         self.assertEqual(
@@ -163,12 +166,24 @@ class CallsTests(unittest.TestCase):
                     "kind": "realtime_voice",
                     "model": "gpt-realtime-2.1-mini",
                     "responses": 2,
+                    "seconds": 0.0,
                     "input_tokens": 14392,
                     "output_tokens": 542,
                     "cache_read_tokens": 0,
                     "audio_input_tokens": 52,
                     "audio_output_tokens": 355,
-                }
+                },
+                {
+                    "kind": "live_voice",
+                    "model": "gpt-live-1",
+                    "responses": 0,
+                    "seconds": 15.9,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_read_tokens": 0,
+                    "audio_input_tokens": 0,
+                    "audio_output_tokens": 0,
+                },
             ],
         )
 

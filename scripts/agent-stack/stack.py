@@ -614,7 +614,8 @@ VOICE_USAGE_KINDS = ("realtime_voice", "live_voice")
 
 
 def voice_usage(slot_dir: Path) -> list[dict]:
-    """Each voice call's speech-model tokens, which the backend keeps in the agents' session databases, not its log."""
+    """Each voice call's speech-model tokens (realtime) or billed seconds (GPT-Live), which the backend keeps in the
+    agents' session databases, not its log."""
     calls = []
     for database in sorted((slot_dir / "storage" / "agents").glob("*/sessions/*.db")):
         try:
@@ -635,11 +636,13 @@ def voice_usage(slot_dir: Path) -> list[dict]:
             if not isinstance(usage, dict) or usage.get("kind") not in VOICE_USAGE_KINDS:
                 continue
             metrics = usage.get("metrics") or {}
+            voice = usage.get("voice") or {}
             calls.append(
                 {
                     "kind": usage["kind"],
                     "model": usage.get("model"),
                     "responses": len(usage.get("requests") or []),
+                    "seconds": round(float(voice.get("seconds") or 0), 1),
                     **{
                         field: int(metrics.get(field) or 0)
                         for field in (
