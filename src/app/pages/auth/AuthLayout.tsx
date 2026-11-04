@@ -1,6 +1,7 @@
 import { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
 import { Box, Button, Input, Scroll, Spinner, Text, color } from 'folds';
-import { Header } from '../../components/glass/GlassPrimitives';
+import { Header, Surface } from '../../components/glass/GlassPrimitives';
+import { glassOverBackdrop } from '../../styles/Glass.css';
 import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
@@ -214,7 +215,9 @@ export function AuthLayout() {
 
   return (
     <AuthFrame>
-      <Box as="main" className={css.AuthCard} direction="Column">
+      {/* Glass over the particles, which show through it blurred. The dark field behind it
+          takes the lighter tint of glass over a dimmed page, as a modal's does. */}
+      <Surface as="main" className={classNames(css.AuthCard, glassOverBackdrop)}>
         <Header className={css.AuthHeader} size="600" variant="Surface">
           <Box grow="Yes" alignItems="Center" gap="300">
             <img
@@ -257,7 +260,7 @@ export function AuthLayout() {
             </Text>
           )}
         </Box>
-      </Box>
+      </Surface>
       <AuthFooter />
     </AuthFrame>
   );
