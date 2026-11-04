@@ -12,3 +12,8 @@ export function useMatrixClient(): MatrixClient {
   if (mx === undefined) throw new Error('useMatrixClient called outside MatrixClientProvider');
   return mx;
 }
+
+/** The active account's client, or undefined outside `MatrixClientProvider` (as in fixtures). */
+export function useOptionalMatrixClient(): MatrixClient | undefined {
+  return useContext(ActiveClientContext);
+}
