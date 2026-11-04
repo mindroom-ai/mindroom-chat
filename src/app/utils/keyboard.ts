@@ -20,21 +20,20 @@ export const onTabPress = (event: KeyEventLike, callback: () => void): void => {
   }
 };
 
-const isEditableTarget = (target: EventTarget | null): boolean => {
-  if (!target || typeof (target as Element).tagName !== 'string') return false;
-  const element = target as HTMLElement;
-  if (element.isContentEditable) return true;
-  const tag = element.tagName.toLowerCase();
-  return tag === 'input' || tag === 'textarea' || tag === 'select';
-};
+type EscapeEventLike = Pick<Event, 'stopPropagation'> &
+  Partial<Pick<Event, 'defaultPrevented'>> & {
+    /** Set while an input method composes text; Escape then cancels the composition. */
+    isComposing?: boolean;
+  };
 
 /**
- * Focus-trap `escapeDeactivates` helper: stops the key from reaching handlers outside the trap and
- * returns true, or returns false (and leaves the event alone) when an editable element has focus,
- * so the field keeps its own Escape handling and the trap stays active.
+ * Focus-trap `escapeDeactivates` helper: closes the trap and keeps the key from reaching handlers
+ * outside it, also when a text field inside has focus. A field that used the key itself (it closed
+ * its own suggestions and called `preventDefault`) or an input method still composing keeps the
+ * trap open.
  */
-export const stopPropagation = (event: Pick<Event, 'stopPropagation' | 'target'>): boolean => {
-  if (isEditableTarget(event.target)) return false;
+export const stopPropagation = (event: EscapeEventLike): boolean => {
+  if (event.defaultPrevented || event.isComposing) return false;
   event.stopPropagation();
   return true;
 };
