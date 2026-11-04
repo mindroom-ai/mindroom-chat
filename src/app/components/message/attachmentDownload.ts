@@ -72,6 +72,49 @@ export const useAttachmentAction = <T>(
   return [status, run];
 };
 
+type AttachmentObjectUrl = {
+  status: AttachmentActionStatus;
+  /** The loaded URL while it is shown; undefined before loading and after `close`. */
+  src: string | undefined;
+  load: () => void;
+  close: () => void;
+};
+
+/**
+ * Loads an attachment into a `blob:` URL that lives as long as the component shows it: the URL
+ * is revoked when it is closed or replaced, when the component unmounts, and right away when it
+ * arrives after the unmount (a virtualized row that scrolled away while its file loaded).
+ */
+export const useAttachmentObjectUrl = (
+  source: AttachmentSource,
+  toObjectUrl: (blob: Blob) => Promise<string>
+): AttachmentObjectUrl => {
+  const alive = useAlive();
+  const [src, setSrc] = useState<string>();
+  const [status, run] = useAttachmentAction(source, toObjectUrl);
+
+  useEffect(
+    () => () => {
+      if (src) URL.revokeObjectURL(src);
+    },
+    [src]
+  );
+
+  const load = useCallback(() => {
+    run().then(
+      (objectUrl) => {
+        if (!objectUrl) return;
+        if (alive()) setSrc(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      },
+      () => undefined
+    );
+  }, [alive, run]);
+  const close = useCallback(() => setSrc(undefined), []);
+
+  return { status, src, load, close };
+};
+
 /**
  * Type of every saved attachment. The sender declares the real type, so a save never keeps it:
  * a browser that opens a save instead of downloading it (FileSaver's fallback) then cannot

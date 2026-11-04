@@ -5,7 +5,7 @@ import { Box, Button, Chip, Icon, Icons, Spinner, Text } from 'folds';
 import type { IVideoInfo } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { getBlobSafeMimeType } from '../../../utils/mimeTypes';
-import { useAttachmentAction } from '../attachmentDownload';
+import { useAttachmentObjectUrl } from '../attachmentDownload';
 import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
 
 export type RenderVideoProps = {
@@ -57,7 +57,6 @@ export function VideoContent({
   renderVideo,
 }: VideoContentProps) {
   const { t } = useTranslation();
-  const [src, setSrc] = useState<string>();
   const [playRequested, setPlayRequested] = useState(false);
   const [revealed, setRevealed] = useState(!markedAsSpoiler);
   const toUrl = useCallback(
@@ -65,27 +64,15 @@ export function VideoContent({
       URL.createObjectURL(new Blob([blob], { type: getBlobSafeMimeType(mimeType) })),
     [mimeType]
   );
-  const [status, load] = useAttachmentAction({ owner, url, mimeType, encInfo }, toUrl);
-
-  const start = useCallback(() => {
-    load().then(
-      (objectUrl) => {
-        if (objectUrl) setSrc(objectUrl);
-      },
-      () => undefined
-    );
-  }, [load]);
+  const {
+    status,
+    src,
+    load: start,
+  } = useAttachmentObjectUrl({ owner, url, mimeType, encInfo }, toUrl);
 
   useEffect(() => {
     if (autoPlay && revealed) start();
   }, [autoPlay, revealed, start]);
-
-  useEffect(
-    () => () => {
-      if (src) URL.revokeObjectURL(src);
-    },
-    [src]
-  );
 
   const blurHash = getInfoBlurHash(info);
 

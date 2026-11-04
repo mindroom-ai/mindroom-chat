@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
@@ -24,6 +24,7 @@ import type { IFileInfo } from '../../../../types/matrix/common';
 import {
   type AttachmentActionStatus,
   useAttachmentAction,
+  useAttachmentObjectUrl,
   useAttachmentSave,
 } from '../attachmentDownload';
 
@@ -285,26 +286,13 @@ export function ReadPdfFile({
   ...buttonOptions
 }: ReadPdfFileProps) {
   const { t } = useTranslation();
-  const [src, setSrc] = useState<string>();
-  const [status, load] = useAttachmentAction({ owner, url, mimeType, encInfo }, toPdfObjectUrl);
-  const close = useCallback(() => setSrc(undefined), []);
-
   // Each opened URL is released when the viewer closes or the attachment unmounts.
-  useEffect(
-    () => () => {
-      if (src) URL.revokeObjectURL(src);
-    },
-    [src]
-  );
-
-  const open = () => {
-    load().then(
-      (objectUrl) => {
-        if (objectUrl) setSrc(objectUrl);
-      },
-      () => undefined
-    );
-  };
+  const {
+    status,
+    src,
+    load: open,
+    close,
+  } = useAttachmentObjectUrl({ owner, url, mimeType, encInfo }, toPdfObjectUrl);
 
   return (
     <>
