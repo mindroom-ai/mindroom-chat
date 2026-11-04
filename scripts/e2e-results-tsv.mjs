@@ -7,12 +7,12 @@
 //   node scripts/e2e-results-tsv.mjs --manifest <manifest.tsv>
 //
 // A manifest (written by scripts/e2e-suite.sh) has one line per spec run: spec path, report path,
-// log path, server (preview or dev), exit code. A run that left no report counts as one failure
-// whose error is the last line of its log that names an error.
+// log path, server (preview or dev), exit code, load average at its start. A run that left no
+// report counts as one failure whose error is the last line of its log that names an error.
 //
 // Columns: spec (relative to e2e/), passed (on the first attempt), failed (on every attempt),
 // skipped, first error (message line and spec location), flaky (passed on a retry), seconds (all
-// attempts together), server.
+// attempts together), server, load (the machine's 1-minute load average when the spec started).
 import { existsSync, readFileSync } from 'node:fs';
 
 /**
@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from 'node:fs';
  * @typedef {{ file: string; line: number; tests: ReportTest[] }} ReportSpec
  * @typedef {{ file?: string; specs?: ReportSpec[]; suites?: ReportSuite[] }} ReportSuite
  * @typedef {{ suites?: ReportSuite[]; errors?: ReportError[] }} Report
- * @typedef {{ passed: number; failed: number; skipped: number; flaky: number; ms: number; error: string; server: string }} Row
+ * @typedef {{ passed: number; failed: number; skipped: number; flaky: number; ms: number; error: string; server: string; load: string }} Row
  */
 
 // eslint-disable-next-line no-control-regex
@@ -62,6 +62,7 @@ const emptyRow = (server = '') => ({
   ms: 0,
   error: '',
   server,
+  load: '',
 });
 
 /** @type {Map<string, Row>} */
@@ -132,12 +133,13 @@ const args = process.argv.slice(2);
 if (args[0] === '--manifest') {
   const manifest = readFileSync(args[1], 'utf8').split('\n').filter(Boolean);
   manifest.forEach((line) => {
-    const [spec, reportPath, logPath, server = '', exitCode = ''] = line.split('\t');
+    const [spec, reportPath, logPath, server = '', exitCode = '', load = ''] = line.split('\t');
     const name = specName(spec);
     if (reportPath && existsSync(reportPath)) {
       addReport(JSON.parse(readFileSync(reportPath, 'utf8')), name, server);
     }
     const row = rowFor(name, server);
+    row.load = load;
     if (row.passed + row.failed + row.flaky + row.skipped === 0) {
       row.failed = 1;
       row.error ||= lastLogError(logPath);
@@ -155,11 +157,12 @@ if (args[0] === '--manifest') {
 }
 
 const header = ['spec', 'passed', 'failed', 'skipped', 'first error', 'flaky', 'seconds', 'server'];
+header.push('load');
 const lines = [...rows.entries()]
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([spec, row]) =>
     [spec, row.passed, row.failed, row.skipped, row.error, row.flaky, Math.round(row.ms / 1000)]
-      .concat(row.server)
+      .concat(row.server, row.load)
       .join('\t')
   );
 // One write, so a reader that stops early (`| head`) ends the process without an EPIPE trace.

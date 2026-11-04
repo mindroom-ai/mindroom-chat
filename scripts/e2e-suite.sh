@@ -100,7 +100,7 @@ main() {
   }
 
   work() {
-    local slot="$1" line server spec key started status
+    local slot="$1" line server spec key started status load
     while line="$(next_spec)" && [ -n "$line" ]; do
       server="${line%%$'\t'*}"
       spec="${line#*$'\t'}"
@@ -108,14 +108,16 @@ main() {
       key="${key//\//__}"
       started=$SECONDS
       status=0
+      # The machine's 1-minute load average when the spec starts, to tell load failures apart.
+      load="$(cut -d ' ' -f 1 /proc/loadavg)"
       local options=(--snapshot="$sha")
       if [ "$server" = preview ]; then options+=(--preview); fi
       PLAYWRIGHT_JSON_OUTPUT_FILE="$run/json/$key.json" \
         bash "$repo/scripts/e2e-slot.sh" "$slot" "${options[@]}" \
         npx playwright test "$spec" --reporter=list,json --output "$run/output/$key" \
         "${playwright_options[@]}" >"$run/logs/$key.log" 2>&1 || status=$?
-      printf '%s\t%s\t%s\t%s\t%s\n' "$spec" "$run/json/$key.json" "$run/logs/$key.log" "$server" "$status" \
-        >>"$run/manifest.tsv"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$spec" "$run/json/$key.json" "$run/logs/$key.log" "$server" \
+        "$status" "$load" >>"$run/manifest.tsv"
       echo "e2e-suite: slot $slot $spec ($server) exit $status in $((SECONDS - started)) s" >&2
     done
   }
