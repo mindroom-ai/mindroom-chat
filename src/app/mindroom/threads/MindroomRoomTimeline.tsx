@@ -240,32 +240,72 @@ const useViewFlag = (viewKey: string) => {
   return flagRef;
 };
 
+type RoomUnread = ReturnType<typeof getRoomUnreadInfo>;
+
+/**
+ * The read marker of the room on screen, read when the room opens: the timeline stays mounted
+ * across rooms, so another room reads its own marker in that render. `skip` (a thread or an
+ * event the room opens at) leaves it empty. Updates meant for a room no longer shown are dropped.
+ */
+const useRoomUnreadInfo = (
+  room: Room,
+  skip: boolean
+): [RoomUnread, Dispatch<SetStateAction<RoomUnread>>] => {
+  const read = (): { roomId: string; info: RoomUnread } => ({
+    roomId: room.roomId,
+    info: skip ? undefined : getRoomUnreadInfo(room, true),
+  });
+  const [state, setState] = useState(read);
+  let current = state;
+  if (state.roomId !== room.roomId) {
+    current = read();
+    setState(current);
+  }
+  const { roomId } = current;
+  const setInfo = useCallback<Dispatch<SetStateAction<RoomUnread>>>(
+    (next) =>
+      setState((previous) =>
+        previous.roomId === roomId
+          ? { roomId, info: typeof next === 'function' ? next(previous.info) : next }
+          : previous
+      ),
+    [roomId]
+  );
+  return [current.info, setInfo];
+};
+
 /**
  * A request to show the newest room row. Opening the room, Jump to Latest, a live row the reader
  * follows, and switching the view make one; it holds until the reader scrolls, so rows measured
  * later still end at the bottom. A view switch that React renders but never shows makes none.
  */
 const useLatestRowRequest = ({
-  initiallyActive,
+  opensAtLatest,
+  roomId,
   scrollElement,
   scrollToBottomCount,
   committedView,
   focusItem,
 }: {
-  initiallyActive: boolean;
+  /** Whether opening this room shows its newest row (not its unread marker or an event). */
+  opensAtLatest: boolean;
+  roomId: string;
   scrollElement: HTMLElement | null;
   scrollToBottomCount: number;
   committedView: string;
   focusItem: RoomTimelineFocusItem | undefined;
 }) => {
-  const requestRef = useRef(initiallyActive);
+  const requestRef = useRef(opensAtLatest);
   const seenCountRef = useRef(scrollToBottomCount);
   const viewRef = useRef(committedView);
+  const roomRef = useRef(roomId);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
-    requestRef.current = true;
-  }, [committedView]);
+    // Another room opens as the first one did; another view of the same room at its newest row.
+    requestRef.current = roomRef.current === roomId || opensAtLatest;
+    roomRef.current = roomId;
+  }, [committedView, opensAtLatest, roomId]);
   useLayoutEffect(() => {
     if (scrollToBottomCount === seenCountRef.current) return;
     seenCountRef.current = scrollToBottomCount;
@@ -631,9 +671,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useLatestRef(atBottom);
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem>();
-  const [unreadInfo, setUnreadInfo] = useState(() =>
-    threadId || eventId ? undefined : getRoomUnreadInfo(room, true)
-  );
+  const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
   const { overviewRefreshCounter, setOverviewRefreshCounter } = useThreadOverviewRefreshCounter(
@@ -1324,6 +1362,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     unreadInfo,
   });
 
+  const markRoomAsRead = useCallback(() => {
+    handleMarkAsRead();
+    // Nothing is unread now: the line and the pill go, also for a marker older than the rows.
+    if (!threadId) setUnreadInfo(undefined);
+  }, [handleMarkAsRead, setUnreadInfo, threadId]);
+
   useRoomCacheHydrationController({
     alive,
     buildInitialTimeline,
@@ -1550,7 +1594,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The newest room row, while a request for it holds.
   const latestRowRequestRef = useLatestRowRequest({
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
-    initiallyActive: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
+    opensAtLatest: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
+    roomId: room.roomId,
     scrollElement,
     scrollToBottomCount: scrollToBottomRef.current.count,
     committedView: `${viewKey}|${effectiveViewMode}`,
@@ -1788,7 +1833,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           <FloatingAction
             icon={Icons.CheckTwice}
             label={t('mindroomUi.threads.mindroomRoomTimeline.markAsRead')}
-            onSelect={handleMarkAsRead}
+            onSelect={markRoomAsRead}
           />
         </div>
       )}
