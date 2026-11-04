@@ -169,6 +169,7 @@ function RoomMenuEntry({ icon, label, onClick, critical, busy, expanded }: RoomM
       size="300"
       radii="300"
       variant={critical ? 'Critical' : 'Surface'}
+      fill={expanded ? 'Soft' : 'None'}
       after={busy ? <Spinner size="100" variant="Secondary" /> : <Icon size="100" src={icon} />}
       aria-haspopup={expanded === undefined ? undefined : 'menu'}
       aria-expanded={expanded}

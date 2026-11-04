@@ -66,6 +66,7 @@ function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () =>
           size="300"
           radii="300"
           variant="Surface"
+          fill={opened ? 'Soft' : 'None'}
           aria-haspopup="menu"
           aria-expanded={opened}
           after={
