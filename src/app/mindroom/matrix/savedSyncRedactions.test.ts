@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { ClientEvent, EventStatus, MatrixEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
-import { keepRedactionsInSavedSync } from './savedSyncRedactions';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { keepRedactionsInSavedSync, REDACTION_SAVE_GAP_MS } from './savedSyncRedactions';
 
 type Deferred = { resolve: () => void };
 
@@ -9,7 +9,7 @@ type Deferred = { resolve: () => void };
 const makeClient = ({ sdkWantsSave = false } = {}) => {
   const pending: Deferred[] = [];
   const store = {
-    wantsSave: vi.fn(() => sdkWantsSave),
+    wantsSave: vi.fn<() => boolean>(() => sdkWantsSave),
     save: vi.fn(
       () =>
         new Promise<void>((resolve) => {
@@ -22,9 +22,7 @@ const makeClient = ({ sdkWantsSave = false } = {}) => {
   const finishSaves = async () => {
     pending.splice(0).forEach(({ resolve }) => resolve());
     // Let the save's settle handlers run.
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
+    await vi.advanceTimersByTimeAsync(0);
   };
   return { mx, emitter, store, finishSaves };
 };
@@ -46,7 +44,18 @@ const batch = (emitter: EventEmitter, events: MatrixEvent[], state = SyncState.S
   emitter.emit(ClientEvent.Sync, state, SyncState.Syncing);
 };
 
+/** Lets the gap after the last save pass. */
+const waitForGap = () => vi.advanceTimersByTimeAsync(REDACTION_SAVE_GAP_MS);
+
 describe('keepRedactionsInSavedSync', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('saves the sync store after a batch that brought a redaction', () => {
     const { mx, emitter, store } = makeClient();
     keepRedactionsInSavedSync(mx);
@@ -107,19 +116,75 @@ describe('keepRedactionsInSavedSync', () => {
     expect(store.save).toHaveBeenCalledTimes(1);
 
     await finishSaves();
+    await waitForGap();
     expect(store.save).toHaveBeenCalledTimes(2);
     await finishSaves();
+    await waitForGap();
     expect(store.save).toHaveBeenCalledTimes(2);
   });
 
-  it('stops listening when stopped', () => {
-    const { mx, emitter, store } = makeClient();
+  it('gives a burst of redactions one more save after a gap, not one save each', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+
+    batch(emitter, [synced('m.room.redaction', '$first')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
+    await finishSaves();
+
+    batch(emitter, [synced('m.room.redaction', '$second')]);
+    await vi.advanceTimersByTimeAsync(REDACTION_SAVE_GAP_MS / 2);
+    batch(emitter, [synced('m.room.redaction', '$third')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(REDACTION_SAVE_GAP_MS / 2);
+    expect(store.save).toHaveBeenCalledTimes(2);
+    await finishSaves();
+    await waitForGap();
+    expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a save still waiting for its gap when the SDK saves a later batch itself', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.redaction', '$first')]);
+    await finishSaves();
+
+    batch(emitter, [synced('m.room.redaction', '$second')]);
+    // The SDK's five minutes end with the next batch, which it saves with the redaction in it.
+    store.wantsSave.mockReturnValueOnce(true);
+    batch(emitter, []);
+    await waitForGap();
+
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves again when the SDK wanted to save while this save was still writing', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.redaction', '$redaction')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
+
+    // The SDK skips its own save while this one writes, and would wait five minutes more.
+    store.wantsSave.mockReturnValueOnce(true);
+    batch(emitter, [synced('m.room.message', '$skipped-by-the-sdk')]);
+    await finishSaves();
+    await waitForGap();
+
+    expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops listening when stopped, and drops a save still waiting', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
     const stop = keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.redaction', '$first')]);
+    await finishSaves();
+    batch(emitter, [synced('m.room.redaction', '$waiting')]);
     stop();
 
     batch(emitter, [synced('m.room.redaction', '$redaction')]);
+    await waitForGap();
 
-    expect(store.save).not.toHaveBeenCalled();
+    expect(store.save).toHaveBeenCalledTimes(1);
     expect(emitter.listenerCount(ClientEvent.Event)).toBe(0);
     expect(emitter.listenerCount(ClientEvent.Sync)).toBe(0);
   });

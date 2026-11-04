@@ -5,24 +5,50 @@ import { ClientEvent, SyncState, type MatrixClient, type MatrixEvent } from 'mat
 // since the last save came back with its text, and its thread counted it again, until the next
 // sync brought the redaction (offline: until the client is online again). A reply that the
 // session's first sync happened to bring was saved, and its redaction a moment later was not.
-// This module saves the store after each sync batch that brought a redaction. Redactions are
-// rare (a deleted message, an agent's withdrawn draft), so the extra writes are few.
+// This module saves the store after a sync batch that brought a redaction.
+//
+// Each save writes the whole sync accumulator, every room of the account. A lone redaction (an
+// agent withdrawing its draft) is saved at once; redactions that come in a burst (a moderator
+// removing several messages) then share one more save, REDACTION_SAVE_GAP_MS after the last one
+// ended. A batch the SDK saves itself holds everything before it, so a save still waiting is
+// dropped then.
+
+/** The least time between the end of one save and the start of the next. */
+export const REDACTION_SAVE_GAP_MS = 2_000;
 
 type SyncBatchState = SyncState | null;
 
 /**
- * Saves the client's sync store after every sync batch that brought a redaction, unless the SDK
- * saves that batch itself; call it before the client starts. Returns a function that stops it.
+ * Saves the client's sync store after sync batches that brought a redaction, unless the SDK
+ * saves such a batch itself; call it before the client starts. Returns a function that stops it.
  */
 export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   let redactionSinceSave = false;
   let saving = false;
-  let saveAgain = false;
+  let saveAfterThisOne = false;
+  let lastSaveEndedAt = Number.NEGATIVE_INFINITY;
+  let waiting: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
 
-  const save = () => {
+  const dropWaitingSave = () => {
+    if (waiting === undefined) return;
+    clearTimeout(waiting);
+    waiting = undefined;
+  };
+
+  const requestSave = () => {
+    if (stopped || waiting !== undefined) return;
     if (saving) {
-      // The batch came in while the last save read the store; save once more afterwards.
-      saveAgain = true;
+      // The store changed while this save read it; save once more afterwards.
+      saveAfterThisOne = true;
+      return;
+    }
+    const wait = lastSaveEndedAt + REDACTION_SAVE_GAP_MS - Date.now();
+    if (wait > 0) {
+      waiting = setTimeout(() => {
+        waiting = undefined;
+        requestSave();
+      }, wait);
       return;
     }
     saving = true;
@@ -34,9 +60,10 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
       })
       .finally(() => {
         saving = false;
-        if (!saveAgain) return;
-        saveAgain = false;
-        save();
+        lastSaveEndedAt = Date.now();
+        if (!saveAfterThisOne) return;
+        saveAfterThisOne = false;
+        requestSave();
       });
   };
 
@@ -47,16 +74,27 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
 
   // The SDK reports SYNCING once it has processed a batch, just before it decides to save.
   const onSync = (state: SyncBatchState) => {
-    if (state !== SyncState.Syncing || !redactionSinceSave) return;
+    if (state !== SyncState.Syncing) return;
+    // The session's first batch and the first after five minutes are saved by the SDK, with
+    // every batch before them.
+    if (mx.store.wantsSave()) {
+      redactionSinceSave = false;
+      dropWaitingSave();
+      // The SDK skips its save while one of these still writes, and then waits five minutes more,
+      // so that batch is saved once this save is done.
+      if (saving) saveAfterThisOne = true;
+      return;
+    }
+    if (!redactionSinceSave) return;
     redactionSinceSave = false;
-    // The session's first batch and the first after five minutes are saved by the SDK.
-    if (mx.store.wantsSave()) return;
-    save();
+    requestSave();
   };
 
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.Sync, onSync);
   return () => {
+    stopped = true;
+    dropWaitingSave();
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(ClientEvent.Sync, onSync);
   };
