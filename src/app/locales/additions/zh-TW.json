@@ -106,6 +106,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "此登入不是從這裡發起的，因此未被使用。請重新登入。"
+    },
+    "unlistedServer": {
+      "title": "請先確認伺服器",
+      "sendsLogin": "登入會將您的登入資訊傳送到此伺服器：",
+      "onlyIfTrusted": "它不是此應用程式提供的伺服器。只有在您信任 {{server}} 時才繼續。",
+      "cancel": "取消",
+      "continue": "繼續"
     }
   },
   "featureUi": {

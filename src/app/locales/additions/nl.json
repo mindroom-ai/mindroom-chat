@@ -107,6 +107,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Deze aanmelding is hier niet gestart en is daarom niet gebruikt. Meld je opnieuw aan."
+    },
+    "unlistedServer": {
+      "title": "Controleer eerst de server",
+      "sendsLogin": "Met aanmelden gaat je login naar deze server:",
+      "onlyIfTrusted": "Deze server hoort niet bij de servers die deze app aanbiedt. Ga alleen verder als je {{server}} vertrouwt.",
+      "cancel": "Annuleren",
+      "continue": "Doorgaan"
     }
   },
   "featureUi": {

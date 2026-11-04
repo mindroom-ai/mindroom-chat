@@ -106,6 +106,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Proses masuk ini tidak dimulai di sini, jadi tidak digunakan. Masuk lagi."
+    },
+    "unlistedServer": {
+      "title": "Periksa servernya dulu",
+      "sendsLogin": "Masuk akan mengirim data login Anda ke server ini:",
+      "onlyIfTrusted": "Server ini bukan salah satu server yang ditawarkan aplikasi ini. Lanjutkan hanya jika Anda memercayai {{server}}.",
+      "cancel": "Batal",
+      "continue": "Lanjutkan"
     }
   },
   "featureUi": {

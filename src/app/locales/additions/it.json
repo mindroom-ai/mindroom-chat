@@ -108,6 +108,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Questo accesso non è stato avviato qui, quindi non è stato usato. Accedi di nuovo."
+    },
+    "unlistedServer": {
+      "title": "Controlla prima il server",
+      "sendsLogin": "Accedendo, le tue credenziali vengono inviate a questo server:",
+      "onlyIfTrusted": "Non è uno dei server offerti da questa app. Continua solo se ti fidi di {{server}}.",
+      "cancel": "Annulla",
+      "continue": "Continua"
     }
   },
   "featureUi": {

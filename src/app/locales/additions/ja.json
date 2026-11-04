@@ -106,6 +106,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "このサインインはここで開始されていないため、使用されませんでした。もう一度サインインしてください。"
+    },
+    "unlistedServer": {
+      "title": "まずサーバーを確認してください",
+      "sendsLogin": "サインインすると、ログイン情報がこのサーバーに送られます：",
+      "onlyIfTrusted": "このアプリが提供するサーバーではありません。{{server}} を信頼できる場合にのみ続行してください。",
+      "cancel": "キャンセル",
+      "continue": "続行"
     }
   },
   "featureUi": {

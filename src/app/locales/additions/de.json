@@ -107,6 +107,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Diese Anmeldung wurde nicht hier gestartet und deshalb nicht verwendet. Melde dich erneut an."
+    },
+    "unlistedServer": {
+      "title": "Prüfe zuerst den Server",
+      "sendsLogin": "Mit der Anmeldung geht dein Login an diesen Server:",
+      "onlyIfTrusted": "Er gehört nicht zu den Servern, die diese App anbietet. Fahre nur fort, wenn du {{server}} vertraust.",
+      "cancel": "Abbrechen",
+      "continue": "Fortfahren"
     }
   },
   "featureUi": {

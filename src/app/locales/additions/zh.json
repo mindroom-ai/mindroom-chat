@@ -106,6 +106,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "此登录不是从这里发起的，因此未被使用。请重新登录。"
+    },
+    "unlistedServer": {
+      "title": "请先确认服务器",
+      "sendsLogin": "登录会将您的登录信息发送到此服务器：",
+      "onlyIfTrusted": "它不是此应用提供的服务器。仅当您信任 {{server}} 时才继续。",
+      "cancel": "取消",
+      "continue": "继续"
     }
   },
   "featureUi": {

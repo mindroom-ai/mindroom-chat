@@ -107,6 +107,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
+    },
+    "unlistedServer": {
+      "title": "Check the server first",
+      "sendsLogin": "Signing in sends your login to this server:",
+      "onlyIfTrusted": "It is not one of the servers this app offers. Only continue if you trust {{server}}.",
+      "cancel": "Cancel",
+      "continue": "Continue"
     }
   },
   "featureUi": {

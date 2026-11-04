@@ -108,6 +108,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Este inicio de sesión no empezó aquí, así que no se usó. Vuelve a iniciar sesión."
+    },
+    "unlistedServer": {
+      "title": "Comprueba primero el servidor",
+      "sendsLogin": "Al iniciar sesión, tus datos de acceso se envían a este servidor:",
+      "onlyIfTrusted": "No es uno de los servidores que ofrece esta aplicación. Continúa solo si confías en {{server}}.",
+      "cancel": "Cancelar",
+      "continue": "Continuar"
     }
   },
   "featureUi": {

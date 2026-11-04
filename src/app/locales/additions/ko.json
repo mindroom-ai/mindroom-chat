@@ -106,6 +106,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "이 로그인은 여기에서 시작되지 않아 사용되지 않았습니다. 다시 로그인하세요."
+    },
+    "unlistedServer": {
+      "title": "먼저 서버를 확인하세요",
+      "sendsLogin": "로그인하면 로그인 정보가 이 서버로 전송됩니다:",
+      "onlyIfTrusted": "이 앱이 제공하는 서버가 아닙니다. {{server}}을(를) 신뢰하는 경우에만 계속하세요.",
+      "cancel": "취소",
+      "continue": "계속"
     }
   },
   "featureUi": {

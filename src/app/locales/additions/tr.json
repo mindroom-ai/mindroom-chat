@@ -107,6 +107,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Bu oturum açma işlemi burada başlatılmadı, bu yüzden kullanılmadı. Yeniden oturum açın."
+    },
+    "unlistedServer": {
+      "title": "Önce sunucuyu kontrol edin",
+      "sendsLogin": "Oturum açtığınızda giriş bilgileriniz bu sunucuya gönderilir:",
+      "onlyIfTrusted": "Bu sunucu, uygulamanın sunduğu sunuculardan biri değil. Yalnızca {{server}} sunucusuna güveniyorsanız devam edin.",
+      "cancel": "İptal",
+      "continue": "Devam et"
     }
   },
   "featureUi": {

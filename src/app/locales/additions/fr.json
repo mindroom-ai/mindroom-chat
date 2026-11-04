@@ -108,6 +108,13 @@
     },
     "tokenLogin": {
       "signInNotStartedHere": "Cette connexion n’a pas été lancée ici, elle n’a donc pas été utilisée. Reconnectez-vous."
+    },
+    "unlistedServer": {
+      "title": "Vérifiez d’abord le serveur",
+      "sendsLogin": "La connexion envoie vos identifiants à ce serveur :",
+      "onlyIfTrusted": "Il ne fait pas partie des serveurs proposés par cette application. Ne continuez que si vous faites confiance à {{server}}.",
+      "cancel": "Annuler",
+      "continue": "Continuer"
     }
   },
   "featureUi": {
