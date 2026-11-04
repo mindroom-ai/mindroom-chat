@@ -217,10 +217,11 @@ const findButtonByAriaLabel = (renderer: ReturnType<typeof create>, label: strin
 
 // The rail's account button opens the account menu, which holds Settings and the accounts.
 const openAccountMenu = (renderer: ReturnType<typeof create>, name = 'Alice') => {
+  const label = `Open account menu for ${name}`;
   act(() => {
-    findButtonByAriaLabel(renderer, `Open account menu for ${name}`).props.onClick({
-      currentTarget: {},
-    });
+    renderer.root
+      .find((node) => node.type === 'button' && node.props['aria-label'] === label)
+      .props.onClick({ currentTarget: {} });
   });
 };
 
