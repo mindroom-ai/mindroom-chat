@@ -39,8 +39,11 @@ export const MessageOptionsBase = style([
 /** The bar inside the options container: a tight row of icon buttons. */
 export const MessageOptionsBar = style([DefaultReset, { padding: config.space.S100 }]);
 
-/** Menu entry labels take the row's free width, so trailing icons line up. */
-export const MessageMenuItemText = style({ flexGrow: 1 });
+/**
+ * Menu entry labels take the row's free width, so trailing icons line up, and start at the
+ * leading edge as in other menus (the item is a button, which would center them).
+ */
+export const MessageMenuItemText = style({ flexGrow: 1, textAlign: 'start' });
 
 /** A quick-reaction emoji in the message menu; emoji read better a little larger than text. */
 export const MessageQuickReaction = style({
