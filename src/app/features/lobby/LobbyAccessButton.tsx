@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { JoinRule } from 'matrix-js-sdk';
 import { RoomAccessControl } from '../../components/room-access';
 import { Membership } from '../../../types/matrix/room';
 import type { LobbyItemAccess } from './access';
@@ -90,6 +89,3 @@ export function LobbyAccessButton({
     </RoomAccessControl>
   );
 }
-
-export const isJoinRuleKnock = (joinRule: JoinRule): boolean =>
-  joinRule === JoinRule.Knock || joinRule === ('knock_restricted' as JoinRule);

@@ -149,9 +149,6 @@ export const InlineMathRule: InlineMDRule = {
   },
 };
 
-/** Characters a backslash keeps literal, as `\*` for a star. */
-export const ESCAPABLE_CHARACTERS = '\\`*_~|$[]()#+-.!>{}:;=?@^%,/';
-
 const ESCAPE_REG = /\\([\\`*_~|$[\]()#+\-.!>{}:;=?@^%,/])/;
 
 /** `\*`: a backslash before punctuation shows the punctuation as written. */

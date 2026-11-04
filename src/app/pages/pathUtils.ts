@@ -3,7 +3,6 @@ import { getAppBasePath } from '../utils/basePath';
 import {
   CANVASES_PATH,
   CONNECT_PATH,
-  CREATE_PATH,
   DIRECT_CREATE_PATH,
   DIRECT_PATH,
   DIRECT_ROOM_PATH,
@@ -11,7 +10,6 @@ import {
   EXPLORE_PATH,
   EXPLORE_SERVER_PATH,
   HOME_CREATE_PATH,
-  HOME_JOIN_PATH,
   HOME_PATH,
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
@@ -133,7 +131,6 @@ const fixedPath = (path: string) => (): string => path;
 
 export const getHomePath = fixedPath(HOME_PATH);
 export const getHomeCreatePath = fixedPath(HOME_CREATE_PATH);
-export const getHomeJoinPath = fixedPath(HOME_JOIN_PATH);
 export const getHomeSearchPath = fixedPath(HOME_SEARCH_PATH);
 export const getHomeRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
   roomInSectionPath(HOME_ROOM_PATH, roomIdOrAlias, eventId);
@@ -145,7 +142,6 @@ export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): stri
 
 export const getThreadsPath = (): string => THREADS_PATH;
 export const getCanvasesPath = (): string => CANVASES_PATH;
-export const getCreatePath = (): string => CREATE_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
