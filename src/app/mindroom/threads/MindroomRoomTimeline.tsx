@@ -1575,7 +1575,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     </div>
   );
   const bannerExpandAllToggle = itemCount > 0 && (
-    <div style={{ position: 'absolute', top: config.space.S300, right: config.space.S500 }}>
+    <div
+      // Hover toolbars of the rows under it keep clear of it (hoverToolbarPlacement).
+      data-timeline-overlay=""
+      style={{ position: 'absolute', top: config.space.S300, right: config.space.S500 }}
+    >
       {expandAllButton}
     </div>
   );
