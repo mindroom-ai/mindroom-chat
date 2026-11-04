@@ -37,6 +37,7 @@ const copyWithSelection = (text: string): boolean => {
   input.setAttribute('aria-hidden', 'true');
   input.readOnly = true;
   input.value = text;
+  // eslint-disable-next-line no-restricted-syntax -- off screen; either edge hides it
   Object.assign(input.style, { position: 'fixed', top: '0', left: '-9999px', opacity: '0' });
   document.body.appendChild(input);
   try {
@@ -121,6 +122,7 @@ export function selectFile(accept: string, multiple = false): Promise<File | Fil
     input.setAttribute('aria-hidden', 'true');
     Object.assign(input.style, {
       position: 'fixed',
+      // eslint-disable-next-line no-restricted-syntax -- off screen; either edge hides it
       left: '-9999px',
       opacity: '0',
       pointerEvents: 'none',

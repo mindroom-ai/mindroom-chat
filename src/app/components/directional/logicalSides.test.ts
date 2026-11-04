@@ -39,6 +39,21 @@ describe('logical sides in Lane C styles', () => {
     'export const x = style({ padding: `${a} ${b} ${c} ${d}` });',
     'export const x = style({ margin: `${a} ${b} 0 0` });',
     'export const x = style({ padding: `0 0 ${c} ${d}` });',
+    // Several radii name corners by their physical sides; each side of a slash counts.
+    "export const x = style({ borderRadius: '4px 0' });",
+    "export const x = style({ borderRadius: '4px 8px 0 0' });",
+    "export const x = style({ 'border-radius': '10px 20px / 5px' });",
+    'export const x = style({ borderRadius: `${a} ${b}` });',
+    // Positions by keyword.
+    "export const x = style({ transformOrigin: 'left top' });",
+    "export const x = style({ backgroundPosition: 'right 8px center' });",
+    'export const x = style({ objectPosition: `left ${a}` });',
+    // A keyword wrapped for its type.
+    "export const x = style({ textAlign: 'left' as const });",
+    "export const x = style({ float: 'right' satisfies string });",
+    "export const x = style({ padding: '0 8px 0 4px' as const });",
+    // A choice between a safe-area inset and a plain side is physical in its other branch.
+    "export const x = style({ marginLeft: a ? 'env(safe-area-inset-left)' : '24px' });",
   ])('rejects a physical side in a style file: %s', async (body) => {
     expect(await physicalSides(styleFile(body), STYLE_FILE)).toEqual([
       expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 }),
@@ -60,6 +75,13 @@ describe('logical sides in Lane C styles', () => {
     'export const x = style({ inset: `calc(-1 * ${a})` });',
     "export const x = style({ paddingLeft: 'env(safe-area-inset-left, 0px)' });",
     "export const x = style({ paddingRight: withMargin('env(safe-area-inset-right, 0px)') });",
+    "export const x = style({ paddingLeft: a ? 'env(safe-area-inset-left)' : 0 });",
+    "export const x = style({ borderRadius: a, outlineOffset: '2px' });",
+    "export const x = style({ borderRadius: '50%' });",
+    "export const x = style({ borderRadius: '10px / 5px' });",
+    'export const x = style({ borderRadius: `calc(${a} - 1px)` });',
+    "export const x = style({ transformOrigin: 'center top', backgroundPosition: '50% 0' });",
+    "export const x = style({ textAlign: 'start' as const });",
     'export const x = style({ paddingRight: `calc(env(safe-area-inset-right, 0px) + ${a})` });',
     // A variant named after a side is an object of styles, not a value of `left`.
     "export const x = { side: { left: { color: 'red' }, right: { color: 'blue' } } };",
@@ -78,6 +100,8 @@ describe('logical sides in Lane C styles', () => {
     'export const X = () => <div style={{ padding: `0 ${8}px 0 ${16}px` }} />;',
     // A name only CSS uses counts outside a style prop too.
     "export const INSET = { paddingRight: '1.5rem' };",
+    // Sides written onto an element's style at once.
+    "export const place = (el: HTMLElement) => Object.assign(el.style, { left: '0px' });",
   ])('rejects a physical side in a component: %s', async (source) => {
     expect(await physicalSides(source, COMPONENT)).toEqual([
       expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 }),
@@ -89,6 +113,8 @@ describe('logical sides in Lane C styles', () => {
     // Outside a style prop, left and right are coordinates or scroll offsets.
     "export const scroll = (el: Element) => el.scrollTo({ left: 10, behavior: 'smooth' });",
     'export const point = { left: 1, top: 2 };',
+    "export const place = (el: HTMLElement) => Object.assign(el.style, { insetInlineStart: '0' });",
+    'export const merge = (a: object) => Object.assign({}, a, { left: 1 });',
   ])('allows coordinates and logical styles in a component: %s', async (source) => {
     expect(await physicalSides(source, COMPONENT)).toEqual([]);
   });

@@ -77,18 +77,34 @@ const DIRECTIONAL_RESTRICTIONS = {
 // `style` prop, because elsewhere they are often coordinates or scroll offsets.
 //
 // What stays physical: a property whose value names a safe-area inset, because the notch and the
-// rounded corners are physical edges of the screen. Any other side that must stay physical takes
+// rounded corners are physical edges of the screen; a value that chooses between such an inset and
+// a plain string (`phone ? 'env(safe-area-inset-left)' : '24px'`) is physical in its other branch
+// and counts. Any other side that must stay physical takes
 // `// eslint-disable-next-line no-restricted-syntax -- <why it stays>` on the line before it.
+//
+// This rule owns no-restricted-syntax for `src/**`: ESLint overrides replace a rule's options
+// instead of merging them, so any other no-restricted-syntax config for these files would drop
+// these selectors (or be dropped). Add a new restriction to the lists below instead.
 const PHYSICAL_NAME = String.raw`/^((margin|padding|scrollMargin|scrollPadding)(Left|Right)|border(Left|Right)(Width|Style|Color)?|border(Top|Bottom)(Left|Right)Radius|(margin|padding|scroll-margin|scroll-padding)-(left|right)|border-(left|right)(-(width|style|color))?|border-(top|bottom)-(left|right)-radius)$/`;
 const SIDE_KEYWORD_NAME = String.raw`/^(textAlign|text-align|float|clear|justifyContent|justify-content|justifyItems|justify-items|justifySelf|justify-self)$/`;
 const BOX_SHORTHAND = String.raw`/^(margin|padding|inset|scrollMargin|scroll-margin|scrollPadding|scroll-padding|borderWidth|border-width|borderStyle|border-style|borderColor|border-color)$/`;
 const SIDE = '/^(left|right)$/';
 const SAFE_AREA = '/safe-area-inset-(left|right)/';
+// Positions that take keywords (`transform-origin: left top`, `background-position: right`).
+const POSITION_NAME = String.raw`/^(transformOrigin|transform-origin|backgroundPosition|background-position|backgroundPositionX|background-position-x|objectPosition|object-position|perspectiveOrigin|perspective-origin|maskPosition|mask-position)$/`;
+const NAMES_SIDE = String.raw`/\b(left|right)\b/`;
+const RADIUS_NAME = String.raw`/^(borderRadius|border-radius)$/`;
 // A property of an object literal (not of a destructuring pattern) with a key that matches; keys
 // may be identifiers or strings.
 const styleProperty = (key) =>
   `ObjectExpression > Property:matches([key.name=${key}], [key.value=${key}])`;
-const NOT_SAFE_AREA = `:not(:has(Literal[value=${SAFE_AREA}])):not(:has(TemplateElement[value.raw=${SAFE_AREA}]))`;
+// A value is physical unless it names a safe-area inset, and also when a branch of a choice in it
+// is a string that names none.
+const BRANCH_WITHOUT_SAFE_AREA = String.raw`:matches(ConditionalExpression, LogicalExpression) > Literal[value=/^(?![\s\S]*safe-area-inset-(left|right))/]`;
+const NOT_SAFE_AREA = `:matches(:not(:has(Literal[value=${SAFE_AREA}])):not(:has(TemplateElement[value.raw=${SAFE_AREA}])), :has(${BRANCH_WITHOUT_SAFE_AREA}))`;
+// The value of a property, also when it is wrapped in `as const` or `satisfies`.
+const valueMatches = (pattern) =>
+  `:matches([value.value=${pattern}], [value.expression.value=${pattern}])`;
 // A four-part box shorthand ("0 S200 0 S400") gives the right and left sides their own values. In
 // a string, a part is a run without spaces or a parenthesized group such as calc(1px + 2px). In a
 // template literal, three runs of spaces in the text around its ${...} values mean four parts,
@@ -103,6 +119,13 @@ const FOUR_PART_TEMPLATE = `TemplateLiteral:matches(${[
   `:has(> ${gaps(1)} ~ ${gaps(2)})`,
   `:has(> ${gaps(1)} ~ ${gaps(1)} ~ ${gaps(1)})`,
 ].join(', ')})`;
+// A border radius of two to four values sets its corners by their physical sides; even two
+// values are diagonal (top left and bottom right first). Each side of an elliptical radius'
+// slash counts on its own. A template counts when its text has a space and no parentheses or
+// slash, since a calc() has spaces of its own.
+const RADIUS_PART = String.raw`([^\s()/]|\(([^()]|\([^()]*\))*\))+`;
+const SEVERAL_RADII = String.raw`/(^|\/)\s*${RADIUS_PART}(\s+${RADIUS_PART})+\s*(\/|$)/`;
+const SEVERAL_RADII_TEMPLATE = String.raw`TemplateLiteral:not(:has(TemplateElement[value.raw=/[()\/]/])):has(TemplateElement[value.raw=/\s/])`;
 const LOGICAL_NAME_MESSAGE =
   'A physical side does not mirror in right-to-left languages: use the logical property (paddingInlineStart, marginInlineEnd, borderInlineStart, borderStartEndRadius). A side that must stay physical takes an eslint-disable-next-line comment with the reason.';
 const LOGICAL_POSITION_MESSAGE =
@@ -111,19 +134,40 @@ const SIDE_KEYWORD_MESSAGE =
   "'left' and 'right' do not mirror in right-to-left languages: use 'start' or 'end'.";
 const FOUR_PART_MESSAGE =
   'A four-part shorthand sets the right and left sides physically: give the block and inline sides instead (paddingBlock and paddingInline, marginBlock and marginInline, insetBlock and insetInline).';
+const RADIUS_MESSAGE =
+  'A border radius of several values sets corners by their physical sides: use borderStartStartRadius, borderStartEndRadius, borderEndStartRadius and borderEndEndRadius.';
+const POSITION_KEYWORD_MESSAGE =
+  "'left' and 'right' in a position do not mirror in right-to-left languages: compute the side from the reading direction, or take an eslint-disable-next-line comment with the reason.";
 const LOGICAL_SIDES = [
   { selector: `${styleProperty(PHYSICAL_NAME)}${NOT_SAFE_AREA}`, message: LOGICAL_NAME_MESSAGE },
   {
-    selector: `${styleProperty(SIDE_KEYWORD_NAME)}[value.value=${SIDE}]`,
+    selector: `${styleProperty(SIDE_KEYWORD_NAME)}${valueMatches(SIDE)}`,
     message: SIDE_KEYWORD_MESSAGE,
   },
   {
-    selector: `${styleProperty(BOX_SHORTHAND)}[value.value=${FOUR_PARTS}]${NOT_SAFE_AREA}`,
+    selector: `${styleProperty(BOX_SHORTHAND)}${valueMatches(FOUR_PARTS)}${NOT_SAFE_AREA}`,
     message: FOUR_PART_MESSAGE,
   },
   {
     selector: `${styleProperty(BOX_SHORTHAND)} > ${FOUR_PART_TEMPLATE}${NOT_SAFE_AREA}`,
     message: FOUR_PART_MESSAGE,
+  },
+  {
+    selector: `${styleProperty(RADIUS_NAME)}${valueMatches(SEVERAL_RADII)}`,
+    message: RADIUS_MESSAGE,
+  },
+  {
+    selector: `${styleProperty(RADIUS_NAME)} > ${SEVERAL_RADII_TEMPLATE}`,
+    message: RADIUS_MESSAGE,
+  },
+  {
+    selector: `${styleProperty(POSITION_NAME)}:matches(:has(Literal[value=${NAMES_SIDE}]), :has(TemplateElement[value.raw=${NAMES_SIDE}]))`,
+    message: POSITION_KEYWORD_MESSAGE,
+  },
+  {
+    // Sides written onto an element's style at once (`Object.assign(el.style, { left })`).
+    selector: `CallExpression[callee.object.name='Object'][callee.property.name='assign'][arguments.0.property.name='style'] > ObjectExpression > Property:matches([key.name=${SIDE}], [key.value=${SIDE}])${NOT_SAFE_AREA}`,
+    message: LOGICAL_POSITION_MESSAGE,
   },
 ];
 const LOGICAL_SIDES_IN_STYLE_PROPS = [
