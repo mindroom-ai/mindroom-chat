@@ -14,6 +14,7 @@ import { BugReportAutoJoinFeature } from '../../mindroom/bug-reports/BugReportAu
 import { AgentConnectLinkFeature } from '../../mindroom/connections/AgentConnectLinks';
 import { MessageNotificationsFeature } from '../../mindroom/notifications/MessageNotifications';
 import { UnreadTitleFeature } from '../../mindroom/notifications/UnreadTitle';
+import { JoinedRoomThreadListsFeature } from './threads/JoinedRoomThreadListsFeature';
 
 /** The archived rooms list, kept for the whole session. */
 function ArchivedRoomsIndex() {
@@ -22,15 +23,16 @@ function ArchivedRoomsIndex() {
 }
 
 /**
- * Account-wide work without UI: indexes, account settings, invites, message notifications and
- * the count in the page title, push, the emoji room, the bug report rooms an administrator
- * joins without accepting their invites, and agents' connect links, which open through the
- * Connections portal signed in as this account.
+ * Account-wide work without UI: indexes and the joined rooms' thread lists that fill them,
+ * account settings, invites, message notifications and the count in the page title, push, the
+ * emoji room, the bug report rooms an administrator joins without accepting their invites, and
+ * agents' connect links, which open through the Connections portal signed in as this account.
  */
 export function ClientNonUIFeatures() {
   return (
     <>
       <CrossRoomThreadIndexFeature />
+      <JoinedRoomThreadListsFeature />
       <ArchivedRoomsIndex />
       <MindroomAccountSettingsFeature />
       <MindroomInviteNotifications />
