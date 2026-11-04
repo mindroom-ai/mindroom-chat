@@ -20,11 +20,11 @@ const resolveMentionedRoom = (client: MatrixClient, mentionId: string): string |
 /**
  * The click handler for mention pills, which carry the mentioned ID in `data-mention-id` (and an
  * event in `data-mention-event-id`): a user opens their profile in `roomId`; a room the account
- * has joined opens, at the event when one is given.
+ * has joined opens, at the event when one is given, and a space opens on its lobby.
  */
 export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLElement> => {
   const client = useMatrixClient();
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoom, navigateSpace } = useRoomNavigate();
   const openProfile = useOpenUserRoomProfile();
   const spaceRoomId = useSpaceOptionally()?.roomId;
 
@@ -42,8 +42,14 @@ export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLEl
       }
 
       const mentionedRoomId = resolveMentionedRoom(client, mention.id);
-      if (mentionedRoomId) navigateRoom(mentionedRoomId, mention.eventId);
+      if (!mentionedRoomId) return;
+      // A space the account knows opens as a space, on its lobby.
+      if (!mention.eventId && client.getRoom(mentionedRoomId)?.isSpaceRoom()) {
+        navigateSpace(mentionedRoomId);
+        return;
+      }
+      navigateRoom(mentionedRoomId, mention.eventId);
     },
-    [client, navigateRoom, openProfile, roomId, spaceRoomId]
+    [client, navigateRoom, navigateSpace, openProfile, roomId, spaceRoomId]
   );
 };
