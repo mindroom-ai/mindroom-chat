@@ -62,6 +62,12 @@ type VirtualPaginatorOptions = PaginatorDom &
      */
     deferAutomaticPagination?: (retry: () => boolean) => boolean;
     /**
+     * How many pixels above the visible band the back sentinel still counts as in view when the
+     * automatic fill phase retries: the opening fill loads history ahead of the reader that
+     * far. Pagination the reader's scrolling causes counts the visible band only.
+     */
+    automaticBackReach?: () => number;
+    /**
      * The owner keeps the rows on screen in place when the window grows towards older items
      * (an offset ledger, say), so the paginator leaves the scroll position alone then.
      */
@@ -100,12 +106,14 @@ const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: n
  * A sentinel is in view only where the reader can see it: the scroll padding is the band that
  * floating bars (a room header, the composer) cover, and a sentinel under them stays hidden.
  */
-const isAnchorVisible = (root: HTMLElement, anchor: Element | null): boolean => {
+const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reachAbove = 0): boolean => {
   if (!anchor) return false;
   const view = root.getBoundingClientRect();
   const padding = readScrollPadding(root);
   const rect = anchor.getBoundingClientRect();
-  return rect.bottom > view.top + padding.top && rect.top < view.bottom - padding.bottom;
+  return (
+    rect.bottom > view.top + padding.top - reachAbove && rect.top < view.bottom - padding.bottom
+  );
 };
 
 /** The item's top within the scroll content, comparable to `scrollTop`. */
@@ -281,14 +289,17 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [changeRange, firstNotAboveView, lastNotBelowView]
   );
 
-  /** Paginates towards the first visible sentinel, history first; false when none is visible. */
+  /**
+   * Paginates towards the first visible sentinel, history first; false when none is visible.
+   * `backReach` extends the view above the visible band for the back sentinel.
+   */
   const paginateVisibleAnchor = useCallback(
-    (opts?: RetryPaginationOptions): boolean => {
+    (opts?: RetryPaginationOptions, backReach = 0): boolean => {
       const { getScrollElement, shouldSuppressPagination } = optionsRef.current;
       if (shouldSuppressPagination?.()) return false;
       const root = getScrollElement();
       if (!root) return false;
-      if (isAnchorVisible(root, root.querySelector(anchorSelector(BACK_ANCHOR)))) {
+      if (isAnchorVisible(root, root.querySelector(anchorSelector(BACK_ANCHOR)), backReach)) {
         return paginate(true, opts);
       }
       if (isAnchorVisible(root, root.querySelector(anchorSelector(FRONT_ANCHOR)))) {
@@ -299,7 +310,17 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginate]
   );
 
-  const retryAutomatic = useCallback(() => paginateVisibleAnchor(), [paginateVisibleAnchor]);
+  const retryAutomatic = useCallback(
+    () => paginateVisibleAnchor(undefined, optionsRef.current.automaticBackReach?.() ?? 0),
+    [paginateVisibleAnchor]
+  );
+
+  // The automatic fill decides once the opening rows have settled, also when no sentinel ever
+  // reaches the scroll area (rows already reach above it, but not as far as it loads ahead).
+  const { deferAutomaticPagination } = options;
+  useLayoutEffect(() => {
+    deferAutomaticPagination?.(retryAutomatic);
+  }, [deferAutomaticPagination, retryAutomatic]);
 
   /** Runs automatic pagination now, unless the automatic fill phase takes it over. */
   const runAutomatic = useCallback(
