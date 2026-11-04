@@ -41,6 +41,7 @@ import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomViewMode } from './useRoomViewMode';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { RoomMessageAnnouncer } from '../../features/room/RoomMessageAnnouncer';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -334,6 +335,7 @@ export function Room() {
         <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
           {!conversationHidden && (
             <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+              <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
               <RoomView
                 room={room}
                 eventId={eventId}

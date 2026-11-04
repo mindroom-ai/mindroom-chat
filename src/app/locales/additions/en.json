@@ -82,7 +82,8 @@
     },
     "a11y": {
       "mainNavigation": "Main",
-      "skipToContent": "Skip to content"
+      "skipToContent": "Skip to content",
+      "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
       "forget": "Forget Room"

@@ -45,7 +45,10 @@ const hostOf = (url: string): string => {
   }
 };
 
-/** A thin banner for a lost connection, a needed organization sign-in, or catching up. */
+/**
+ * A thin banner for a lost connection, a needed organization sign-in, or catching up. The client
+ * root keeps it in a polite live region, which stays mounted while the banner comes and goes.
+ */
 export function SyncStatus({ mx }: SyncStatusProps) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<SyncSnapshot>(() => readInitialSnapshot(mx));
@@ -87,7 +90,6 @@ export function SyncStatus({ mx }: SyncStatusProps) {
       className={ContainerColor({ variant: critical ? 'Critical' : 'Success' })}
       justifyContent="Center"
       alignItems="Center"
-      role="status"
       style={{ padding: `${config.space.S100} 0` }}
     >
       <Text size="L400">{message}</Text>

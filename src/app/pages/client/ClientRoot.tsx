@@ -317,7 +317,6 @@ function CatchingUpBar() {
   return (
     <Box
       data-testid="client-sync-status"
-      role="status"
       shrink="No"
       alignItems="Center"
       justifyContent="Center"
@@ -345,7 +344,10 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
             <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
               <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
                 <ClientStartupProvider hasCompletedInitialSync={sync.live}>
-                  {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
+                  {/* One live region for every banner, so a change of state is read out. */}
+                  <div role="status" aria-live="polite">
+                    {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
+                  </div>
                   {children}
                 </ClientStartupProvider>
               </MediaConfigProvider>
