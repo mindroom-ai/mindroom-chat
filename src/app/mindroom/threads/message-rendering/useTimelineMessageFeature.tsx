@@ -66,6 +66,7 @@ import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/MindroomThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
+import { shouldShowLinkFavicons } from '../../messages/linkFaviconPolicy';
 import {
   getMindroomRoomTimelineApprovalContent,
   MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
@@ -370,17 +371,29 @@ export const useTimelineMessageFeature = ({
   // Encrypted rooms preview links only when the user allows it: the preview request reveals the
   // link to the homeserver.
   const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
+  // Links show their site's icon under the same settings as previews, and only with media loading.
+  const showLinkFavicons = shouldShowLinkFavicons(
+    { mediaAutoLoad, urlPreview, encUrlPreview },
+    !!room.hasEncryptionStateEvent?.()
+  );
   // Matrix permalinks in a message open in the app: a person's profile card, or the room and
   // event (its thread, where the room shows threads) instead of matrix.to in a new tab.
   const handleMentionClick = useMentionClickHandler(room.roomId);
   const linkifyOpts = useMemo(
     () => ({
       ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention((href) =>
-        renderMatrixMention(client, room.roomId, href, makeMentionCustomProps(handleMentionClick))
+      render: factoryRenderLinkifyWithMention(
+        (href) =>
+          renderMatrixMention(
+            client,
+            room.roomId,
+            href,
+            makeMentionCustomProps(handleMentionClick)
+          ),
+        showLinkFavicons
       ),
     }),
-    [client, handleMentionClick, room.roomId]
+    [client, handleMentionClick, room.roomId, showLinkFavicons]
   );
   const htmlReactParserOptions = useMemo(
     () =>
@@ -388,8 +401,9 @@ export const useTimelineMessageFeature = ({
         linkifyOpts,
         handleMentionClick,
         useAuthentication,
+        showLinkFavicons,
       }),
-    [client, handleMentionClick, linkifyOpts, room.roomId, useAuthentication]
+    [client, handleMentionClick, linkifyOpts, room.roomId, showLinkFavicons, useAuthentication]
   );
 
   const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));
