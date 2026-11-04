@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { atom, useStore } from 'jotai';
-import { ClientEvent, KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import {
   activeCallAtom,
   useCallActions,
@@ -21,43 +22,6 @@ import {
 
 /** How long a new call room may take to arrive in sync before the call is given up. */
 const ROOM_SYNC_TIMEOUT_MS = 20_000;
-
-/** The joined room once sync delivers it. */
-export const waitForJoinedRoom = (
-  mx: MatrixClient,
-  roomId: string,
-  timeoutMs = ROOM_SYNC_TIMEOUT_MS
-): Promise<Room> =>
-  new Promise((resolve, reject) => {
-    const joined = () => {
-      const room = mx.getRoom(roomId);
-      return room?.getMyMembership() === KnownMembership.Join ? room : undefined;
-    };
-    const ready = joined();
-    if (ready) {
-      resolve(ready);
-      return;
-    }
-    const check = () => {
-      const room = joined();
-      if (!room) return;
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      finish();
-      resolve(room);
-    };
-    const timer = window.setTimeout(() => {
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      finish();
-      reject(new Error(`Room ${roomId} did not arrive`));
-    }, timeoutMs);
-    const finish = () => {
-      window.clearTimeout(timer);
-      mx.off(ClientEvent.Room, check);
-      mx.off(ClientEvent.Sync, check);
-    };
-    mx.on(ClientEvent.Room, check);
-    mx.on(ClientEvent.Sync, check);
-  });
 
 export type AgentCallTarget = {
   agentUserId: string;
@@ -178,7 +142,7 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
         let callRoom = findAgentCallRoom(mx, agentUserId);
         if (!callRoom) {
           const created = await createAgentVoiceRoom(mx, agentUserId, displayName, encrypted);
-          callRoom = await waitForJoinedRoom(mx, created);
+          callRoom = await waitForJoinedRoom(mx, created, ROOM_SYNC_TIMEOUT_MS);
         }
         const result = await startAgentCall(mx, startCall, {
           room: callRoom,
