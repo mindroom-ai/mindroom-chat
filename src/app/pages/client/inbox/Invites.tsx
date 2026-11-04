@@ -19,6 +19,7 @@ import { getRoomAvatarUrl } from '../../../utils/room';
 import { mxcUrlToHttp } from '../../../utils/mediaUrl';
 import { nameInitials } from '../../../utils/common';
 import { acceptInvite, acceptInvites } from './acceptInvite';
+import { declineInvite } from './declineInvite';
 import {
   INVITE_CATEGORIES,
   InviteFilterChips,
@@ -210,7 +211,7 @@ export function InviteCard({
   const handleDecline = async () => {
     setState('leaving');
     try {
-      await client.leave(roomId);
+      await declineInvite(client, roomId);
     } catch {
       setState('error');
     }

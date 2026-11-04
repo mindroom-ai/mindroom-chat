@@ -22,6 +22,7 @@ import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { nameInitials } from '../../utils/common';
 import { Membership } from '../../../types/matrix/room';
 import { getHomePath } from '../../pages/pathUtils';
+import { declineInvite } from '../../pages/client/inbox/declineInvite';
 import { useAlive } from '../../hooks/useAlive';
 
 type JoinBeforeNavigateProps = {
@@ -129,10 +130,10 @@ function KnownRoomActions({ roomId }: { roomId: string }) {
     action = {
       label: t('sharedUi.invites.decline'),
       critical: true,
-      // A declined invite leaves nothing to show; the client drops the room.
+      // A declined invite leaves nothing to show; the room is forgotten with it.
       onClick: () =>
         run(
-          () => client.leave(roomId),
+          () => declineInvite(client, roomId),
           () => navigatePath(getHomePath())
         ),
     };
