@@ -56,7 +56,7 @@ import {
 import { useClientStartupContext } from '../ClientStartupContext';
 import { RouteResolving } from '../RoomRoute';
 import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../routeVisibility';
-import { useSpaceSearchRooms } from './useSpaceSearchRooms';
+import { useSpaceNavigationRooms } from './useSpaceSearchRooms';
 import { getSpaceShareLink } from './spaceLink';
 
 // Like Home: by name, A to Z, ignoring case and accents, with numbers in numeric order.
@@ -320,7 +320,7 @@ export function Space() {
   const title = useRoomName(space);
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
-  const spaceRooms = useVisibleRooms(useSpaceSearchRooms(space.roomId));
+  const spaceRooms = useVisibleRooms(useSpaceNavigationRooms(space.roomId));
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);

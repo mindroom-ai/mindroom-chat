@@ -51,7 +51,7 @@ import { copyToClipboard } from '../../../utils/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../../utils/sortableDrag';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
-import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
+import { useSpaceNavigationRooms } from '../space/useSpaceSearchRooms';
 import { getSpaceShareLink } from '../space/spaceLink';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 import {
@@ -183,7 +183,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const activePaths = useAtomValue(useNavToActivePathAtom());
   const unread = useRoomUnread(roomId, roomToUnreadAtom);
   const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
-  const spaceRooms = useSpaceSearchRooms(roomId);
+  const spaceRooms = useSpaceNavigationRooms(roomId);
   const openSpaceSettings = useOpenSpaceSettings();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [inviting, setInviting] = useState(false);

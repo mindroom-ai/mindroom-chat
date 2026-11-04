@@ -94,3 +94,19 @@ export const useSpaceSearchRooms = (spaceId: string): string[] => {
     );
   }, [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]);
 };
+
+/**
+ * The rooms a space's navigation lists: the joined rooms inside it at any depth, without DMs or
+ * subspaces. Search also covers rooms the client only knows of (invited, or left and still in
+ * the store), which the navigation would show as rooms the user is in.
+ */
+export const useSpaceNavigationRooms = (spaceId: string): string[] => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  return useMemo(
+    () => getSpaceSearchRooms(client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom),
+    [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]
+  );
+};
