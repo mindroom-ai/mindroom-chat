@@ -49,6 +49,8 @@ Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, 
 | `just hs-up` | starts the disposable Tuwunel test homeserver (`e2e/docker-compose.yaml`, `http://127.0.0.1:28008`) and waits until it is healthy |
 | `just hs-down` | stops the test homeserver and deletes its data |
 | `just e2e [args]` | Playwright in the Chromium from `CHROMIUM_PATH` against the dev server, which it starts when nothing listens on port 4200; run `just hs-up` first for specs that need the homeserver |
+| `just e2e-slot <n> [--snapshot[=<rev>]] [--preview] <command>` | `scripts/e2e-slot.sh`: runs the command with slot n's own Tuwunel (port 28100+n) and app port (4300+n). `--snapshot` runs it in a clean copy of a commit (default HEAD) with an empty homeserver, so uncommitted edits in the checkout cannot break the run; `--preview` serves that commit's production build through `vite preview` |
+| `just e2e-suite [--slots 25-28] [--out <tsv>] [specs] [-- <playwright options>]` | `scripts/e2e-suite.sh`: every spec file (or the given ones) of one commit in its own `--preview` snapshot run, spread over the slots, then one TSV row per spec (`scripts/e2e-results-tsv.mjs`) |
 | `just check` | `typecheck`, `lint`, `test`, `license-check`, `verify-ported`, `check-holes` |
 
 `docs/provenance/m1-baseline.txt` records the starting error counts for the M1 compile and the current `just typecheck-tests` total.

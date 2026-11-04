@@ -89,3 +89,11 @@ e2e *args:
       export PLAYWRIGHT_CHROMIUM_EXECUTABLE="$CHROMIUM_PATH"
     fi
     exec npx playwright test {{args}}
+
+# Run a command on e2e slot N (homeserver port 28100+N, app port 4300+N; `just e2e-slot N down` stops it). Options before the command: --snapshot[=<rev>] runs it in a clean copy of a commit (default HEAD) with an empty homeserver; --preview serves that commit's production build. Example: `just e2e-slot 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts`.
+e2e-slot slot *args:
+    bash scripts/e2e-slot.sh {{slot}} {{args}}
+
+# Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run, spread over slots; writes one TSV row per spec. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
+e2e-suite *args:
+    bash scripts/e2e-suite.sh {{args}}
