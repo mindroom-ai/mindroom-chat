@@ -1,0 +1,220 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Gulir"
+    },
+    "passwordInput": {
+      "show": "Tampilkan kata sandi",
+      "hide": "Sembunyikan kata sandi"
+    },
+    "pdfViewer": {
+      "close": "Tutup"
+    },
+    "urlPreviewHolder": {
+      "previous": "Pratinjau tautan sebelumnya",
+      "next": "Pratinjau tautan lainnya"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Nama",
+      "cancel": "Batal",
+      "skinTone": "Warna kulit",
+      "skinTones": {
+        "default": "Warna kulit default",
+        "light": "Warna kulit terang",
+        "mediumLight": "Warna kulit agak terang",
+        "medium": "Warna kulit sedang",
+        "mediumDark": "Warna kulit agak gelap",
+        "dark": "Warna kulit gelap"
+      }
+    },
+    "eventReaders": {
+      "close": "Tutup"
+    },
+    "imagePackContent": {
+      "uploadFailed": "Gambar tidak dapat diunggah. Coba lagi.",
+      "noImages": "Belum ada gambar."
+    },
+    "imagePackView": {
+      "close": "Tutup",
+      "back": "Kembali"
+    },
+    "imageTile": {
+      "remove": "Hapus",
+      "editImage": "Edit :{{shortcode}}:",
+      "removeImage": "Hapus :{{shortcode}}:",
+      "keepImage": "Simpan :{{shortcode}}:",
+      "removedOnApply": "Akan dihapus saat Anda menerapkan perubahan",
+      "usage": "Digunakan sebagai",
+      "shortcodeTaken": "Gambar lain sudah memakai kode singkat ini.",
+      "shortcodeInvalid": "Kode singkat tidak boleh berisi spasi atau titik dua."
+    },
+    "imageUsageOption": {
+      "pack": "Sama seperti paket"
+    },
+    "imageViewer": {
+      "close": "Tutup"
+    },
+    "inviteUserPrompt": {
+      "close": "Tutup"
+    },
+    "joinAddressPrompt": {
+      "close": "Tutup"
+    },
+    "textViewer": {
+      "close": "Tutup"
+    },
+    "invites": {
+      "actionFailed": "Terjadi kesalahan. Coba lagi."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Cari pengguna atau masukkan ID pengguna"
+    },
+    "leaveRoomPrompt": {
+      "close": "Tutup",
+      "forget": "Lupakan ruang ini",
+      "forgetDescription": "Juga menghapusnya dari akun Anda, termasuk riwayatnya. Anda bisa bergabung lagi nanti jika ruang mengizinkan."
+    },
+    "memberFilters": {
+      "label": "Tampilkan anggota"
+    },
+    "memberSort": {
+      "label": "Urutkan anggota"
+    },
+    "a11y": {
+      "mainNavigation": "Navigasi utama",
+      "skipToContent": "Langsung ke konten",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "Lupakan ruang"
+    },
+    "userRoomProfile": {
+      "editProfile": "Edit profil"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "Hapus {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Beri peristiwa sebuah jenis dan konten berupa objek JSON."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Paket pribadi",
+          "imageCount_other": "{{count}} gambar, milik Anda di setiap ruang"
+        }
+      },
+      "devices": {
+        "loadFailed": "Perangkat Anda tidak dapat dimuat."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Buka blokir"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Hapus"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "Obrolan tidak dapat dimulai. Coba lagi."
+    },
+    "homeNav": {
+      "options": "Opsi Beranda"
+    },
+    "directNav": {
+      "options": "Opsi pesan langsung"
+    },
+    "spaceNav": {
+      "options": "Opsi space"
+    },
+    "calls": {
+      "panel": {
+        "title": "Panggilan",
+        "close": "Tutup panel panggilan",
+        "participants": "Orang dalam panggilan",
+        "connecting": "Menghubungkan…",
+        "reconnecting": "Menghubungkan ulang…",
+        "ended": "Panggilan berakhir.",
+        "waitingFor": "Menunggu {{name}}…",
+        "you": "{{name}} (Anda)",
+        "microphoneOff": "Mikrofon mati",
+        "inCall_other": "{{count}} orang dalam panggilan",
+        "startCall": "Mulai panggilan",
+        "startVideoCall": "Mulai panggilan video",
+        "dismiss": "Tutup",
+        "audioBlocked": "Browser Anda menjeda suara panggilan.",
+        "playSound": "Putar suara",
+        "resize": "Ubah ukuran panel panggilan"
+      },
+      "problems": {
+        "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
+        "connection": "Koneksi panggilan terputus.",
+        "device": "Mikrofon atau kamera Anda tidak dapat digunakan."
+      },
+      "devices": {
+        "title": "Perangkat",
+        "microphone": "Mikrofon",
+        "camera": "Kamera",
+        "speaker": "Speaker",
+        "systemDefault": "Default sistem",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Mulai panggilan",
+        "joinCall": "Gabung ke panggilan",
+        "joinCallCount_other": "Gabung ke panggilan, ada {{count}} orang di dalamnya",
+        "showCall": "Tampilkan panggilan",
+        "hideCall": "Sembunyikan panggilan"
+      },
+      "rail": {
+        "returnToCall": "Kembali ke panggilan di {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} menelepon",
+        "callingIn": "{{name}} menelepon di {{room}}",
+        "videoCall": "Panggilan video",
+        "voiceCall": "Panggilan suara"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "Selesai berpikir"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "Pencarian gagal. Coba lagi."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Undangan",
+        "body_other": "Anda punya {{count}} undangan baru."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Tampilan ringkas"
+      }
+    },
+    "computer": {
+      "resize": "Ubah ukuran panel komputer",
+      "close": "Tutup komputer"
+    }
+  },
+  "composer": {
+    "emoji": "Emoji",
+    "cancelReply": "Batalkan balasan"
+  }
+}
