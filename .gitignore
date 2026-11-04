@@ -10,3 +10,5 @@ playwright-report/
 !.env.example
 __pycache__/
 ui-audit/
+# npm run appstore:screenshots writes the App Store set here (see its README.md).
+ios/App/fastlane/screenshots/en-US/
