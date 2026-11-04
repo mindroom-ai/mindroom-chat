@@ -1,0 +1,182 @@
+import { keyframes, style, type StyleRule } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
+import {
+  Header as SidePanelHeader,
+  Panel as SidePanelPanel,
+} from '../../mindroom/sidebar/SidePanel.css';
+
+const { space, radii, borderWidth } = config;
+
+/** Children in a line or a column, `gap` apart. */
+const lined = (flexDirection: 'row' | 'column', gap: string, rest: StyleRule = {}): StyleRule => ({
+  display: 'flex',
+  flexDirection,
+  gap,
+  ...rest,
+});
+
+/** A box in the colors of one folds group: its container fill and the text on it. */
+const tinted = (group: { Container: string; OnContainer: string }): StyleRule => ({
+  background: group.Container,
+  color: group.OnContainer,
+});
+
+/** A hairline of the panel's line color, for the edge it is put on. */
+const hairline = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
+
+export const Panel = style([SidePanelPanel, { containerType: 'inline-size' }]);
+
+export const Header = style([SidePanelHeader]);
+
+export const HeaderTitle = style(lined('column', '0', { minWidth: 0 }));
+
+export const Body = style(
+  lined('column', space.S300, {
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflowY: 'auto',
+    padding: space.S300,
+  })
+);
+
+// Tiles fill the panel's width: one column in a narrow panel, more as it widens.
+export const Tiles = style({
+  display: 'grid',
+  gridTemplateColumns: `repeat(auto-fill, minmax(${toRem(160)}, 1fr))`,
+  gap: space.S200,
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+});
+
+const speakingPulse = keyframes({
+  from: { boxShadow: `0 0 0 0 ${color.Success.Main}` },
+  '70%': { boxShadow: `0 0 0 ${toRem(6)} transparent` },
+  to: { boxShadow: '0 0 0 0 transparent' },
+});
+
+const ring = (width: string, ringColor: string): StyleRule => ({
+  outline: `${width} solid ${ringColor}`,
+  outlineOffset: `calc(-1 * ${width})`,
+});
+
+// A 4:3 card with the picture in its middle; it rings green while its person talks.
+export const Tile = style([
+  tinted(color.SurfaceVariant),
+  ring(borderWidth.B300, color.SurfaceVariant.ContainerLine),
+  {
+    position: 'relative',
+    display: 'grid',
+    placeItems: 'center',
+    aspectRatio: '4 / 3',
+    overflow: 'hidden',
+    borderRadius: radii.R400,
+    transition: 'outline-color 120ms ease',
+    selectors: {
+      '&[data-speaking="true"]': ring(toRem(2), color.Success.Main),
+      '&[data-connected="false"]': { opacity: 0.7 },
+    },
+  },
+]);
+
+const speakingTile = `${Tile}[data-speaking="true"] &`;
+
+export const TileAvatar = style({
+  selectors: { [speakingTile]: { animation: `${speakingPulse} 1.4s ease-out infinite` } },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { selectors: { [speakingTile]: { animation: 'none' } } },
+  },
+});
+
+export const TileVideo = style({
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  background: color.Other.Shadow,
+});
+
+// The name sits on a dark scrim, readable on video and on the plain tile alike.
+export const TileLabel = style(
+  lined('row', space.S100, {
+    position: 'absolute',
+    insetInlineStart: space.S100,
+    insetBlockEnd: space.S100,
+    alignItems: 'center',
+    maxWidth: `calc(100% - 2 * ${space.S100})`,
+    paddingBlock: toRem(2),
+    paddingInline: space.S200,
+    borderRadius: radii.R300,
+    background: 'rgba(0, 0, 0, 0.55)',
+    color: '#fff',
+  })
+);
+
+export const TileStatus = style({
+  position: 'absolute',
+  insetBlockStart: space.S100,
+  insetInline: space.S100,
+  textAlign: 'center',
+});
+
+// Before joining: who is in the call, the toggles and Join, in the middle of the panel.
+export const Prescreen = style({
+  flex: '1 1 auto',
+  display: 'grid',
+  alignContent: 'center',
+  justifyItems: 'center',
+  rowGap: space.S400,
+  paddingBlock: space.S700,
+  paddingInline: space.S400,
+  textAlign: 'center',
+});
+
+export const Faces = style(lined('row', space.S200, { flexWrap: 'wrap', placeContent: 'center' }));
+
+export const Notice = style([
+  tinted(color.Warning),
+  lined('row', space.S200, {
+    alignItems: 'flex-start',
+    padding: space.S300,
+    borderRadius: radii.R400,
+  }),
+]);
+
+export const NoticeCritical = style(tinted(color.Critical));
+
+export const NoticeText = style({ flex: '1 1 auto', minWidth: 0, overflowWrap: 'anywhere' });
+
+// The control bar under the tiles, centred, wrapping on a narrow panel.
+export const Controls = style(
+  lined('row', space.S200, {
+    flex: 'none',
+    flexWrap: 'wrap',
+    placeContent: 'center',
+    alignItems: 'center',
+    padding: space.S300,
+    borderBlockStart: hairline,
+  })
+);
+
+export const DeviceMenu = style({
+  minWidth: toRem(240),
+  maxWidth: toRem(320),
+  maxHeight: '60vh',
+  overflowY: 'auto',
+});
+
+export const DeviceGroupLabel = style({
+  paddingBlock: `${space.S200} ${space.S100}`,
+  paddingInline: space.S300,
+});
+
+// Ending the call is the one solid control, so it is found without looking.
+export const EndControl = style({
+  background: color.Critical.Main,
+  color: color.Critical.OnMain,
+  selectors: {
+    '&:hover, &:focus-visible': { background: color.Critical.MainHover },
+    '&:active': { background: color.Critical.MainActive },
+  },
+});
