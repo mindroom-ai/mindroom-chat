@@ -121,6 +121,7 @@ import type { ThreadSummaryWriter } from './threadSummaryState';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   useLatestRowPin,
+  useThreadGestureBottomPins,
   useTimelineRowJumps,
   useTimelineScrollElement,
   useViewportAtBottomNow,
@@ -775,12 +776,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () => backController.requestOpenBottomPin(scrollToBottomRef),
     [backController]
   );
-  const cancelThreadOpenBottomPin = useCallback(() => {
-    backController.cancelOpenBottomPin(scrollToBottomRef.current.count);
-    if (readerScrolledRef.current.value) return;
-    readerScrolledRef.current.value = true;
-    forceRender();
-  }, [backController, readerScrolledRef]);
+  const threadGesturePins = useThreadGestureBottomPins({
+    backController,
+    scrollToBottomRef,
+    readerScrolledRef,
+    onFirstGesture: forceRender,
+  });
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
@@ -855,8 +856,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     suppressFocusPaginationRef,
     isThreadOpenBottomPinSuppressed: backController.isOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
-    cancelThreadOpenBottomPin,
-    shouldApplyThreadBottomPin: backController.shouldApplyBottomPin,
+    cancelThreadOpenBottomPin: threadGesturePins.onThreadGesture,
+    shouldApplyThreadBottomPin: threadGesturePins.shouldApplyBottomPin,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents: roomRows,

@@ -8,12 +8,15 @@ import {
 } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { ItemRange, ScrollToItem } from '../../hooks/useVirtualPaginator';
-import type { RoomTimelineFocusItem } from './roomFocusScrollController';
+import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
+import type { ThreadBackPaginationController } from './threadBackPaginationController';
+import type { ViewScopedFlag } from './roomTimelineViewScope';
 import { isScrollNearBottom } from './timelineScrollUtils';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
- * keeps the newest room row at the bottom, and the jumps to a row of the window.
+ * keeps the newest room row at the bottom, what the reader's gestures do to a thread's bottom
+ * pins, and the jumps to a row of the window.
  */
 
 /**
@@ -158,6 +161,44 @@ export const useLatestRowPin = ({
     if (!shown || !latestRowRequestRef.current || itemCount === 0) return;
     virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
   });
+};
+
+/**
+ * What the reader's gestures in an open thread do to its bottom pins. A pin is a request the next
+ * commit applies (the count in `scrollToBottomRef`); a gesture ends the opening pin for the view
+ * and drops every request made before it that no commit has applied yet. A row that arrives while
+ * the reader is at the bottom asks to follow it, and the commit can come after the reader started
+ * to scroll away: applied there, it would put them back at the bottom.
+ */
+export const useThreadGestureBottomPins = ({
+  backController,
+  scrollToBottomRef,
+  readerScrolledRef,
+  onFirstGesture,
+}: {
+  backController: ThreadBackPaginationController;
+  scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
+  /** Whether the reader has scrolled the view shown now. */
+  readerScrolledRef: MutableRefObject<ViewScopedFlag>;
+  /** Runs once per view, at the reader's first gesture. */
+  onFirstGesture: () => void;
+}) => {
+  // The request count when the reader last touched, scrolled or pressed a key in the thread.
+  const countAtGestureRef = useRef<number | undefined>(undefined);
+  const onThreadGesture = useCallback(() => {
+    const { count } = scrollToBottomRef.current;
+    backController.cancelOpenBottomPin(count);
+    countAtGestureRef.current = count;
+    if (readerScrolledRef.current.value) return;
+    readerScrolledRef.current.value = true;
+    onFirstGesture();
+  }, [backController, onFirstGesture, readerScrolledRef, scrollToBottomRef]);
+  const shouldApplyBottomPin = useCallback(
+    (count: number) =>
+      count !== countAtGestureRef.current && backController.shouldApplyBottomPin(count),
+    [backController]
+  );
+  return { onThreadGesture, shouldApplyBottomPin };
 };
 
 /**
