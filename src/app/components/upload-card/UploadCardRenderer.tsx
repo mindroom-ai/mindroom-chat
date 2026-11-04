@@ -125,21 +125,24 @@ export const UploadCardRenderer = ({
     [file.size, maxUploadSize]
   );
 
+  const blocked = blockUploadError ?? tooLargeError;
   const { upload, startUpload, cancelUpload } = useBindUploadAtom(
     client,
     roomUploadAtomFamily(file),
     {
       // Only the encrypted blob is uploaded without its name; the name travels inside the event.
       hideFilename: encInfo !== undefined,
-      blockUploadError,
+      // A file over the server's limit fails at once instead of waiting: a send in progress
+      // skips failed files and goes on with the rest and the caption.
+      blockUploadError: blocked,
     }
   );
 
-  const blocked = blockUploadError ?? tooLargeError;
   useEffect(() => {
-    if (blocked || upload.status !== UploadStatus.Idle) return;
+    // A file that could not be prepared already carries its error and must never start.
+    if (blockUploadError || upload.status !== UploadStatus.Idle) return;
     startUpload();
-  }, [blocked, upload.status, startUpload]);
+  }, [blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
     cancelUpload();
