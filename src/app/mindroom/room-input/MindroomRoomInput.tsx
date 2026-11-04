@@ -446,6 +446,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         : undefined;
       setAutocompleteQuery(query);
     }, [editor]);
+    // Escape closes the suggestions as the key goes down; its release must not reopen them.
+    const resyncAfterKey = useCallback(
+      (event?: KeyboardEvent<HTMLDivElement>) => {
+        if (event?.key !== 'Escape') syncAutocompleteQuery();
+      },
+      [syncAutocompleteQuery]
+    );
 
     const handleChange = useCallback(() => {
       saveDraft();
@@ -543,7 +550,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onKeyUp={syncAutocompleteQuery}
+          onKeyUp={resyncAfterKey}
           onPaste={attachments.onPaste}
           top={
             <>
