@@ -622,7 +622,8 @@ function ThreadSearchBar({
   onSearchQueryChange: (query: string) => void;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(() => searchQuery.length > 0);
+  // Collapsed until asked for, even while a query filters; the sort button shows active filters.
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleToggle = useCallback(() => {
