@@ -136,13 +136,17 @@ export const SidebarAvatar = recipe({
       '200': { width: toRem(26), height: toRem(26) },
     },
     // The raised button of a rail section. SidebarAvatar adds the glass control material for
-    // its rim and shadow; the fill is a deeper grey than the material's, as in home.png.
+    // its rim and shadow; the fill is a deeper grey than the material's, as in home.png, and a
+    // hairline in the rail's line colour runs around the outside of the rim.
     outlined: {
       true: {
         position: 'relative',
         color: color.Secondary.OnContainer,
         selectors: {
-          '&&&': { backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82) },
+          '&&&': {
+            backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82),
+            border: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+          },
           '&&&:hover, &&&:focus-visible': {
             backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
           },
@@ -196,7 +200,8 @@ const cornerOffset = (distance: number) => ({
 
 /** The unread badge, pinned over the top-start corner of the rail entry. */
 export const SidebarItemBadge = recipe({
-  base: { position: 'absolute', zIndex: 1, pointerEvents: 'none' },
+  // A flex box, so the badge sits at its top instead of on a text line's baseline below it.
+  base: { position: 'absolute', zIndex: 1, pointerEvents: 'none', display: 'flex' },
   variants: {
     // home.png: the unread count sits 6 px outside the avatar's top-left corner.
     hasCount: {
