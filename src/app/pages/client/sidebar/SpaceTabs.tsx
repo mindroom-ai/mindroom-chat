@@ -48,6 +48,7 @@ import { useOpenSpaceSettings } from '../../../state/hooks/spaceSettings';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
 import { copyToClipboard } from '../../../utils/dom';
+import { nameInitials } from '../../../utils/common';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../../utils/sortableDrag';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
@@ -175,8 +176,8 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const { t } = useTranslation();
   const client = useMatrixClient();
   const { roomId, name } = space;
-  // Without a picture: its first two letters as written ("Mi" for MindRoom).
-  const letters = Array.from(name.trim()).slice(0, 2).join('');
+  // Without a picture: the initial its lobby and the room list show too.
+  const letters = nameInitials(name);
   const navigate = useNavigate();
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const useAuthentication = useMediaAuthentication();
