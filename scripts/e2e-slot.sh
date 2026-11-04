@@ -16,6 +16,9 @@ if [ "$slot" = 0 ]; then
 else
   export E2E_MATRIX_PORT=$((28100 + slot)) E2E_APP_PORT=$((4300 + slot)) COMPOSE_PROJECT_NAME="mindroom-client-e2e-$slot"
 fi
+# The imported scripts start their homeserver from E2E_MATRIX_COMPOSE_FILE (scripts/e2e-matrix-up.sh,
+# which scripts/appstore-fixture-up.sh calls); point them at this slot's server.
+export E2E_MATRIX_COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-$PWD/e2e/docker-compose.yaml}"
 if [ "${1:-}" = down ]; then
   exec docker compose -f e2e/docker-compose.yaml down --volumes --remove-orphans
 fi
