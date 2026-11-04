@@ -4,6 +4,7 @@ import { StateEvent } from '../../../types/matrix/room';
 import { getAccountData } from '../../utils/room';
 import { ImagePack } from './ImagePack';
 import { EmoteRoomsContent, ImageUsage, PackContent, PackImage, PackImages } from './types';
+import { isRecord } from '../../utils/isRecord';
 
 /**
  * The largest pack event, as the JSON bytes of its content, that new images go into. Servers
@@ -24,9 +25,6 @@ export class ShortcodeTakenError extends Error {
 
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** The size of pack content as the server counts it: the UTF-8 bytes of its JSON. */
 export const packContentBytes = (content: PackContent): number =>

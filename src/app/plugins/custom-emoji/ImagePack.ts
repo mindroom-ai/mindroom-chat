@@ -1,11 +1,9 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { IImageInfo } from '../../../types/matrix/common';
 import { ImageUsage, PackAddress, PackContent, PackImage, PackMeta } from './types';
+import { isRecord } from '../../utils/isRecord';
 
 const ALL_USAGES: ImageUsage[] = [ImageUsage.Emoticon, ImageUsage.Sticker];
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** The known usages in `value`, or undefined when it names none. */
 const readUsage = (value: unknown): ImageUsage[] | undefined => {

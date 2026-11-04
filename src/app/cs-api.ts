@@ -2,6 +2,7 @@
 // (specification "Server Discovery", `/.well-known/matrix/client`) and `/_matrix/client/versions`.
 
 import { trimTrailingSlash } from './utils/common';
+import { isRecord } from './utils/isRecord';
 
 /**
  * Body of `GET /_matrix/client/versions` (specification "Client-Server API", section "Versions").
@@ -79,9 +80,6 @@ export const isAllowedHomeserverBaseUrl = (baseUrl: string): boolean => {
 
 const withScheme = (server: string): string =>
   /^https?:\/\//i.test(server) ? server : `https://${server}`;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const fallbackInfo = (baseUrl: string): AutoDiscoveryInfo => ({
   'm.homeserver': { base_url: baseUrl },
