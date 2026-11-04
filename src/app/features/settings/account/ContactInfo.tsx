@@ -5,7 +5,13 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { SettingTile } from '../../../components/setting-tile';
 import { SettingsCard } from '../SettingsCard';
 
-/** The email addresses the homeserver has on file for this account (`GET /account/3pid`). */
+const KEY = 'featureUi.settings.account.contactInfo';
+
+/**
+ * The email addresses the homeserver has on file for this account (`GET /account/3pid`). The
+ * section stays while the addresses load and when there are none; only a server that refuses the
+ * request (no third-party ID support) leaves it out.
+ */
 export function ContactInfo() {
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -26,28 +32,33 @@ export function ContactInfo() {
     };
   }, [client]);
 
-  // Nothing to show on servers without email support, or before anything is known.
-  if (emails === null || (emails !== undefined && emails.length === 0)) return null;
+  if (emails === null) return null;
+
+  let addresses: React.ReactNode;
+  if (emails === undefined) addresses = <Spinner size="50" variant="Secondary" />;
+  else if (emails.length === 0) {
+    addresses = (
+      <Text size="T300" priority="300">
+        {t('featureUi.settings.notifications.systemNotification.yourAccountDoesNotHaveAnyEmail')}
+      </Text>
+    );
+  } else {
+    addresses = emails.map((email) => (
+      <Text key={email} size="T300">
+        {email}
+      </Text>
+    ));
+  }
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.account.contactInfo.contactInformation')}</Text>
+      <Text size="L400">{t(`${KEY}.contactInformation`)}</Text>
       <SettingsCard>
         <SettingTile
-          title={t('featureUi.settings.account.contactInfo.emailAddress')}
-          description={t(
-            'featureUi.settings.account.contactInfo.emailAddressAttachedToYourAccount'
-          )}
+          title={t(`${KEY}.emailAddress`)}
+          description={t(`${KEY}.emailAddressAttachedToYourAccount`)}
         >
-          {emails === undefined ? (
-            <Spinner size="50" variant="Secondary" />
-          ) : (
-            emails.map((email) => (
-              <Text key={email} size="T300">
-                {email}
-              </Text>
-            ))
-          )}
+          {addresses}
         </SettingTile>
       </SettingsCard>
     </Box>
