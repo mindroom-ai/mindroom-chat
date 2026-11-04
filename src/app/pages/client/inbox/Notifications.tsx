@@ -7,7 +7,20 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Avatar, Box, Button, Chip, Spinner, Text, color, config, toRem } from 'folds';
+import {
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Chip,
+  Icon,
+  Icons,
+  Spinner,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { useAtomValue } from 'jotai';
@@ -54,6 +67,8 @@ import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-c
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom } from '../../../state/settings';
 import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
+import { isHighlightNotification } from '../../../mindroom/notifications/inboxNotification';
+import { getEventThreadId } from '../../../mindroom/notifications/messageNotifications';
 import {
   resolveNotificationEvent,
   shouldRenderNotificationLoadingPlaceholders,
@@ -210,6 +225,14 @@ const useBodyParserOptions = (client: MatrixClient, roomId: string) => {
   );
 };
 
+/** Mentions and keywords stand out: a tinted row with an accent at its leading edge. */
+const highlightedRowStyle = {
+  backgroundColor: color.Primary.Container,
+  boxShadow: `inset ${toRem(3)} 0 0 ${color.Primary.Main}`,
+};
+
+const unreadDotStyle = { width: toRem(8), height: toRem(8), padding: 0, flexShrink: 0 };
+
 function NotificationRow({
   room,
   notification,
@@ -217,7 +240,8 @@ function NotificationRow({
 }: {
   room: Room;
   notification: INotification;
-  onOpen: (eventId: string) => void;
+  /** Opens the message: in its thread when it has one, in the room otherwise. */
+  onOpen: (eventId: string, threadId?: string) => void;
 }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -228,6 +252,7 @@ function NotificationRow({
   const senderName = getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender;
   const eventId = event.getId() ?? notification.event.event_id;
   const content = event.getContent();
+  const highlighted = isHighlightNotification(notification);
 
   let body: ReactNode;
   if (event.isRedacted()) body = <MessageDeletedContent />;
@@ -255,19 +280,47 @@ function NotificationRow({
   }
 
   return (
-    <Box gap="300" alignItems="Start" style={{ padding: config.space.S300 }}>
+    <Box
+      gap="300"
+      alignItems="Start"
+      data-highlight={highlighted || undefined}
+      style={{ padding: config.space.S300, ...(highlighted ? highlightedRowStyle : undefined) }}
+    >
       <Box direction="Column" grow="Yes" gap="100" style={{ minWidth: 0 }}>
-        <Box gap="200" alignItems="Baseline">
+        <Box gap="200" alignItems="Center">
+          {!notification.read && (
+            <Badge
+              variant="Primary"
+              fill="Solid"
+              radii="Pill"
+              size="200"
+              role="img"
+              aria-label={t('thread.status.unread')}
+              style={unreadDotStyle}
+            />
+          )}
           <Text size="T300" truncate>
             <b>{senderName}</b>
           </Text>
           <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
             {dayjs(notification.ts).format('MMM D, HH:mm')}
           </Text>
+          {highlighted && (
+            <Icon
+              size="50"
+              src={Icons.Mention}
+              aria-label={t('sharedUi.notifications.highlighted')}
+              style={{ color: color.Primary.Main, flexShrink: 0 }}
+            />
+          )}
         </Box>
         <NotificationPreview>{body}</NotificationPreview>
       </Box>
-      <Chip variant="Secondary" radii="Pill" onClick={() => onOpen(eventId)}>
+      <Chip
+        variant="Secondary"
+        radii="Pill"
+        onClick={() => onOpen(eventId, getEventThreadId(event))}
+      >
         <Text size="T200">{t('sharedUi.notifications.open')}</Text>
       </Chip>
     </Box>
@@ -302,7 +355,7 @@ function NotificationGroupAvatar({ room }: { room: Room }) {
 export function Notifications() {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const { status, notifications, nextToken, loadOlder } = useNotificationPages(client, filter);
   const groups = useMemo(() => groupByRoom(client, notifications), [client, notifications]);
@@ -381,7 +434,11 @@ export function Notifications() {
                         key={notification.event.event_id}
                         room={room}
                         notification={notification}
-                        onOpen={(eventId) => navigateRoom(room.roomId, eventId)}
+                        onOpen={(eventId, threadId) =>
+                          threadId
+                            ? navigateRoomThread(room.roomId, threadId, eventId)
+                            : navigateRoom(room.roomId, eventId)
+                        }
                       />
                     ))}
                   </SequenceCard>
