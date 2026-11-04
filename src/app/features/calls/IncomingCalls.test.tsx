@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IncomingRing } from './callRings';
@@ -94,7 +94,7 @@ const answerRing = (store: ReturnType<typeof createStore>): ReactTestRenderer =>
   });
   const shown = renderer as ReactTestRenderer;
   const [label] = shown.root.findAllByProps({ children: 'sharedUi.callEmbedProvider.answer' });
-  let answer = label;
+  let answer: ReactTestInstance | undefined = label;
   while (answer && answer.type !== 'button') answer = answer.parent ?? undefined;
   act(() => {
     answer?.props.onClick();
