@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -19,11 +19,11 @@ import {
 import { settingsModalAtom } from '../../../state/settingsModal';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { nameInitials } from '../../../utils/common';
-import { removeStoredSession } from '../../../../client/initMatrix';
 import { getLoginPath } from '../../pathUtils';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { resolveSessionRestorePath } from '../sessionRouteRestore';
 import { AccountSwitcher } from './AccountSwitcher';
+import { useAccountRemoval } from './useAccountRemoval';
 
 const AVATAR_SIZE = 96;
 
@@ -146,10 +146,10 @@ export function SettingsTab() {
     [sessions, activeSession?.sessionId]
   );
 
-  const failed = () => {
+  const failed = useCallback(() => {
     setError(t('accountSwitcher.actionError'));
     setSwitcherOpen(true);
-  };
+  }, [t]);
 
   const handleSwitch = (session: StoredSession) => {
     let next: StoredSession | undefined;
@@ -168,14 +168,8 @@ export function SettingsTab() {
     navigate(resolveSessionRestorePath(session.lastKnownPath));
   };
 
-  const handleRemove = async (session: StoredSession) => {
-    try {
-      await removeStoredSession(session);
-      setError(undefined);
-    } catch {
-      failed();
-    }
-  };
+  const clearError = useCallback(() => setError(undefined), []);
+  const { removingSessionId, remove: handleRemove } = useAccountRemoval(clearError, failed);
 
   const handleAddAccount = () => {
     setSwitcherOpen(false);
@@ -280,6 +274,7 @@ export function SettingsTab() {
                   ? avatarSrc
                   : session.lastKnownAvatarDataUrl,
             }))}
+            busySessionId={removingSessionId}
             error={error}
             onOpenSettings={openSettings}
             onSwitchAccount={handleSwitch}
