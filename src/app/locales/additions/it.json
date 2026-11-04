@@ -101,6 +101,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Il tuo archivio segreto non contiene chiavi di firma incrociata, quindi la chiave di recupero non può verificare questa sessione. Verificala da un’altra delle tue sessioni."
+    },
+    "commands": {
+      "CommandPlain": "Invia un messaggio come testo semplice, senza Markdown. Esempio: /plain messaggio",
+      "CommandHtml": "Invia un messaggio come HTML, senza Markdown. Esempio: /html messaggio"
     }
   },
   "featureUi": {
@@ -209,6 +213,19 @@
       "access": {
         "membersCannotJoin": "I membri di questa stanza non possono partecipare alle sue chiamate.",
         "allowMembers": "Consenti ai membri"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} non riuscito: {{reason}}",
+        "usage": "Impossibile eseguire {{command}}. {{usage}}",
+        "ownServer": "Nessuna modifica: il tuo server ({{server}}) verrebbe escluso dalla stanza."
+      },
+      "jumpToTime": {
+        "unsupported": "Questo server non può cercare i messaggi per ora.",
+        "notFound": "Nessun messaggio trovato in quel momento.",
+        "failed": "Impossibile andare a quel momento: {{reason}}",
+        "close": "Chiudi"
       }
     }
   },

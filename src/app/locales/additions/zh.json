@@ -99,6 +99,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "您的秘密存储中没有交叉签名密钥，因此恢复密钥无法验证此会话。请从您的其他会话中验证它。"
+    },
+    "commands": {
+      "CommandPlain": "以纯文本发送消息，不使用 Markdown。示例：/plain message",
+      "CommandHtml": "以 HTML 发送消息，不使用 Markdown。示例：/html message"
     }
   },
   "featureUi": {
@@ -201,6 +205,19 @@
       "access": {
         "membersCannotJoin": "此房间的成员无法加入其中的通话。",
         "allowMembers": "允许成员加入"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} 失败：{{reason}}",
+        "usage": "无法运行 {{command}}。{{usage}}",
+        "ownServer": "未做更改：这会把你自己的服务器（{{server}}）挡在房间之外。"
+      },
+      "jumpToTime": {
+        "unsupported": "此服务器无法按时间查找消息。",
+        "notFound": "在该时间没有找到消息。",
+        "failed": "无法跳转到该时间：{{reason}}",
+        "close": "关闭"
       }
     }
   },

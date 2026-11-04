@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Gizli depolamanızda çapraz imzalama anahtarı yok, bu yüzden kurtarma anahtarı bu oturumu doğrulayamaz. Onu diğer oturumlarınızdan birinden doğrulayın."
+    },
+    "commands": {
+      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj",
+      "CommandHtml": "Mesajı Markdown olmadan HTML olarak gönder. Örnek: /html mesaj"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "Bu odanın üyeleri odanın aramalarına katılamıyor.",
         "allowMembers": "Üyelerin katılmasına izin ver"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} başarısız oldu: {{reason}}",
+        "usage": "{{command}} çalıştırılamadı. {{usage}}",
+        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı."
+      },
+      "jumpToTime": {
+        "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",
+        "notFound": "O zamanda mesaj bulunamadı.",
+        "failed": "O zamana gidilemedi: {{reason}}",
+        "close": "Kapat"
       }
     }
   },

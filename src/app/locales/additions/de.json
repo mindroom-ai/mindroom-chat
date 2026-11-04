@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Dein geheimer Speicher enthält keine Cross-Signing-Schlüssel, daher kann der Wiederherstellungsschlüssel diese Sitzung nicht verifizieren. Verifiziere sie von einer deiner anderen Sitzungen aus."
+    },
+    "commands": {
+      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht",
+      "CommandHtml": "Nachricht als HTML ohne Markdown senden. Beispiel: /html Nachricht"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "Mitglieder dieses Raums können seinen Anrufen nicht beitreten.",
         "allowMembers": "Mitglieder beitreten lassen"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} fehlgeschlagen: {{reason}}",
+        "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
+        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen."
+      },
+      "jumpToTime": {
+        "unsupported": "Dieser Server kann Nachrichten nicht nach Zeit suchen.",
+        "notFound": "Zu dieser Zeit wurde keine Nachricht gefunden.",
+        "failed": "Sprung zu dieser Zeit nicht möglich: {{reason}}",
+        "close": "Schließen"
       }
     }
   },

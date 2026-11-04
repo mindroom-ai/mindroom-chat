@@ -99,6 +99,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "シークレットストレージにクロス署名鍵がないため、リカバリーキーではこのセッションを検証できません。ほかのセッションから検証してください。"
+    },
+    "commands": {
+      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message",
+      "CommandHtml": "Markdown を使わずに HTML としてメッセージを送信します。例: /html message"
     }
   },
   "featureUi": {
@@ -201,6 +205,19 @@
       "access": {
         "membersCannotJoin": "このルームのメンバーは通話に参加できません。",
         "allowMembers": "メンバーの参加を許可"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} に失敗しました: {{reason}}",
+        "usage": "{{command}} を実行できませんでした。{{usage}}",
+        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。"
+      },
+      "jumpToTime": {
+        "unsupported": "このサーバーは時刻でメッセージを検索できません。",
+        "notFound": "その時刻のメッセージは見つかりませんでした。",
+        "failed": "その時刻に移動できませんでした: {{reason}}",
+        "close": "閉じる"
       }
     }
   },

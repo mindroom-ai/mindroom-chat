@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
+    },
+    "commands": {
+      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
+      "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "Members of this room can't join its calls.",
         "allowMembers": "Let members join"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} failed: {{reason}}",
+        "usage": "Could not run {{command}}. {{usage}}",
+        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room."
+      },
+      "jumpToTime": {
+        "unsupported": "This server cannot look up messages by time.",
+        "notFound": "No message was found at that time.",
+        "failed": "Could not jump to that time: {{reason}}",
+        "close": "Close"
       }
     }
   },

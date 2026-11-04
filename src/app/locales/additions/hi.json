@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "आपके सीक्रेट स्टोरेज में कोई क्रॉस-साइनिंग कुंजी नहीं है, इसलिए रिकवरी कुंजी इस सत्र को सत्यापित नहीं कर सकती। इसे अपने किसी दूसरे सत्र से सत्यापित करें।"
+    },
+    "commands": {
+      "CommandPlain": "Markdown के बिना सादे टेक्स्ट के रूप में संदेश भेजें। उदाहरण: /plain message",
+      "CommandHtml": "Markdown के बिना HTML के रूप में संदेश भेजें। उदाहरण: /html message"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "इस रूम के सदस्य इसकी कॉल में शामिल नहीं हो सकते।",
         "allowMembers": "सदस्यों को शामिल होने दें"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} विफल रहा: {{reason}}",
+        "usage": "{{command}} नहीं चल सका। {{usage}}",
+        "ownServer": "कुछ नहीं बदला: इससे आपका अपना सर्वर ({{server}}) रूम से बाहर हो जाता।"
+      },
+      "jumpToTime": {
+        "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
+        "notFound": "उस समय कोई संदेश नहीं मिला।",
+        "failed": "उस समय पर नहीं जा सके: {{reason}}",
+        "close": "बंद करें"
       }
     }
   },

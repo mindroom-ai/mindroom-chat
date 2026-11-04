@@ -101,6 +101,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Tu almacenamiento secreto no contiene claves de firma cruzada, así que la clave de recuperación no puede verificar esta sesión. Verifícala desde otra de tus sesiones."
+    },
+    "commands": {
+      "CommandPlain": "Enviar un mensaje como texto sin formato, sin Markdown. Ejemplo: /plain mensaje",
+      "CommandHtml": "Enviar un mensaje como HTML, sin Markdown. Ejemplo: /html mensaje"
     }
   },
   "featureUi": {
@@ -209,6 +213,19 @@
       "access": {
         "membersCannotJoin": "Los miembros de esta sala no pueden unirse a sus llamadas.",
         "allowMembers": "Permitir que se unan"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} falló: {{reason}}",
+        "usage": "No se pudo ejecutar {{command}}. {{usage}}",
+        "ownServer": "No se cambió nada: esto dejaría a tu propio servidor ({{server}}) fuera de la sala."
+      },
+      "jumpToTime": {
+        "unsupported": "Este servidor no puede buscar mensajes por hora.",
+        "notFound": "No se encontró ningún mensaje en ese momento.",
+        "failed": "No se pudo saltar a ese momento: {{reason}}",
+        "close": "Cerrar"
       }
     }
   },

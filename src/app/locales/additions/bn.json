@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "আপনার গোপন স্টোরেজে কোনো ক্রস-সাইনিং কী নেই, তাই রিকভারি কী দিয়ে এই সেশন যাচাই করা যাবে না। আপনার অন্য কোনো সেশন থেকে এটি যাচাই করুন।"
+    },
+    "commands": {
+      "CommandPlain": "Markdown ছাড়া সাধারণ টেক্সট হিসেবে বার্তা পাঠান। উদাহরণ: /plain message",
+      "CommandHtml": "Markdown ছাড়া HTML হিসেবে বার্তা পাঠান। উদাহরণ: /html message"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "এই রুমের সদস্যরা এর কলে যোগ দিতে পারেন না।",
         "allowMembers": "সদস্যদের যোগ দিতে দিন"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
+        "usage": "{{command}} চালানো যায়নি। {{usage}}",
+        "ownServer": "কিছুই বদলায়নি: এতে আপনার নিজের সার্ভার ({{server}}) রুম থেকে বাদ পড়ত।"
+      },
+      "jumpToTime": {
+        "unsupported": "এই সার্ভার সময় অনুযায়ী বার্তা খুঁজতে পারে না।",
+        "notFound": "সেই সময়ে কোনো বার্তা পাওয়া যায়নি।",
+        "failed": "সেই সময়ে যাওয়া যায়নি: {{reason}}",
+        "close": "বন্ধ করুন"
       }
     }
   },

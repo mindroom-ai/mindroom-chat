@@ -100,6 +100,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Je geheime opslag bevat geen kruiselingse ondertekeningssleutels, dus de herstelsleutel kan deze sessie niet verifiëren. Verifieer haar vanuit een van je andere sessies."
+    },
+    "commands": {
+      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht",
+      "CommandHtml": "Stuur een bericht als HTML, zonder Markdown. Voorbeeld: /html bericht"
     }
   },
   "featureUi": {
@@ -205,6 +209,19 @@
       "access": {
         "membersCannotJoin": "Leden van deze ruimte kunnen niet aan de gesprekken deelnemen.",
         "allowMembers": "Leden laten deelnemen"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} mislukt: {{reason}}",
+        "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
+        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten."
+      },
+      "jumpToTime": {
+        "unsupported": "Deze server kan berichten niet op tijd opzoeken.",
+        "notFound": "Er is op dat moment geen bericht gevonden.",
+        "failed": "Kon niet naar dat moment springen: {{reason}}",
+        "close": "Sluiten"
       }
     }
   },

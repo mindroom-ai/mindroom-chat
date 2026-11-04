@@ -104,6 +104,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "لا يحتوي التخزين السري على مفاتيح التوقيع المتبادل، لذا لا يمكن لمفتاح الاسترداد التحقق من هذه الجلسة. تحقق منها من إحدى جلساتك الأخرى."
+    },
+    "commands": {
+      "CommandPlain": "إرسال رسالة كنص عادي، بدون Markdown. مثال: /plain message",
+      "CommandHtml": "إرسال رسالة بتنسيق HTML، بدون Markdown. مثال: /html message"
     }
   },
   "featureUi": {
@@ -221,6 +225,19 @@
       "access": {
         "membersCannotJoin": "لا يستطيع أعضاء هذه الغرفة الانضمام إلى مكالماتها.",
         "allowMembers": "السماح للأعضاء بالانضمام"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
+        "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
+        "ownServer": "لم يتغير شيء: هذا سيمنع خادمك (⁨{{server}}⁩) من الغرفة."
+      },
+      "jumpToTime": {
+        "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
+        "notFound": "لم يتم العثور على أي رسالة في ذلك الوقت.",
+        "failed": "تعذّر الانتقال إلى ذلك الوقت: ⁨{{reason}}⁩",
+        "close": "إغلاق"
       }
     }
   },

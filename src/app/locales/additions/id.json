@@ -99,6 +99,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Penyimpanan rahasia Anda tidak berisi kunci penandatanganan silang, jadi kunci pemulihan tidak dapat memverifikasi sesi ini. Verifikasi dari salah satu sesi Anda yang lain."
+    },
+    "commands": {
+      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan",
+      "CommandHtml": "Kirim pesan sebagai HTML, tanpa Markdown. Contoh: /html pesan"
     }
   },
   "featureUi": {
@@ -201,6 +205,19 @@
       "access": {
         "membersCannotJoin": "Anggota ruangan ini tidak bisa bergabung ke panggilannya.",
         "allowMembers": "Izinkan anggota bergabung"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} gagal: {{reason}}",
+        "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
+        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan."
+      },
+      "jumpToTime": {
+        "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
+        "notFound": "Tidak ada pesan pada waktu itu.",
+        "failed": "Tidak dapat melompat ke waktu itu: {{reason}}",
+        "close": "Tutup"
       }
     }
   },

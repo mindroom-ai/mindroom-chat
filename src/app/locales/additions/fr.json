@@ -101,6 +101,10 @@
     },
     "manualVerification": {
       "noCrossSigningKeys": "Votre stockage secret ne contient aucune clé de signature croisée : la clé de récupération ne peut donc pas vérifier cette session. Vérifiez-la depuis une autre de vos sessions."
+    },
+    "commands": {
+      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message",
+      "CommandHtml": "Envoyer un message en HTML, sans Markdown. Exemple : /html message"
     }
   },
   "featureUi": {
@@ -209,6 +213,19 @@
       "access": {
         "membersCannotJoin": "Les membres de ce salon ne peuvent pas rejoindre ses appels.",
         "allowMembers": "Autoriser les membres"
+      }
+    },
+    "room": {
+      "commandAutocomplete": {
+        "failed": "{{command}} a échoué : {{reason}}",
+        "usage": "Impossible d’exécuter {{command}}. {{usage}}",
+        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon."
+      },
+      "jumpToTime": {
+        "unsupported": "Ce serveur ne peut pas rechercher les messages par date.",
+        "notFound": "Aucun message trouvé à ce moment-là.",
+        "failed": "Impossible d’aller à ce moment : {{reason}}",
+        "close": "Fermer"
       }
     }
   },
