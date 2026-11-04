@@ -24,7 +24,7 @@ import {
 } from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
-import { Box, Icons, Scroll, Spinner, Text, color, config } from 'folds';
+import { Box, Scroll, Spinner, Text, color, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
@@ -43,7 +43,6 @@ import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '..
 import { today, timeDayMonthYear, yesterday } from '../../utils/time';
 import { RoomIntro } from '../../components/room-intro';
 import { VirtualTile } from '../../components/virtualizer';
-import * as css from '../../features/room/RoomTimeline.css';
 import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { sanitizePrefetchDepth } from '../engine/prefetchPolicy';
@@ -76,7 +75,6 @@ import {
   getInitialTimeline,
   getLiveTimeline,
   getRangeWithoutRow,
-  getRoomUnreadInfo,
   type RecalibrateFilterOpts,
   type Timeline,
 } from './timelinePagination';
@@ -147,12 +145,18 @@ import {
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
-import { useLatestRef, useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
+import { useLatestRef, useViewScopedFlag } from './roomTimelineViewScope';
+import {
+  offersJumpToUnread,
+  UnreadActions,
+  useMarkRoomAsRead,
+  useRoomUnreadInfo,
+  useShownInScrollArea,
+} from './roomTimelineUnread';
 import {
   BannerExpandAllToggle,
   ExpandAllLine,
   FilterBarSlot,
-  FloatingAction,
   JumpToLatestAction,
   ThreadLoadingLines,
   footerProbeStyle,
@@ -238,21 +242,6 @@ const useTimelineDisplaySettings = () => ({
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(mindroomSettingsAtom, 'prefetchDepth')),
 });
-
-type RoomUnread = ReturnType<typeof getRoomUnreadInfo>;
-
-/**
- * The read marker of the room on screen, read when the room opens: the timeline stays mounted
- * across rooms, so another room reads its own marker in that render. `skip` (a thread or an
- * event the room opens at) leaves it empty. Updates meant for a room no longer shown are dropped.
- */
-const useRoomUnreadInfo = (
-  room: Room,
-  skip: boolean
-): [RoomUnread, Dispatch<SetStateAction<RoomUnread>>] =>
-  useViewScopedState<RoomUnread>(room.roomId, () =>
-    skip ? undefined : getRoomUnreadInfo(room, true)
-  );
 
 /**
  * Calls `onDeleted` when one of the room's threads goes away while the room (not a thread) is
@@ -409,27 +398,6 @@ const dividerStyle: React.CSSProperties = {
   alignItems: 'center',
   columnGap: config.space.S200,
   padding: `${config.space.S200} ${config.space.S400}`,
-};
-
-/** Whether `element` is (partly) inside the visible area of the scroll container `area`. */
-const useShownInScrollArea = (element: Element | null, area: Element | null): boolean => {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    if (!element || !area || typeof IntersectionObserver === 'undefined') {
-      setShown(false);
-      return undefined;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const latest = entries[entries.length - 1];
-        if (latest) setShown(latest.isIntersecting);
-      },
-      { root: area }
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element, area]);
-  return shown;
 };
 
 /** A date or unread separator: a label between two hairlines. */
@@ -1324,11 +1292,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     unreadInfo,
   });
 
-  const markRoomAsRead = useCallback(() => {
-    handleMarkAsRead();
-    // Nothing is unread now: the line and the pill go, also for a marker older than the rows.
-    if (!threadId) setUnreadInfo(undefined);
-  }, [handleMarkAsRead, setUnreadInfo, threadId]);
+  const markRoomAsRead = useMarkRoomAsRead(handleMarkAsRead, setUnreadInfo, threadId);
 
   useRoomCacheHydrationController({
     alive,
@@ -1748,11 +1712,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
-  const showJumpToUnread =
-    !threadId &&
-    !!unreadInfo?.readUptoEventId &&
-    (!unreadInfo.inLiveTimeline || roomUnread) &&
-    !unreadMarkerShown;
+  const showJumpToUnread = offersJumpToUnread({
+    threadId,
+    unreadInfo,
+    roomUnread,
+    unreadMarkerShown,
+  });
   // Under a thread's banner the toggle hangs in the gap above the first row; in the room it
   // takes a line of its own above the rows.
   const expandAllToggle = itemCount > 0 && (
@@ -1767,22 +1732,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
       {filterBar}
       {showJumpToUnread && (
-        <div
-          className={css.TimelineFloat({ position: 'Top' })}
-          style={{ top: `calc(${overlay.controlsTopInset} + ${config.space.S300})` }}
-        >
-          <FloatingAction
-            primary
-            icon={Icons.MessageUnread}
-            label={t('mindroomUi.threads.mindroomRoomTimeline.jumpToUnread')}
-            onSelect={handleJumpToUnread}
-          />
-          <FloatingAction
-            icon={Icons.CheckTwice}
-            label={t('mindroomUi.threads.mindroomRoomTimeline.markAsRead')}
-            onSelect={markRoomAsRead}
-          />
-        </div>
+        <UnreadActions onJumpToUnread={handleJumpToUnread} onMarkAsRead={markRoomAsRead} />
       )}
       <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
         <Box
