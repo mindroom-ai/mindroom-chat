@@ -7,7 +7,6 @@ import {
   createRoutesFromElements,
 } from 'react-router-dom';
 import type { ClientConfig } from '../hooks/useClientConfig';
-import type { ScreenSize } from '../hooks/useScreenSize';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
@@ -158,7 +157,7 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
   );
 }
 
-export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize) => {
+export const createRouter = (clientConfig: ClientConfig) => {
   const { hashRouter } = clientConfig;
   const routes = createRoutesFromElements(
     <Route>

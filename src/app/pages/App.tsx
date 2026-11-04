@@ -41,8 +41,7 @@ export function AppTheme({ children }: { children: ReactNode }) {
 function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const screenSize = useScreenSize();
   // The router is created once per configuration; screen size changes reach pages by context.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const router = useMemo(() => createRouter(clientConfig, screenSize), [clientConfig]);
+  const router = useMemo(() => createRouter(clientConfig), [clientConfig]);
   return (
     <ScreenSizeProvider value={screenSize}>
       <RouterProvider router={router} />
