@@ -38,14 +38,12 @@ import {
   getFileNameExt,
   getMimeTypeBase,
 } from '../../utils/mimeTypes';
+import { isRecord } from '../../utils/isRecord';
 
 type MessageContent = Record<string, unknown>;
 
 export type RenderBodyProps = { body: string; customBody?: string };
 type RenderBody = (props: RenderBodyProps) => ReactNode;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const readString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.length > 0 ? value : undefined;
