@@ -2,6 +2,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
+import { ClientBindAtoms } from '../../pages/client/ClientBindAtoms';
 import { CallFeatures } from './CallFeatures';
 import { activeCallAtom, type ActiveCall } from './callStore';
 
@@ -43,16 +44,24 @@ vi.mock('./IncomingCalls.css', () => ({ Host: 'incoming-calls' }));
 vi.mock('../../mindroom/calls/AgentCallFailureNotice', () => ({
   AgentCallFailureNotice: () => null,
 }));
-vi.mock('../../mindroom/calls/agentCaller', () => ({ startAgentCall: vi.fn() }));
+vi.mock('../../mindroom/calls/agentCaller', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../mindroom/calls/agentCaller')>()),
+  startAgentCall: vi.fn(),
+}));
+// The account's screens sit in the real gate; its binders need a client this fake is not.
+vi.mock('../../state/hooks/useBindAtoms', () => ({ useBindAtoms: vi.fn() }));
 
 const RESUME_KEY = 'mindroom.call.resume';
 
+/** The call features as the signed-in pages hold them, behind the account's gate. */
 const mount = (store: ReturnType<typeof createStore>) => {
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <CallFeatures />
+        <ClientBindAtoms>
+          <CallFeatures />
+        </ClientBindAtoms>
       </Provider>
     );
   });
