@@ -352,10 +352,9 @@ test.describe('calls', () => {
       callPanel(alicePage).getByRole('button', { name: 'Let members join' })
     ).toBeVisible();
     await alicePage
-      .locator('header')
+      .getByRole('banner')
       .filter({ hasText: 'Standup' })
-      .getByRole('button')
-      .last()
+      .getByRole('button', { name: 'More Options' })
       .click();
     await alicePage.getByRole('button', { name: 'Room Settings', exact: true }).click();
     await alicePage.getByRole('button', { name: 'Permissions', exact: true }).click();
