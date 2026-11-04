@@ -21,6 +21,7 @@ import type { IEncryptedFile, IImageInfo } from '../../../../types/matrix/common
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Modal } from '../../glass/GlassPrimitives';
 import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
+import { useViewerFrame } from './viewerFrame';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
@@ -258,6 +259,7 @@ export const ImageContent = as<'div', ImageContentProps>(
       if (autoPlay) load();
     }, [autoPlay, load]);
 
+    const viewerFrame = useViewerFrame();
     const closeViewer = useCallback(() => setViewerOpen(false), []);
     useViewerHistoryEntry(viewerOpen, closeViewer);
     const original = useOriginalForViewer(viewerOpen && !!thumbnail, loadOriginal, closeViewer);
@@ -291,7 +293,7 @@ export const ImageContent = as<'div', ImageContentProps>(
         {blurHash && !loaded && <BlurHash hash={blurHash} />}
         {viewerSrc && (
           <Overlay open={viewerOpen} backdrop={<OverlayBackdrop />}>
-            <OverlayCenter>
+            <OverlayCenter style={viewerFrame.centerStyle}>
               <FocusTrap
                 focusTrapOptions={{
                   initialFocus: false,
@@ -301,7 +303,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                 }}
               >
                 <Modal
-                  style={{ width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' }}
+                  style={viewerFrame.modalStyle}
                   size="500"
                   onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
                 >

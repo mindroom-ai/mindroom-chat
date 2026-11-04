@@ -15,6 +15,7 @@ import {
   Text,
 } from 'folds';
 import { Modal } from '../../glass/GlassPrimitives';
+import { useViewerFrame } from './viewerFrame';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { bytesToSize } from '../../../utils/common';
 import { getFileNameExt, getMimeTypeBase } from '../../../utils/mimeTypes';
@@ -93,9 +94,6 @@ type ButtonOptions = {
   buttonSize?: '300' | '400';
 };
 
-// Text and PDF viewers get most of the window, past the modal's usual size cap.
-const VIEWER_BOX = { width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' };
-
 type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
 
 // An outside click or Escape closes a viewer; Escape does not reach handlers behind it.
@@ -110,13 +108,14 @@ type ViewerOverlayProps = {
 /** A viewer in a modal over the page, closed by Escape or a click outside. */
 function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
   const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
+  const { centerStyle, modalStyle } = useViewerFrame();
   return (
     <Overlay backdrop={<OverlayBackdrop />} open>
-      <OverlayCenter>
+      <OverlayCenter style={centerStyle}>
         <FocusTrap focusTrapOptions={trapOptions}>
           <Modal
             size="500"
-            style={VIEWER_BOX}
+            style={modalStyle}
             // The message under the viewer has its own context menu; keep right-clicks here.
             onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
           >
