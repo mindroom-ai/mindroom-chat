@@ -172,7 +172,7 @@ function CreateRoomPage() {
       >
         {/* On phones the title bar names the page. */}
         {!phone && (
-          <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
+          <Text as="h1" size="H4" style={{ marginBottom: '16px' }}>
             {t('nav.createRoom')}
           </Text>
         )}
@@ -199,7 +199,7 @@ function JoinAddressPage() {
       <PhonePageHeader to={HOME_PATH} title={title} />
       <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
         {!phone && (
-          <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
+          <Text as="h1" size="H4" style={{ marginBottom: '16px' }}>
             {title}
           </Text>
         )}

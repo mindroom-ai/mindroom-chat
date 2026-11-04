@@ -140,7 +140,11 @@ export function DirectCreate() {
         }}
       >
         <Box direction="Column" gap="100">
-          {!phone && <Text size="H3">{t('sharedUi.directCreate.createChat')}</Text>}
+          {!phone && (
+            <Text as="h1" size="H3">
+              {t('sharedUi.directCreate.createChat')}
+            </Text>
+          )}
           <Text size="T300" priority="300">
             {t('sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId')}
           </Text>

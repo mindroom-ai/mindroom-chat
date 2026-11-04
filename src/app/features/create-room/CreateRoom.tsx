@@ -1,4 +1,4 @@
-import React, { FormEventHandler, ReactNode, useState } from 'react';
+import React, { FormEventHandler, ReactNode, useId, useState } from 'react';
 import {
   Box,
   Button,
@@ -48,13 +48,28 @@ const OPTION_CARD_STYLE = { padding: '12px' };
 
 type LabeledFieldProps = {
   label: string;
+  /** The ID of the one field the label is for; without it the label names a group of controls. */
+  fieldId?: string;
   children: ReactNode;
 };
 
-function LabeledField({ label, children }: LabeledFieldProps) {
+function LabeledField({ label, fieldId, children }: LabeledFieldProps) {
+  const labelId = useId();
+  if (fieldId) {
+    return (
+      <Box direction="Column" gap="100">
+        <Text as="label" htmlFor={fieldId} size="L400">
+          {label}
+        </Text>
+        {children}
+      </Box>
+    );
+  }
   return (
-    <Box direction="Column" gap="100">
-      <Text size="L400">{label}</Text>
+    <Box direction="Column" gap="100" role="group" aria-labelledby={labelId}>
+      <Text id={labelId} size="L400">
+        {label}
+      </Text>
       {children}
     </Box>
   );
@@ -93,6 +108,8 @@ const describeError = (reason: unknown): string =>
  */
 export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFormProps) {
   const { t } = useTranslation();
+  const nameId = useId();
+  const topicId = useId();
   const client = useMatrixClient();
   const capabilities = useCapabilities();
   const { createRoom: policy } = useClientConfig();
@@ -185,8 +202,9 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           onSelect={setAccess}
         />
       </LabeledField>
-      <LabeledField label={t('featureUi.createRoom.name')}>
+      <LabeledField label={t('featureUi.createRoom.name')} fieldId={nameId}>
         <Input
+          id={nameId}
           name="nameInput"
           variant="SurfaceVariant"
           size="500"
@@ -197,8 +215,9 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           disabled={creating}
         />
       </LabeledField>
-      <LabeledField label={t('featureUi.createRoom.topicOptional')}>
+      <LabeledField label={t('featureUi.createRoom.topicOptional')} fieldId={topicId}>
         <TextArea
+          id={topicId}
           name="topicTextAria"
           variant="SurfaceVariant"
           size="500"
