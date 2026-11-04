@@ -20,6 +20,7 @@ import { getUnreadInfo, roomHaveUnread } from '../../utils/room';
 import { isRecord } from '../../utils/isRecord';
 import { roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../utils/matchesEnum';
+import { getAncestorSpaceIds } from './spaceAncestors';
 
 export type RoomToUnreadAction =
   | { type: 'RESET'; unreadInfos: UnreadInfo[] }
@@ -32,20 +33,6 @@ type RoomUnread = Pick<Unread, 'total' | 'highlight'>;
 
 const roomUnreadsAtom = atom<Map<string, RoomUnread>>(new Map());
 
-const getAncestors = (roomId: string, roomToParents: RoomToParents): Set<string> => {
-  const ancestors = new Set<string>();
-  const pending = [roomId];
-  while (pending.length > 0) {
-    const current = pending.pop() as string;
-    roomToParents.get(current)?.forEach((parent) => {
-      if (parent === roomId || ancestors.has(parent)) return;
-      ancestors.add(parent);
-      pending.push(parent);
-    });
-  }
-  return ancestors;
-};
-
 /** Room unread entries plus one aggregate per Space, whose `from` lists the rooms counted. */
 export const roomToUnreadAtom: RoomToUnreadAtom = atom<RoomToUnread, [RoomToUnreadAction], void>(
   (get) => {
@@ -55,7 +42,7 @@ export const roomToUnreadAtom: RoomToUnreadAtom = atom<RoomToUnread, [RoomToUnre
     const spaces = new Map<string, Required<Unread>>();
 
     roomUnreads.forEach((unread, roomId) => {
-      getAncestors(roomId, roomToParents).forEach((spaceId) => {
+      getAncestorSpaceIds(roomToParents, roomId).forEach((spaceId) => {
         const space = spaces.get(spaceId) ?? { total: 0, highlight: 0, from: new Set<string>() };
         space.total += unread.total;
         space.highlight += unread.highlight;

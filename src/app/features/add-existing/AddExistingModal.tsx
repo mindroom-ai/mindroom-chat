@@ -23,6 +23,7 @@ import { useAlive } from '../../hooks/useAlive';
 import { mDirectAtom } from '../../state/mDirectList';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { getSpaceChildIds, roomToParentsAtom } from '../../state/room/roomToParents';
+import { getAncestorSpaceIds } from '../../state/room/spaceAncestors';
 import { getRoomAvatarUrl, isMindroomEmojiRoom } from '../../utils/room';
 import { nameInitials } from '../../utils/common';
 import { CreateDialogFrame } from '../create-space/CreateDialogFrame';
@@ -38,21 +39,6 @@ type AddExistingModalProps = {
   requestClose: () => void;
 };
 
-/** The spaces `spaceId` sits in, at any depth; adding one of them below it would make a loop. */
-const ancestorsOf = (spaceId: string, roomToParents: Map<string, Set<string>>): Set<string> => {
-  const found = new Set<string>();
-  const pending = [spaceId];
-  while (pending.length > 0) {
-    const current = pending.pop() as string;
-    roomToParents.get(current)?.forEach((parent) => {
-      if (found.has(parent)) return;
-      found.add(parent);
-      pending.push(parent);
-    });
-  }
-  return found;
-};
-
 const byName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /** Joined rooms (or spaces) that can still become children of `parent`, by name. */
@@ -63,7 +49,8 @@ const useCandidates = (client: MatrixClient, parent: Room | null, spaces: boolea
   return useMemo(() => {
     if (!parent) return [];
     const taken = new Set(getSpaceChildIds(parent));
-    const above = ancestorsOf(parent.roomId, roomToParents);
+    // Adding a space that `parent` sits in, at any depth, below it would make a loop.
+    const above = new Set(getAncestorSpaceIds(roomToParents, parent.roomId));
     return joined
       .map((roomId) => client.getRoom(roomId))
       .filter((room): room is Room => {

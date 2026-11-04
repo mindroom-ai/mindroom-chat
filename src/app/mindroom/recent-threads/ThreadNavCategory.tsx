@@ -19,34 +19,11 @@ import { useCategoryHandler } from '../../hooks/useCategoryHandler';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
+import { isInSpace } from '../../state/room/spaceAncestors';
 import { makeNavCategoryId } from '../../state/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
 
 export const THREAD_NAV_CATEGORY_ID = makeNavCategoryId('mindroom', 'threads');
-
-/** Whether `roomId` sits in `spaceId`, directly or through nested spaces. */
-const isInSpace = (
-  roomId: string,
-  spaceId: string,
-  roomToParents: ReadonlyMap<string, ReadonlySet<string>>
-): boolean => {
-  const seen = new Set<string>();
-  const pending = [roomId];
-  while (pending.length > 0) {
-    const current = pending.pop() as string;
-    const parents = roomToParents.get(current);
-    if (parents) {
-      for (const parent of parents) {
-        if (parent === spaceId) return true;
-        if (!seen.has(parent)) {
-          seen.add(parent);
-          pending.push(parent);
-        }
-      }
-    }
-  }
-  return false;
-};
 
 type ThreadNavCategoryProps = {
   /** Shows only the threads of rooms in this space, nested ones included. */
@@ -82,7 +59,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
         Array.from(index.entries.values()).filter(
           (entry) =>
             isRoomVisible(entry.roomId, archivedRooms) &&
-            (!spaceId || isInSpace(entry.roomId, spaceId, roomToParents))
+            (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId))
         ),
         preferences.pinnedThreadKeys,
         directRoomIds

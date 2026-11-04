@@ -5,6 +5,8 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from './useMatrixClient';
 import { useSelectedSpace } from './router/useSelectedSpace';
 import { roomToParentsAtom } from '../state/room/roomToParents';
+import { getAncestorSpaceIds, isInSpace } from '../state/room/spaceAncestors';
+import type { RoomToParents } from '../../types/matrix/room';
 import { mDirectAtom } from '../state/mDirectList';
 import { getCanonicalAliasOrRoomId } from '../utils/matrix';
 import {
@@ -16,45 +18,15 @@ import {
 } from '../pages/pathUtils';
 import { navigateMindroomRoomThread } from '../mindroom/threads/threadNavigation';
 
-type RoomToParents = Map<string, Set<string>>;
-
-/** Whether `roomId` sits anywhere below `spaceId` in the space tree. */
-const isInsideSpace = (roomToParents: RoomToParents, roomId: string, spaceId: string): boolean => {
-  const seen = new Set<string>();
-  const queue = [roomId];
-  while (queue.length > 0) {
-    const id = queue.shift() as string;
-    const parents = roomToParents.get(id);
-    if (parents?.has(spaceId)) return true;
-    parents?.forEach((parentId) => {
-      if (seen.has(parentId)) return;
-      seen.add(parentId);
-      queue.push(parentId);
-    });
-  }
-  return false;
-};
-
 /**
  * The top-level space to open a room in: the first root space found walking up from the room,
  * where a root space is one no other space contains. Falls back to the room's first parent when
  * the tree has a cycle.
  */
-const getRoomTopSpace = (roomToParents: RoomToParents, roomId: string): string | undefined => {
-  const directParents = roomToParents.get(roomId);
-  if (!directParents || directParents.size === 0) return undefined;
-  const seen = new Set<string>([roomId]);
-  const queue = Array.from(directParents);
-  while (queue.length > 0) {
-    const id = queue.shift() as string;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const parents = roomToParents.get(id);
-    if (!parents || parents.size === 0) return id;
-    parents.forEach((parentId) => queue.push(parentId));
-  }
-  return directParents.values().next().value;
-};
+const getRoomTopSpace = (roomToParents: RoomToParents, roomId: string): string | undefined =>
+  getAncestorSpaceIds(roomToParents, roomId).find(
+    (spaceId) => (roomToParents.get(spaceId)?.size ?? 0) === 0
+  ) ?? roomToParents.get(roomId)?.values().next().value;
 
 const getRoomPath = (
   mx: MatrixClient,
@@ -66,7 +38,7 @@ const getRoomPath = (
 ): string => {
   const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
 
-  if (selectedSpaceId && isInsideSpace(roomToParents, roomId, selectedSpaceId)) {
+  if (selectedSpaceId && isInSpace(roomToParents, roomId, selectedSpaceId)) {
     return getSpaceRoomPath(getCanonicalAliasOrRoomId(mx, selectedSpaceId), roomIdOrAlias, eventId);
   }
   if (directRooms.has(roomId)) return getDirectRoomPath(roomIdOrAlias, eventId);

@@ -5,9 +5,9 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
+import { isInSpace } from '../../../state/room/spaceAncestors';
+import type { RoomToParents } from '../../../../types/matrix/room';
 import { isMindroomEmojiRoom, isSpace } from '../../../utils/room';
-
-type RoomToParents = Map<string, Set<string>>;
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
 export const mergeSearchRoomSources = (...sources: string[][]): string[] =>
@@ -26,26 +26,6 @@ export const mergeRoomToParentsSources = (...sources: RoomToParents[]): RoomToPa
   return merged;
 };
 
-/** Whether `roomId` sits inside `spaceId`, directly or through nested spaces. */
-const isInsideSpace = (roomId: string, spaceId: string, roomToParents: RoomToParents): boolean => {
-  const visited = new Set<string>();
-  const queue = [roomId];
-  while (queue.length > 0) {
-    const current = queue.shift() as string;
-    const parents = roomToParents.get(current);
-    if (parents) {
-      for (const parent of parents) {
-        if (parent === spaceId) return true;
-        if (!visited.has(parent)) {
-          visited.add(parent);
-          queue.push(parent);
-        }
-      }
-    }
-  }
-  return false;
-};
-
 /** Rooms message search covers inside a space: its rooms at any depth, without DMs or subspaces. */
 export const getSpaceSearchRooms = (
   mx: MatrixClient,
@@ -56,7 +36,7 @@ export const getSpaceSearchRooms = (
 ): string[] =>
   roomIds.filter((roomId) => {
     if (roomId === spaceId || directs.has(roomId)) return false;
-    if (!isInsideSpace(roomId, spaceId, roomToParents)) return false;
+    if (!isInSpace(roomToParents, roomId, spaceId)) return false;
     const room = mx.getRoom(roomId);
     return !isSpace(room) && !isMindroomEmojiRoom(room);
   });
