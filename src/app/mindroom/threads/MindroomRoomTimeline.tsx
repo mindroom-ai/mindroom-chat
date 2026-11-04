@@ -966,11 +966,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ) ?? undefined,
     [activeRangeRef]
   );
+  // Each page that moves the room's back token renders again and checks the sentinel once more.
+  // A page that adds no rows (the server only moved its token, or reached the room's start)
+  // leaves the window as it was: nothing else would show the room's start or drop the sentinel,
+  // and the paginator, which follows window changes, would not ask again while it stays in view.
+  const [roomBackPages, countRoomBackPage] = useReducer((count: number) => count + 1, 0);
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
-      void paginateRoom(back);
+      const edge = back ? firstRoomTimelineRef.current : undefined;
+      const tokenBefore = edge?.getPaginationToken(Direction.Backward);
+      void paginateRoom(back).then(() => {
+        if (!edge || !alive() || edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
+        countRoomBackPage();
+      });
     },
-    [paginateRoom]
+    [alive, firstRoomTimelineRef, paginateRoom]
   );
   const shouldSuppressPagination = useCallback(() => suppressFocusPaginationRef.current, []);
   // The opening fill loads a screen of history above the reader. A short room, whose creation
@@ -1067,6 +1077,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
   const { scrollToItem: paginatorScrollToItem, scrollToElement, retryPagination } = paginator;
+  useLayoutEffect(() => {
+    if (roomBackPages > 0) retryPagination();
+  }, [retryPagination, roomBackPages]);
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
       if (paginatorScrollToItem(index, opts)) return true;
