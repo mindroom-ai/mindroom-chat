@@ -1,5 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { config, toRem } from 'folds';
+import { style, styleVariants } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
 
 /** The card: a fixed width, so long names wrap instead of stretching it. */
 export const ProfileCard = style({
@@ -24,4 +24,21 @@ export const ProfileName = style({
 export const ProfileUserId = style({
   overflowWrap: 'anywhere',
   userSelect: 'text',
+});
+
+const noteShape = style({
+  borderRadius: config.radii.R400,
+  padding: `${config.space.S200} ${config.space.S300}`,
+});
+
+/**
+ * Boxed notes in the card: `quiet` for why a member was removed or invited, `blocked` for the
+ * note on a blocked person's card.
+ */
+export const ProfileNoteTone = styleVariants({
+  quiet: [
+    noteShape,
+    { color: color.SurfaceVariant.OnContainer, background: color.SurfaceVariant.Container },
+  ],
+  blocked: [noteShape, { color: color.Critical.OnContainer, background: color.Critical.Container }],
 });
