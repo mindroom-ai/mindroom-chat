@@ -2,7 +2,7 @@
 import './app/mindroom/matrix/sdkDebugLogging';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerPlugin } from '@capacitor/core';
+import { App as NativeApp } from '@capacitor/app';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import './index.css';
@@ -82,8 +82,8 @@ const prepareDocument = (): void => {
     migrateMindroomSettingsStorage();
   });
   runSafely('native app links', () => {
-    // The native shell registers Capacitor's App plugin; its URL events carry SSO and pairing links.
-    if (isNativeApp()) registerNativeAppUrlCallbacks(registerPlugin('App') as never);
+    // Capacitor's App plugin reports the SSO and pairing links the native app opens with.
+    if (isNativeApp()) registerNativeAppUrlCallbacks(NativeApp);
   });
 };
 
