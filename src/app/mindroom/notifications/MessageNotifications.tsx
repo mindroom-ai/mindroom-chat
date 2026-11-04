@@ -133,7 +133,10 @@ export function MessageNotificationsFeature() {
     if (!hasCompletedInitialSync) return undefined;
     // An agent's reply notifies once, however many times its finished text arrives.
     const notified = new Set<string>();
+    // A message still decrypting when the account signs out or switches stays quiet.
+    let listening = true;
     const consider = (event: MatrixEvent, room: Room) => {
+      if (!listening) return;
       const notice = readMessageNotice(client, room, event, Date.now());
       if (!notice || notified.has(notice.eventId) || !settings.current) return;
       notified.add(notice.eventId);
@@ -151,6 +154,7 @@ export function MessageNotificationsFeature() {
     };
     client.on(RoomEvent.Timeline, onTimeline);
     return () => {
+      listening = false;
       client.removeListener(RoomEvent.Timeline, onTimeline);
     };
   }, [client, hasCompletedInitialSync]);
