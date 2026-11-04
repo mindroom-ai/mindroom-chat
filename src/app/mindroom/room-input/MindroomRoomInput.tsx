@@ -21,6 +21,7 @@ import {
   type AutocompleteQuery,
   CustomEditor,
   customHtmlEqualsPlainText,
+  EmoticonAutocomplete,
   getAutocompleteQuery,
   getBeginCommand,
   getMentions,
@@ -248,10 +249,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
     const isComposing = useComposingCheck();
     const [autocompleteQuery, setAutocompleteQuery] = useState<AutocompleteQuery<string>>();
-    // Set when the mention menu reports that an `@` query matches no member, so it shows nothing.
-    const [mentionMenuEmpty, setMentionMenuEmpty] = useState(false);
-    const handleMentionSuggestions = useCallback(
-      (hasSuggestions: boolean) => setMentionMenuEmpty(!hasSuggestions),
+    // Set when the open menu reports that its query matches nothing (an `@` query no member has,
+    // a `:` query no emoji has), so it shows nothing and Enter sends.
+    const [suggestionMenuEmpty, setSuggestionMenuEmpty] = useState(false);
+    const handleMenuSuggestions = useCallback(
+      (hasSuggestions: boolean) => setSuggestionMenuEmpty(!hasSuggestions),
       []
     );
     const [submitPending, setSubmitPending] = useState(false);
@@ -405,13 +407,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       return sending;
     }, [submit]);
 
-    // Only `@` mentions and `!` commands with a match show a menu; anything else sends on Enter.
+    // Only `@` mentions, `:` emoji and `!` commands with a match show a menu; anything else sends
+    // on Enter.
     let autocompleteMenuOpen = false;
     if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
       autocompleteMenuOpen = getMindroomCommandSuggestions(autocompleteQuery.text).length > 0;
     } else if (autocompleteQuery) {
       autocompleteMenuOpen =
-        autocompleteQuery.prefix === AutocompletePrefix.UserMention && !mentionMenuEmpty;
+        (autocompleteQuery.prefix === AutocompletePrefix.UserMention ||
+          autocompleteQuery.prefix === AutocompletePrefix.Emoticon) &&
+        !suggestionMenuEmpty;
     }
 
     const handleKeyDown = useCallback(
@@ -486,15 +491,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           requestClose={closeAutocomplete}
         />
       ) : (
-        autocompleteQuery.prefix === AutocompletePrefix.UserMention && (
-          <UserMentionAutocomplete
-            room={room}
-            editor={editor}
-            query={autocompleteQuery}
-            requestClose={closeAutocomplete}
-            onSuggestionsChange={handleMentionSuggestions}
-          />
-        )
+        <>
+          {autocompleteQuery.prefix === AutocompletePrefix.UserMention && (
+            <UserMentionAutocomplete
+              room={room}
+              editor={editor}
+              query={autocompleteQuery}
+              requestClose={closeAutocomplete}
+              onSuggestionsChange={handleMenuSuggestions}
+            />
+          )}
+          {autocompleteQuery.prefix === AutocompletePrefix.Emoticon && (
+            <EmoticonAutocomplete
+              packRooms={imagePackRooms}
+              editor={editor}
+              query={autocompleteQuery}
+              requestClose={closeAutocomplete}
+              onSuggestionsChange={handleMenuSuggestions}
+            />
+          )}
+        </>
       ));
 
     return (

@@ -9,3 +9,4 @@ export * from './Editor';
 export * from './autocomplete/autocompleteQuery';
 export * from './autocomplete/AutocompleteMenu';
 export * from './autocomplete/UserMentionAutocomplete';
+export * from './autocomplete/EmoticonAutocomplete';
