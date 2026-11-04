@@ -8,13 +8,14 @@
  *   E2E_FIXTURE_ROOM_ALIAS='#mindroom-app-store-personal-showcase-<run>:matrix.localhost' \
  *   node scripts/seed-appstore-screenshot-room.mjs
  *
- * The account must exist. The agents are registered here, one set per room alias, with avatars
- * drawn by this script, so nothing private or downloaded ends up in a screenshot. Every thread has
- * a summary notice like the ones MindRoom posts; e2e/app-store-screenshots.spec.ts finds the
- * threads by those titles. Prints the room ID as `Room: <id>`.
+ * The account must exist. The agents are registered here, one set per room alias. Everyone gets
+ * the fictional household's avatar from scripts/fixtures/appstore/avatars/, so nothing private or
+ * downloaded ends up in a screenshot. Every thread has a summary notice like the ones MindRoom
+ * posts; e2e/app-store-screenshots.spec.ts finds the threads by those titles. Prints the room ID
+ * as `Room: <id>`.
  */
 import { randomUUID } from 'node:crypto';
-import { crc32, deflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
 
 const homeserver = (process.env.E2E_HOMESERVER ?? '').replace(/\/$/, '');
 const username = process.env.E2E_USERNAME;
@@ -60,51 +61,17 @@ const matrix = async (method, path, { token, json, bytes, contentType } = {}) =>
 };
 const enc = encodeURIComponent;
 
-// ── Avatars: a soft two-color disc per person, drawn as a PNG ─────────────────────────────────
+// ── Avatars ─────────────────────────────────────────────────────────────────────────────────────
+// 256 px copies of the Rivera household's portraits in mindroom-ai/demo at commit
+// fc39fb8a9e4af01c3c848e191f32c25b7da694a2 (world/home/avatars/people/sam.png and
+// world/home/avatars/agents/{hearth,pantry,atlas}.png; the agents' are MindRoom's painted stock
+// avatars home, general and helper). Made with
+// `magick <source> -resize 256x256 -strip -define png:exclude-chunks=date,time,tIME <copy>`.
 
-const pngChunk = (type, data) => {
-  const head = Buffer.alloc(8);
-  head.writeUInt32BE(data.length, 0);
-  head.write(type, 4, 'ascii');
-  const tail = Buffer.alloc(4);
-  tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
-  return Buffer.concat([head, data, tail]);
-};
+const readAvatar = (name) =>
+  readFileSync(new URL(`./fixtures/appstore/avatars/${name}.png`, import.meta.url));
 
-const drawAvatar = ({ from, to, mark }) => {
-  const size = 256;
-  const rows = Buffer.alloc((size * 4 + 1) * size);
-  const mix = (a, b, t) => Math.round(a + (b - a) * t);
-  for (let y = 0; y < size; y += 1) {
-    const row = y * (size * 4 + 1);
-    rows[row] = 0;
-    for (let x = 0; x < size; x += 1) {
-      const t = (x + y) / (2 * size);
-      let rgb = [0, 1, 2].map((c) => mix(from[c], to[c], t));
-      // A lighter mark sits a little above the middle, like a face in a portrait.
-      const dx = x - size / 2;
-      const dy = y - size * 0.42;
-      const inMark =
-        mark === 'ring'
-          ? Math.abs(Math.hypot(dx, dy) - 58) < 16
-          : Math.hypot(dx, dy) < 52 || Math.hypot(dx, (y - size * 1.02) * 1.3) < 112;
-      if (inMark) rgb = rgb.map((value) => mix(value, 255, 0.72));
-      rows.set([...rgb, 255], row + 1 + x * 4);
-    }
-  }
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0);
-  header.writeUInt32BE(size, 4);
-  header.set([8, 6, 0, 0, 0], 8);
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(rows)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-};
-
-const setProfile = async (account, displayName, avatar) => {
+const setProfile = async (account, displayName, avatarName) => {
   const id = enc(account.userId);
   await matrix('PUT', `/client/v3/profile/${id}/displayname`, {
     token: account.token,
@@ -112,8 +79,8 @@ const setProfile = async (account, displayName, avatar) => {
   });
   const { content_uri: avatarUrl } = await matrix(
     'POST',
-    `/media/v3/upload?filename=${enc(`${displayName.toLowerCase().replace(/\W+/g, '-')}.png`)}`,
-    { token: account.token, bytes: drawAvatar(avatar), contentType: 'image/png' }
+    `/media/v3/upload?filename=${enc(`${avatarName}.png`)}`,
+    { token: account.token, bytes: readAvatar(avatarName), contentType: 'image/png' }
   );
   await matrix('PUT', `/client/v3/profile/${id}/avatar_url`, {
     token: account.token,
@@ -301,26 +268,13 @@ const threads = [
 ];
 
 const main = async () => {
-  const sam = await setProfile(await login(username), 'Sam Rivera', {
-    from: [214, 120, 82],
-    to: [142, 64, 96],
-  });
+  const sam = await setProfile(await login(username), 'Sam Rivera', 'sam');
+  const addAgent = async (name, displayName) =>
+    setProfile(await registerAgent(`mindroom_${name}_${agentSuffix}`), displayName, name);
   const agents = {
-    hearth: await setProfile(await registerAgent(`mindroom_hearth_${agentSuffix}`), 'Hearth', {
-      from: [235, 150, 60],
-      to: [196, 82, 48],
-      mark: 'ring',
-    }),
-    pantry: await setProfile(await registerAgent(`mindroom_pantry_${agentSuffix}`), 'Pantry', {
-      from: [104, 170, 92],
-      to: [38, 112, 84],
-      mark: 'ring',
-    }),
-    atlas: await setProfile(await registerAgent(`mindroom_atlas_${agentSuffix}`), 'Atlas', {
-      from: [84, 140, 224],
-      to: [64, 72, 170],
-      mark: 'ring',
-    }),
+    hearth: await addAgent('hearth', 'Hearth'),
+    pantry: await addAgent('pantry', 'Pantry'),
+    atlas: await addAgent('atlas', 'Atlas'),
   };
 
   const { room_id: roomId } = await matrix('POST', '/client/v3/createRoom', {
