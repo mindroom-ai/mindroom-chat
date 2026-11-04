@@ -488,6 +488,15 @@ export const useTimelineMessageFeature = ({
       const historyRecords =
         data.approvalTimeline.historyByResponseId.get(eventId) ??
         data.approvalTimeline.fallbackGroupsByEventId.get(eventId);
+      // Approvals of a reply that is not loaded, such as a background job's, gather at the first
+      // of them: its row shows that history, which lists its own receipt, instead of the card too.
+      if (kind === 'approval' && historyRecords && historyRecords.length > 0) {
+        return (
+          <MessageAside key={eventId} data-message-id={eventId} data-message-item={row.index}>
+            <ApprovalHistory records={historyRecords as never} />
+          </MessageAside>
+        );
+      }
       const sendState = getSendStateEvent(event, editedEvent);
       const failedSend = sendState.status === EventStatus.NOT_SENT;
       const pendingSend = PENDING_SEND_STATUSES.has(sendState.status);
@@ -628,7 +637,9 @@ export const useTimelineMessageFeature = ({
             </div>
           </Message>
           {historyRecords && historyRecords.length > 0 && (
-            <ApprovalHistory records={historyRecords as never} />
+            <MessageAside>
+              <ApprovalHistory records={historyRecords as never} />
+            </MessageAside>
           )}
           {showFailedActions && <FailedSendActions room={room} event={sendState} />}
         </React.Fragment>
