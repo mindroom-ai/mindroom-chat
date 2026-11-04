@@ -94,6 +94,7 @@ import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useFollowContentGrowth } from './useFollowContentGrowth';
+import { useFollowLateGrowth } from './useFollowLateGrowth';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
@@ -977,11 +978,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
       const rowsBefore = roomRowsRef.current.length;
       void paginateRoom(back).then(() => {
-        if (!edge || !alive() || edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
+        if (!alive()) return;
+        // The SDK ignores a read receipt on an event it has not loaded, so a room whose read
+        // marker lies further back opens without one. Once a page loads that event, the New
+        // Messages line and Jump to Unread can show where the reader left off.
+        if (back && !readUptoEventIdRef.current) {
+          const unread = getRoomUnreadInfo(room);
+          if (unread) setUnreadInfo(unread);
+        }
+        if (!edge || edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
         setRoomBackPage({ rowsBefore });
       });
     },
-    [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
+    [alive, firstRoomTimelineRef, paginateRoom, readUptoEventIdRef, room, roomRowsRef]
   );
   const shouldSuppressPagination = useCallback(() => suppressFocusPaginationRef.current, []);
   // The opening fill loads a screen of history above the reader. A short room, whose creation
@@ -1359,6 +1368,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     getLiveReplyStore(mx),
     room.roomId
   );
+  // A row that grows by itself later, such as a link preview that loads, keeps a reader at the
+  // bottom there too.
+  useFollowLateGrowth(scrollElement, contentRef, atLiveEndRef);
 
   // The compact overview: older history until zero-reply roots show up, root edits it lacks,
   // and a refresh of its threads when the page comes back.
