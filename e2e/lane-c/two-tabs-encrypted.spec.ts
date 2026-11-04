@@ -24,14 +24,14 @@ import { buildLoginPath } from '../env';
 //   scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/lane-c/two-tabs-encrypted.spec.ts
 //
 // Expected to fail (workstream A1, 2026-11-04; full evidence in the A1 report,
-// .baspowers/sdd/2026-11-03-m2-core-parity/A1-report.md). Over 5 runs:
-// - 5 of 5: the two tabs encrypt with one shared outbound Megolm session, each from its own
+// .baspowers/sdd/2026-11-03-m2-core-parity/A1-report.md). Over 10 runs:
+// - 10 of 10: the two tabs encrypt with one shared outbound Megolm session, each from its own
 //   copy of the ratchet, so two of Alice's messages go out under the same message index (the
 //   same message key).
-// - 2 of 5: Bob's new device claims a one-time key that neither tab holds any more ("Failed to
+// - 2 of 10: Bob's new device claims a one-time key that neither tab holds any more ("Failed to
 //   create a new Olm session from a pre-key message: InboundCreation(MissingOneTimeKey(..))" in
 //   both tabs), so its room key is lost and its message never decrypts for Alice, not even
-//   after minutes; in 1 more run one tab lacked the key and the other still had it.
+//   after minutes; in 2 more runs one tab lacked the key and the other still had it.
 // Remove `test.fail` once tabs of one session no longer run two crypto machines at once.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'two-tabs-spec-password';
