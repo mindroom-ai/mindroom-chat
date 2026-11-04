@@ -475,13 +475,15 @@ function FloatingAction({
 
 /**
  * Holds the thread filter bar where it floats, under the room header, and reports the height it
- * takes there (margins included) whenever that changes.
+ * takes there (margins included) whenever that changes. The last height outlives the slot: a
+ * room the reader comes back to from a thread pads its cards by it at once, so the Compact
+ * view's restored scroll position is not moved by a late inset.
  */
 function FilterBarSlot({
   onHeight,
   children,
 }: {
-  onHeight: (height: number | null) => void;
+  onHeight: (height: number) => void;
   children: ReactNode;
 }) {
   const slotRef = useRef<HTMLDivElement>(null);
@@ -489,14 +491,13 @@ function FilterBarSlot({
     const slot = slotRef.current;
     if (!slot) return undefined;
     // A slot that has no layout (hidden, or a test document) leaves the inset at its gap.
-    const report = () => onHeight(slot.offsetHeight > 0 ? slot.offsetHeight : null);
+    const report = () => {
+      if (slot.offsetHeight > 0) onHeight(slot.offsetHeight);
+    };
     report();
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(report);
     observer?.observe(slot);
-    return () => {
-      observer?.disconnect();
-      onHeight(null);
-    };
+    return () => observer?.disconnect();
   }, [onHeight]);
   return (
     <div ref={slotRef} className={overlay.Overview}>

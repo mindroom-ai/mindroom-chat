@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
+import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
+import { TooltipProvider } from '../../components/directional';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import {

@@ -38,7 +38,7 @@ export const CompactCount = style({
   columnGap: toRem(3),
   placeItems: 'center',
   fontVariantNumeric: 'tabular-nums',
-  paddingInline: config.space.S100,
+  paddingInline: toRem(2),
   color: color.SurfaceVariant.OnContainer,
   flexShrink: 0,
 });
@@ -301,7 +301,7 @@ export const AddTagDropdown = style({
   minWidth: toRem(140),
   maxHeight: toRem(200),
   overflowY: 'auto',
-  display: 'grid',
+  selectors: { '&&&': { backgroundColor: color.SurfaceVariant.Container } }, // the bar's blur ends at its edge
   padding: config.space.S100, // the options keep clear of the rounded edge
   borderRadius: config.radii.R400,
 });
@@ -369,7 +369,7 @@ export const PresetDropdown = style({
   insetInlineStart: 0,
   zIndex: 200,
   minWidth: toRem(180),
-  display: 'grid',
+  selectors: { '&&&': { backgroundColor: color.SurfaceVariant.Container } }, // the bar's blur ends at its edge
   padding: config.space.S100, // the options keep clear of the rounded edge
   borderRadius: config.radii.R400,
 });
@@ -438,7 +438,7 @@ export const InfoPopover = style({
   zIndex: 200,
   minWidth: toRem(220),
   display: 'grid',
-  rowGap: toRem(2),
+  selectors: { '&&&': { backgroundColor: color.SurfaceVariant.Container } }, // the bar's blur ends at its edge
   padding: config.space.S300,
   borderRadius: config.radii.R400,
 });
