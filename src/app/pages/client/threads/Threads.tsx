@@ -10,6 +10,7 @@ import { crossRoomThreadIndexAtom } from '../../../mindroom/cross-room-threads/c
 import { makeCrossRoomThreadFiltersAtom } from '../../../mindroom/cross-room-threads/crossRoomThreadFilters';
 import { FilterBar } from './FilterBar';
 import { ThreadsView } from './ThreadsView';
+import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 
 /** Threads from every room the user is in, with filters and search. */
 export function Threads() {
@@ -18,6 +19,7 @@ export function Threads() {
   const activeSession = useActiveSession();
   const userId = mx.getUserId() ?? activeSession?.userId ?? '';
   useNavToActivePathMapper('threads');
+  useJoinedRoomThreadLists();
 
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
   const filtersAtom = useMemo(() => makeCrossRoomThreadFiltersAtom(userId), [userId]);
