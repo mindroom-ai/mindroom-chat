@@ -147,12 +147,12 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   await page.waitForTimeout(3_000);
   await expectCountsHold(page, { [launch]: 4, [retro]: 2 }, 1_500);
 
-  // A redacted reply leaves the count, also one that came with the first sync.
-  await redactEvent(HOMESERVER, token, roomId, launchReplies[1]);
+  // A redacted reply leaves the count.
+  await redactEvent(HOMESERVER, token, roomId, late);
   await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
 
-  // Reloading keeps all of that.
+  // Reloading keeps all of that; the saved sync holds the reply and its redaction together.
   await page.reload();
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 
@@ -170,15 +170,18 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   // Opening the thread loads its replies from the server, which agrees.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await page.goto(`${roomPath}?threadId=${encodeURIComponent(launch)}`);
-  await expect(page.getByText('Legal is ready, signed').first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('Docs are ready and live').first()).toBeVisible({ timeout: 60_000 });
   await page.goto(roomPath);
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 
-  // A reply after opening still counts once.
+  // In an opened thread, a redaction of a reply from the first sync and a new reply count too.
+  await redactEvent(HOMESERVER, token, roomId, launchReplies[1]);
+  await expect(cardCount(page, launch)).toHaveText('2', { timeout: 30_000 });
   await send(replyTo(launch, 'Sales is ready'));
-  await expect(cardCount(page, launch)).toHaveText('4', { timeout: 30_000 });
+  await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
+  await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
 
   // The Threads page shows the same counts.
   await page.goto('/threads/');
-  await expectCountsHold(page, { [launch]: 4, [retro]: 2 });
+  await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 });
