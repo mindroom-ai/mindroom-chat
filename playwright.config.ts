@@ -33,6 +33,10 @@ const playwrightConfig = defineConfig({
     video: 'retain-on-failure',
     launchOptions: {
       executablePath: process.env.CHROMIUM_PATH || undefined,
+      // Chromium runs sandboxed frames in their own process. Playwright then misses a frame that
+      // such a frame creates while it loads, as an agent canvas's wrapper does with the page
+      // inside it, so specs could not reach the canvas. The sandbox attributes still apply.
+      args: ['--disable-features=IsolateSandboxedIframes'],
     },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
