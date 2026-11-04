@@ -55,30 +55,74 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe('useRoomViewThreadState', () => {
-  it('ignores a thread filter stored for the room', () => {
-    const stored: ThreadFilterState = { ...createDefaultThreadFilterState(), resolved: 'exclude' };
-    localStorage.setItem(
-      getRoomThreadFilterStorageKey(USER_ID, ROOM_ID),
-      JSON.stringify(serializeThreadFilterState(stored))
+const storeFilter = (filter: ThreadFilterState) =>
+  localStorage.setItem(
+    getRoomThreadFilterStorageKey(USER_ID, ROOM_ID),
+    JSON.stringify(serializeThreadFilterState(filter))
+  );
+
+/** Mounts the hook in its own store and hands back a reader for its latest result. */
+const mountThreadState = (options: { hasMindroomAgents?: boolean } = {}) => {
+  const store = createStore();
+  let latest: RoomViewThreadState | undefined;
+  function Probe() {
+    latest = useRoomViewThreadState({ room, ...options });
+    return null;
+  }
+  act(() => {
+    renderer = create(
+      <Provider store={store}>
+        <Probe />
+      </Provider>
     );
-    const store = createStore();
-    // The stored entry is a real filter: the persisted atom still reads it back.
+  });
+  return { store, current: () => latest as RoomViewThreadState };
+};
+
+describe('useRoomViewThreadState', () => {
+  it('applies the thread filter stored for the room', () => {
+    storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude' });
+
+    const { current } = mountThreadState();
+
+    expect(current().threadFilterState.resolved).toBe('exclude');
+  });
+
+  it('stores a filter chosen in the bar for this room only', () => {
+    const { store, current } = mountThreadState();
+
+    act(() => current().handleToggle('resolved'));
+    act(() => current().handleToggle('resolved'));
+
+    expect(current().threadFilterState.resolved).toBe('exclude');
     expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID)).resolved).toBe('exclude');
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, '!other:example.org')).resolved).toBe(
+      'any'
+    );
+  });
 
-    let state: RoomViewThreadState | undefined;
-    function Probe() {
-      state = useRoomViewThreadState({ room });
-      return null;
-    }
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <Probe />
-        </Provider>
-      );
-    });
+  it('keeps agent filters stored but inactive in a room without agents', () => {
+    storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude', sortBy: 'natural' });
 
-    expect(state?.threadFilterState).toEqual(createDefaultThreadFilterState());
+    const { store, current } = mountThreadState({ hasMindroomAgents: false });
+
+    expect(current().threadFilterState.resolved).toBe('any');
+    expect(current().threadFilterState.sortBy).toBe('natural');
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID)).resolved).toBe('exclude');
+  });
+
+  it('locks and unlocks the sort order, and forgets the lock when the sort turns natural', () => {
+    const { current } = mountThreadState();
+
+    act(() => current().handleToggleThreadSortFreeze());
+    expect(current().threadSortFreezeState).toEqual({ controlSignature: null, orderedRootIds: [] });
+
+    act(() => current().handleSortDirectionChange());
+    expect(current().threadFilterState).toMatchObject({ sortBy: 'lastReply', sortDirection: 'asc' });
+    expect(current().threadSortFreezeState).not.toBeNull();
+
+    act(() => current().handleSortDirectionChange());
+    expect(current().threadFilterState.sortBy).toBe('natural');
+    expect(current().threadSortFreezeState).toBeNull();
   });
 });

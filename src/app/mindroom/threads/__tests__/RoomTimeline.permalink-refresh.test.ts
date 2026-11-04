@@ -17,6 +17,7 @@ import {
   navigateRoomThreadMock,
   roomTimelineVirtualizerState,
   roomThreadListThreadsMock,
+  roomThreadOverviewType,
   scrollType,
   setThreadAwareTimelineRefreshHook,
   TEST_DEFAULT_THREAD_FILTER_STATE,
@@ -403,6 +404,39 @@ describe('RoomTimeline', () => {
           align: 'center',
           behavior: 'smooth',
         });
+      });
+
+      it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {
+        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+        const room = makeRoom({
+          liveEvents: [threadRoot],
+          threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+        });
+
+        let renderer: ReturnType<typeof create> | undefined;
+
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              eventId: threadRoot.getId(),
+              focusEventInRoom: true,
+              initialViewMode: 'threaded',
+              initialThreadFilterState: {
+                ...DEFAULT_THREAD_FILTER_STATE,
+                freeText: 'does-not-match-hidden-root',
+                tags: new Map(),
+              },
+            })
+          );
+          await flushAsyncWork(2);
+        });
+
+        expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
+        expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
+        expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
       });
 
       it('keeps synthetic room-focus permalinks in room-overview order for visible roots in natural mode', async () => {

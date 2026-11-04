@@ -18,6 +18,7 @@ const ROOM_TIMELINE_EVENT = 'Room.timeline';
 const {
   passthrough,
   scrollType,
+  roomThreadOverviewType,
   messageType,
   messageTestId,
   collapsibleType,
@@ -29,6 +30,7 @@ const {
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
+  roomThreadOverviewType: 'room-thread-overview',
   messageType: 'div',
   messageTestId: 'mock-message',
   collapsibleType: 'div',
@@ -784,6 +786,10 @@ vi.mock('../threadEditBackfill', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
+vi.mock('../RoomThreadOverview', () => ({
+  RoomThreadOverview: roomThreadOverviewType,
+}));
+
 vi.mock('../CompactRoomView', () => ({
   CompactRoomView: passthrough,
 }));
@@ -1020,6 +1026,17 @@ const createControlledRoomTimelineHarness = (
         summaryMap: new Map(),
         onStoreThreadSummary: vi.fn(),
         threadFilterState: defaultThreadFilterState,
+        threadSortFreezeState: null,
+        onToggle: vi.fn(),
+        onSortDirectionChange: vi.fn(),
+        onToggleThreadSortFreeze: vi.fn(),
+        setThreadSortFreezeState: vi.fn(),
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset: vi.fn(),
+        onApplyPreset: vi.fn(),
+        onSearchQueryChange: vi.fn(),
         viewMode: 'threaded',
         onViewModeChange: vi.fn(),
         roomInputRef,

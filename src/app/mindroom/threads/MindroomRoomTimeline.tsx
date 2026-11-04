@@ -1,4 +1,6 @@
 import React, {
+  type Dispatch,
+  type SetStateAction,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -54,7 +56,6 @@ import { scheduleReconcile, useMindroomSyncEngine } from '../engine';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { CompactRoomView } from './CompactRoomView';
-import { CompactThreadCount } from './CompactThreadCount';
 import * as overlay from './RoomOverlay.css';
 import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
@@ -63,7 +64,14 @@ import type { TimelineMessageData, TimelineMessageRow } from './message-renderin
 import { getRenderableEventEntries, type TimelineEventEntry } from './roomTimelineEvents';
 import { buildClassicRoomRowEntries } from './roomTimelineClassicRows';
 import type { RoomViewMode } from './roomViewMode';
-import type { ThreadFilterState } from './roomThreadOverviewModel';
+import type {
+  FilterPreset,
+  ThreadFilterKey,
+  ThreadFilterState,
+  ThreadSortFreezeState,
+} from './roomThreadOverviewModel';
+import { RoomThreadOverview } from './RoomThreadOverview';
+import { useThreadSortFreezeController } from './threadSortFreezeController';
 import { resolveRoomTimelineViewState } from './roomTimelineViewState';
 import {
   getInitialTimeline,
@@ -149,6 +157,21 @@ export type RoomTimelineProps = {
   summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
+  /** The filter bar's sort lock: the room's thread order as it was when the reader locked it. */
+  threadSortFreezeState?: ThreadSortFreezeState | null;
+  setThreadSortFreezeState?: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
+  /** Without agents the filter bar keeps only its search and sort. */
+  hasMindroomAgents?: boolean;
+  /** The filter bar's controls; the room view keeps the state they change. */
+  onToggle?: (key: ThreadFilterKey) => void;
+  onSortDirectionChange?: () => void;
+  onToggleThreadSortFreeze?: () => void;
+  onReset?: () => void;
+  onCycleTag?: (tag: string) => void;
+  onAddTag?: (tag: string) => void;
+  onRemoveTag?: (tag: string) => void;
+  onApplyPreset?: (preset: FilterPreset) => void;
+  onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
   /** Accepted from the room view; the switch itself lives in the room header. */
   onViewModeChange?: (viewMode: RoomViewMode) => void;
@@ -166,6 +189,10 @@ type ScrollToBottomState = { count: number; smooth: boolean };
 const EMPTY_EVENTS: MatrixEvent[] = [];
 const EMPTY_ENTRIES: TimelineEventEntry[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+/** Stand-ins for filter bar handlers a caller leaves out. */
+const ignoreFilterChange = () => undefined;
+const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
+  undefined;
 
 /**
  * Rows are priced by their content until measured (timelineRowEstimate). The Compact layout
@@ -360,17 +387,23 @@ const footerProbeStyle: React.CSSProperties = {
 };
 
 /**
- * The room timeline's rows begin a gap below the floating header, where the thread filter bar
- * this client leaves out used to sit. The gap joins the band the header covers, so a row
- * scrolled into it counts as out of sight; it is twice the Compact cards' gap so that a short
- * room overflows by more than a small wheel turn and loads its older rows only when the reader
- * reaches its top (live/room-load-older-keeps-reader).
+ * The room timeline's rows begin below the floating header and, where it shows, the thread filter
+ * bar: the overview inset is the bar's height with its margins. The inset joins the band the
+ * header covers, so a row scrolled into it counts as out of sight. Without the bar (the Full
+ * view) it is a gap twice the Compact cards' one, so that a short room overflows by more than a
+ * small wheel turn and loads its older rows only when the reader reaches its top
+ * (live/room-load-older-keeps-reader).
  */
+const ROOM_GAP_BELOW_HEADER = config.space.S400;
 const roomViewStyle = {
   minHeight: 0,
   position: 'relative',
-  '--room-overview-height': config.space.S400,
+  '--room-overview-height': ROOM_GAP_BELOW_HEADER,
 } as React.CSSProperties;
+const roomViewStyleUnder = (barHeight: number | null): React.CSSProperties =>
+  barHeight === null
+    ? roomViewStyle
+    : ({ ...roomViewStyle, '--room-overview-height': `${barHeight}px` } as React.CSSProperties);
 const threadViewStyle: React.CSSProperties = { minHeight: 0, position: 'relative' };
 
 /** A pill over the timeline that takes the reader somewhere or settles the unread state. */
@@ -398,6 +431,38 @@ function FloatingAction({
   );
 }
 
+/**
+ * Holds the thread filter bar where it floats, under the room header, and reports the height it
+ * takes there (margins included) whenever that changes.
+ */
+function FilterBarSlot({
+  onHeight,
+  children,
+}: {
+  onHeight: (height: number | null) => void;
+  children: ReactNode;
+}) {
+  const slotRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    if (!slot) return undefined;
+    // A slot that has no layout (hidden, or a test document) leaves the inset at its gap.
+    const report = () => onHeight(slot.offsetHeight > 0 ? slot.offsetHeight : null);
+    report();
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(report);
+    observer?.observe(slot);
+    return () => {
+      observer?.disconnect();
+      onHeight(null);
+    };
+  }, [onHeight]);
+  return (
+    <div ref={slotRef} className={overlay.Overview}>
+      {children}
+    </div>
+  );
+}
+
 function DayDivider({ ts }: { ts: number }) {
   const { t } = useTranslation();
   let label = timeDayMonthYear(ts);
@@ -422,6 +487,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     summaryMap,
     onStoreThreadSummary,
     threadFilterState,
+    threadSortFreezeState = null,
+    setThreadSortFreezeState,
+    hasMindroomAgents = true,
     viewMode,
     editor,
     onThreadLoadError,
@@ -453,23 +521,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const compactRoomScrollStateRef =
     props.compactRoomScrollStateRef ?? fallbackCompactScrollStateRef;
 
-  // No filter bar shows a sort, so the threaded timeline keeps the room's order; only the
-  // Compact cards sort by their latest reply.
-  const viewThreadFilterState = useMemo(
-    () =>
-      viewMode === 'threaded' && threadFilterState.sortBy !== 'natural'
-        ? { ...threadFilterState, sortBy: 'natural' as const }
-        : threadFilterState,
-    [threadFilterState, viewMode]
-  );
-  const { effectiveViewMode, focusedRoomOverviewRequested, requestedThreadFilterState } =
-    resolveRoomTimelineViewState({
-      eventId,
-      focusEventInRoom,
-      threadFilterState: viewThreadFilterState,
-      threadId,
-      viewMode,
-    });
+  const {
+    effectiveViewMode,
+    focusedRoomOverviewRequested,
+    requestedThreadFilterState,
+    showRoomThreadOverviewControls,
+  } = resolveRoomTimelineViewState({
+    eventId,
+    focusEventInRoom,
+    threadFilterState,
+    threadId,
+    viewMode,
+  });
+  const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
@@ -662,8 +726,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadResolutionMap,
     currentUserId: mx.getUserId() ?? undefined,
     requestedThreadFilterState,
-    // The sort-order lock belonged to the room filter bar, which this client does not have.
-    threadSortFreezeState: null,
+    threadSortFreezeState,
     overviewRefreshCounter,
     sessionId,
     mx,
@@ -674,6 +737,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   const threadRecordMapRef = useLatestRef(threadIndex.threadRecordMap);
+  useThreadSortFreezeController({
+    activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
+    setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
+    threadId,
+    threadSortControlSignature: threadIndex.threadSortControlSignature,
+    threadSortFreezeState,
+  });
 
   const windowState = useRoomTimelineWindowController({
     canPaginateThreadBack: threadState.canPaginateThreadBack,
@@ -1164,7 +1234,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadReplyCountMap: threadIndex.threadReplyCountMap,
     threadResolutionMap,
     threadSortControlSignature: threadIndex.threadSortControlSignature,
-    threadSortFreezeState: null,
+    threadSortFreezeState,
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
   useRoomEventRouteOpenController({
@@ -1515,8 +1585,40 @@ export function RoomTimeline(props: RoomTimelineProps) {
     [toggleExpandAll]
   );
 
+  const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
+  const filterBar = showRoomThreadOverviewControls && (
+    <FilterBarSlot onHeight={setFilterBarHeight}>
+      <RoomThreadOverview
+        hasMindroomAgents={hasMindroomAgents}
+        threadCount={
+          (compactCards ? threadIndex.compactOverviewOrdering : threadIndex.normalOverviewOrdering)
+            .displayOrderedIds.length
+        }
+        totalThreadCount={
+          (compactCards ? threadIndex.compactThreadRootData : threadIndex.visibleThreadRootData).ids
+            .length
+        }
+        statusCounts={threadIndex.statusCounts}
+        tagCounts={threadIndex.tagCounts}
+        state={threadFilterState}
+        availableTags={threadIndex.availableRoomTags}
+        isThreadSortFrozen={!!threadSortFreezeState}
+        onToggle={props.onToggle ?? ignoreFilterChange}
+        onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
+        onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
+        onReset={props.onReset ?? ignoreFilterChange}
+        onCycleTag={props.onCycleTag ?? ignoreFilterChange}
+        onAddTag={props.onAddTag ?? ignoreFilterChange}
+        onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
+        onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
+        onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
+      />
+    </FilterBarSlot>
+  );
+  const roomStyle = roomViewStyleUnder(filterBar ? filterBarHeight : null);
+
   // Compact mode: the room's threads as cards, once the room knows which threads it has.
-  if (compactViewRequested && !threadIndex.focusedRoomOverviewBypass) {
+  if (compactCards) {
     const overviewReady =
       threadIndex.showCompactRoomView ||
       (roomInitialCacheHydratedKey === room.roomId && !clientCatchingUp);
@@ -1529,8 +1631,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     }
     const compactRootIds = threadIndex.compactOverviewOrdering.displayOrderedIds;
     return (
-      <>
-        <CompactThreadCount count={compactRootIds.length} />
+      <Box grow="Yes" direction="Column" style={roomStyle}>
+        {filterBar}
         <CompactRoomView
           room={room}
           threadRootIds={compactRootIds}
@@ -1538,7 +1640,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
         />
-      </>
+      </Box>
     );
   }
 
@@ -1673,8 +1775,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
 
   return (
-    <Box grow="Yes" direction="Column" style={threadId ? threadViewStyle : roomViewStyle}>
+    <Box grow="Yes" direction="Column" style={threadId ? threadViewStyle : roomStyle}>
       <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
+      {filterBar}
       {showJumpToUnread && (
         <div
           className={css.TimelineFloat({ position: 'Top' })}

@@ -98,7 +98,6 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId'> & {
 /** Timeline props this view passes beyond the timeline's own contract, for the parts that use them. */
 type TimelineShellProps = Partial<{
   threadHeader: React.ReactNode;
-  hasMindroomAgents: boolean;
   focusEventInRoom: boolean;
 }>;
 
@@ -243,7 +242,7 @@ export function RoomView({
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
-  const threadState = useRoomViewThreadState({ room, threadId, eventId });
+  const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
   const { effectiveThreadId, viewMode } = threadState;
   const localRoot = useLocalEchoRoot(
     room,
@@ -288,7 +287,19 @@ export function RoomView({
     summaryMap: threadState.summaryMap ?? EMPTY_SUMMARY_MAP,
     onStoreThreadSummary: threadState.storeThreadSummary ?? ignore,
     threadFilterState: threadState.threadFilterState,
+    threadSortFreezeState: threadState.threadSortFreezeState ?? null,
+    setThreadSortFreezeState: threadState.setThreadSortFreezeState,
+    onToggle: threadState.handleToggle,
+    onSortDirectionChange: threadState.handleSortDirectionChange,
+    onToggleThreadSortFreeze: threadState.handleToggleThreadSortFreeze,
+    onReset: threadState.handleReset,
+    onCycleTag: threadState.handleCycleTag,
+    onAddTag: threadState.handleAddTag,
+    onRemoveTag: threadState.handleRemoveTag,
+    onApplyPreset: threadState.handleApplyPreset,
+    onSearchQueryChange: threadState.handleSearchQueryChange,
     viewMode,
+    onViewModeChange: threadState.handleViewModeChange,
     compactRoomScrollStateRef,
     editor,
     onThreadLoadError,

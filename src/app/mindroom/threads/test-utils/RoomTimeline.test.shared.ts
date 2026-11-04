@@ -4,7 +4,12 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { createDefaultThreadFilterState } from '../roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  cycleSortMode,
+  resetThreadFilterState,
+  updateThreadFilterKey,
+} from '../roomThreadOverviewModel';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
@@ -22,6 +27,7 @@ import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 const {
   passthrough,
   scrollType,
+  roomThreadOverviewType,
   roomIntroType,
   defaultPlaceholderType,
   compactPlaceholderType,
@@ -58,6 +64,7 @@ const {
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
+  roomThreadOverviewType: 'room-thread-overview',
   roomIntroType: 'room-intro',
   defaultPlaceholderType: 'default-placeholder',
   compactPlaceholderType: 'compact-placeholder',
@@ -1236,6 +1243,10 @@ vi.mock('../threadEditBackfill', () => ({
   shouldFetchThreadEditBackfill: () => false,
 }));
 
+vi.mock('../RoomThreadOverview', () => ({
+  RoomThreadOverview: roomThreadOverviewType,
+}));
+
 vi.mock('../CompactRoomView', () => ({
   CompactRoomView: compactPlaceholderType,
 }));
@@ -1771,6 +1782,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilter,
     initialThreadFilterState,
     initialViewMode = 'threaded',
+    initialThreadSortFrozen = false,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
@@ -1781,13 +1793,52 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
     initialThreadFilterState?: import('../roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'threaded' | 'compact' | 'classic';
+    initialThreadSortFrozen?: boolean;
   }) {
-    const [threadFilterState] = React.useState<
+    const [threadFilterState, setThreadFilterState] = React.useState<
       import('../roomThreadOverviewModel').ThreadFilterState
     >(initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter));
     const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(
       initialViewMode
     );
+    const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
+      import('../roomThreadOverviewModel').ThreadSortFreezeState | null
+    >(
+      initialThreadSortFrozen
+        ? {
+            controlSignature: null,
+            orderedRootIds: [],
+          }
+        : null
+    );
+
+    const onToggle = React.useCallback(
+      (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
+        setThreadFilterState((prev) => updateThreadFilterKey(prev, key));
+      },
+      []
+    );
+
+    const onSortDirectionChange = React.useCallback(() => {
+      setThreadFilterState((prev) => {
+        return { ...prev, ...cycleSortMode(prev) };
+      });
+    }, []);
+
+    const onReset = React.useCallback(() => {
+      setThreadFilterState(resetThreadFilterState());
+    }, []);
+
+    const onToggleThreadSortFreeze = React.useCallback(() => {
+      setThreadSortFreezeState((currentState) =>
+        currentState
+          ? null
+          : {
+              controlSignature: null,
+              orderedRootIds: [],
+            }
+      );
+    }, []);
 
     // ISSUE-207 P3.3: the room timeline consumes the persist facade
     // off `useMindroomSyncEngine`. Wrap the harness with a stub engine
@@ -1805,6 +1856,15 @@ const createControlledRoomTimelineHarness = (
         summaryMap,
         onStoreThreadSummary,
         threadFilterState,
+        threadSortFreezeState,
+        onToggle,
+        onSortDirectionChange,
+        onToggleThreadSortFreeze,
+        setThreadSortFreezeState,
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset,
         viewMode,
         onViewModeChange: setViewMode,
         roomInputRef,
@@ -1855,6 +1915,7 @@ export {
   timeDayMonthYearMock,
   roomIntroType,
   roomThreadListThreadsMock,
+  roomThreadOverviewType,
   roomUnreadState,
   saveRoomEventsToCacheMock,
   saveThreadOpenSeedSnapshot,

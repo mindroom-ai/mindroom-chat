@@ -1,5 +1,5 @@
 import React, { createRef } from 'react';
-import { Direction, RoomEvent } from 'matrix-js-sdk';
+import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../types';
@@ -17,6 +17,7 @@ import {
   createControlledRoomTimelineHarness,
   DEFAULT_THREAD_FILTER_STATE,
   directRoomState,
+  emitClientSync,
   flushAsyncWork,
   getClickableByText,
   getRenderedEventIds,
@@ -30,15 +31,20 @@ import {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  navigateRoomThreadMock,
   reactionOrEditEventMock,
   roomIntroType,
   roomThreadListThreadsMock,
+  roomThreadOverviewType,
   roomTimelineVirtualizerState,
+  scrollToItemMock,
   scrollType,
   timeDayMonthYearMock,
   settingsState,
+  TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
   threadRenderStateMock,
+  threadResolutionMapMock,
   virtualPaginatorState,
   waitForCondition,
   wrapWithSyncEngine,
@@ -265,6 +271,17 @@ describe('RoomTimeline', () => {
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
                 onViewModeChange: vi.fn(),
               })
@@ -331,6 +348,17 @@ describe('RoomTimeline', () => {
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
                 onViewModeChange: vi.fn(),
               })
@@ -1325,6 +1353,17 @@ describe('RoomTimeline', () => {
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
                 onViewModeChange: vi.fn(),
               })
@@ -1417,6 +1456,17 @@ describe('RoomTimeline', () => {
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
                 onViewModeChange: vi.fn(),
               })
@@ -1589,6 +1639,32 @@ describe('RoomTimeline', () => {
     // scheduler-side behavior is covered by
     // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`.
 
+    it('renders the room thread overview outside thread view', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const root = makeEvent('$thread-root', { isThreadRoot: true });
+      const room = makeRoom({ liveEvents: [root] });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      const renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+
+      const overview = renderer.root.findByType(roomThreadOverviewType);
+
+      expect(renderer.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
+      expect(
+        renderer.root.findByType(scrollType).findAllByType(roomThreadOverviewType)
+      ).toHaveLength(0);
+      expect(overview.props.state).toEqual({
+        ...TEST_DEFAULT_THREAD_FILTER_STATE,
+        tags: new Map(),
+      });
+      expect(overview.props.threadCount).toBe(1);
+      expect(overview.props.onToggle).toBeTypeOf('function');
+    });
+
     it('does not show a false zero-thread overview while initial room cache hydrate is pending', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       loadLatestCachedRoomEventsMock.mockImplementation(
@@ -1612,6 +1688,7 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(2);
       });
 
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
     });
 
@@ -1645,6 +1722,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(5);
         });
 
+        expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
         expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
       } finally {
         vi.useRealTimers();
@@ -1670,6 +1748,7 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(5);
       });
 
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
     });
 
@@ -1695,7 +1774,152 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(5);
       });
 
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    });
+
+    it('shows a real zero-thread overview after initial client sync settles', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      matrixClientMock.getSyncState.mockReturnValue('PREPARED');
+      const room = makeRoom();
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(5);
+      });
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
+
+      await act(async () => {
+        emitClientSync('SYNCING', 'PREPARED');
+        await flushAsyncWork(2);
+      });
+
+      const overview = renderer?.root.findByType(roomThreadOverviewType);
+      expect(overview?.props.threadCount).toBe(0);
+      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    });
+
+    it('shows a real zero-thread overview at once when the client has already caught up', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const room = makeRoom();
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(5);
+      });
+
+      expect(renderer?.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
+    });
+
+    it('passes visible room thread counts to the overview', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
+      const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
+      const messageEvent = makeEvent('$message');
+      const room = makeRoom({
+        liveEvents: [messageEvent, unresolvedThread, resolvedThread],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
+
+      const renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+
+      expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(2);
+    });
+
+    it('counts fallback-only thread roots in the room thread overview', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const fallbackRoot = makeEvent('$thread-root');
+      const fallbackReply = makeEvent('$thread-reply', {
+        threadRootId: fallbackRoot.getId(),
+      });
+      const room = makeRoom({
+        liveEvents: [fallbackRoot, fallbackReply],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      const renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+
+      expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
+    });
+
+    it('counts old standalone zero-reply message roots in the room thread overview', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      const standaloneRoot = makeEvent('$thread-root', {
+        ts: 1_000,
+        content: { body: 'Older standalone root', msgtype: 'm.text' },
+      });
+      const room = makeRoom({
+        liveEvents: [standaloneRoot],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      try {
+        const renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+
+        expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('does not count standalone m.notice messages as zero-reply roots', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const noticeRoot = makeEvent('$notice-root', {
+        ts: 1_000,
+        content: { body: 'Notice root', msgtype: 'm.notice' },
+      });
+      const room = makeRoom({
+        liveEvents: [noticeRoot],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        emitClientSync();
+        await flushAsyncWork(1);
+      });
+
+      expect(renderer?.root.findByType(roomThreadOverviewType).props.threadCount).toBe(0);
     });
 
     it('shows pending encrypted local-echo zero-reply roots immediately in compact view', async () => {
@@ -2083,12 +2307,274 @@ describe('RoomTimeline', () => {
         })
       );
 
+      expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
+      expect(renderer.root.findByType(roomThreadOverviewType).props.statusCounts).toEqual({
+        resolved: 0,
+        streaming: 0,
+        scheduled: 0,
+        unread: 0,
+        idle: 0,
+      });
       // The row renders once; its message content also carries the event ID.
       expect(
         renderer.root
           .findAllByProps({ eventId: fallbackRoot.getId() })
           .filter((node) => node.props.msgType === undefined)
       ).toHaveLength(1);
+    });
+
+    it('keeps the frozen expanded overview order while metadata updates', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+      const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+      const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
+      const room = makeRoom({
+        liveEvents: [firstThread, secondThread, thirdThread],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+      threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+      threadLastActivityTsMapMock.set(thirdThread.getId(), 300);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+        await flushAsyncWork(2);
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        thirdThread.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      threadLastActivityTsMapMock.set(firstThread.getId(), 500);
+
+      await act(async () => {
+        room.__listeners.get(ThreadEvent.Update)?.();
+        await flushAsyncWork(2);
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        thirdThread.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        firstThread.getId(),
+        thirdThread.getId(),
+        secondThread.getId(),
+      ]);
+    });
+
+    it('appends new matching roots and drops removed roots while frozen', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+      const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+      const liveEvents = [firstThread, secondThread];
+      const room = makeRoom({ liveEvents });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+      threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
+      threadLastActivityTsMapMock.set(thirdThread.getId(), 300);
+      liveEvents.push(thirdThread);
+
+      await act(async () => {
+        room.__listeners.get(RoomEvent.Timeline)?.(thirdThread, room, false, false, {
+          liveEvent: true,
+        });
+        await flushAsyncWork(2);
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        secondThread.getId(),
+        firstThread.getId(),
+        thirdThread.getId(),
+      ]);
+
+      liveEvents.splice(liveEvents.indexOf(firstThread), 1);
+
+      await act(async () => {
+        room.__listeners.get(ThreadEvent.Delete)?.();
+        await flushAsyncWork(2);
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual([secondThread.getId(), thirdThread.getId()]);
+    });
+
+    it('resnapshots on control changes without disabling freeze', async () => {
+      vi.useFakeTimers();
+      try {
+        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+        const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+        const resolvedThread = makeEvent('$thread-3', { isThreadRoot: true });
+        const room = makeRoom({
+          liveEvents: [firstThread, secondThread, resolvedThread],
+        });
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
+        threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+        threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+        threadLastActivityTsMapMock.set(resolvedThread.getId(), 300);
+
+        let renderer: ReturnType<typeof create> | undefined;
+
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+            })
+          );
+          await flushAsyncWork(2);
+        });
+
+        await act(async () => {
+          renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+          await flushAsyncWork(2);
+        });
+
+        await act(async () => {
+          renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+          await flushAsyncWork(2);
+        });
+
+        await act(async () => {
+          renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+          renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+          await flushAsyncWork(2);
+        });
+
+        await act(async () => {
+          vi.advanceTimersByTime(300);
+          await flushAsyncWork(2);
+        });
+
+        expect(renderer?.root.findByType(roomThreadOverviewType).props.isThreadSortFrozen).toBe(
+          true
+        );
+        expect(getRenderedEventIds(renderer!)).toEqual([secondThread.getId(), firstThread.getId()]);
+
+        threadLastActivityTsMapMock.set(firstThread.getId(), 500);
+
+        await act(async () => {
+          room.__listeners.get(ThreadEvent.Update)?.();
+          await flushAsyncWork(2);
+        });
+
+        expect(getRenderedEventIds(renderer!)).toEqual([secondThread.getId(), firstThread.getId()]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('uses the frozen ordering for compact view thread ids', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+      const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+      const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
+      const room = makeRoom({
+        liveEvents: [firstThread, secondThread, thirdThread],
+        threads: [
+          { id: firstThread.getId(), rootEvent: firstThread },
+          { id: secondThread.getId(), rootEvent: secondThread },
+          { id: thirdThread.getId(), rootEvent: thirdThread },
+        ],
+      });
+      roomThreadListThreadsMock.push(
+        { id: firstThread.getId(), rootEvent: firstThread },
+        { id: secondThread.getId(), rootEvent: secondThread },
+        { id: thirdThread.getId(), rootEvent: thirdThread }
+      );
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+      threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+      threadLastActivityTsMapMock.set(thirdThread.getId(), 300);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+        await flushAsyncWork(2);
+      });
+
+      expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toEqual([
+        thirdThread.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      threadLastActivityTsMapMock.set(firstThread.getId(), 500);
+
+      await act(async () => {
+        room.__listeners.get(ThreadEvent.Update)?.();
+        await flushAsyncWork(2);
+      });
+
+      expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toEqual([
+        thirdThread.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
     });
 
     it('does not force direct rooms back to the message timeline in compact mode', async () => {
@@ -2116,7 +2602,137 @@ describe('RoomTimeline', () => {
       });
 
       expect(getRenderedEventIds(renderer!)).toEqual([]);
+      expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    });
+
+    it('redirects frozen compact-order permalinks into thread view', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+      const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+      const compactOnlyThread = makeEvent('$thread-3', { isThreadRoot: true });
+      const roomThreads = [
+        { id: firstThread.getId(), rootEvent: firstThread, length: 1 },
+        { id: secondThread.getId(), rootEvent: secondThread, length: 1 },
+        { id: compactOnlyThread.getId(), rootEvent: compactOnlyThread, length: 1 },
+      ];
+      const room = makeRoom({
+        liveEvents: [firstThread, secondThread],
+        threads: roomThreads as never,
+      });
+      roomThreadListThreadsMock.push(...(roomThreads as never));
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+      threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+      threadLastActivityTsMapMock.set(compactOnlyThread.getId(), 300);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      threadLastActivityTsMapMock.set(firstThread.getId(), 500);
+
+      await act(async () => {
+        room.__listeners.get(ThreadEvent.Update)?.();
+        await flushAsyncWork(2);
+      });
+
+      expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toEqual([
+        compactOnlyThread.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
+
+      scrollToItemMock.mockClear();
+      navigateRoomThreadMock.mockClear();
+
+      await act(async () => {
+        renderer?.update(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            eventId: firstThread.getId(),
+            initialViewMode: 'compact',
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      expect(scrollToItemMock).not.toHaveBeenCalled();
+      expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+        room.roomId,
+        firstThread.getId(),
+        undefined,
+        { replace: true }
+      );
+    });
+
+    it('preloads cached overview metadata in the frozen display order', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { loadLatestCachedThreadEventsBatch } = await import('../cacheStore');
+      const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
+      const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
+      const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
+      const room = makeRoom({
+        liveEvents: [firstThread, secondThread, thirdThread],
+      });
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+      threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+      threadLastActivityTsMapMock.set(thirdThread.getId(), 300);
+
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onSortDirectionChange();
+        await flushAsyncWork(2);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggleThreadSortFreeze();
+        await flushAsyncWork(2);
+      });
+
+      vi.mocked(loadLatestCachedThreadEventsBatch).mockClear();
+      threadLastActivityTsMapMock.set(firstThread.getId(), 500);
+
+      await act(async () => {
+        room.__listeners.get(ThreadEvent.Update)?.();
+        await flushAsyncWork(2);
+      });
+
+      expect(vi.mocked(loadLatestCachedThreadEventsBatch)).toHaveBeenCalledWith(
+        expect.any(String),
+        room.roomId,
+        [thirdThread.getId(), secondThread.getId(), firstThread.getId()],
+        32
+      );
     });
 
     it('does not issue per-visible-thread summary cache reads from the render path', async () => {
@@ -4806,6 +5422,59 @@ describe('RoomTimeline', () => {
           false
         )
       ).toBe(true);
+    });
+
+    it('keeps filtered mode pinned to the full filtered range when live non-matching events arrive', async () => {
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      const unresolvedEvents = [
+        makeEvent('$thread-1', { isThreadRoot: true }),
+        makeEvent('$thread-2', { isThreadRoot: true }),
+        makeEvent('$thread-3', { isThreadRoot: true }),
+      ];
+      const liveEvents = [...unresolvedEvents, makeEvent('$message-1')];
+      const room = makeRoom({ liveEvents });
+      let renderer: ReturnType<typeof create> | undefined;
+
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await flushAsyncWork(1);
+      });
+
+      await act(async () => {
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+        renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+        await flushAsyncWork(1);
+      });
+
+      expect(virtualPaginatorState.lastOptions?.count).toBe(3);
+      expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+
+      const liveEventHandler = room.__listeners.get(RoomEvent.Timeline);
+      expect(liveEventHandler).toBeTypeOf('function');
+
+      liveEvents.push(makeEvent('$message-2'));
+
+      await act(async () => {
+        liveEventHandler?.(liveEvents[liveEvents.length - 1], room, false, false, {
+          liveEvent: true,
+        });
+        await flushAsyncWork(1);
+      });
+
+      await waitForCondition(
+        () =>
+          virtualPaginatorState.lastOptions?.count === 3 &&
+          virtualPaginatorState.lastOptions?.range?.start === 0 &&
+          virtualPaginatorState.lastOptions?.range?.end === 3,
+        50
+      );
+      expect(virtualPaginatorState.lastOptions?.count).toBe(3);
+      expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
     });
 
     it('re-renders the room timeline for non-renderable live events at bottom', async () => {
