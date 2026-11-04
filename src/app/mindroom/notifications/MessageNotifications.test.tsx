@@ -4,7 +4,13 @@ import { Provider, createStore } from 'jotai';
 import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MatrixEvent, RoomEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
+import {
+  MatrixEvent,
+  MatrixEventEvent,
+  RoomEvent,
+  type IContent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
@@ -219,7 +225,9 @@ describe('MessageNotificationsFeature', () => {
     await act(() => event.attemptDecryption(keys.backend as never, { isRetry: true }));
 
     expect(FakeNotification.shown).toHaveLength(1);
-    expect(FakeNotification.shown[0].options.body).toBe('Maya Chen: Key came late');
+    expect(defined(FakeNotification.shown[0], 'a notification').options.body).toBe(
+      'Maya Chen: Key came late'
+    );
   });
 
   it('waits for the key of a message that arrives after it failed to decrypt', async () => {
@@ -247,21 +255,21 @@ describe('MessageNotificationsFeature', () => {
       const firstTry = event.attemptDecryption(keys.backend as never);
       arrive(event);
       await act(() => firstTry);
-      expect(event.listenerCount('Event.decrypted')).toBe(1);
+      expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
 
       act(() => {
         vi.advanceTimersByTime(2 * 60 * 1000 + 1);
       });
-      expect(event.listenerCount('Event.decrypted')).toBe(0);
+      expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
 
       const other = encryptedMessage();
       const otherTry = other.attemptDecryption(keys.backend as never);
       arrive(other);
       await act(() => otherTry);
-      expect(other.listenerCount('Event.decrypted')).toBe(1);
+      expect(other.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
       act(() => renderer?.unmount());
       renderer = undefined;
-      expect(other.listenerCount('Event.decrypted')).toBe(0);
+      expect(other.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
     } finally {
       vi.useRealTimers();
     }

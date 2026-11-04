@@ -3,26 +3,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildClassicRoomRowEntries } from './roomTimelineClassicRows';
 import type { TimelineEventEntry } from './roomTimelineEvents';
 import { shouldRenderUnreadDividerAt } from './timelineScrollUtils';
+import { defined } from '../../test-utils/defined';
 
 // A thread's timeline here is the list of its events, all of them rows.
 vi.mock('./linkedTimelines', () => ({ getLinkedTimelines: (timeline: unknown) => [timeline] }));
 vi.mock('./roomTimelineEvents', () => ({
-  getRenderableEventEntries: ([events]: MatrixEvent[][]) =>
+  getRenderableEventEntries: ([events = []]: MatrixEvent[][]) =>
     events.map((event, absoluteIndex) => ({ event, absoluteIndex })),
 }));
 
 const event = (eventId: string, ts: number) =>
-  ({ getId: () => eventId, getTs: () => ts }) as unknown as MatrixEvent;
+  ({ getId: () => eventId, getTs: () => ts } as unknown as MatrixEvent);
 
 /** Room rows at the given timeline positions, in timeline order. */
 const roomRows = (...rows: Array<[string, number, number]>): TimelineEventEntry[] =>
   rows.map(([eventId, ts, absoluteIndex]) => ({ event: event(eventId, ts), absoluteIndex }));
 
+/** The event of the row at `index`. */
+const rowEvent = (rows: TimelineEventEntry[], index: number): MatrixEvent =>
+  defined(rows[index], `row ${index}`).event;
+
 const roomWithThreads = (threads: Record<string, MatrixEvent[]>) =>
   ({
-    getThreads: () =>
-      Object.entries(threads).map(([id, events]) => ({ id, liveTimeline: events })),
-  }) as unknown as Room;
+    getThreads: () => Object.entries(threads).map(([id, events]) => ({ id, liveTimeline: events })),
+  } as unknown as Room);
 
 const FILTERS = {
   ignoredUsersSet: new Set<string>(),
@@ -49,7 +53,7 @@ describe('buildClassicRoomRowEntries', () => {
   it('puts each thread reply among the room rows by the time it was sent', () => {
     const rows = roomRows(['$root', 10, 0], ['$b', 20, 1], ['$c', 40, 2]);
     const room = roomWithThreads({
-      $root: [rows[0].event, event('$r1', 30), event('$r2', 50)],
+      $root: [rowEvent(rows, 0), event('$r1', 30), event('$r2', 50)],
     });
 
     expect(ids(buildClassicRoomRowEntries(room, rows, FILTERS))).toEqual([
@@ -64,7 +68,7 @@ describe('buildClassicRoomRowEntries', () => {
   it('keeps the room rows in timeline order when their clocks disagree', () => {
     // A server with a slow clock: $late was sent after $early but carries an older time.
     const rows = roomRows(['$early', 100, 0], ['$late', 50, 1], ['$last', 200, 2]);
-    const room = roomWithThreads({ $early: [rows[0].event, event('$reply', 150)] });
+    const room = roomWithThreads({ $early: [rowEvent(rows, 0), event('$reply', 150)] });
 
     expect(ids(buildClassicRoomRowEntries(room, rows, FILTERS))).toEqual([
       '$early',
@@ -76,7 +80,9 @@ describe('buildClassicRoomRowEntries', () => {
 
   it('shows a reply once, also when the room timeline holds it too', () => {
     const rows = roomRows(['$root', 10, 0], ['$reply', 20, 1]);
-    const room = roomWithThreads({ $root: [rows[0].event, rows[1].event, event('$new', 30)] });
+    const room = roomWithThreads({
+      $root: [rowEvent(rows, 0), rowEvent(rows, 1), event('$new', 30)],
+    });
 
     expect(ids(buildClassicRoomRowEntries(room, rows, FILTERS))).toEqual([
       '$root',
@@ -93,7 +99,7 @@ describe('buildClassicRoomRowEntries', () => {
   it('places the read marker line once, above the first reply or row after the marker', () => {
     // Read up to $b (position 1). The reply to $root, sent after $b, is the first unread row.
     const rows = roomRows(['$root', 10, 0], ['$b', 20, 1], ['$c', 40, 2]);
-    const room = roomWithThreads({ $root: [rows[0].event, event('$reply', 30)] });
+    const room = roomWithThreads({ $root: [rowEvent(rows, 0), event('$reply', 30)] });
 
     const merged = buildClassicRoomRowEntries(room, rows, FILTERS);
 
@@ -118,7 +124,7 @@ describe('buildClassicRoomRowEntries', () => {
   it('orders replies of the same moment by event ID, and before a room row sent then', () => {
     const rows = roomRows(['$root', 10, 0], ['$same', 30, 1]);
     const room = roomWithThreads({
-      $root: [rows[0].event, event('$zz', 30), event('$aa', 30)],
+      $root: [rowEvent(rows, 0), event('$zz', 30), event('$aa', 30)],
     });
 
     expect(ids(buildClassicRoomRowEntries(room, rows, FILTERS))).toEqual([

@@ -23,7 +23,8 @@ const makeRoomWithOlderReadMarker = (roomId: string) => {
     timelinesByEventId: new Map([[older.getId(), makeTimeline([older])]]),
   });
   room.roomId = roomId;
-  room.getEventReadUpTo = () => older.getId();
+  // The harness room has read nothing; this one has read up to the older event.
+  Object.assign(room, { getEventReadUpTo: () => older.getId() });
   return room;
 };
 

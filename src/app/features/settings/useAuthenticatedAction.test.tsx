@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthDict, IAuthData } from 'matrix-js-sdk';
 import { AuthenticationCancelled, useAuthenticatedAction } from './useAuthenticatedAction';
+import { defined } from '../../test-utils/defined';
 
 // The one user-interactive authentication loop of the app: account deactivation, signing out
 // devices and the cross-signing setup all run their request through it.
@@ -141,7 +142,7 @@ describe('useAuthenticatedAction', () => {
     const result = action.run(request);
     await flush();
     act(() => {
-      overlays()[0].props['data-dismiss']();
+      defined(overlays()[0], 'the stage overlay').props['data-dismiss']();
     });
 
     await expect(result).rejects.toBeInstanceOf(AuthenticationCancelled);
