@@ -11,7 +11,8 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -409,7 +410,11 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     [saved, topLevelSpaces, joinedSpaces, localOrder]
   );
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // A mouse drags after a short move; a finger first holds still, so a swipe still scrolls the rail.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
+  );
 
   if (items.length === 0) return null;
 
