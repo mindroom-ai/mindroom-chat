@@ -1,6 +1,6 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -10,6 +10,7 @@ import {
   makeRoom,
   makeTimeline,
   roomUnreadState,
+  wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
 
 type TestRoom = ReturnType<typeof makeRoom>;
@@ -94,6 +95,18 @@ describe('RoomTimeline across room switches', () => {
     });
 
     expect(findJumpToUnread(renderer)).toBeUndefined();
+    act(() => renderer.unmount());
+  });
+
+  it('leaves the room focus to the room view, which skips unsent thread roots', async () => {
+    const engine = wrapWithSyncEngine(React.createElement('div')).props.engine as {
+      noteRoomFocused: (roomId: string, threadId?: string) => void;
+    };
+    const noteRoomFocused = vi.spyOn(engine, 'noteRoomFocused');
+    const { renderer } = await renderTimeline(makeReadRoom('!a:test'), '~!a:test:txn-root');
+
+    expect(noteRoomFocused).not.toHaveBeenCalled();
+    noteRoomFocused.mockRestore();
     act(() => renderer.unmount());
   });
 });

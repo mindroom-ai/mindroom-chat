@@ -1465,9 +1465,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
-  useEffect(() => {
-    engine.noteRoomFocused(room.roomId, threadId);
-  }, [engine, room.roomId, threadId]);
   // A reply that streams live frames grows the rows without a timeline event: follow it.
   useFollowContentGrowth(
     getScrollElement,
