@@ -96,7 +96,7 @@ const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&
 const STARTUP_MS = 180_000;
 const accountButton = (page: Page, code = 'en') =>
   page.getByRole('button', {
-    name: new RegExp(`^${escapeRegExp(textBefore(label(code, 'accountsRail.openSettingsAria')))}`),
+    name: new RegExp(`^${escapeRegExp(textBefore(label(code, 'featureUi.accountMenu.open')))}`),
   });
 
 /** Opens a signed-in route and waits for the shell, which reloads the client. */

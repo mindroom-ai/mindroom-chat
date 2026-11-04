@@ -6,7 +6,8 @@ import {
   readSessionStore,
 } from './helpers/accounts';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -32,11 +33,11 @@ test('re-logging the same account through Add account does not create duplicates
   });
   await expectLoggedInShellStable(page);
   await expectActiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
   const initialSession = await getStoredSessionByUsername(page, primaryCredentials.username);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
 
   await loginWithPassword(page, {
@@ -47,7 +48,7 @@ test('re-logging the same account through Add account does not create duplicates
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
   const sessionStore = await readSessionStore(page);
   expect(sessionStore.sessions).toHaveLength(1);
@@ -58,7 +59,7 @@ test('re-logging the same account through Add account does not create duplicates
   await page.reload();
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
   await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'same-account add-account relogin');
 });

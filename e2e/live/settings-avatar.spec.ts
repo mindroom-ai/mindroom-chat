@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from '../env';
-import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
+import {
+  chooseFromAccountMenu,
+  expectLoggedInShellStable,
+  loginWithPassword,
+  openAccountMenu,
+} from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -21,8 +26,9 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
 
-    await expect(page.getByRole('button', { name: 'Manage accounts' })).toHaveCount(0);
-    await page.getByRole('button', { name: /Open settings for / }).click();
+    await openAccountMenu(page);
+    await expect(page.getByRole('menuitem', { name: 'Manage accounts' })).toHaveCount(0);
+    await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
 
     await expect(
       page.getByText('Switch accounts, add another account, or remove an inactive one.')
@@ -57,8 +63,9 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     });
     await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
-    await expect(page.getByRole('button', { name: 'Manage accounts' })).toBeVisible();
-    await page.getByRole('button', { name: 'Manage accounts' }).click();
+    await openAccountMenu(page);
+    await expect(page.getByRole('menuitem', { name: 'Manage accounts' })).toBeVisible();
+    await page.getByRole('menuitem', { name: 'Manage accounts' }).click();
 
     await expect(page.getByText('Accounts', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(
@@ -66,7 +73,7 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     ).toBeVisible();
 
     await page.getByRole('button', { name: 'Close' }).click();
-    await page.getByRole('button', { name: /Open settings for / }).click();
+    await chooseFromAccountMenu(page, 'Settings');
     await expect(page.getByRole('button', { name: 'General' })).toBeVisible({ timeout: 30_000 });
     await expect(
       page.getByText('Switch accounts, add another account, or remove an inactive one.')

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
-import { accountRailButtonSelector } from '../helpers/auth';
+import { chooseFromAccountMenu, expectAccountRailCount } from '../helpers/auth';
 import { defined } from '../../src/app/test-utils/defined';
 import {
   HOMESERVER,
@@ -115,7 +115,7 @@ test('adds a second account through single sign-on', async ({ page }) => {
   await waitForShell(page);
   await expectActiveUser(page, first);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
 
@@ -125,7 +125,7 @@ test('adds a second account through single sign-on', async ({ page }) => {
   expect(
     new URL(defined(stub.redirectUrls[1], 'the second SSO redirect')).searchParams.get('addAccount')
   ).toBe('1');
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
+  await expectAccountRailCount(page, 3);
 });
 
 test('explains a login token the homeserver rejects', async ({ page }) => {

@@ -7,7 +7,8 @@ import {
 } from './env';
 import { expectActiveStoredUsername, switchToStoredUsername } from './helpers/accounts';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -40,7 +41,7 @@ test('supports three stored accounts with route restore across switches', async 
   await page.goto('/home/create/');
   await expect(page).toHaveURL(/\/home\/create\/?$/);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
     username: secondaryCredentials.username,
@@ -53,7 +54,7 @@ test('supports three stored accounts with route restore across switches', async 
   await page.goto('/home/join/');
   await expect(page).toHaveURL(/\/home\/join\/?$/);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
     username: thirdCredentials.username,
@@ -65,7 +66,7 @@ test('supports three stored accounts with route restore across switches', async 
 
   await page.goto('/home/search/');
   await expect(page).toHaveURL(/\/home\/search\/?$/);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(4);
+  await expectAccountRailCount(page, 4);
 
   await switchToStoredUsername(page, primaryCredentials.username);
   await expect(page).toHaveURL(/\/home\/create\/?$/);
@@ -80,7 +81,7 @@ test('supports three stored accounts with route restore across switches', async 
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, thirdCredentials.username);
   await expect(page).toHaveURL(/\/home\/search\/?$/);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(4);
+  await expectAccountRailCount(page, 4);
 
   await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'three-account add/switch/reload');
 });

@@ -45,7 +45,7 @@ test('survives a homeserver outage without crashing and recovers after reconnect
       }
       if (
         Array.from(document.querySelectorAll('button')).some((button) =>
-          /Open (account switcher|settings) for /.test(button.getAttribute('aria-label') ?? '')
+          /Open account menu for /.test(button.getAttribute('aria-label') ?? '')
         )
       ) {
         return 'shell';

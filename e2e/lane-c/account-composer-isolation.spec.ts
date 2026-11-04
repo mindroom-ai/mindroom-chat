@@ -85,7 +85,7 @@ const signIn = async (page: Page, username: string, addAccount = false) => {
   await page.locator('input[name="passwordInput"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Login' }).click();
   const accountButton = page.getByRole('button', {
-    name: new RegExp(`(account switcher|settings) for @?${username}`),
+    name: new RegExp(`account menu for @?${username}`),
   });
   await expect(accountButton).toBeVisible({ timeout: 120_000 });
 };

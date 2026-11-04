@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch, setAccountData } from '../helpers/matrix';
@@ -202,7 +202,7 @@ for (const [themeId, width] of [
       await expect(
         panel.getByRole('link', { name: '01 · Design studio', exact: true })
       ).toBeVisible();
-      await page.getByRole('button', { name: /Open settings for / }).click();
+      await chooseFromAccountMenu(page, 'Settings');
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
       const settingsHeader = page
         .getByRole('button', { name: 'General', exact: true })

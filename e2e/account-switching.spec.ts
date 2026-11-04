@@ -6,7 +6,8 @@ import {
   switchToStoredUsername,
 } from './helpers/accounts';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -40,7 +41,7 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   await page.goto('/home/create/');
   await expect(page).toHaveURL(/\/home\/create\/?$/);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
 
   await loginWithPassword(page, {
@@ -67,7 +68,7 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   await expect(page).toHaveURL(/\/home\/join\/?$/);
 
   await removeInactiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
   await expectActiveStoredUsername(page, secondaryCredentials.username);
 
   await expectNoUnexpectedBrowserDiagnostics(

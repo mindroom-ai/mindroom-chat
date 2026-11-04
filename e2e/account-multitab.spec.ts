@@ -6,6 +6,7 @@ import {
   switchToStoredUsername,
 } from './helpers/accounts';
 import {
+  chooseFromAccountMenu,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -35,7 +36,7 @@ test('propagates active-account switches across tabs without crashing', async ({
     password: primaryCredentials.password,
   });
   await expectLoggedInShellStable(page);
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
 
   await loginWithPassword(page, {
     homeserver,
@@ -83,7 +84,7 @@ test('propagates logout fallback across tabs without crashing', async ({ page, c
     password: primaryCredentials.password,
   });
   await expectLoggedInShellStable(page);
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
 
   await loginWithPassword(page, {
     homeserver,

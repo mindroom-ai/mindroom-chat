@@ -12,6 +12,7 @@ import {
   removeInactiveStoredUsername,
 } from './helpers/accounts';
 import {
+  chooseFromAccountMenu,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -53,7 +54,7 @@ test('cleans up session-scoped browser storage after account removal and final l
   const primaryIndexedDbNames = await readIndexedDbNames(page);
   primaryDbNames.forEach((name) => expect(primaryIndexedDbNames).toContain(name));
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
     username: secondaryCredentials.username,

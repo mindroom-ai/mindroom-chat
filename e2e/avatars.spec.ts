@@ -173,7 +173,7 @@ const checkAvatars = async (page: Page, seeded: Seeded) => {
     password: seeded.password,
   });
   // The account avatar on the rail.
-  await expectLoaded(page.locator('button[aria-label^="Open settings for "] img'));
+  await expectLoaded(page.locator('button[aria-label^="Open account menu for "] img'));
 
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   await expect(page.getByText('Compare the churn numbers').first()).toBeVisible({

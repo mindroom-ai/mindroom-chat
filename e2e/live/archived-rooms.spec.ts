@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -70,7 +70,7 @@ for (const mobile of [false, true]) {
       await waitForLoggedInShell(page);
       await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0);
       const openArchives = async () => {
-        await page.getByRole('button', { name: /Open settings for / }).click();
+        await chooseFromAccountMenu(page, 'Settings');
         await page.getByRole('button', { name: 'Archived Rooms', exact: true }).click();
       };
       await openArchives();

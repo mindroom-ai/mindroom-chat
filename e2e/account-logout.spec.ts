@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
 import { expectActiveStoredUsername, logoutActiveAccount } from './helpers/accounts';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -33,7 +34,7 @@ test('falls back to the remaining account on logout, then returns to auth after 
   await expectLoggedInShellStable(page);
   await expectActiveStoredUsername(page, primaryCredentials.username);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
 
   await loginWithPassword(page, {
     homeserver,
@@ -43,12 +44,12 @@ test('falls back to the remaining account on logout, then returns to auth after 
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, secondaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
+  await expectAccountRailCount(page, 3);
 
   await logoutActiveAccount(page);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
   await logoutActiveAccount(page);
   await expect(page.locator('input[name="serverInput"]')).toBeVisible();

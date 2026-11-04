@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -36,7 +36,7 @@ test.describe('complete interface localization', () => {
       {}
     );
     await loginWithPassword(page, { homeserver, username, password });
-    await page.getByRole('button', { name: /Open settings for / }).click();
+    await chooseFromAccountMenu(page, 'Settings');
     await page.getByRole('button', { name: 'General', exact: true }).click();
     await page.evaluate(() => {
       (window as Window & { localizationMarker?: string }).localizationMarker = 'same-document';

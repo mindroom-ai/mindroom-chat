@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Dialogs share a session and open sequentially. */
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar, expectScrollbarBounds } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch, sendStateEvent } from '../helpers/matrix';
@@ -141,7 +141,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         window.history.pushState(null, '', '/home');
         window.dispatchEvent(new PopStateEvent('popstate'));
       });
-      await page.getByRole('button', { name: /Open settings for / }).click();
+      await chooseFromAccountMenu(page, 'Settings');
       await page.getByRole('button', { name: 'Emojis & Stickers', exact: true }).click();
       await page.getByRole('button', { name: 'Select', exact: true }).click();
       const packsHeader = page

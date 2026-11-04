@@ -8,15 +8,37 @@ type LoginOptions = {
   addAccount?: boolean;
 };
 
-export const activeAccountButtonNamePattern = /Open (account switcher|settings) for /;
+export const activeAccountButtonNamePattern = /Open account menu for /;
 const failedStartAccountPattern = /Failed to start account/i;
 
-export const accountRailButtonSelector = [
-  'button[aria-label^="Open account switcher for "]',
-  'button[aria-label^="Open settings for "]',
-  'button[aria-label^="Switch to account "]',
-  'button[aria-label="Add account"]',
-].join(', ');
+/** Opens the account menu of the rail's account button. */
+export const openAccountMenu = async (page: Page) => {
+  await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
+  await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
+};
+
+/** Opens the account menu and chooses an entry: Settings, Add Account, an account, Manage Accounts. */
+export const chooseFromAccountMenu = async (page: Page, name: string | RegExp) => {
+  await openAccountMenu(page);
+  await page.getByRole('menuitem', { name, exact: typeof name === 'string' }).click();
+};
+
+/**
+ * Expects `count` account controls, which is the number of signed-in accounts plus one: the
+ * rail's account button and, in its menu, one entry per other account and Add Account. Closes
+ * the menu again.
+ */
+export const expectAccountRailCount = async (page: Page, count: number) => {
+  await openAccountMenu(page);
+  await expect(
+    page
+      .getByRole('button', { name: activeAccountButtonNamePattern })
+      .or(page.getByRole('menuitem', { name: /^Switch to account / }))
+      .or(page.getByRole('menuitem', { name: 'Add Account', exact: true }))
+  ).toHaveCount(count);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menuitem')).toHaveCount(0);
+};
 
 export const waitForLoggedInShell = async (page: Page) => {
   await expect

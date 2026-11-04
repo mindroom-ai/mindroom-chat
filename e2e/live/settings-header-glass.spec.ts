@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Settings pages share one session and must open sequentially. */
 import { expect, test, type Locator } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
@@ -41,7 +41,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         route.fulfill({ json: { connections: [] } })
       );
       await loginWithPassword(page, { homeserver, ...credentials });
-      await page.getByRole('button', { name: /Open settings for / }).click();
+      await chooseFromAccountMenu(page, 'Settings');
 
       const checkHeader = async (header: Locator, name: string) => {
         await expect(header).toBeVisible();

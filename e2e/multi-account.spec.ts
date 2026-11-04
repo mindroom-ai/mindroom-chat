@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -24,9 +25,9 @@ test('adds a second account without leaving the add-account flow', async ({ page
   });
   await expectLoggedInShellStable(page);
 
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
 
@@ -38,5 +39,5 @@ test('adds a second account without leaving the add-account flow', async ({ page
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
+  await expectAccountRailCount(page, 3);
 });

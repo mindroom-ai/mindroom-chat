@@ -6,7 +6,8 @@ import {
   readSessionStore,
 } from './helpers/accounts';
 import {
-  accountRailButtonSelector,
+  chooseFromAccountMenu,
+  expectAccountRailCount,
   expectLoggedInShellStable,
   loginWithPassword,
 } from './helpers/auth';
@@ -37,7 +38,7 @@ test('deactivating the active account removes only that account and leaves the o
   await expectLoggedInShellStable(page);
   await expectActiveStoredUsername(page, primaryCredentials.username);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
     username: deactivationCredentials.username,
@@ -46,13 +47,13 @@ test('deactivating the active account removes only that account and leaves the o
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, deactivationCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
+  await expectAccountRailCount(page, 3);
 
   await deactivateActiveAccount(page, deactivationCredentials.password);
 
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
-  await expect(page.locator(accountRailButtonSelector)).toHaveCount(2);
+  await expectAccountRailCount(page, 2);
 
   await expect
     .poll(async () => {
@@ -61,7 +62,7 @@ test('deactivating the active account removes only that account and leaves the o
     })
     .toEqual([expect.stringMatching(new RegExp(`^@${primaryCredentials.username}:`))]);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
   await page.locator('input[name="usernameInput"]').fill(deactivationCredentials.username);
   await page.locator('input[name="passwordInput"]').fill(deactivationCredentials.password);

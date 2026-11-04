@@ -80,9 +80,10 @@ test('capture styling screenshots', async ({ page }) => {
     await page.screenshot({ path: `${OUT}/${PREFIX}-timeline-dark.png` });
   }
 
-  const settingsBtn = page.locator('button[aria-label^="Open settings"]').first();
+  const settingsBtn = page.locator('button[aria-label^="Open account menu"]').first();
   if (await settingsBtn.isVisible().catch(() => false)) {
     await settingsBtn.click();
+    await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
     await page.waitForTimeout(2500);
     await page.screenshot({ path: `${OUT}/${PREFIX}-settings-dark.png` });
     await page.keyboard.press('Escape');

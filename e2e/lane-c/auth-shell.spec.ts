@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
-import { activeAccountButtonNamePattern, waitForLoggedInShell } from '../helpers/auth';
+import {
+  activeAccountButtonNamePattern,
+  chooseFromAccountMenu,
+  waitForLoggedInShell,
+} from '../helpers/auth';
 
 // The signed-out screens against the disposable homeserver of `just hs-up`: the server field and
 // well-known discovery, a full Matrix ID that names another server, the way back from adding an
@@ -159,7 +163,7 @@ test('leaves an abandoned add-account flow for the current account', async ({ pa
   await page.goto('/home/create/');
   await expect(page).toHaveURL(/\/home\/create\/?$/);
 
-  await page.getByRole('button', { name: 'Add account' }).click();
+  await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
   await page.getByRole('link', { name: 'Back to current account' }).click();
   await expect(page).toHaveURL(/\/home\/create\/?$/);

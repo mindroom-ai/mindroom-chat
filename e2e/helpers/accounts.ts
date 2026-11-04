@@ -1,5 +1,9 @@
 import { expect, Page } from '@playwright/test';
-import { activeAccountButtonNamePattern, expectLoggedInShellStable } from './auth';
+import {
+  activeAccountButtonNamePattern,
+  chooseFromAccountMenu,
+  expectLoggedInShellStable,
+} from './auth';
 
 type BrowserSessionStore = {
   activeSessionId?: string;
@@ -58,17 +62,7 @@ export const expectActiveAccountSwitcherForUsername = async (page: Page, usernam
 };
 
 export const openAccountSwitcher = async (page: Page) => {
-  const manageAccountsButton = page.getByRole('button', { name: 'Manage accounts' });
-  const manageAccountsVisible = await manageAccountsButton
-    .waitFor({ state: 'visible', timeout: 5_000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (manageAccountsVisible) {
-    await manageAccountsButton.click();
-  } else {
-    await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
-  }
+  await chooseFromAccountMenu(page, 'Manage Accounts');
   await expect(page.getByText('Accounts', { exact: true })).toBeVisible();
   await expect(
     page.getByText('Switch accounts, add another account, or remove an inactive one.')
@@ -76,29 +70,13 @@ export const openAccountSwitcher = async (page: Page) => {
 };
 
 export const openSettingsFromAccountRail = async (page: Page) => {
-  const manageAccountsButton = page.getByRole('button', { name: 'Manage accounts' });
-  const manageAccountsVisible = await manageAccountsButton
-    .waitFor({ state: 'visible', timeout: 5_000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (manageAccountsVisible) {
-    await manageAccountsButton.click();
-    await expect(page.getByText('Accounts', { exact: true })).toBeVisible();
-    await expect(
-      page.getByText('Switch accounts, add another account, or remove an inactive one.')
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'Open Settings', exact: true }).click();
-  } else {
-    await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
-  }
-
+  await chooseFromAccountMenu(page, 'Settings');
   await expect(page.getByRole('button', { name: 'General' })).toBeVisible();
 };
 
 export const switchToStoredUsername = async (page: Page, username: string) => {
   const session = await getStoredSessionByUsername(page, username);
-  await page.getByRole('button', { name: new RegExp(escapeRegex(session.userId)) }).click();
+  await chooseFromAccountMenu(page, new RegExp(escapeRegex(session.userId)));
   await expectLoggedInShellStable(page);
   await expectActiveStoredUsername(page, username);
 };
