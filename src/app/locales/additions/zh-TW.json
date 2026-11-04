@@ -1,0 +1,220 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "捲動"
+    },
+    "passwordInput": {
+      "show": "顯示密碼",
+      "hide": "隱藏密碼"
+    },
+    "pdfViewer": {
+      "close": "關閉"
+    },
+    "urlPreviewHolder": {
+      "previous": "上一組連結預覽",
+      "next": "更多連結預覽"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "名稱",
+      "cancel": "取消",
+      "skinTone": "膚色",
+      "skinTones": {
+        "default": "預設膚色",
+        "light": "淺膚色",
+        "mediumLight": "中等偏淺膚色",
+        "medium": "中等膚色",
+        "mediumDark": "中等偏深膚色",
+        "dark": "深膚色"
+      }
+    },
+    "eventReaders": {
+      "close": "關閉"
+    },
+    "imagePackContent": {
+      "uploadFailed": "無法上傳圖片，請再試一次。",
+      "noImages": "還沒有圖片。"
+    },
+    "imagePackView": {
+      "close": "關閉",
+      "back": "返回"
+    },
+    "imageTile": {
+      "remove": "移除",
+      "editImage": "編輯 :{{shortcode}}:",
+      "removeImage": "移除 :{{shortcode}}:",
+      "keepImage": "保留 :{{shortcode}}:",
+      "removedOnApply": "套用變更後將會移除",
+      "usage": "用作",
+      "shortcodeTaken": "另一張圖片已使用這個簡碼。",
+      "shortcodeInvalid": "簡碼不能包含空格或冒號。"
+    },
+    "imageUsageOption": {
+      "pack": "與套件相同"
+    },
+    "imageViewer": {
+      "close": "關閉"
+    },
+    "inviteUserPrompt": {
+      "close": "關閉"
+    },
+    "joinAddressPrompt": {
+      "close": "關閉"
+    },
+    "textViewer": {
+      "close": "關閉"
+    },
+    "invites": {
+      "actionFailed": "發生錯誤，請再試一次。"
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "搜尋使用者或輸入使用者 ID"
+    },
+    "leaveRoomPrompt": {
+      "close": "關閉",
+      "forget": "忘記這個房間",
+      "forgetDescription": "同時將它從您的帳戶中移除，包括聊天記錄。如果房間允許，您之後仍可重新加入。"
+    },
+    "memberFilters": {
+      "label": "顯示成員"
+    },
+    "memberSort": {
+      "label": "排序成員"
+    },
+    "a11y": {
+      "mainNavigation": "主要導覽",
+      "skipToContent": "跳至內容",
+      "newMessage": "{{sender}}：{{body}}"
+    },
+    "roomCard": {
+      "forget": "忘記房間"
+    },
+    "userRoomProfile": {
+      "editProfile": "編輯個人資料"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "刪除 {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "請為事件指定型別，並提供一個 JSON 物件作為內容。"
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "個人包",
+          "imageCount_other": "{{count}} 張圖片，可在每個房間中使用"
+        }
+      },
+      "devices": {
+        "loadFailed": "無法載入您的裝置。"
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "解除封鎖"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "移除"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "無法開始聊天，請再試一次。"
+    },
+    "homeNav": {
+      "options": "首頁選項"
+    },
+    "directNav": {
+      "options": "私訊選項"
+    },
+    "spaceNav": {
+      "options": "空間選項"
+    },
+    "calls": {
+      "panel": {
+        "title": "通話",
+        "close": "關閉通話面板",
+        "participants": "通話中的人",
+        "connecting": "正在連線…",
+        "reconnecting": "正在重新連線…",
+        "ended": "通話已結束。",
+        "waitingFor": "正在等待 {{name}}…",
+        "you": "{{name}}（您）",
+        "microphoneOff": "麥克風已關閉",
+        "inCall_other": "通話中有 {{count}} 人",
+        "startCall": "開始通話",
+        "startVideoCall": "開始視訊通話",
+        "dismiss": "關閉",
+        "audioBlocked": "瀏覽器暫停了通話的聲音。",
+        "playSound": "播放聲音",
+        "resize": "調整通話面板大小"
+      },
+      "problems": {
+        "service": "無法連線至通話服務，請稍後再試。",
+        "connection": "通話連線已中斷。",
+        "device": "無法使用您的麥克風或攝影機。"
+      },
+      "devices": {
+        "title": "裝置",
+        "microphone": "麥克風",
+        "camera": "攝影機",
+        "speaker": "喇叭",
+        "systemDefault": "系統預設",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "發起通話",
+        "joinCall": "加入通話",
+        "joinCallCount_other": "加入通話，目前有 {{count}} 人",
+        "showCall": "顯示通話",
+        "hideCall": "隱藏通話"
+      },
+      "rail": {
+        "returnToCall": "返回 {{room}} 中的通話"
+      },
+      "incoming": {
+        "calling": "{{name}} 來電",
+        "callingIn": "{{name}} 在 {{room}} 中發起通話",
+        "videoCall": "視訊通話",
+        "voiceCall": "語音通話"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "已思考"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "搜尋失敗，請再試一次。"
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "邀請",
+        "body_other": "您有 {{count}} 個新邀請。"
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "緊湊檢視"
+      }
+    },
+    "computer": {
+      "resize": "調整電腦面板大小",
+      "close": "關閉電腦"
+    }
+  },
+  "composer": {
+    "emoji": "表情符號",
+    "cancelReply": "取消回覆"
+  }
+}
