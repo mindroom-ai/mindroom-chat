@@ -1,4 +1,32 @@
 {
+  "errors": {
+    "noConnection": "Impossibile raggiungere il server. Controlla la connessione e riprova.",
+    "timedOut": "La richiesta non è stata completata. Riprova.",
+    "rateLimited": "Troppe richieste. Attendi un momento e riprova.",
+    "rateLimitedSeconds_one": "Troppe richieste. Riprova tra {{count}} secondo.",
+    "rateLimitedSeconds_many": "Troppe richieste. Riprova tra {{count}} di secondi.",
+    "rateLimitedSeconds_other": "Troppe richieste. Riprova tra {{count}} secondi.",
+    "rateLimitedMinutes_one": "Troppe richieste. Riprova tra {{count}} minuto.",
+    "rateLimitedMinutes_many": "Troppe richieste. Riprova tra {{count}} di minuti.",
+    "rateLimitedMinutes_other": "Troppe richieste. Riprova tra {{count}} minuti.",
+    "forbidden": "Non hai l’autorizzazione per farlo.",
+    "signedOut": "La sessione è terminata. Accedi di nuovo.",
+    "accountDeactivated": "Questo account è stato disattivato.",
+    "notFound": "Il server non l’ha trovato. Potrebbe essere stato rimosso.",
+    "unsupported": "Questo server non lo supporta.",
+    "tooLarge": "È troppo grande per il server.",
+    "unsupportedRoomVersion": "Il server non supporta questa versione della stanza.",
+    "addressTaken": "Questo indirizzo è già in uso. Scegline un altro.",
+    "invalidRequest": "Il server non ha accettato questa richiesta.",
+    "serverLimit": "Il server ha raggiunto un limite di utilizzo. Contatta il suo amministratore.",
+    "serverProblem": "Il server ha avuto un problema. Riprova più tardi.",
+    "serverRefused": "Il server non è riuscito a completare questa richiesta.",
+    "storageBlocked": "Questo browser non è riuscito a salvare l’elenco degli account. Controlla le autorizzazioni di archiviazione del sito e riprova.",
+    "unknown": "Qualcosa è andato storto.",
+    "cryptoStoreMissing": "Manca l’archivio di crittografia di questo account, ma l’accesso del dispositivo è ancora presente. Continuare sostituirebbe l’identità di questo dispositivo e renderebbe illeggibili i messaggi e le chiamate crittografati sugli altri dispositivi. Rimuovi questo account, poi accedi di nuovo.",
+    "deviceIdentityUnverified": "MindRoom non è riuscito a verificare in modo sicuro l’archivio di crittografia e l’identità del dispositivo di questo account. Controlla la connessione e l’accesso del browser all’archiviazione, poi riprova. Nessuna chiave di crittografia è stata modificata.",
+    "notKeyExport": "Questo file non è un’esportazione di chiavi delle stanze."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Scorrimento"

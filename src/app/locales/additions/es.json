@@ -1,4 +1,32 @@
 {
+  "errors": {
+    "noConnection": "No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+    "timedOut": "La solicitud no terminó. Inténtalo de nuevo.",
+    "rateLimited": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
+    "rateLimitedSeconds_one": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} segundo.",
+    "rateLimitedSeconds_many": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} de segundos.",
+    "rateLimitedSeconds_other": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} segundos.",
+    "rateLimitedMinutes_one": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} minuto.",
+    "rateLimitedMinutes_many": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} de minutos.",
+    "rateLimitedMinutes_other": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} minutos.",
+    "forbidden": "No tienes permiso para hacer esto.",
+    "signedOut": "Tu sesión ha terminado. Vuelve a iniciar sesión.",
+    "accountDeactivated": "Esta cuenta se ha desactivado.",
+    "notFound": "El servidor no lo encontró. Puede que se haya eliminado.",
+    "unsupported": "Este servidor no admite esto.",
+    "tooLarge": "Es demasiado grande para el servidor.",
+    "unsupportedRoomVersion": "El servidor no admite esta versión de sala.",
+    "addressTaken": "Esta dirección ya está en uso. Elige otra.",
+    "invalidRequest": "El servidor no aceptó esta solicitud.",
+    "serverLimit": "El servidor alcanzó un límite de uso. Contacta con su administrador.",
+    "serverProblem": "El servidor tuvo un problema. Inténtalo de nuevo más tarde.",
+    "serverRefused": "El servidor no pudo completar esta solicitud.",
+    "storageBlocked": "Este navegador no pudo guardar la lista de cuentas. Comprueba los permisos de almacenamiento del sitio e inténtalo de nuevo.",
+    "unknown": "Algo salió mal.",
+    "cryptoStoreMissing": "Falta el almacenamiento de cifrado de esta cuenta, pero el inicio de sesión del dispositivo sigue aquí. Continuar reemplazaría la identidad de este dispositivo y haría ilegibles los mensajes y las llamadas cifrados en otros dispositivos. Elimina esta cuenta y vuelve a iniciar sesión.",
+    "deviceIdentityUnverified": "MindRoom no pudo comprobar de forma segura el almacenamiento de cifrado y la identidad del dispositivo de esta cuenta. Comprueba tu conexión y el acceso del navegador al almacenamiento, y vuelve a intentarlo. No se cambió ninguna clave de cifrado.",
+    "notKeyExport": "Este archivo no es una exportación de claves de sala."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Desplazamiento"

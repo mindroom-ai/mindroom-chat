@@ -1,4 +1,32 @@
 {
+  "errors": {
+    "noConnection": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+    "timedOut": "La requête n’a pas abouti. Réessayez.",
+    "rateLimited": "Trop de requêtes. Patientez un instant et réessayez.",
+    "rateLimitedSeconds_one": "Trop de requêtes. Réessayez dans {{count}} seconde.",
+    "rateLimitedSeconds_many": "Trop de requêtes. Réessayez dans {{count}} de secondes.",
+    "rateLimitedSeconds_other": "Trop de requêtes. Réessayez dans {{count}} secondes.",
+    "rateLimitedMinutes_one": "Trop de requêtes. Réessayez dans {{count}} minute.",
+    "rateLimitedMinutes_many": "Trop de requêtes. Réessayez dans {{count}} de minutes.",
+    "rateLimitedMinutes_other": "Trop de requêtes. Réessayez dans {{count}} minutes.",
+    "forbidden": "Vous n’avez pas l’autorisation de faire cela.",
+    "signedOut": "Votre session a pris fin. Reconnectez-vous.",
+    "accountDeactivated": "Ce compte a été désactivé.",
+    "notFound": "Le serveur ne l’a pas trouvé. Il a peut-être été supprimé.",
+    "unsupported": "Ce serveur ne prend pas cela en charge.",
+    "tooLarge": "C’est trop volumineux pour le serveur.",
+    "unsupportedRoomVersion": "Le serveur ne prend pas en charge cette version de salon.",
+    "addressTaken": "Cette adresse est déjà utilisée. Choisissez-en une autre.",
+    "invalidRequest": "Le serveur n’a pas accepté cette requête.",
+    "serverLimit": "Le serveur a atteint une limite d’utilisation. Contactez son administrateur.",
+    "serverProblem": "Le serveur a rencontré un problème. Réessayez plus tard.",
+    "serverRefused": "Le serveur n’a pas pu traiter cette requête.",
+    "storageBlocked": "Ce navigateur n’a pas pu enregistrer la liste des comptes. Vérifiez les autorisations de stockage du site et réessayez.",
+    "unknown": "Une erreur s’est produite.",
+    "cryptoStoreMissing": "Le stockage de chiffrement de ce compte est manquant, mais la connexion de l’appareil est toujours là. Continuer remplacerait l’identité de cet appareil et rendrait les messages et appels chiffrés illisibles sur les autres appareils. Supprimez ce compte, puis reconnectez-vous.",
+    "deviceIdentityUnverified": "MindRoom n’a pas pu vérifier en toute sécurité le stockage de chiffrement et l’identité de l’appareil de ce compte. Vérifiez votre connexion et l’accès du navigateur au stockage, puis réessayez. Aucune clé de chiffrement n’a été modifiée.",
+    "notKeyExport": "Ce fichier n’est pas un export de clés de salon."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Défilement"

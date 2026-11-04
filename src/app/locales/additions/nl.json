@@ -1,4 +1,30 @@
 {
+  "errors": {
+    "noConnection": "Kan de server niet bereiken. Controleer je verbinding en probeer het opnieuw.",
+    "timedOut": "Het verzoek is niet voltooid. Probeer het opnieuw.",
+    "rateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw.",
+    "rateLimitedSeconds_one": "Te veel verzoeken. Probeer het over {{count}} seconde opnieuw.",
+    "rateLimitedSeconds_other": "Te veel verzoeken. Probeer het over {{count}} seconden opnieuw.",
+    "rateLimitedMinutes_one": "Te veel verzoeken. Probeer het over {{count}} minuut opnieuw.",
+    "rateLimitedMinutes_other": "Te veel verzoeken. Probeer het over {{count}} minuten opnieuw.",
+    "forbidden": "Je hebt hier geen toestemming voor.",
+    "signedOut": "Je sessie is beëindigd. Log opnieuw in.",
+    "accountDeactivated": "Dit account is gedeactiveerd.",
+    "notFound": "De server kon dit niet vinden. Misschien is het verwijderd.",
+    "unsupported": "Deze server ondersteunt dit niet.",
+    "tooLarge": "Dit is te groot voor de server.",
+    "unsupportedRoomVersion": "De server ondersteunt deze kamerversie niet.",
+    "addressTaken": "Dit adres is al in gebruik. Kies een ander adres.",
+    "invalidRequest": "De server heeft dit verzoek niet geaccepteerd.",
+    "serverLimit": "De server heeft een gebruikslimiet bereikt. Neem contact op met de beheerder.",
+    "serverProblem": "Er ging iets mis op de server. Probeer het later opnieuw.",
+    "serverRefused": "De server kon dit verzoek niet uitvoeren.",
+    "storageBlocked": "Deze browser kon de accountlijst niet opslaan. Controleer de opslagrechten van de site en probeer het opnieuw.",
+    "unknown": "Er ging iets mis.",
+    "cryptoStoreMissing": "De versleutelingsopslag van dit account ontbreekt, maar de aanmelding van het apparaat is er nog. Doorgaan zou de identiteit van dit apparaat vervangen en versleutelde berichten en gesprekken op andere apparaten onleesbaar maken. Verwijder dit account en log daarna opnieuw in.",
+    "deviceIdentityUnverified": "MindRoom kon de versleutelingsopslag en apparaatidentiteit van dit account niet veilig controleren. Controleer je verbinding en de opslagtoegang van de browser en probeer het daarna opnieuw. Er zijn geen versleutelingssleutels gewijzigd.",
+    "notKeyExport": "Dit bestand is geen export van kamersleutels."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Scrollen"

@@ -1,4 +1,28 @@
 {
+  "errors": {
+    "noConnection": "Tidak dapat menjangkau server. Periksa koneksi Anda dan coba lagi.",
+    "timedOut": "Permintaan tidak selesai. Coba lagi.",
+    "rateLimited": "Terlalu banyak permintaan. Tunggu sebentar dan coba lagi.",
+    "rateLimitedSeconds_other": "Terlalu banyak permintaan. Coba lagi dalam {{count}} detik.",
+    "rateLimitedMinutes_other": "Terlalu banyak permintaan. Coba lagi dalam {{count}} menit.",
+    "forbidden": "Anda tidak memiliki izin untuk melakukan ini.",
+    "signedOut": "Sesi Anda telah berakhir. Login lagi.",
+    "accountDeactivated": "Akun ini telah dinonaktifkan.",
+    "notFound": "Server tidak dapat menemukannya. Mungkin sudah dihapus.",
+    "unsupported": "Server ini tidak mendukung hal ini.",
+    "tooLarge": "Ini terlalu besar untuk server.",
+    "unsupportedRoomVersion": "Server tidak mendukung versi ruang ini.",
+    "addressTaken": "Alamat ini sudah digunakan. Pilih alamat lain.",
+    "invalidRequest": "Server tidak menerima permintaan ini.",
+    "serverLimit": "Server telah mencapai batas penggunaan. Hubungi administratornya.",
+    "serverProblem": "Server mengalami masalah. Coba lagi nanti.",
+    "serverRefused": "Server tidak dapat menyelesaikan permintaan ini.",
+    "storageBlocked": "Browser ini tidak dapat menyimpan daftar akun. Periksa izin penyimpanan situs ini dan coba lagi.",
+    "unknown": "Terjadi kesalahan.",
+    "cryptoStoreMissing": "Penyimpanan enkripsi akun ini hilang, tetapi login perangkatnya masih ada. Melanjutkan akan mengganti identitas perangkat ini dan membuat pesan serta panggilan terenkripsi tidak dapat dibaca di perangkat lain. Hapus akun ini, lalu login lagi.",
+    "deviceIdentityUnverified": "MindRoom tidak dapat memeriksa penyimpanan enkripsi dan identitas perangkat akun ini dengan aman. Periksa koneksi Anda dan akses penyimpanan browser, lalu coba lagi. Tidak ada kunci enkripsi yang diubah.",
+    "notKeyExport": "File ini bukan ekspor kunci ruang."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Gulir"

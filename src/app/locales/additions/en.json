@@ -1,4 +1,30 @@
 {
+  "errors": {
+    "noConnection": "Couldn't reach the server. Check your connection and try again.",
+    "timedOut": "The request didn't finish. Try again.",
+    "rateLimited": "Too many requests. Wait a moment and try again.",
+    "rateLimitedSeconds_one": "Too many requests. Try again in {{count}} second.",
+    "rateLimitedSeconds_other": "Too many requests. Try again in {{count}} seconds.",
+    "rateLimitedMinutes_one": "Too many requests. Try again in {{count}} minute.",
+    "rateLimitedMinutes_other": "Too many requests. Try again in {{count}} minutes.",
+    "forbidden": "You don't have permission to do this.",
+    "signedOut": "Your session has ended. Sign in again.",
+    "accountDeactivated": "This account has been deactivated.",
+    "notFound": "The server couldn't find this. It may have been removed.",
+    "unsupported": "This server doesn't support this.",
+    "tooLarge": "This is too large for the server.",
+    "unsupportedRoomVersion": "The server doesn't support this room version.",
+    "addressTaken": "This address is already in use. Choose another one.",
+    "invalidRequest": "The server didn't accept this request.",
+    "serverLimit": "The server has reached a usage limit. Contact its administrator.",
+    "serverProblem": "The server ran into a problem. Try again later.",
+    "serverRefused": "The server couldn't complete this request.",
+    "storageBlocked": "This browser couldn't save the account list. Check the site's storage permissions and try again.",
+    "unknown": "Something went wrong.",
+    "cryptoStoreMissing": "This account's encryption storage is missing, but its device sign-in is still here. Continuing would replace this device's identity and make encrypted messages and calls unreadable on other devices. Remove this account, then sign in again.",
+    "deviceIdentityUnverified": "MindRoom couldn't safely check this account's encryption storage and device identity. Check your connection and the browser's storage access, then try again. No encryption keys were changed.",
+    "notKeyExport": "This file isn't a room key export."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Scroll"

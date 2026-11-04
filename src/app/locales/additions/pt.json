@@ -1,4 +1,32 @@
 {
+  "errors": {
+    "noConnection": "Não foi possível contactar o servidor. Verifique a sua ligação e tente novamente.",
+    "timedOut": "O pedido não terminou. Tente novamente.",
+    "rateLimited": "Demasiados pedidos. Aguarde um momento e tente novamente.",
+    "rateLimitedSeconds_one": "Demasiados pedidos. Tente novamente dentro de {{count}} segundo.",
+    "rateLimitedSeconds_many": "Demasiados pedidos. Tente novamente dentro de {{count}} de segundos.",
+    "rateLimitedSeconds_other": "Demasiados pedidos. Tente novamente dentro de {{count}} segundos.",
+    "rateLimitedMinutes_one": "Demasiados pedidos. Tente novamente dentro de {{count}} minuto.",
+    "rateLimitedMinutes_many": "Demasiados pedidos. Tente novamente dentro de {{count}} de minutos.",
+    "rateLimitedMinutes_other": "Demasiados pedidos. Tente novamente dentro de {{count}} minutos.",
+    "forbidden": "Não tem permissão para fazer isto.",
+    "signedOut": "A sua sessão terminou. Inicie sessão novamente.",
+    "accountDeactivated": "Esta conta foi desativada.",
+    "notFound": "O servidor não o encontrou. Pode ter sido removido.",
+    "unsupported": "Este servidor não suporta isto.",
+    "tooLarge": "É demasiado grande para o servidor.",
+    "unsupportedRoomVersion": "O servidor não suporta esta versão da sala.",
+    "addressTaken": "Este endereço já está a ser utilizado. Escolha outro.",
+    "invalidRequest": "O servidor não aceitou este pedido.",
+    "serverLimit": "O servidor atingiu um limite de utilização. Contacte o respetivo administrador.",
+    "serverProblem": "O servidor teve um problema. Tente novamente mais tarde.",
+    "serverRefused": "O servidor não conseguiu concluir este pedido.",
+    "storageBlocked": "Este navegador não conseguiu guardar a lista de contas. Verifique as permissões de armazenamento do site e tente novamente.",
+    "unknown": "Ocorreu um erro.",
+    "cryptoStoreMissing": "O armazenamento de encriptação desta conta está em falta, mas o início de sessão do dispositivo ainda existe. Continuar substituiria a identidade deste dispositivo e tornaria as mensagens e chamadas encriptadas ilegíveis noutros dispositivos. Remova esta conta e, em seguida, inicie sessão novamente.",
+    "deviceIdentityUnverified": "O MindRoom não conseguiu verificar com segurança o armazenamento de encriptação e a identidade do dispositivo desta conta. Verifique a sua ligação e o acesso do navegador ao armazenamento e tente novamente. Nenhuma chave de encriptação foi alterada.",
+    "notKeyExport": "Este ficheiro não é uma exportação de chaves de sala."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Deslocamento"

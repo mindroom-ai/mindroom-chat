@@ -1,4 +1,28 @@
 {
+  "errors": {
+    "noConnection": "无法连接到服务器。请检查您的网络连接，然后重试。",
+    "timedOut": "请求未完成，请重试。",
+    "rateLimited": "请求过多。请稍等片刻后重试。",
+    "rateLimitedSeconds_other": "请求过多。请在 {{count}} 秒后重试。",
+    "rateLimitedMinutes_other": "请求过多。请在 {{count}} 分钟后重试。",
+    "forbidden": "您没有执行此操作的权限。",
+    "signedOut": "您的会话已结束，请重新登录。",
+    "accountDeactivated": "该账户已被停用。",
+    "notFound": "服务器找不到此内容，它可能已被删除。",
+    "unsupported": "此服务器不支持此操作。",
+    "tooLarge": "内容过大，服务器无法接受。",
+    "unsupportedRoomVersion": "服务器不支持此房间版本。",
+    "addressTaken": "此地址已被使用，请选择其他地址。",
+    "invalidRequest": "服务器未接受此请求。",
+    "serverLimit": "服务器已达到使用限制，请联系其管理员。",
+    "serverProblem": "服务器出现问题，请稍后重试。",
+    "serverRefused": "服务器无法完成此请求。",
+    "storageBlocked": "此浏览器无法保存账户列表。请检查该网站的存储权限，然后重试。",
+    "unknown": "出了点问题。",
+    "cryptoStoreMissing": "此账户的加密存储已丢失，但其设备登录仍然存在。继续操作将替换此设备的身份，并使其他设备上的加密消息和通话无法读取。请移除此账户，然后重新登录。",
+    "deviceIdentityUnverified": "MindRoom 无法安全地检查此账户的加密存储和设备身份。请检查您的网络连接和浏览器的存储访问权限，然后重试。没有更改任何加密密钥。",
+    "notKeyExport": "此文件不是房间密钥导出文件。"
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "滚动"

@@ -1,4 +1,28 @@
 {
+  "errors": {
+    "noConnection": "無法連線到伺服器。請檢查您的網路連線，然後再試一次。",
+    "timedOut": "請求未完成，請再試一次。",
+    "rateLimited": "請求過多。請稍候片刻再試一次。",
+    "rateLimitedSeconds_other": "請求過多。請在 {{count}} 秒後再試一次。",
+    "rateLimitedMinutes_other": "請求過多。請在 {{count}} 分鐘後再試一次。",
+    "forbidden": "您沒有執行此操作的權限。",
+    "signedOut": "您的工作階段已結束，請重新登入。",
+    "accountDeactivated": "該帳號已停用。",
+    "notFound": "伺服器找不到此內容，它可能已被移除。",
+    "unsupported": "此伺服器不支援此操作。",
+    "tooLarge": "內容過大，伺服器無法接受。",
+    "unsupportedRoomVersion": "伺服器不支援此房間版本。",
+    "addressTaken": "此地址已被使用，請選擇其他地址。",
+    "invalidRequest": "伺服器未接受此請求。",
+    "serverLimit": "伺服器已達到使用限制，請聯絡其管理員。",
+    "serverProblem": "伺服器發生問題，請稍後再試一次。",
+    "serverRefused": "伺服器無法完成此請求。",
+    "storageBlocked": "此瀏覽器無法儲存帳號清單。請檢查該網站的儲存權限，然後再試一次。",
+    "unknown": "發生錯誤。",
+    "cryptoStoreMissing": "此帳號的加密儲存空間已遺失，但其裝置登入仍然存在。繼續將取代此裝置的身分，並使其他裝置上的加密訊息和通話無法讀取。請移除此帳號，然後重新登入。",
+    "deviceIdentityUnverified": "MindRoom 無法安全地檢查此帳號的加密儲存空間和裝置身分。請檢查您的網路連線和瀏覽器的儲存存取權限，然後再試一次。未變更任何加密金鑰。",
+    "notKeyExport": "此檔案不是房間金鑰匯出檔。"
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "捲動"

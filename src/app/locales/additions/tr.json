@@ -1,4 +1,30 @@
 {
+  "errors": {
+    "noConnection": "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+    "timedOut": "İstek tamamlanmadı. Tekrar deneyin.",
+    "rateLimited": "Çok fazla istek. Biraz bekleyip tekrar deneyin.",
+    "rateLimitedSeconds_one": "Çok fazla istek. {{count}} saniye sonra tekrar deneyin.",
+    "rateLimitedSeconds_other": "Çok fazla istek. {{count}} saniye sonra tekrar deneyin.",
+    "rateLimitedMinutes_one": "Çok fazla istek. {{count}} dakika sonra tekrar deneyin.",
+    "rateLimitedMinutes_other": "Çok fazla istek. {{count}} dakika sonra tekrar deneyin.",
+    "forbidden": "Bunu yapma izniniz yok.",
+    "signedOut": "Oturumunuz sona erdi. Tekrar giriş yapın.",
+    "accountDeactivated": "Bu hesap devre dışı bırakıldı.",
+    "notFound": "Sunucu bunu bulamadı. Kaldırılmış olabilir.",
+    "unsupported": "Bu sunucu bunu desteklemiyor.",
+    "tooLarge": "Bu, sunucu için çok büyük.",
+    "unsupportedRoomVersion": "Sunucu bu oda sürümünü desteklemiyor.",
+    "addressTaken": "Bu adres zaten kullanılıyor. Başka bir adres seçin.",
+    "invalidRequest": "Sunucu bu isteği kabul etmedi.",
+    "serverLimit": "Sunucu bir kullanım sınırına ulaştı. Yöneticisiyle iletişime geçin.",
+    "serverProblem": "Sunucuda bir sorun oluştu. Daha sonra tekrar deneyin.",
+    "serverRefused": "Sunucu bu isteği tamamlayamadı.",
+    "storageBlocked": "Bu tarayıcı hesap listesini kaydedemedi. Sitenin depolama izinlerini kontrol edip tekrar deneyin.",
+    "unknown": "Bir şeyler ters gitti.",
+    "cryptoStoreMissing": "Bu hesabın şifreleme deposu eksik, ancak cihazdaki girişi hâlâ duruyor. Devam etmek bu cihazın kimliğini değiştirir ve şifreli mesajları ve aramaları diğer cihazlarda okunamaz hale getirir. Bu hesabı kaldırın, ardından tekrar giriş yapın.",
+    "deviceIdentityUnverified": "MindRoom bu hesabın şifreleme deposunu ve cihaz kimliğini güvenli şekilde doğrulayamadı. Bağlantınızı ve tarayıcının depolama erişimini kontrol edin, ardından tekrar deneyin. Hiçbir şifreleme anahtarı değiştirilmedi.",
+    "notKeyExport": "Bu dosya bir oda anahtarı dışa aktarımı değil."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "Kaydırma"

@@ -1,4 +1,28 @@
 {
+  "errors": {
+    "noConnection": "서버에 연결하지 못했습니다. 연결을 확인한 후 다시 시도하세요.",
+    "timedOut": "요청이 완료되지 않았습니다. 다시 시도하세요.",
+    "rateLimited": "요청이 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
+    "rateLimitedSeconds_other": "요청이 너무 많습니다. {{count}}초 후에 다시 시도하세요.",
+    "rateLimitedMinutes_other": "요청이 너무 많습니다. {{count}}분 후에 다시 시도하세요.",
+    "forbidden": "이 작업을 수행할 권한이 없습니다.",
+    "signedOut": "세션이 종료되었습니다. 다시 로그인하세요.",
+    "accountDeactivated": "이 계정은 비활성화되었습니다.",
+    "notFound": "서버에서 찾을 수 없습니다. 삭제되었을 수 있습니다.",
+    "unsupported": "이 서버는 이 기능을 지원하지 않습니다.",
+    "tooLarge": "서버가 받기에는 너무 큽니다.",
+    "unsupportedRoomVersion": "서버가 이 방 버전을 지원하지 않습니다.",
+    "addressTaken": "이 주소는 이미 사용 중입니다. 다른 주소를 선택하세요.",
+    "invalidRequest": "서버가 이 요청을 받아들이지 않았습니다.",
+    "serverLimit": "서버가 사용 한도에 도달했습니다. 서버 관리자에게 문의하세요.",
+    "serverProblem": "서버에 문제가 발생했습니다. 나중에 다시 시도하세요.",
+    "serverRefused": "서버가 이 요청을 완료하지 못했습니다.",
+    "storageBlocked": "이 브라우저가 계정 목록을 저장하지 못했습니다. 사이트의 저장소 권한을 확인한 후 다시 시도하세요.",
+    "unknown": "문제가 발생했습니다.",
+    "cryptoStoreMissing": "이 계정의 암호화 저장소가 없지만 기기 로그인은 아직 남아 있습니다. 계속하면 이 기기의 ID가 바뀌어 다른 기기에서 암호화된 메시지와 통화를 읽을 수 없게 됩니다. 이 계정을 제거한 후 다시 로그인하세요.",
+    "deviceIdentityUnverified": "MindRoom이 이 계정의 암호화 저장소와 기기 ID를 안전하게 확인하지 못했습니다. 연결과 브라우저의 저장소 접근 권한을 확인한 후 다시 시도하세요. 암호화 키는 변경되지 않았습니다.",
+    "notKeyExport": "이 파일은 방 키 내보내기 파일이 아닙니다."
+  },
   "sharedUi": {
     "pageScroll": {
       "scrollbar": "스크롤"
