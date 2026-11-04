@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -25,6 +26,7 @@ import {
 } from 'folds';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { AddCustomEmoji } from './components/AddCustomEmoji';
+import { SkinToneButton, SkinToneOptions } from './components/SkinToneChooser';
 import * as css from './components/styles.css';
 import { VirtualTile } from '../virtualizer';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -33,8 +35,9 @@ import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { addRecentEmoji } from '../../plugins/recent-emoji';
-import { EmojiGroupId, type IEmoji, emojiGroups } from '../../plugins/emoji';
+import { EmojiGroupId, type IEmoji, emojiGroups, withSkinTone } from '../../plugins/emoji';
 import { type ImagePack, ImageUsage, PackImageReader } from '../../plugins/custom-emoji';
+import { emojiSkinToneAtom } from '../../state/emojiSkinTone';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { stopPropagation } from '../../utils/keyboard';
@@ -217,6 +220,8 @@ export function EmojiBoard(props: EmojiBoardProps) {
   const [query, setQuery] = useState('');
   const [hovered, setHovered] = useState<BoardItem>();
   const [addFile, setAddFile] = useState<File>();
+  const [tone, setTone] = useAtom(emojiSkinToneAtom);
+  const [choosingTone, setChoosingTone] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pickFile = useFilePicker(setAddFile, false, 'image/*');
 
@@ -257,11 +262,11 @@ export function EmojiBoard(props: EmojiBoardProps) {
       id: `emoji-${group.id}`,
       label: t(EMOJI_GROUP_PRESENTATION[group.id].labelKey),
       icon: EMOJI_GROUP_PRESENTATION[group.id].icon,
-      items: group.emojis.map(toUnicodeItem),
+      items: group.emojis.map((emoji) => toUnicodeItem(withSkinTone(emoji, tone))),
     }));
 
     return [...recentGroups, ...packGroups, ...unicodeGroups];
-  }, [packs, usage, stickerTab, recentEmoji, t]);
+  }, [packs, usage, stickerTab, recentEmoji, tone, t]);
 
   const visibleGroups = useMemo<BoardGroup[]>(() => {
     const trimmed = query.trim();
@@ -445,19 +450,38 @@ export function EmojiBoard(props: EmojiBoardProps) {
           </div>
         </Scroll>
         <Box className={css.Preview}>
-          {hovered?.type === EmojiType.Emoji && (
-            <span className={css.PreviewEmoji}>{hovered.data}</span>
-          )}
-          {hovered && hovered.type !== EmojiType.Emoji && (
-            <img
-              className={css.PreviewImg}
-              src={imageSrc(client, hovered.data, authMedia, 64)}
-              alt={hovered.shortcode}
+          {stickerTab || !choosingTone ? (
+            <>
+              {hovered?.type === EmojiType.Emoji && (
+                <span className={css.PreviewEmoji}>{hovered.data}</span>
+              )}
+              {hovered && hovered.type !== EmojiType.Emoji && (
+                <img
+                  className={css.PreviewImg}
+                  src={imageSrc(client, hovered.data, authMedia, 64)}
+                  alt={hovered.shortcode}
+                />
+              )}
+              <Text size="H6" truncate style={{ flexGrow: 1, minWidth: 0 }}>
+                {hovered ? `:${hovered.shortcode}:` : ''}
+              </Text>
+            </>
+          ) : (
+            <SkinToneOptions
+              tone={tone}
+              onChoose={(next) => {
+                setTone(next);
+                setChoosingTone(false);
+              }}
             />
           )}
-          <Text size="H6" truncate>
-            {hovered ? `:${hovered.shortcode}:` : ''}
-          </Text>
+          {!stickerTab && (
+            <SkinToneButton
+              tone={tone}
+              expanded={choosingTone}
+              onPress={() => setChoosingTone((open) => !open)}
+            />
+          )}
         </Box>
       </>
     );

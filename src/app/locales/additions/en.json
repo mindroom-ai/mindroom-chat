@@ -16,7 +16,16 @@
     },
     "emojiBoard": {
       "addCustomEmojiName": "Name",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "skinTone": "Skin tone",
+      "skinTones": {
+        "default": "Default skin tone",
+        "light": "Light skin tone",
+        "mediumLight": "Medium-light skin tone",
+        "medium": "Medium skin tone",
+        "mediumDark": "Medium-dark skin tone",
+        "dark": "Dark skin tone"
+      }
     },
     "eventReaders": {
       "close": "Close"
