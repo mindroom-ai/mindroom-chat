@@ -22,6 +22,12 @@ export const SheetBody = style({
   paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
 });
 
+// The sheet's title lines up with the filters under it; its close button keeps to the corner.
+globalStyle(`${SheetContainer} header`, {
+  paddingInlineStart: config.space.S400,
+  paddingInlineEnd: config.space.S200,
+});
+
 // The filter bar's own controls are native: give its dropdowns and check boxes the look of the
 // fields beside them, under the title and in this sheet alike.
 const filterAreas = [Bar, SheetBody];
