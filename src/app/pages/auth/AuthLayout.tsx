@@ -20,9 +20,9 @@ import { resolveAuthRouteRedirect } from '../routeSessionGuards';
 import { resolveAddAccountReturnPath } from './addAccount';
 import { buildAuthRoutePath, isServerChoiceLocked, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
+import { deploymentDefaultServer } from './unlistedServer';
+import { UnlistedServerCheck } from './UnlistedServerCheck';
 import * as css from './styles.css';
-
-const DEFAULT_SERVER = 'mindroom.chat';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
 const SERVER_LIST_ID = 'auth-server-list';
@@ -32,10 +32,7 @@ type DiscoveryState =
   | { status: 'ready'; info: AutoDiscoveryInfo }
   | { status: 'error'; server: string; action: AutoDiscoveryAction };
 
-const useDefaultServer = (): string => {
-  const { homeserverList, defaultHomeserver } = useClientConfig();
-  return homeserverList?.[defaultHomeserver ?? 0] ?? homeserverList?.[0] ?? DEFAULT_SERVER;
-};
+const useDefaultServer = (): string => deploymentDefaultServer(useClientConfig());
 
 const useServerLocked = (): boolean => isServerChoiceLocked(useClientConfig());
 
@@ -245,7 +242,12 @@ export function AuthLayout() {
           {discovery.status === 'ready' && (
             <AuthServerProvider value={server}>
               <AutoDiscoveryInfoProvider value={discovery.info}>
-                <Outlet context={{ server }} />
+                <UnlistedServerCheck
+                  server={server}
+                  baseUrl={discovery.info['m.homeserver'].base_url}
+                >
+                  <Outlet context={{ server }} />
+                </UnlistedServerCheck>
               </AutoDiscoveryInfoProvider>
             </AuthServerProvider>
           )}

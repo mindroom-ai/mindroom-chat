@@ -24,6 +24,7 @@ import {
   rememberSsoAttempt,
   withSsoNonce,
 } from './ssoReturn';
+import { useSsoStartCheck } from './unlistedServer';
 
 /** Which flow the buttons start, and how they are laid out. */
 type SSOButtonOptions = {
@@ -64,7 +65,8 @@ const noteIssuedToken =
  * homeserver's SSO redirect; in the native app they open an in-app browser
  * (or Sign in with Apple), since leaving the app would lose the callback.
  * Each press first notes the sign-in (`ssoReturn.ts`), so the login page
- * exchanges only a token that this sign-in brought back.
+ * exchanges only a token that this sign-in brought back. On a server the
+ * deployment does not offer, a press asks first (`unlistedServer.ts`).
  */
 export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SSOLoginProps) {
   const homeserverUrl = useAutoDiscoveryInfo()['m.homeserver'].base_url;
@@ -76,14 +78,14 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     [homeserverUrl]
   );
   const inNativeShell = runningNatively();
+  const checkStart = useSsoStartCheck();
   const [nonce] = useState(createSsoNonce);
   const returnUrl = useMemo(() => withSsoNonce(redirectUrl, nonce), [redirectUrl, nonce]);
 
   const ssoUrl = (providerId?: string): string =>
     loginClient.getSsoLoginUrl(returnUrl, 'sso', providerId, action);
 
-  const openInNativeBrowser = async (event: MouseEvent, url: string) => {
-    event.preventDefault();
+  const openInNativeBrowser = async (url: string) => {
     try {
       await openNativeSsoBrowser(url, hasCloudflareAccess(homeserverUrl));
     } catch (error) {
@@ -92,8 +94,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     }
   };
 
-  const signInWithApple = async (event: MouseEvent, provider: IIdentityProvider, url: string) => {
-    event.preventDefault();
+  const signInWithApple = async (provider: IIdentityProvider, url: string) => {
     try {
       await signInWithNativeApple({
         baseUrl: homeserverUrl,
@@ -111,11 +112,30 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
 
   const nativeAppleAvailable = isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth');
 
+  // A press notes the sign-in, then leaves: through the link itself on the web, through the
+  // in-app browser or Sign in with Apple natively. With a check, both wait for the person's yes.
+  const press = (event: MouseEvent, url: string, startNative: () => Promise<void>) => {
+    const leave = () => {
+      rememberSsoAttempt(nonce, homeserverUrl);
+      if (inNativeShell) void startNative();
+      else window.location.assign(url);
+    };
+    if (checkStart) {
+      event.preventDefault();
+      checkStart(leave);
+      return;
+    }
+    rememberSsoAttempt(nonce, homeserverUrl);
+    if (!inNativeShell) return;
+    event.preventDefault();
+    void startNative();
+  };
+
   const renderButton = (
     key: string,
     url: string,
     label: string,
-    onNativeClick: (event: MouseEvent) => void,
+    startNative: () => Promise<void>,
     icon?: string
   ) => (
     <Button
@@ -127,10 +147,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
       fill="Soft"
       outlined
       {...(inNativeShell ? {} : { as: 'a' as const, href: url })}
-      onClick={(event: MouseEvent) => {
-        rememberSsoAttempt(nonce, homeserverUrl);
-        if (inNativeShell) onNativeClick(event);
-      }}
+      onClick={(event: MouseEvent) => press(event, url, startNative)}
       before={
         icon ? (
           <Avatar size="200" radii="300">
@@ -149,9 +166,9 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     const url = ssoUrl();
     return (
       <Box direction="Column" gap="200">
-        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), (event) => {
-          void openInNativeBrowser(event, url);
-        })}
+        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), () =>
+          openInNativeBrowser(url)
+        )}
       </Box>
     );
   }
@@ -173,11 +190,10 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
           provider.id,
           url,
           getSSOProviderButtonTitle(provider, t, action),
-          (event) => {
-            void (apple && nativeAppleAvailable
-              ? signInWithApple(event, provider, url)
-              : openInNativeBrowser(event, url));
-          },
+          () =>
+            apple && nativeAppleAvailable
+              ? signInWithApple(provider, url)
+              : openInNativeBrowser(url),
           icon
         );
       })}
