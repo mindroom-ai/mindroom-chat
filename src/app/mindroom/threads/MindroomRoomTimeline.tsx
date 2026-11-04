@@ -30,11 +30,7 @@ import { useAlive } from '../../hooks/useAlive';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
-import {
-  useVirtualPaginator,
-  type ItemRange,
-  type ScrollToItem,
-} from '../../hooks/useVirtualPaginator';
+import { useVirtualPaginator, type ItemRange } from '../../hooks/useVirtualPaginator';
 import { useSettingValue } from '../../state/hooks/useSettingValue';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
@@ -137,7 +133,7 @@ import {
 import { shouldAutoPaginateThreadBack } from './threadRenderUtils';
 import { countCacheProbe } from './cacheProbe';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
-import { isScrollNearBottom, isTimelineAtLiveEnd } from './timelineScrollUtils';
+import { isTimelineAtLiveEnd } from './timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 import {
@@ -146,6 +142,12 @@ import {
 } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
 import { useLatestRef, useViewScopedFlag } from './roomTimelineViewScope';
+import {
+  useLatestRowPin,
+  useTimelineRowJumps,
+  useTimelineScrollElement,
+  useViewportAtBottomNow,
+} from './roomTimelineScroll';
 import {
   offersJumpToUnread,
   UnreadActions,
@@ -223,14 +225,6 @@ const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
  */
 const ROOM_ROW_UNMEASURED_PX = 0.5;
 const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
-
-/** Gestures and keys that hand the scroll position over to the reader. */
-const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
-/** How much further from the newest row a scroll must leave the reader to count as theirs. */
-const LEFT_LATEST_ROW_PX = 32;
-
-const distanceBelowView = (element: HTMLElement): number =>
-  element.scrollHeight - element.scrollTop - element.clientHeight;
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
 const useTimelineDisplaySettings = () => ({
@@ -318,78 +312,6 @@ const useRoomRowRemoval = ({
     ]
   );
   useLiveEventRemove(room, handleRemove);
-};
-
-/**
- * A request to show the newest room row. Opening the room, Jump to Latest, a live row the reader
- * follows, and switching the view make one; it holds until the reader scrolls, so rows measured
- * later still end at the bottom. A view switch that React renders but never shows makes none.
- */
-const useLatestRowRequest = ({
-  opensAtLatest,
-  roomId,
-  scrollElement,
-  scrollToBottomCount,
-  committedView,
-  focusItem,
-}: {
-  /** Whether opening this room shows its newest row (not its unread marker or an event). */
-  opensAtLatest: boolean;
-  roomId: string;
-  scrollElement: HTMLElement | null;
-  scrollToBottomCount: number;
-  committedView: string;
-  focusItem: RoomTimelineFocusItem | undefined;
-}) => {
-  const requestRef = useRef(opensAtLatest);
-  const seenCountRef = useRef(scrollToBottomCount);
-  const viewRef = useRef(committedView);
-  const roomRef = useRef(roomId);
-  useLayoutEffect(() => {
-    if (viewRef.current === committedView) return;
-    viewRef.current = committedView;
-    // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = roomRef.current === roomId || opensAtLatest;
-    roomRef.current = roomId;
-  }, [committedView, opensAtLatest, roomId]);
-  useLayoutEffect(() => {
-    if (scrollToBottomCount === seenCountRef.current) return;
-    seenCountRef.current = scrollToBottomCount;
-    requestRef.current = true;
-  }, [scrollToBottomCount]);
-  useLayoutEffect(() => {
-    // A jump to an event owns the position from here.
-    if (focusItem) requestRef.current = false;
-  }, [focusItem]);
-  useEffect(() => {
-    if (!scrollElement) return undefined;
-    const release = () => {
-      requestRef.current = false;
-    };
-    // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
-    // a script or assistive technology): the timeline's own pins scroll down, and a row above
-    // the view that changes size moves the position and the content by the same amount. It
-    // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
-    // synchronously and so would pin the newest row again before this saw the reader's position.
-    let lastTop = scrollElement.scrollTop;
-    let lastBelow = distanceBelowView(scrollElement);
-    const followScroll = () => {
-      const top = scrollElement.scrollTop;
-      const below = distanceBelowView(scrollElement);
-      if (top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX) release();
-      lastTop = top;
-      lastBelow = below;
-    };
-    READER_INTENT_EVENTS.forEach((name) =>
-      scrollElement.addEventListener(name, release, { passive: true })
-    );
-    scrollElement.addEventListener('scroll', followScroll, { capture: true, passive: true });
-    return () => {
-      READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
-      scrollElement.removeEventListener('scroll', followScroll, { capture: true });
-    };
-  }, [scrollElement]);
-  return requestRef;
 };
 
 const dividerStyle: React.CSSProperties = {
@@ -501,33 +423,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
   // References the controllers share.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
-  // folds' Scroll hands React a new ref callback on every render, so each commit detaches the
-  // element (null) and attaches it again. Only a different element, or none left after the
-  // commit, changes the state. Even an equal update re-renders the timeline while slower
-  // updates wait on it, and that render attaches the element again, without end.
-  const publishedScrollRef = useRef<HTMLDivElement | null>(null);
-  const attachScroll = useCallback((element: HTMLDivElement | null) => {
-    scrollRef.current = element;
-    const publishAttached = () => {
-      const attached = scrollRef.current;
-      if (attached === publishedScrollRef.current) return;
-      publishedScrollRef.current = attached;
-      setScrollElement(attached);
-    };
-    if (element) publishAttached();
-    else queueMicrotask(publishAttached);
-  }, []);
+  const { scrollRef, scrollElement, attachScroll, getScrollElement } = useTimelineScrollElement();
   // As tall as the footer inset: a growing composer moves the newest row up with it.
   const footerProbeRef = useRef<HTMLDivElement>(null);
   useFooterBottomPin(scrollElement, footerProbeRef);
   // Jump to Unread gives way while the "New messages" line it jumps to is in view.
   const [unreadMarker, setUnreadMarker] = useState<HTMLDivElement | null>(null);
   const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
-  // A new identity once the scroll area mounts, so observers built on it start over (the
-  // compact view has none, and switching to the timeline mounts it later).
-  const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
   const contentRef = useRef<HTMLDivElement>(null);
   const atBottomAnchorRef = useRef<HTMLElement | null>(null);
   const roomIdRef = useLatestRef(room.roomId);
@@ -1005,7 +907,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       scrollRef.current?.querySelector<HTMLElement>(
         `[data-room-row-index="${index - activeRangeRef.current.start}"]`
       ) ?? undefined,
-    [activeRangeRef]
+    [activeRangeRef, scrollRef]
   );
   // A page that moves the room's back token but adds no rows (the server only moved its token,
   // or reached the room's start) leaves the window as it was: nothing else would show the room's
@@ -1033,7 +935,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     const first = firstRoomTimelineRef.current?.getEvents()[0];
     if (first?.getType() === EventType.RoomCreate) return 0;
     return scrollRef.current?.clientHeight ?? 0;
-  }, [firstRoomTimelineRef]);
+  }, [firstRoomTimelineRef, scrollRef]);
   const paginator = useVirtualPaginator({
     count: roomRows.length,
     range: activeTimelineRange,
@@ -1124,28 +1026,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     // A page that added rows moved the window, and the paginator carries on from there.
     if (roomBackPage && roomRowsRef.current.length === roomBackPage.rowsBefore) retryPagination();
   }, [retryPagination, roomBackPage, roomRowsRef]);
-  const scrollToItem = useCallback<ScrollToItem>(
-    (index, opts) => {
-      if (paginatorScrollToItem(index, opts)) return true;
-      const { start, end } = activeRangeRef.current;
-      if (index < start || index >= end) return false;
-      virtualizerRef.current.scrollToIndex(index - start, {
-        align: opts?.align ?? 'center',
-        behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
-      });
-      return true;
-    },
-    [activeRangeRef, paginatorScrollToItem, virtualizerRef]
-  );
-  const scrollThreadEventIntoView = useCallback(
-    (targetEventId: string) => {
-      const index = threadEventIndexMapRef.current.get(targetEventId);
-      if (index === undefined) return false;
-      virtualizerRef.current.scrollToIndex(index, { align: 'center' });
-      return true;
-    },
-    [threadEventIndexMapRef, virtualizerRef]
-  );
+  const { scrollToItem, scrollThreadEventIntoView } = useTimelineRowJumps({
+    paginatorScrollToItem,
+    activeRangeRef,
+    virtualizerRef,
+    threadEventIndexMapRef,
+  });
   const cancelThreadBottomSettle = useCallback(
     () => backController.suppressOpenBottomPin(),
     [backController]
@@ -1323,12 +1209,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadIdRef,
     timeline,
   });
-  const isViewportAtBottomNow = useCallback(() => {
-    const element = scrollRef.current;
-    if (!element) return atBottomRef.current;
-    const { scrollHeight, scrollTop, clientHeight } = element;
-    return isScrollNearBottom({ scrollHeight, scrollTop, clientHeight });
-  }, [atBottomRef]);
+  const isViewportAtBottomNow = useViewportAtBottomNow(scrollRef, atBottomRef);
   useRoomTimelineResetRelink({
     room,
     threadId,
@@ -1526,7 +1407,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   }, [autoPaginateRef, scrollElement, threadId, virtualizerRef]);
 
   // The newest room row, while a request for it holds.
-  const latestRowRequestRef = useLatestRowRequest({
+  useLatestRowPin({
+    shown: roomSurfaceShown,
+    itemCount,
+    virtualizer,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
     opensAtLatest: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
     roomId: room.roomId,
@@ -1534,10 +1418,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     scrollToBottomCount: scrollToBottomRef.current.count,
     committedView: `${viewKey}|${effectiveViewMode}`,
     focusItem,
-  });
-  useLayoutEffect(() => {
-    if (!roomSurfaceShown || !latestRowRequestRef.current || itemCount === 0) return;
-    virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
   });
 
   const minimap = useRoomTimelineMinimap({
