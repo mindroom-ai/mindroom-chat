@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
+import { buildLoginPath } from '../env';
 import {
   createPrivateRoom,
   joinRoom,
@@ -46,6 +46,24 @@ const register = async (name: string): Promise<MatrixSession & { username: strin
   });
   expect(response.ok, `registering ${username}`).toBe(true);
   return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+// A loaded machine can take minutes to start the client; the signed-in shell is the signal.
+const STARTUP_MS = 180_000;
+const accountButton = (page: Page) => page.getByRole('button', { name: /^Open settings for / });
+
+/** Opens a signed-in route and waits for the shell, which reloads the client. */
+const gotoSignedIn = async (page: Page, route: string) => {
+  await page.goto(route);
+  await expect(accountButton(page)).toBeVisible({ timeout: STARTUP_MS });
+};
+
+const signIn = async (page: Page, username: string) => {
+  await page.goto(buildLoginPath(HOMESERVER));
+  await page.locator('input[name="usernameInput"]').fill(username, { timeout: STARTUP_MS });
+  await page.locator('input[name="passwordInput"]').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(accountButton(page)).toBeVisible({ timeout: STARTUP_MS });
 };
 
 /** Describes the focused element, for assertions that read well in a failure. */
@@ -103,13 +121,14 @@ const axeFindings = async (page: Page): Promise<string[]> => {
 };
 
 test.describe.serial('keyboard and accessibility', () => {
+  test.describe.configure({ timeout: 2 * STARTUP_MS });
   let page: Page;
   let guest: MatrixSession & { username: string };
   let roomId: string;
 
   test.beforeAll(async ({ browser }: { browser: Browser }) => {
     test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
-    test.setTimeout(180_000);
+    test.setTimeout(2 * STARTUP_MS);
     const owner = await register('owner');
     guest = await register('guest');
     roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
@@ -126,11 +145,7 @@ test.describe.serial('keyboard and accessibility', () => {
       'a11y-spec'
     );
     page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: owner.username,
-      password: PASSWORD,
-    });
+    await signIn(page, owner.username);
   });
 
   test.afterAll(async () => {
@@ -138,7 +153,7 @@ test.describe.serial('keyboard and accessibility', () => {
   });
 
   test('the first Tab reaches a skip link that jumps to the page title', async () => {
-    await page.goto('/home/');
+    await gotoSignedIn(page, '/home/');
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Home' })).toBeVisible();
     await expect(page.getByRole('main')).toHaveCount(1);
@@ -175,7 +190,7 @@ test.describe.serial('keyboard and accessibility', () => {
   });
 
   test('the settings dialog is a named modal that gives focus back when it closes', async () => {
-    const account = page.getByRole('button', { name: /^Open settings for / });
+    const account = accountButton(page);
     await account.focus();
     await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: 'Settings' });
@@ -226,15 +241,15 @@ test.describe.serial('keyboard and accessibility', () => {
       findings.push(...found.map((finding) => `${screen} ${finding}`));
     };
 
-    await page.goto('/home/');
+    await gotoSignedIn(page, '/home/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await check('home');
     await openRoom(page);
     await check('room');
-    await page.goto('/home/create/');
+    await gotoSignedIn(page, '/home/create/');
     await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
     await check('create room');
-    await page.getByRole('button', { name: /^Open settings for / }).click();
+    await accountButton(page).click();
     await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
     await check('settings');
 
