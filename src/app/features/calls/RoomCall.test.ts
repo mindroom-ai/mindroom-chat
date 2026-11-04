@@ -5,10 +5,10 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import { RoomCall } from './RoomCall';
 import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
-import { holdDeviceCallLock, withdrawOwnMemberships } from './callResume';
+import { withdrawOwnMemberships } from './callResume';
 import { defined } from '../../test-utils/defined';
 
-/** What the fake LiveKit and lock modules record, shared with the hoisted module mocks. */
+/** What the fake LiveKit modules and the device lock record, shared with the module mocks. */
 const fakes = vi.hoisted(() => ({
   rooms: [] as unknown[],
   workers: [] as Array<{ terminate: () => void }>,
@@ -105,11 +105,6 @@ vi.mock('./rtcFocus', async (importOriginal) => {
 vi.mock('./callResume', async (importOriginal) => {
   return {
     ...(await importOriginal<typeof import('./callResume')>()),
-    holdDeviceCallLock: vi.fn(() => {
-      const release = vi.fn();
-      fakes.releases.push(release);
-      return release;
-    }),
     withdrawOwnMemberships: vi.fn(async () => undefined),
   };
 });
@@ -205,7 +200,10 @@ const setup = ({ encrypted = false }: { encrypted?: boolean } = {}) => {
     roomId: ROOM_ID,
     hasEncryptionStateEvent: () => encrypted,
   } as unknown as Room;
-  const call = new RoomCall({ mx, room });
+  // The device lock `startCall` took before making the call.
+  const releaseDeviceLock = vi.fn();
+  fakes.releases.push(releaseDeviceLock);
+  const call = new RoomCall({ mx, room, releaseDeviceLock });
   return { call, session, mx, room };
 };
 
@@ -218,7 +216,6 @@ beforeEach(() => {
   fakes.encryption = undefined;
   vi.mocked(getLivekitServiceUrl).mockClear();
   vi.mocked(requestSfuGrant).mockClear();
-  vi.mocked(holdDeviceCallLock).mockClear();
   vi.mocked(withdrawOwnMemberships).mockClear();
 });
 
@@ -333,7 +330,8 @@ describe('RoomCall join', () => {
     );
     expect(media.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
     expect(media.options.encryption).toBeUndefined();
-    expect(holdDeviceCallLock).toHaveBeenCalledTimes(1);
+    // The device lock stays held while the call runs.
+    expect(fakes.releases[0]).not.toHaveBeenCalled();
     expect(call.getState()).toMatchObject({ phase: 'connected', problem: undefined });
   });
 
@@ -354,14 +352,16 @@ describe('RoomCall join', () => {
     );
   });
 
-  it('fails for a browser without WebRTC before it takes the device lock', async () => {
+  it('fails for a browser without WebRTC, and lets the device lock go', async () => {
     fakes.browserSupported = false;
-    const { call } = setup();
+    const { call, session } = setup();
 
     await call.join();
 
     expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'browser' });
-    expect(holdDeviceCallLock).not.toHaveBeenCalled();
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    await settle();
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 
   it('fails when the deployment announces no backend, and lets the lock go', async () => {

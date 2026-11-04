@@ -65,20 +65,15 @@ export type AgentCallStart = {
 
 /**
  * Writes which conversation the call is about into the agent call room, then joins its call;
- * ending the call clears that again. Also takes an agent call up again after a reload.
+ * ending the call clears that again, and so does a start that gives up after writing it (the
+ * account switched meanwhile). Also takes an agent call up again after a reload.
  */
-export const startAgentCall = async (
+export const startAgentCall = (
   mx: MatrixClient,
   startCall: StartCall,
   { room, agentUserId, origin, microphone = true, devices }: AgentCallStart
-): Promise<StartCallResult> => {
-  await prepareAgentCallRoom(
-    mx,
-    room,
-    agentUserId,
-    toAgentCallOrigin(origin.roomId, origin.threadId)
-  );
-  return startCall({
+): Promise<StartCallResult> =>
+  startCall({
     room,
     kind: 'agent',
     agentUserId,
@@ -86,9 +81,17 @@ export const startAgentCall = async (
     microphone,
     video: false,
     devices,
+    // Written only once the call may start: a start that answers busy, such as while another
+    // tab of this session is in a call in the same call room, leaves that call's origin alone.
+    prepare: () =>
+      prepareAgentCallRoom(
+        mx,
+        room,
+        agentUserId,
+        toAgentCallOrigin(origin.roomId, origin.threadId)
+      ),
     onEnded: () => cleanupMindroomAgentCall(mx, room),
   });
-};
 
 type AgentCallerOptions = {
   /**

@@ -21,7 +21,7 @@ import {
   requestSfuGrant,
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
-import { holdDeviceCallLock, withdrawOwnMemberships } from './callResume';
+import { withdrawOwnMemberships } from './callResume';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -85,6 +85,11 @@ export type RoomCallOptions = {
   devices?: CallDevices;
   /** Ring the other people (`ring`, direct chats) or notify them (`notification`). */
   notify?: 'ring' | 'notification';
+  /**
+   * Lets go of the lock that tells this device's other tabs it is in a call (`takeDeviceCallLock`,
+   * taken before the call starts). The call runs it once it has left.
+   */
+  releaseDeviceLock?: () => void;
 };
 
 /** How long a leave waits for the membership update before the call is given up locally. */
@@ -143,6 +148,7 @@ export class RoomCall {
 
   constructor(options: RoomCallOptions) {
     this.options = options;
+    this.releaseDeviceLock = options.releaseDeviceLock;
     this.mx = options.mx;
     this.room = options.room;
     this.session = options.mx.matrixRTC.getRoomSession(options.room);
@@ -343,13 +349,12 @@ export class RoomCall {
     const { mx, room } = this;
     const deviceId = mx.getDeviceId();
     if (!isBrowserSupported() || (this.encrypted && !isE2EESupported()) || !deviceId) {
-      this.update({ phase: 'failed', problem: 'browser' });
+      this.fail('browser');
       return;
     }
     this.session.on(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.on(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
-    this.releaseDeviceLock = holdDeviceCallLock(mx);
     await this.withdrawLeftover(deviceId);
     if (this.stopped) return;
 

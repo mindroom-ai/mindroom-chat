@@ -136,22 +136,50 @@ const countRequestHere = (name: string, change: 1 | -1) => {
   else requestsHere.delete(name);
 };
 
-/** Holds this device's call lock until the returned function runs. */
-export const holdDeviceCallLock = (mx: MatrixClient): (() => void) => {
+/**
+ * Takes this device's call lock for a call that is about to start, in one step with the check
+ * that no other tab of this session holds it: two tabs that start a call at the same moment
+ * cannot both get through. Resolves to the function that lets the lock go, or to `undefined`
+ * while another tab is in a call.
+ */
+export const takeDeviceCallLock = (mx: MatrixClient): Promise<(() => void) | undefined> => {
   const locks = lockManager();
   const deviceId = mx.getDeviceId();
-  if (!locks || !deviceId) return () => undefined;
+  if (!locks || !deviceId) return Promise.resolve(() => undefined);
+  const name = deviceCallLock(mx.getSafeUserId(), deviceId);
   let release: () => void = () => undefined;
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const name = deviceCallLock(mx.getSafeUserId(), deviceId);
-  countRequestHere(name, 1);
-  locks
-    .request(name, () => held)
-    .catch(() => undefined)
-    .finally(() => countRequestHere(name, -1));
-  return release;
+  // A call of this tab that is still ending holds the lock for a moment. No other tab can hold
+  // it meanwhile, so the new call queues behind it instead of answering busy.
+  const behindOwnCall = requestsHere.has(name);
+  return new Promise((resolve) => {
+    let counted = false;
+    const count = () => {
+      counted = true;
+      countRequestHere(name, 1);
+    };
+    if (behindOwnCall) {
+      count();
+      resolve(release);
+    }
+    locks
+      .request(name, { ifAvailable: !behindOwnCall }, (lock) => {
+        if (!lock) {
+          resolve(undefined);
+          return undefined;
+        }
+        if (!counted) count();
+        resolve(release);
+        return held;
+      })
+      // A lock manager that refuses requests cannot tell tabs apart; the call goes on.
+      .catch(() => resolve(release))
+      .finally(() => {
+        if (counted) countRequestHere(name, -1);
+      });
+  });
 };
 
 /**

@@ -4,7 +4,7 @@ import { RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import type { CallDevices, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
-import { deviceInCallElsewhere } from './callResume';
+import { takeDeviceCallLock } from './callResume';
 
 /** Where an agent call came from: the room and thread the agent is told about and posts back to. */
 export type CallOrigin = { roomId: string; threadId?: string };
@@ -31,6 +31,18 @@ export const activeCallAtom = atom<ActiveCall | undefined>(undefined);
 export const callPanelRoomAtom = atom<string | undefined>(undefined);
 
 export const useActiveCall = () => useAtomValue(activeCallAtom);
+
+/** A call is starting in this tab; a second start would race it for the one call. */
+const callStartingAtom = atom(false);
+
+/**
+ * Why the newest start of a room's call in this tab did not start it: `busy` while another tab
+ * of this session is in a call (it shares this device), `failed` when the call could not start.
+ * The room's call panel says so until the next start or until it closes.
+ */
+export type CallStartProblem = { roomId: string; result: Exclude<StartCallResult, 'started'> };
+
+export const callStartProblemAtom = atom<CallStartProblem | undefined>(undefined);
 
 const IDLE_STATE: CallState = {
   phase: 'ended',
@@ -95,6 +107,12 @@ export type StartCallOptions = {
   microphone?: boolean;
   devices?: CallDevices;
   notify?: 'ring' | 'notification';
+  /**
+   * Runs once nothing else stands in the call's way (no other call here or in another tab), right
+   * before the call is made, such as writing an agent call room's origin. A start that gives up
+   * after it ran calls `onEnded`, as a call that ended would.
+   */
+  prepare?: () => Promise<void>;
 } & Omit<ActiveCall, 'call'>;
 
 /**
@@ -108,9 +126,9 @@ const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
 
 /**
- * Starting and ending the call. Starting while another call is active, in this tab or another
- * tab of the same session, does nothing and answers `busy`. The call engine and LiveKit load on
- * first use.
+ * Starting and ending the call. Starting while another call is active or starting, in this tab or
+ * another tab of the same session, does nothing and answers `busy`. The call engine and LiveKit
+ * load on first use.
  */
 export const useCallActions = (mx: MatrixClient) => {
   const store = useStore();
@@ -127,29 +145,54 @@ export const useCallActions = (mx: MatrixClient) => {
     }
   }, [store]);
 
-  const startCall = useCallback(
+  /** Makes the call and makes it the active one, or answers why it cannot start. */
+  const makeCall = useCallback(
     async ({
       room,
       video,
       microphone,
       devices,
       notify,
+      prepare,
       ...meta
-    }: StartCallOptions): Promise<StartCallResult> => {
-      if (store.get(activeCallAtom)) return 'busy';
+    }: StartCallOptions): Promise<RoomCall | Exclude<StartCallResult, 'started'>> => {
       // The engine is a chunk of its own; after a deploy the server may no longer have the one
       // this page asks for.
       const engine = await import('./RoomCall').catch(() => undefined);
       if (!engine) return 'failed';
       // Another tab of this session shares the device: joining here would withdraw and replace
-      // that tab's membership, and the two would keep replacing each other.
-      if (store.get(activeCallAtom) || (await deviceInCallElsewhere(mx))) return 'busy';
-      await room.loadMembersIfNeeded().catch(() => undefined);
+      // that tab's membership, and the two would keep replacing each other. The check and the
+      // lock are one step, so two tabs that start at the same moment cannot both get through.
+      const releaseDeviceLock = await takeDeviceCallLock(mx);
+      if (!releaseDeviceLock) return 'busy';
+      let prepared = false;
+      const giveUp = (result: Exclude<StartCallResult, 'started'>) => {
+        releaseDeviceLock();
+        if (prepared) meta.onEnded?.().catch(() => undefined);
+        return result;
+      };
       // The store is app-wide: a call whose account went away while this waited would become
       // the next account's call.
-      if (!mx.clientRunning) return 'failed';
-      if (store.get(activeCallAtom)) return 'busy';
-      const call = new engine.RoomCall({ mx, room, video, microphone, devices, notify });
+      if (!mx.clientRunning) return giveUp('failed');
+      if (prepare) {
+        prepared = true;
+        try {
+          await prepare();
+        } catch {
+          return giveUp('failed');
+        }
+      }
+      await room.loadMembersIfNeeded().catch(() => undefined);
+      if (!mx.clientRunning) return giveUp('failed');
+      const call = new engine.RoomCall({
+        mx,
+        room,
+        video,
+        microphone,
+        devices,
+        notify,
+        releaseDeviceLock,
+      });
       const active: ActiveCall = {
         ...meta,
         call,
@@ -157,11 +200,28 @@ export const useCallActions = (mx: MatrixClient) => {
       };
       store.set(activeCallAtom, active);
       store.set(callPanelRoomAtom, callHomeRoomId(active));
+      return call;
+    },
+    [mx, store]
+  );
+
+  const startCall = useCallback(
+    async (options: StartCallOptions): Promise<StartCallResult> => {
+      if (store.get(activeCallAtom) || store.get(callStartingAtom)) return 'busy';
+      store.set(callStartingAtom, true);
+      let made: Awaited<ReturnType<typeof makeCall>>;
+      try {
+        made = await makeCall(options);
+      } finally {
+        store.set(callStartingAtom, false);
+      }
+      if (typeof made === 'string') return made;
+      const call = made;
       // A join that breaks outside its own checks still ends as a failed call with Dismiss.
       await call.join().catch(() => call.fail('service'));
       return 'started';
     },
-    [mx, store]
+    [makeCall, store]
   );
 
   /** Closes a call that failed to start, so another can begin. */
