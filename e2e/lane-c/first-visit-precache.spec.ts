@@ -121,13 +121,15 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
     'Needs a production build: scripts/e2e-slot.sh <n> --preview'
   );
 
-  // The precache holds the crypto wasm and the startup images (the logo), and no on-demand chunk or
-  // sound.
+  // The precache holds the crypto wasm and the startup images (the logo), and no on-demand chunk,
+  // thinking mark (an image shown only while an agent thinks) or sound.
   expect(shell.some((path) => path.endsWith('.wasm'))).toBe(true);
   expect(shell.some((path) => /^\/assets\/mindroom-logo-[^/]+\.png$/.test(path))).toBe(true);
   expect(
     shell.filter((path) =>
-      /^\/assets\/(?:emoji|EmojiBoard|katex|KaTeX_|RoomCall|ComputerScreen)/.test(path)
+      /^\/assets\/(?:emoji|EmojiBoard|katex|KaTeX_|RoomCall|ComputerScreen|thinking-mark)/.test(
+        path
+      )
     )
   ).toEqual([]);
   expect(shell.filter((path) => /\.(?:ogg|mp3)$/.test(path))).toEqual([]);

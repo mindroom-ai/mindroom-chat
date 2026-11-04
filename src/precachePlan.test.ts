@@ -29,8 +29,12 @@ const chunk = (fileName: string, shape: ChunkShape): Rollup.OutputChunk =>
     },
   } as unknown as Rollup.OutputChunk);
 
-const asset = (fileName: string): Rollup.OutputAsset =>
-  ({ type: 'asset', fileName } as unknown as Rollup.OutputAsset);
+const asset = (fileName: string, source?: string): Rollup.OutputAsset =>
+  ({
+    type: 'asset',
+    fileName,
+    originalFileNames: source ? [source] : [],
+  } as unknown as Rollup.OutputAsset);
 
 /** An entry, a signed-in page chunk and the crypto chunk that share one chunk, and lazy parts. */
 const bundle = (): OutputBundle => {
@@ -51,7 +55,7 @@ const bundle = (): OutputBundle => {
       imports: ['assets/shared-s1.js', 'assets/calls-t1.js'],
       dynamicImports: ['assets/emoji-j1.js'],
       css: ['assets/clientPages-c1.css'],
-      assets: ['assets/notification-n1.ogg'],
+      assets: ['assets/notification-n1.ogg', 'assets/thinking-mark-t1.svg'],
     }),
     chunk('assets/calls-t1.js', { moduleIds: ['/repo/src/app/features/calls/callStore.ts'] }),
     chunk('assets/crypto-k1.js', {
@@ -79,12 +83,14 @@ const bundle = (): OutputBundle => {
     asset('assets/index-e1.css'),
     asset('assets/clientPages-c1.css'),
     asset('assets/katex-m1.css'),
-    asset('assets/mindroom-logo-l1.png'),
+    asset('assets/mindroom-logo-l1.png', 'src/app/branding/mindroom-logo.png'),
+    asset('assets/thinking-mark-t1.svg', 'src/app/mindroom/messages/thinking-mark.svg'),
   ];
   return Object.fromEntries(outputs.map((output) => [output.fileName, output]));
 };
 
 const STARTUP = ['src/app/pages/client/clientPages.tsx', 'matrix-js-sdk/lib/rust-crypto/index.js'];
+const ON_DEMAND = ['src/app/mindroom/messages/thinking-mark.svg'];
 
 const entry = (url: string) => ({ url, revision: url.startsWith('assets/') ? null : 'r', size: 1 });
 
@@ -103,7 +109,19 @@ describe('startupFiles', () => {
       'assets/matrix_sdk_crypto_wasm_bg-w1.wasm',
       'assets/mindroom-logo-l1.png',
       'assets/shared-s1.js',
+      'assets/thinking-mark-t1.svg',
     ]);
+  });
+
+  it('leaves out the images listed as on demand, and fails for a listed image the build lacks', () => {
+    const files = startupFiles(bundle(), STARTUP, ON_DEMAND);
+    expect(files.has('assets/thinking-mark-t1.svg')).toBe(false);
+    expect(files.has('assets/mindroom-logo-l1.png')).toBe(true);
+    expect(() =>
+      startupFiles(bundle(), STARTUP, ['src/app/mindroom/messages/thinking-marks.svg'])
+    ).toThrow(
+      'no build file comes from the on-demand asset src/app/mindroom/messages/thinking-marks.svg'
+    );
   });
 
   it('leaves out chunks reached only by a dynamic import, with their styles and fonts, and sounds', () => {
@@ -139,6 +157,7 @@ describe('startupPrecache', () => {
   const plan = () => {
     const { plugin, manifestTransform, workerPlugin } = startupPrecache({
       startupModules: STARTUP,
+      onDemandAssets: ON_DEMAND,
       shellFiles: ['index.html', 'pdf-frame.html'],
       localeOverlay: OVERLAY,
     });

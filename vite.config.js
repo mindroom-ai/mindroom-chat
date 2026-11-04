@@ -49,6 +49,12 @@ const startup = startupPrecache({
     'src/app/mindroom/threads/ThreadActionsMenu.tsx',
     'matrix-js-sdk/lib/rust-crypto/index.js',
   ],
+  // The thinking marks (1.37 MB raw) show only while an agent thinks, so the worker keeps them the
+  // first time a page shows one instead of every first visit downloading them.
+  onDemandAssets: [
+    'src/app/mindroom/messages/thinking-mark-base.svg',
+    'src/app/mindroom/messages/thinking-mark-core.svg',
+  ],
   // The PDF viewer's frame page (public/pdf-frame.html) has no hash in its name, so the worker
   // could not keep it at runtime without serving an old copy after an update.
   shellFiles: ['index.html', 'pdf-frame.html'],

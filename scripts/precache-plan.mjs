@@ -5,8 +5,9 @@
 // The startup set is the entry chunk and the chunks that hold the listed startup modules, each with
 // every chunk it imports statically, their style sheets, the fonts those style sheets use, the
 // images they import (the sidebar logo) and the crypto module's wasm. Chunks the app only reaches
-// through a dynamic import (calls, the emoji data, KaTeX, the remote computer, locale overlays) and
-// sounds stay out: the worker keeps each the first time a page loads it (src/swRuntimeAssets.ts).
+// through a dynamic import (calls, the emoji data, KaTeX, the remote computer, locale overlays),
+// sounds, and the images listed as on demand (large ones a start rarely shows) stay out: the worker
+// keeps each the first time a page loads it (src/swRuntimeAssets.ts).
 //
 // The worker also gets the build's inventory (`self.__MINDROOM_BUILD_INVENTORY`): every file under
 // assets/, so a new worker keeps the files the previous build kept at runtime that it still has,
@@ -36,14 +37,41 @@ const INVENTORY_MARKER = 'self.__MINDROOM_BUILD_INVENTORY';
 const slashed = (id) => id.split('\\').join('/');
 
 /**
- * The output files a signed-in start loads: the entry chunks and the chunks holding
- * `startupModules` (paths that module IDs end with), with their static imports, style sheets,
- * fonts and wasm.
+ * The build files emitted for `sources`, paths that the source file name of an asset ends with.
+ * Each must match a file of the bundle, so a renamed source cannot slip back into the precache.
  * @param {OutputBundle} bundle
- * @param {readonly string[]} startupModules
+ * @param {readonly string[]} sources
  * @returns {Set<string>}
  */
-export const startupFiles = (bundle, startupModules) => {
+const emittedFrom = (bundle, sources) => {
+  /** @type {Set<string>} */
+  const emitted = new Set();
+  sources.forEach((source) => {
+    const before = emitted.size;
+    Object.values(bundle).forEach((output) => {
+      if (output.type !== 'asset') return;
+      if (output.originalFileNames.some((name) => slashed(name).endsWith(source))) {
+        emitted.add(output.fileName);
+      }
+    });
+    if (emitted.size === before) {
+      throw new Error(`precache plan: no build file comes from the on-demand asset ${source}`);
+    }
+  });
+  return emitted;
+};
+
+/**
+ * The output files a signed-in start loads: the entry chunks and the chunks holding
+ * `startupModules` (paths that module IDs end with), with their static imports, style sheets,
+ * fonts, wasm and images, except the images made from `onDemandAssets` (source paths).
+ * @param {OutputBundle} bundle
+ * @param {readonly string[]} startupModules
+ * @param {readonly string[]} [onDemandAssets]
+ * @returns {Set<string>}
+ */
+export const startupFiles = (bundle, startupModules, onDemandAssets = []) => {
+  const onDemand = emittedFrom(bundle, onDemandAssets);
   /** @type {OutputChunk[]} */
   const chunks = [];
   Object.values(bundle).forEach((output) => {
@@ -66,7 +94,7 @@ export const startupFiles = (bundle, startupModules) => {
     files.add(chunk.fileName);
     chunk.viteMetadata?.importedCss.forEach((sheet) => files.add(sheet));
     chunk.viteMetadata?.importedAssets.forEach((asset) => {
-      if (STARTUP_ASSET.test(asset)) files.add(asset);
+      if (STARTUP_ASSET.test(asset) && !onDemand.has(asset)) files.add(asset);
     });
     chunk.imports.forEach((fileName) => {
       const imported = bundle[fileName];
@@ -105,9 +133,9 @@ export const buildInventory = (bundle, assetsDir, localeOverlay) => {
  * The plugin that reads the bundle, the manifest transform that keeps only the startup files and
  * `shellFiles` (paths in the output directory, such as `index.html`), and the plugin for the
  * worker's own build that writes the build inventory into it.
- * @param {{ startupModules: readonly string[], shellFiles: readonly string[], localeOverlay: RegExp }} options
+ * @param {{ startupModules: readonly string[], onDemandAssets?: readonly string[], shellFiles: readonly string[], localeOverlay: RegExp }} options
  */
-export const startupPrecache = ({ startupModules, shellFiles, localeOverlay }) => {
+export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, localeOverlay }) => {
   /** @type {Set<string> | undefined} */
   let planned;
   /** @type {BuildInventory | undefined} */
@@ -122,7 +150,7 @@ export const startupPrecache = ({ startupModules, shellFiles, localeOverlay }) =
       assetsDir = config.build.assetsDir;
     },
     generateBundle(_options, bundle) {
-      planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules)]);
+      planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
       inventory = buildInventory(bundle, assetsDir, localeOverlay);
     },
   };
