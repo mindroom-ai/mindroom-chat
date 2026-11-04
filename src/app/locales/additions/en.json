@@ -82,6 +82,13 @@
     }
   },
   "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "Delete {{name}}"
+        }
+      }
+    },
     "settings": {
       "emojisStickers": {
         "userPack": {

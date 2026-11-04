@@ -33,7 +33,8 @@ export const readImagePackUpload = async (
     return {
       shortcode: shortcodeFromFileName(fileName),
       url: mxc,
-      body: fileName,
+      // The description other clients show, such as alt text: the name without its extension.
+      body: getFileNameWithoutExt(fileName).trim() || fileName,
       info: getImageInfo(img, file),
     };
   } finally {

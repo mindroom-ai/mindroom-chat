@@ -27,13 +27,19 @@ import { useRoomName } from '../../../hooks/useRoomMeta';
 import {
   type EmoteRoomsContent,
   type ImagePack,
+  ImageUsage,
   getRoomImagePacks,
 } from '../../../plugins/custom-emoji';
+import { PackAvatar } from '../../../components/image-pack-view';
 import { stopPropagation } from '../../../utils/keyboard';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { SettingsCard } from '../SettingsCard';
 
 const GLOBAL = 'featureUi.settings.emojisStickers.globalPacks';
+
+/** The pack's avatar, else its first emoji or sticker. */
+const packAvatar = (pack: ImagePack): string | undefined =>
+  pack.getAvatarUrl(ImageUsage.Emoticon) ?? pack.getAvatarUrl(ImageUsage.Sticker);
 
 /** `roomId` and state key of a pack, as one string. */
 const packId = (roomId: string, stateKey: string) => JSON.stringify([roomId, stateKey]);
@@ -88,6 +94,7 @@ function RoomPackGroup({
           return (
             <SettingTile
               key={id}
+              before={<PackAvatar mxc={packAvatar(pack)} name={label} size="300" />}
               title={label}
               after={
                 <Checkbox
@@ -268,6 +275,7 @@ export function GlobalPacks({ onViewPack }: { onViewPack: (pack: ImagePack) => v
         {favorites.map((pack) => (
           <SettingTile
             key={pack.id}
+            before={<PackAvatar mxc={packAvatar(pack)} name={pack.meta.name ?? ''} size="300" />}
             title={pack.meta.name ?? t(`${GLOBAL}.unknown`)}
             after={
               <Button
