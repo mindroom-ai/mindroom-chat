@@ -273,3 +273,35 @@ describe('RoomCall join, left early', () => {
     expect(call.getState().phase).toBe('ended');
   });
 });
+
+describe('RoomCall join, call service', () => {
+  it('refuses a call that runs on a backend a room member named, before asking for a token', async () => {
+    const { call, session, mx } = setup();
+    session.memberships = [
+      {
+        ...membership('@other:calls.test', 'OTHER'),
+        transports: [{ type: 'livekit', livekit_service_url: 'https://rtc.attacker.test' }],
+      },
+    ];
+
+    await call.join();
+
+    expect(mx.getOpenIdToken).not.toHaveBeenCalled();
+    expect(requestSfuGrant).not.toHaveBeenCalled();
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'untrustedService' });
+  });
+
+  it("joins a running call on this deployment's backend", async () => {
+    const { call, session } = setup();
+    session.memberships = [membership('@other:calls.test', 'OTHER')];
+
+    await call.join();
+
+    expect(requestSfuGrant).toHaveBeenCalledWith(
+      fakes.serviceUrl,
+      expect.objectContaining({ roomId: ROOM_ID })
+    );
+    expect(call.getState().phase).toBe('connected');
+  });
+});

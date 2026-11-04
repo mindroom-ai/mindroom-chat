@@ -140,6 +140,7 @@ function MembersCannotCallNotice({ room }: { room: Room }) {
 const PROBLEM_KEYS = {
   browser: 'featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich',
   homeserver: 'featureUi.call.callView.yourHomeserverDoesNotSupportCalling',
+  untrustedService: 'featureUi.calls.problems.untrustedService',
   service: 'featureUi.calls.problems.service',
   connection: 'featureUi.calls.problems.connection',
   device: 'featureUi.calls.problems.device',

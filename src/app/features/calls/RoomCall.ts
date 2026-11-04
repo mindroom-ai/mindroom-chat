@@ -14,7 +14,12 @@ import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRtcKeyProvider } from './callKeyProvider';
-import { firstLivekitServiceUrl, getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
+import {
+  chooseCallService,
+  firstLivekitServiceUrl,
+  getLivekitServiceUrl,
+  requestSfuGrant,
+} from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
 import { holdDeviceCallLock, withdrawOwnMemberships } from './callResume';
 
@@ -26,6 +31,8 @@ export type CallProblem =
   | 'browser'
   /** The deployment announces no LiveKit backend. */
   | 'homeserver'
+  /** The call runs on a LiveKit backend the deployment does not announce. */
+  | 'untrustedService'
   /** The backend refused this account or could not be reached. */
   | 'service'
   /** The media connection failed or dropped. */
@@ -226,13 +233,6 @@ export class RoomCall {
     return [describe(this.mx.getSafeUserId(), deviceId, this.identity), ...others];
   }
 
-  /** The backend the call already runs on (the oldest membership's), or this deployment's. */
-  private async findService(): Promise<string | undefined> {
-    const oldest = this.session.getOldestMembership();
-    const inUse = oldest ? firstLivekitServiceUrl(oldest.transports) : undefined;
-    return inUse ?? getLivekitServiceUrl(this.mx);
-  }
-
   private attachAudio(track: RemoteTrack) {
     if (track.kind !== Track.Kind.Audio) return;
     if (!this.audioHost) {
@@ -347,12 +347,19 @@ export class RoomCall {
     await this.withdrawLeftover(deviceId);
     if (this.leaving) return;
 
-    const serviceUrl = await this.findService();
+    // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
+    const ownService = await getLivekitServiceUrl(mx);
+    const oldest = this.session.getOldestMembership();
+    const service = chooseCallService(
+      oldest ? firstLivekitServiceUrl(oldest.transports) : undefined,
+      ownService
+    );
     if (this.leaving) return;
-    if (!serviceUrl) {
-      this.fail('homeserver');
+    if ('refused' in service) {
+      this.fail(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
       return;
     }
+    const serviceUrl = service.url;
 
     let media: MediaRoom;
     try {

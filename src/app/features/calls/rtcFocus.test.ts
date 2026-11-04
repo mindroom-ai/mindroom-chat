@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
+  chooseCallService,
   discoverLivekitServiceUrl,
   firstLivekitServiceUrl,
   requestSfuGrant,
@@ -87,6 +88,36 @@ describe('discoverLivekitServiceUrl', () => {
     const fetchFn = vi.fn(async () => jsonResponse({}, 404)) as unknown as typeof fetch;
     const mx = fakeClient(async () => ({ rtc_transports: [] }));
     await expect(discoverLivekitServiceUrl(mx, fetchFn)).resolves.toBeUndefined();
+  });
+});
+
+describe('chooseCallService', () => {
+  const OWN = 'https://rtc.example.org/livekit/jwt';
+
+  it("starts a call on this deployment's backend", () => {
+    expect(chooseCallService(undefined, OWN)).toEqual({ url: OWN });
+  });
+
+  it('joins a running call only when it runs on that same backend', () => {
+    expect(chooseCallService('https://rtc.example.org/livekit/jwt/', OWN)).toEqual({ url: OWN });
+    expect(chooseCallService('https://RTC.example.org/livekit/jwt', OWN)).toEqual({ url: OWN });
+  });
+
+  it('refuses a call on a backend a room member named, whose owner would get the token', () => {
+    for (const named of [
+      'https://evil.example/livekit/jwt',
+      'https://rtc.example.org/other',
+      'https://rtc.example.org/livekit/jwt?x=1',
+      'https://user@rtc.example.org/livekit/jwt',
+      'http://rtc.example.org/livekit/jwt',
+    ]) {
+      expect(chooseCallService(named, OWN), named).toEqual({ refused: 'foreign' });
+    }
+  });
+
+  it('cannot call without a backend of its own', () => {
+    expect(chooseCallService(undefined, undefined)).toEqual({ refused: 'missing' });
+    expect(chooseCallService(OWN, undefined)).toEqual({ refused: 'missing' });
   });
 });
 

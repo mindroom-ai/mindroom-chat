@@ -107,6 +107,47 @@ export const getLivekitServiceUrl = (mx: MatrixClient): Promise<string | undefin
   return search;
 };
 
+/** A service URL reduced to what names the service, or undefined for one that is not plain HTTP(S). */
+const serviceIdentity = (url: string): string | undefined => {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined;
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) return undefined;
+  return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+};
+
+/** Where a call is joined, or why it cannot be. */
+export type CallServiceChoice =
+  | { url: string }
+  /** The deployment announces no LiveKit backend. */
+  | { refused: 'missing' }
+  /** The call runs on a backend this deployment does not announce. */
+  | { refused: 'foreign' };
+
+/**
+ * The LiveKit authorization service to join a call on: always this deployment's own (see
+ * `getLivekitServiceUrl`). A call already runs on the service its oldest membership names, but any
+ * room member writes that membership, and the service receives this account's OpenID token, which
+ * MindRoom services accept as a sign-in (a homeserver that binds tokens to an audience cannot help
+ * here: the stock authorization service presents none). So a call on another service is refused,
+ * as MindRoom's agents refuse it, instead of handing the token to whoever runs that service.
+ */
+export const chooseCallService = (
+  inUse: string | undefined,
+  own: string | undefined
+): CallServiceChoice => {
+  if (!own) return { refused: 'missing' };
+  if (inUse === undefined) return { url: own };
+  const ownIdentity = serviceIdentity(own);
+  return ownIdentity !== undefined && serviceIdentity(inUse) === ownIdentity
+    ? { url: own }
+    : { refused: 'foreign' };
+};
+
 /** What the authorization service hands back: where the LiveKit server is, and a token for it. */
 export type SfuGrant = { url: string; jwt: string };
 
