@@ -1919,7 +1919,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       style={{
         position: 'absolute',
         top: config.space.S100,
-        right: config.space.S500,
+        insetInlineEnd: config.space.S500,
         display: 'flex',
       }}
     >
