@@ -91,6 +91,8 @@ export const ThreadNavItem = memo(
 
 ThreadNavItem.displayName = 'ThreadNavItem';
 
+const unreadTitleStyle = { fontWeight: 'inherit' } as const;
+
 type RowProps = {
   entry: CrossRoomThreadIndexEntry;
   room: Room;
@@ -212,6 +214,9 @@ function ThreadNavItemRow({
                   priority={entry.isUnread ? '500' : '300'}
                   truncate
                   className={css.EntrySummary}
+                  // The text size sets its own weight; an unread title takes the row's bold weight,
+                  // like an unread room's name.
+                  style={entry.isUnread ? unreadTitleStyle : undefined}
                   ref={shownRef}
                 >
                   {title}
