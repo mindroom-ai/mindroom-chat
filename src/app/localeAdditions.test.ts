@@ -43,8 +43,10 @@ const overlayCodes = readdirSync(ADDITIONS_DIR)
   .filter((code) => code !== DEFAULT_LANGUAGE_CODE);
 
 describe('language overlays (locales/additions/<code>.json)', () => {
-  it('exist only for app languages besides English', () => {
-    overlayCodes.forEach((code) => expect(APP_LANGUAGE_CODES, code).toContain(code));
+  it('exist for every app language besides English, and only for app languages', () => {
+    expect([...overlayCodes].sort()).toEqual(
+      APP_LANGUAGE_CODES.filter((code) => code !== DEFAULT_LANGUAGE_CODE).sort()
+    );
   });
 
   describe.each(overlayCodes)('%s', (code) => {
