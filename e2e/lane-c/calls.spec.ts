@@ -359,7 +359,10 @@ test.describe('calls', () => {
     await alicePage.getByRole('button', { name: 'Room Settings', exact: true }).click();
     await alicePage.getByRole('button', { name: 'Permissions', exact: true }).click();
     await alicePage.getByRole('button', { name: 'Start or Join Call: Moderator' }).click();
-    await alicePage.getByRole('menu', { name: 'Start or Join Call' }).getByText('Member').click();
+    await alicePage
+      .locator('[aria-label="Start or Join Call"]')
+      .getByText('Member', { exact: true })
+      .click();
     await expect(alicePage.getByRole('button', { name: 'Start or Join Call: Member' })).toBeVisible(
       { timeout: 30_000 }
     );
