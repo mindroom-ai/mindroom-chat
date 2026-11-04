@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
+import { Avatar, Badge, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { useAtomValue } from 'jotai';
+import { useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -15,6 +16,8 @@ import { allInvitesAtom } from '../../../state/room-list/inviteList';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import { getRoomAvatarUrl } from '../../../utils/room';
+import { mxcUrlToHttp } from '../../../utils/mediaUrl';
+import { nameInitials } from '../../../utils/common';
 import { acceptInvite, acceptInvites } from './acceptInvite';
 import {
   INVITE_CATEGORIES,
@@ -23,6 +26,7 @@ import {
   type InviteCategory,
 } from './inviteFilter';
 import { INBOX_PATH } from '../../paths';
+import { getDirectRoomPath } from '../../pathUtils';
 
 const FSI = '\u2068';
 const LRI = '\u2066';
@@ -73,8 +77,18 @@ type InviteOrigin = {
   inviteTs?: number;
 };
 
+/** What kind of room it is: a direct chat, encrypted, open to anyone. */
+type InviteTraits = {
+  /** The inviter marked the invite `is_direct`. */
+  isDirect: boolean;
+  isEncrypted: boolean;
+  isPublic: boolean;
+  /** The inviter's `mxc://` avatar, which a direct chat shows as its own. */
+  senderAvatar?: string;
+};
+
 /** One pending invite, read from the stripped state the server sent with it. */
-export type InviteData = InvitedRoom & InvitedRoomListing & InviteOrigin;
+export type InviteData = InvitedRoom & InvitedRoomListing & InviteOrigin & InviteTraits;
 
 const cleanName = (name: string): string =>
   name.replace(BIDI_CONTROLS, '').replace(LINE_SEPARATORS, '');
@@ -97,6 +111,8 @@ export const makeInviteData = (mx: MatrixClient, room: Room, isSpace: boolean): 
     ? (senderMember?.events.member?.getContent().displayname as string | undefined)
     : undefined;
   const topic = room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic;
+  const state = (type: string) => room.currentState.getStateEvents(type, '')?.getContent();
+  const avatar = senderMember?.events.member?.getContent().avatar_url;
 
   return {
     room,
@@ -109,8 +125,33 @@ export const makeInviteData = (mx: MatrixClient, room: Room, isSpace: boolean): 
     senderDisplayName: typeof rawDisplayName === 'string' ? rawDisplayName : undefined,
     senderName: senderId ? senderLabel(senderId, rawDisplayName) : undefined,
     inviteTs: inviteEvent?.getTs(),
+    isDirect: inviteEvent?.getContent().is_direct === true,
+    isEncrypted: Boolean(state('m.room.encryption')?.algorithm),
+    isPublic: state('m.room.join_rules')?.join_rule === 'public',
+    senderAvatar: typeof avatar === 'string' && avatar ? avatar : undefined,
   };
 };
+
+/** The labels under an invite's name: direct chat or space, encrypted, public. */
+function InviteBadges({ invite }: { invite: InviteData }) {
+  const { t } = useTranslation();
+  const labels = [
+    invite.isDirect && t('sharedUi.invites.directMessage'),
+    invite.isSpace && t('sharedUi.invites.space'),
+    invite.isEncrypted && t('sharedUi.invites.encrypted'),
+    invite.isPublic && t('sharedUi.invites.public'),
+  ].filter((label): label is string => Boolean(label));
+  if (labels.length === 0) return null;
+  return (
+    <Box gap="100" wrap="Wrap" data-invite-badges="">
+      {labels.map((label) => (
+        <Badge key={label} variant="Secondary" fill="Soft" radii="Pill">
+          <Text size="T200">{label}</Text>
+        </Badge>
+      ))}
+    </Box>
+  );
+}
 
 /** Whether the invite's room or inviter uses words of spam invites (whole words, full names). */
 export const hasBadWords = (invite: InviteData): boolean =>
@@ -129,7 +170,7 @@ const useInviteTimeFormat = (): InviteTimeFormat => {
 
 type InviteCardProps = InviteTimeFormat & {
   invite: InviteData;
-  onNavigate: (roomId: string, isSpace: boolean) => void;
+  onNavigate: (roomId: string, isSpace: boolean, isDirect?: boolean) => void;
   hideAvatar: boolean;
   /** Whether media needs an access token (authenticated media). */
   useAuthentication?: boolean;
@@ -147,13 +188,20 @@ export function InviteCard({
   const client = useMatrixClient();
   const { room, roomId, roomName, roomTopic, isSpace } = invite;
   const [state, setState] = useState<'idle' | 'joining' | 'leaving' | 'error'>('idle');
-  const avatar = hideAvatar ? undefined : getRoomAvatarUrl(client, room, 96, useAuthentication);
+  // A direct chat has no picture of its own; it shows the person who started it.
+  const directAvatar =
+    invite.isDirect && invite.senderAvatar
+      ? mxcUrlToHttp(client, invite.senderAvatar, useAuthentication, 96, 96, 'crop') ?? undefined
+      : undefined;
+  const avatar = hideAvatar
+    ? undefined
+    : directAvatar ?? getRoomAvatarUrl(client, room, 96, useAuthentication);
 
   const handleAccept = async () => {
     setState('joining');
     try {
       await acceptInvite(client, room);
-      onNavigate(roomId, isSpace);
+      onNavigate(roomId, isSpace, invite.isDirect);
     } catch {
       setState('error');
     }
@@ -186,14 +234,22 @@ export function InviteCard({
           <RoomAvatar
             src={avatar}
             roomId={roomId}
+            fallbackId={invite.isDirect ? invite.senderId : undefined}
             alt={roomName}
-            renderFallback={() => <Icon size="200" src={fallbackIcon} />}
+            renderFallback={() =>
+              invite.isDirect ? (
+                <Text size="H6">{nameInitials(roomName)}</Text>
+              ) : (
+                <Icon size="200" src={fallbackIcon} />
+              )
+            }
           />
         </Avatar>
         <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
           <Text size="T400" truncate>
             {roomName}
           </Text>
+          <InviteBadges invite={invite} />
           {roomTopic ? (
             <Text size="T200" priority="300" truncate>
               {roomTopic}
@@ -259,6 +315,7 @@ export function Invites() {
   const timeFormat = useInviteTimeFormat();
   const pendingRoomIds = useAtomValue(allInvitesAtom);
   const { navigateSpace, navigateRoom } = useRoomNavigate();
+  const navigate = useNavigate();
   const [acceptingAll, setAcceptingAll] = useState(false);
 
   const invites = useMemo(
@@ -287,8 +344,12 @@ export function Invites() {
     pickedCategory ?? INVITE_CATEGORIES.find((candidate) => counts[candidate] > 0) ?? 'primary';
   const shownInvites = invites.filter((_, index) => categories[index] === category);
 
-  const handleNavigate = (roomId: string, isSpace: boolean) =>
-    isSpace ? navigateSpace(roomId) : navigateRoom(roomId);
+  // A direct chat opens under Direct Messages before sync reports the m.direct entry for it.
+  const handleNavigate = (roomId: string, isSpace: boolean, isDirect?: boolean) => {
+    if (isSpace) navigateSpace(roomId);
+    else if (isDirect) navigate(getDirectRoomPath(roomId));
+    else navigateRoom(roomId);
+  };
 
   const handleAcceptAll = async () => {
     setAcceptingAll(true);
