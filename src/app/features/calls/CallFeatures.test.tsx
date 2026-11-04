@@ -6,7 +6,14 @@ import { createStore, Provider } from 'jotai';
 import { CallFeatures } from './CallFeatures';
 import { callPanelRoomAtom } from './callStore';
 
-vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+// CallResume waits for a server sync before it reads the reload's call record; this client never
+// syncs, so the test stays about the panel and nothing resumes after it ends.
+const client = vi.hoisted(() => ({
+  getSyncState: () => null,
+  on: () => undefined,
+  off: () => undefined,
+}));
+vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../pages/client/ClientStartupContext', () => ({
   useClientStartupContext: () => ({ hasCompletedInitialSync: false }),
 }));
