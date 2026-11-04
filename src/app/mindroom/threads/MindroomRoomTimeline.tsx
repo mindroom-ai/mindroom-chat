@@ -287,13 +287,42 @@ const dividerStyle: React.CSSProperties = {
   padding: `${config.space.S200} ${config.space.S400}`,
 };
 
+/** Whether `element` is (partly) inside the visible area of the scroll container `area`. */
+const useShownInScrollArea = (element: Element | null, area: Element | null): boolean => {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!element || !area || typeof IntersectionObserver === 'undefined') {
+      setShown(false);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const latest = entries[entries.length - 1];
+        if (latest) setShown(latest.isIntersecting);
+      },
+      { root: area }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element, area]);
+  return shown;
+};
+
 /** A date or unread separator: a label between two hairlines. */
-function DividerLabel({ label, unread = false }: { label: string; unread?: boolean }) {
+function DividerLabel({
+  label,
+  unread = false,
+  separatorRef,
+}: {
+  label: string;
+  unread?: boolean;
+  separatorRef?: React.Ref<HTMLDivElement>;
+}) {
   const lineColor = unread ? color.Success.ContainerLine : color.SurfaceVariant.ContainerLine;
   const rule = <span style={{ height: 1, background: lineColor }} />;
   const labelColor = unread ? color.Success.Main : color.SurfaceVariant.OnContainer;
   return (
-    <div role="separator" style={{ ...dividerStyle, color: labelColor }}>
+    <div ref={separatorRef} role="separator" style={{ ...dividerStyle, color: labelColor }}>
       {rule}
       <Text size="L400">{label}</Text>
       {rule}
@@ -450,6 +479,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // As tall as the footer inset: a growing composer moves the newest row up with it.
   const footerProbeRef = useRef<HTMLDivElement>(null);
   useFooterBottomPin(scrollElement, footerProbeRef);
+  // Jump to Unread gives way while the "New messages" line it jumps to is in view.
+  const [unreadMarker, setUnreadMarker] = useState<HTMLDivElement | null>(null);
+  const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
   // A new identity once the scroll area mounts, so observers built on it start over (the
   // compact view has none, and switching to the timeline mounts it later).
   const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
@@ -1521,6 +1553,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
             {context.unreadDivider && (
               <DividerLabel
                 unread
+                separatorRef={setUnreadMarker}
                 label={t('mindroomUi.threads.mindroomRoomTimeline.newMessages')}
               />
             )}
@@ -1553,7 +1586,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const showRoomFrontSentinel =
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
   const showJumpToUnread =
-    !threadId && !!unreadInfo?.readUptoEventId && (!unreadInfo.inLiveTimeline || roomUnread);
+    !threadId &&
+    !!unreadInfo?.readUptoEventId &&
+    (!unreadInfo.inLiveTimeline || roomUnread) &&
+    !unreadMarkerShown;
   const expandAllButton = (
     <button type="button" style={expandAllToggleStyle} onClick={handleToggleExpandAll}>
       {expandAll
