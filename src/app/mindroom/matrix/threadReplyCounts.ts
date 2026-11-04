@@ -49,7 +49,7 @@ const countRepliesAfterSummary = (thread: Thread, summary: ThreadSummary): numbe
  * lower it; a count equal to the summary's means the SDK read the summary again (it does once
  * server discovery ends) and dropped the newer replies. Returns whether the count changed.
  */
-export const settleThreadReplyCount = (thread: Thread): boolean => {
+const settleThreadReplyCount = (thread: Thread): boolean => {
   if (thread.initialEventsFetched) return false;
   const summary = readSummary(thread.rootEvent);
   if (!summary) return false;
@@ -161,13 +161,24 @@ export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
     forwardRedactions(room, event);
   };
 
+  // A forgotten room leaves the store; its listeners go with it, so the room can be freed.
+  const forgetRoom = (deletedRoomId: string) => {
+    stops.forEach((stop, room) => {
+      if (room.roomId !== deletedRoomId) return;
+      stop();
+      stops.delete(room);
+    });
+  };
+
   mx.on(RoomEvent.Timeline, onTimeline);
   mx.on(ClientEvent.Room, watchRoom);
+  mx.on(ClientEvent.DeleteRoom, forgetRoom);
   mx.getRooms().forEach(watchRoom);
 
   return () => {
     mx.removeListener(RoomEvent.Timeline, onTimeline);
     mx.removeListener(ClientEvent.Room, watchRoom);
+    mx.removeListener(ClientEvent.DeleteRoom, forgetRoom);
     stops.forEach((stop) => stop());
     stops.clear();
   };

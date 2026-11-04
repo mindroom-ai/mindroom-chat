@@ -17,7 +17,7 @@ export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 
 /** Room ephemeral events to receive: typing, receipts and MindRoom's live reply frames. */
-export const SYNC_EPHEMERAL_TYPES = ['m.typing', 'm.receipt', 'io.mindroom.live'];
+const SYNC_EPHEMERAL_TYPES = ['m.typing', 'm.receipt', 'io.mindroom.live'];
 
 type ServerVersionsClient = MatrixClient & { serverVersionsPromise?: Promise<unknown> };
 
@@ -25,7 +25,7 @@ type ServerVersionsClient = MatrixClient & { serverVersionsPromise?: Promise<unk
  * Hands the SDK the `/versions` answer this account cached last time, so starting does not wait
  * for the request and works offline. The SDK asks the server again later on its own.
  */
-export const seedCachedServerVersions = async (mx: MatrixClient): Promise<void> => {
+const seedCachedServerVersions = async (mx: MatrixClient): Promise<void> => {
   const userId = mx.getUserId();
   const client = mx as ServerVersionsClient;
   if (!userId || client.serverVersionsPromise) return;
@@ -37,7 +37,7 @@ export const seedCachedServerVersions = async (mx: MatrixClient): Promise<void> 
 };
 
 /** The sync filter: short timelines, lazy-loaded members, the ephemeral events above. */
-export const buildSyncFilter = (mx: MatrixClient): Filter => {
+const buildSyncFilter = (mx: MatrixClient): Filter => {
   const filter = new Filter(mx.getUserId());
   filter.setDefinition({
     room: {

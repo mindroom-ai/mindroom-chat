@@ -1,10 +1,17 @@
-import { createClient, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  type IEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import {
   FeatureSupport,
   FILTER_RELATED_BY_REL_TYPES,
   FILTER_RELATED_BY_SENDERS,
   THREAD_RELATION_TYPE,
   Thread,
+  ThreadEvent,
 } from 'matrix-js-sdk/lib/models/thread';
 import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
@@ -367,5 +374,20 @@ describe('thread reply counts', () => {
     await f.room().addLiveEvents([reply(1)].map(f.mx.getEventMapper()), { addToState: false });
     await settle();
     expect(f.thread().length).toBe(4);
+  });
+
+  it('lets go of a room the account forgets', async () => {
+    const replies = [reply(1)];
+    const f = fixture({ replies });
+    await f.start(false);
+    await f.deliver([summarizedRoot(replies)]);
+    const room = f.room();
+    const before = room.listenerCount(ThreadEvent.New);
+    keepThreadReplyCounts(f.mx);
+    expect(room.listenerCount(ThreadEvent.New)).toBe(before + 1);
+
+    // What the SDK announces once `forget` takes the room out of the store.
+    f.mx.emit(ClientEvent.DeleteRoom, roomId);
+    expect(room.listenerCount(ThreadEvent.New)).toBe(before);
   });
 });
