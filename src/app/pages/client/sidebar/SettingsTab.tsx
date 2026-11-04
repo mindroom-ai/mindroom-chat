@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';

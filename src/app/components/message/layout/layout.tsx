@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode } from 'react';
+import { ComponentProps, ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, Text, as } from 'folds';
 import type { MessageSpacing } from '../../../state/settings';

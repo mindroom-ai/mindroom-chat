@@ -1,4 +1,3 @@
-import React from 'react';
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';

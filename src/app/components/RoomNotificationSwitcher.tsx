@@ -1,4 +1,4 @@
-import React, { type MouseEvent, type ReactNode, useState } from 'react';
+import { type MouseEvent, type ReactNode, useState } from 'react';
 import { type RectCords } from 'folds';
 import { PopOut } from './directional';
 import { useTranslation } from 'react-i18next';

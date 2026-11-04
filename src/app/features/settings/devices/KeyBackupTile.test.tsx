@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixError } from 'matrix-js-sdk';
@@ -52,7 +51,8 @@ describe('KeyBackupTile', () => {
   ])('says the check failed when %s, and checks again on Retry', async (_case, failure) => {
     const authedRequest = clientAnswering(
       () => Promise.reject(failure),
-      () => Promise.resolve({ version: '7', count: 12, algorithm: 'm.megolm_backup.v1', auth_data: {} })
+      () =>
+        Promise.resolve({ version: '7', count: 12, algorithm: 'm.megolm_backup.v1', auth_data: {} })
     );
     render(<KeyBackupTile />);
     await settle();

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PopOut, TooltipProvider, documentIsRightToLeft, mirrorPlacement, textDirection } from '.';

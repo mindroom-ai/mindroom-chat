@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

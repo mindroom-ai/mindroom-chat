@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
+import { MouseEventHandler, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Line, Text, config, toRem } from 'folds';
 import { PopOut } from '../../../components/directional';
 import type { IconSrc, RectCords } from 'folds';

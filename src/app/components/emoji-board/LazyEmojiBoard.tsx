@@ -1,4 +1,4 @@
-import React, { type ComponentProps, Suspense, lazy } from 'react';
+import { type ComponentProps, Suspense, lazy } from 'react';
 import { Box } from 'folds';
 import type { EmojiBoard as EmojiBoardComponent } from './EmojiBoard';
 import * as css from './components/styles.css';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
