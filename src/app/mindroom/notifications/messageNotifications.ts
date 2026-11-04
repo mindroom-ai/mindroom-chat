@@ -131,9 +131,10 @@ export const readMessageNotice = (
   if (!actions?.notify) return undefined;
 
   const source = completed?.reply ?? event;
-  // Read already, here or on another device, before this client heard of it.
-  const thread = source.getThread();
-  if ((thread ?? room).hasUserReadEvent(me, source.getId() ?? eventId)) return undefined;
+  // Read already, here or on another device, before this client heard of it. The room's receipts
+  // answer for threads too; a thread's own answer counts every thread as read until the account
+  // sent its first threaded receipt in the room.
+  if (room.hasUserReadEvent(me, source.getId() ?? eventId)) return undefined;
   return {
     roomId: room.roomId,
     eventId: source.getId() ?? eventId,
