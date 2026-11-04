@@ -1,7 +1,9 @@
 // @ts-check
+import { readdirSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
@@ -57,6 +59,31 @@ const sourcePlugins = [react(), vanillaExtractPlugin()];
 // fail with "Failed to fetch dynamically imported module".
 const slotPort = process.env.E2E_APP_PORT;
 
+// `scripts/e2e-slot.sh --snapshot` runs Vite in a copy of one commit whose node_modules is a link to
+// the checkout's. The dev server only serves files under its allow list, which then misses the real
+// package directory (the crypto wasm among them), so that directory is added.
+const modulesLink = fileURLToPath(new URL('./node_modules', import.meta.url));
+const modulesTarget = (() => {
+  try {
+    return realpathSync(modulesLink);
+  } catch {
+    return modulesLink;
+  }
+})();
+const linkedModules = modulesTarget === modulesLink ? [] : [modulesTarget];
+
+// E2E_FIXTURE_PAGES=1 is the second build `scripts/e2e-slot.sh --preview` runs into the same output:
+// only the spec fixture pages (e2e/fixtures/*.html), so the app bundle and the service worker's
+// precache list stay exactly as they ship.
+const fixturePagesOnly = process.env.E2E_FIXTURE_PAGES === '1';
+const fixturePagesDir = fileURLToPath(new URL('./e2e/fixtures/', import.meta.url));
+const fixturePageInputs = () =>
+  Object.fromEntries(
+    readdirSync(fixturePagesDir)
+      .filter((name) => name.endsWith('.html'))
+      .map((name) => [`fixture-${name.slice(0, -'.html'.length)}`, `${fixturePagesDir}${name}`])
+  );
+
 export default defineConfig({
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
@@ -65,8 +92,7 @@ export default defineConfig({
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
     ...sourcePlugins,
-    viteStaticCopy(copyFiles),
-    serviceWorkerPlugin,
+    ...(fixturePagesOnly ? [] : [viteStaticCopy(copyFiles), serviceWorkerPlugin]),
   ],
   server: {
     // 127.0.0.1 rather than localhost: Node can resolve localhost to ::1 only,
@@ -77,6 +103,9 @@ export default defineConfig({
     // E2E_NO_WATCH=1 (set by scripts/e2e-slot.sh) serves the files as they were at start, so edits
     // that other sessions make in the same checkout cannot reload pages in the middle of a spec.
     ...(process.env.E2E_NO_WATCH === '1' ? { watch: null } : {}),
+    ...(linkedModules.length
+      ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...linkedModules] } }
+      : {}),
   },
   optimizeDeps: {
     // The Rust crypto bindings locate their .wasm with `new URL(..., import.meta.url)`.
@@ -89,5 +118,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'es2022',
+    ...(fixturePagesOnly
+      ? { emptyOutDir: false, copyPublicDir: false, rollupOptions: { input: fixturePageInputs() } }
+      : {}),
   },
 });
