@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
-import { waitForLoggedInShell } from '../helpers/auth';
+import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 
 /**
@@ -91,7 +91,11 @@ const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
   await page.locator('input[name="usernameInput"]').fill(stack.tester.username);
   await page.locator('input[name="passwordInput"]').fill(stack.tester.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
-  await waitForLoggedInShell(page);
+  // The first start of an account sets up its encryption, which takes long on a loaded machine.
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern }).first()).toBeVisible(
+    { timeout: 240_000 }
+  );
+  await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
 type WorkerFixtures = {
@@ -107,7 +111,8 @@ export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
     },
     { scope: 'worker', timeout: 20 * 60_000 },
   ],
-  // One password sign-in per worker; every test starts from its browser storage, IndexedDB included.
+  // One password sign-in per stack; every test starts from its browser storage, IndexedDB included,
+  // also in the new worker Playwright starts after a failure.
   testerStorageState: [
     async ({ browser, agentStackOrSkip }, use, workerInfo) => {
       if (typeof agentStackOrSkip === 'string') {
@@ -116,7 +121,7 @@ export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
       }
       const directory = join(agentStackOrSkip.dir, 'browser-state');
       mkdirSync(directory, { recursive: true });
-      const file = join(directory, `worker-${process.pid}.json`);
+      const file = join(directory, 'tester.json');
       if (!existsSync(file)) {
         const context = await browser.newContext({ baseURL: workerInfo.project.use.baseURL });
         const page = await context.newPage();
@@ -127,7 +132,7 @@ export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
       }
       await use(file);
     },
-    { scope: 'worker', timeout: 6 * 60_000 },
+    { scope: 'worker', timeout: 8 * 60_000 },
   ],
   storageState: async ({ testerStorageState }, use) => {
     await use(testerStorageState);

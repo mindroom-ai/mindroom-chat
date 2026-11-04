@@ -19,8 +19,9 @@ The person's latest message picks a scenario by hashtag:
   #canvas      show_canvas with a page that submits a color
   #job         a shell call that runs 45 s as a background job
 
-Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: ...").
-After a tool result the scenario calls its next tool or answers with the last result. Structured-output
+Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: <message>").
+When MindRoom reports that background jobs ended, the stub collects them with the job tool and reports
+the result. After a tool result the scenario calls its next tool or answers with the last result. Structured-output
 requests (the router, thread summaries and tags, schedule parsing) get JSON built from their schema.
 Every request is appended to the --log file as one JSON line.
 """
@@ -100,6 +101,12 @@ def latest_person_index(messages: list[dict]) -> int:
         if messages[index].get("role") == "user":
             return index
     return -1
+
+
+def spoken(text: str) -> str:
+    """What the person wrote: MindRoom wraps each message as <msg ...><![CDATA[text]]></msg>."""
+    parts = re.findall(r"<!\[CDATA\[(.*?)\]\]>", text, re.S)
+    return (parts[-1] if parts else text).strip()
 
 
 def current_turn_text(messages: list[dict]) -> str:
@@ -222,8 +229,8 @@ def plan(body: dict) -> tuple:
         )
     if has_tag(text, "#error"):
         return ("error",)
-    words = " ".join(current_turn_text(messages).split()[-12:])
-    return ("text", f"Hello from **{body.get('model')}**. You said: {words}")
+    said = spoken(text_of(messages[index].get("content"))) if index >= 0 else ""
+    return ("text", f"Hello from **{body.get('model')}**. You said: {said}")
 
 
 def chunk(model: str, delta: dict, finish: str | None = None) -> dict:

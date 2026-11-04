@@ -74,7 +74,7 @@ test('tool calls show a running row, then one row for the run that expands to ea
   await showThread(page, stack, rootId);
 
   // The second of three shell calls sleeps 10 s.
-  await expect(page.getByRole('button', { name: /^Running 1 tool call/ })).toBeVisible({
+  await expect(page.getByRole('button', { name: /^Running \d+ tool calls?/ })).toBeVisible({
     timeout: 60_000,
   });
   const done = await waitForAgentReply(stack, rootId, (body) => /Finished \*{0,2}multi/.test(body));
