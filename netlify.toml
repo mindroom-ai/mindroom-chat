@@ -29,7 +29,10 @@
   status = 200
 
 # Who may frame the app, as scripts/frame-headers.mjs sends it from `vite preview`: pages of this
-# origin only (the app frames its own PDF page), and no frame at all for the pairing page.
+# origin only (the app frames its own PDF page), and no frame at all for the pairing page. The
+# rules name /connect and /connect/ only, so other spellings (letter case, escapes) may get the
+# first rule; the service worker sets the pairing page's headers on later visits, and the page
+# itself refuses to work inside a frame.
 [[headers]]
   for = "/*"
   [headers.values]

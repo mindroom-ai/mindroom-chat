@@ -1,0 +1,11 @@
+{
+  "pairingPage": "connect",
+  "pairingPageHeaders": {
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Frame-Options": "DENY"
+  },
+  "otherPageHeaders": {
+    "Content-Security-Policy": "frame-ancestors 'self'",
+    "X-Frame-Options": "SAMEORIGIN"
+  }
+}

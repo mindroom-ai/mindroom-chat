@@ -24,6 +24,7 @@ import {
   readNavigationFallbackExcludePaths,
   RUNTIME_NAVIGATION_PATHS,
 } from './serviceWorkerNavigation';
+import { withPageFraming } from './serviceWorkerFraming';
 
 // The DOM library has no service worker scope types; these are the parts this worker uses.
 type WorkerClient = { id: string; url: string; postMessage: (message: unknown) => void };
@@ -118,14 +119,15 @@ const precachesAppShell = precacheManifest.some(
 );
 
 // Navigation is registered first so app routes get the shell; the shell lookup stays cache-only
-// so a miss falls through to the original network navigation.
+// so a miss falls through to the original network navigation. The shell carries index.html's
+// framing headers, so the pairing page gets its own back.
 if (precachesAppShell) {
   registerRoute(
     new NavigationRoute(
       ({ request }) =>
         fetchNavigationWithShellFallback(request, () =>
           precacheController.matchPrecache('index.html')
-        ),
+        ).then((response) => withPageFraming(request.url, response)),
       { denylist: navigationFallbackDenylist }
     )
   );
