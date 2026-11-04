@@ -92,19 +92,38 @@ const pushActiveSession = (): void => {
   pushSessionToSW(session?.baseUrl, session?.accessToken);
 };
 
-/**
- * Whether this app has an activated worker that could take the page after a reload. Without one
- * (registration failed, was blocked, or is still installing) a reload changes nothing.
- */
-const hasActivatedServiceWorker = async (): Promise<boolean> => {
+/** The app's active service worker, if it has one. */
+const getActiveServiceWorker = async (): Promise<ServiceWorker | undefined> => {
   try {
     const registration = await navigator.serviceWorker.getRegistration(
       ensureBasePathTrailingSlash(getAppBasePath())
     );
-    return !!registration?.active;
+    return registration?.active ?? undefined;
   } catch {
-    return false;
+    return undefined;
   }
+};
+
+/**
+ * Whether this app has an active worker that could take the page after a reload. Without one
+ * (registration failed, was blocked, or is still installing) a reload changes nothing. A worker
+ * that is still activating claims open pages when it finishes (src/sw.ts), so this waits for it
+ * to finish: a first install that ends just after the page loaded must not cost a reload.
+ */
+const hasActivatedServiceWorker = async (): Promise<boolean> => {
+  const worker = await getActiveServiceWorker();
+  if (!worker) return false;
+  if (worker.state === 'activating') {
+    await new Promise<void>((resolve) => {
+      const settled = () => {
+        if (worker.state === 'activating') return;
+        worker.removeEventListener('statechange', settled);
+        resolve();
+      };
+      worker.addEventListener('statechange', settled);
+    });
+  }
+  return worker.state !== 'redundant';
 };
 
 /**
@@ -123,6 +142,8 @@ const recoverServiceWorkerControl = async (): Promise<void> => {
   if (alreadyReloaded) return;
   if (await waitForServiceWorkerControl()) return;
   if (!(await hasActivatedServiceWorker())) return;
+  // A worker that just finished activating has claimed this page, or does so in a moment.
+  if (await waitForServiceWorkerControl(1_000)) return;
 
   const url = new URL(window.location.href);
   url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
