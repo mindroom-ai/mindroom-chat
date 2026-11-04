@@ -1,6 +1,13 @@
 import { style } from '@vanilla-extract/css';
 import { color } from 'folds';
 
+// Larger screens center the dialog clear of the status bar and the home indicator, so it never
+// slides under a notch and its shadow stays off the strip the page shows there.
+export const SafeOverlayCenter = style({
+  paddingTop: 'env(safe-area-inset-top, 0px)',
+  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+});
+
 // On phones the large dialog is a screen of its own: no margin, rounded corners or border, and its
 // content kept clear of the notch and the home indicator.
 export const PhoneOverlayCenter = style({

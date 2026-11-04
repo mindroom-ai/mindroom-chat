@@ -1,7 +1,9 @@
 import React, { ComponentProps, ReactNode } from 'react';
+import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { Modal } from './glass/GlassPrimitives';
+import { glassOverBackdrop } from '../styles/Glass.css';
 import { stopPropagation } from '../utils/keyboard';
 import { ScreenSize, useScreenSizeContext } from '../hooks/useScreenSize';
 import * as css from './Modal500.css';
@@ -30,11 +32,16 @@ const closingTrap = (onClose: () => void): TrapOptions => ({
  */
 export function Modal500({ requestClose, children }: Modal500Props) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // The backdrop already dims the page, so the glass takes a lighter tint over it.
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter className={phone ? css.PhoneOverlayCenter : undefined}>
+      <OverlayCenter className={phone ? css.PhoneOverlayCenter : css.SafeOverlayCenter}>
         <FocusTrap focusTrapOptions={closingTrap(requestClose)}>
-          <Modal variant="Background" size="500" className={phone ? css.PhoneModal : undefined}>
+          <Modal
+            variant="Background"
+            size="500"
+            className={classNames(glassOverBackdrop, phone && css.PhoneModal)}
+          >
             {children}
           </Modal>
         </FocusTrap>
