@@ -911,9 +911,13 @@ def start(
         for name in ["router", *agents]
     }
 
+    # The homeserver's last answer to each join, for the message of a start that gives up here.
+    join_answers: dict[str, str] = {}
+
     def joined(room_id: str) -> bool:
         backend_alive()
-        status, _ = matrix(homeserver, "POST", f"/join/{urllib.request.quote(room_id)}", {}, tester_token)
+        status, body = matrix(homeserver, "POST", f"/join/{urllib.request.quote(room_id)}", {}, tester_token)
+        join_answers["lobby" if room_id == lobby else "space"] = f"{status} {body.get('errcode') or ''}".strip()
         return status == 200
 
     wait_until(
@@ -921,7 +925,7 @@ def start(
         lambda: joined(lobby) and joined(space),
         120,
         1,
-        backend_log_tail,
+        lambda: f" (last join answers: {join_answers}){backend_log_tail()}",
     )
 
     def agents_in_lobby() -> bool:
