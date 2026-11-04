@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
-  createPrivateRoom,
   joinRoom,
   loginToMatrix,
   matrixFetch,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { createRoom } from './createRoom';
 
 // Notifications against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh): a room's mode from the header menu, desktop notifications for messages
@@ -122,7 +122,7 @@ test.beforeEach(async () => {
 test('the room header menu switches the room notification mode', async ({ page }) => {
   test.setTimeout(240_000);
   const owner = await registerAndLogin('mode');
-  const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, { name: 'Release Train' });
+  const roomId = await createRoom(HOMESERVER, owner.accessToken, { name: 'Release Train' });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: owner.username,
@@ -177,11 +177,11 @@ test('messages from another account notify, and a click opens their room or thre
   test.setTimeout(300_000);
   const reader = await registerAndLogin('reader');
   const writer = await registerAndLogin('writer');
-  const quietId = await createPrivateRoom(HOMESERVER, reader.accessToken, {
+  const quietId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Quiet Corner',
     invite: [writer.userId],
   });
-  const busyId = await createPrivateRoom(HOMESERVER, reader.accessToken, {
+  const busyId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Busy Desk',
     invite: [writer.userId],
   });

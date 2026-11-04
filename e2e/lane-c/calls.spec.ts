@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import { defined } from '../../src/app/test-utils/defined';
 
 // Calls over MatrixRTC and LiveKit between real browser sessions with fake microphones and
 // cameras: a direct chat call that rings (card, ringtone, system notification), is answered,
@@ -97,7 +98,7 @@ const createDirectChat = async (owner: Session, guest: Session, encrypted: boole
   for (const [me, other] of [
     [owner, guest],
     [guest, owner],
-  ]) {
+  ] as const) {
     // eslint-disable-next-line no-await-in-loop
     await matrix(`/user/${encodeURIComponent(me.userId)}/account_data/m.direct`, {
       token: me.token,
@@ -252,7 +253,9 @@ test.describe('calls', () => {
         { title: 'Incoming Call', body: 'Alice Call is calling', closed: false },
       ]);
       await ring.getByRole('button', { name: 'Answer' }).click();
-      await expect.poll(async () => (await ringAlerts(bobPage)).notifications[0].closed).toBe(true);
+      await expect
+        .poll(async () => (await ringAlerts(bobPage)).notifications[0]?.closed)
+        .toBe(true);
       // Answering stops the ringtone: no more notes are scheduled.
       const notesAtAnswer = (await ringAlerts(bobPage)).notes;
       await bobPage.waitForTimeout(3_000);
@@ -481,8 +484,7 @@ test.describe('calls', () => {
       '/sync?timeout=0',
       { token: agent.token }
     );
-    const callRoomId = Object.keys(rooms.invite)[0];
-    expect(callRoomId).toBeTruthy();
+    const callRoomId = defined(Object.keys(rooms.invite)[0], 'an invite to the call room');
     await matrix(`/join/${encodeURIComponent(callRoomId)}`, { token: agent.token, body: {} });
     const origin = await matrix<Record<string, unknown>>(
       `/rooms/${encodeURIComponent(callRoomId)}/state/io.mindroom.agent_call/`,

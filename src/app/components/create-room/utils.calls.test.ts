@@ -3,6 +3,7 @@ import type { ICreateRoomOpts, MatrixClient } from 'matrix-js-sdk';
 import { RoomType } from '../../../types/matrix/room';
 import { CreateRoomAccess } from './types';
 import { createRoom, type CreateRoomData } from './utils';
+import { defined } from '../../test-utils/defined';
 
 const CALL_MEMBER = 'org.matrix.msc3401.call.member';
 
@@ -17,7 +18,7 @@ const requestFor = async (data: Partial<CreateRoomData>): Promise<ICreateRoomOpt
     version: '11',
     ...data,
   });
-  return send.mock.calls[0][0];
+  return defined(send.mock.calls[0], 'a createRoom call')[0];
 };
 
 describe('createRoom call membership level', () => {

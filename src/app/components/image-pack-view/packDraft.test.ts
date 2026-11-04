@@ -51,7 +51,7 @@ describe('addPackImages', () => {
       { shortcode: 'four', image: { url: 'mxc://x/4' } },
     ]);
     expect(Object.keys(next.images ?? {})).toEqual(['one', 'two', 'three', 'one-2', 'four']);
-    expect(next.images?.one.url).toBe('mxc://x/1');
+    expect(next.images?.one?.url).toBe('mxc://x/1');
     expect(next.pack).toBe(pack.pack);
   });
 });

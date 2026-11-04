@@ -5,6 +5,7 @@ import {
   activeAccountButtonNamePattern,
   waitForLoggedInShell,
 } from '../helpers/auth';
+import { defined } from '../../src/app/test-utils/defined';
 
 // Single sign-on against the disposable homeserver of `just hs-up`. The test homeserver has no
 // identity provider, so two requests are answered here: the login flows gain an `m.login.sso`
@@ -136,7 +137,9 @@ test('signs in through an identity provider and returns with a login token', asy
   await expectActiveUser(page, username);
   // The provider was asked to come back to this server's login page, and the token is gone.
   expect(stub.redirectUrls).toHaveLength(1);
-  expect(new URL(stub.redirectUrls[0]).pathname).toBe(loginPath());
+  expect(new URL(defined(stub.redirectUrls[0], 'the first SSO redirect')).pathname).toBe(
+    loginPath()
+  );
   expect(new URL(page.url()).searchParams.has('loginToken')).toBe(false);
 
   // The session survives a reload like a password session does.
@@ -166,7 +169,9 @@ test('adds a second account through single sign-on', async ({ page }) => {
   await waitForShell(page);
   await expectActiveUser(page, second);
   // The return address kept the add-account flow, so the first account stayed signed in.
-  expect(new URL(stub.redirectUrls[1]).searchParams.get('addAccount')).toBe('1');
+  expect(
+    new URL(defined(stub.redirectUrls[1], 'the second SSO redirect')).searchParams.get('addAccount')
+  ).toBe('1');
   await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
 });
 

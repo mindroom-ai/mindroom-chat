@@ -25,7 +25,7 @@ const callers = [
 const namedScripts = (path: string) =>
   [
     ...readFileSync(join(repoRoot, path), 'utf8').matchAll(/\bnpm (?:run ([\w:.-]+)|(test)\b)/g),
-  ].map((match) => match[1] ?? match[2]);
+  ].flatMap((match) => match[1] ?? match[2] ?? []);
 
 describe('npm scripts named by the release tooling', () => {
   it('finds the App Store commands the screenshot README names', () => {

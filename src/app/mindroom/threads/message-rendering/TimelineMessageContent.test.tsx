@@ -8,6 +8,7 @@ import { MessageLayout, type MessageSpacing } from '../../../state/settings';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import { MessageEvent } from '../../../../types/matrix/room';
+import { defined } from '../../../test-utils/defined';
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
 vi.mock('../../messages/reactionToggle', () => ({ toggleReaction: reactionMocks.toggleReaction }));
@@ -65,9 +66,12 @@ const renderRow = async (event: MatrixEvent, threadId?: string) => {
   return {
     renderer,
     content: () =>
-      renderer.root.findAll(
-        (node) => node.type === RenderMessageContent && typeof node.props.msgType === 'string'
-      )[0].props,
+      defined(
+        renderer.root.findAll(
+          (node) => node.type === RenderMessageContent && typeof node.props.msgType === 'string'
+        )[0],
+        'the rendered message content'
+      ).props,
   };
 };
 

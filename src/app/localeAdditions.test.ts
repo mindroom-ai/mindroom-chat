@@ -21,7 +21,9 @@ const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
 const logicalKey = (path: string): string => path.replace(PLURAL_SUFFIX, '');
 
 const placeholders = (value: string): string[] =>
-  [...value.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((match) => match[1].replace(/\s+/g, '')).sort();
+  [...value.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)]
+    .map(([, name = '']) => name.replace(/\s+/g, ''))
+    .sort();
 
 const markupTags = (value: string): string[] =>
   [...value.matchAll(/<\/?[A-Za-z][^>]*>/g)].map((match) => match[0].replace(/\s+/g, '')).sort();

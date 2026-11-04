@@ -79,7 +79,7 @@ describe('session registry safety', () => {
       )
     ).toBeUndefined();
 
-    expect(getSessionStore(storage).sessions[0].accessToken).toBe('secret-access');
+    expect(getSessionStore(storage).sessions[0]?.accessToken).toBe('secret-access');
     expect(warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(warn.mock.calls)).not.toContain('secret');
   });

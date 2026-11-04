@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startRingtone } from './ringtone';
+import { defined } from '../../test-utils/defined';
 
 /** A Web Audio stand-in that records the notes started and whether the context closed. */
 class FakeAudioContext {
@@ -74,13 +75,16 @@ describe('startRingtone', () => {
     const fundamentals = context.started.filter((_note, index) => index % 2 === 0);
     const overtones = context.started.filter((_note, index) => index % 2 === 1);
     overtones.forEach(({ frequency }, index) =>
-      expect(frequency).toBeCloseTo(2 * fundamentals[index].frequency)
+      expect(frequency).toBeCloseTo(2 * defined(fundamentals[index], 'a fundamental').frequency)
     );
     // Two cycles are scheduled ahead, each B5, E6, B5, E6.
     expect(fundamentals.map(({ frequency }) => frequency)).toEqual([
       987.77, 1318.51, 987.77, 1318.51, 987.77, 1318.51, 987.77, 1318.51,
     ]);
-    expect(fundamentals[4].at - fundamentals[0].at).toBeCloseTo(2.6);
+    expect(
+      defined(fundamentals[4], 'the second cycle').at -
+        defined(fundamentals[0], 'the first note').at
+    ).toBeCloseTo(2.6);
 
     const scheduled = context.started.length;
     context.currentTime += 2.6;

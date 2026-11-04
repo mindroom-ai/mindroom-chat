@@ -16,7 +16,7 @@ const codeBackgrounds = (): Map<string, string> => {
   const palettes = colorsSource.matchAll(
     /const (\w+)Palette: Palette = \{[\s\S]*?SurfaceVariant: \{\s*Container: '(#[\da-f]{6})'/gi
   );
-  [...palettes].forEach(([, name, background]) => backgrounds.set(name, background));
+  [...palettes].forEach(([, name = '', background = '']) => backgrounds.set(name, background));
   return backgrounds;
 };
 

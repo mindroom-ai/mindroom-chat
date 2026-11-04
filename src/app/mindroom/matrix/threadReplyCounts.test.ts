@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadRoomThreads } from '../threads/roomThreadList';
 import { getThreadReplyCount } from '../threads/threadRecord';
 import { keepThreadReplyCounts } from './threadReplyCounts';
+import { defined } from '../../test-utils/defined';
 
 const roomId = '!room:example.org';
 const userId = '@alice:example.org';
@@ -215,7 +216,9 @@ describe('thread reply counts', () => {
       Thread.hasServerSideListSupport,
       Thread.hasServerSideFwdPaginationSupport,
     ] = support;
-    threadNamespaces.forEach((value, index) => value.setPreferUnstable(namespaces[index]));
+    threadNamespaces.forEach((value, index) =>
+      value.setPreferUnstable(defined(namespaces[index], 'a saved namespace preference'))
+    );
     vi.restoreAllMocks();
   });
 
@@ -274,7 +277,7 @@ describe('thread reply counts', () => {
 
     it('applies a saved redaction of a reply saved with it', async () => {
       const f = fixture({
-        replies: [replies[0], replies[2]],
+        replies: [defined(replies[0], 'reply 1'), defined(replies[2], 'reply 3')],
         saved: savedSync([summarizedRoot(replies.slice(0, 2)), ...replies, redaction(2, 300)]),
       });
       await f.start();

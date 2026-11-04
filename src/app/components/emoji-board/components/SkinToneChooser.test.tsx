@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { SkinToneButton, SkinToneOptions } from './SkinToneChooser';
+import { defined } from '../../../test-utils/defined';
 
 vi.mock('./styles.css', () => ({ EmojiItem: 'EmojiItem' }));
 
@@ -19,7 +20,7 @@ it('shows the chosen tone on a raised hand', () => {
     renderer = create(<SkinToneButton tone={4} onPress={onPress} />);
   });
 
-  const [button] = buttons();
+  const button = defined(buttons()[0], 'the skin tone button');
   expect(button.props.children).toBe('✋🏾');
   expect(button.props['aria-label']).toBe('Skin tone');
   act(() => button.props.onClick());
@@ -49,6 +50,6 @@ it('offers the six tones and marks the current one', () => {
     false,
     false,
   ]);
-  act(() => options[5].props.onClick());
+  act(() => defined(options[5], 'the sixth tone').props.onClick());
   expect(onChoose).toHaveBeenCalledWith(5);
 });

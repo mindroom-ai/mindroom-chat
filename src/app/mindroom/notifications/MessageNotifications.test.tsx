@@ -11,6 +11,7 @@ import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { ClientStartupProvider } from '../../pages/client/ClientStartupContext';
 import { MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
+import { defined } from '../../test-utils/defined';
 
 const navigation = vi.hoisted(() => ({ room: vi.fn(), thread: vi.fn() }));
 
@@ -160,7 +161,7 @@ describe('MessageNotificationsFeature', () => {
     );
 
     expect(FakeNotification.shown).toHaveLength(1);
-    const [note] = FakeNotification.shown;
+    const note = defined(FakeNotification.shown[0], 'a notification');
     expect(note.title).toBe('Launch War Room');
     expect(note.options).toMatchObject({
       body: 'Maya Chen: Can you check the numbers?',
@@ -177,7 +178,7 @@ describe('MessageNotificationsFeature', () => {
   it('opens the room for a message outside threads', () => {
     render('/home/');
     arrive(message({ msgtype: 'm.text', body: 'Standup moves to 11:00.' }));
-    act(() => FakeNotification.shown[0].onclick?.());
+    act(() => defined(FakeNotification.shown[0], 'a notification').onclick?.());
     expect(navigation.room).toHaveBeenCalledWith(ROOM);
   });
 

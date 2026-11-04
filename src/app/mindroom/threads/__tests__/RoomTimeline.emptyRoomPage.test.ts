@@ -60,12 +60,12 @@ describe('RoomTimeline room pages without rows', () => {
       return false;
     });
     const renderer = await renderRoom(liveTimeline);
-    expect(renderer.root.findAllByType(roomIntroType)).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.type === roomIntroType)).toHaveLength(0);
 
     await paginateBack();
 
     expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalled();
-    expect(renderer.root.findAllByType(roomIntroType)).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.type === roomIntroType)).toHaveLength(1);
     act(() => renderer.unmount());
   });
 
@@ -85,7 +85,7 @@ describe('RoomTimeline room pages without rows', () => {
     await paginateBack();
 
     expect(retryPaginationMock).toHaveBeenCalledTimes(1);
-    expect(renderer.root.findAllByType(roomIntroType)).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.type === roomIntroType)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 

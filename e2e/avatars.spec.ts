@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from './helpers/matrix';
+import { defined } from '../src/app/test-utils/defined';
 
 // Avatars come from MXC everywhere they show (rail, room list, header, members, Compact bars,
 // messages), with or without a service worker to authenticate the media requests, and the model
@@ -26,7 +27,7 @@ const crcTable = Array.from({ length: 256 }, (_, n) => {
 });
 const crc32 = (bytes: Buffer) => {
   let c = 0xffffffff;
-  for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+  for (const byte of bytes) c = defined(crcTable[(c ^ byte) & 0xff], 'a CRC entry') ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 };
 const pngChunk = (type: string, data: Buffer) => {
@@ -115,10 +116,7 @@ const seed = async (): Promise<Seeded> => {
     );
     const profile = `/profile/${encodeURIComponent(account.user_id)}`;
     const avatarUrl = await upload(account.access_token, squarePng(128, rgb));
-    for (const [field, value] of [
-      ['displayname', displayname],
-      ['avatar_url', avatarUrl],
-    ]) {
+    for (const [field, value] of Object.entries({ displayname, avatar_url: avatarUrl })) {
       // eslint-disable-next-line no-await-in-loop
       await matrixFetch(homeserver!, `${profile}/${field}`, {
         method: 'PUT',

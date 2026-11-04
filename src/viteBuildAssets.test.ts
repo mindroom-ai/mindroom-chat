@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mindroomBuildAssets } from '../scripts/vite-build-assets.mjs';
+import { defined } from './app/test-utils/defined';
 
 type Emitted = { type: string; fileName: string; source: string };
 
@@ -35,7 +36,10 @@ describe('mindroomBuildAssets', () => {
       'version.json',
     ]);
     const byName = Object.fromEntries(emitted.map((file) => [file.fileName, file.source]));
-    expect(JSON.parse(byName['version.json'])).toEqual({ version: 'build-1', release: 'v1.2.3' });
+    expect(JSON.parse(defined(byName['version.json'], 'version.json'))).toEqual({
+      version: 'build-1',
+      release: 'v1.2.3',
+    });
     expect(byName['runtime-config.js']).toContain('__ENABLE_SERVICE_WORKER__');
     expect(byName['runtime-config.js']).toContain('authentication-recovery.js');
     expect(byName['authentication-recovery.js']).toContain('__AUTHENTICATION_RECOVERY__');

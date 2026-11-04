@@ -1,6 +1,7 @@
 import { createDecipheriv, createHmac, pbkdf2Sync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { RoomKeyExportError, decryptRoomKeyExport, encryptRoomKeyExport } from './roomKeyExport';
+import { defined } from '../test-utils/defined';
 
 const SESSIONS = JSON.stringify([
   {
@@ -50,7 +51,7 @@ describe('room key export files', () => {
     const file = await encryptRoomKeyExport(SESSIONS, 'pass', ROUNDS);
     const body = Buffer.from(file.split('\n').slice(1, -2).join(''), 'base64');
     // eslint-disable-next-line no-bitwise
-    expect(body[17 + 8] & 0x80).toBe(0);
+    expect(defined(body[17 + 8], 'the counter byte') & 0x80).toBe(0);
   });
 
   it('reads back what it wrote, also with CRLF line ends', async () => {
@@ -65,7 +66,8 @@ describe('room key export files', () => {
       new RoomKeyExportError('passphrase')
     );
     const lines = file.split('\n');
-    const flipped = lines[2].startsWith('A') ? `B${lines[2].slice(1)}` : `A${lines[2].slice(1)}`;
+    const line = defined(lines[2], 'the first line of the body');
+    const flipped = line.startsWith('A') ? `B${line.slice(1)}` : `A${line.slice(1)}`;
     const tampered = [...lines.slice(0, 2), flipped, ...lines.slice(3)].join('\n');
     await expect(decryptRoomKeyExport(tampered, 'pass')).rejects.toBeInstanceOf(RoomKeyExportError);
   });

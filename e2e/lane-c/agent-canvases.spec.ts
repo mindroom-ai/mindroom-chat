@@ -8,6 +8,7 @@ import {
   uniqueWord,
   waitForAgentReply,
 } from './agentStack';
+import { defined } from '../../src/app/test-utils/defined';
 
 // An agent canvas with a live MindRoom backend: show_canvas posts a page, the panel runs it in a
 // nested sandbox, a submission waits for the person's Send, and the answer reaches the agent.
@@ -41,7 +42,7 @@ test('a canvas from the agent opens in the panel and sends a confirmed answer ba
   await panel.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(panel.getByText(/Sent to Helper/)).toBeVisible({ timeout: 30_000 });
   await expect.poll(async () => (await responses()).length, { timeout: 30_000 }).toBe(1);
-  const [response] = await responses();
+  const response = defined((await responses())[0], 'the canvas response');
   expect(response.sender).toBe(stack.tester.userId);
   expect(response.content['io.mindroom.canvas_response']).toMatchObject({
     agent_user_id: stack.agents.helper,

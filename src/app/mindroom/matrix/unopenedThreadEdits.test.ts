@@ -12,6 +12,7 @@ import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../threads/threadRecord';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import { defined } from '../../test-utils/defined';
 
 const roomId = '!room:example.org';
 const agentId = '@agent:example.org';
@@ -208,7 +209,9 @@ describe('edits of unopened threads', () => {
       Thread.hasServerSideListSupport,
       Thread.hasServerSideFwdPaginationSupport,
     ] = support;
-    threadNamespaces.forEach((value, index) => value.setPreferUnstable(namespaces[index]));
+    threadNamespaces.forEach((value, index) =>
+      value.setPreferUnstable(defined(namespaces[index], 'a saved namespace preference'))
+    );
     vi.restoreAllMocks();
   });
 

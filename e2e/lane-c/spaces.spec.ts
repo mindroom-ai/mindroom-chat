@@ -2,13 +2,13 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
-  createPrivateRoom,
-  createPrivateSpace,
   loginToMatrix,
   matrixFetch,
   setAccountData,
   type MatrixSession,
 } from '../helpers/matrix';
+import { createRoom } from './createRoom';
+import { defined } from '../../src/app/test-utils/defined';
 
 // Spaces against the disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh):
 // creating a space and filling it from the lobby, its hierarchy as another member sees it,
@@ -50,11 +50,7 @@ const signIn = (page: Page, username: string) =>
   loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
 
 const createPublicRoom = (accessToken: string, name: string, space = false) =>
-  createPrivateRoom(HOMESERVER, accessToken, {
-    name,
-    preset: 'public_chat',
-    creationContent: space ? { type: 'm.space' } : undefined,
-  });
+  createRoom(HOMESERVER, accessToken, { name, preset: 'public_chat', space });
 
 /** The rail's space buttons, top to bottom, by the room ID each carries. */
 const railSpaceIds = (page: Page) =>
@@ -73,7 +69,7 @@ test.beforeEach(async () => {
 test('a space is created from the rail and filled from its lobby', async ({ page }, testInfo) => {
   test.setTimeout(240_000);
   const owner = await registerAndLogin('owner');
-  const compostId = await createPrivateRoom(HOMESERVER, owner.accessToken, { name: 'Compost' });
+  const compostId = await createRoom(HOMESERVER, owner.accessToken, { name: 'Compost' });
   await signIn(page, owner.username);
 
   // The rail's Create Space button opens the dialog; a new space opens on its lobby.
@@ -87,7 +83,9 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   const hero = page.getByRole('heading', { name: /Garden club/ }).last();
   await expect(hero).toBeVisible();
   await expect(page.getByText('No Rooms', { exact: true })).toBeVisible();
-  const spaceId = decodeURIComponent(new URL(page.url()).pathname.split('/')[1]);
+  const spaceId = decodeURIComponent(
+    defined(new URL(page.url()).pathname.split('/')[1], 'a space ID in the URL')
+  );
   expect(spaceId.startsWith('!')).toBe(true);
   const railTile = page.getByRole('group', { name: 'Spaces' }).locator(`[data-id="${spaceId}"]`);
   await expect(railTile).toBeVisible();
@@ -209,9 +207,10 @@ test('an invited member accepts a space invite and lands in its lobby', async ({
   test.setTimeout(240_000);
   const owner = await registerAndLogin('inviter');
   const guest = await registerAndLogin('invitee');
-  const spaceId = await createPrivateSpace(HOMESERVER, owner.accessToken, {
+  const spaceId = await createRoom(HOMESERVER, owner.accessToken, {
     name: 'Night owls',
     invite: [guest.userId],
+    space: true,
   });
 
   await signIn(page, guest.username);
@@ -249,9 +248,9 @@ test('the rail lists spaces in their saved order and reorders them by drag and d
 }, testInfo) => {
   test.setTimeout(240_000);
   const owner = await registerAndLogin('order');
-  const first = await createPrivateSpace(HOMESERVER, owner.accessToken, { name: 'Alpha' });
-  const second = await createPrivateSpace(HOMESERVER, owner.accessToken, { name: 'Bravo' });
-  const third = await createPrivateSpace(HOMESERVER, owner.accessToken, { name: 'Charlie' });
+  const first = await createRoom(HOMESERVER, owner.accessToken, { name: 'Alpha', space: true });
+  const second = await createRoom(HOMESERVER, owner.accessToken, { name: 'Bravo', space: true });
+  const third = await createRoom(HOMESERVER, owner.accessToken, { name: 'Charlie', space: true });
   await setAccountData(HOMESERVER, owner.accessToken, owner.userId, 'io.mindroom.spaces', {
     sidebar: [third, first],
   });

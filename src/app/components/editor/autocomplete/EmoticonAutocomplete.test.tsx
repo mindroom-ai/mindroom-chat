@@ -9,6 +9,7 @@ import { toPlainText } from '../output';
 import { getPrevWorldRange, withInlineElements } from '../utils';
 import { AUTOCOMPLETE_PREFIXES, getAutocompleteQuery } from './autocompleteQuery';
 import { EmoticonAutocomplete } from './EmoticonAutocomplete';
+import { defined } from '../../../test-utils/defined';
 
 // A loaded machine can take seconds to load a lazy module's code.
 const LOAD_WAIT = { timeout: 60_000, interval: 20 };
@@ -99,7 +100,7 @@ const rows = () => renderer!.root.findAllByType('button');
 it('replaces the typed shortcode with the picked emoji and a space', () => {
   const { editor, requestClose } = render('hi :wave');
 
-  act(() => rows()[0].props.onClick());
+  act(() => defined(rows()[0], 'a suggestion row').props.onClick());
 
   expect(toPlainText(editor.children, false)).toBe('hi 👋 ');
   expect(state.addRecentEmoji).toHaveBeenCalledWith({}, '👋');
@@ -120,7 +121,7 @@ it('inserts a custom emoji as an emoticon that sends as an image', () => {
   const { editor } = render(':parr');
 
   expect(renderer!.root.findByProps({ children: 'Birds' })).toBeTruthy();
-  act(() => rows()[0].props.onClick());
+  act(() => defined(rows()[0], 'a suggestion row').props.onClick());
 
   expect(toPlainText(editor.children, false)).toBe(':parrot: ');
   expect(state.addRecentEmoji).toHaveBeenCalledWith({}, 'mxc://x/p');

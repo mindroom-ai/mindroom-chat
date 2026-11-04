@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { e2eClientConfig } from '../scripts/e2e-client-config.mjs';
+import { defined } from './app/test-utils/defined';
 
 type Handler = (
   req: { url?: string },
@@ -17,12 +18,12 @@ describe('e2e client config under vite preview', () => {
 
     const res = { setHeader: vi.fn(), end: vi.fn() };
     const next = vi.fn();
-    handlers[0]({ url: '/config.json' }, res, next);
+    defined(handlers[0], 'the preview handler')({ url: '/config.json' }, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(JSON.parse(res.end.mock.calls[0][0]).sidebar.mindRoomProvisioningUrl).toBe(
-      'http://127.0.0.1:4302'
-    );
+    expect(
+      JSON.parse(defined(res.end.mock.calls[0], 'a response')[0]).sidebar.mindRoomProvisioningUrl
+    ).toBe('http://127.0.0.1:4302');
   });
 
   it('installs nothing on a preview server without a provisioning origin', () => {

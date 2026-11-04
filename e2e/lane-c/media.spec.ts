@@ -90,7 +90,7 @@ const openFullRoom = async (page: Page, roomId: string) => {
 /** A JPEG of the given size, drawn by the browser so the picture really decodes. */
 const drawPicture = async (page: Page, width: number, height: number): Promise<Buffer> => {
   const base64 = await page.evaluate(
-    async ([w, h]) => {
+    async ({ w, h }) => {
       const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
       const context = canvas.getContext('2d')!;
       const gradient = context.createLinearGradient(0, 0, w, h);
@@ -108,7 +108,7 @@ const drawPicture = async (page: Page, width: number, height: number): Promise<B
       });
       return btoa(binary);
     },
-    [width, height]
+    { w: width, h: height }
   );
   return Buffer.from(base64, 'base64');
 };

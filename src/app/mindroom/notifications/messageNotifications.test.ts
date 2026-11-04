@@ -8,6 +8,7 @@ import {
   isNoticeOnScreen,
   readMessageNotice,
 } from './messageNotifications';
+import { defined } from '../../test-utils/defined';
 
 const ME = '@me:example.org';
 const AGENT = '@mindroom_code:example.org';
@@ -139,7 +140,7 @@ describe('readMessageNotice', () => {
         threadId: '$root',
         content: { body: '@me:example.org the answer' },
       });
-      const judged = getPushActionsForEvent.mock.calls[0][0];
+      const judged = defined(getPushActionsForEvent.mock.calls[0], 'a push rule check')[0];
       expect(judged.getContent()).toEqual({
         msgtype: 'm.text',
         body: '@me:example.org the answer',

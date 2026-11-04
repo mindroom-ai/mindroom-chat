@@ -42,13 +42,16 @@ describe('avatar swatches', () => {
 
   it('tell apart IDs that differ only slightly', () => {
     // Accounts made together share most of their ID; a weak hash put most such pairs on one hue.
-    const pairs = Array.from({ length: 200 }, (_, n) => [
+    const pairs = Array.from({ length: 200 }, (_, n): [string, string] => [
       `@colors_viewer_${n.toString(16)}:matrix.localhost`,
       `@colors_peer_${n.toString(16)}:matrix.localhost`,
     ]);
     const same = pairs.filter(([a, b]) => avatarSwatchIndex(a) === avatarSwatchIndex(b)).length;
     expect(same / pairs.length).toBeLessThan(0.25);
-    const neighbours = Array.from({ length: 200 }, (_, n) => [`!room${n}a:x`, `!room${n}b:x`]);
+    const neighbours = Array.from({ length: 200 }, (_, n): [string, string] => [
+      `!room${n}a:x`,
+      `!room${n}b:x`,
+    ]);
     const alike = neighbours.filter(([a, b]) => avatarSwatchIndex(a) === avatarSwatchIndex(b));
     expect(alike.length / neighbours.length).toBeLessThan(0.25);
   });

@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { createStore, Provider } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { defined } from '../../../test-utils/defined';
 import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 
 type Load = { roomId: string; onProgress?: () => void; signal?: AbortSignal; finish: () => void };
@@ -25,14 +26,12 @@ const rooms: Record<string, { membership: string; space?: boolean }> = {
   '!invite': { membership: 'invite' },
 };
 const client = {
-  getRoom: (roomId: string) =>
-    rooms[roomId]
-      ? {
-          roomId,
-          getMyMembership: () => rooms[roomId].membership,
-          isSpaceRoom: () => !!rooms[roomId].space,
-        }
-      : null,
+  getRoom: (roomId: string) => {
+    const room = rooms[roomId];
+    return room
+      ? { roomId, getMyMembership: () => room.membership, isSpaceRoom: () => !!room.space }
+      : null;
+  },
 };
 vi.mock('../../../hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 
@@ -81,14 +80,15 @@ it('lists the joined rooms that are not spaces, three at a time, first page only
   mount(Object.keys(rooms));
   expect(loads.map((load) => load.roomId)).toEqual(['!a', '!b', '!c']);
 
-  await firstPage(loads[0]);
-  expect(loads[0].signal?.aborted).toBe(true);
+  const [first] = loads;
+  await firstPage(defined(first, 'the first load'));
+  expect(first?.signal?.aborted).toBe(true);
   expect(loads.map((load) => load.roomId)).toEqual(['!a', '!b', '!c', '!d']);
 });
 
 it('lists a room once while the page stays open, and again on the next visit', async () => {
   mount(['!a']);
-  await firstPage(loads[0]);
+  await firstPage(defined(loads[0], 'the first load'));
   mount(['!a', '!b']);
   expect(loads.map((load) => load.roomId)).toEqual(['!a', '!b']);
 

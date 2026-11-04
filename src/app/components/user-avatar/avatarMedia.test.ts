@@ -201,18 +201,18 @@ describe('fetchAvatar', () => {
   });
 
   it('revokes the least recently used image once the cache is full', async () => {
-    const urls = Array.from({ length: 301 }, (_, i) => `${AUTHED}&n=${i}`);
-    for (const url of urls.slice(0, 300)) {
+    const url = (n: number) => `${AUTHED}&n=${n}`;
+    for (let n = 0; n < 300; n += 1) {
       // eslint-disable-next-line no-await-in-loop
-      await fetchAvatar(client(), url);
+      await fetchAvatar(client(), url(n));
     }
     // Showing the first image again makes the second the oldest one.
-    expect(peekFetchedAvatar(client(), urls[0])).toBe('blob:avatar-1');
-    await fetchAvatar(client(), urls[300]);
+    expect(peekFetchedAvatar(client(), url(0))).toBe('blob:avatar-1');
+    await fetchAvatar(client(), url(300));
 
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:avatar-2');
-    expect(peekFetchedAvatar(client(), urls[1])).toBe(undefined);
-    expect(peekFetchedAvatar(client(), urls[0])).toBe('blob:avatar-1');
+    expect(peekFetchedAvatar(client(), url(1))).toBe(undefined);
+    expect(peekFetchedAvatar(client(), url(0))).toBe('blob:avatar-1');
   });
 });

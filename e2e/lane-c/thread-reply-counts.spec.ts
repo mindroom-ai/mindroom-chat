@@ -8,6 +8,7 @@ import {
   sendMessageEdit,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { defined } from '../../src/app/test-utils/defined';
 
 // Thread reply counts on the Compact cards and the Threads page, from the first sign-in through
 // new replies, edits, redactions, reloads and opening the thread.
@@ -67,7 +68,7 @@ const expectCountsHold = async (page: Page, expected: Record<string, number>, ho
     const texts = await Promise.all(
       roots.map((rootId) => cardCount(page, rootId).textContent({ timeout: 5_000 }))
     );
-    texts.forEach((text, index) => seen.get(roots[index])!.add((text ?? '').trim()));
+    roots.forEach((rootId, index) => seen.get(rootId)?.add((texts[index] ?? '').trim()));
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(150);
   }
@@ -141,7 +142,13 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
 
   // Edits are no replies.
   await sendMessageEdit(HOMESERVER, token, roomId, late, 'Legal is ready, signed');
-  await sendMessageEdit(HOMESERVER, token, roomId, launchReplies[0], 'Docs are ready and live');
+  await sendMessageEdit(
+    HOMESERVER,
+    token,
+    roomId,
+    defined(launchReplies[0], 'the first launch reply'),
+    'Docs are ready and live'
+  );
   // An unopened thread keeps edits for its first page, so give sync a moment to bring them.
   await page.waitForTimeout(3_000);
   await expectCountsHold(page, { [launch]: 4, [retro]: 2 }, 1_500);
@@ -163,7 +170,12 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 
   // In an opened thread, a redaction of a reply from the first sync and a new reply count too.
-  await redactEvent(HOMESERVER, token, roomId, launchReplies[1]);
+  await redactEvent(
+    HOMESERVER,
+    token,
+    roomId,
+    defined(launchReplies[1], 'the second launch reply')
+  );
   await expect(cardCount(page, launch)).toHaveText('2', { timeout: 30_000 });
   await send(replyTo(launch, 'Sales is ready'));
   await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });

@@ -15,6 +15,7 @@ import {
   setDirectAccountData,
 } from './helpers/matrix';
 import { roomViewSwitch } from './helpers/roomViewSwitch';
+import { defined } from '../src/app/test-utils/defined';
 
 // Avatars without a picture take one color per user or room ID, on every screen: the room header
 // tile, the lobby, the room intro, the Inbox, the Direct list, the Compact bars, the members and
@@ -137,7 +138,7 @@ const rgb = (hex: string) => {
 
 /** The fill an ID's fallback must have: its swatch on light or dark themes. */
 const swatchOf = (id: string, kind: 'light' | 'dark') =>
-  rgb(AVATAR_SWATCHES[avatarSwatchIndex(id)][kind]);
+  rgb(defined(AVATAR_SWATCHES[avatarSwatchIndex(id)], `the swatch of ${id}`)[kind]);
 
 type Fill = { id: string; fill: string };
 

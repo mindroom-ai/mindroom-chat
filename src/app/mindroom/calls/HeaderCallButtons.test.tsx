@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeaderCallButtons, HeaderCallMenuEntries } from './HeaderCallButtons';
+import { defined } from '../../test-utils/defined';
 
 const state = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
@@ -128,7 +129,7 @@ describe('HeaderCallMenuEntries', () => {
       'mindroomUi.calls.agentCallHeaderButton.callAgent:Mind',
     ]);
 
-    act(() => tree.root.findAllByType('button')[1].props.onClick());
+    act(() => defined(tree.root.findAllByType('button')[1], 'the second entry').props.onClick());
     expect(requestClose).toHaveBeenCalledOnce();
     expect(state.call).toHaveBeenCalledWith({
       agentUserId: second.userId,
