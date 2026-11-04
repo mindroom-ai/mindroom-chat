@@ -42,12 +42,26 @@ const readFollowers = (
   return { eventId, userIds };
 };
 
-/** The followers of the room or thread, read again when receipts, events or members arrive. */
+const sameFollowing = (a: Following | undefined, b: Following | undefined): boolean =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.eventId === b.eventId &&
+    a.userIds.length === b.userIds.length &&
+    a.userIds.every((userId, index) => userId === b.userIds[index]));
+
+/**
+ * The followers of the room or thread, read again when receipts, events or members arrive. An
+ * unchanged answer keeps the previous object, so a streamed reply's edits do not re-render the row.
+ */
 const useFollowers = (room: Room, threadId: string | undefined, myUserId: string | null) => {
   const [following, setFollowing] = useState(() => readFollowers(room, threadId, myUserId));
 
   useEffect(() => {
-    const refresh = () => setFollowing(readFollowers(room, threadId, myUserId));
+    const refresh = () => {
+      const next = readFollowers(room, threadId, myUserId);
+      setFollowing((previous) => (sameFollowing(previous, next) ? previous : next));
+    };
     refresh();
     room.on(RoomEvent.Receipt, refresh);
     room.on(RoomEvent.Timeline, refresh);

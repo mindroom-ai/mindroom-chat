@@ -130,3 +130,19 @@ it('stays empty while the user keeps their own activity private', () => {
   room.read.add('@avery:example.org');
   expect(strip(render(room))?.textContent).toBe('');
 });
+
+it('does not draw the row again for events that leave the same readers', () => {
+  const room = makeRoom();
+  room.read.add('@avery:example.org');
+  const getMember = vi.spyOn(room as unknown as { getMember: () => unknown }, 'getMember');
+  render(room);
+  const namedOnFirstDraw = getMember.mock.calls.length;
+  expect(namedOnFirstDraw).toBeGreaterThan(0);
+
+  // A streamed reply's edits arrive as timeline events and change nobody's receipt.
+  act(() => {
+    room.emit('Room.timeline');
+    room.emit('Room.timeline');
+  });
+  expect(getMember.mock.calls.length).toBe(namedOnFirstDraw);
+});
