@@ -59,10 +59,8 @@ test.describe('live issue-076 classic room timeline', () => {
       timeout: 30_000,
     });
 
-    // The header switch moves between Compact and Classic, so Threaded reaches Classic through Compact.
-    await roomViewSwitch(page).click();
-    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
-    await roomViewSwitch(page).click();
+    // A room without agents switches between Compact and Threads, so Classic comes from the stored view.
+    await seedRoomOverviewState({ page, roomId: fixture.roomId, userId, viewMode: 'classic' });
 
     await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toHaveCount(0);

@@ -2,9 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import {
+  createDefaultThreadFilterState,
   createPrivateRoom,
   matrixFetch,
   redactEvent,
+  seedRoomOverviewState,
   sendMessageEdit,
   sendRoomMessage,
 } from '../helpers/matrix';
@@ -125,6 +127,17 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
 
   await blockThreadRequests(page);
   await signIn(page, username);
+  // A room without agents opens in Threads unless the reader chose a view.
+  const whoami = await matrixFetch<{ user_id: string }>(HOMESERVER, '/account/whoami', {
+    accessToken: token,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId,
+    userId: whoami.user_id,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
   const roomPath = `/home/${encodeURIComponent(roomId)}/`;
   await page.goto(roomPath);
 
