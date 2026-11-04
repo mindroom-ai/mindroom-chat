@@ -9,9 +9,10 @@ import { defined } from '../../src/app/test-utils/defined';
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
 // moment, and on a ring's Answer); and a call to a MindRoom agent, which runs in the agent call
-// room with the conversation as its origin. Needs the slot's LiveKit server and authorization service:
-//   eval "$(scripts/e2e-rtc.sh <slot> env)"; scripts/e2e-slot.sh <slot> down
-//   scripts/e2e-rtc.sh <slot> up; scripts/e2e-slot.sh <slot> npx playwright test e2e/lane-c/calls.spec.ts
+// room with the conversation as its origin. Needs the slot's LiveKit server and authorization service
+// (scripts/e2e-rtc.sh), which --rtc starts before the slot's homeserver and stops afterwards:
+//   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/lane-c/calls.spec.ts
+// scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'calls-spec-password';
 const RUN = Date.now().toString(36);
