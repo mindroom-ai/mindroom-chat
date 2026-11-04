@@ -19,6 +19,7 @@ import {
 } from '../../../components/device-verification/VerificationRequestDialog';
 import { SecuritySettings } from './SecuritySettings';
 import { ThisDeviceVerification } from './ThisDeviceVerification';
+import { LocalKeyBackup } from './LocalKeyBackup';
 
 const TILE = 'featureUi.settings.devices.deviceTile';
 const OTHERS = 'featureUi.settings.devices.otherDevices';
@@ -414,6 +415,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
         </Box>
       )}
       {body}
+      {trust && <LocalKeyBackup />}
       {prompt}
       {verification && (
         <SecurityOverlay
