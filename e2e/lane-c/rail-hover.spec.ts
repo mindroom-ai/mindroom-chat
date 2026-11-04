@@ -205,9 +205,8 @@ test('saves the rail at rest, hovered and selected, light and dark', async ({ pa
     await explore.hover();
     await settle(page);
     await shot(`hover-${label}`);
-    // The Home entry is selected on the landing page; hover another to show both together.
+    // The Home entry is selected on the landing page; its tall indicator shows at rest.
     await page.mouse.move(700, 450);
-    await rail(page).getByRole('button', { name: 'Home' }).hover();
     await settle(page);
     await shot(`selected-${label}`);
   }
