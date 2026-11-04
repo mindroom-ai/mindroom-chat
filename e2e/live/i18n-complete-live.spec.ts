@@ -100,7 +100,7 @@ test.describe('complete interface localization', () => {
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
     await expect(
-      page.getByRole('button', { name: /Abrir (los )?ajustes de / }).first()
+      page.getByRole('button', { name: /Abrir el menú de la cuenta de / }).first()
     ).toBeVisible();
   });
 });

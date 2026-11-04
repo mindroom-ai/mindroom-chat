@@ -384,6 +384,10 @@ test.describe.serial('keyboard and accessibility', () => {
     const account = accountButton(page);
     await account.focus();
     await page.keyboard.press('Enter');
+    // The account button opens its menu, whose first entry takes focus.
+    const settings = page.getByRole('menuitem', { name: 'Settings', exact: true });
+    await expect(settings).toBeFocused();
+    await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     await expect(dialog).toBeVisible();
     await expect(dialog).toHaveAttribute('aria-modal', 'true');
