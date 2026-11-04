@@ -9,7 +9,8 @@ import { useAlive } from '../../../hooks/useAlive';
 import { ManualVerificationTile } from '../../../components/ManualVerification';
 import type { SecretStorageKeyContent } from '../../../components/SecretStorage';
 import { ContainerColor } from '../../../styles/ContainerColor.css';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const KEY = 'featureUi.settings.devices.verification';
 
@@ -134,7 +135,7 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
   const [learnMore, setLearnMore] = useState(false);
   const [manual, setManual] = useState(false);
   const [requesting, setRequesting] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ failure: unknown }>();
 
   const requestVerification = () => {
     const crypto = client.getCrypto();
@@ -145,7 +146,7 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
       .requestOwnUserVerification()
       .then((request) => alive() && onRequest(request))
       .catch((failure: unknown) => {
-        if (alive()) setError(errorMessage(failure));
+        if (alive()) setError({ failure });
       })
       .finally(() => alive() && setRequesting(false));
   };
@@ -204,7 +205,8 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
           </Box>
           {error && (
             <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-              {error}
+              {describeError(t, error.failure)}
+              <ErrorDetail error={error.failure} />
             </Text>
           )}
         </Box>

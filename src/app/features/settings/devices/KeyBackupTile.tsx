@@ -13,7 +13,8 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { SettingTile } from '../../../components/setting-tile';
 import { fetchKeyBackupVersion } from '../../../utils/keyBackupVersion';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const KEY = 'sharedUi.backupRestore';
 
@@ -140,7 +141,7 @@ export function KeyBackupTile() {
   const { state, remaining, refresh, recheck } = useBackupState();
   const [showDetails, setShowDetails] = useState(false);
   const [restoring, setRestoring] = useState<ImportRoomKeyProgressData | 'starting'>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ failure: unknown }>();
 
   if (state === undefined) {
     return (
@@ -201,7 +202,7 @@ export function KeyBackupTile() {
         progressCallback: (progress) => alive() && setRestoring(progress),
       });
     } catch (failure) {
-      if (alive()) setError(errorMessage(failure));
+      if (alive()) setError({ failure });
     } finally {
       if (alive()) {
         setRestoring(undefined);
@@ -266,7 +267,8 @@ export function KeyBackupTile() {
         )}
         {error && (
           <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-            {error}
+            {describeError(t, error.failure)}
+            <ErrorDetail error={error.failure} />
           </Text>
         )}
       </Box>

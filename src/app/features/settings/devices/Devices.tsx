@@ -20,7 +20,8 @@ import {
 import { SecuritySettings } from './SecuritySettings';
 import { ThisDeviceVerification } from './ThisDeviceVerification';
 import { LocalKeyBackup } from './LocalKeyBackup';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError, describeKnownError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const TILE = 'featureUi.settings.devices.deviceTile';
 const OTHERS = 'featureUi.settings.devices.otherDevices';
@@ -277,7 +278,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
   const dashboardUrl = useDeviceDashboardUrl();
   const { run, prompt } = useAuthenticatedAction();
   const [signingOut, setSigningOut] = useState<string>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ during: 'verify' | 'signOut'; failure: unknown }>();
   const trust = useOwnDeviceTrust();
   const [verification, setVerification] = useState<VerificationRequest>();
   const [requestingFor, setRequestingFor] = useState<string>();
@@ -300,7 +301,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
       .requestDeviceVerification(userId, deviceId)
       .then((request) => alive() && setVerification(request))
       .catch((failure: unknown) => {
-        if (alive()) setError(errorMessage(failure));
+        if (alive()) setError({ during: 'verify', failure });
       })
       .finally(() => alive() && setRequestingFor(undefined));
   };
@@ -312,8 +313,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
       .then(() => reload())
       .catch((failure: unknown) => {
         if (!alive() || failure instanceof AuthenticationCancelled) return;
-        const message = errorMessage(failure);
-        setError(t(`${OTHERS}.logoutFailed`, { error: message }));
+        setError({ during: 'signOut', failure });
       })
       .finally(() => alive() && setSigningOut(undefined));
   };
@@ -389,7 +389,12 @@ export function Devices({ requestClose }: SettingsPageProps) {
               })}
               {error && (
                 <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-                  {error}
+                  {error.during === 'signOut'
+                    ? t(`${OTHERS}.logoutFailed`, {
+                        error: describeKnownError(t, error.failure) ?? '',
+                      })
+                    : describeError(t, error.failure)}
+                  <ErrorDetail error={error.failure} />
                 </Text>
               )}
             </SettingsCard>

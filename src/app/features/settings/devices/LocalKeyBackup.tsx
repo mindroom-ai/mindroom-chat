@@ -13,13 +13,15 @@ import {
   encryptRoomKeyExport,
 } from '../../../utils/roomKeyExport';
 import { SettingsCard } from '../SettingsCard';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 import { isExportPasswordLongEnough } from './exportPassword';
 
 const KEY = 'featureUi.settings.devices.localBackup';
 const EXPORT_FILE_NAME = 'mindroom-room-keys.txt';
 
-type Outcome = { ok: true; text: string } | { ok: false; text: string };
+/** A failed outcome keeps the error it came from when its text cannot say all of it. */
+type Outcome = { ok: true; text: string } | { ok: false; text: string; failure?: unknown };
 
 function OutcomeLine({ outcome }: { outcome?: Outcome }) {
   if (!outcome) return null;
@@ -32,6 +34,7 @@ function OutcomeLine({ outcome }: { outcome?: Outcome }) {
       />
       <Text size="T200" style={outcome.ok ? undefined : { color: color.Critical.Main }}>
         {outcome.text}
+        {!outcome.ok && <ErrorDetail error={outcome.failure} />}
       </Text>
     </Box>
   );
@@ -107,10 +110,7 @@ function ExportKeys() {
       setOutcome({ ok: true, text: EXPORT_FILE_NAME });
     } catch (failure) {
       if (alive()) {
-        setOutcome({
-          ok: false,
-          text: errorMessage(failure),
-        });
+        setOutcome({ ok: false, text: describeError(t, failure), failure });
       }
     } finally {
       if (alive()) setBusy(false);
@@ -207,11 +207,15 @@ function ImportKeys() {
   const [outcome, setOutcome] = useState<Outcome>();
   const busy = progress !== undefined;
 
-  const describe = (failure: unknown): string => {
-    if (failure instanceof RoomKeyExportError && failure.reason === 'passphrase') {
-      return t('sharedUi.passwordStage.invalidPassword');
+  const failed = (failure: unknown): Outcome => {
+    if (failure instanceof RoomKeyExportError) {
+      const text =
+        failure.reason === 'passphrase'
+          ? t('sharedUi.passwordStage.invalidPassword')
+          : t('errors.notKeyExport');
+      return { ok: false, text };
     }
-    return errorMessage(failure);
+    return { ok: false, text: describeError(t, failure), failure };
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -237,7 +241,7 @@ function ImportKeys() {
       setPassword('');
       setOutcome({ ok: true, text: t('sharedUi.backupRestore.keys', { keyCount: total }) });
     } catch (failure) {
-      if (alive()) setOutcome({ ok: false, text: describe(failure) });
+      if (alive()) setOutcome(failed(failure));
     } finally {
       if (alive()) setProgress(undefined);
     }

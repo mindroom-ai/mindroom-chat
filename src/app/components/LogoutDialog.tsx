@@ -7,7 +7,8 @@ import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';
 import { logoutClient } from '../../client/initMatrix';
 import { ContainerColor } from '../styles/ContainerColor.css';
-import { errorMessage } from '../utils/errorMessage';
+import { describeKnownError } from '../utils/describeError';
+import { ErrorDetail } from './ErrorDetail';
 
 type EncryptionRisk = 'none' | 'unverified-device' | 'no-verification';
 
@@ -45,7 +46,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
   const alive = useAlive();
   const [risk, setRisk] = useState<EncryptionRisk>('none');
   const [loggingOut, setLoggingOut] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ logoutError: unknown }>();
 
   useEffect(() => {
     let current = true;
@@ -68,8 +69,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
       await logoutClient(client);
     } catch (logoutError) {
       if (!alive()) return;
-      const message = errorMessage(logoutError);
-      setError(t('sharedUi.logoutDialog.logoutFailed', { error: message }));
+      setError({ logoutError });
       setLoggingOut(false);
     }
   };
@@ -124,7 +124,12 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
         <Text priority="400">{t('sharedUi.logoutDialog.youReAboutToLogOutAreYouSure')}</Text>
         {error && (
           <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-            <b>{error}</b>
+            <b>
+              {t('sharedUi.logoutDialog.logoutFailed', {
+                error: describeKnownError(t, error.logoutError) ?? '',
+              })}
+            </b>
+            <ErrorDetail error={error.logoutError} />
           </Text>
         )}
         <Box direction="Column" gap="200">

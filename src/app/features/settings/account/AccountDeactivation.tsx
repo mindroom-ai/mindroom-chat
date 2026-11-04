@@ -12,7 +12,8 @@ import { removeCurrentClientSessionAndReload } from '../../../../client/initMatr
 import { SettingsCard } from '../SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../useAuthenticatedAction';
 import { SettingsOverlay } from '../SettingsOverlay';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeKnownError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const KEY = 'featureUi.settings.account.accountDeactivation';
 
@@ -24,7 +25,7 @@ const useProviderDeactivationUrl = (): string | undefined => {
 
 type ConfirmProps = {
   busy: boolean;
-  error?: string;
+  error?: { failure: unknown };
   onCancel: () => void;
   onConfirm: (erase: boolean) => void;
 };
@@ -67,7 +68,8 @@ function ConfirmDeactivation({ busy, error, onCancel, onConfirm }: ConfirmProps)
         />
         {error && (
           <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-            {error}
+            {t(`${KEY}.deactivationFailed`, { error: describeKnownError(t, error.failure) ?? '' })}
+            <ErrorDetail error={error.failure} />
           </Text>
         )}
         <Box gap="200" justifyContent="End">
@@ -101,7 +103,7 @@ export function AccountDeactivation() {
   const { run, prompt } = useAuthenticatedAction();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ failure: unknown }>();
 
   const deactivate = (erase: boolean) => {
     setBusy(true);
@@ -112,8 +114,7 @@ export function AccountDeactivation() {
         if (!alive()) return;
         setBusy(false);
         if (failure instanceof AuthenticationCancelled) return;
-        const message = errorMessage(failure);
-        setError(t(`${KEY}.deactivationFailed`, { error: message }));
+        setError({ failure });
       });
   };
 
