@@ -24,19 +24,7 @@ import {
 } from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
-import {
-  Box,
-  Chip,
-  Icon,
-  Icons,
-  Scroll,
-  Spinner,
-  Text,
-  color,
-  config,
-  toRem,
-  type IconSrc,
-} from 'folds';
+import { Box, Icons, Scroll, Spinner, Text, color, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
@@ -160,6 +148,17 @@ import {
 } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
 import { useLatestRef, useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
+import {
+  BannerExpandAllToggle,
+  ExpandAllLine,
+  FilterBarSlot,
+  FloatingAction,
+  JumpToLatestAction,
+  ThreadLoadingLines,
+  footerProbeStyle,
+  roomViewStyleUnder,
+  threadViewStyle,
+} from './RoomTimelineOverlays';
 
 export type RoomTimelineProps = {
   room: Room;
@@ -451,110 +450,6 @@ function DividerLabel({
       {rule}
       <Text size="L400">{label}</Text>
       {rule}
-    </div>
-  );
-}
-
-/** "[+all]" and "[-all]": a small bracketed toggle that unfolds or folds every long message. */
-const expandAllToggleStyle: React.CSSProperties = {
-  all: 'unset',
-  cursor: 'pointer',
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  fontSize: toRem(12),
-  // 16 px of text in a 1 px rim: 18 px tall, as thread-light.png shows it.
-  lineHeight: toRem(16),
-  padding: `0 ${config.space.S200}`,
-  borderRadius: config.radii.Pill,
-  border: `1px solid ${color.SurfaceVariant.ContainerLine}`,
-  color: color.Primary.Main,
-  // Rows scroll beneath it under the thread banner, so it frosts them like the banner does.
-  backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 72%, transparent)`,
-  backdropFilter: 'blur(3px)',
-  WebkitBackdropFilter: 'blur(3px)',
-};
-
-const footerProbeStyle: React.CSSProperties = {
-  position: 'absolute',
-  insetInlineStart: 0,
-  bottom: 0,
-  width: 0,
-  height: overlay.footerInset,
-  visibility: 'hidden',
-  pointerEvents: 'none',
-};
-
-/**
- * The room timeline's rows begin below the floating header and, where it shows, the thread filter
- * bar: the overview inset is the bar's height with its margins. The inset joins the band the
- * header covers, so a row scrolled into it counts as out of sight. Without the bar (the Full
- * view) it is a gap twice the Compact cards' one, so that a short room overflows by more than a
- * small wheel turn and loads its older rows only when the reader reaches its top
- * (live/room-load-older-keeps-reader).
- */
-const ROOM_GAP_BELOW_HEADER = config.space.S400;
-const roomViewStyle = {
-  minHeight: 0,
-  position: 'relative',
-  '--room-overview-height': ROOM_GAP_BELOW_HEADER,
-} as React.CSSProperties;
-const roomViewStyleUnder = (barHeight: number | null): React.CSSProperties =>
-  barHeight === null
-    ? roomViewStyle
-    : ({ ...roomViewStyle, '--room-overview-height': `${barHeight}px` } as React.CSSProperties);
-const threadViewStyle: React.CSSProperties = { minHeight: 0, position: 'relative' };
-
-/** A pill over the timeline that takes the reader somewhere or settles the unread state. */
-function FloatingAction({
-  icon,
-  label,
-  onSelect,
-  primary = false,
-}: {
-  icon: IconSrc;
-  label: string;
-  onSelect: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <Chip
-      onClick={onSelect}
-      variant={primary ? 'Primary' : 'SurfaceVariant'}
-      outlined
-      radii="Pill"
-      before={<Icon src={icon} size="50" />}
-    >
-      <Text size="L400">{label}</Text>
-    </Chip>
-  );
-}
-
-/**
- * Holds the thread filter bar where it floats, under the room header, and reports the height it
- * takes there (margins included) whenever that changes.
- */
-function FilterBarSlot({
-  onHeight,
-  children,
-}: {
-  onHeight: (height: number) => void;
-  children: ReactNode;
-}) {
-  const slotRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const slot = slotRef.current;
-    if (!slot) return undefined;
-    // A slot that has no layout (hidden, or a test document) leaves the inset at its gap.
-    const report = () => {
-      if (slot.offsetHeight > 0) onHeight(slot.offsetHeight);
-    };
-    report();
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(report);
-    observer?.observe(slot);
-    return () => observer?.disconnect();
-  }, [onHeight]);
-  return (
-    <div ref={slotRef} className={overlay.Overview}>
-      {children}
     </div>
   );
 }
@@ -1858,41 +1753,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !!unreadInfo?.readUptoEventId &&
     (!unreadInfo.inLiveTimeline || roomUnread) &&
     !unreadMarkerShown;
-  const expandAllButton = (
-    <button type="button" style={expandAllToggleStyle} onClick={handleToggleExpandAll}>
-      {expandAll
-        ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
-        : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}
-    </button>
-  );
   // Under a thread's banner the toggle hangs in the gap above the first row; in the room it
   // takes a line of its own above the rows.
   const expandAllToggle = itemCount > 0 && (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        padding: `${config.space.S100} ${config.space.S700} 0`,
-      }}
-    >
-      {expandAllButton}
-    </div>
+    <ExpandAllLine expanded={expandAll} onToggle={handleToggleExpandAll} />
   );
-  // It sits in the gap under the banner, 12 px below the banner's edge (the banner's own 8 px
-  // margin plus 4), and ends above the first row, which a reader at the top sees unobstructed.
   const bannerExpandAllToggle = itemCount > 0 && (
-    <div
-      // Hover toolbars of the rows under it keep clear of it (hoverToolbarPlacement).
-      data-timeline-overlay=""
-      style={{
-        position: 'absolute',
-        top: config.space.S100,
-        insetInlineEnd: config.space.S500,
-        display: 'flex',
-      }}
-    >
-      {expandAllButton}
-    </div>
+    <BannerExpandAllToggle expanded={expandAll} onToggle={handleToggleExpandAll} />
   );
 
   return (
@@ -1940,41 +1807,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.threadLeadingRef}>
-                {threadLoadError && (
-                  <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
-                    <Text size="T300" priority="300">
-                      {t('mindroomUi.threads.mindroomRoomTimeline.failedToLoadThisThread')}
-                    </Text>
-                  </Box>
-                )}
-                {showThreadLoadOlder && (
-                  <Box justifyContent="Center" style={{ padding: config.space.S200 }}>
-                    <Chip
-                      variant="SurfaceVariant"
-                      radii="Pill"
-                      outlined
-                      before={
-                        threadPaginatingBack ? (
-                          <Spinner size="50" variant="Secondary" />
-                        ) : (
-                          <Icon size="50" src={Icons.ArrowTop} />
-                        )
-                      }
-                      onClick={handleLoadOlderThread}
-                    >
-                      <Text size="L400">
-                        {threadPaginatingBack
-                          ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
-                          : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
-                      </Text>
-                    </Chip>
-                  </Box>
-                )}
-                {threadLoading && (
-                  <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
-                    <Spinner size="300" variant="Secondary" />
-                  </Box>
-                )}
+                <ThreadLoadingLines
+                  loadError={threadLoadError}
+                  showLoadOlder={showThreadLoadOlder}
+                  paginatingBack={threadPaginatingBack}
+                  loading={threadLoading}
+                  onLoadOlder={handleLoadOlderThread}
+                />
                 {!threadHeader && expandAllToggle}
               </div>
             </>
@@ -2027,18 +1866,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onSelect={minimap.handleMinimapSelect}
         />
       )}
-      {!atBottom && (
-        <div
-          className={css.TimelineFloat({ position: 'Bottom' })}
-          style={{ bottom: `calc(${overlay.footerInset} + ${config.space.S400})` }}
-        >
-          <FloatingAction
-            icon={Icons.ArrowBottom}
-            label={t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest')}
-            onSelect={handleJumpToLatest}
-          />
-        </div>
-      )}
+      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatest} />}
     </Box>
   );
 }
