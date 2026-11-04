@@ -72,7 +72,10 @@ import type {
 } from './roomThreadOverviewModel';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { useThreadSortFreezeController } from './threadSortFreezeController';
-import { resolveRoomTimelineViewState } from './roomTimelineViewState';
+import {
+  DIRECT_ROOM_TIMELINE_FILTER_STATE,
+  resolveRoomTimelineViewState,
+} from './roomTimelineViewState';
 import {
   getInitialTimeline,
   getLiveTimeline,
@@ -560,6 +563,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const compactRoomScrollStateRef =
     props.compactRoomScrollStateRef ?? fallbackCompactScrollStateRef;
 
+  // Without agents, the threaded view is the room's conversation in the order it was sent, like
+  // the Full view: no filter bar, so no filter or sort of the bar applies there. The Compact
+  // cards keep the bar (search and sort) in every room.
+  const plainConversation = viewMode === 'threaded' && !hasMindroomAgents;
   const {
     effectiveViewMode,
     focusedRoomOverviewRequested,
@@ -568,7 +575,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   } = resolveRoomTimelineViewState({
     eventId,
     focusEventInRoom,
-    threadFilterState,
+    threadFilterState: plainConversation ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState,
     threadId,
     viewMode,
   });
@@ -1624,7 +1631,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
 
   const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
-  const filterBar = showRoomThreadOverviewControls && (
+  const filterBar = showRoomThreadOverviewControls && !plainConversation && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
         hasMindroomAgents={hasMindroomAgents}
