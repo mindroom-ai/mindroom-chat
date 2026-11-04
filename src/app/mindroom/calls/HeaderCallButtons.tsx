@@ -3,6 +3,7 @@ import { Icons } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';
 import { RoomCallButton } from '../../features/calls/RoomCallButton';
+import { useCallSupport } from '../../features/calls/callSupport';
 import {
   isActiveCallShownIn,
   useActiveCall,
@@ -23,16 +24,19 @@ const useLiveCall = () => {
 };
 
 /**
- * What the header offers for calls. Where a voice-capable agent is in the room, calling it takes
- * the place of the room's own call; call rooms and rooms without such an agent offer the room's
- * call. A call that is on is always offered. The agents are looked up once per header: by the
- * wide header, or on phones by the room menu while it is open.
+ * What the header offers for calls. Nothing new where the deployment has no call service: calls
+ * run only on its own (`chooseCallService`). Where a voice-capable agent is in the room, calling
+ * it takes the place of the room's own call; call rooms and rooms without such an agent offer the
+ * room's call. A call that is on is always shown, service or not. The agents are looked up once
+ * per header: by the wide header, or on phones by the room menu while it is open.
  */
 const useHeaderCalls = (threadId: string | undefined) => {
   const { room, shownHere, live } = useLiveCall();
+  const offered = useCallSupport(useMatrixClient()) === 'supported';
   const candidates = useAgentCallCandidates(room, threadId);
-  const offerAgent = candidates.length > 0 && !room.isCallRoom() && !shownHere;
-  return { room, candidates, offerAgent, live };
+  const offerAgent = offered && candidates.length > 0 && !room.isCallRoom() && !shownHere;
+  const offerRoom = live || (offered && !offerAgent);
+  return { room, candidates, offered, offerAgent, offerRoom, live };
 };
 
 type HeaderCallButtonsProps = {
@@ -48,10 +52,10 @@ function PhoneHeaderCallButton() {
 }
 
 function WideHeaderCallButtons({ threadId }: { threadId?: string }) {
-  const { room, candidates, offerAgent, live } = useHeaderCalls(threadId);
+  const { room, candidates, offerAgent, offerRoom } = useHeaderCalls(threadId);
   return (
     <>
-      {(!offerAgent || live) && <RoomCallButton room={room} />}
+      {offerRoom && <RoomCallButton room={room} />}
       {offerAgent && <AgentCallHeaderButton threadId={threadId} candidates={candidates} />}
     </>
   );
@@ -64,7 +68,8 @@ export function HeaderCallButtons({ threadId, phone = false }: HeaderCallButtons
 
 /**
  * The room menu's call entries on phones, for what `HeaderCallButtons` leaves out of a phone's
- * header: calling each voice-capable agent, or starting the room's call when none is on.
+ * header: calling each voice-capable agent, or starting the room's call when none is on. None
+ * where the deployment has no call service.
  */
 export function HeaderCallMenuEntries({
   threadId,
@@ -74,7 +79,7 @@ export function HeaderCallMenuEntries({
   requestClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { room, candidates, offerAgent, live } = useHeaderCalls(threadId);
+  const { room, candidates, offered, offerAgent, live } = useHeaderCalls(threadId);
   const [, setPanelOpen] = useCallPanel(room.roomId);
   // The menu closes before the call starts, so the reason one did not start shows account-wide.
   const { call } = useAgentCaller({ announce: true });
@@ -103,7 +108,8 @@ export function HeaderCallMenuEntries({
       </>
     );
   }
-  if (live) return null;
+  // A call that is on is the header button's; the menu starts one only where calls can run.
+  if (live || !offered) return null;
   return (
     <MenuEntry
       icon={Icons.Phone}

@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   callMembers: 0,
   shownHere: false,
   callRoom: false,
+  /** What the deployment's call service discovery answered. */
+  support: 'supported' as 'checking' | 'supported' | 'unsupported',
   setPanelOpen: vi.fn(),
   call: vi.fn(),
 }));
@@ -42,6 +44,7 @@ vi.mock('./AgentCallHeaderButton', () => ({
     return state.candidates;
   },
 }));
+vi.mock('../../features/calls/callSupport', () => ({ useCallSupport: () => state.support }));
 vi.mock('./agentCaller', () => ({ useAgentCaller: () => ({ call: state.call, pending: false }) }));
 vi.mock('../../components/MenuEntry', () => ({
   MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
@@ -69,6 +72,7 @@ beforeEach(() => {
   state.callMembers = 0;
   state.shownHere = false;
   state.callRoom = false;
+  state.support = 'supported';
   state.setPanelOpen.mockReset();
   state.call.mockReset();
 });
@@ -79,6 +83,10 @@ afterEach(() => {
 });
 
 describe('HeaderCallButtons', () => {
+  it('offers the room call on wide screens where the deployment has a call service', () => {
+    expect(kinds(render(<HeaderCallButtons />))).toEqual(['room-call']);
+  });
+
   it('offers the agent in place of the room call on wide screens', () => {
     state.candidates = [agent];
     expect(kinds(render(<HeaderCallButtons />))).toEqual(['agent-call']);
@@ -110,6 +118,39 @@ describe('HeaderCallButtons', () => {
     state.callMembers = callMembers;
     state.shownHere = shownHere;
     expect(kinds(render(<HeaderCallButtons phone />))).toEqual(['room-call']);
+  });
+});
+
+describe('a deployment without a call service', () => {
+  beforeEach(() => {
+    state.support = 'unsupported';
+  });
+
+  it.each([
+    { name: 'without an agent', candidates: [] },
+    { name: 'with a voice-capable agent', candidates: [agent] },
+  ])('offers no call in the wide header $name', ({ candidates }) => {
+    state.candidates = candidates;
+    expect(kinds(render(<HeaderCallButtons />))).toEqual([]);
+  });
+
+  it('offers nothing while it is still being asked', () => {
+    state.support = 'checking';
+    expect(kinds(render(<HeaderCallButtons />))).toEqual([]);
+    expect(labels(render(<HeaderCallMenuEntries requestClose={vi.fn()} />))).toEqual([]);
+  });
+
+  it('still shows a call that is on in the room, but no agent to call', () => {
+    state.candidates = [agent];
+    state.callMembers = 1;
+    expect(kinds(render(<HeaderCallButtons />))).toEqual(['room-call']);
+    expect(kinds(render(<HeaderCallButtons phone />))).toEqual(['room-call']);
+  });
+
+  it('leaves the call entries out of the phone room menu', () => {
+    expect(labels(render(<HeaderCallMenuEntries requestClose={vi.fn()} />))).toEqual([]);
+    state.candidates = [agent];
+    expect(labels(render(<HeaderCallMenuEntries requestClose={vi.fn()} />))).toEqual([]);
   });
 });
 
