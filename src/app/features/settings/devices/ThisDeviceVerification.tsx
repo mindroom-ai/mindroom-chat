@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { CSSProperties, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { ClientEvent, type MatrixEvent } from 'matrix-js-sdk';
@@ -45,6 +45,18 @@ const useDefaultSecretStorageKey = (): SecretStorageKeyTuple | null | undefined 
 
 const EMPHASIS = { strong: <strong /> };
 
+/** A button that reads as a link inside a sentence: no box, the sentence's own type and color. */
+const INLINE_BUTTON: CSSProperties = {
+  appearance: 'none',
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  color: 'inherit',
+  font: 'inherit',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+};
+
 type StepsProps = {
   /** Opens the recovery key form; missing when the account has no secret storage. */
   onManual?: () => void;
@@ -88,7 +100,7 @@ function StepsFromOtherDevice({ onManual }: StepsProps) {
                   type="button"
                   size="T200"
                   onClick={onManual}
-                  style={{ fontWeight: 'bold', textDecoration: 'underline', cursor: 'pointer' }}
+                  style={{ ...INLINE_BUTTON, fontWeight: 'bold' }}
                 />
               ),
             }}
@@ -184,7 +196,7 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
                   size="T200"
                   aria-expanded={learnMore}
                   onClick={() => setLearnMore((open) => !open)}
-                  style={{ textDecoration: 'underline', cursor: 'pointer' }}
+                  style={INLINE_BUTTON}
                 />
               ),
             }}
