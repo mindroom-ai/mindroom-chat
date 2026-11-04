@@ -10,6 +10,7 @@ import React, {
 import { Avatar, Box, Button, Chip, Spinner, Text, color, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
+import { useAtomValue } from 'jotai';
 import {
   MatrixEventEvent,
   Method,
@@ -29,6 +30,7 @@ import {
 } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
+import { mDirectAtom } from '../../../state/mDirectList';
 import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
 import { INBOX_PATH } from '../../paths';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
@@ -36,7 +38,12 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
-import { getMemberDisplayName, getRoomAvatarUrl } from '../../../utils/room';
+import {
+  getDirectPartnerId,
+  getDirectRoomAvatarUrl,
+  getMemberDisplayName,
+  getRoomAvatarUrl,
+} from '../../../utils/room';
 import { getMxIdLocalPart } from '../../../utils/matrix';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import {
@@ -267,11 +274,34 @@ function NotificationRow({
   );
 }
 
+/**
+ * The avatar over a room's notifications. A direct chat shows the other person, with their
+ * picture or their color, as the Direct list and the room header do.
+ */
+function NotificationGroupAvatar({ room }: { room: Room }) {
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const withPerson = useAtomValue(mDirectAtom).has(room.roomId);
+  const pictureUrl = withPerson
+    ? getDirectRoomAvatarUrl(client, room, 64, authenticated)
+    : getRoomAvatarUrl(client, room, 64, authenticated);
+  return (
+    <Avatar size="200">
+      <RoomAvatar
+        roomId={room.roomId}
+        fallbackId={withPerson ? getDirectPartnerId(room) : undefined}
+        src={pictureUrl}
+        alt={room.name}
+        renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
+      />
+    </Avatar>
+  );
+}
+
 /** The Inbox's Notifications page: messages that notified this account, grouped by room. */
 export function Notifications() {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
   const { navigateRoom } = useRoomNavigate();
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const { status, notifications, nextToken, loadOlder } = useNotificationPages(client, filter);
@@ -334,14 +364,7 @@ export function Notifications() {
                   gap="200"
                 >
                   <Box alignItems="Center" gap="200">
-                    <Avatar size="200">
-                      <RoomAvatar
-                        roomId={room.roomId}
-                        src={getRoomAvatarUrl(client, room, 64, useAuthentication)}
-                        alt={room.name}
-                        renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
-                      />
-                    </Avatar>
+                    <NotificationGroupAvatar room={room} />
                     <Text size="H5" truncate style={{ flexGrow: 1 }}>
                       {room.name}
                     </Text>
