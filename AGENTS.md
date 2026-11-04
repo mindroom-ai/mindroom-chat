@@ -40,7 +40,7 @@ Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, 
 | `just typecheck-all` | `scripts/typecheck-all.mjs`: syntax and semantic errors together over `tsconfig.json` |
 | `just strict` | `scripts/strict-check.mjs`: `tsc` over `tsconfig.strict.json` (unused names, implicit returns, switch fallthrough, `override`, unchecked index access); fails on Lane C errors only and prints the count of Lane P errors it ignores |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
-| `just lint` | ESLint over `src`, `e2e`, `scripts`, and the config files |
+| `just lint` | ESLint over `src`, `e2e`, `scripts`, and the config files; Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of `tsconfig.strict.json` |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on Lane C files you wrote |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/`, with `runtime-config.js`, `authentication-recovery.js`, `version.json` and `sw.js` |

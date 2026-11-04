@@ -1,4 +1,18 @@
 /* eslint-env node */
+const fs = require('node:fs');
+const path = require('node:path');
+
+// Lane P TypeScript files: the first column of every docs/provenance/portable*.tsv list. The
+// type-aware rules below skip them, because Lane P code keeps its ported logic.
+function lanePTypeScriptFiles() {
+  const provenance = path.join(__dirname, 'docs', 'provenance');
+  return fs
+    .readdirSync(provenance)
+    .filter((name) => /^portable.*\.tsv$/.test(name))
+    .flatMap((name) => fs.readFileSync(path.join(provenance, name), 'utf8').split('\n'))
+    .map((row) => row.split('\t')[0])
+    .filter((file) => /\.tsx?$/.test(file));
+}
 
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
 // the same material; only the adapter itself may use the raw folds components.
@@ -67,6 +81,13 @@ module.exports = {
   },
   overrides: [
     {
+      // CommonJS files, this config among them, load modules with `require`.
+      files: ['**/*.cjs'],
+      rules: {
+        '@typescript-eslint/no-var-requires': 'off',
+      },
+    },
+    {
       // The adapter wraps the raw folds surfaces.
       files: ['src/app/components/glass/GlassPrimitives.tsx'],
       rules: {
@@ -78,6 +99,30 @@ module.exports = {
       files: ['**/*.test.{ts,tsx}', 'e2e/**/*.{ts,tsx}'],
       rules: {
         '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+    {
+      // Type-aware rules for Lane C TypeScript: the files tsconfig.json compiles, minus Lane P.
+      // Types come from tsconfig.strict.json, whose unchecked index access `just strict` enforces.
+      files: ['src/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}', 'vitest.config.ts', 'playwright.config.ts'],
+      excludedFiles: lanePTypeScriptFiles(),
+      parserOptions: { project: './tsconfig.strict.json', tsconfigRootDir: __dirname },
+      rules: {
+        // react-test-renderer's synchronous `act` answers a `DebugPromiseLike`, a thenable its
+        // types make impossible to await; it is not a floating promise.
+        '@typescript-eslint/no-floating-promises': [
+          'error',
+          {
+            allowForKnownSafePromises: [
+              { from: 'package', name: 'DebugPromiseLike', package: 'react-test-renderer' },
+            ],
+          },
+        ],
+        '@typescript-eslint/no-misused-promises': 'error',
+        '@typescript-eslint/await-thenable': 'error',
+        '@typescript-eslint/switch-exhaustiveness-check': 'error',
+        '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+        '@typescript-eslint/no-unsafe-enum-comparison': 'error',
       },
     },
   ],
