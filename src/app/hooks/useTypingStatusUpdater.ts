@@ -27,12 +27,16 @@ export const useTypingStatusUpdater = (
     expiryRef.current = undefined;
   }, []);
 
+  // Leaving the room, or the account, while typing ends the notice there at once; otherwise
+  // the others would see this person typing until it expires.
   useEffect(
     () => () => {
       clearExpiry();
+      if (!typingRef.current) return;
       typingRef.current = false;
+      send(false);
     },
-    [clearExpiry, roomId]
+    [clearExpiry, send]
   );
 
   return useCallback(
