@@ -159,6 +159,7 @@ import {
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
+import { useLatestRef, useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 
 export type RoomTimelineProps = {
   room: Room;
@@ -239,20 +240,6 @@ const useTimelineDisplaySettings = () => ({
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(mindroomSettingsAtom, 'prefetchDepth')),
 });
 
-/** A value read by callbacks that must keep their identity when it changes. */
-const useLatestRef = <T,>(value: T): MutableRefObject<T> => {
-  const ref = useRef(value);
-  ref.current = value;
-  return ref;
-};
-
-/** A flag that belongs to one view: switching rooms or threads clears it in that render. */
-const useViewFlag = (viewKey: string) => {
-  const flagRef = useRef({ viewKey, value: false });
-  if (flagRef.current.viewKey !== viewKey) flagRef.current = { viewKey, value: false };
-  return flagRef;
-};
-
 type RoomUnread = ReturnType<typeof getRoomUnreadInfo>;
 
 /**
@@ -263,29 +250,10 @@ type RoomUnread = ReturnType<typeof getRoomUnreadInfo>;
 const useRoomUnreadInfo = (
   room: Room,
   skip: boolean
-): [RoomUnread, Dispatch<SetStateAction<RoomUnread>>] => {
-  const read = (): { roomId: string; info: RoomUnread } => ({
-    roomId: room.roomId,
-    info: skip ? undefined : getRoomUnreadInfo(room, true),
-  });
-  const [state, setState] = useState(read);
-  let current = state;
-  if (state.roomId !== room.roomId) {
-    current = read();
-    setState(current);
-  }
-  const { roomId } = current;
-  const setInfo = useCallback<Dispatch<SetStateAction<RoomUnread>>>(
-    (next) =>
-      setState((previous) =>
-        previous.roomId === roomId
-          ? { roomId, info: typeof next === 'function' ? next(previous.info) : next }
-          : previous
-      ),
-    [roomId]
+): [RoomUnread, Dispatch<SetStateAction<RoomUnread>>] =>
+  useViewScopedState<RoomUnread>(room.roomId, () =>
+    skip ? undefined : getRoomUnreadInfo(room, true)
   );
-  return [current.info, setInfo];
-};
 
 /**
  * Calls `onDeleted` when one of the room's threads goes away while the room (not a thread) is
@@ -1047,8 +1015,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // A thread opened at its latest row stays pinned there until the reader scrolls. Both flags
   // belong to the open view; the render that switches views starts them over.
-  const openedAtLatestRef = useViewFlag(viewKey);
-  const readerScrolledRef = useViewFlag(viewKey);
+  const openedAtLatestRef = useViewScopedFlag(viewKey);
+  const readerScrolledRef = useViewScopedFlag(viewKey);
   const threadLatestOpenPending =
     !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
   if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
