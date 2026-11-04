@@ -15,7 +15,6 @@ export const BlockType = {
   Mention: 'mention',
   Emoticon: 'emoticon',
   Link: 'link',
-  Command: 'command',
   PasteMarker: 'paste-marker',
 } as const;
 

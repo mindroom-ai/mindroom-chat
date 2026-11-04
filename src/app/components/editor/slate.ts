@@ -25,12 +25,6 @@ export type MentionElement = {
   children: FormattedText[];
 };
 
-export type CommandElement = {
-  type: typeof BlockType.Command;
-  command: string;
-  children: FormattedText[];
-};
-
 export type EmoticonElement = {
   type: typeof BlockType.Emoticon;
   /** Unicode emoji, or the mxc URI of a custom emoji. */
@@ -52,7 +46,7 @@ export type PasteMarkerElement = {
 };
 
 /** Inline elements that are atoms: one unit in the composer, never edited character by character. */
-export type AtomElement = MentionElement | CommandElement | EmoticonElement | PasteMarkerElement;
+export type AtomElement = MentionElement | EmoticonElement | PasteMarkerElement;
 
 export type InlineElement = LinkElement | AtomElement;
 

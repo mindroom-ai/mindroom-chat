@@ -39,7 +39,6 @@ vi.mock('../../components/editor', () => ({
   },
   customHtmlEqualsPlainText: () => true,
   getAutocompleteQuery: () => ({ prefix: '@', range: {}, text: 'zz' }),
-  getBeginCommand: () => undefined,
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => ({}),
   isEmptyEditor: () => false,
@@ -47,7 +46,6 @@ vi.mock('../../components/editor', () => ({
   resetEditorHistory: vi.fn(),
   toMatrixCustomHTML: () => '@zz',
   toPlainText: () => '@zz',
-  trimCommand: (_command: string, value: string) => value,
   trimCustomHtml: (value: string) => value,
   // Reports its suggestions the way the real mention menu does.
   UserMentionAutocomplete: ({

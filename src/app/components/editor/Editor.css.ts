@@ -56,7 +56,7 @@ const tintedSurface = {
   backgroundColor: color.SurfaceVariant.ContainerActive,
 } as const;
 
-// Mentions, commands and paste badges: a tinted pill that keeps the line height of the text.
+// Mentions and paste badges: a tinted pill that keeps the line height of the text.
 export const InlineChip = style({
   ...tintedSurface,
   cursor: 'default',

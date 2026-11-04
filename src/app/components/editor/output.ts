@@ -56,8 +56,6 @@ const inlineElementToCustomHtml = (node: CustomElement, children: string): strin
       )}" title="${sanitizeText(node.shortcode)}" height="32" />`;
     case BlockType.Link:
       return `<a href="${sanitizeText(node.href)}">${children}</a>`;
-    case BlockType.Command:
-      return `/${sanitizeText(node.command)}`;
     case BlockType.PasteMarker:
       return mindroomEditorPasteMarkerElementToCustomHtml(node);
     default:
@@ -160,8 +158,6 @@ const inlineElementToPlainText = (node: CustomElement, children: string): string
       return children;
     case BlockType.Emoticon:
       return isMxcUri(node.key) ? `:${node.shortcode}:` : node.key;
-    case BlockType.Command:
-      return `/${node.command}`;
     case BlockType.PasteMarker:
       return mindroomEditorPasteMarkerElementToPlainText(node);
     default:

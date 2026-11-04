@@ -11,7 +11,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
-import { type IContent, MsgType, type Room } from 'matrix-js-sdk';
+import { type IContent, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
 import { Box, Icon, Icons, IconSrc, RectCords, Text, color, config } from 'folds';
 import { PopOut } from '../../components/directional';
@@ -21,19 +21,12 @@ import {
   AutocompletePrefix,
   type AutocompleteQuery,
   CustomEditor,
-  customHtmlEqualsPlainText,
   EmoticonAutocomplete,
   getAutocompleteQuery,
-  getBeginCommand,
-  getMentions,
   getPrevWorldRange,
   isEmptyEditor,
   resetEditor,
   resetEditorHistory,
-  toMatrixCustomHTML,
-  toPlainText,
-  trimCommand,
-  trimCustomHtml,
   UserMentionAutocomplete,
 } from '../../components/editor';
 import {
@@ -72,6 +65,7 @@ import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
+import { composeTextMessage } from './composeTextMessage';
 import { sendComposerSticker } from './composerSticker';
 import {
   getMindroomRoomInputAutocompleteQuery,
@@ -123,47 +117,6 @@ const dropZoneStyle = (): React.CSSProperties => ({
   marginBlockEnd: config.space.S200,
 });
 const isModEnter = isKeyHotkey('mod+enter');
-
-/** A leading `/me` or `/notice` picks the message type; the command itself is not sent. */
-const COMMAND_MSGTYPES: ReadonlyMap<string, MsgType> = new Map([
-  ['me', MsgType.Emote],
-  ['notice', MsgType.Notice],
-]);
-
-/** The message the composer holds, or undefined when no text is left to send. */
-const composeTextMessage = (
-  editor: Editor,
-  markdown: boolean,
-  ownUserId: string | undefined
-): IContent | undefined => {
-  const command = getBeginCommand(editor);
-  const commandType = command === undefined ? undefined : COMMAND_MSGTYPES.get(command);
-  const withoutCommand = (value: string): string =>
-    command !== undefined && commandType !== undefined ? trimCommand(command, value) : value;
-
-  const body = withoutCommand(toPlainText(editor.children, markdown).trim());
-  if (body === '') return undefined;
-  const html = withoutCommand(
-    trimCustomHtml(
-      toMatrixCustomHTML(editor.children, {
-        allowInlineMarkdown: markdown,
-        allowBlockMarkdown: markdown,
-        allowTextFormatting: true,
-      })
-    )
-  );
-
-  // Intentional mentions (MSC3952): only the users and @room the composer holds as pills.
-  const { users, room: mentionsRoom } = getMentions(editor, ownUserId);
-  const mentions: { user_ids?: string[]; room?: boolean } = {};
-  if (users.size > 0) mentions.user_ids = [...users];
-  if (mentionsRoom) mentions.room = true;
-
-  const formatted = customHtmlEqualsPlainText(html, body)
-    ? {}
-    : { format: 'org.matrix.custom.html', formatted_body: html };
-  return { msgtype: commandType ?? MsgType.Text, body, ...formatted, 'm.mentions': mentions };
-};
 
 type ComposerIconButtonProps = {
   label: string;

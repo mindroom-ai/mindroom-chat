@@ -99,8 +99,6 @@ function InlineAtom({
   if (element.type === BlockType.Mention) {
     label = element.name;
     highlight = element.highlight;
-  } else if (element.type === BlockType.Command) {
-    label = `/${element.command}`;
   } else if (element.type === BlockType.PasteMarker) {
     label = element.fileName;
   } else {

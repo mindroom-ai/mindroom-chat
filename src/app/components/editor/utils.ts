@@ -52,14 +52,12 @@ const INLINE_TYPES: ReadonlySet<string> = new Set([
   BlockType.Link,
   BlockType.Mention,
   BlockType.Emoticon,
-  BlockType.Command,
   BlockType.PasteMarker,
 ]);
 
 const VOID_TYPES: ReadonlySet<string> = new Set([
   BlockType.Mention,
   BlockType.Emoticon,
-  BlockType.Command,
   BlockType.PasteMarker,
 ]);
 
@@ -162,25 +160,6 @@ export function getPrevWorldRange(editor: Editor): BaseRange | undefined {
   if (wordStart < 0) return undefined;
   return { anchor: { path: caret.path, offset: wordStart }, focus: caret };
 }
-
-/** The command a message starts with, when the first node is a command element. */
-export const getBeginCommand = (editor: Editor): string | undefined => {
-  const firstBlock = editor.children[0];
-  if (!Element.isElement(firstBlock)) return undefined;
-  const firstInline = firstBlock.children.find(
-    (child) => !(Text.isText(child) && child.text === '')
-  );
-  if (Element.isElement(firstInline) && firstInline.type === BlockType.Command) {
-    return firstInline.command;
-  }
-  return undefined;
-};
-
-/** Strips the leading `/command` from text produced by a command message. */
-export const trimCommand = (command: string, value: string): string => {
-  const pattern = new RegExp(`^(\\s|<br/>)*/${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
-  return value.replace(pattern, '').trimStart();
-};
 
 export type EditorMentions = {
   users: Set<string>;
