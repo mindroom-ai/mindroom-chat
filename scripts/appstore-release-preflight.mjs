@@ -6,26 +6,24 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+// The scenes e2e/app-store-screenshots.spec.ts captures, in upload order, named the way
+// src/app/mindroom/appstore/appStoreScreenshots.ts names its files: `<order>_<device>_<theme>_<scene>.png`.
+// Fastlane sorts each device's files by name, so the order prefix keeps the scenes in sequence.
+const SCENES = [
+  'light_personal-workspace',
+  'dark_mindroom-explained',
+  'light_campground-monitor',
+  'dark_car-search',
+  'light_home-reminders',
+];
+
+/** @param {string} deviceId */
+const sceneFiles = (deviceId) => SCENES.map((scene, order) => `${order}_${deviceId}_${scene}.png`);
+
 /** Required screenshot sizes: 6.9-inch iPhone and 13-inch iPad, portrait. */
 export const APP_STORE_SCREENSHOT_SETS = [
-  {
-    device: 'iPhone 6.9-inch',
-    width: 1320,
-    height: 2868,
-    filenames: [
-      'iphone-01.png',
-      'iphone-02.png',
-      'iphone-03.png',
-      'iphone-04.png',
-      'iphone-05.png',
-    ],
-  },
-  {
-    device: 'iPad 13-inch',
-    width: 2064,
-    height: 2752,
-    filenames: ['ipad-01.png', 'ipad-02.png', 'ipad-03.png', 'ipad-04.png', 'ipad-05.png'],
-  },
+  { device: 'iPhone 6.9-inch', width: 1320, height: 2868, filenames: sceneFiles('iphone-6-9') },
+  { device: 'iPad 13-inch', width: 2064, height: 2752, filenames: sceneFiles('ipad-13') },
 ];
 
 /**
