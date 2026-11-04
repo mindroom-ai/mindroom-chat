@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Run a command against an isolated end-to-end environment, so several runs can share a machine.
 #
-# Usage: scripts/e2e-slot.sh <slot 1-50> [--snapshot[=<rev>]] [--preview] [--fresh] <command...>
+# Usage: scripts/e2e-slot.sh <slot 1-50> [--snapshot[=<rev>]] [--preview] [--fresh] [--rtc] <command...>
 #   scripts/e2e-slot.sh 3 just e2e e2e/password-login.spec.ts
 #   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts
-#   scripts/e2e-slot.sh 3 down        # stop that slot's homeserver and delete its data
+#   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/lane-c/calls.spec.ts
+#   scripts/e2e-slot.sh 3 down        # stop that slot's homeserver and call service, delete its data
 #
 # Slot N gets its own disposable Tuwunel (compose project mindroom-client-e2e-N on port 28100+N)
 # and its own Vite dev server port (4300+N). Slot 0 is the default `just hs-up` setup (28008, 4200).
@@ -21,6 +22,12 @@
 #                       (e2e/fixtures/*.html) and is shared by every slot that tests the same commit.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
+#   --rtc               Start the slot's call service (scripts/e2e-rtc.sh: LiveKit and a MatrixRTC
+#                       authorization service, the snapshot's own with --snapshot) before the
+#                       homeserver, which then announces it, and stop it when the command ends. The
+#                       call specs skip without it. Without --fresh, a homeserver the slot already
+#                       runs is recreated with the setting and again without it at the end; its
+#                       data stays.
 #
 # At most E2E_MAX_CONCURRENT runs (default 6; 0 turns the cap off) go at once on this machine, over
 # all slots and sessions: a run first takes one of that many lock files in
@@ -43,12 +50,14 @@ main() {
   snapshot_rev=
   preview=0
   fresh=0
+  rtc=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --snapshot) snapshot_rev=HEAD ;;
       --snapshot=*) snapshot_rev="${1#--snapshot=}" ;;
       --preview) preview=1 ;;
       --fresh) fresh=1 ;;
+      --rtc) rtc=1 ;;
       --*)
         echo "e2e-slot: unknown option $1" >&2
         exit 2
@@ -76,6 +85,7 @@ main() {
   if [ "$1" = down ]; then
     compose down --volumes --remove-orphans
     agent_stack_down
+    bash "$repo/scripts/e2e-rtc.sh" "$slot" down
     exit
   fi
 
@@ -136,22 +146,50 @@ main() {
   # The imported scripts start their homeserver from E2E_MATRIX_COMPOSE_FILE (scripts/e2e-matrix-up.sh,
   # which scripts/appstore-fixture-up.sh calls); point them at this slot's server.
   export E2E_MATRIX_COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-$compose_file}"
+  # The call service of the run's own tree; its variables (E2E_LIVEKIT_SERVICE_URL, read by
+  # e2e/docker-compose.yaml) must be set before the homeserver starts.
+  rtc_script="$PWD/scripts/e2e-rtc.sh"
+  if [ "$rtc" = 1 ]; then
+    [ -f "$rtc_script" ] || {
+      echo "e2e-slot: --rtc needs $rtc_script" >&2
+      exit 2
+    }
+    eval "$(bash "$rtc_script" "$slot" env)"
+  fi
+  # What the run starts, it stops when it ends, also on failure or Ctrl-C.
+  stop_run_services() {
+    if [ "$rtc" = 1 ]; then bash "$rtc_script" "$slot" down >/dev/null 2>&1 || true; fi
+    if [ "$rtc" = 1 ] && [ "$fresh" = 0 ]; then
+      # The homeserver outlives the run: it stops naming the call service that is gone.
+      E2E_LIVEKIT_SERVICE_URL='' compose --progress quiet up -d --wait >/dev/null 2>&1 || true
+    fi
+    if [ "$fresh" = 1 ]; then
+      compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+      agent_stack_down
+    fi
+  }
+  if [ "$fresh" = 1 ] || [ "$rtc" = 1 ]; then trap stop_run_services EXIT; fi
+  if [ "$rtc" = 1 ]; then without_token bash "$rtc_script" "$slot" up; fi
   if [ "$fresh" = 1 ]; then
     # Quiet, not silenced: a Docker failure here must say why the run stopped.
     compose --progress quiet down --volumes --remove-orphans
   fi
-  if ! curl -fsS -o /dev/null "http://127.0.0.1:$E2E_MATRIX_PORT/_matrix/client/versions" 2>/dev/null; then
+  # With --rtc, `up` also recreates a running homeserver that does not announce the call service yet.
+  if [ "$rtc" = 1 ] ||
+    ! curl -fsS -o /dev/null "http://127.0.0.1:$E2E_MATRIX_PORT/_matrix/client/versions" 2>/dev/null; then
     compose --progress quiet up -d --wait
   fi
   # Dev servers started for this slot do not watch files (see vite.config.js); set E2E_NO_WATCH=0 to watch.
   export E2E_NO_WATCH="${E2E_NO_WATCH:-1}"
   export CHROMIUM_PATH="${CHROMIUM_PATH:-$(command -v chromium || true)}"
   export PLAYWRIGHT_CHROMIUM_EXECUTABLE="${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-$CHROMIUM_PATH}"
-  if [ "$fresh" = 1 ]; then
-    trap 'compose down --volumes --remove-orphans >/dev/null 2>&1 || true; agent_stack_down' EXIT
-  fi
-  # The command does not inherit the token's descriptor: only this script holds it, so a server the
-  # command leaves running in the background cannot keep the token after the run.
+  without_token "$@"
+}
+
+# Runs a command without the run token's descriptor: only this script holds it, so a server the
+# command leaves running in the background (the call service's authorization service, a server a
+# spec starts) cannot keep the token after the run.
+without_token() {
   if [ -n "${token_fd:-}" ]; then
     "$@" {token_fd}>&-
   else
