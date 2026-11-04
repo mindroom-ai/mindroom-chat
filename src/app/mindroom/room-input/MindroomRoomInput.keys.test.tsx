@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import type { SlashCommand } from '../../hooks/useCommands';
 
 type EditorProps = {
   editableName?: string;
@@ -15,6 +16,9 @@ const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
   startSendSession: vi.fn(async () => undefined),
+  commands: {} as Record<string, SlashCommand>,
+  resetEditor: vi.fn(),
+  restoreEditorContent: vi.fn(),
 }));
 
 vi.mock('folds', () => {
@@ -26,7 +30,7 @@ vi.mock('folds', () => {
     Icons: {},
     PopOut: () => null,
     Text: passthrough,
-    color: { Primary: {} },
+    color: { Primary: {}, Critical: {} },
     config: { space: {}, radii: {}, borderWidth: {} },
   };
 });
@@ -42,7 +46,7 @@ vi.mock('../../components/editor', () => ({
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => ({}),
   isEmptyEditor: () => false,
-  resetEditor: vi.fn(),
+  resetEditor: state.resetEditor,
   resetEditorHistory: vi.fn(),
   toMatrixCustomHTML: () => '@zz',
   toPlainText: () => '@zz',
@@ -60,7 +64,7 @@ vi.mock('../../components/editor', () => ({
 vi.mock('../../components/editor/utils', () => ({
   createEmoticonElement: vi.fn(),
   moveCursor: vi.fn(),
-  restoreEditorContent: vi.fn(),
+  restoreEditorContent: state.restoreEditorContent,
 }));
 vi.mock('../../components/emoji-board', () => ({ EmojiBoard: () => null }));
 vi.mock('../../features/room/msgContent', () => ({
@@ -68,6 +72,13 @@ vi.mock('../../features/room/msgContent', () => ({
   getFileMsgContent: vi.fn(),
   getImageMsgContent: vi.fn(),
   getVideoMsgContent: vi.fn(),
+}));
+vi.mock('../../features/room/CommandAutocomplete', () => ({ CommandAutocomplete: () => null }));
+vi.mock('../../hooks/useCommands', () => ({
+  SHRUG: 'shrug-face',
+  TABLEFLIP: 'tableflip-face',
+  UNFLIP: 'unflip-face',
+  useCommands: () => state.commands,
 }));
 vi.mock('../../hooks/useComposingCheck', () => ({ useComposingCheck: () => () => false }));
 vi.mock('../../hooks/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
@@ -124,17 +135,20 @@ afterEach(() => {
   renderer = undefined;
   state.editorProps = undefined;
   state.startSendSession.mockClear();
+  state.resetEditor.mockClear();
+  state.restoreEditorContent.mockClear();
+  state.commands = {};
 });
 
-/** Mounts the composer, types `@zz` and presses Enter; resolves with whether it sent. */
-const pressEnterAfterMention = async (): Promise<boolean> => {
+/** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
+const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
   const { RoomInput } = await import('./MindroomRoomInput');
   const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
   act(() => {
     renderer = create(
       <Provider store={createStore()}>
         <RoomInput
-          editor={{ children: [] } as never}
+          editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
           roomId={room.roomId}
           room={room}
@@ -165,5 +179,42 @@ describe('composer', () => {
   it('sends on Enter when an @ mention matches nobody', async () => {
     state.mentionHasSuggestions = false;
     expect(await pressEnterAfterMention()).toBe(true);
+  });
+
+  describe('slash commands', () => {
+    const typed = [
+      { type: 'paragraph', children: [{ text: '/invite @bob:example.org -r come in' }] },
+    ];
+    const withInvite = (run: SlashCommand['run']) => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        invite: { name: 'invite', description: 'Invite user to room.', run },
+      } as Record<string, SlashCommand>;
+    };
+    const alerts = () =>
+      renderer?.root.findAll((node) => node.props.role === 'alert').map((node) => node.props);
+
+    it('runs an acting command with its arguments instead of sending a message', async () => {
+      const run = vi.fn(async () => undefined);
+      withInvite(run);
+      expect(await pressEnterAfterMention(typed)).toBe(false);
+      expect(run).toHaveBeenCalledWith('@bob:example.org -r come in');
+      expect(state.resetEditor).toHaveBeenCalled();
+      expect(state.restoreEditorContent).not.toHaveBeenCalled();
+      expect(alerts()).toEqual([]);
+    });
+
+    it('gives the text back with the reason when the command fails', async () => {
+      withInvite(vi.fn(async () => Promise.reject(new Error('You are not allowed to invite'))));
+      expect(await pressEnterAfterMention(typed)).toBe(false);
+      expect(state.restoreEditorContent).toHaveBeenCalledWith(expect.anything(), typed);
+      expect(JSON.stringify(alerts())).toContain('You are not allowed to invite');
+    });
+
+    it('sends an unknown /word as a message', async () => {
+      withInvite(vi.fn(async () => undefined));
+      const path = [{ type: 'paragraph', children: [{ text: '/usr/bin is on the path' }] }];
+      expect(await pressEnterAfterMention(path)).toBe(true);
+    });
   });
 });

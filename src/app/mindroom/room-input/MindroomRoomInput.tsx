@@ -43,6 +43,8 @@ import {
   getImageMsgContent,
   getVideoMsgContent,
 } from '../../features/room/msgContent';
+import { CommandAutocomplete } from '../../features/room/CommandAutocomplete';
+import { useCommands } from '../../hooks/useCommands';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -66,6 +68,13 @@ import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { composeTextMessage } from './composeTextMessage';
+import {
+  type ActingCommand,
+  describeCommandFailure,
+  getSlashCommandSuggestions,
+  isSlashCommandQuery,
+  readActingCommand,
+} from './slashCommandQuery';
 import { sendComposerSticker } from './composerSticker';
 import {
   getMindroomRoomInputAutocompleteQuery,
@@ -117,6 +126,13 @@ const dropZoneStyle = (): React.CSSProperties => ({
   marginBlockEnd: config.space.S200,
 });
 const isModEnter = isKeyHotkey('mod+enter');
+
+// Why the last slash command did not run, in the critical color above the composer.
+const commandProblemStyle = (): React.CSSProperties => ({
+  color: color.Critical.Main,
+  paddingInline: config.space.S200,
+  paddingBlockEnd: config.space.S200,
+});
 
 type ComposerIconButtonProps = {
   label: string;
@@ -177,10 +193,10 @@ const buildUploadMessageContent = async (
 };
 
 /**
- * The composer: text with Markdown, mentions and MindRoom `!` commands, attachments (picked,
- * dropped, pasted, or large pastes as files), voice messages, and the reply being written. One
- * send session carries text and attachments in order; a voice message joins it when sent from
- * the primary Send button.
+ * The composer: text with Markdown, mentions, slash commands and MindRoom `!` commands,
+ * attachments (picked, dropped, pasted, or large pastes as files), voice messages, and the reply
+ * being written. One send session carries text and attachments in order; a voice message joins
+ * it when sent from the primary Send button.
  */
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   (
@@ -222,6 +238,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
+    const commands = useCommands(room);
+    const [commandProblem, setCommandProblem] = useState<string>();
 
     useEffect(() => {
       mountedRef.current = true;
@@ -338,8 +356,35 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [editor, isMarkdown, mx]
     );
 
+    // A command that acts sends nothing: the composer empties while it runs and gets the text
+    // back, with the reason, when it fails.
+    const runActingCommand = useCallback(
+      async (acting: ActingCommand) => {
+        const typed = composer.snapshotText();
+        setCommandProblem(undefined);
+        setSubmitPending(true);
+        composer.resetText();
+        sendTypingStatus(false);
+        try {
+          await acting.run(acting.args);
+        } catch (error) {
+          // A composer that went away meanwhile keeps the text as its room's draft.
+          composer.restoreText(roomId, typed, threadId);
+          if (mountedRef.current) setCommandProblem(describeCommandFailure(t, acting, error));
+        } finally {
+          if (mountedRef.current) setSubmitPending(false);
+        }
+      },
+      [composer, roomId, sendTypingStatus, t, threadId]
+    );
+
     const submit = useCallback(async () => {
       if (voice.blocksSubmit()) return;
+      const acting = readActingCommand(editor.children, commands);
+      if (acting) {
+        await runActingCommand(acting);
+        return;
+      }
       const textContent = buildTextContent();
       setSubmitPending(true);
       try {
@@ -351,7 +396,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       } finally {
         if (mountedRef.current) setSubmitPending(false);
       }
-    }, [buildTextContent, sendTypingStatus, sessions, voice]);
+    }, [buildTextContent, commands, editor, runActingCommand, sendTypingStatus, sessions, voice]);
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it.
@@ -364,11 +409,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       return sending;
     }, [submit]);
 
-    // Only `@` mentions, `:` emoji and `!` commands with a match show a menu; anything else sends
-    // on Enter.
+    // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
+    // else sends on Enter.
+    const slashQuery = isSlashCommandQuery(editor, autocompleteQuery)
+      ? autocompleteQuery
+      : undefined;
     let autocompleteMenuOpen = false;
     if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
       autocompleteMenuOpen = getMindroomCommandSuggestions(autocompleteQuery.text).length > 0;
+    } else if (slashQuery) {
+      autocompleteMenuOpen = getSlashCommandSuggestions(commands, slashQuery.text).length > 0;
     } else if (autocompleteQuery) {
       autocompleteMenuOpen =
         (autocompleteQuery.prefix === AutocompletePrefix.UserMention ||
@@ -379,6 +429,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const handleKeyDown = useCallback(
       (event: KeyboardEvent<HTMLDivElement>) => {
         if (isComposing(event.nativeEvent)) return;
+        setCommandProblem(undefined);
         const keyEvent = event.nativeEvent ?? event;
         if (toggleKeyboardShortcut(editor, event)) return;
         // With a menu open, Enter picks its suggestion; it never sends then.
@@ -456,6 +507,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         />
       ) : (
         <>
+          {slashQuery && (
+            <CommandAutocomplete
+              editor={editor}
+              query={slashQuery}
+              commands={commands}
+              requestClose={closeAutocomplete}
+            />
+          )}
           {autocompleteQuery.prefix === AutocompletePrefix.UserMention && (
             <UserMentionAutocomplete
               room={room}
@@ -498,6 +557,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               {t('composer.dropFilesHint')}
             </Text>
           </Box>
+        )}
+        {commandProblem && (
+          <Text as="p" role="alert" size="T300" style={commandProblemStyle()}>
+            {commandProblem}
+          </Text>
         )}
         {voice.renderRecorder(handleSend)}
         <CustomEditor
