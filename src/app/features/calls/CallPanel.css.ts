@@ -24,7 +24,8 @@ const tinted = (group: { Container: string; OnContainer: string }): StyleRule =>
 /** A hairline of the panel's line color, for the edge it is put on. */
 const hairline = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
 
-export const Panel = style([SidePanelPanel, { containerType: 'inline-size' }]);
+// It fills its column, and the room's width on phones, where it covers the conversation.
+export const Panel = style([SidePanelPanel, { flexGrow: 1, containerType: 'inline-size' }]);
 
 export const Header = style([SidePanelHeader]);
 

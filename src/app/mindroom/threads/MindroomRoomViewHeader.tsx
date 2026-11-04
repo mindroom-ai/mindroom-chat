@@ -54,6 +54,7 @@ import { StateEvent } from '../../../types/matrix/room';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
 import { CanvasHeaderButton } from '../canvas/CanvasHeaderButton';
+import { useCallPanel } from '../../features/calls/callStore';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useRoomViewMode } from './useRoomViewMode';
@@ -78,6 +79,8 @@ export type RoomViewHeaderProps = {
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
+  /** The call buttons, which the room provides (`HeaderCallButtons`). */
+  calls?: ReactNode;
 };
 
 type HeaderActionProps = {
@@ -166,7 +169,8 @@ const useViewSwitch = (room: Room) => {
 
 /**
  * The room header: avatar (a back button on phones), name and topic, then the Compact and Full
- * switch, scheduled tasks, canvases, the computer, pinned messages, members and the room menu.
+ * switch, scheduled tasks, canvases, the computer, calls, pinned messages, members and the room
+ * menu.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -181,6 +185,7 @@ export function RoomViewHeader({
   openCanvasId,
   onCanvasOpen,
   onCanvasClose,
+  calls,
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -217,8 +222,10 @@ export function RoomViewHeader({
   const topic = useRoomTopic(room);
   const [topicOpen, setTopicOpen] = useState(false);
 
-  // Canvas and computer take the side panel's place, so the members panel is hidden behind them.
-  const sidePanelTaken = !!computerOpen || !!canvasOpen;
+  // Canvas, computer and call take the side panel's place, so the members panel is hidden
+  // behind them.
+  const [callOpen, setCallOpen] = useCallPanel(room.roomId);
+  const sidePanelTaken = !!computerOpen || !!canvasOpen || callOpen;
   const membersVisible = membersOpen && !sidePanelTaken;
   const toggleMembers = () => {
     if (membersVisible) {
@@ -227,6 +234,7 @@ export function RoomViewHeader({
     }
     if (computerOpen) onComputerToggle?.();
     if (canvasOpen) onCanvasClose?.();
+    if (callOpen) setCallOpen(false);
     setMembersOpen(true);
   };
   const membersLabel = membersVisible
@@ -343,6 +351,7 @@ export function RoomViewHeader({
             onClick={() => onComputerToggle?.()}
           />
         )}
+        {calls}
         {pinnedCount > 0 && (
           <HeaderAction
             label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}

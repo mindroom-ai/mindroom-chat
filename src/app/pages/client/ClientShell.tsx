@@ -16,6 +16,7 @@ import { CreateSpaceModalRenderer } from '../../features/create-space/CreateSpac
 import { UserRoomProfileRenderer } from '../../components/user-profile/UserRoomProfileRenderer';
 import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPaletteRenderer';
 import { IncomingVerificationRequests } from '../../components/device-verification/IncomingVerificationRequests';
+import { CallFeatures } from '../../features/calls/CallFeatures';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 import { SkipToContent } from '../../components/skip-link/SkipToContent';
@@ -46,7 +47,7 @@ const useSessionDiscoveryInfo = (mx: MatrixClient): AutoDiscoveryInfo => {
   );
 };
 
-/** Per-account state the signed-in pages share, and the global dialogs. */
+/** Per-account state the signed-in pages share, the global dialogs, and calls. */
 export function ClientShell({ children }: { children: ReactNode }) {
   const notificationPreferences = useRoomsNotificationPreferences();
   const discoveryInfo = useSessionDiscoveryInfo(useMatrixClient());
@@ -66,6 +67,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <CommandPaletteRenderer />
           <UserRoomProfileRenderer />
           <IncomingVerificationRequests />
+          <CallFeatures />
         </RoomsNotificationPreferencesProvider>
       </ClientInitStorageAtom>
     </AutoDiscoveryInfoProvider>

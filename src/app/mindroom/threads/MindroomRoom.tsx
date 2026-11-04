@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -42,10 +42,22 @@ import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomViewMode } from './useRoomViewMode';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { RoomMessageAnnouncer } from '../../features/room/RoomMessageAnnouncer';
+import { useCallPanel } from '../../features/calls/callStore';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
+// Calls load on first use, so rooms without one never load them.
+const CallPanel = lazy(() =>
+  import('../../features/calls/CallPanel').then((module) => ({ default: module.CallPanel }))
+);
+const HeaderCallButtons = lazy(() =>
+  import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
+);
+
+/** The call panel fits two tiles side by side; wider, it fits more. */
+const CALL_DEFAULT_WIDTH = 400;
+const CALL_MAX_WIDTH = 1200;
 
 /** Where each Settings section an agent may ask for lives in the Settings dialog. */
 const SETTINGS_PAGE_FOR_SECTION: Record<ChatUiSettingsSection, SettingsPage> = {
@@ -70,6 +82,7 @@ type HeaderPanelControls = Pick<
   | 'openCanvasId'
   | 'onCanvasOpen'
   | 'onCanvasClose'
+  | 'calls'
 >;
 
 /** A canvas on screen and the conversation it was opened in. */
@@ -112,8 +125,9 @@ const useRoomComputer = (
 };
 
 /**
- * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, or
- * the members). The room also carries out the UI requests agents send (`io.mindroom.ui_action`).
+ * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
+ * call, or the members). The room also carries out the UI requests agents send
+ * (`io.mindroom.ui_action`).
  */
 /** What the room's URL asks for: an event, a thread, and whether to show the event in place. */
 const useRoomRoute = () => {
@@ -209,6 +223,23 @@ export function Room() {
     toggleComputer();
   }, [closeCanvas, computer.open, setMembersOpen, toggleComputer]);
 
+  // The call panel is one more side panel: opening it closes a canvas or the computer, and opening
+  // either of those closes it. The members panel only steps aside while the call shows.
+  const [callOpen, setCallOpen] = useCallPanel(roomId);
+  const mediaPanelOpen = computerOpen || !!canvas;
+  const lastPanels = useRef({ callOpen, mediaPanelOpen });
+  useEffect(() => {
+    const last = lastPanels.current;
+    lastPanels.current = { callOpen, mediaPanelOpen };
+    if (callOpen && !last.callOpen) {
+      closeCanvas();
+      closeComputer();
+    } else if (mediaPanelOpen && !last.mediaPanelOpen && callOpen) {
+      setCallOpen(false);
+    }
+  }, [callOpen, closeCanvas, closeComputer, mediaPanelOpen, setCallOpen]);
+  const callShown = callOpen && !mediaPanelOpen;
+
   // While the person controls a computer, agents may not take the view away from it.
   const controlling = computerOpen && computer.interaction.locked;
   const controlledAgent = computer.interaction.agentUserId;
@@ -244,6 +275,7 @@ export function Room() {
         case 'open_panel':
           closeCanvas();
           closeComputer();
+          setCallOpen(false);
           setMembersOpen(true);
           break;
         case 'open_settings':
@@ -255,7 +287,15 @@ export function Room() {
         default:
       }
     },
-    [closeCanvas, closeComputer, setMembersOpen, setSettingsModal, showCanvas, showComputer]
+    [
+      closeCanvas,
+      closeComputer,
+      setCallOpen,
+      setMembersOpen,
+      setSettingsModal,
+      showCanvas,
+      showComputer,
+    ]
   );
 
   // The Full view shows no thread routes, so an action from a thread brings the threads back.
@@ -305,8 +345,10 @@ export function Room() {
   // On phones a panel covers the conversation; expanded, it takes the conversation's column.
   const computerCoversConversation = computerOpen && (mobile || computerExpanded);
   const canvasCoversConversation = !!canvas && (mobile || canvas.expanded);
-  const conversationHidden = computerCoversConversation || canvasCoversConversation;
-  const membersShown = membersOpen && !computerOpen && !canvas;
+  const callCoversConversation = callShown && mobile;
+  const conversationHidden =
+    computerCoversConversation || canvasCoversConversation || callCoversConversation;
+  const membersShown = membersOpen && !computerOpen && !canvas && !callShown;
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -327,6 +369,11 @@ export function Room() {
     openCanvasId,
     onCanvasOpen,
     onCanvasClose: closeCanvas,
+    calls: (
+      <Suspense fallback={null}>
+        <HeaderCallButtons threadId={threadId} />
+      </Suspense>
+    ),
   };
 
   return (
@@ -391,6 +438,24 @@ export function Room() {
               }
               libraries={clientConfig.mindroom?.canvas?.libraries === true}
             />
+          )}
+          {callShown && (
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.call.width:${ownUserId}`}
+              defaultWidth={CALL_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={CALL_MAX_WIDTH}
+              passthrough={mobile}
+              resizeLabel={t('featureUi.calls.panel.resize')}
+              collapseLabel={t('featureUi.calls.panel.close')}
+              onCollapse={() => setCallOpen(false)}
+              testId="resizable-call-panel"
+            >
+              <Suspense fallback={null}>
+                <CallPanel room={room} onClose={() => setCallOpen(false)} />
+              </Suspense>
+            </ResizablePanel>
           )}
           {membersShown && (
             <ResizableMembersPanel onClose={() => setMembersOpen(false)}>

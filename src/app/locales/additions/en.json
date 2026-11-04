@@ -154,7 +154,8 @@
         "startVideoCall": "Start video call",
         "dismiss": "Close",
         "audioBlocked": "Your browser paused the call's sound.",
-        "playSound": "Play sound"
+        "playSound": "Play sound",
+        "resize": "Resize the call panel"
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",

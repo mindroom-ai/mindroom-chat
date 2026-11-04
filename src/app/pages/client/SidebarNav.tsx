@@ -24,6 +24,7 @@ import {
   UnverifiedTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
+import { CallTab } from '../../features/calls/CallTab';
 
 type SidebarNavProps = {
   /** Shown under a rule below the account controls, such as the panel collapse toggle. */
@@ -38,8 +39,9 @@ type SidebarNavProps = {
 
 /**
  * The icon rail. On top: Home, Direct Messages and the optional sections, then the joined spaces
- * and, where communities are on, Explore and Create Space. Pinned to the foot: the command palette,
- * device and Local MindRoom notices when they apply, the Inbox, the account, and the footer.
+ * and, where communities are on, Explore and Create Space. Pinned to the foot: the call this device
+ * is in, the command palette, device and Local MindRoom notices when they apply, the Inbox, the
+ * account, and the footer.
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const { t } = useTranslation();
@@ -79,6 +81,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
           <>
             <SidebarStackSeparator />
             <SidebarStack>
+              <CallTab />
               <SearchTab />
               <UnverifiedTab />
               {showLocalMindroom && <MindroomTab />}

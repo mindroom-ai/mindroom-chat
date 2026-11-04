@@ -19,6 +19,7 @@ import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { RoomSettingsPage } from '../../state/roomSettings';
 import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
+import { AgentCallButton } from '../../mindroom/calls/AgentCallButton';
 import { nameInitials } from '../../utils/common';
 import { getMxIdLocalPart, getMxIdServer } from '../../utils/matrix';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
@@ -210,6 +211,15 @@ export function UserRoomProfile({
         >
           <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
         </Button>
+      )}
+      {!isMe && (
+        <AgentCallButton
+          roomId={room.roomId}
+          userId={userId}
+          displayName={name}
+          presenceStatus={user?.presenceStatusMsg}
+          onStarted={onDone}
+        />
       )}
       {isMe && (
         <Button
