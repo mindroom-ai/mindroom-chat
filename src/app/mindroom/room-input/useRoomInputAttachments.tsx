@@ -62,7 +62,6 @@ type RoomInputAttachments = {
   onPaste: (event: ClipboardEvent<HTMLElement>) => void;
   /** Drops paste attachments whose marker left the editor. */
   onEditorChange: () => void;
-  stageFiles: (files: File[]) => Promise<void>;
   pickFiles: () => void;
   dropZoneVisible: boolean;
 };
@@ -165,6 +164,15 @@ export const useRoomInputAttachments = ({
       uploadWatches.current.set(file, store.sub(roomUploadAtomFamily(file), notify));
     });
   }, [notify, store]);
+
+  // An unmounted composer has no listeners left to wake; the next one watches the files again.
+  useEffect(() => {
+    const watches = uploadWatches.current;
+    return () => {
+      watches.forEach((unsubscribe) => unsubscribe());
+      watches.clear();
+    };
+  }, []);
 
   const access = useMemo<RoomInputAttachmentAccess>(() => {
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
@@ -433,5 +441,5 @@ export const useRoomInputAttachments = ({
       </UploadBoard>
     ) : null;
 
-  return { access, board, onPaste, onEditorChange, stageFiles, pickFiles, dropZoneVisible };
+  return { access, board, onPaste, onEditorChange, pickFiles, dropZoneVisible };
 };
