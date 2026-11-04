@@ -114,9 +114,13 @@ export const useCallActions = (mx: MatrixClient) => {
   const endCall = useCallback(async () => {
     const active = store.get(activeCallAtom);
     if (!active) return;
-    await active.call.leave();
-    await active.onEnded?.().catch(() => undefined);
-    if (store.get(activeCallAtom) === active) store.set(activeCallAtom, undefined);
+    // A leave that fails still ends the call here, or every later start would answer `busy`.
+    try {
+      await active.call.leave();
+    } finally {
+      await active.onEnded?.().catch(() => undefined);
+      if (store.get(activeCallAtom) === active) store.set(activeCallAtom, undefined);
+    }
   }, [store]);
 
   const startCall = useCallback(

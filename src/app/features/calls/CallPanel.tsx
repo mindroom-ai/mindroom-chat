@@ -233,7 +233,8 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         icon={Icons.PhoneDown}
         critical
         onClick={() => {
-          endCall();
+          // The call is over for this device either way; a failed leave leaves nothing to do.
+          endCall().catch(() => undefined);
         }}
       />
     </div>
