@@ -120,8 +120,8 @@ import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
+  useGestureBottomPins,
   useLatestRowPin,
-  useThreadGestureBottomPins,
   useTimelineRowJumps,
   useTimelineScrollElement,
   useViewportAtBottomNow,
@@ -776,7 +776,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () => backController.requestOpenBottomPin(scrollToBottomRef),
     [backController]
   );
-  const threadGesturePins = useThreadGestureBottomPins({
+  const gesturePins = useGestureBottomPins({
     backController,
     scrollToBottomRef,
     readerScrolledRef,
@@ -856,8 +856,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     suppressFocusPaginationRef,
     isThreadOpenBottomPinSuppressed: backController.isOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
-    cancelThreadOpenBottomPin: threadGesturePins.onThreadGesture,
-    shouldApplyThreadBottomPin: threadGesturePins.shouldApplyBottomPin,
+    cancelThreadOpenBottomPin: gesturePins.onThreadGesture,
+    shouldApplyThreadBottomPin: gesturePins.shouldApplyBottomPin,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents: roomRows,
@@ -1131,9 +1131,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     opensAtLatest: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
     roomId: room.roomId,
     scrollElement,
-    scrollToBottomCount: scrollToBottomRef.current.count,
+    scrollToBottomRef,
     committedView: `${viewKey}|${effectiveViewMode}`,
     focusItem,
+    onReaderGesture: gesturePins.onRoomGesture,
   });
 
   const minimap = useRoomTimelineMinimap({

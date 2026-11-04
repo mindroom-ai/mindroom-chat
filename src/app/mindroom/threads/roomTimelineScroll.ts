@@ -12,11 +12,12 @@ import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScro
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
 import type { ViewScopedFlag } from './roomTimelineViewScope';
 import { isScrollNearBottom } from './timelineScrollUtils';
+import { useLatestRef } from '../../hooks/useLatestRef';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
- * keeps the newest room row at the bottom, what the reader's gestures do to a thread's bottom
- * pins, and the jumps to a row of the window.
+ * keeps the newest room row at the bottom, what the reader's gestures do to the bottom pins, and
+ * the jumps to a row of the window.
  */
 
 /**
@@ -72,28 +73,35 @@ type LatestRowRequestOptions = {
   opensAtLatest: boolean;
   roomId: string;
   scrollElement: HTMLElement | null;
-  scrollToBottomCount: number;
+  /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
+  scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   committedView: string;
   focusItem: RoomTimelineFocusItem | undefined;
+  /** Runs at each gesture or scroll that hands the position to the reader. */
+  onReaderGesture: () => void;
 };
 
 /**
  * A request to show the newest room row. Opening the room, Jump to Latest, a live row the reader
  * follows, and switching the view make one; it holds until the reader scrolls, so rows measured
  * later still end at the bottom. A view switch that React renders but never shows makes none.
+ * The reader's gesture also ends the pins asked for before it that no commit has seen yet: a row
+ * that arrived while they were at the bottom must not bring them back once they scroll away.
  */
 const useLatestRowRequest = ({
   opensAtLatest,
   roomId,
   scrollElement,
-  scrollToBottomCount,
+  scrollToBottomRef,
   committedView,
   focusItem,
+  onReaderGesture,
 }: LatestRowRequestOptions) => {
   const requestRef = useRef(opensAtLatest);
-  const seenCountRef = useRef(scrollToBottomCount);
+  const seenCountRef = useRef(scrollToBottomRef.current.count);
   const viewRef = useRef(committedView);
   const roomRef = useRef(roomId);
+  const onReaderGestureRef = useLatestRef(onReaderGesture);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -101,11 +109,14 @@ const useLatestRowRequest = ({
     requestRef.current = roomRef.current === roomId || opensAtLatest;
     roomRef.current = roomId;
   }, [committedView, opensAtLatest, roomId]);
+  // Every commit compares the count as it is then: a render that React bails out of keeps the
+  // count it read without running its effects, so effect dependencies would miss that pin.
   useLayoutEffect(() => {
-    if (scrollToBottomCount === seenCountRef.current) return;
-    seenCountRef.current = scrollToBottomCount;
+    const { count } = scrollToBottomRef.current;
+    if (count === seenCountRef.current) return;
+    seenCountRef.current = count;
     requestRef.current = true;
-  }, [scrollToBottomCount]);
+  });
   useLayoutEffect(() => {
     // A jump to an event owns the position from here.
     if (focusItem) requestRef.current = false;
@@ -114,6 +125,8 @@ const useLatestRowRequest = ({
     if (!scrollElement) return undefined;
     const release = () => {
       requestRef.current = false;
+      seenCountRef.current = scrollToBottomRef.current.count;
+      onReaderGestureRef.current();
     };
     // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
     // a script or assistive technology): the timeline's own pins scroll down, and a row above
@@ -137,7 +150,7 @@ const useLatestRowRequest = ({
       READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
       scrollElement.removeEventListener('scroll', followScroll, { capture: true });
     };
-  }, [scrollElement]);
+  }, [onReaderGestureRef, scrollElement, scrollToBottomRef]);
   return requestRef;
 };
 
@@ -149,6 +162,7 @@ export const useLatestRowPin = ({
   shown,
   itemCount,
   virtualizer,
+  onReaderGesture,
   ...request
 }: LatestRowRequestOptions & {
   /** The room's own rows are on screen (not a thread, not the Compact cards). */
@@ -156,7 +170,12 @@ export const useLatestRowPin = ({
   itemCount: number;
   virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>;
 }) => {
-  const latestRowRequestRef = useLatestRowRequest(request);
+  const shownRef = useLatestRef(shown);
+  // A thread's gestures have their own rule (useGestureBottomPins' onThreadGesture).
+  const onRoomGesture = useCallback(() => {
+    if (shownRef.current) onReaderGesture();
+  }, [onReaderGesture, shownRef]);
+  const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onRoomGesture });
   useLayoutEffect(() => {
     if (!shown || !latestRowRequestRef.current || itemCount === 0) return;
     virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
@@ -164,13 +183,13 @@ export const useLatestRowPin = ({
 };
 
 /**
- * What the reader's gestures in an open thread do to its bottom pins. A pin is a request the next
- * commit applies (the count in `scrollToBottomRef`); a gesture ends the opening pin for the view
- * and drops every request made before it that no commit has applied yet. A row that arrives while
- * the reader is at the bottom asks to follow it, and the commit can come after the reader started
- * to scroll away: applied there, it would put them back at the bottom.
+ * What the reader's gestures do to the bottom pins. A pin is a request the next commit applies
+ * (the count in `scrollToBottomRef`); a gesture drops every request made before it that no commit
+ * has applied yet, and in an open thread it also ends the opening pin for the view. A row that
+ * arrives while the reader is at the bottom asks to follow it, and the commit can come after the
+ * reader started to scroll away: applied there, it would put them back at the bottom.
  */
-export const useThreadGestureBottomPins = ({
+export const useGestureBottomPins = ({
   backController,
   scrollToBottomRef,
   readerScrolledRef,
@@ -183,7 +202,7 @@ export const useThreadGestureBottomPins = ({
   /** Runs once per view, at the reader's first gesture. */
   onFirstGesture: () => void;
 }) => {
-  // The request count when the reader last touched, scrolled or pressed a key in the thread.
+  // The request count when the reader last touched, scrolled or pressed a key.
   const countAtGestureRef = useRef<number | undefined>(undefined);
   const onThreadGesture = useCallback(() => {
     const { count } = scrollToBottomRef.current;
@@ -193,12 +212,16 @@ export const useThreadGestureBottomPins = ({
     readerScrolledRef.current.value = true;
     onFirstGesture();
   }, [backController, onFirstGesture, readerScrolledRef, scrollToBottomRef]);
+  /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
+  const onRoomGesture = useCallback(() => {
+    countAtGestureRef.current = scrollToBottomRef.current.count;
+  }, [scrollToBottomRef]);
   const shouldApplyBottomPin = useCallback(
     (count: number) =>
       count !== countAtGestureRef.current && backController.shouldApplyBottomPin(count),
     [backController]
   );
-  return { onThreadGesture, shouldApplyBottomPin };
+  return { onThreadGesture, onRoomGesture, shouldApplyBottomPin };
 };
 
 /**

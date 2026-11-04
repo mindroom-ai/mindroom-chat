@@ -7,7 +7,7 @@ import {
 } from './roomFocusScrollController';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import { useThreadGestureBottomPins } from './roomTimelineScroll';
+import { useGestureBottomPins, useLatestRowPin } from './roomTimelineScroll';
 import type { ThreadTargetCommands } from './session/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
@@ -53,7 +53,7 @@ function OpenThread({ scroller, pins, rows, openPending }: ThreadProps) {
   const backController = useThreadBackPaginationController();
   const readerScrolledRef = useViewScopedFlag('!room|$thread');
   const [, rerender] = useReducer((value: number) => value + 1, 0);
-  const gesturePins = useThreadGestureBottomPins({
+  const gesturePins = useGestureBottomPins({
     backController,
     scrollToBottomRef: pins,
     readerScrolledRef,
@@ -125,7 +125,7 @@ const openAtLatest = () => {
   return { element, fire, showRows, followNewRow };
 };
 
-describe('useThreadGestureBottomPins', () => {
+describe('useGestureBottomPins in an open thread', () => {
   it('drops a follow pin a row asked for when the reader touches before it is applied', () => {
     const thread = openAtLatest();
 
@@ -159,5 +159,163 @@ describe('useThreadGestureBottomPins', () => {
 
     expect(thread.element.scrollTo).toHaveBeenCalledTimes(1);
     expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'instant' });
+  });
+});
+
+/**
+ * A room's scroll area showing its newest rows at the bottom: listeners by event type (the capture
+ * flag is not modelled) and a recorded `scrollTo`.
+ */
+const fakeRoomScroller = () => {
+  const handlers = new Map<string, Set<() => void>>();
+  const element = {
+    scrollHeight: 3000,
+    clientHeight: 600,
+    scrollTop: 2400,
+    scrollTo: vi.fn(),
+    addEventListener: (type: string, handler: () => void) => {
+      const forType = handlers.get(type) ?? new Set<() => void>();
+      forType.add(handler);
+      handlers.set(type, forType);
+    },
+    removeEventListener: (type: string, handler: () => void) => {
+      handlers.get(type)?.delete(handler);
+    },
+  };
+  const fire = (type: string) => handlers.get(type)?.forEach((handler) => handler());
+  return { element, fire };
+};
+
+type RoomProps = {
+  scroller: ReturnType<typeof fakeRoomScroller>['element'];
+  pins: { current: ScrollToBottomState };
+  rows: number;
+  scrollToIndex: (index: number) => void;
+};
+
+/** The pieces of the room's Full view that decide its bottom pins, wired as the room timeline does. */
+function RoomRows({ scroller, pins, rows, scrollToIndex }: RoomProps) {
+  const scrollRef = useRef(scroller as unknown as HTMLDivElement);
+  const backController = useThreadBackPaginationController();
+  const readerScrolledRef = useViewScopedFlag('!room|');
+  const gesturePins = useGestureBottomPins({
+    backController,
+    scrollToBottomRef: pins,
+    readerScrolledRef,
+    onFirstGesture: () => undefined,
+  });
+  useRoomFocusScrollController({
+    alive: () => true,
+    atBottomAnchorRef: { current: null },
+    focusScrollResetToken: '!room',
+    threadTargets: noTargets,
+    pendingThreadOpenTick: 0,
+    retryPagination: () => undefined,
+    roomId: '!room',
+    scrollRef,
+    scrollToBottomRef: pins,
+    scrollToElement: () => false,
+    scrollToItem: () => false,
+    setAtBottom: () => undefined,
+    setFocusItem: () => undefined,
+    suppressFocusPaginationRef: { current: false },
+    isThreadOpenBottomPinSuppressed: backController.isOpenBottomPinSuppressed,
+    requestThreadOpenBottomPin: () => backController.requestOpenBottomPin(pins),
+    cancelThreadOpenBottomPin: gesturePins.onThreadGesture,
+    shouldApplyThreadBottomPin: gesturePins.shouldApplyBottomPin,
+    threadEventIndexMapRef: { current: new Map() },
+    threadEventsLength: 0,
+    threadFilteredEvents: [],
+    threadFilteredEventsRef: { current: [] },
+    threadInitialRenderMode: 'live',
+    threadLatestOpenPending: false,
+    threadOpenedAtLatest: false,
+    threadUserScrolled: false,
+    threadTimelineTick: 0,
+    timelineAtLiveEnd: true,
+  });
+  useLatestRowPin({
+    shown: true,
+    itemCount: rows,
+    virtualizer: { scrollToIndex },
+    opensAtLatest: true,
+    roomId: '!room',
+    scrollElement: scroller as unknown as HTMLElement,
+    scrollToBottomRef: pins,
+    committedView: '!room||classic',
+    focusItem: undefined,
+    onReaderGesture: gesturePins.onRoomGesture,
+  });
+  return null;
+}
+
+/** A room opened at its newest row, the reader still at the bottom. */
+const roomAtLatest = () => {
+  const { element, fire } = fakeRoomScroller();
+  const pins = { current: { count: 0, smooth: false } };
+  const scrollToIndex = vi.fn();
+  let renderer: ReactTestRenderer | undefined;
+  act(() => {
+    renderer = create(
+      createElement(RoomRows, { scroller: element, pins, rows: 20, scrollToIndex })
+    );
+  });
+  if (!renderer) throw new Error('Expected a renderer');
+  const shown = renderer;
+  expect(scrollToIndex).toHaveBeenCalledWith(19, { align: 'end' });
+  scrollToIndex.mockClear();
+  element.scrollTo.mockClear();
+  const showRows = (rows: number) =>
+    act(() => {
+      shown.update(createElement(RoomRows, { scroller: element, pins, rows, scrollToIndex }));
+    });
+  // What the live row handling does for a row that arrives while the reader is at the bottom.
+  const followNewRow = () => {
+    pins.current.count += 1;
+    pins.current.smooth = true;
+  };
+  // The reader drags the scrollbar or a flick coasts on: a scroll up with no touch or wheel event.
+  const scrollUp = (px: number) => {
+    element.scrollTop -= px;
+    act(() => fire('scroll'));
+  };
+  /** Whether anything moved the reader to the bottom: the room's own pin or the shared one. */
+  const pinned = () => scrollToIndex.mock.calls.length + element.scrollTo.mock.calls.length;
+  return { fire, showRows, followNewRow, scrollUp, pinned, scrollToIndex, element };
+};
+
+describe('useGestureBottomPins in the room rows', () => {
+  it('drops a follow pin a row asked for when the reader scrolls up before it is applied', () => {
+    const room = roomAtLatest();
+
+    room.followNewRow();
+    // A scroll up that leaves more rows below, before the commit that shows the new row.
+    room.scrollUp(80);
+    room.showRows(21);
+    room.showRows(21);
+
+    expect(room.pinned()).toBe(0);
+  });
+
+  it('drops a follow pin when the reader touches before it is applied', () => {
+    const room = roomAtLatest();
+
+    room.followNewRow();
+    act(() => room.fire('touchstart'));
+    room.showRows(21);
+
+    expect(room.pinned()).toBe(0);
+  });
+
+  it('still follows a row that asks after the gesture', () => {
+    const room = roomAtLatest();
+    act(() => room.fire('touchstart'));
+    room.showRows(20);
+
+    room.followNewRow();
+    room.showRows(21);
+
+    expect(room.scrollToIndex).toHaveBeenCalledWith(20, { align: 'end' });
+    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'smooth' });
   });
 });
