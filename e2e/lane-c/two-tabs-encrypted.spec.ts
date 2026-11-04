@@ -156,7 +156,17 @@ const storeSizes = (page: Page) =>
     return sizes;
   });
 
-type Phase = { phase: string; reader: string; missing: string[]; unreadable: string[] };
+/** What one reader showed after one step; `joinedLate` readers hold no keys for older rows. */
+type Phase = {
+  phase: string;
+  reader: string;
+  missing: string[];
+  unreadable: string[];
+  joinedLate: boolean;
+};
+
+const failedStep = ({ missing, unreadable, joinedLate }: Phase) =>
+  missing.length > 0 || (!joinedLate && unreadable.length > 0);
 
 test('two tabs of one session read every message of an encrypted room', async ({ browser }) => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
@@ -197,10 +207,12 @@ test('two tabs of one session read every message of an encrypted room', async ({
       // eslint-disable-next-line no-await-in-loop
       const { missing, unreadable } = await readout(reader.page, expected);
       // A device that joined later has no key for what came before it; only its own rows count.
-      const late = reader.readsFrom > 0;
-      outcomes.push({ phase, reader: reader.name, missing, unreadable: late ? [] : unreadable });
+      const joinedLate = reader.readsFrom > 0;
+      outcomes.push({ phase, reader: reader.name, missing, unreadable, joinedLate });
       expect.soft(missing, `${phase}: ${reader.name} cannot read`).toEqual([]);
-      if (!late) expect.soft(unreadable, `${phase}: ${reader.name} undecryptable rows`).toEqual([]);
+      if (!joinedLate) {
+        expect.soft(unreadable, `${phase}: ${reader.name} undecryptable rows`).toEqual([]);
+      }
     }
   };
 
@@ -244,18 +256,20 @@ test('two tabs of one session read every message of an encrypted room', async ({
     await say(secondTab, 'new device');
     await say(bobPhone, 'new device');
   } finally {
-    const failed = outcomes.some((outcome) => outcome.missing.length + outcome.unreadable.length);
-    if (failed || test.info().errors.length > 0) {
-      const evidence = {
-        roomId,
-        accounts: { alice: alice.userId, bob: bob.userId },
-        messages,
-        failures: outcomes.filter((outcome) => outcome.missing.length + outcome.unreadable.length),
-        store: await storeSizes(firstTab.page).catch((error: unknown) => String(error)),
-        console: Object.fromEntries(readers.map((reader) => [reader.name, reader.log])),
-      };
-      const file = test.info().outputPath('crypto-evidence.json');
-      writeFileSync(file, JSON.stringify(evidence, null, 2));
+    // Written on every run, so a passing run also shows that the late device's history rows
+    // were seen as undecryptable (the check can see a failure); attached when one failed.
+    const evidence = {
+      roomId,
+      accounts: { alice: alice.userId, bob: bob.userId },
+      messages,
+      failures: outcomes.filter(failedStep),
+      lateDeviceHistoryRows: outcomes.filter((outcome) => outcome.joinedLate).at(-1)?.unreadable,
+      store: await storeSizes(firstTab.page).catch((error: unknown) => String(error)),
+      console: Object.fromEntries(readers.map((reader) => [reader.name, reader.log])),
+    };
+    const file = test.info().outputPath('crypto-evidence.json');
+    writeFileSync(file, JSON.stringify(evidence, null, 2));
+    if (evidence.failures.length > 0 || test.info().errors.length > 0) {
       await test.info().attach('crypto-evidence', { path: file, contentType: 'application/json' });
     }
     await Promise.all(contexts.map((created) => created.close()));
