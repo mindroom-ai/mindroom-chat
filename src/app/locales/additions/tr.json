@@ -1,0 +1,224 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Kaydırma"
+    },
+    "passwordInput": {
+      "show": "Parolayı göster",
+      "hide": "Parolayı gizle"
+    },
+    "pdfViewer": {
+      "close": "Kapat"
+    },
+    "urlPreviewHolder": {
+      "previous": "Önceki bağlantı önizlemeleri",
+      "next": "Diğer bağlantı önizlemeleri"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Ad",
+      "cancel": "İptal",
+      "skinTone": "Ten rengi",
+      "skinTones": {
+        "default": "Varsayılan ten rengi",
+        "light": "Açık ten rengi",
+        "mediumLight": "Orta açık ten rengi",
+        "medium": "Orta ten rengi",
+        "mediumDark": "Orta koyu ten rengi",
+        "dark": "Koyu ten rengi"
+      }
+    },
+    "eventReaders": {
+      "close": "Kapat"
+    },
+    "imagePackContent": {
+      "uploadFailed": "Görseller yüklenemedi. Tekrar deneyin.",
+      "noImages": "Henüz görsel yok."
+    },
+    "imagePackView": {
+      "close": "Kapat",
+      "back": "Geri"
+    },
+    "imageTile": {
+      "remove": "Kaldır",
+      "editImage": ":{{shortcode}}: öğesini düzenle",
+      "removeImage": ":{{shortcode}}: öğesini kaldır",
+      "keepImage": ":{{shortcode}}: öğesini koru",
+      "removedOnApply": "Değişiklikleri uyguladığınızda kaldırılır",
+      "usage": "Kullanım",
+      "shortcodeTaken": "Bu kısa kodu başka bir görsel kullanıyor.",
+      "shortcodeInvalid": "Kısa kod boşluk veya iki nokta içeremez."
+    },
+    "imageUsageOption": {
+      "pack": "Paketle aynı"
+    },
+    "imageViewer": {
+      "close": "Kapat"
+    },
+    "inviteUserPrompt": {
+      "close": "Kapat"
+    },
+    "joinAddressPrompt": {
+      "close": "Kapat"
+    },
+    "textViewer": {
+      "close": "Kapat"
+    },
+    "invites": {
+      "actionFailed": "Bir şeyler ters gitti. Tekrar deneyin."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Kullanıcı arayın veya bir kullanıcı kimliği girin"
+    },
+    "leaveRoomPrompt": {
+      "close": "Kapat",
+      "forget": "Bu odayı unut",
+      "forgetDescription": "Odayı geçmişiyle birlikte hesabınızdan da kaldırır. Oda izin verirse daha sonra yeniden katılabilirsiniz."
+    },
+    "memberFilters": {
+      "label": "Üyeleri göster"
+    },
+    "memberSort": {
+      "label": "Üyeleri sırala"
+    },
+    "a11y": {
+      "mainNavigation": "Ana gezinme",
+      "skipToContent": "İçeriğe atla",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "Odayı unut"
+    },
+    "userRoomProfile": {
+      "editProfile": "Profili düzenle"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} paketini sil"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Olaya bir tür ve JSON nesnesi olan bir içerik verin."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Kişisel paket",
+          "imageCount_one": "{{count}} görsel, her odada sizin",
+          "imageCount_other": "{{count}} görsel, her odada sizin"
+        }
+      },
+      "devices": {
+        "loadFailed": "Cihazlarınız yüklenemedi."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Engeli kaldır"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Kaldır"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "Sohbet başlatılamadı. Tekrar deneyin."
+    },
+    "homeNav": {
+      "options": "Ana sayfa seçenekleri"
+    },
+    "directNav": {
+      "options": "Doğrudan mesaj seçenekleri"
+    },
+    "spaceNav": {
+      "options": "Alan seçenekleri"
+    },
+    "calls": {
+      "panel": {
+        "title": "Arama",
+        "close": "Arama panelini kapat",
+        "participants": "Aramadaki kişiler",
+        "connecting": "Bağlanıyor…",
+        "reconnecting": "Yeniden bağlanıyor…",
+        "ended": "Arama sona erdi.",
+        "waitingFor": "{{name}} bekleniyor…",
+        "you": "{{name}} (siz)",
+        "microphoneOff": "Mikrofon kapalı",
+        "inCall_one": "Aramada {{count}} kişi",
+        "inCall_other": "Aramada {{count}} kişi",
+        "startCall": "Aramayı başlat",
+        "startVideoCall": "Görüntülü aramayı başlat",
+        "dismiss": "Kapat",
+        "audioBlocked": "Tarayıcınız aramanın sesini duraklattı.",
+        "playSound": "Sesi çal",
+        "resize": "Arama panelini yeniden boyutlandır"
+      },
+      "problems": {
+        "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
+        "connection": "Aramanın bağlantısı koptu.",
+        "device": "Mikrofonunuz veya kameranız kullanılamadı."
+      },
+      "devices": {
+        "title": "Cihazlar",
+        "microphone": "Mikrofon",
+        "camera": "Kamera",
+        "speaker": "Hoparlör",
+        "systemDefault": "Sistem varsayılanı",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Arama başlat",
+        "joinCall": "Aramaya katıl",
+        "joinCallCount_one": "Aramaya katıl, aramada {{count}} kişi var",
+        "joinCallCount_other": "Aramaya katıl, aramada {{count}} kişi var",
+        "showCall": "Aramayı göster",
+        "hideCall": "Aramayı gizle"
+      },
+      "rail": {
+        "returnToCall": "{{room}} içindeki aramaya dön"
+      },
+      "incoming": {
+        "calling": "{{name}} arıyor",
+        "callingIn": "{{name}}, {{room}} içinde arıyor",
+        "videoCall": "Görüntülü arama",
+        "voiceCall": "Sesli arama"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "Düşündü"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "Arama başarısız oldu. Tekrar deneyin."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Davet",
+        "body_one": "{{count}} yeni davetiniz var.",
+        "body_other": "{{count}} yeni davetiniz var."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Kompakt görünüm"
+      }
+    },
+    "computer": {
+      "resize": "Bilgisayar panelini yeniden boyutlandır",
+      "close": "Bilgisayarı kapat"
+    }
+  },
+  "composer": {
+    "emoji": "Emoji",
+    "cancelReply": "Yanıtı iptal et"
+  }
+}
