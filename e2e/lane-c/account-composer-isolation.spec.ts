@@ -121,6 +121,7 @@ test("a second account in a shared room gets none of the first account's compose
   page,
 }, testInfo) => {
   test.setTimeout(360_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
   const first = `x3_first_${RUN}`;
   const second = `x3_second_${RUN}`;
   const { roomId, secondToken } = await createSharedRoom(first, second);
