@@ -31,10 +31,11 @@ export const createRoomCallState = (): ICreateRoomStateEvent => ({
 const PINNED_STATE_LEVEL = 100;
 
 /**
- * Voice rooms let every member publish call membership. The override replaces the whole
- * `events` map (Client-Server API, `m.room.power_levels`), so it repeats the levels servers pin
- * by default. Where creators are privileged (room version 12, MSC4289), servers raise the
- * upgrade (`m.room.tombstone`) level above every assignable level, to 150.
+ * Lets every member publish call membership, so anyone in the room can start or join its call;
+ * the presets alone keep call membership at the state default (50), for moderators. The override
+ * replaces the whole `events` map (Client-Server API, `m.room.power_levels`), so it repeats the
+ * levels servers pin by default. Where creators are privileged (room version 12, MSC4289),
+ * servers raise the upgrade (`m.room.tombstone`) level above every assignable level, to 150.
  */
 export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
   const events: Record<string, number> = {
@@ -146,9 +147,10 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
     visibility: isPublic ? Visibility.Public : Visibility.Private,
     initial_state: initialState,
     creation_content: createRoomCreationContent(data),
-    ...(isVoice
-      ? { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }
-      : {}),
+    // Spaces hold rooms rather than calls; every other room lets its members call.
+    ...(type === RoomType.Space
+      ? {}
+      : { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }),
   };
 
   const result = await client.createRoom(options);

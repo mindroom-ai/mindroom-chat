@@ -9,6 +9,8 @@ import { SettingTile } from '../../../components/setting-tile';
 import { Page } from '../../../components/page';
 import { PhonePageHeader } from '../../../components/page/PhonePageHeader';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useCapabilities } from '../../../hooks/useCapabilities';
+import { createVoiceRoomPowerLevelsOverride } from '../../../components/create-room/utils';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { addRoomIdToMDirect, isUserId } from '../../../utils/matrix';
 import { getDirectCreateSearchParams } from '../../pathSearchParam';
@@ -53,6 +55,8 @@ export function DirectCreate() {
   const [failed, setFailed] = useState(false);
   // On phones the title moves into a title bar that leads back to Direct Messages.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // The room gets the server's default version, whose pinned levels the call override repeats.
+  const roomVersion = useCapabilities()['m.room_versions']?.default;
 
   const existingRoomId = requestedUserId ? findDirectRoom(client, requestedUserId) : undefined;
   useEffect(() => {
@@ -80,6 +84,8 @@ export function DirectCreate() {
         // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
         preset: Preset.TrustedPrivateChat,
         visibility: Visibility.Private,
+        // Someone invited later joins its calls too, not only the two who started it.
+        power_level_content_override: createVoiceRoomPowerLevelsOverride(roomVersion),
       });
       await addRoomIdToMDirect(client, roomId, userId);
       navigate(getDirectRoomPath(roomId));
