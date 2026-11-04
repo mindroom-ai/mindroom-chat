@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Couldn't reach the server. Check your connection and try again.",
+    "newVersion": "A new version of MindRoom is available. Reload to use it.",
     "timedOut": "The request didn't finish. Try again.",
     "rateLimited": "Too many requests. Wait a moment and try again.",
     "rateLimitedSeconds_one": "Too many requests. Try again in {{count}} second.",

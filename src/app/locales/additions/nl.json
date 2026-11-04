@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Kan de server niet bereiken. Controleer je verbinding en probeer het opnieuw.",
+    "newVersion": "Er is een nieuwe versie van MindRoom beschikbaar. Laad opnieuw om die te gebruiken.",
     "timedOut": "Het verzoek is niet voltooid. Probeer het opnieuw.",
     "rateLimited": "Te veel verzoeken. Wacht even en probeer het opnieuw.",
     "rateLimitedSeconds_one": "Te veel verzoeken. Probeer het over {{count}} seconde opnieuw.",

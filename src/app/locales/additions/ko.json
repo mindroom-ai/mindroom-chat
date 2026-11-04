@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "서버에 연결하지 못했습니다. 연결을 확인한 후 다시 시도하세요.",
+    "newVersion": "MindRoom의 새 버전이 있습니다. 사용하려면 새로고침하세요.",
     "timedOut": "요청이 완료되지 않았습니다. 다시 시도하세요.",
     "rateLimited": "요청이 너무 많습니다. 잠시 기다린 후 다시 시도하세요.",
     "rateLimitedSeconds_other": "요청이 너무 많습니다. {{count}}초 후에 다시 시도하세요.",

@@ -6,7 +6,7 @@ import {
   TokenRefreshError,
   TokenRefreshLogoutError,
 } from 'matrix-js-sdk';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { englishCatalog } from '../englishResources';
 import { SessionStoreWriteError } from '../state/sessions';
 import { describeError, describeKnownError, errorDetail } from './describeError';
@@ -143,6 +143,40 @@ describe('describeError', () => {
     expect(describeError(t, domError('TimeoutError'))).toBe(
       "The request didn't finish. Try again."
     );
+  });
+
+  describe('a build file that did not load', () => {
+    const NEW_VERSION = 'A new version of MindRoom is available. Reload to use it.';
+    // Chromium, Firefox and WebKit for a module, and Vite's preload helper for a style sheet.
+    const failures = [
+      new TypeError(
+        'Failed to fetch dynamically imported module: https://chat.example.org/assets/RoomCall-a1.js'
+      ),
+      new TypeError(
+        'error loading dynamically imported module: https://chat.example.org/assets/RoomCall-a1.js'
+      ),
+      new TypeError('Importing a module script failed.'),
+      new Error('Unable to preload CSS for /assets/RoomCall-a1.css'),
+    ];
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('says a new version is waiting, and keeps which file it was, while online', () => {
+      for (const failure of failures) {
+        expect(describeError(t, failure), failure.message).toBe(NEW_VERSION);
+        expect(errorDetail(failure)).toBe(failure.message);
+      }
+    });
+
+    it('is a dropped connection while the browser is offline', () => {
+      vi.stubGlobal('navigator', { onLine: false });
+      expect(describeError(t, failures[0])).toBe(
+        "Couldn't reach the server. Check your connection and try again."
+      );
+      expect(errorDetail(failures[0])).toBeUndefined();
+    });
   });
 
   it('reads a failed token refresh by its cause, which is not always the connection', () => {

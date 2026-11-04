@@ -29,7 +29,24 @@ const statusOf = (fields: ErrorFields): number | undefined =>
 const FETCH_FAILURE =
   /failed to fetch|networkerror|load failed|network request failed|fetch failed/i;
 
+// A module of a dynamic import that did not load, in the words of Chromium, Firefox and WebKit,
+// or a style sheet Vite's preload helper could not load for one.
+const BUILD_FILE_FAILURE =
+  /dynamically imported module|importing a module script failed|unable to preload css/i;
+
 const UNFINISHED_NAMES: ReadonlySet<string> = new Set(['AbortError', 'TimeoutError']);
+
+const isOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/**
+ * A file of this build that did not load while the browser is online: a deployment removed it
+ * while the page still ran the old build, so a new version is waiting. Offline, the same failure
+ * is a dropped connection.
+ */
+export const isMissingBuildFile = (error: unknown): boolean => {
+  const message = text(fieldsOf(error)?.message);
+  return message !== undefined && BUILD_FILE_FAILURE.test(message) && !isOffline();
+};
 
 /** A request that never got an answer: no network, a refused connection, or a blocked fetch. */
 const isNoConnection = (fields: ErrorFields): boolean => {
@@ -140,13 +157,16 @@ const rateLimitMessage = (t: TFunction, waitMs: number | undefined): string => {
 };
 
 /**
- * A translated sentence for a failure this module recognizes: no connection, a request that
- * did not finish, a rate limit, a Matrix error code or HTTP status, or the browser refusing to
- * store the account list. Undefined for anything else, whose own text is all there is to show.
+ * A translated sentence for a failure this module recognizes: a build file a deployment removed,
+ * no connection, a request that did not finish, a rate limit, a Matrix error code or HTTP status,
+ * or the browser refusing to store the account list. Undefined for anything else, whose own text
+ * is all there is to show.
  */
 export const describeKnownError = (t: TFunction, error: unknown): string | undefined => {
   const fields = fieldsOf(error);
   if (fields === undefined) return undefined;
+  // Chromium words a missing module like a failed fetch, but the server answered.
+  if (isMissingBuildFile(error)) return t('errors.newVersion');
   if (isNoConnection(fields) || isRefreshWithoutConnection(fields)) {
     return t('errors.noConnection');
   }
@@ -174,14 +194,17 @@ export const describeError = (t: TFunction, error: unknown): string =>
 
 /**
  * The error's own text, untranslated: the server's error code and explanation for a Matrix
- * error, the message of any other error. Undefined when it would add nothing to the sentence,
- * as for a dropped connection or a request that did not finish.
+ * error, the message of any other error (for a missing build file, which file). Undefined when
+ * it would add nothing to the sentence, as for a dropped connection or a request that did not
+ * finish.
  */
 export const errorDetail = (error: unknown): string | undefined => {
   if (typeof error === 'string') return text(error);
   const fields = fieldsOf(error);
   if (fields === undefined) return undefined;
-  if (isNoConnection(fields) || isUnfinished(fields)) return undefined;
+  if (!isMissingBuildFile(error) && (isNoConnection(fields) || isUnfinished(fields))) {
+    return undefined;
+  }
   const errcode = errcodeOf(fields);
   const explanation = text(fields.data?.error);
   // Some servers (Tuwunel) already begin the explanation with the code.

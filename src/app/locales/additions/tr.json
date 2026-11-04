@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+    "newVersion": "MindRoom'un yeni bir sürümü kullanılabilir. Kullanmak için yeniden yükleyin.",
     "timedOut": "İstek tamamlanmadı. Tekrar deneyin.",
     "rateLimited": "Çok fazla istek. Biraz bekleyip tekrar deneyin.",
     "rateLimitedSeconds_one": "Çok fazla istek. {{count}} saniye sonra tekrar deneyin.",

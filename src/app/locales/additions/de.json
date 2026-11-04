@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Der Server ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+    "newVersion": "Eine neue Version von MindRoom ist verfügbar. Lade neu, um sie zu verwenden.",
     "timedOut": "Die Anfrage wurde nicht abgeschlossen. Versuche es erneut.",
     "rateLimited": "Zu viele Anfragen. Warte einen Moment und versuche es erneut.",
     "rateLimitedSeconds_one": "Zu viele Anfragen. Versuche es in {{count}} Sekunde erneut.",

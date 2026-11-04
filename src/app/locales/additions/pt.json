@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Não foi possível contactar o servidor. Verifique a sua ligação e tente novamente.",
+    "newVersion": "Está disponível uma nova versão do MindRoom. Recarregue para a utilizar.",
     "timedOut": "O pedido não terminou. Tente novamente.",
     "rateLimited": "Demasiados pedidos. Aguarde um momento e tente novamente.",
     "rateLimitedSeconds_one": "Demasiados pedidos. Tente novamente dentro de {{count}} segundo.",

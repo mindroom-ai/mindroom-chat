@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "Tidak dapat menjangkau server. Periksa koneksi Anda dan coba lagi.",
+    "newVersion": "Versi baru MindRoom tersedia. Muat ulang untuk menggunakannya.",
     "timedOut": "Permintaan tidak selesai. Coba lagi.",
     "rateLimited": "Terlalu banyak permintaan. Tunggu sebentar dan coba lagi.",
     "rateLimitedSeconds_other": "Terlalu banyak permintaan. Coba lagi dalam {{count}} detik.",

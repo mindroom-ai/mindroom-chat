@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+    "newVersion": "Hay una nueva versión de MindRoom disponible. Recarga para usarla.",
     "timedOut": "La solicitud no terminó. Inténtalo de nuevo.",
     "rateLimited": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
     "rateLimitedSeconds_one": "Demasiadas solicitudes. Inténtalo de nuevo en {{count}} segundo.",

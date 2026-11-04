@@ -1,6 +1,7 @@
 {
   "errors": {
     "noConnection": "无法连接到服务器。请检查您的网络连接，然后重试。",
+    "newVersion": "MindRoom 有新版本可用。重新加载即可使用。",
     "timedOut": "请求未完成，请重试。",
     "rateLimited": "请求过多。请稍等片刻后重试。",
     "rateLimitedSeconds_other": "请求过多。请在 {{count}} 秒后重试。",
