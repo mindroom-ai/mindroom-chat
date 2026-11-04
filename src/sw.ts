@@ -1,6 +1,7 @@
-// The service worker: precaches the app shell for offline and installed starts, answers app
-// navigations with it, and adds the access token to authenticated media requests, which an
-// <img> cannot send itself.
+// The service worker: precaches the app shell and what a signed-in start needs for offline and
+// installed starts, keeps the build's other files the first time a page loads them, answers app
+// navigations with the shell, and adds the access token to authenticated media requests, which
+// an <img> cannot send itself.
 //
 // Session handshake with the page (src/sw-session.ts): the page posts
 // `{ type: 'setSession', accessToken, baseUrl }` (an empty token signs the tab out). When a media
@@ -16,6 +17,7 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 import { fetchWithDevelopmentCache } from './swDevelopmentCache';
+import { clearBuildAssets, fetchBuildAsset, isBuildAssetRequest } from './swRuntimeAssets';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 import {
   fetchNavigationWithShellFallback,
@@ -89,6 +91,8 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       await precacheController.activate(event as never);
+      // Files the previous build kept at runtime: this build names other ones.
+      await clearBuildAssets();
       await self.clients.claim();
     })()
   );
@@ -146,6 +150,13 @@ if (!precachesAppShell) {
   );
 }
 registerRoute(new PrecacheRoute(precacheController));
+// A build precaches only what a signed-in start needs; its other files are kept on first use.
+if (precachesAppShell) {
+  registerRoute(
+    ({ request }) => isBuildAssetRequest(request, self.location.href),
+    ({ event }) => fetchBuildAsset(event as unknown as FetchEventLike)
+  );
+}
 
 type MediaSession = { accessToken: string; baseUrl: string };
 
