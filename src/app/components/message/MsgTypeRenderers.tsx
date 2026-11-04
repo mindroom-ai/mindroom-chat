@@ -111,6 +111,9 @@ function TextMessage({
       ? content.formatted_body
       : undefined;
   const urls = renderUrlsPreview ? getBodyUrls(trimmedBody) : [];
+  // A plain body keeps its line breaks. An HTML body lays out by its markup: the newlines between
+  // its paragraphs, list items and tables would otherwise show as blank lines.
+  const whiteSpace = customBody ? 'normal' : 'pre-wrap';
 
   return (
     <>
@@ -118,7 +121,7 @@ function TextMessage({
         as="div"
         size="T400"
         priority={notice ? '300' : undefined}
-        style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', ...style }}
+        style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
       >
         {prefix}
         {renderBody({ body: trimmedBody, customBody })}
