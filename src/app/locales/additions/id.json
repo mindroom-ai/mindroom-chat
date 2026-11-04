@@ -93,6 +93,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Edit profil"
+    },
+    "backupRestore": {
+      "checkFailed": "Tidak dapat memeriksa apakah ada cadangan di server."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Penyimpanan rahasia Anda tidak berisi kunci penandatanganan silang, jadi kunci pemulihan tidak dapat memverifikasi sesi ini. Verifikasi dari salah satu sesi Anda yang lain."
     }
   },
   "featureUi": {
@@ -114,7 +120,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Perangkat Anda tidak dapat dimuat."
+        "loadFailed": "Perangkat Anda tidak dapat dimuat.",
+        "verification": {
+          "checkFailed": "Penyiapan enkripsi akun Anda di server tidak dapat diperiksa. Coba lagi."
+        }
       },
       "account": {
         "ignoredUserList": {

@@ -95,6 +95,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Editar perfil"
+    },
+    "backupRestore": {
+      "checkFailed": "Não foi possível verificar se existe uma cópia de segurança no servidor."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "O seu armazenamento secreto não contém chaves de assinatura cruzada, por isso a chave de recuperação não pode verificar esta sessão. Verifique-a a partir de outra das suas sessões."
     }
   },
   "featureUi": {
@@ -118,7 +124,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Não foi possível carregar os seus dispositivos."
+        "loadFailed": "Não foi possível carregar os seus dispositivos.",
+        "verification": {
+          "checkFailed": "Não foi possível verificar a configuração de encriptação da sua conta no servidor. Tente novamente."
+        }
       },
       "account": {
         "ignoredUserList": {

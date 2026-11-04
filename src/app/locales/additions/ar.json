@@ -98,6 +98,12 @@
     },
     "userRoomProfile": {
       "editProfile": "تعديل الملف الشخصي"
+    },
+    "backupRestore": {
+      "checkFailed": "تعذر التحقق من وجود نسخة احتياطية على الخادم."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "لا يحتوي التخزين السري على مفاتيح التوقيع المتبادل، لذا لا يمكن لمفتاح الاسترداد التحقق من هذه الجلسة. تحقق منها من إحدى جلساتك الأخرى."
     }
   },
   "featureUi": {
@@ -124,7 +130,10 @@
         }
       },
       "devices": {
-        "loadFailed": "تعذر تحميل أجهزتك."
+        "loadFailed": "تعذر تحميل أجهزتك.",
+        "verification": {
+          "checkFailed": "تعذر التحقق من إعداد التشفير لحسابك على الخادم. حاول مرة أخرى."
+        }
       },
       "account": {
         "ignoredUserList": {

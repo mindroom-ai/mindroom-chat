@@ -94,6 +94,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Profil bearbeiten"
+    },
+    "backupRestore": {
+      "checkFailed": "Ob es auf dem Server ein Backup gibt, konnte nicht geprüft werden."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Dein geheimer Speicher enthält keine Cross-Signing-Schlüssel, daher kann der Wiederherstellungsschlüssel diese Sitzung nicht verifizieren. Verifiziere sie von einer deiner anderen Sitzungen aus."
     }
   },
   "featureUi": {
@@ -116,7 +122,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Deine Geräte konnten nicht geladen werden."
+        "loadFailed": "Deine Geräte konnten nicht geladen werden.",
+        "verification": {
+          "checkFailed": "Die Verschlüsselung deines Kontos konnte auf dem Server nicht geprüft werden. Versuche es erneut."
+        }
       },
       "account": {
         "ignoredUserList": {

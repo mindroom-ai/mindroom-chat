@@ -94,6 +94,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Profiel bewerken"
+    },
+    "backupRestore": {
+      "checkFailed": "Er kon niet worden gecontroleerd of er een back-up op de server staat."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Je geheime opslag bevat geen kruiselingse ondertekeningssleutels, dus de herstelsleutel kan deze sessie niet verifiëren. Verifieer haar vanuit een van je andere sessies."
     }
   },
   "featureUi": {
@@ -116,7 +122,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Je apparaten konden niet worden geladen."
+        "loadFailed": "Je apparaten konden niet worden geladen.",
+        "verification": {
+          "checkFailed": "De versleuteling van je account kon niet op de server worden gecontroleerd. Probeer het opnieuw."
+        }
       },
       "account": {
         "ignoredUserList": {

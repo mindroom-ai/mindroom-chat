@@ -93,6 +93,12 @@
     },
     "userRoomProfile": {
       "editProfile": "프로필 편집"
+    },
+    "backupRestore": {
+      "checkFailed": "서버에 백업이 있는지 확인하지 못했습니다."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "비밀 저장소에 교차 서명 키가 없어 복구 키로 이 세션을 인증할 수 없습니다. 다른 세션에서 인증하세요."
     }
   },
   "featureUi": {
@@ -114,7 +120,10 @@
         }
       },
       "devices": {
-        "loadFailed": "기기를 불러오지 못했습니다."
+        "loadFailed": "기기를 불러오지 못했습니다.",
+        "verification": {
+          "checkFailed": "서버에서 계정의 암호화 설정을 확인하지 못했습니다. 다시 시도하세요."
+        }
       },
       "account": {
         "ignoredUserList": {

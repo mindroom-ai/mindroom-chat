@@ -95,6 +95,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Modifica profilo"
+    },
+    "backupRestore": {
+      "checkFailed": "Impossibile controllare se sul server esiste un backup."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Il tuo archivio segreto non contiene chiavi di firma incrociata, quindi la chiave di recupero non può verificare questa sessione. Verificala da un’altra delle tue sessioni."
     }
   },
   "featureUi": {
@@ -118,7 +124,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Impossibile caricare i tuoi dispositivi."
+        "loadFailed": "Impossibile caricare i tuoi dispositivi.",
+        "verification": {
+          "checkFailed": "Impossibile controllare la configurazione della crittografia del tuo account sul server. Riprova."
+        }
       },
       "account": {
         "ignoredUserList": {

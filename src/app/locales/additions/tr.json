@@ -94,6 +94,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Profili düzenle"
+    },
+    "backupRestore": {
+      "checkFailed": "Sunucuda yedek olup olmadığı denetlenemedi."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Gizli depolamanızda çapraz imzalama anahtarı yok, bu yüzden kurtarma anahtarı bu oturumu doğrulayamaz. Onu diğer oturumlarınızdan birinden doğrulayın."
     }
   },
   "featureUi": {
@@ -116,7 +122,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Cihazlarınız yüklenemedi."
+        "loadFailed": "Cihazlarınız yüklenemedi.",
+        "verification": {
+          "checkFailed": "Hesabınızın şifreleme kurulumu sunucuda denetlenemedi. Tekrar deneyin."
+        }
       },
       "account": {
         "ignoredUserList": {

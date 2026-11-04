@@ -94,6 +94,12 @@
     },
     "userRoomProfile": {
       "editProfile": "Edit Profile"
+    },
+    "backupRestore": {
+      "checkFailed": "Could not check for a backup on the server."
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
     }
   },
   "featureUi": {
@@ -116,7 +122,10 @@
         }
       },
       "devices": {
-        "loadFailed": "Could not load your devices."
+        "loadFailed": "Could not load your devices.",
+        "verification": {
+          "checkFailed": "Could not check your account's encryption setup on the server. Try again."
+        }
       },
       "account": {
         "ignoredUserList": {

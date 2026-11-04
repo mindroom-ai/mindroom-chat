@@ -93,6 +93,12 @@
     },
     "userRoomProfile": {
       "editProfile": "編輯個人資料"
+    },
+    "backupRestore": {
+      "checkFailed": "無法檢查伺服器上是否有備份。"
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "您的祕密儲存空間中沒有交叉簽署金鑰，因此復原金鑰無法驗證此工作階段。請從您的其他工作階段驗證它。"
     }
   },
   "featureUi": {
@@ -114,7 +120,10 @@
         }
       },
       "devices": {
-        "loadFailed": "無法載入您的裝置。"
+        "loadFailed": "無法載入您的裝置。",
+        "verification": {
+          "checkFailed": "無法在伺服器上檢查您帳號的加密設定，請再試一次。"
+        }
       },
       "account": {
         "ignoredUserList": {

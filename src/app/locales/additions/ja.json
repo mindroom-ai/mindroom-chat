@@ -93,6 +93,12 @@
     },
     "userRoomProfile": {
       "editProfile": "プロフィールを編集"
+    },
+    "backupRestore": {
+      "checkFailed": "サーバーにバックアップがあるか確認できませんでした。"
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "シークレットストレージにクロス署名鍵がないため、リカバリーキーではこのセッションを検証できません。ほかのセッションから検証してください。"
     }
   },
   "featureUi": {
@@ -114,7 +120,10 @@
         }
       },
       "devices": {
-        "loadFailed": "デバイスを読み込めませんでした。"
+        "loadFailed": "デバイスを読み込めませんでした。",
+        "verification": {
+          "checkFailed": "サーバー上でアカウントの暗号化設定を確認できませんでした。もう一度試してください。"
+        }
       },
       "account": {
         "ignoredUserList": {

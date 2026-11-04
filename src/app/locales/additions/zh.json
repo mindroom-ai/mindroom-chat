@@ -93,6 +93,12 @@
     },
     "userRoomProfile": {
       "editProfile": "编辑个人资料"
+    },
+    "backupRestore": {
+      "checkFailed": "无法检查服务器上是否有备份。"
+    },
+    "manualVerification": {
+      "noCrossSigningKeys": "您的秘密存储中没有交叉签名密钥，因此恢复密钥无法验证此会话。请从您的其他会话中验证它。"
     }
   },
   "featureUi": {
@@ -114,7 +120,10 @@
         }
       },
       "devices": {
-        "loadFailed": "无法加载您的设备。"
+        "loadFailed": "无法加载您的设备。",
+        "verification": {
+          "checkFailed": "无法在服务器上检查您账户的加密设置，请重试。"
+        }
       },
       "account": {
         "ignoredUserList": {
