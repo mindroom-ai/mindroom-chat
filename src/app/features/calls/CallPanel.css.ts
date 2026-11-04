@@ -165,6 +165,7 @@ export const Faces = style(lined('row', space.S200, { flexWrap: 'wrap', placeCon
 export const Notice = style([
   tinted(color.Warning),
   lined('row', space.S200, {
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     padding: space.S300,
     borderRadius: radii.R400,
@@ -173,7 +174,14 @@ export const Notice = style([
 
 export const NoticeCritical = style(tinted(color.Critical));
 
-export const NoticeText = style({ flex: '1 1 auto', minWidth: 0, overflowWrap: 'anywhere' });
+// The text keeps a readable width; an action that does not fit beside it moves under it, at the end.
+export const NoticeText = style({
+  flex: `1 1 ${toRem(224)}`,
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
+export const NoticeAction = style({ flexShrink: 0, marginInlineStart: 'auto' });
 
 // The control bar under the tiles, centred, wrapping on a narrow panel.
 export const Controls = style(

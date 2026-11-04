@@ -51,7 +51,7 @@ function Notice({
       <Text className={css.NoticeText} size="T300">
         {children}
       </Text>
-      {action}
+      {action && <span className={css.NoticeAction}>{action}</span>}
     </div>
   );
 }
