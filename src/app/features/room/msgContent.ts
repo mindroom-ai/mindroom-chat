@@ -22,6 +22,9 @@ import { encryptFile, getImageInfo, getVideoInfo } from '../../utils/matrix';
 const THUMBNAIL_MAX_SIZE = 800;
 const BLURHASH_PROPERTY = 'xyz.amorgan.blurhash';
 
+/** MSC4193: the sender marked the picture as a spoiler, so it shows blurred until revealed. */
+export const MEDIA_SPOILER_PROPERTY = 'page.codeberg.everypizza.msc4193.spoiler';
+
 type VoiceMessageMetadata = {
   duration: number;
   waveform?: number[];
@@ -52,7 +55,7 @@ const withFileSource = (content: IContent, item: TUploadItem, mxc: string): ICon
 
 const withSpoiler = (content: IContent, item: TUploadItem): IContent =>
   item.metadata.markedAsSpoiler
-    ? { ...content, 'page.codeberg.everypizza.msc4193.spoiler': true }
+    ? { ...content, [MEDIA_SPOILER_PROPERTY]: true }
     : content;
 
 /** Uploads a thumbnail, encrypted when the attachment is, and returns its info fields. */

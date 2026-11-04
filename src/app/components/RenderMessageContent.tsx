@@ -38,6 +38,7 @@ import {
   isMindroomAgentUserIdForViewer,
 } from '../mindroom/matrix/agentIdentity';
 import { MessageEvent } from '../../types/matrix/room';
+import { MEDIA_SPOILER_PROPERTY } from '../features/room/msgContent';
 
 /** How text bodies are parsed and decorated. */
 type BodyOptions = {
@@ -226,6 +227,7 @@ export function RenderMessageContent({
       {...image}
       owner={owner}
       autoPlay={mediaAutoLoad}
+      markedAsSpoiler={content[MEDIA_SPOILER_PROPERTY] === true}
       renderImage={(props) => <Image {...props} />}
       renderViewer={(props) => <ImageViewer {...props} />}
     />
