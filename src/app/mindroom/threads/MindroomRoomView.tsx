@@ -58,11 +58,6 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId'> & {
 };
 
 /** Timeline props this view passes beyond the timeline's own contract, for the parts that use them. */
-type TimelineShellProps = Partial<{
-  threadHeader: React.ReactNode;
-  focusEventInRoom: boolean;
-}>;
-
 // The room area is the positioning box of the floating header, dock and footer.
 const AREA_STYLE: CSSProperties = {
   position: 'relative',
@@ -238,7 +233,7 @@ export function RoomView({
       onExitThread={threadState.handleExitThread ?? ignore}
     />
   ) : undefined;
-  const timelineProps: RoomTimelineProps & TimelineShellProps = {
+  const timelineProps: RoomTimelineProps = {
     room,
     eventId,
     threadId: effectiveThreadId,
