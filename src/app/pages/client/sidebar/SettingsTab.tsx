@@ -197,6 +197,8 @@ export function SettingsTab() {
               as="button"
               ref={triggerRef}
               aria-label={t('accountsRail.openSettingsAria', { name: displayName })}
+              // The signed-in account among the rail's accounts, not an open page.
+              aria-current="true"
               onClick={openSettings}
             >
               <UserAvatar

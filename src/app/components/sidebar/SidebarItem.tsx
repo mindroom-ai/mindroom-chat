@@ -1,4 +1,4 @@
-import React, { ReactNode, RefCallback } from 'react';
+import React, { ReactNode, RefCallback, createContext, useContext } from 'react';
 import classNames from 'classnames';
 import { Text, Tooltip, TooltipProvider, as } from 'folds';
 import { glassSurface } from '../../styles/Glass.css';
@@ -20,16 +20,24 @@ export function SidebarStackSeparator() {
   return <div role="separator" className={css.SidebarStackSeparator} />;
 }
 
-/** One rail entry; `active` shows the selected-tab indicator. */
+/** Whether the enclosing rail entry is the open section, for its button's `aria-current`. */
+const SidebarItemActiveContext = createContext(false);
+
+/**
+ * One rail entry; `active` shows the selected-tab indicator, and the entry's button tells
+ * assistive technology with `aria-current`.
+ */
 export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
   const { as: Item = 'div', active, className, ...rest } = props;
   return (
-    <Item
-      ref={ref}
-      {...rest}
-      data-active={active || undefined}
-      className={classNames(css.SidebarItem({ active }), className)}
-    />
+    <SidebarItemActiveContext.Provider value={!!active}>
+      <Item
+        ref={ref}
+        {...rest}
+        data-active={active || undefined}
+        className={classNames(css.SidebarItem({ active }), className)}
+      />
+    </SidebarItemActiveContext.Provider>
   );
 });
 
@@ -67,9 +75,19 @@ type SidebarAvatarProps = {
 /** The rounded square holding a rail entry's icon or avatar. */
 export const SidebarAvatar = as<'div', SidebarAvatarProps>((props, ref) => {
   const { as: Square = 'div', size, outlined, corner, className, ...rest } = props;
+  const active = useContext(SidebarItemActiveContext);
   const variantClass = css.SidebarAvatar({ size, outlined, corner });
   const material = outlined && glassSurface({ level: 'control', variant: 'Secondary' });
-  return <Square ref={ref} {...rest} className={classNames(variantClass, material, className)} />;
+  // The entry's own button is the open section; a corner action beside it is not.
+  const current = active && (Square as string) === 'button' && !corner ? 'page' : undefined;
+  return (
+    <Square
+      ref={ref}
+      aria-current={current}
+      {...rest}
+      className={classNames(variantClass, material, className)}
+    />
+  );
 });
 
 /** The unread badge on a rail entry; `hasCount` moves it out to fit a number. */

@@ -45,8 +45,10 @@ export function MindroomThreadSummaryCard({
   }
 
   return (
+    // A group, not a region landmark: a timeline holds many summaries under the same name.
     <Box
       as="section"
+      role="group"
       ref={glassRef}
       className={css.ThreadSummaryCard}
       direction="Column"

@@ -335,7 +335,13 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
           <ScrollHeaderProvider value>
             <Header className={css.MembersHeaderControl} size="600" variant="Background">
               <Box grow="Yes" alignItems="Center" gap="100" style={{ minWidth: 0 }}>
-                <Text className={css.MembersHeaderCount} size="H5" truncate>
+                <Text
+                  role="heading"
+                  aria-level={2}
+                  className={css.MembersHeaderCount}
+                  size="H5"
+                  truncate
+                >
                   {t('featureUi.room.membersDrawer.memberCount', { count: joinedCount })}
                 </Text>
                 {invitedCount > 0 && (
