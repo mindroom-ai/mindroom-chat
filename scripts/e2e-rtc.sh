@@ -25,7 +25,8 @@ udp_port=$((29400 + slot))
 auth_port=$((29500 + slot))
 matrix_port=$([ "$slot" = 0 ] && echo 28008 || echo $((28100 + slot)))
 container="mindroom-client-e2e-rtc-$slot-livekit"
-state="${TMPDIR:-/tmp}/mindroom-client-e2e-rtc-$slot"
+# Not under $TMPDIR, which `nix develop` sets per shell: `down` must find what any shell started.
+state="/tmp/mindroom-client-e2e-rtc-$slot"
 key=devkey
 secret=mindroom-client-e2e-livekit-secret-0123456789
 

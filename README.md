@@ -73,7 +73,7 @@ just e2e-slot 3 down                                                        # st
 ```
 
 - `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
-- `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once. Runs that share `E2E_SNAPSHOT_ROOT` share the cap. Its default is `${TMPDIR:-/tmp}/mindroom-client-e2e`, and `nix develop` gives each shell its own `TMPDIR`, so set `E2E_SNAPSHOT_ROOT=/tmp/mindroom-client-e2e` to share the cap with other shells.
+- `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once, over every shell that uses the same `E2E_SNAPSHOT_ROOT` (default `/tmp/mindroom-client-e2e`).
 - `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average). `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Playwright options default to `--retries 1`.
 - `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs.
 

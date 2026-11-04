@@ -71,10 +71,9 @@ def ports(slot: int) -> dict[str, int]:
 
 
 def stack_root() -> Path:
-    return Path(
-        os.environ.get("E2E_AGENT_STACK_ROOT")
-        or Path(os.environ.get("TMPDIR", "/tmp")) / "mindroom-client-agents"
-    )
+    # Not under $TMPDIR: `nix develop` gives each shell its own, and a slot's stack must be found
+    # (and stopped by `scripts/e2e-slot.sh <slot> down`) from every shell on the machine.
+    return Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents")
 
 
 @contextlib.contextmanager

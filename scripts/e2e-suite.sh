@@ -13,7 +13,8 @@
 # Without specs, every e2e/**/*.spec.ts of the commit runs. Playwright options default to
 # `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
-# reports, traces and results.tsv) is printed at the start; --out copies results.tsv there too.
+# reports, traces and results.tsv; the root defaults to /tmp/mindroom-client-e2e, as in
+# scripts/e2e-slot.sh) is printed at the start; --out copies results.tsv there too.
 # Each start deletes the output/ and json/ of runs untouched for two days (logs and results stay).
 # --resume finishes an interrupted run in its directory: the same commit and spec list, every spec
 # it has no result for yet, including runs that left no report (pass the Playwright options again
@@ -94,7 +95,8 @@ main() {
     mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | sort)
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
-  snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
+  # The same default as scripts/e2e-slot.sh, whatever $TMPDIR says.
+  snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
   # Traces, videos and reports of runs untouched for two days go; their logs and results.tsv stay.
   if [ -d "$snapshots" ]; then
     find "$snapshots" -mindepth 1 -maxdepth 1 -type d -name 'suite-*' -mmin +2880 -print0 |

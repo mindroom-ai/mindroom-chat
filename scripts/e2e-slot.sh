@@ -79,7 +79,9 @@ main() {
     exit
   fi
 
-  snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
+  # Not under $TMPDIR: `nix develop` gives each shell its own, and the run cap and the shared builds
+  # must span every shell on the machine.
+  snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
   take_run_token "$@"
 
   if [ -n "$snapshot_rev" ]; then
