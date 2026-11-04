@@ -1,15 +1,21 @@
 import React, { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
 import { type Descendant, Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { Box, Button, Spinner, Text, color, config } from 'folds';
 import {
+  AutocompletePrefix,
+  type AutocompleteQuery,
   createParagraphElement,
   CustomEditor,
   customHtmlEqualsPlainText,
+  EmoticonAutocomplete,
+  getAutocompleteQuery,
   getMentions,
+  getPrevWorldRange,
   htmlToEditorInput,
   toMatrixCustomHTML,
   toPlainText,
@@ -17,9 +23,11 @@ import {
   useEditor,
 } from '../../../components/editor';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
+import { useImagePackRooms } from '../../../hooks/useImagePackRooms';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom } from '../../../state/settings';
+import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { trimReplyFromBody } from '../../../utils/room';
 import { buildMindroomEditContent } from '../../../mindroom/messages/longEdit';
@@ -142,6 +150,18 @@ function LoadedMessageEditor({
   const client = useMatrixClient();
   const composing = useComposingCheck();
   const { t } = useTranslation();
+  // `:shortcode` suggestions, as in the composer: the room's, its spaces' and the server's packs.
+  const packRooms = useImagePackRooms(room.roomId, useAtomValue(roomToParentsAtom));
+  const [emoticonQuery, setEmoticonQuery] = useState<AutocompleteQuery<string>>();
+  const [emoticonsShown, setEmoticonsShown] = useState(false);
+  const closeEmoticons = useCallback(() => setEmoticonQuery(undefined), []);
+  const syncEmoticonQuery = useCallback(() => {
+    const range = getPrevWorldRange(editor);
+    setEmoticonQuery(
+      range ? getAutocompleteQuery(editor, range, [AutocompletePrefix.Emoticon]) : undefined
+    );
+  }, [editor]);
+  const emoticonMenuOpen = emoticonQuery !== undefined && emoticonsShown;
 
   // Typing moves here when the editor opens, with the caret after the text.
   useEffect(() => {
@@ -185,17 +205,31 @@ function LoadedMessageEditor({
         onDone();
         return;
       }
+      // With suggestions open, Enter picks one (the menu listens for it) instead of saving.
+      if (emoticonMenuOpen && isPlainEnter(evt.nativeEvent)) {
+        evt.preventDefault();
+        return;
+      }
       const saveKey = enterForNewline || mobileOrTablet() ? isModEnter : isPlainEnter;
       if (saveKey(evt.nativeEvent)) {
         evt.preventDefault();
         void save();
       }
     },
-    [composing, enterForNewline, onDone, save]
+    [composing, emoticonMenuOpen, enterForNewline, onDone, save]
   );
 
   return (
     <Box direction="Column" gap="200" style={{ paddingBlock: config.space.S100 }}>
+      {emoticonQuery && (
+        <EmoticonAutocomplete
+          editor={editor}
+          query={emoticonQuery}
+          packRooms={packRooms}
+          onSuggestionsChange={setEmoticonsShown}
+          requestClose={closeEmoticons}
+        />
+      )}
       <CustomEditor
         editor={editor}
         initialValue={startDocument}
@@ -205,6 +239,7 @@ function LoadedMessageEditor({
         readOnly={saving}
         maxHeight="40vh"
         onKeyDown={handleKeyDown}
+        onKeyUp={syncEmoticonQuery}
       />
       {status === 'failed' && (
         <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
