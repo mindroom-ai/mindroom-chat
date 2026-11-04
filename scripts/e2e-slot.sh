@@ -124,7 +124,8 @@ main() {
   # which scripts/appstore-fixture-up.sh calls); point them at this slot's server.
   export E2E_MATRIX_COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-$PWD/e2e/docker-compose.yaml}"
   if [ "$fresh" = 1 ]; then
-    compose down --volumes --remove-orphans >/dev/null 2>&1
+    # Quiet, not silenced: a Docker failure here must say why the run stopped.
+    compose --progress quiet down --volumes --remove-orphans
   fi
   if ! curl -fsS -o /dev/null "http://127.0.0.1:$E2E_MATRIX_PORT/_matrix/client/versions" 2>/dev/null; then
     compose --progress quiet up -d --wait

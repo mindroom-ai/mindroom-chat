@@ -15,7 +15,8 @@
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv) is printed at the start; --out copies results.tsv there too.
 # --resume finishes an interrupted run in its directory: the same commit, every spec it has no
-# result for yet (pass the Playwright options again if the run had its own).
+# result for yet, including runs that left no report (pass the Playwright options again if the
+# run had its own).
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next.
@@ -91,6 +92,11 @@ main() {
   snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
   if [ -n "$resume" ]; then
     run="$resume"
+    # A run that left no Playwright report (Docker or the app server failed first) has no result.
+    while IFS= read -r line; do
+      if [ -s "$(cut -f 2 <<<"$line")" ]; then printf '%s\n' "$line"; fi
+    done <"$run/manifest.tsv" >"$run/manifest.kept"
+    mv "$run/manifest.kept" "$run/manifest.tsv"
     mapfile -t specs < <(printf '%s\n' "${specs[@]}" | grep -vxF -f <(cut -f 1 "$run/manifest.tsv") || true)
   else
     run="$snapshots/suite-${sha:0:12}-$(date +%Y%m%dT%H%M%S)"
