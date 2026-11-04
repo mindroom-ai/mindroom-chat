@@ -1,4 +1,5 @@
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { atomFamily } from 'jotai/utils';
 import { KnownMembership, RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { AccountDataEvent, type MDirectContent } from '../../../types/matrix/accountData';
@@ -23,19 +24,30 @@ export const resolveEffectiveRoomViewMode = (
   return storedViewMode;
 };
 
-// Thread lists render a card per thread, so one client listener serves every direct room's hooks.
-const membershipListeners = new WeakMap<MatrixClient, Map<string, Set<() => void>>>();
+// Thread lists render a card per thread, so one client listener serves every room's hooks.
+type RoomMembershipWatch = {
+  listeners: Map<string, Set<() => void>>;
+  /** The last agent lookup per room, valid while its room, state and `m.direct` stay the same. */
+  agents: Map<string, { room: unknown; state: unknown; directs: unknown; value: boolean }>;
+};
+const membershipWatches = new WeakMap<MatrixClient, RoomMembershipWatch>();
+
+const getMembershipWatch = (mx: MatrixClient): RoomMembershipWatch => {
+  let watch = membershipWatches.get(mx);
+  if (!watch) {
+    const created: RoomMembershipWatch = { listeners: new Map(), agents: new Map() };
+    mx.on(RoomMemberEvent.Membership, (_event, member) => {
+      created.agents.delete(member.roomId);
+      created.listeners.get(member.roomId)?.forEach((listener) => listener());
+    });
+    membershipWatches.set(mx, created);
+    watch = created;
+  }
+  return watch;
+};
 
 const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () => void) => {
-  let rooms = membershipListeners.get(mx);
-  if (!rooms) {
-    const created = new Map<string, Set<() => void>>();
-    mx.on(RoomMemberEvent.Membership, (_event, member) => {
-      created.get(member.roomId)?.forEach((listener) => listener());
-    });
-    membershipListeners.set(mx, created);
-    rooms = created;
-  }
+  const rooms = getMembershipWatch(mx).listeners;
   const listeners = rooms.get(roomId) ?? new Set();
   rooms.set(roomId, listeners);
   listeners.add(onChange);
@@ -49,7 +61,7 @@ const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () 
  * Whether a MindRoom agent is in the room: joined or invited, or named as the room's partner in `m.direct`.
  * Members are lazy loaded, so an agent direct room may not have its agent loaded yet; only a loaded `leave` or `ban` ends the partner.
  */
-const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
+const findMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
   const room = mx.getRoom(roomId);
   if (hasActiveMindroomAgent(room?.getMembers() ?? [])) return true;
   const directs = getAccountData(mx, AccountDataEvent.Direct)?.getContent<MDirectContent>() ?? {};
@@ -60,6 +72,24 @@ const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
     const membership = room?.getMember(userId)?.membership;
     return membership !== KnownMembership.Leave && membership !== KnownMembership.Ban;
   });
+};
+
+/**
+ * `findMindroomAgent`, scanned again only after a membership change in the room or a new room,
+ * room state or `m.direct` event: every thread entry of the sidebar asks on each render.
+ */
+const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
+  const { agents } = getMembershipWatch(mx);
+  const room = mx.getRoom(roomId);
+  const state = room?.currentState;
+  const directs = getAccountData(mx, AccountDataEvent.Direct);
+  const cached = agents.get(roomId);
+  if (cached && cached.room === room && cached.state === state && cached.directs === directs) {
+    return cached.value;
+  }
+  const value = findMindroomAgent(mx, roomId);
+  agents.set(roomId, { room, state, directs, value });
+  return value;
 };
 
 /**
@@ -80,10 +110,10 @@ const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {
 };
 
 /**
- * Counts the reader's view choices, so every hook re-reads whether its room has one: choosing the
- * view a room already shows by default leaves the stored value as it was.
+ * Counts the reader's view choices per room, so every hook of the room re-reads whether it has
+ * one: choosing the view a room already shows by default leaves the stored value as it was.
  */
-const roomViewChoicesAtom = atom(0);
+const roomViewChoicesAtom = atomFamily((_roomId: string) => atom(0));
 
 /**
  * One account-scoped source for persisted and effective room view modes. A room without a chosen
@@ -98,8 +128,8 @@ export const useRoomViewMode = (roomId: string, hasMindroomAgents?: boolean) => 
     [roomId, sessionId]
   );
   const [storedViewMode, setStoredViewMode] = useAtom(viewModeAtom);
-  useAtomValue(roomViewChoicesAtom);
-  const countChoice = useSetAtom(roomViewChoicesAtom);
+  useAtomValue(roomViewChoicesAtom(roomId));
+  const countChoice = useSetAtom(roomViewChoicesAtom(roomId));
   const setViewMode = useCallback(
     (mode: RoomViewMode) => {
       setStoredViewMode(mode);
