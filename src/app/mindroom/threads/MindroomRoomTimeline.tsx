@@ -979,19 +979,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
       const rowsBefore = roomRowsRef.current.length;
       void paginateRoom(back).then(() => {
-        if (!alive()) return;
-        // The SDK ignores a read receipt on an event it has not loaded, so a room whose read
-        // marker lies further back opens without one. Once a page loads that event, the New
-        // Messages line and Jump to Unread can show where the reader left off.
-        if (back && !readUptoEventIdRef.current) {
-          const unread = getRoomUnreadInfo(room);
-          if (unread) setUnreadInfo(unread);
-        }
-        if (!edge || edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
+        if (!edge || !alive() || edge.getPaginationToken(Direction.Backward) === tokenBefore)
+          return;
         setRoomBackPage({ rowsBefore });
       });
     },
-    [alive, firstRoomTimelineRef, paginateRoom, readUptoEventIdRef, room, roomRowsRef]
+    [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
   );
   const shouldSuppressPagination = useCallback(() => suppressFocusPaginationRef.current, []);
   // The opening fill loads a screen of history above the reader. A short room, whose creation
