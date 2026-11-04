@@ -9,12 +9,7 @@ import React, {
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import {
-  EventStatus,
-  RoomEvent,
-  type Room,
-  type RoomEventHandlerMap,
-} from 'matrix-js-sdk';
+import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box, Text, color, config } from 'folds';
 import { useEditor } from '../../components/editor';
