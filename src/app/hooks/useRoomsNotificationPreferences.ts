@@ -82,6 +82,12 @@ const removeRule = async (mx: MatrixClient, kind: PushRuleKind, roomId: string):
   }
 };
 
+/** An override rule without actions keeps every event in the room silent (spec: push rules). */
+export const roomMuteRule = (roomId: string): Pick<IPushRule, 'actions' | 'conditions'> => ({
+  actions: [],
+  conditions: [{ kind: ConditionKind.EventMatch, key: 'room_id', pattern: roomId }],
+});
+
 /**
  * Moves a room from the `previous` mode to the `next` one. The rule behind the previous mode goes
  * first, then the new mode's rule is added (client-server API, "Push Rules": override rules win
@@ -105,10 +111,7 @@ export async function setRoomNotificationPreference(
   }
 
   if (next === RoomNotificationMode.Mute) {
-    await client.addPushRule('global', PushRuleKind.Override, roomId, {
-      actions: [],
-      conditions: [{ kind: ConditionKind.EventMatch, key: 'room_id', pattern: roomId }],
-    });
+    await client.addPushRule('global', PushRuleKind.Override, roomId, roomMuteRule(roomId));
   } else if (next === RoomNotificationMode.AllMessages) {
     await client.addPushRule('global', PushRuleKind.RoomSpecific, roomId, {
       actions: [PushRuleActionName.Notify, { set_tweak: TweakName.Sound, value: 'default' }],
