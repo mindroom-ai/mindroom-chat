@@ -22,7 +22,8 @@ import { SettingTile } from '../setting-tile';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { stopPropagation } from '../../utils/keyboard';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeKnownError } from '../../utils/describeError';
+import { ErrorDetail } from '../ErrorDetail';
 
 type LeaveRoomPromptProps = {
   roomId: string;
@@ -31,7 +32,7 @@ type LeaveRoomPromptProps = {
   requestClose: () => void;
 };
 
-type LeaveState = { kind: 'idle' } | { kind: 'leaving' } | { kind: 'failed'; reason: string };
+type LeaveState = { kind: 'idle' } | { kind: 'leaving' } | { kind: 'failed'; reason: unknown };
 
 const HEADING_ID = 'leave-room-prompt-heading';
 const promptWidth = `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(400)})`;
@@ -67,7 +68,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
         if (isMounted()) onLeft();
       },
       (failure: unknown) => {
-        if (isMounted()) setLeaveState({ kind: 'failed', reason: errorMessage(failure) });
+        if (isMounted()) setLeaveState({ kind: 'failed', reason: failure });
       }
     );
   };
@@ -116,7 +117,10 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
               />
               {leaveState.kind === 'failed' && (
                 <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-                  {t('sharedUi.leaveRoomPrompt.leaveFailed', { error: leaveState.reason })}
+                  {t('sharedUi.leaveRoomPrompt.leaveFailed', {
+                    error: describeKnownError(t, leaveState.reason) ?? '',
+                  })}
+                  <ErrorDetail error={leaveState.reason} />
                 </Text>
               )}
               <Button

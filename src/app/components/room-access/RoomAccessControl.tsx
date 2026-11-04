@@ -27,6 +27,8 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { JoinRule as RoomJoinRule, Membership } from '../../../types/matrix/room';
 import { isRoomId } from '../../utils/matrix';
 import { matchesEnum } from '../../utils/matchesEnum';
+import { describeKnownError } from '../../utils/describeError';
+import { ErrorDetail } from '../ErrorDetail';
 
 /** The join rules access can be decided from. */
 export type RoomAccessJoinRule = JoinRule;
@@ -73,6 +75,7 @@ const KNOCKABLE_RULES: ReadonlySet<string> = new Set([
   RoomJoinRule.KnockRestricted,
 ]);
 
+// An error this client cannot translate keeps its own text here, as the ported tests expect.
 const errorMessage = (error: unknown): string | undefined =>
   error instanceof Error && error.message ? error.message : undefined;
 
@@ -324,7 +327,9 @@ function RoomAccessRequestDialog({
     onSubmit(reason || undefined);
   };
 
-  const shownError = error === undefined ? undefined : errorMessage(error) ?? fallbackErrorMessage;
+  const knownError = describeKnownError(t, error);
+  const shownError =
+    error === undefined ? undefined : knownError ?? errorMessage(error) ?? fallbackErrorMessage;
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
@@ -381,6 +386,7 @@ function RoomAccessRequestDialog({
               {shownError && (
                 <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
                   {shownError}
+                  {knownError !== undefined && <ErrorDetail error={error} />}
                 </Text>
               )}
               <Box gap="200" justifyContent="End">

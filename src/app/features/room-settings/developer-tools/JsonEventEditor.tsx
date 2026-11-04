@@ -2,7 +2,8 @@ import { type FormEvent, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, TextArea, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAlive } from '../../../hooks/useAlive';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const SEND = 'featureUi.commonSettings.developerTools.sendRoomEvent';
 const EDITOR = 'featureUi.commonSettings.developerTools.stateEventEditor';
@@ -49,14 +50,15 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
   const [stateKey, setStateKey] = useState(initial?.stateKey ?? '');
   const [json, setJson] = useState(() => JSON.stringify(initial?.content ?? {}, null, 2));
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string>();
+  // Invalid JSON is caught here; anything else is what the server answered.
+  const [problem, setProblem] = useState<'invalidJson' | { error: unknown }>();
   const fixed = initial !== undefined;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const content = parseObject(json);
     if (!type.trim() || !content) {
-      setProblem(t('featureUi.commonSettings.developerTools.invalidJson'));
+      setProblem('invalidJson');
       return;
     }
     setBusy(true);
@@ -65,7 +67,7 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
       .then(() => alive() && onDone())
       .catch((error: unknown) => {
         if (!alive()) return;
-        setProblem(errorMessage(error));
+        setProblem({ error });
       })
       .finally(() => alive() && setBusy(false));
   };
@@ -114,7 +116,14 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
       </Box>
       {problem && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {problem}
+          {problem === 'invalidJson' ? (
+            t('featureUi.commonSettings.developerTools.invalidJson')
+          ) : (
+            <>
+              {describeError(t, problem.error)}
+              <ErrorDetail error={problem.error} />
+            </>
+          )}
         </Text>
       )}
       <Box gap="200">

@@ -26,7 +26,8 @@ import {
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../../components/ErrorDetail';
 
 type RoomCreatedHandler = (roomId: string) => void;
 
@@ -123,7 +124,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
   const [version, setVersion] = useState(roomVersions?.default ?? DEFAULT_ROOM_VERSION);
   const [advanced, setAdvanced] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ reason: unknown }>();
 
   const isPublic = access === CreateRoomAccess.Public;
   const encryptionToggleVisible = !isPublic && (policy?.showEncryptionOption ?? true);
@@ -149,7 +150,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       });
       onCreate?.(createdRoomId);
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError({ reason });
     } finally {
       setCreating(false);
     }
@@ -264,7 +265,8 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       </LabeledField>
       {error ? (
         <Text size="T300" style={{ color: color.Critical.Main }}>
-          {error}
+          {describeError(t, error.reason)}
+          <ErrorDetail error={error.reason} />
         </Text>
       ) : null}
       <Box direction="Column" shrink="No">

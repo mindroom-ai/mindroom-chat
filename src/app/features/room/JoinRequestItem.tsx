@@ -11,7 +11,8 @@ import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMemberDisplayName } from '../../utils/room';
 import { BreakWord } from '../../styles/Text.css';
 import * as css from './MembersDrawer.css';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../../components/ErrorDetail';
 
 type JoinRequestItemProps = {
   room: Room;
@@ -26,7 +27,7 @@ type RequestState =
   | { status: 'idle' }
   | { status: 'pending'; action: RequestAction }
   | { status: 'done'; action: RequestAction }
-  | { status: 'error'; action: RequestAction; message: string };
+  | { status: 'error'; action: RequestAction; error: unknown };
 
 const requestMessage = (member: RoomMember): string | undefined => {
   const reason = member.events.member?.getContent()?.reason;
@@ -64,7 +65,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
       setState({
         status: 'error',
         action,
-        message: errorMessage(error),
+        error,
       });
     }
   };
@@ -114,7 +115,8 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
       </Text>
       {state.status === 'error' && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {state.message}
+          {describeError(t, state.error)}
+          <ErrorDetail error={state.error} />
         </Text>
       )}
       {statusText && (

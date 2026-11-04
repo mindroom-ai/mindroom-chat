@@ -24,7 +24,8 @@ import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { ActionDialog } from '../../components/ActionDialog';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../../components/ErrorDetail';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -74,7 +75,7 @@ export function ThreadActionsMenu({
   const [dialog, setDialog] = useState<OpenDialog>();
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
-  const [requestError, setRequestError] = useState<string>();
+  const [requestError, setRequestError] = useState<{ error: unknown }>();
   // A regeneration request was sent: the dialog says so until Done.
   const [requested, setRequested] = useState(false);
   const doneRef = useRef<HTMLButtonElement>(null);
@@ -128,7 +129,7 @@ export function ThreadActionsMenu({
       onDone();
     } catch (error) {
       setBusy(false);
-      setRequestError(errorMessage(error));
+      setRequestError({ error });
     }
   };
 
@@ -226,7 +227,8 @@ export function ThreadActionsMenu({
             </Box>
             {requestError && (
               <Text role="alert" size="T200">
-                {requestError}
+                {describeError(t, requestError.error)}
+                <ErrorDetail error={requestError.error} />
               </Text>
             )}
             <Box justifyContent="End" gap="200">
@@ -298,7 +300,8 @@ export function ThreadActionsMenu({
             )}
             {requestError && (
               <Text role="alert" size="T200">
-                {requestError}
+                {describeError(t, requestError.error)}
+                <ErrorDetail error={requestError.error} />
               </Text>
             )}
             <Box justifyContent="End" gap="200">

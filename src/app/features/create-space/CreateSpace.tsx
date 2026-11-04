@@ -13,8 +13,7 @@ import {
   color,
 } from 'folds';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import { MatrixError, type Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import {
@@ -28,7 +27,8 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { RoomType } from '../../../types/matrix/room';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../../components/ErrorDetail';
 
 type CreateSpaceFormProps = {
   /** The space the new one is created in, as a subspace. */
@@ -45,7 +45,6 @@ type SpaceFormFields = HTMLFormElement & {
 
 const FALLBACK_ROOM_VERSION = '10';
 const SWITCH_CARD = { padding: '12px' };
-const MINUTE_MS = 60_000;
 
 /** A labelled part of the form: its caption above what it holds. */
 function FormSection({ caption, children }: { caption: string; children: ReactNode }) {
@@ -86,17 +85,6 @@ function SwitchCard({ title, description, checked, onToggle, disabled }: SwitchC
   );
 }
 
-/** What went wrong, in words; a rate limit says how long to wait, rounded up to minutes. */
-const explainFailure = (failure: unknown, t: TFunction): string => {
-  if (failure instanceof MatrixError && failure.isRateLimitError()) {
-    const waitMs = failure.getRetryAfterMs() ?? MINUTE_MS;
-    return t('featureUi.createSpace.rateLimited', {
-      count: Math.max(1, Math.ceil(waitMs / MINUTE_MS)),
-    });
-  }
-  return errorMessage(failure);
-};
-
 /**
  * Creates a space: who may join it, its name, topic and (when public) address, knocking,
  * federation and the room version. Inside another space it can admit that space's members and
@@ -117,7 +105,7 @@ export function CreateSpaceForm({ parent, onCreate }: CreateSpaceFormProps) {
   const [version, setVersion] = useState(roomVersions?.default ?? FALLBACK_ROOM_VERSION);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string>();
+  const [failure, setFailure] = useState<{ reason: unknown }>();
 
   const isPublic = access === CreateRoomAccess.Public;
   const showFederation = policy?.showFederationOption ?? true;
@@ -144,7 +132,7 @@ export function CreateSpaceForm({ parent, onCreate }: CreateSpaceFormProps) {
       });
       onCreate?.(spaceId);
     } catch (reason) {
-      setFailure(explainFailure(reason, t));
+      setFailure({ reason });
     } finally {
       setBusy(false);
     }
@@ -239,7 +227,8 @@ export function CreateSpaceForm({ parent, onCreate }: CreateSpaceFormProps) {
       </FormSection>
       {failure && (
         <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-          {failure}
+          {describeError(t, failure.reason)}
+          <ErrorDetail error={failure.reason} />
         </Text>
       )}
       <Button

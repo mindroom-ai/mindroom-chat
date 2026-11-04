@@ -16,7 +16,8 @@ import { StateEvent } from '../../../../types/matrix/room';
 import { ChoiceButton } from '../../settings/ChoiceButton';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { moveSpaceLinks } from './moveSpaceLinks';
-import { errorMessage } from '../../../utils/errorMessage';
+import { describeError } from '../../../utils/describeError';
+import { ErrorDetail } from '../../../components/ErrorDetail';
 
 const KEY = 'featureUi.commonSettings.general.roomUpgrade';
 
@@ -62,7 +63,7 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
   const [target, setTarget] = useState(offered?.default ?? versions[0] ?? current);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string>();
+  const [failed, setFailed] = useState<{ error: unknown }>();
 
   const open = (roomId: string) => {
     onOpened();
@@ -84,7 +85,7 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
       })
       .catch((error: unknown) => {
         if (!alive()) return;
-        setFailed(errorMessage(error));
+        setFailed({ error });
       })
       .finally(() => alive() && setBusy(false));
   };
@@ -185,7 +186,8 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
       )}
       {failed && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {failed}
+          {describeError(t, failed.error)}
+          <ErrorDetail error={failed.error} />
         </Text>
       )}
       {oldRoom}

@@ -3,6 +3,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixError } from 'matrix-js-sdk';
 import { LeaveRoomPrompt } from './LeaveRoomPrompt';
 
 const leave = vi.fn();
@@ -72,17 +73,34 @@ describe('LeaveRoomPrompt', () => {
     expect(second.onLeft).toHaveBeenCalledOnce();
   });
 
-  it('keeps the prompt open with the reason when leaving fails', async () => {
-    leave.mockRejectedValue(new Error('M_FORBIDDEN'));
+  it('keeps the prompt open with the reason, translated, when leaving fails', async () => {
+    leave.mockRejectedValue(
+      new MatrixError({ errcode: 'M_FORBIDDEN', error: 'You are not in this room.' }, 403)
+    );
     const { onLeft, leaveButton } = show();
 
     await act(async () => leaveButton.click());
 
     expect(onLeft).not.toHaveBeenCalled();
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-      'Failed to leave room! M_FORBIDDEN'
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.firstChild?.textContent).toBe(
+      "Failed to leave room! You don't have permission to do this."
+    );
+    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe(
+      'M_FORBIDDEN: You are not in this room.'
     );
     expect(leaveButton.disabled).toBe(false);
+  });
+
+  it("names no reason it cannot translate, and keeps the error's own text beside it", async () => {
+    leave.mockRejectedValue(new Error('Olm machine not ready'));
+    const { leaveButton } = show();
+
+    await act(async () => leaveButton.click());
+
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.firstChild?.textContent?.trim()).toBe('Failed to leave room!');
+    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe('Olm machine not ready');
   });
 
   it('closes from its close button without leaving', () => {

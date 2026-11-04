@@ -7,7 +7,8 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { Membership } from '../../../types/matrix/room';
 import type { ModerationAbilities } from './profileModeration';
 import * as css from './UserRoomProfile.css';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../ErrorDetail';
 
 const KEY = 'sharedUi.userModeration';
 
@@ -57,7 +58,7 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
   const [asking, setAsking] = useState<'kick' | 'ban'>();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<Action>();
-  const [failed, setFailed] = useState<string>();
+  const [failed, setFailed] = useState<{ error: unknown }>();
 
   const run = (action: Action) => {
     const why = reason.trim() || undefined;
@@ -77,7 +78,7 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
       })
       .catch((error: unknown) => {
         if (!alive()) return;
-        setFailed(errorMessage(error));
+        setFailed({ error });
       })
       .finally(() => alive() && setBusy(undefined));
   };
@@ -196,7 +197,8 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
       )}
       {failed && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-          {failed}
+          {describeError(t, failed.error)}
+          <ErrorDetail error={failed.error} />
         </Text>
       )}
     </Box>

@@ -20,7 +20,8 @@ import { Dialog, Header, IconButton } from '../glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { stopPropagation } from '../../utils/keyboard';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeKnownError } from '../../utils/describeError';
+import { ErrorDetail } from '../ErrorDetail';
 
 type LeaveSpacePromptProps = {
   roomId: string;
@@ -49,7 +50,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
   const client = useMatrixClient();
   const alive = useAlive();
   const [pending, setPending] = useState(false);
-  const [refusal, setRefusal] = useState<string>();
+  const [refusal, setRefusal] = useState<{ failure: unknown }>();
 
   const leave = async () => {
     if (pending) return;
@@ -61,7 +62,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
     } catch (failure) {
       if (!alive()) return;
       setPending(false);
-      setRefusal(errorMessage(failure));
+      setRefusal({ failure });
     }
   };
 
@@ -100,7 +101,10 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
               </Text>
               {refusal !== undefined && (
                 <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-                  {t('sharedUi.leaveSpacePrompt.leaveFailed', { error: refusal })}
+                  {t('sharedUi.leaveSpacePrompt.leaveFailed', {
+                    error: describeKnownError(t, refusal.failure) ?? '',
+                  })}
+                  <ErrorDetail error={refusal.failure} />
                 </Text>
               )}
               <Button
