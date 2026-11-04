@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'rea
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Text, type RectCords } from 'folds';
+import { Box, Button, Icons, Text, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../../components/directional';
 import {
   getThreadSummaryActionError,
@@ -22,7 +22,8 @@ import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { copyToClipboard } from '../../utils/dom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu } from '../../components/glass/GlassPrimitives';
+import { MenuEntry, MenuGroup } from '../../components/MenuEntry';
 import { ActionDialog } from '../../components/ActionDialog';
 import { describeError } from '../../utils/describeError';
 import { ErrorDetail } from '../../components/ErrorDetail';
@@ -53,7 +54,7 @@ const fieldStyle: React.CSSProperties = {
   color: 'inherit',
 };
 
-/** Thread options: open, tags, resolve, pin, edit or regenerate the summary, copy a link. */
+/** Thread options: open, tags, edit or regenerate the summary, resolve, pin, copy a link. */
 export function ThreadActionsMenu({
   room,
   rootId,
@@ -340,28 +341,54 @@ export function ThreadActionsMenu({
     return true;
   };
 
+  // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link
+  // and the banner's Hide; each label has its icon at the end of the row.
   const items: Array<{
     action: string;
     label: string;
+    icon: IconSrc;
     onSelect: () => void;
     /** Resolve and pin wait for the previous save. */
     mutates?: boolean;
   }> = [];
   if (onOpenThread) {
-    items.push({ action: 'open', label: t('threadActions.open'), onSelect: onOpenThread });
+    items.push({
+      action: 'open',
+      label: t('threadActions.open'),
+      icon: Icons.Thread,
+      onSelect: onOpenThread,
+    });
   }
   if (showTags) {
     items.push({
       action: 'tags',
       label: tagsEditable ? t('threadActions.tags') : t('thread.stats.tags'),
+      icon: Icons.Bookmark,
       onSelect: () => openDialog('tags'),
     });
+  }
+  if (canSummarize) {
+    items.push(
+      {
+        action: 'editSummary',
+        label: t('threadActions.editSummary'),
+        icon: Icons.Pencil,
+        onSelect: () => openDialog('editSummary'),
+      },
+      {
+        action: 'regenerate',
+        label: t('threadActions.regenerate'),
+        icon: Icons.Bulb,
+        onSelect: () => openDialog('regenerate'),
+      }
+    );
   }
   if (tags.canEdit && rootLoaded && !pinned) {
     items.push({
       action: 'resolve',
       mutates: true,
       label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
+      icon: tags.isResolved ? Icons.Reload : Icons.CheckTwice,
       onSelect: () => {
         void mutations.setResolved(rootId, !tags.isResolved);
       },
@@ -372,30 +399,23 @@ export function ThreadActionsMenu({
       action: 'pin',
       mutates: true,
       label: pinned ? t('threadNav.unpin') : t('threadNav.pin'),
+      icon: Icons.Pin,
       onSelect: () => {
         void pinning.setPinned(rootId, !pinned);
       },
     });
   }
-  if (canSummarize) {
-    items.push(
-      {
-        action: 'editSummary',
-        label: t('threadActions.editSummary'),
-        onSelect: () => openDialog('editSummary'),
-      },
-      {
-        action: 'regenerate',
-        label: t('threadActions.regenerate'),
-        onSelect: () => openDialog('regenerate'),
-      }
-    );
-  }
-  items.push({ action: 'copy', label: t('threadActions.copy'), onSelect: handleCopyLink });
+  items.push({
+    action: 'copy',
+    label: t('threadActions.copy'),
+    icon: Icons.Link,
+    onSelect: handleCopyLink,
+  });
   if (onHideDetails) {
     items.push({
       action: 'hideDetails',
       label: t('thread.hideDetails'),
+      icon: Icons.ChevronTop,
       onSelect: () => {
         onHideDetails();
         onClose();
@@ -419,23 +439,21 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu role="menu" aria-label={t('threadActions.more')} style={{ minWidth: '12rem' }}>
-            <Box direction="Column" style={{ padding: '0.25rem' }}>
+          <Menu role="menu" aria-label={t('threadActions.more')} style={{ minWidth: toRem(220) }}>
+            <MenuGroup>
               {items.map((item) => (
-                <MenuItem
+                <MenuEntry
                   key={item.action}
                   role="menuitem"
-                  size="300"
-                  radii="300"
+                  label={item.label}
+                  icon={item.icon}
                   data-thread-action={item.action}
                   disabled={item.mutates && saving}
                   aria-busy={item.mutates && saving ? true : undefined}
-                  onClick={() => item.onSelect()}
-                >
-                  <Text size="T300">{item.label}</Text>
-                </MenuItem>
+                  onSelect={() => item.onSelect()}
+                />
               ))}
-            </Box>
+            </MenuGroup>
           </Menu>
         </FocusTrap>
       }
