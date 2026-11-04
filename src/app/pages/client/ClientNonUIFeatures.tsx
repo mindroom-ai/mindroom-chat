@@ -1,7 +1,6 @@
 import {
   CanvasIndexFeature,
   CrossRoomThreadIndexFeature,
-  MindroomAccountSettingsFeature,
   MindroomInviteNotifications,
   MindroomNativeIOSPushFeature,
   MindroomNativeIOSPushOpenFeature,
@@ -15,16 +14,16 @@ import { JoinedRoomThreadListsFeature } from './threads/JoinedRoomThreadListsFea
 
 /**
  * Account-wide work without UI: indexes and the joined rooms' thread lists that fill them,
- * account settings, invites, message notifications and the count in the page title, push, the
- * emoji room, the bug report rooms an administrator joins without accepting their invites, and
- * agents' connect links, which open through the Connections portal signed in as this account.
+ * invites, message notifications and the count in the page title, push, the emoji room, the bug
+ * report rooms an administrator joins without accepting their invites, and agents' connect links,
+ * which open through the Connections portal signed in as this account. The account's MindRoom
+ * settings are seeded behind the `ClientBindAtoms` gate instead, since the first render reads them.
  */
 export function ClientNonUIFeatures() {
   return (
     <>
       <CrossRoomThreadIndexFeature />
       <JoinedRoomThreadListsFeature />
-      <MindroomAccountSettingsFeature />
       <MindroomInviteNotifications />
       <MessageNotificationsFeature />
       <UnreadTitleFeature />

@@ -2,6 +2,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindLiveReplyFrames } from '../../mindroom/live/bindLiveReplyFrames';
 import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
 import { useModelControllerLifetime } from '../../mindroom/models/useModelPicker';
+import { useBindMindroomAccountSettings } from '../../mindroom/settings/useMindroomAccountSettings';
 import { mDirectAtom, useBindMDirectAtom } from '../mDirectList';
 import { allInvitesAtom, useBindAllInvitesAtom } from '../room-list/inviteList';
 import { allRoomsAtom, useBindAllRoomsAtom } from '../room-list/roomList';
@@ -19,6 +20,8 @@ export function useBindAtoms(client: MatrixClient): void {
   useBindRoomToParentsAtom(client, roomToParentsAtom);
   // Archived rooms are left out of every list, so they are seeded behind the same gate.
   useBindArchivedRoomsAtom(client);
+  // The account's `io.mindroom.settings`, which the first render of the pages already reads.
+  useBindMindroomAccountSettings(client);
   // Live per-room state.
   useBindRoomIdToTypingMembersAtom(client, roomIdToTypingMembersAtom);
   useBindRoomToUnreadAtom(client, roomToUnreadAtom);

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { createStore, Provider } from 'jotai';
 import { ClientRoot } from './ClientRoot';
+import { ClientBindAtoms } from './ClientBindAtoms';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import type { StoredSession } from '../../state/sessions';
 import {
@@ -12,6 +13,7 @@ import {
   voiceAutoSendPendingAtom,
   type TUploadItem,
 } from '../../state/room/roomInputDrafts';
+import { agentCallFailureAtom } from '../../mindroom/calls/agentCaller';
 import {
   initClient,
   removeCurrentClientSessionAndReload,
@@ -66,6 +68,9 @@ vi.mock('./SpecVersions', () => ({
 vi.mock('./SyncStatus', () => ({ SyncStatus: () => null }));
 vi.mock('../../hooks/useSessionStore', () => ({ useActiveSession: vi.fn() }));
 vi.mock('../../hooks/useClientConfig', () => ({ useClientConfig: () => ({}) }));
+// The pages' account atoms are seeded by binders this fake client cannot feed; the gate's
+// teardown is what these tests follow.
+vi.mock('../../state/hooks/useBindAtoms', () => ({ useBindAtoms: vi.fn() }));
 vi.mock('../../mindroom/engine', () => ({
   createMindroomSyncEngine: ({ mx }: { mx: unknown }) => ({ mx, start: vi.fn(), stop: vi.fn() }),
   MindroomSyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -97,6 +102,7 @@ const createClient = () => {
     emit: (event: string, ...args: unknown[]) =>
       listeners.get(event)?.forEach((listener) => listener(...args)),
     stopClient: vi.fn(),
+    store: {},
     getSyncState: vi.fn(() => null),
     getRooms: vi.fn(() => []),
   };
@@ -129,7 +135,9 @@ describe('ClientRoot when an account session ends', () => {
     <Provider store={store}>
       <MemoryRouter>
         <ClientRoot>
-          <div>pages</div>
+          <ClientBindAtoms>
+            <div>pages</div>
+          </ClientBindAtoms>
         </ClientRoot>
       </MemoryRouter>
     </Provider>
@@ -148,13 +156,25 @@ describe('ClientRoot when an account session ends', () => {
     vi.clearAllMocks();
   });
 
-  it('gives the next account empty composers in a room both accounts share', async () => {
-    vi.mocked(initClient).mockImplementation(async () => createClient() as never);
-    active = sessionFor('alice');
+  /** Signs `name` in and waits until the account's pages show. */
+  const showPagesOf = async (name: string) => {
+    const client = createClient();
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    active = sessionFor(name);
     await act(async () => {
-      renderer = create(tree());
+      if (renderer) renderer.update(tree());
+      else renderer = create(tree());
       await flush();
     });
+    await act(async () => {
+      client.emit('sync', 'SYNCING', 'PREPARED');
+      await flush();
+    });
+    expect(textOf(renderer?.toJSON() ?? null)).toContain('pages');
+  };
+
+  it('gives the next account empty composers in a room both accounts share', async () => {
+    await showPagesOf('alice');
 
     // Alice picks a message to reply to and stages a file, then switches to Bob.
     store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), {
@@ -165,15 +185,20 @@ describe('ClientRoot when an account session ends', () => {
     store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: stagedFile() });
     store.set(voiceAutoSendPendingAtom, true);
 
-    active = sessionFor('bob');
-    await act(async () => {
-      renderer?.update(tree());
-      await flush();
-    });
+    await showPagesOf('bob');
 
     expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toBeUndefined();
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+  });
+
+  it("does not show the next account why the last account's agent call did not start", async () => {
+    await showPagesOf('alice');
+    store.set(agentCallFailureAtom, { error: 'homeserver', id: 1 });
+
+    await showPagesOf('bob');
+
+    expect(store.get(agentCallFailureAtom)).toBeUndefined();
   });
 
   it('removes the account once when several requests report the server logout', async () => {

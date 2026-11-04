@@ -6,6 +6,7 @@ import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../../mindroom/live/bindLiveReplyFrames';
 import { useModelControllerLifetime } from '../../mindroom/models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
+import { useBindMindroomAccountSettings } from '../../mindroom/settings/useMindroomAccountSettings';
 
 vi.mock('../mDirectList', () => ({ mDirectAtom: {}, useBindMDirectAtom: vi.fn() }));
 vi.mock('../room-list/inviteList', () => ({ allInvitesAtom: {}, useBindAllInvitesAtom: vi.fn() }));
@@ -22,6 +23,9 @@ vi.mock('../typingMembers', () => ({
 vi.mock('../../mindroom/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
 vi.mock('../../mindroom/models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../../mindroom/rooms/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
+vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
+  useBindMindroomAccountSettings: vi.fn(),
+}));
 
 describe('useBindAtoms', () => {
   it("feeds the account's live reply frames to its store, so streamed replies update live", () => {
@@ -53,6 +57,22 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindArchivedRoomsAtom).toHaveBeenCalledWith(client);
+    act(() => renderer?.unmount());
+  });
+
+  it("seeds the account's MindRoom settings behind the gate, so the first page render reads them", () => {
+    const client = { id: 'account' } as unknown as MatrixClient;
+    function Probe() {
+      useBindAtoms(client);
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+
+    expect(useBindMindroomAccountSettings).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

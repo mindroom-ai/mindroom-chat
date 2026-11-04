@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { CallFeatures } from './CallFeatures';
-import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from './callStore';
+import { activeCallAtom, type ActiveCall } from './callStore';
 
 // CallResume waits for a server sync before it reads the reload's call record; this client
 // syncs only in the tests that set `syncState`, so the others stay about the page and the panel.
@@ -164,13 +164,15 @@ describe('CallFeatures', () => {
     expect(store.get(activeCallAtom)).toBeUndefined();
   });
 
-  it('closes the call panel when the account it belongs to goes away', () => {
+  it('leaves the call when the screens of its account go away', () => {
     const store = createStore();
     const unmount = mount(store);
-    store.set(callPanelRoomAtom, '!shared:example.org');
+    const { active, leave } = runningCall();
+    store.set(activeCallAtom, active);
 
     unmount();
 
-    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(leave).toHaveBeenCalledTimes(1);
+    expect(store.get(activeCallAtom)).toBeUndefined();
   });
 });

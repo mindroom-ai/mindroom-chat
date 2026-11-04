@@ -30,7 +30,6 @@ import {
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { playChime } from '../notifications/playChime';
-import { useBindMindroomAccountSettings } from '../settings/useMindroomAccountSettings';
 import { matchesEnum } from '../../utils/matchesEnum';
 
 const invitedRoomIds = (mx: MatrixClient): string[] =>
@@ -111,12 +110,6 @@ export function CanvasIndexFeature() {
  */
 export function CrossRoomThreadIndexFeature() {
   useCrossRoomThreadIndex();
-  return null;
-}
-
-/** Keeps the account's `io.mindroom.settings` account data in the settings atom. */
-export function MindroomAccountSettingsFeature() {
-  useBindMindroomAccountSettings(useMatrixClient());
   return null;
 }
 

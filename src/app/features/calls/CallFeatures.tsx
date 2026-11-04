@@ -3,7 +3,7 @@ import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { startAgentCall } from '../../mindroom/calls/agentCaller';
-import { activeCallAtom, callPanelRoomAtom, useCallActions } from './callStore';
+import { activeCallAtom, dropActiveCall, leaveCallNow, useCallActions } from './callStore';
 import {
   forgetCallResume,
   rememberCallForResume,
@@ -27,24 +27,17 @@ function CallLifetime() {
   const mx = useMatrixClient();
   const store = useStore();
   useEffect(() => {
-    const leave = () => {
-      const active = store.get(activeCallAtom);
-      if (!active) return;
-      active.call.leave().catch(() => undefined);
-      active.onEnded?.().catch(() => undefined);
-    };
     const pageHide = (event: PageTransitionEvent) => {
       const active = store.get(activeCallAtom);
       if (!active) return;
       if (event.persisted) {
         // The back/forward cache keeps the page but not the call: Back must find no call (not a
         // dead one that answers every new call `busy`), and no reload may take it up again.
-        leave();
-        store.set(activeCallAtom, undefined);
+        dropActiveCall(store);
         return;
       }
       rememberCallForResume(mx, active);
-      leave();
+      leaveCallNow(active);
     };
     // A page back from the cache starts without a call, whatever a page before it remembered.
     const pageShow = (event: PageTransitionEvent) => {
@@ -55,10 +48,8 @@ function CallLifetime() {
     return () => {
       window.removeEventListener('pagehide', pageHide);
       window.removeEventListener('pageshow', pageShow);
-      leave();
-      store.set(activeCallAtom, undefined);
-      // The next account would otherwise find this account's call panel open in a shared room.
-      store.set(callPanelRoomAtom, undefined);
+      // The account's other call state goes with its screens (`pages/client/accountState.ts`).
+      dropActiveCall(store);
     };
   }, [mx, store]);
   return null;
