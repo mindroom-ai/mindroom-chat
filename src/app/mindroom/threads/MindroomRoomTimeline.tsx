@@ -474,13 +474,6 @@ function FloatingAction({
 }
 
 /**
- * The filter bar's last measured height, margins included. It outlives the timeline, which
- * mounts again when a thread closes: the room the reader comes back to pads its cards by it at
- * once, so the Compact view's restored scroll position is not moved by a late inset.
- */
-let lastFilterBarHeight: number | null = null;
-
-/**
  * Holds the thread filter bar where it floats, under the room header, and reports the height it
  * takes there (margins included) whenever that changes.
  */
@@ -497,9 +490,7 @@ function FilterBarSlot({
     if (!slot) return undefined;
     // A slot that has no layout (hidden, or a test document) leaves the inset at its gap.
     const report = () => {
-      if (slot.offsetHeight <= 0) return;
-      lastFilterBarHeight = slot.offsetHeight;
-      onHeight(slot.offsetHeight);
+      if (slot.offsetHeight > 0) onHeight(slot.offsetHeight);
     };
     report();
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(report);
@@ -587,7 +578,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     viewMode,
   });
-  const [filterBarHeight, setFilterBarHeight] = useState(lastFilterBarHeight);
+  const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
