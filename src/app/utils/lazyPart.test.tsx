@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Suspense } from 'react';
+import { type RefAttributes, Suspense, createRef, forwardRef, useImperativeHandle } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { lazyPart } from './lazyPart';
@@ -9,6 +9,17 @@ function Greeting({ name }: { name: string }) {
 }
 
 const loaded = { default: Greeting };
+
+type Greeter = { greet(): string };
+
+/** A part with a handle, as the computer screen has. */
+const GreetingWithHandle = forwardRef<Greeter, { name: string }>(function GreetingWithHandle(
+  { name },
+  ref
+) {
+  useImperativeHandle(ref, () => ({ greet: () => `Hello ${name}` }), [name]);
+  return <p>{name} has a handle</p>;
+});
 const offline = () => Promise.reject(new TypeError('Failed to fetch dynamically imported module'));
 
 const renderPart = (Part: ReturnType<typeof lazyPart<{ name: string }>>, name = 'Ada') =>
@@ -91,5 +102,37 @@ describe('lazyPart', () => {
     expect(await screen.findByText('Hello Grace')).toBeTruthy();
     expect(screen.getByText('Hello Ada')).toBeTruthy();
     expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('hands a ref to the loaded component', async () => {
+    const errors = vi.spyOn(console, 'error');
+    const Part = lazyPart(() => Promise.resolve({ default: GreetingWithHandle }));
+    const handle = createRef<Greeter>();
+    render(
+      <Suspense fallback={null}>
+        <Part ref={handle} name="Ada" />
+      </Suspense>
+    );
+    expect(await screen.findByText('Ada has a handle')).toBeTruthy();
+    expect(handle.current?.greet()).toBe('Hello Ada');
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  it('leaves the ref empty when the chunk cannot load, and renders the fallback without a ref', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const errors = vi.spyOn(console, 'error');
+    function Offline({ name }: { name: string }) {
+      return <p>{name} is offline</p>;
+    }
+    const Part = lazyPart<{ name: string } & RefAttributes<Greeter>>(offline, Offline);
+    const handle = createRef<Greeter>();
+    render(
+      <Suspense fallback={null}>
+        <Part ref={handle} name="Ada" />
+      </Suspense>
+    );
+    expect(await screen.findByText('Ada is offline')).toBeTruthy();
+    expect(handle.current).toBeNull();
+    expect(errors).not.toHaveBeenCalled();
   });
 });
