@@ -12,7 +12,7 @@ export function RoomSettingsRenderer() {
   if (!requested || !room) return null;
 
   return (
-    <Modal500 requestClose={close}>
+    <Modal500 requestClose={close} fillPhoneScreen>
       <RoomSettings key={room.roomId} room={room} openOn={requested.page} requestClose={close} />
     </Modal500>
   );

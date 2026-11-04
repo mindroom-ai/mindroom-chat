@@ -15,7 +15,7 @@ export function SpaceSettingsRenderer() {
   if (!requested || !space) return null;
 
   return (
-    <Modal500 requestClose={close}>
+    <Modal500 requestClose={close} fillPhoneScreen>
       <RoomSettings
         key={space.roomId}
         room={space}

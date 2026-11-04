@@ -133,7 +133,7 @@ export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
         </Text>
       </button>
       {readersOf && (
-        <Modal500 requestClose={() => setReadersOf(undefined)}>
+        <Modal500 requestClose={() => setReadersOf(undefined)} fillPhoneScreen>
           <EventReaders
             room={room}
             eventId={readersOf}

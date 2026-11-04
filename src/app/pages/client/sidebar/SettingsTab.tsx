@@ -268,7 +268,7 @@ export function SettingsTab() {
         </SidebarItem>
       )}
       {switcherOpen && (
-        <Modal500 requestClose={() => setSwitcherOpen(false)}>
+        <Modal500 requestClose={() => setSwitcherOpen(false)} fillPhoneScreen>
           <AccountSwitcher
             accounts={sessions.map((session) => ({
               session,

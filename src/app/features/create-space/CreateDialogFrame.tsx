@@ -44,7 +44,7 @@ export function CreateDialogFrame({
   );
 
   return (
-    <Modal500 requestClose={requestClose}>
+    <Modal500 requestClose={requestClose} fillPhoneScreen>
       {/* Modal500 is the dialog, named by the title's heading. */}
       <Page>
         <PageScroll header={heading}>

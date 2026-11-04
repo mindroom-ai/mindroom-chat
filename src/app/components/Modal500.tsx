@@ -11,6 +11,12 @@ import * as css from './Modal500.css';
 interface Modal500Props {
   /** Runs on Escape (outside a text field) and on a click outside the dialog. */
   requestClose: () => void;
+  /**
+   * On phones, fill the screen instead of floating inside a margin. Personal settings keep the
+   * margin; the other large dialogs (room and space settings, the account switcher, creating a
+   * room or space, "Seen by") fill the screen.
+   */
+  fillPhoneScreen?: boolean;
   children: ReactNode;
 }
 
@@ -42,18 +48,24 @@ const useNamedByHeading = () => {
   return ref;
 };
 
+const centerClass = (phone: boolean, fillPhoneScreen: boolean): string => {
+  if (!phone) return css.SafeOverlayCenter;
+  return fillPhoneScreen ? css.PhoneOverlayCenter : css.PhoneInsetOverlayCenter;
+};
+
 /**
- * The large centered dialog that settings and the account switcher open in; on phones it fills
- * the screen. Keyboard focus is held inside while it is open and goes back to where it was once it
- * closes.
+ * The large centered dialog that settings and the account switcher open in. On phones it keeps a
+ * margin around it, or fills the screen with `fillPhoneScreen`. Keyboard focus is held inside
+ * while it is open and goes back to where it was once it closes.
  */
-export function Modal500({ requestClose, children }: Modal500Props) {
+export function Modal500({ requestClose, fillPhoneScreen = false, children }: Modal500Props) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const fullScreen = phone && fillPhoneScreen;
   const modalRef = useNamedByHeading();
   // The backdrop already dims the page, so the glass takes a lighter tint over it.
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter className={phone ? css.PhoneOverlayCenter : css.SafeOverlayCenter}>
+      <OverlayCenter className={centerClass(phone, fillPhoneScreen)}>
         <FocusTrap focusTrapOptions={closingTrap(requestClose)}>
           <Modal
             ref={modalRef}
@@ -61,7 +73,7 @@ export function Modal500({ requestClose, children }: Modal500Props) {
             aria-modal="true"
             variant="Background"
             size="500"
-            className={classNames(glassOverBackdrop, phone && css.PhoneModal)}
+            className={classNames(glassOverBackdrop, fullScreen && css.PhoneModal)}
           >
             {children}
           </Modal>
