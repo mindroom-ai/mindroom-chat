@@ -15,22 +15,29 @@ const rectAt = (top: number, height: number) => ({ top, bottom: top + height, he
 type Shown = { range: ItemRange; count: number };
 
 /**
- * The room's scroll area as the browser lays it out, with the reader at the bottom: the back
- * sentinel (1 px) and then the window's rows from the top of the content, and the front sentinel
- * below the last row while newer rows wait outside the window. Each row's `data-room-row-index`
- * element sits inside its absolutely placed tile, so its `offsetTop` is 0.
+ * The room's scroll area as the browser lays it out: the back sentinel (1 px) and then the
+ * window's rows from the top of the content, and the front sentinel below the last row while
+ * newer rows wait outside the window. Each row's `data-room-row-index` element sits inside its
+ * absolutely placed tile, so its `offsetTop` is 0. The reader stays at the bottom (or the top)
+ * as the rows change, until something scrolls the content.
  */
-const fakeRoomScroller = () => {
+const fakeRoomScroller = (reader: 'bottom' | 'top' = 'bottom') => {
   const shown: { current: Shown } = { current: { range: { start: 0, end: 0 }, count: 0 } };
   const contentPx = () => 1 + (shown.current.range.end - shown.current.range.start) * ROW_PX;
-  const scrollTop = () => Math.max(0, contentPx() - VIEW_PX);
+  const maxScrollTop = () => Math.max(0, contentPx() - VIEW_PX);
+  let scrolledTo: number | undefined;
+  const scrollTop = () =>
+    Math.min(maxScrollTop(), Math.max(0, scrolledTo ?? (reader === 'bottom' ? maxScrollTop() : 0)));
   const scroller = {
     get scrollTop() {
       return scrollTop();
     },
+    clientTop: 0,
     offsetHeight: VIEW_PX,
     getBoundingClientRect: () => rectAt(0, VIEW_PX),
-    scrollBy: () => undefined,
+    scrollBy: ({ top = 0 }: { top?: number }) => {
+      scrolledTo = scrollTop() + top;
+    },
     querySelector: (selector: string) => {
       const { range, count } = shown.current;
       const contentTop = -scrollTop();
@@ -68,6 +75,7 @@ type RoomWindowProps = {
   rows: MatrixEvent[];
   initialRange: ItemRange;
   windowLimit: number;
+  eventId: string | undefined;
   scroller: ReturnType<typeof fakeRoomScroller>;
   commits: Committed[];
   handles: Handles;
@@ -78,6 +86,7 @@ function RoomWindow({
   rows,
   initialRange,
   windowLimit,
+  eventId,
   scroller,
   commits,
   handles,
@@ -99,7 +108,7 @@ function RoomWindow({
   });
   useWindowKeepsNewestRow({
     activeTimelineRange,
-    eventId: undefined,
+    eventId,
     roomRowCount: rows.length,
     threadId: undefined,
     setTimeline,
@@ -131,8 +140,20 @@ const growByLiveRow = (current: Timeline): Timeline => ({
   range: { start: current.range.start, end: current.range.end + 1 },
 });
 
-const mountRoomWindow = (rowCount: number, initialRange: ItemRange, windowLimit = 200) => {
-  const scroller = fakeRoomScroller();
+type MountOptions = {
+  windowLimit?: number;
+  /** Where the reader is while nothing scrolls the content. */
+  reader?: 'bottom' | 'top';
+  /** The room opened at this event, so a window short of the newest row stays short. */
+  eventId?: string;
+};
+
+const mountRoomWindow = (
+  rowCount: number,
+  initialRange: ItemRange,
+  { windowLimit = 200, reader = 'bottom', eventId }: MountOptions = {}
+) => {
+  const scroller = fakeRoomScroller(reader);
   const commits: Committed[] = [];
   const handles: Handles = {};
   let renderer: ReactTestRenderer | undefined;
@@ -141,6 +162,7 @@ const mountRoomWindow = (rowCount: number, initialRange: ItemRange, windowLimit 
       rows: makeRows(count),
       initialRange,
       windowLimit,
+      eventId,
       scroller,
       commits,
       handles,
@@ -154,7 +176,12 @@ const mountRoomWindow = (rowCount: number, initialRange: ItemRange, windowLimit 
       renderer?.update(element(count));
       during();
     });
-  return { commits, handles, renderWith };
+  /** Where the row at `index` of the room is painted, relative to the top of the view. */
+  const rowTop = (index: number) =>
+    scroller.element
+      .querySelector<HTMLElement>(`[data-room-row-index="${index - (commits.at(-1)?.[0] ?? 0)}"]`)
+      ?.getBoundingClientRect().top;
+  return { commits, handles, renderWith, rowTop };
 };
 
 describe('the room window paginator', () => {
@@ -175,8 +202,13 @@ describe('the room window paginator', () => {
   });
 
   it('applies a page towards newer rows when no other window was set after its render', () => {
-    // A window that stops short of the newest rows, its front sentinel in view.
-    const { commits, handles, renderWith } = mountRoomWindow(60, { start: 30, end: 50 });
+    // A window that stops short of the newest rows (the room opened at an event), its front
+    // sentinel in view.
+    const { commits, handles, renderWith } = mountRoomWindow(
+      60,
+      { start: 30, end: 50 },
+      { eventId: '$row40' }
+    );
     renderWith(60, () => {
       // A repaint that keeps the window (a new range object with the same rows) is no newer.
       handles.setTimeline?.((current) => ({ ...current, range: { ...current.range } }));
@@ -187,8 +219,45 @@ describe('the room window paginator', () => {
     expect(commits[1]?.slice(1)).toEqual([60, 60]);
   });
 
+  it('keeps the rows on screen when it pages towards newer rows in a window it all mounted', () => {
+    // The window stops short of the newest rows with every row mounted, the reader at its bottom:
+    // rows 30 and 31 are above the view, row 32 is the first one the reader sees.
+    const { commits, handles, rowTop } = mountRoomWindow(
+      60,
+      { start: 30, end: 50 },
+      { eventId: '$row40' }
+    );
+    expect(rowTop(32)).toBe(0);
+    act(() => handles.paginator?.retryPagination());
+    // The page keeps the row above the reader's and everything after it, not only the window's
+    // last row, and the reader's row stays where it was.
+    expect(commits).toEqual([
+      [30, 50, 60],
+      [31, 60, 60],
+    ]);
+    expect(rowTop(32)).toBe(0);
+  });
+
+  it('keeps the rows on screen and one more when it pages towards older rows', () => {
+    // The reader at the top of a window it all mounted: rows 30 to 47 fill the view.
+    const { commits, handles } = mountRoomWindow(
+      60,
+      { start: 30, end: 50 },
+      { reader: 'top', eventId: '$row40' }
+    );
+    act(() => handles.paginator?.retryPagination());
+    expect(commits).toEqual([
+      [30, 50, 60],
+      [0, 49, 60],
+    ]);
+  });
+
   it('applies a jump to a row outside the window over a window set after its render', () => {
-    const { commits, handles, renderWith } = mountRoomWindow(60, { start: 40, end: 60 }, 20);
+    const { commits, handles, renderWith } = mountRoomWindow(
+      60,
+      { start: 40, end: 60 },
+      { windowLimit: 20 }
+    );
     renderWith(61, () => {
       handles.setTimeline?.(growByLiveRow);
       handles.paginator?.scrollToItem(5);

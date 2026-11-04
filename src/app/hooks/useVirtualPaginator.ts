@@ -120,11 +120,20 @@ const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reachAbove =
   );
 };
 
-/** The item's top within the scroll content, comparable to `scrollTop`. */
-const contentTop = (scrollElement: HTMLElement, element: HTMLElement): number =>
-  element.offsetParent === scrollElement
-    ? element.offsetTop
-    : element.offsetTop - (scrollElement.offsetTop ?? 0);
+/**
+ * The item's top within the scroll content, comparable to `scrollTop`. An item laid out inside
+ * another positioned box (a virtual list's absolutely placed tile) counts its `offsetTop` from
+ * that box, so it is measured where it is painted instead. An item without an offset parent (not
+ * laid out) has only its offsets.
+ */
+const contentTop = (scrollElement: HTMLElement, element: HTMLElement): number => {
+  const { offsetParent } = element;
+  if (offsetParent === scrollElement) return element.offsetTop;
+  if (!offsetParent) return element.offsetTop - (scrollElement.offsetTop ?? 0);
+  const contentOrigin =
+    scrollElement.getBoundingClientRect().top + scrollElement.clientTop - scrollElement.scrollTop;
+  return element.getBoundingClientRect().top - contentOrigin;
+};
 
 const atScrollBoundary = (scrollElement: HTMLElement, error: number): boolean => {
   const { scrollTop, scrollHeight, clientHeight } = scrollElement;
