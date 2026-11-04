@@ -6,7 +6,6 @@ import FocusTrap from 'focus-trap-react';
 import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
@@ -29,6 +28,10 @@ import {
 } from '../../../hooks/router/useHomeSelected';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
+import {
+  makeNavScrollMemoryKey,
+  useNavVirtualizer,
+} from '../../../mindroom/sidebar/navScrollMemory';
 import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
@@ -180,7 +183,9 @@ export function Home() {
     return items.filter((roomId) => roomId === selectedRoomId);
   }, [client, homeRooms, roomsClosed, selectedRoomId]);
 
-  const virtualizer = useVirtualizer({
+  // The list reopens where it was left: after a space, or a room or thread that took a phone's
+  // whole screen.
+  const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(client.getSafeUserId(), 'home'), {
     getScrollElement: () => listScrollRef.current,
     count: listedRoomIds.length,
     estimateSize: () => ROOM_ROW_HEIGHT,
