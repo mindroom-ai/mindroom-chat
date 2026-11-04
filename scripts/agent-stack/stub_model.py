@@ -1,0 +1,375 @@
+"""OpenAI-compatible Chat Completions server for the agent specs; it never calls a real model.
+
+scripts/agent-stack/stack.py starts it with the MindRoom backend's own Python (which has aiohttp):
+    python stub_model.py --port 29716 --log requests.jsonl
+
+The person's latest message picks a scenario by hashtag:
+
+  #slow        30 words, one every 0.25 s
+  #stopme      400 words, one every 0.25 s (long enough to press Stop)
+  #long        a long Markdown reply (80 numbered lines)
+  #think       reasoning first, then the answer
+  #markdown    a table, a code block and a list
+  #error       the provider answers 500
+  #shell       one shell call         #multi   three shell calls
+  #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
+  #title       set_thread_summary      #tag     tag_thread      #resolve   resolve_thread (needs approval)
+  #expire      untag_thread, whose approval expires quickly
+  #schedule    a reminder in 150 s     #schedulesoon   a reminder in 20 s
+  #canvas      show_canvas with a page that submits a color
+  #job         a shell call that runs 45 s as a background job
+
+Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: ...").
+After a tool result the scenario calls its next tool or answers with the last result. Structured-output
+requests (the router, thread summaries and tags, schedule parsing) get JSON built from their schema.
+Every request is appended to the --log file as one JSON line.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import re
+import time
+import uuid
+from pathlib import Path
+
+from aiohttp import web
+
+TRANSIENT_PREFIX = "<mindroom_transient_context>"
+
+CANVAS_PAGE = (
+    "<!doctype html><html><body style='font-family:sans-serif;padding:16px'>"
+    "<h1>Pick a color</h1><button id='red'>Red</button> <button id='blue'>Blue</button>"
+    "<script>for (const id of ['red', 'blue']) document.getElementById(id).onclick = () =>"
+    " window.mindroom.submit({color: id});</script></body></html>"
+)
+
+TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
+    "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
+    "#multi": [
+        ("run_shell_command", {"args": "echo step one"}),
+        ("run_shell_command", {"args": "sleep 2; echo step two"}),
+        ("run_shell_command", {"args": "echo step three"}),
+    ],
+    "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
+    "#title": [("set_thread_summary", {"summary": "Stub picked this title from a tool call"})],
+    "#tag": [("tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"})],
+    "#resolve": [("resolve_thread", {})],
+    "#expire": [("untag_thread", {"tag": "stub-tag"})],
+    "#schedulesoon": [("schedule", {"request": "in 20 seconds remind me to stretch", "new_thread": False})],
+    "#schedule": [("schedule", {"request": "in 150 seconds remind me to stretch", "new_thread": False})],
+    "#canvas": [("show_canvas", {"title": "Stub canvas", "html": CANVAS_PAGE})],
+    "#job": [
+        ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
+    ],
+}
+TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error")
+
+
+def has_tag(text: str, tag: str) -> bool:
+    return re.search(re.escape(tag) + r"(?![a-z_])", text) is not None
+
+
+def text_of(content: object) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text"
+        )
+    return ""
+
+
+def is_person_message(message: dict) -> bool:
+    return message.get("role") == "user" and not text_of(message.get("content")).lstrip().startswith(
+        TRANSIENT_PREFIX
+    )
+
+
+def latest_person_index(messages: list[dict]) -> int:
+    """MindRoom appends transient context notes as user messages; skip them to find what the person wrote."""
+    for index in range(len(messages) - 1, -1, -1):
+        if is_person_message(messages[index]):
+            return index
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "user":
+            return index
+    return -1
+
+
+def current_turn_text(messages: list[dict]) -> str:
+    """The person's messages since the last final assistant answer (coalesced messages arrive together)."""
+    start = 0
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if (
+            message.get("role") == "assistant"
+            and not message.get("tool_calls")
+            and text_of(message.get("content")).strip()
+        ):
+            start = index + 1
+            break
+    return "\n".join(text_of(m.get("content")) for m in messages[start:] if is_person_message(m))
+
+
+# Structured output
+
+
+def schedule_delay(text: str) -> int:
+    match = re.search(r"in (\d+) seconds", text)
+    return int(match.group(1)) if match else 150
+
+
+def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
+    """A value for one schema node; some field names get values that make the backend act."""
+    if key == "execute_at":
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + schedule_delay(text)))
+    if key in ("cron_schedule", "history_limit", "model", "created_by", "thread_id", "room_id"):
+        return None
+    if key == "message":
+        return "@helper remind me to stretch"
+    if key == "description":
+        return "Stretch reminder"
+    if "$ref" in schema:
+        return schema_value(defs.get(schema["$ref"].rsplit("/", 1)[-1], {}), defs, text, key)
+    for combination in ("anyOf", "oneOf"):
+        if combination in schema:
+            options = [option for option in schema[combination] if option.get("type") != "null"]
+            return schema_value((options or schema[combination])[0], defs, text, key)
+    if "enum" in schema:
+        return schema["enum"][0]
+    if "const" in schema:
+        return schema["const"]
+    kind = schema.get("type")
+    if kind == "object" or "properties" in schema:
+        return {
+            name: schema_value(sub, defs, text, name) for name, sub in schema.get("properties", {}).items()
+        }
+    if kind == "array":
+        if key == "tags":
+            return ["stub-topic", "live-test"]
+        return [schema_value(schema.get("items", {}), defs, text, key)]
+    if kind == "boolean":
+        return False
+    if kind in ("integer", "number"):
+        return schema.get("minimum", 1)
+    if key in ("entity_name", "agent_name"):
+        routed = text.split('Message: "', 1)[-1].lower()
+        return "scout" if "scout" in routed else "helper"
+    if key == "summary":
+        person = re.search(r"@tester_[a-z0-9]+:[a-z.]+: ([^\n]+)", text)
+        words = " ".join((person.group(1) if person else text).replace("#", "").split()[:6])
+        return f"Stub title: {words}"[:120]
+    return "stub"
+
+
+# Chat turns
+
+
+def plan(body: dict) -> tuple:
+    """("text", markdown), ("slow", text, seconds per word), ("think", text), ("tool", name, args) or ("error",)."""
+    messages = body.get("messages") or []
+    index = latest_person_index(messages)
+    latest = text_of(messages[index].get("content")).lower() if index >= 0 else ""
+    text = current_turn_text(messages).lower()
+    # The latest message decides when it names a scenario; otherwise the whole turn does.
+    if any(has_tag(latest, tag) for tag in [*TOOL_SCENARIOS, *TEXT_SCENARIOS]):
+        text = latest
+    results = [m for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
+    last_result = text_of(results[-1].get("content"))[:400] if results else ""
+    for tag, steps in TOOL_SCENARIOS.items():
+        if not has_tag(text, tag):
+            continue
+        if len(results) < len(steps):
+            name, args = steps[len(results)]
+            available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
+            if name not in available:
+                return (
+                    "text",
+                    f"The stub wanted `{name}`, but this agent has: {', '.join(available) or 'no tools'}.",
+                )
+            return ("tool", name, args)
+        return (
+            "text",
+            f"Finished **{tag[1:]}** after {len(results)} tool call(s). Last result:\n\n```\n{last_result}\n```",
+        )
+    if results:
+        return ("text", f"The tool said:\n\n```\n{last_result}\n```")
+    if has_tag(text, "#stopme"):
+        return ("slow", " ".join(f"word{i}" for i in range(1, 401)), 0.25)
+    if has_tag(text, "#slow"):
+        return ("slow", " ".join(f"word{i}" for i in range(1, 31)), 0.25)
+    if has_tag(text, "#long"):
+        lines = [f"{i}. Line {i} of a long stub reply, long enough to fill the thread." for i in range(1, 81)]
+        return ("text", "Here is a long reply.\n\n" + "\n".join(lines) + "\n\nEnd of the long reply.")
+    if has_tag(text, "#think"):
+        return ("think", "I thought about it and the answer is **42**.")
+    if has_tag(text, "#markdown"):
+        return (
+            "text",
+            "## Stub report\n\n| Item | Value |\n| --- | --- |\n| alpha | 1 |\n| beta | 2 |\n\n"
+            "```python\nprint('hello from the stub')\n```\n\n- one\n- two\n\nInline `code` and a [link](https://example.org).",
+        )
+    if has_tag(text, "#error"):
+        return ("error",)
+    words = " ".join(current_turn_text(messages).split()[-12:])
+    return ("text", f"Hello from **{body.get('model')}**. You said: {words}")
+
+
+def chunk(model: str, delta: dict, finish: str | None = None) -> dict:
+    return {
+        "id": "chatcmpl-stub",
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+    }
+
+
+def tool_call(name: str, args: dict) -> dict:
+    return {
+        "id": f"call_{uuid.uuid4().hex[:12]}",
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(args)},
+    }
+
+
+class Stub:
+    def __init__(self, log_path: Path) -> None:
+        self.log_path = log_path
+
+    def record(self, entry: dict) -> None:
+        with self.log_path.open("a") as handle:
+            handle.write(json.dumps(entry) + "\n")
+
+    async def completions(self, request: web.Request) -> web.StreamResponse:
+        body = await request.json()
+        model = body.get("model", "stub")
+        messages = body.get("messages") or []
+        index = latest_person_index(messages)
+        person_text = text_of(messages[index].get("content")) if index >= 0 else ""
+        entry = {
+            "time": time.time(),
+            "model": model,
+            "stream": bool(body.get("stream")),
+            "structured": bool(body.get("response_format")),
+            "tools": [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []],
+            "user": person_text[-400:],
+        }
+        if body.get("response_format"):
+            schema = (body["response_format"].get("json_schema") or {}).get("schema") or {}
+            step: tuple = ("text", json.dumps(schema_value(schema, schema.get("$defs", {}), person_text)))
+        else:
+            step = plan(body)
+        entry["plan"] = (
+            list(step[:3]) if step[0] == "tool" else [step[0], str(step[1])[:200] if len(step) > 1 else ""]
+        )
+        self.record(entry)
+
+        if step[0] == "error":
+            return web.json_response(
+                {"error": {"message": "stub provider failure", "type": "server_error"}}, status=500
+            )
+        if not body.get("stream"):
+            message: dict = {"role": "assistant", "content": None if step[0] == "tool" else step[1]}
+            if step[0] == "tool":
+                message["tool_calls"] = [tool_call(step[1], step[2])]
+            return web.json_response(
+                {
+                    "id": "chatcmpl-stub",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": message,
+                            "finish_reason": "tool_calls" if step[0] == "tool" else "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+                }
+            )
+
+        response = web.StreamResponse(
+            headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"}
+        )
+        await response.prepare(request)
+
+        async def send(payload: dict) -> None:
+            await response.write(f"data: {json.dumps(payload)}\n\n".encode())
+
+        await send(chunk(model, {"role": "assistant", "content": ""}))
+        finish = "stop"
+        if step[0] == "tool":
+            await asyncio.sleep(0.3)
+            call = tool_call(step[1], step[2])
+            arguments = call["function"].pop("arguments")
+            call["function"]["arguments"] = ""
+            await send(chunk(model, {"tool_calls": [{"index": 0, **call}]}))
+            await send(chunk(model, {"tool_calls": [{"index": 0, "function": {"arguments": arguments}}]}))
+            finish = "tool_calls"
+        elif step[0] == "think":
+            for piece in [
+                "Let me think. ",
+                "The person wants a number. ",
+                "Forty-two is traditional. ",
+                "Done thinking.",
+            ]:
+                await send(chunk(model, {"reasoning_content": piece}))
+                await asyncio.sleep(0.6)
+            for word in step[1].split(" "):
+                await send(chunk(model, {"content": word + " "}))
+                await asyncio.sleep(0.05)
+        else:
+            delay = step[2] if step[0] == "slow" else 0.03
+            words = step[1].split(" ")
+            for position, word in enumerate(words):
+                await send(chunk(model, {"content": word if position == len(words) - 1 else word + " "}))
+                await asyncio.sleep(delay)
+        await send(chunk(model, {}, finish))
+        if (body.get("stream_options") or {}).get("include_usage"):
+            await send(
+                {
+                    "id": "chatcmpl-stub",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [],
+                    "usage": {"prompt_tokens": 1200, "completion_tokens": 64, "total_tokens": 1264},
+                }
+            )
+        await response.write(b"data: [DONE]\n\n")
+        await response.write_eof()
+        return response
+
+
+async def list_models(_request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "object": "list",
+            "data": [{"id": "stub-fast", "object": "model"}, {"id": "stub-deep", "object": "model"}],
+        }
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="OpenAI-compatible stub model for the agent specs")
+    parser.add_argument("--port", type=int, default=29700)
+    parser.add_argument("--log", type=Path, default=Path("requests.jsonl"))
+    parser.add_argument("--tag", help="ignored; marks the process as the stack's own")
+    args = parser.parse_args()
+    args.log.parent.mkdir(parents=True, exist_ok=True)
+    stub = Stub(args.log)
+    app = web.Application(client_max_size=64 * 1024 * 1024)
+    app.router.add_post("/v1/chat/completions", stub.completions)
+    app.router.add_get("/v1/models", list_models)
+    web.run_app(app, host="127.0.0.1", port=args.port, print=None)
+
+
+if __name__ == "__main__":
+    main()
