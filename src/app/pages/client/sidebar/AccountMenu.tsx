@@ -67,7 +67,9 @@ function AccountAvatar({
 /**
  * The menu of the rail's account button: the signed-in account, Settings, the other accounts on
  * this device, Add Account and, with more than one account, Manage Accounts. It opens beside the
- * button; arrow keys walk the entries, and Escape or a press elsewhere closes it.
+ * button; arrow keys walk the entries, and Escape or a press elsewhere closes it. Like the app's
+ * other menus it leaves keyboard focus to `installOverlayFocus`: opened with Enter or Space it
+ * focuses Settings, and a key that closes it gives focus back to the button.
  */
 export function AccountMenu({
   anchor,
@@ -93,6 +95,8 @@ export function AccountMenu({
   const menu = (
     <FocusTrap
       focusTrapOptions={{
+        initialFocus: false,
+        returnFocusOnDeactivate: false,
         onDeactivate: onClose,
         escapeDeactivates: stopPropagation,
         // The button toggles the menu itself, so its press passes through instead of closing.

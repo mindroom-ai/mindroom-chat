@@ -80,7 +80,8 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const parents = new WeakMap<Element, Element>();
   let lastInput: 'keyboard' | 'pointer' | undefined;
   let lastFocused: HTMLElement | undefined;
-  let keyOpen: { opener: HTMLElement; at: number } | undefined;
+  /** The control Enter or Space was pressed on, and the layer that held it. */
+  let keyOpen: { opener: HTMLElement; openerLayer: Element | undefined; at: number } | undefined;
 
   /** Whether `layer` is `ancestor`, or was opened from it directly or through other layers. */
   const openedFrom = (layer: Element, ancestor: Element): boolean => {
@@ -117,27 +118,17 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     const target = event.target as Element | null;
     keyOpen =
       plain && (event.key === 'Enter' || event.key === ' ') && target?.closest?.(OPENER_SELECTOR)
-        ? { opener: target as HTMLElement, at: win.performance.now() }
+        ? {
+            opener: target as HTMLElement,
+            openerLayer: layerOf(doc, target),
+            at: win.performance.now(),
+          }
         : undefined;
   };
 
   const onPointerDown = () => {
     lastInput = 'pointer';
     keyOpen = undefined;
-  };
-
-  const focusLayerOpenedByKey = (layer: Element) => {
-    const open = keyOpen;
-    if (!open || win.performance.now() - open.at > KEY_OPEN_WINDOW_MS) return;
-    if (isPassiveLayer(layer)) return;
-    // A focus trap that moves focus itself does so in a timeout of its own, which runs first.
-    win.setTimeout(() => {
-      if (!layer.isConnected || doc.activeElement !== open.opener) return;
-      const first = firstTabbable(layer);
-      if (!first) return;
-      remember(layer, open.opener);
-      first.focus({ preventScroll: true });
-    }, 0);
   };
 
   /** The layer's opener, or the opener of the layer that held it when that one is gone too. */
@@ -149,6 +140,29 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
       current = parents.get(current);
     }
     return undefined;
+  };
+
+  const focusLayerOpenedByKey = (layer: Element) => {
+    const open = keyOpen;
+    if (!open || win.performance.now() - open.at > KEY_OPEN_WINDOW_MS) return;
+    if (isPassiveLayer(layer)) return;
+    // A focus trap that moves focus itself does so in a timeout of its own, which runs first.
+    win.setTimeout(() => {
+      if (!layer.isConnected) return;
+      // A menu item that opened this layer and closed its menu (Settings in the account menu)
+      // took the menu with it: focus is then on <body>, or back on the menu's own opener.
+      const { openerLayer } = open;
+      const fromClosedMenu =
+        !open.opener.isConnected &&
+        !!openerLayer &&
+        !openerLayer.isConnected &&
+        (doc.activeElement === doc.body || doc.activeElement === openers.get(openerLayer));
+      if (doc.activeElement !== open.opener && !fromClosedMenu) return;
+      const first = firstTabbable(layer);
+      if (!first) return;
+      remember(layer, fromClosedMenu && openerLayer ? reachableOpener(openerLayer) : open.opener);
+      first.focus({ preventScroll: true });
+    }, 0);
   };
 
   const returnFocusFrom = (layer: Element) => {

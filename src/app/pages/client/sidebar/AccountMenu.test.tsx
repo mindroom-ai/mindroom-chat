@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StoredSession } from '../../../state/sessions';
@@ -124,22 +124,21 @@ describe('AccountMenu', () => {
     expect(onManageAccounts).toHaveBeenCalledTimes(1);
   });
 
-  it('takes focus, walks the entries with the arrow keys and closes on Escape', async () => {
-    const { onClose } = open([BOB]);
+  it('leaves focus on its button, walks the entries with the arrow keys and closes on Escape', async () => {
+    const { anchor, onClose } = open([BOB]);
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    // The trap moves focus to the first entry once the menu is in place.
-    await waitFor(() => expect(document.activeElement).toBe(items[0]));
-    fireEvent.keyDown(document.activeElement ?? document.body, {
-      key: 'ArrowDown',
-      keyCode: 40,
-      which: 40,
+    // A pointer press keeps focus on the button (installOverlayFocus moves it for Enter or Space).
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
     });
+    expect(document.activeElement).toBe(anchor);
+    const arrow = (key: 'ArrowDown' | 'ArrowUp', keyCode: number) =>
+      fireEvent.keyDown(document.activeElement ?? document.body, { key, keyCode, which: keyCode });
+    arrow('ArrowDown', 40);
+    expect(document.activeElement).toBe(items[0]);
+    arrow('ArrowDown', 40);
     expect(document.activeElement).toBe(items[1]);
-    fireEvent.keyDown(document.activeElement ?? document.body, {
-      key: 'ArrowUp',
-      keyCode: 38,
-      which: 38,
-    });
+    arrow('ArrowUp', 38);
     expect(document.activeElement).toBe(items[0]);
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();

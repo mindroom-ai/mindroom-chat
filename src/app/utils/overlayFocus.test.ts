@@ -157,6 +157,37 @@ describe('overlay focus', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it.each([
+    ['focus left on <body>', false],
+    ['focus already back on the button', true],
+  ])(
+    'moves focus into a dialog that a menu item opened as its menu closed, with %s',
+    async (_case, menuGaveFocusBack) => {
+      trigger.focus();
+      press(trigger, 'Enter');
+      const menu = menuLayer();
+      document.body.append(menu.layer);
+      await flush();
+      expect(document.activeElement).toBe(menu.first);
+
+      // Enter on the item: the menu goes and the dialog comes in one render.
+      press(menu.first, 'Enter');
+      menu.layer.remove();
+      if (menuGaveFocusBack) trigger.focus();
+      const dialog = document.createElement('div');
+      const close = button('Close');
+      dialog.append(close);
+      document.body.append(dialog);
+      await flush();
+      expect(document.activeElement).toBe(close);
+
+      press(close, 'Escape');
+      dialog.remove();
+      await flush();
+      expect(document.activeElement).toBe(trigger);
+    }
+  );
+
   it('never takes a control of a popover for the opener of the dialog it opened from', async () => {
     // A dialog whose opener is gone, with a "+ tag" button that opens a picker popover.
     const dialog = document.createElement('div');
