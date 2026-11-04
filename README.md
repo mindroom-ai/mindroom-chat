@@ -88,7 +88,7 @@ just e2e-slot 3 down                                                        # st
 | `runtime-config.js` | sets the deployment globals before the app starts (base path, service worker, sign-in recovery) |
 | `authentication-recovery.js` | recovers sign-in behind an authenticating proxy |
 | `sw.js` | the service worker: caches the app for offline starts, fetches authenticated media |
-| `version.json` | the build version, polled by running clients to notice a new deployment |
+| `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
 
 To deploy, serve `dist/` from the root of an origin and answer every path that is not a file with `index.html`; with `hashRouter.enabled` in `config.json`, routes live after `#` and no rewrite is needed. `config.json`, `runtime-config.js`, `authentication-recovery.js` and `version.json` are not precached by the service worker, so a deployment can change them without a new build. The build is not usable under a sub-path: its asset URLs start at `/`.

@@ -18,6 +18,7 @@ import {
   shouldShowWelcomeSetupPrompt,
 } from '../../mindroom/local-mindroom/mindroom';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
+import { useShowLocalMindroom } from '../../mindroom/local-mindroom/useShowLocalMindroom';
 import { KeyBackupNudge } from '../../mindroom/onboarding/KeyBackupNudge';
 import { UnverifiedDeviceCard } from '../../components/device-verification/UnverifiedDeviceCard';
 import type { MindroomPoweredByLink } from '../../mindroom/branding/branding';
@@ -48,23 +49,25 @@ const writeFirstSeen = (key: string, value: number | undefined): void => {
 };
 
 /**
- * Whether to show the Local MindRoom setup steps: an account on a homeserver
- * with provisioning, a day after the welcome page was first seen, while no
+ * Whether to show the Local MindRoom setup steps: for an account that has Local
+ * MindRoom (the deployment offers it and the account can sign in to provisioning,
+ * as for the rail tab), a day after the welcome page was first seen, while no
  * Local MindRoom device is connected.
  */
 const useWelcomeSetupPrompt = (): boolean => {
   const mx = useMatrixClient();
   const { sidebar } = useClientConfig();
+  const offered = useShowLocalMindroom();
   const [show, setShow] = useState(false);
   const userId = mx.getSafeUserId();
-  const { provisioningBaseUrl, canAuthenticate } = resolveMindroomProvisioningRequest({
+  const { provisioningBaseUrl } = resolveMindroomProvisioningRequest({
     sessionHomeserverUrl: mx.getHomeserverUrl(),
     provisioningOverrideUrl: sidebar?.mindRoomProvisioningUrl,
     accessToken: mx.getAccessToken() ?? undefined,
   });
 
   useEffect(() => {
-    if (!canAuthenticate) return undefined;
+    if (!offered) return undefined;
     const storageKey = getWelcomeSetupFirstSeenStorageKey(userId);
     let firstSeen = readFirstSeen(storageKey);
     if (firstSeen === undefined) {
@@ -93,9 +96,9 @@ const useWelcomeSetupPrompt = (): boolean => {
     return () => {
       cancelled = true;
     };
-  }, [mx, userId, canAuthenticate, provisioningBaseUrl]);
+  }, [mx, userId, offered, provisioningBaseUrl]);
 
-  return show;
+  return offered && show;
 };
 
 function LocalMindroomSetup() {

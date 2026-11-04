@@ -158,11 +158,17 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
 }
 
 export const createRouter = (clientConfig: ClientConfig) => {
-  const { hashRouter } = clientConfig;
+  const { hashRouter, sidebar } = clientConfig;
+  // A deployment that turns Local MindRoom off has no pairing page. /connect still needs its own
+  // route, which sends it to `/`: without one it would open as a space named "connect".
+  const localMindroomOffered = sidebar?.showMindRoom ?? true;
   const routes = createRoutesFromElements(
     <Route>
       <Route path={ROOT_PATH} element={<RootRedirect />} />
-      <Route path={CONNECT_PATH} element={<ConnectPage />} />
+      <Route
+        path={CONNECT_PATH}
+        element={localMindroomOffered ? <ConnectPage /> : <Navigate to={ROOT_PATH} replace />}
+      />
       <Route element={<AuthLayout />}>
         <Route path={LOGIN_PATH} Component={Login} />
         <Route path={REGISTER_PATH} Component={Register} />

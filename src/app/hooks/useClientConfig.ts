@@ -54,7 +54,10 @@ type FeaturedCommunitiesConfig = {
 type SidebarConfig = {
   showThreads?: boolean;
   showExploreCommunity?: boolean;
-  /** The Local MindRoom tab; on unless set to false. */
+  /**
+   * Local MindRoom: the rail tab, its Settings page, the welcome page's setup steps and the
+   * `/connect` pairing page; on unless set to false.
+   */
   showMindRoom?: boolean;
   /** Read by nothing; kept because the ported WelcomePage test's config still sets it. */
   mindRoomUrl?: string;

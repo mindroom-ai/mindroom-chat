@@ -48,7 +48,7 @@ The configuration this repository ships (`config.mindroom.json`) sets `homeserve
 |---|---|---|---|
 | `sidebar.showThreads` | boolean | `true` | `false` hides the Threads button in the icon rail. |
 | `sidebar.showExploreCommunity` | boolean | `true` | `false` hides the Explore and Create Space buttons in the icon rail. |
-| `sidebar.showMindRoom` | boolean | `true` | `false` hides Local MindRoom in the icon rail and in Settings. The `/connect` page and the welcome page's setup steps do not read it. |
+| `sidebar.showMindRoom` | boolean | `true` | `false` turns Local MindRoom off: no icon rail entry, no Settings page, no setup steps on the welcome page, and `/connect` (pairing links included) goes to `/`. |
 | `sidebar.mindRoomProvisioningUrl` | string (URL) | the account's homeserver | Origin of the provisioning service that pairs a Local MindRoom (the `/connect` page, Settings, and the setup steps the welcome page shows a day after first use while nothing is paired). An account whose homeserver has another origin cannot sign in to that service, so it gets no Local MindRoom entry. |
 
 ### Explore
@@ -129,7 +129,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 | Global | Default | Effect |
 |---|---|---|
 | `window.__APP_BASE_PATH__` | `"/"` | Base path of the router and of the app's own URLs. Sub-paths do not work with the current build, whose asset URLs and `config.json` request start at `/`. |
-| `window.__ENABLE_SERVICE_WORKER__` | `true` | Anything but `true` or the string `"true"` registers no service worker. The web app then has no offline start and no check for new deployments, and it loads media from the unauthenticated media endpoints. |
+| `window.__ENABLE_SERVICE_WORKER__` | `true` | Anything but `true` or the string `"true"` registers no service worker. The web app then has no offline start, and it loads media from the unauthenticated media endpoints. It also skips the check for new deployments, which only installs the new build's service worker for the next start; without a service worker each start loads the app from the server. |
 | `window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__` | `[]` | Up to 8 root-relative paths (each with everything under it) that the service worker sends to the network instead of answering with the app. `/connections`, `/mcp` and `/reports`, which a MindRoom backend serves on a shared origin, are always excluded. |
 | `window.__AUTHENTICATION_RECOVERY_CONFIG__` | `null` | For a deployment behind an authenticating proxy: `{probeUrl, navigationUrl?, timeoutMs?}`. The client requests `probeUrl` at start, every minute, and when the window regains focus, becomes visible or comes back online. `204` means the proxy session holds; `401` or a redirect means it expired, and the client removes its service worker and navigates to `navigationUrl` (default: the current page) so the proxy can sign the person in, at most once per tab session. The Sign in button of the configuration error screen does the same. Both URLs must be on the app's origin, root-relative or absolute. `timeoutMs` is 1000 to 30000 (default 5000). An invalid value turns recovery off; with `null`, the Sign in button reloads the current page. |
 
