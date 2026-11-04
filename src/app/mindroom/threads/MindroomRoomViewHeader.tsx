@@ -263,7 +263,9 @@ export function RoomViewHeader({
   };
 
   return (
-    <PageHeader className={css.Header} balance={mobile}>
+    // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
+    // the landmark that names the open room.
+    <PageHeader role="banner" className={css.Header} balance={mobile}>
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
         {mobile ? (
           <HeaderAction
