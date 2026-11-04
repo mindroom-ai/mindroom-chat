@@ -13,4 +13,4 @@ Captured on 2026-11-02 from MindRoom Chat `dev` at `fc3a5905`, running locally a
 | `thread3-light.png` | Thread with a streaming reply: running tool row, partial text, typing dots |
 | `settings.png` | Settings dialog |
 
-Not part of the target: the thread filter bar seen at the top of `room-light.png` (Unresolved, view toggle, Last Reply sort) and the Simple Mode setting. The Compact and Full switch moves to the room header.
+The thread filter bar at the top of `room-light.png` is part of the target without its view toggle: the Compact and Full switch moves to the room header. The screenshots show the bar in Simple Mode (Unresolved, Last Reply sort); this client has no Simple Mode and shows the full bar, with its status filters, presets, statistics, search, sort lock and tags in the same style. The Simple Mode setting is not part of the target.

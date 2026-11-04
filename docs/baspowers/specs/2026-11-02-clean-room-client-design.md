@@ -11,7 +11,7 @@ This project rebuilds it under Apache-2.0 so it looks and works like MindRoom Ch
 What Bas decided:
 
 - Keep the components Bas wrote himself as close to today's code as possible: liquid glass, the collapsible thread banner, the compact room view, tool calls, model badges, approvals, the command palette, canvas, computer, and the rest of `src/app/mindroom/`.
-- Drop the thread filter bar and Simple Mode.
+- Drop the thread filter bar and Simple Mode. (On 2026-11-03 Bas brought the filter bar back, without its view buttons; section 4.)
 - Option C: React and `matrix-js-sdk` (both permissive), Bas's files ported nearly verbatim, everything the upstream client owns rebuilt clean.
 
 Success criteria:
@@ -59,8 +59,8 @@ State management and component structure follow what the ported files expect: `m
 
 ## 4. Product decisions
 
-- No thread filter bar and no Simple Mode. Advanced features (command palette) are always on.
-- The room view has two modes, Compact (threads as equal-height bars, MindRoom Chat's compact room view) and Full (classic timeline). Without the filter bar, the switch is an icon button in the room header; the choice is remembered per room as today.
+- No Simple Mode. Advanced features (command palette) are always on. The thread filter bar is back (Bas, 2026-11-03) as MindRoom Chat's full bar without its view buttons: thread count, status filters (Unresolved is Resolved excluded), presets, statistics, search, sort with its lock, and tags, stored per room.
+- The room view has two modes, Compact (threads as equal-height bars, MindRoom Chat's compact room view) and Full (classic timeline). The switch is an icon button in the room header, not in the filter bar; the choice is remembered per room as today. The filter bar shows above the Compact cards; the Full view shows every message and has no bar.
 - Thread view: the thread replaces the room view in the main area, with the collapsible thread banner (tags, title, pin, resolve, options).
 - Look: today's MindRoom Chat look in light and dark (Inter, folds tokens, liquid glass), per `docs/design/reference/`.
 - Canvas and Computer panels, approvals, background jobs, schedules, voice, connections, and bug reports come over with the ported files and their seams.

@@ -18,14 +18,14 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 ### Lane P edit rules
 
-- **Lane P files** (listed in `docs/provenance/portable.tsv` and `portable-wave2.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, or delete code for dropped features (thread filter bar, Simple Mode, Element Call). Never rewrite their logic.
+- **Lane P files** (listed in `docs/provenance/portable.tsv` and `portable-wave2.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, or delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons). Never rewrite their logic.
 - Do not run Prettier or any other formatter over a Lane P file.
 - **Seams:** a seam keeps its path and exports every name listed for it in `seams.tsv` with types that satisfy all Lane P call sites. Its implementation is new code. A seam may export more than listed when Lane C needs it.
 
 ## Licenses and product
 
 - Licenses: dependencies must be MIT, Apache-2.0, BSD, ISC, 0BSD, Zlib, Unicode, CC0, BlueOak, OFL (fonts), or MPL-2.0 used unmodified. `scripts/license-check.mjs` also accepts Python-2.0 (argparse) and Unlicense, and three packages by name (`require-like`, `caniuse-lite`, `jsonify`); `NOTICE` lists them with the reasons. Never add `@element-hq/element-call-embedded`.
-- Product: no thread filter bar, no Simple Mode; the Compact and Full switch is an icon button in the room header.
+- Product: no Simple Mode; the thread filter bar has no view buttons, and the Compact and Full switch is an icon button in the room header.
 
 ## Commands
 
