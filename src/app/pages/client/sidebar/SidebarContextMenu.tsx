@@ -1,9 +1,10 @@
 import React, { ReactNode } from 'react';
-import { Box, config, toRem } from 'folds';
+import { toRem } from 'folds';
 import { PopOut } from '../../../components/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../../components/glass/GlassPrimitives';
+import { MenuGroup } from '../../../components/MenuEntry';
 import { stopPropagation } from '../../../utils/keyboard';
 
 type SidebarContextMenuProps = {
@@ -33,9 +34,7 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
           }}
         >
           <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
-            <Box style={{ padding: config.space.S100 }} direction="Column" gap="100">
-              {children}
-            </Box>
+            <MenuGroup>{children}</MenuGroup>
           </Menu>
         </FocusTrap>
       }

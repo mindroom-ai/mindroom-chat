@@ -1,9 +1,9 @@
 import { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Icons, Line, Spinner, config, toRem } from 'folds';
+import { Icons, Line, Spinner, toRem } from 'folds';
 import { Menu } from '../../components/glass/GlassPrimitives';
-import { MenuEntry } from '../../components/MenuEntry';
+import { MenuEntry, MenuGroup } from '../../components/MenuEntry';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -52,14 +52,6 @@ function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () =>
         />
       )}
     </RoomNotificationModeSwitcher>
-  );
-}
-
-function MenuGroup({ children }: { children: ReactNode }) {
-  return (
-    <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-      {children}
-    </Box>
   );
 }
 

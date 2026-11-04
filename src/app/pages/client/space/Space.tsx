@@ -1,13 +1,10 @@
-import { MouseEventHandler, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, Line, Text, config, toRem } from 'folds';
-import { PopOut } from '../../../components/directional';
-import type { IconSrc, RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { ReactNode, Suspense, lazy, useMemo, useState } from 'react';
+import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
+import type { IconSrc } from 'folds';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
   NavCategory,
@@ -32,13 +29,14 @@ import {
 import { SpaceProvider, useSpace } from '../../../hooks/useSpace';
 import { useRoomName } from '../../../hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
-import { stopPropagation } from '../../../utils/keyboard';
 import { copyToClipboard } from '../../../utils/dom';
 import { useOpenSpaceSettings } from '../../../state/hooks/spaceSettings';
 import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
+import { NavOptionsMenu } from '../NavOptionsMenu';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { getRoomSearchParams } from '../../pathSearchParam';
@@ -169,90 +167,6 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
   const [inviting, setInviting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const navigate = useNavigate();
-  const [menuAt, setMenuAt] = useState<RectCords>();
-  const dismiss = () => setMenuAt(undefined);
-  const showMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
-    setMenuAt(event.currentTarget.getBoundingClientRect());
-  };
-
-  // Mark the space's rooms read, invite people where allowed, or open the space's settings.
-  const menuContent = (
-    <FocusTrap
-      focusTrapOptions={{
-        clickOutsideDeactivates: true,
-        escapeDeactivates: stopPropagation,
-        initialFocus: false,
-        onDeactivate: dismiss,
-        returnFocusOnDeactivate: false,
-      }}
-    >
-      <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={dismiss} />
-          {canInvite && (
-            <MenuItem
-              size="300"
-              radii="300"
-              after={<Icon size="100" src={Icons.UserPlus} />}
-              onClick={() => {
-                dismiss();
-                setInviting(true);
-              }}
-            >
-              <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
-                {t('sharedUi.space.invite')}
-              </Text>
-            </MenuItem>
-          )}
-          <MenuItem
-            size="300"
-            radii="300"
-            after={<Icon size="100" src={Icons.Link} />}
-            onClick={() => {
-              dismiss();
-              void copyToClipboard(getSpaceShareLink(client, space));
-            }}
-          >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
-              {t('sharedUi.space.copyLink')}
-            </Text>
-          </MenuItem>
-          <MenuItem
-            size="300"
-            radii="300"
-            after={<Icon size="100" src={Icons.Setting} />}
-            onClick={() => {
-              dismiss();
-              openSpaceSettings(spaceId);
-            }}
-          >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
-              {t('featureUi.lobby.lobbyHeader.spaceSettings')}
-            </Text>
-          </MenuItem>
-        </Box>
-        <Line size="300" />
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          <MenuItem
-            size="300"
-            radii="300"
-            variant="Critical"
-            fill="None"
-            after={<Icon size="100" src={Icons.ArrowGoLeft} data-directional />}
-            onClick={() => {
-              dismiss();
-              setLeaving(true);
-            }}
-          >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
-              {t('sharedUi.space.leaveSpace')}
-            </Text>
-          </MenuItem>
-        </Box>
-      </Menu>
-    </FocusTrap>
-  );
-
   return (
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
@@ -262,14 +176,55 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
             {name}
           </Text>
         </Box>
-        <IconButton
-          variant="Background"
-          aria-label={t('featureUi.spaceNav.options')}
-          onClick={showMenu}
-        >
-          <Icon size="200" src={Icons.VerticalDots} />
-        </IconButton>
-        <PopOut anchor={menuAt} align="End" position="Bottom" offset={6} content={menuContent} />
+        {/* Mark the space's rooms read, invite people where allowed, or open the space's settings. */}
+        <NavOptionsMenu label={t('featureUi.spaceNav.options')} width={200}>
+          {(close) => (
+            <>
+              <MenuGroup>
+                <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                {canInvite && (
+                  <MenuEntry
+                    label={t('sharedUi.space.invite')}
+                    icon={Icons.UserPlus}
+                    onSelect={() => {
+                      close();
+                      setInviting(true);
+                    }}
+                  />
+                )}
+                <MenuEntry
+                  label={t('sharedUi.space.copyLink')}
+                  icon={Icons.Link}
+                  onSelect={() => {
+                    close();
+                    void copyToClipboard(getSpaceShareLink(client, space));
+                  }}
+                />
+                <MenuEntry
+                  label={t('featureUi.lobby.lobbyHeader.spaceSettings')}
+                  icon={Icons.Setting}
+                  onSelect={() => {
+                    close();
+                    openSpaceSettings(spaceId);
+                  }}
+                />
+              </MenuGroup>
+              <Line size="300" />
+              <MenuGroup>
+                <MenuEntry
+                  label={t('sharedUi.space.leaveSpace')}
+                  icon={Icons.ArrowGoLeft}
+                  directional
+                  critical
+                  onSelect={() => {
+                    close();
+                    setLeaving(true);
+                  }}
+                />
+              </MenuGroup>
+            </>
+          )}
+        </NavOptionsMenu>
       </Box>
       {inviting && (
         <Suspense fallback={null}>

@@ -1,5 +1,5 @@
 import { type ComponentProps, type MouseEventHandler, type ReactNode } from 'react';
-import { Icon, Text, type IconSrc } from 'folds';
+import { Box, Icon, Text, config, type IconSrc } from 'folds';
 import { MenuItem } from './glass/GlassPrimitives';
 
 type MenuEntryProps = Omit<
@@ -43,5 +43,14 @@ export function MenuEntry({
         {label}
       </Text>
     </MenuItem>
+  );
+}
+
+/** A run of menu rows; a menu with several groups puts a line between them. */
+export function MenuGroup({ children }: { children: ReactNode }) {
+  return (
+    <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+      {children}
+    </Box>
   );
 }

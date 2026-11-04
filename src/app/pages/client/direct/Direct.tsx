@@ -1,9 +1,4 @@
-import React, { useState } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
-import { PopOut } from '../../../components/directional';
-import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
-import { Menu } from '../../../components/glass/GlassPrimitives';
+import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
@@ -19,46 +14,10 @@ import {
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
-import { stopPropagation } from '../../../utils/keyboard';
+import { MenuGroup } from '../../../components/MenuEntry';
 import { getDirectCreatePath, getDirectRoomPath } from '../../pathUtils';
+import { NavOptionsMenu } from '../NavOptionsMenu';
 import { useDirectRooms } from './useDirectRooms';
-
-// Pressing Escape or clicking elsewhere closes a menu without moving focus around.
-const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
-
-/** The header's options button, whose menu marks every direct room read. */
-function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
-  const [anchor, setAnchor] = useState<RectCords>();
-  const closeMenu = () => setAnchor(undefined);
-  const openMenu = ({ currentTarget }: React.MouseEvent<HTMLButtonElement>) =>
-    setAnchor(currentTarget.getBoundingClientRect());
-
-  const menu = (
-    <FocusTrap
-      focusTrapOptions={{
-        ...LIGHT_DISMISS,
-        initialFocus: false,
-        returnFocusOnDeactivate: false,
-        onDeactivate: closeMenu,
-      }}
-    >
-      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
-        </Box>
-      </Menu>
-    </FocusTrap>
-  );
-
-  return (
-    <>
-      <IconButton variant="Background" aria-label={label} onClick={openMenu}>
-        <Icon size="200" src={Icons.VerticalDots} />
-      </IconButton>
-      <PopOut anchor={anchor} position="Bottom" align="End" offset={4} content={menu} />
-    </>
-  );
-}
 
 /** The Direct Messages navigation: joined direct rooms by latest activity. */
 export function Direct() {
@@ -82,10 +41,16 @@ export function Direct() {
                   {t('nav.directMessages')}
                 </Text>
               </Box>
-              <DirectOptionsMenu
-                label={t('featureUi.directNav.options')}
-                roomIds={dmRooms.map((room) => room.roomId)}
-              />
+              <NavOptionsMenu label={t('featureUi.directNav.options')}>
+                {(close) => (
+                  <MenuGroup>
+                    <MindroomMarkRoomsReadMenuItem
+                      roomIds={dmRooms.map((room) => room.roomId)}
+                      onClose={close}
+                    />
+                  </MenuGroup>
+                )}
+              </NavOptionsMenu>
             </Box>
           </PageNavHeader>
         }

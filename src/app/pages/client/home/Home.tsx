@@ -1,9 +1,6 @@
-import { MouseEventHandler, useMemo, useRef, useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
-import { PopOut } from '../../../components/directional';
-import { Menu } from '../../../components/glass/GlassPrimitives';
-import type { IconSrc, RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { useMemo, useRef, useState } from 'react';
+import { Avatar, Box, Icon, Icons, Text } from 'folds';
+import type { IconSrc } from 'folds';
 import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -40,17 +37,18 @@ import {
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
-import { stopPropagation } from '../../../utils/keyboard';
 import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { MenuGroup } from '../../../components/MenuEntry';
 import {
   getHomeCreatePath,
   getHomeRoomPath,
   getHomeSearchPath,
   withSearchParam,
 } from '../../pathUtils';
+import { NavOptionsMenu } from '../NavOptionsMenu';
 import { useHomeRooms } from './useHomeRooms';
 
 const ROOM_ROW_HEIGHT = 36;
@@ -62,42 +60,6 @@ const sortRooms = (mx: MatrixClient, roomIds: string[]): string[] => {
   const nameOf = (roomId: string): string => mx.getRoom(roomId)?.name ?? roomId;
   return [...roomIds].sort((a, b) => roomNameOrder.compare(nameOf(a), nameOf(b)));
 };
-
-/** The header's options button, whose menu marks every listed room read. */
-function MarkRoomsReadMenu({ label, roomIds }: { label: string; roomIds: string[] }) {
-  const [anchor, setAnchor] = useState<RectCords>();
-  const closeMenu = () => setAnchor(undefined);
-  const openMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
-    setAnchor(event.currentTarget.getBoundingClientRect());
-  };
-
-  const menu = (
-    <FocusTrap
-      focusTrapOptions={{
-        clickOutsideDeactivates: true,
-        escapeDeactivates: stopPropagation,
-        initialFocus: false,
-        onDeactivate: closeMenu,
-        returnFocusOnDeactivate: false,
-      }}
-    >
-      <Menu style={{ width: '100vw', maxWidth: toRem(160) }}>
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={closeMenu} />
-        </Box>
-      </Menu>
-    </FocusTrap>
-  );
-
-  return (
-    <>
-      <IconButton variant="Background" aria-label={label} onClick={openMenu}>
-        <Icon size="200" src={Icons.VerticalDots} />
-      </IconButton>
-      <PopOut anchor={anchor} align="End" position="Bottom" offset={6} content={menu} />
-    </>
-  );
-}
 
 function HomeHeader({ roomIds }: { roomIds: string[] }) {
   const { t } = useTranslation();
@@ -112,7 +74,13 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
           </Text>
         </Box>
         {/* Its own name, so it is not taken for a room's More Options button. */}
-        <MarkRoomsReadMenu label={t('featureUi.homeNav.options')} roomIds={roomIds} />
+        <NavOptionsMenu label={t('featureUi.homeNav.options')}>
+          {(close) => (
+            <MenuGroup>
+              <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+            </MenuGroup>
+          )}
+        </NavOptionsMenu>
       </Box>
     </PageNavHeader>
   );
