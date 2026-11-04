@@ -30,11 +30,16 @@ type ServerConfigsLoaderProps = {
 const settledValue = <T,>(result: PromiseSettledResult<T>): T | undefined =>
   result.status === 'fulfilled' ? result.value : undefined;
 
+// Servers that require authenticated media (Matrix 1.11) refuse the legacy `/media/v3/config`,
+// and older servers lack `/client/v1/media/config`: ask the authenticated one first.
+const loadMediaConfig = (client: MatrixClient): Promise<MediaConfig> =>
+  client.getMediaConfig(true).catch(() => client.getMediaConfig(false));
+
 const loadServerConfigs = async (client: MatrixClient): Promise<ServerConfigs> => {
   // Each request may fail on its own (older servers lack auth metadata); the rest still count.
   const [capabilities, mediaConfig, authMetadata] = await Promise.allSettled([
     client.getCapabilities(),
-    client.getMediaConfig(),
+    loadMediaConfig(client),
     client.getAuthMetadata(),
   ]);
   return {
