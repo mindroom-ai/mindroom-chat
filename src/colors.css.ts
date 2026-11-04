@@ -81,7 +81,8 @@ const lightPalette: Palette = {
     Container: '#F2F2F2',
     ContainerHover: '#E8E8EC',
     ContainerActive: '#DDDDE2',
-    ContainerLine: '#D6D6DB',
+    // home.png and settings.png: the sidebar, members panel and dialog dividers.
+    ContainerLine: '#E1E1E6',
     OnContainer: '#1F1E26',
   },
   Surface: {
