@@ -10,6 +10,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { isMindroomAiRunStreaming } from '../../mindroom/messages/aiRun';
+import { readCanvasNoticeTitle } from '../../mindroom/ui-actions/chatUiProtocol';
 
 /** Announcements kept in the log; screen readers read each one as it is added. */
 const KEPT = 5;
@@ -48,10 +49,14 @@ const shownContent = (event: MatrixEvent): Content => {
   return replacement && typeof replacement === 'object' ? (replacement as Content) : content;
 };
 
-/** One line of plain text, cut to a length a screen reader can read out. */
+/**
+ * One line of plain text, cut to a length a screen reader can read out. A canvas notice reads
+ * as its title, which the timeline shows; its body only tells other clients to open this one.
+ */
 export const announcementBody = (content: Content): string | undefined => {
-  if (typeof content.body !== 'string') return undefined;
-  const text = content.body.replace(/\s+/g, ' ').trim();
+  const shown = readCanvasNoticeTitle(content) ?? content.body;
+  if (typeof shown !== 'string') return undefined;
+  const text = shown.replace(/\s+/g, ' ').trim();
   if (!text) return undefined;
   return text.length > MAX_BODY ? `${text.slice(0, MAX_BODY - 1).trimEnd()}…` : text;
 };

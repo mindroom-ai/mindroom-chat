@@ -127,4 +127,17 @@ describe('RoomMessageAnnouncer', () => {
     expect(body!.endsWith('…')).toBe(true);
     expect(announcementBody({ body: '   ' })).toBeUndefined();
   });
+
+  it('reads a canvas notice as its title, not the fallback body for other clients', () => {
+    const notice = {
+      msgtype: 'm.notice',
+      body: 'Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.',
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_canvas',
+        canvas: { title: 'Choose a plan', html: '<p>Which plan?</p>' },
+      },
+    };
+    expect(announcementBody(notice)).toBe('Choose a plan');
+  });
 });
