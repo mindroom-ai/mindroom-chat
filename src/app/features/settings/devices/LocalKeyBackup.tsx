@@ -14,6 +14,7 @@ import {
 } from '../../../utils/roomKeyExport';
 import { SettingsCard } from '../SettingsCard';
 import { errorMessage } from '../../../utils/errorMessage';
+import { isExportPasswordLongEnough } from './exportPassword';
 
 const KEY = 'featureUi.settings.devices.localBackup';
 const EXPORT_FILE_NAME = 'mindroom-room-keys.txt';
@@ -84,11 +85,13 @@ function ExportKeys() {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
   const mismatch = confirmation.length > 0 && confirmation !== password;
+  const longEnough = isExportPasswordLongEnough(password);
+  const tooShort = password.length > 0 && !longEnough;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const crypto = client.getCrypto();
-    if (busy || !password || mismatch) return;
+    if (busy || !longEnough || mismatch) return;
     setOutcome(undefined);
     if (!crypto) {
       setOutcome({ ok: false, text: t(`${KEY}.cryptoModuleNotFound`) });
@@ -134,13 +137,20 @@ function ExportKeys() {
               name="exportPassword"
               autoComplete="new-password"
               size="300"
-              variant="Background"
+              variant={tooShort ? 'Critical' : 'Background'}
               outlined
               required
+              aria-invalid={tooShort}
+              aria-describedby={tooShort ? 'exportPasswordTooShort' : undefined}
               value={password}
               disabled={busy}
               onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
             />
+            {tooShort && (
+              <Text id="exportPasswordTooShort" size="T200" style={{ color: color.Critical.Main }}>
+                {t(`${KEY}.passwordTooShort`)}
+              </Text>
+            )}
           </Box>
           <Box direction="Column" gap="100" grow="Yes">
             <Text size="L400">{t(`${KEY}.confirmPassword`)}</Text>
@@ -167,7 +177,7 @@ function ExportKeys() {
             radii="300"
             variant="Primary"
             fill="Soft"
-            disabled={busy || !password || confirmation !== password}
+            disabled={busy || !longEnough || confirmation !== password}
             before={busy ? <Spinner size="50" variant="Primary" /> : undefined}
           >
             <Text size="B300">{t(`${KEY}.export`)}</Text>
