@@ -351,17 +351,22 @@ def read_state(slot_dir: Path) -> dict | None:
 
 
 def running(state: dict | None, slot_dir: Path) -> bool:
-    if not state:
+    """A start that finished (`ready`) and whose processes still run."""
+    if not state or not state.get("ready"):
         return False
     marker = str(slot_dir)
-    return alive(state["pids"].get("backend"), marker) and alive(state["pids"].get("stub"), marker)
+    pids = state.get("pids") or {}
+    return alive(pids.get("backend"), marker) and alive(pids.get("stub"), marker)
+
+
+def stop_processes(slot_dir: Path) -> None:
+    state = read_state(slot_dir) or {}
+    for name in ("backend", "stub"):
+        stop_process((state.get("pids") or {}).get(name), str(slot_dir))
 
 
 def stop(slot_dir: Path) -> None:
-    state = read_state(slot_dir)
-    if state:
-        for name in ("backend", "stub"):
-            stop_process(state["pids"].get(name), str(slot_dir))
+    stop_processes(slot_dir)
     shutil.rmtree(slot_dir, ignore_errors=True)
 
 
@@ -378,16 +383,35 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
-        and state["sha"] == sha
-        and state["homeserver"] == homeserver
-        and token_is_valid(homeserver, state["tester"]["accessToken"])
-        and token_is_valid(homeserver, state["routerToken"])
+        and state.get("sha") == sha
+        and state.get("homeserver") == homeserver
+        and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
+        and token_is_valid(homeserver, state.get("routerToken"))
     ):
         return state
     if state:
-        log("the running stack is stale (other commit, stopped, or its homeserver was reset); restarting it")
+        log(
+            "the stack is stale (other commit, stopped, a start that failed, or its homeserver was reset); "
+            "restarting it"
+        )
     stop(slot_dir)
+    try:
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir)
+    except BaseException:
+        # Whatever this start launched stops; its logs stay in the slot directory until the next start.
+        stop_processes(slot_dir)
+        raise
 
+
+def start(
+    slot: int,
+    args: argparse.Namespace,
+    checkout: Path,
+    sha: str,
+    homeserver: str,
+    port: dict[str, int],
+    slot_dir: Path,
+) -> dict:
     source = prepare_source(checkout, sha)
     venv_bin = source / ".venv" / "bin"
     slot_dir.mkdir(parents=True)
@@ -571,6 +595,8 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             "agentNames": {"router": "MindRoom", **AGENTS},
             "rooms": {"lobby": lobby, "space": space},
             "approvalExpirySeconds": round(args.approval_expiry_days * 86400),
+            # Only a start that got here is reused; any other state file is restarted.
+            "ready": True,
         }
     )
     (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
@@ -579,7 +605,12 @@ def up(slot: int, args: argparse.Namespace) -> dict:
 
 
 def public_state(state: dict) -> dict:
-    return {key: value for key, value in state.items() if key != "routerToken"}
+    return {key: value for key, value in state.items() if key not in ("routerToken", "ready")}
+
+
+def exit_on_sigterm(_signum, _frame) -> None:
+    # A caller that gives up (a spec's timeout) sends SIGTERM; exiting runs the cleanup of a failed start.
+    sys.exit(143)
 
 
 def main() -> int:
@@ -602,6 +633,7 @@ def main() -> int:
     if not 0 <= args.slot <= 50:
         parser.error("slot must be 0-50")
     slot_dir = stack_root() / f"slot-{args.slot}"
+    signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
         with locked(stack_root() / f"slot-{args.slot}.lock"):
             if args.command == "down":
