@@ -12,17 +12,22 @@
 //
 // Columns: spec (relative to e2e/), passed (on the first attempt), failed (on every attempt),
 // skipped, first error (message line and spec location), flaky (passed on a retry), seconds (all
-// attempts together), server, load (the machine's 1-minute load average when the spec started).
+// attempts together), server, load (the machine's 1-minute load average when the spec started),
+// skipped (no service). A skip counts in the last column instead of `skipped` when its reason says
+// the run lacks something the test needs (see `lacksService`): a service such as the call service
+// or a deployment, a fixture, an account or a setting. Other skips (another browser's test, a
+// measurement that cannot work in a theme) stay in `skipped`.
 import { existsSync, readFileSync } from 'node:fs';
 
 /**
  * @typedef {{ message?: string; location?: { file: string; line: number } }} ReportError
  * @typedef {{ status: string; duration: number; error?: ReportError; errors?: ReportError[] }} TestResult
- * @typedef {{ status: string; results: TestResult[] }} ReportTest
+ * @typedef {{ type: string; description?: string }} Annotation
+ * @typedef {{ status: string; results: TestResult[]; annotations?: Annotation[] }} ReportTest
  * @typedef {{ file: string; line: number; tests: ReportTest[] }} ReportSpec
  * @typedef {{ file?: string; specs?: ReportSpec[]; suites?: ReportSuite[] }} ReportSuite
  * @typedef {{ suites?: ReportSuite[]; errors?: ReportError[] }} Report
- * @typedef {{ passed: number; failed: number; skipped: number; flaky: number; ms: number; error: string; server: string; load: string }} Row
+ * @typedef {{ passed: number; failed: number; skipped: number; noService: number; flaky: number; ms: number; error: string; server: string; load: string }} Row
  */
 
 // eslint-disable-next-line no-control-regex
@@ -68,11 +73,32 @@ const describeErrors = (errors) => {
   return `${oneLine(first.message ?? '')} in ${action} (${describeLocation(interrupted.location)})`;
 };
 
+/**
+ * Whether a skip reason names something the run did not provide: a script that starts a service
+ * (`needs scripts/e2e-rtc.sh`), an environment variable (`Set E2E_COMPUTER_FIXTURE ...`,
+ * `E2E_USERNAME / E2E_PASSWORD not set`), a homeserver, a MindRoom checkout, credentials or
+ * accounts, a deployed or hosted app, or something required or not installed.
+ * @param {string} reason
+ */
+const lacksService = (reason) =>
+  /\bscripts\/\S+/.test(reason) ||
+  /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/.test(reason) ||
+  /\b(homeserver|checkout|credentials|accounts?|deployed|hosted|required|not installed)\b/i.test(
+    reason
+  );
+
+/** @param {ReportTest} test */
+const skippedForService = (test) =>
+  (test.annotations ?? []).some(
+    (annotation) => annotation.type === 'skip' && lacksService(annotation.description ?? '')
+  );
+
 /** @returns {Row} */
 const emptyRow = (server = '') => ({
   passed: 0,
   failed: 0,
   skipped: 0,
+  noService: 0,
   flaky: 0,
   ms: 0,
   error: '',
@@ -115,7 +141,8 @@ const addReport = (report, expectedSpec, server) => {
       const row = rowFor(expectedSpec ?? specName(spec.file), server);
       spec.tests.forEach((test) => {
         row.ms += test.results.reduce((sum, result) => sum + result.duration, 0);
-        if (test.status === 'skipped') row.skipped += 1;
+        if (test.status === 'skipped' && skippedForService(test)) row.noService += 1;
+        else if (test.status === 'skipped') row.skipped += 1;
         else if (test.status === 'flaky') row.flaky += 1;
         else if (test.status === 'expected') row.passed += 1;
         else row.failed += 1;
@@ -170,7 +197,7 @@ if (args[0] === '--manifest') {
     if (reportPath && existsSync(reportPath)) readReport(reportPath, name, server);
     const row = rowFor(name, server);
     row.load = load;
-    if (row.passed + row.failed + row.flaky + row.skipped === 0) {
+    if (row.passed + row.failed + row.flaky + row.skipped + row.noService === 0) {
       row.failed = 1;
       row.error ||= lastLogError(logPath);
     } else if (exitCode !== '0' && row.failed === 0 && !row.error) {
@@ -194,12 +221,13 @@ const header = [
   'seconds',
   'server',
   'load',
+  'skipped (no service)',
 ];
 const lines = [...rows.entries()]
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([spec, row]) =>
     [spec, row.passed, row.failed, row.skipped, row.error, row.flaky, Math.round(row.ms / 1000)]
-      .concat(row.server, row.load)
+      .concat(row.server, row.load, row.noService)
       .join('\t')
   );
 // One write, so a reader that stops early (`| head`) ends the process without an EPIPE trace.

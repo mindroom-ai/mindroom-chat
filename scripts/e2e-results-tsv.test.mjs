@@ -75,6 +75,7 @@ test('counts first-attempt passes, flaky tests, skips and failures per spec file
     'seconds',
     'server',
     'load',
+    'skipped (no service)',
   ]);
   assert.deepEqual(rows, [
     [
@@ -87,6 +88,7 @@ test('counts first-attempt passes, flaky tests, skips and failures per spec file
       '65',
       '',
       '',
+      '0',
     ],
   ]);
 });
@@ -121,4 +123,38 @@ test('a manifest row without a report, or with a cut-off report, counts as one f
   assert.deepEqual(bySpec['truncated.spec.ts'].slice(1, 3), ['0', '1']);
   assert.match(bySpec['truncated.spec.ts'][4], /^invalid Playwright report: SyntaxError/);
   assert.equal(bySpec['truncated.spec.ts'][7], 'dev');
+});
+
+const skippedBecause = (type, description) => ({
+  status: 'skipped',
+  annotations: [{ type, description }],
+  results: [result('skipped', 0)],
+});
+
+test('skips for a missing service get their own column, other skips stay in skipped', () => {
+  const report = write('skips.json', {
+    suites: [
+      {
+        specs: [
+          spec('lane-c/calls.spec.ts', [
+            skippedBecause('skip', 'needs scripts/e2e-rtc.sh and its homeserver setting'),
+            skippedBecause(
+              'skip',
+              'Set E2E_COMPUTER_FIXTURE to the isolated local gateway fixture JSON.'
+            ),
+            skippedBecause('skip', 'Hosted SSO shell is not available on the local docker stack.'),
+            skippedBecause('skip', 'Only WebKit hosts IndexedDB in a networking process'),
+            skippedBecause('skip', "Silver's rim is too close to its background to measure"),
+            // Only a skip's own reason counts, not another annotation of the test.
+            skippedBecause('issue', 'E2E_SECOND_USERNAME'),
+            { status: 'skipped', results: [result('skipped', 0)] },
+          ]),
+        ],
+      },
+    ],
+  });
+  const { rows } = run([report]);
+  assert.equal(rows.length, 1);
+  const [row] = rows;
+  assert.deepEqual([row[0], row[3], row[9]], ['lane-c/calls.spec.ts', '4', '3']);
 });
