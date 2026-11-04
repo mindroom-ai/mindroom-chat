@@ -6,6 +6,7 @@ import classNames from 'classnames';
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
 import * as css from './MindRoomParticleBackground.css';
 import { PARTICLE_THEMES } from './particleBackgroundTheme';
+import { rendersWebGLOnCpu } from './softwareWebGL';
 import { useParticleThemeKind } from './useParticleThemeKind';
 
 // Where WebGL2 runs on the GPU, the count follows the kind of screen, not the CPU cores.
@@ -74,7 +75,7 @@ export function MindRoomParticleBackground({
   position = 'absolute',
   selfContained = false,
 }: MindRoomParticleBackgroundProps) {
-  const software = React.useMemo(hasWebGLPerformanceCaveat, []);
+  const software = React.useMemo(rendersWebGLOnCpu, []);
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
   const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
   const options = React.useMemo<ParticularDriftUserOptions>(
