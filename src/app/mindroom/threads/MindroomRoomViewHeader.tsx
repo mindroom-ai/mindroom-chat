@@ -101,6 +101,8 @@ type HeaderActionProps = {
   active?: boolean;
   /** Drawn over the button's corner, such as a count. */
   badge?: ReactNode;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
   buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
 };
 
@@ -112,6 +114,7 @@ function HeaderAction({
   pressed,
   active,
   badge,
+  directional,
   buttonProps,
 }: HeaderActionProps) {
   return (
@@ -137,7 +140,7 @@ function HeaderAction({
           style={badge ? { position: 'relative' } : undefined}
           {...buttonProps}
         >
-          <Icon size="400" src={icon} />
+          <Icon size="400" src={icon} data-directional={directional || undefined} />
           {badge}
         </IconButton>
       )}
@@ -279,6 +282,7 @@ export function RoomViewHeader({
           <HeaderAction
             label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
             icon={Icons.ArrowLeft}
+            directional
             onClick={() => navigate(sectionPath)}
           />
         ) : (

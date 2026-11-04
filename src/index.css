@@ -197,6 +197,13 @@ html[dir='rtl'] [role='switch'][aria-checked='true'] > :first-child {
   transform: translateX(-1.4375rem);
 }
 
+/* An icon that points along the reading direction (back, send, reply, leave, a closed
+   disclosure, the panel toggle) carries data-directional. Right-to-left languages mirror it, so
+   back points right and a closed disclosure points to where its text continues. */
+html[dir='rtl'] [data-directional] {
+  transform: scaleX(-1);
+}
+
 /* Options of a listbox are buttons, which center their text; their labels read from the start. */
 [role='listbox'] [role='option'] {
   text-align: start;

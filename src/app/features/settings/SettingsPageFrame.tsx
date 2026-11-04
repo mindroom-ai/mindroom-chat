@@ -46,7 +46,7 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
             onClick={requestClose}
             aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
           >
-            <Icon src={Icons.ArrowLeft} />
+            <Icon src={Icons.ArrowLeft} data-directional />
           </IconButton>
           {heading}
         </Box>

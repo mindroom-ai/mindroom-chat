@@ -36,18 +36,20 @@ type EntryProps = {
   label: string;
   onSelect: () => void;
   critical?: boolean;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
 };
 
 const entryLabelStyle = { flexGrow: 1 } as const;
 
 /** One menu row: the label, its icon at the end, and the menu closes before the action runs. */
-export function HeaderMenuEntry({ icon, label, onSelect, critical }: EntryProps) {
+export function HeaderMenuEntry({ icon, label, onSelect, critical, directional }: EntryProps) {
   return (
     <MenuItem
       size="300"
       radii="300"
       variant={critical ? 'Critical' : 'Surface'}
-      after={<Icon size="100" src={icon} />}
+      after={<Icon size="100" src={icon} data-directional={directional || undefined} />}
       onClick={onSelect}
     >
       <Text as="span" size="T300" align="Left" truncate style={entryLabelStyle}>
@@ -167,6 +169,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
           <ArchiveRoomMenuItem room={room} onClose={requestClose} />
           <HeaderMenuEntry
             critical
+            directional
             icon={Icons.ArrowGoLeft}
             label={t('mindroomUi.threads.mindroomRoomViewHeader.leaveRoom')}
             onSelect={closeThen(onLeave)}

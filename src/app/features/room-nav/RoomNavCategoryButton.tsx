@@ -29,7 +29,11 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
       {...props}
       ref={ref}
     >
-      <Icon size="50" src={closed ? Icons.ChevronRight : Icons.ChevronBottom} />
+      <Icon
+        size="50"
+        src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+        data-directional={closed || undefined}
+      />
       <Box as="span" grow="Yes">
         <Text as="span" size="O400" priority="300" truncate>
           {children}

@@ -267,7 +267,7 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
           onClick={requestClose}
           aria-label={t('sharedUi.imagePackView.back')}
         >
-          <Icon src={Icons.ArrowLeft} />
+          <Icon src={Icons.ArrowLeft} data-directional />
         </IconButton>
         <Text size="H3" truncate>
           {t('sharedUi.imagePackView.emojisStickers')}

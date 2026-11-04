@@ -56,15 +56,19 @@ export const SidebarItem = recipe({
     {
       position: 'relative',
       selectors: {
-        // The selected tab's indicator: a pill on the rail's left edge. home.png: 4 px wide and
-        // 24 px tall when selected, flush with the edge (12 px left of the 42 px avatar).
+        // The selected tab's indicator: a pill on the rail's outer edge (the left one, or the
+        // right one in a right-to-left language). home.png: 4 px wide and 24 px tall when
+        // selected, flush with the edge (12 px before the 42 px avatar). Its inner end is round.
         '&::before': {
           content: '',
           position: 'absolute',
-          left: `calc(-1 * ${toRem(12)})`,
+          insetInlineStart: `calc(-1 * ${toRem(12)})`,
           inlineSize: toRem(4),
           blockSize: toRem(16),
-          borderRadius: `0 ${config.radii.Pill} ${config.radii.Pill} 0`,
+          borderStartStartRadius: 0,
+          borderEndStartRadius: 0,
+          borderStartEndRadius: config.radii.Pill,
+          borderEndEndRadius: config.radii.Pill,
           backgroundColor: color.Background.OnContainer,
           transform: 'scaleY(0)',
           transition: 'transform 200ms ease',
@@ -152,13 +156,13 @@ export const SidebarAvatar = recipe({
         },
       },
     },
-    // A small round action pinned to the bottom-right corner of the entry it shares a
-    // SidebarItem with. It fades in while that entry is hovered or holds focus, and stays
+    // A small round action pinned to the bottom-end corner (bottom-right, or bottom-left in a
+    // right-to-left language) of the entry it shares a SidebarItem with. It fades in while that entry is hovered or holds focus, and stays
     // visible where nothing can hover.
     corner: {
       true: {
         position: 'absolute',
-        right: toRem(-5),
+        insetInlineEnd: toRem(-5),
         bottom: toRem(-5),
         zIndex: 1,
         inlineSize: toRem(20),
@@ -181,10 +185,16 @@ export const SidebarAvatar = recipe({
   defaultVariants: { size: '400', outlined: false, corner: false },
 });
 
-/** Offsets that put the badge's top-left corner `distance` px outside the entry's. */
-const cornerOffset = (distance: number) => ({ top: toRem(distance), left: toRem(distance) });
+/**
+ * Offsets that put the badge's top-start corner (top-left, or top-right in a right-to-left
+ * language) `distance` px outside the entry's.
+ */
+const cornerOffset = (distance: number) => ({
+  top: toRem(distance),
+  insetInlineStart: toRem(distance),
+});
 
-/** The unread badge, pinned over the top-left corner of the rail entry. */
+/** The unread badge, pinned over the top-start corner of the rail entry. */
 export const SidebarItemBadge = recipe({
   base: { position: 'absolute', zIndex: 1, pointerEvents: 'none' },
   variants: {

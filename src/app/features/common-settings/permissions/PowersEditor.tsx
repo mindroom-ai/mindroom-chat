@@ -121,7 +121,7 @@ export function PowersEditor({ requestClose, powerLevels }: PowersEditorProps) {
                 onClick={requestClose}
                 aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
               >
-                <Icon src={Icons.ArrowLeft} />
+                <Icon src={Icons.ArrowLeft} data-directional />
               </IconButton>
               <Text size="H3" truncate>
                 {t('featureUi.commonSettings.permissions.powersEditor.powerLevels')}

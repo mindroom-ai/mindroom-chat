@@ -96,16 +96,25 @@ type MenuItemProps = {
   onClick: () => void;
   variant?: 'Critical';
   disabled?: boolean;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
 };
 
-function MessageMenuAction({ label, icon, onClick, variant, disabled }: MenuItemProps) {
+function MessageMenuAction({
+  label,
+  icon,
+  onClick,
+  variant,
+  disabled,
+  directional,
+}: MenuItemProps) {
   return (
     <MenuItem
       size="300"
       radii="300"
       variant={variant}
       disabled={disabled}
-      after={<Icon size="100" src={icon} />}
+      after={<Icon size="100" src={icon} data-directional={directional || undefined} />}
       onClick={onClick}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
@@ -121,10 +130,12 @@ type ToolbarActionProps = {
   onClick: MouseEventHandler<HTMLButtonElement>;
   /** For buttons that open something: whether it is open. */
   pressed?: boolean;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
 };
 
 /** An icon button of the hover toolbar, which shows its name in a tooltip above it. */
-function ToolbarAction({ label, icon, onClick, pressed }: ToolbarActionProps) {
+function ToolbarAction({ label, icon, onClick, pressed, directional }: ToolbarActionProps) {
   return (
     <IconTooltip label={label} position="Top">
       {(tooltipRef) => (
@@ -136,7 +147,7 @@ function ToolbarAction({ label, icon, onClick, pressed }: ToolbarActionProps) {
           aria-pressed={pressed}
           onClick={onClick}
         >
-          <Icon src={icon} size="100" />
+          <Icon src={icon} size="100" data-directional={directional || undefined} />
         </IconButton>
       )}
     </IconTooltip>
@@ -794,6 +805,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <MessageMenuAction
                   label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
+                  directional
                   onClick={() => {
                     onReplyClick(eventId);
                     dismissMenu();
@@ -917,6 +929,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <ToolbarAction
                   label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
+                  directional
                   onClick={() => onReplyClick(eventId)}
                 />
               )}

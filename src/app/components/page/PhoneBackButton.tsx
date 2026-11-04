@@ -28,7 +28,7 @@ export function PhoneBackButton({ to }: PhoneBackButtonProps) {
       onClick={() => navigate(to)}
       style={{ flexShrink: 0 }}
     >
-      <Icon size="400" src={Icons.ArrowLeft} />
+      <Icon size="400" src={Icons.ArrowLeft} data-directional />
     </IconButton>
   );
 }

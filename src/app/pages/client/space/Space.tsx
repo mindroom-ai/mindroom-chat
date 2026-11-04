@@ -237,7 +237,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
             radii="300"
             variant="Critical"
             fill="None"
-            after={<Icon size="100" src={Icons.ArrowGoLeft} />}
+            after={<Icon size="100" src={Icons.ArrowGoLeft} data-directional />}
             onClick={() => {
               dismiss();
               setLeaving(true);

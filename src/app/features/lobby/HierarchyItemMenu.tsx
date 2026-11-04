@@ -44,6 +44,8 @@ type MenuAction = {
   label: string;
   icon: IconSrc;
   critical?: boolean;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
   run: () => void;
 };
 
@@ -141,6 +143,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       label: t('featureUi.lobby.hierarchyItemMenu.leave'),
       icon: Icons.ArrowGoLeft,
       critical: true,
+      directional: true,
       run: () => setDialog('leave'),
     });
   }
@@ -157,7 +160,9 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       radii="300"
       variant={action.critical ? 'Critical' : undefined}
       fill={action.critical ? 'None' : undefined}
-      after={<Icon size="100" src={action.icon} />}
+      after={
+        <Icon size="100" src={action.icon} data-directional={action.directional || undefined} />
+      }
       onClick={() => {
         close();
         action.run();

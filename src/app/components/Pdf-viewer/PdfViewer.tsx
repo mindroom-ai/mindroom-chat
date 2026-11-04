@@ -55,7 +55,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
             radii="300"
             size="300"
           >
-            <Icon src={Icons.ArrowLeft} size="50" />
+            <Icon src={Icons.ArrowLeft} size="50" data-directional />
           </IconButton>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text truncate size="T300">

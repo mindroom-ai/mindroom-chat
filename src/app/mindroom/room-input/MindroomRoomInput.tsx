@@ -170,6 +170,8 @@ type ComposerIconButtonProps = {
   /** Pressed state of a toggle, which also fills its icon. */
   pressed?: boolean;
   variant?: 'Primary' | 'SurfaceVariant';
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
   onPress: (event: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
@@ -179,6 +181,7 @@ function ComposerIconButton({
   icon,
   pressed,
   variant = 'SurfaceVariant',
+  directional,
   onPress,
 }: ComposerIconButtonProps) {
   return (
@@ -193,7 +196,7 @@ function ComposerIconButton({
           radii="300"
           size="300"
         >
-          <Icon src={icon} filled={pressed} />
+          <Icon src={icon} filled={pressed} data-directional={directional || undefined} />
         </IconButton>
       )}
     </IconTooltip>
@@ -630,6 +633,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               <ComposerIconButton
                 label={sendLabel}
                 icon={Icons.Send}
+                directional
                 variant="Primary"
                 onPress={handleSend}
               />

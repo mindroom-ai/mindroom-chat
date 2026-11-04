@@ -70,7 +70,7 @@ function PageNavToggle() {
             aria-expanded={!collapsed}
             onClick={() => setCollapsed(!collapsed)}
           >
-            <Icon src={collapsed ? Icons.ChevronRight : Icons.ChevronLeft} />
+            <Icon src={collapsed ? Icons.ChevronRight : Icons.ChevronLeft} data-directional />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>

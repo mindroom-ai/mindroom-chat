@@ -209,7 +209,13 @@ export function SpaceItemCard({
               variant="Background"
               radii="Pill"
               onClick={() => handleClose?.(categoryId)}
-              after={<Icon size="50" src={closed ? Icons.ChevronRight : Icons.ChevronBottom} />}
+              after={
+                <Icon
+                  size="50"
+                  src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+                  data-directional={closed || undefined}
+                />
+              }
             >
               <Text size="H4" truncate>
                 {localSummary.name}

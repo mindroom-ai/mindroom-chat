@@ -65,7 +65,11 @@ export function UploadBoardHeader(props: UploadBoardHeaderProps) {
           aria-expanded={open}
           style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
         >
-          <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronRight} />
+          <Icon
+            size="50"
+            src={open ? Icons.ChevronTop : Icons.ChevronRight}
+            data-directional={!open || undefined}
+          />
           <Text as="span" size="H6">
             {t('sharedUi.uploadBoard.fileCount', { count: uploads.length })}
           </Text>

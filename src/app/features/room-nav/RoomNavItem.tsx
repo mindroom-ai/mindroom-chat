@@ -142,6 +142,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
         <ArchiveRoomMenuItem room={room} onClose={requestClose} />
         <RoomMenuEntry
           critical
+          directional
           icon={Icons.ArrowGoLeft}
           label={t('featureUi.roomNav.roomNavItem.leaveRoom')}
           onClick={closeThen(() => onPrompt('leave'))}
@@ -161,16 +162,32 @@ type RoomMenuEntryProps = {
   busy?: boolean;
   /** For an entry that opens a menu of its own: whether that menu is open. */
   expanded?: boolean;
+  /** The icon points along the reading direction, so right-to-left languages mirror it. */
+  directional?: boolean;
 };
 
-function RoomMenuEntry({ icon, label, onClick, critical, busy, expanded }: RoomMenuEntryProps) {
+function RoomMenuEntry({
+  icon,
+  label,
+  onClick,
+  critical,
+  busy,
+  expanded,
+  directional,
+}: RoomMenuEntryProps) {
   return (
     <MenuItem
       size="300"
       radii="300"
       variant={critical ? 'Critical' : 'Surface'}
       fill={expanded ? 'Soft' : 'None'}
-      after={busy ? <Spinner size="100" variant="Secondary" /> : <Icon size="100" src={icon} />}
+      after={
+        busy ? (
+          <Spinner size="100" variant="Secondary" />
+        ) : (
+          <Icon size="100" src={icon} data-directional={directional || undefined} />
+        )
+      }
       aria-haspopup={expanded === undefined ? undefined : 'menu'}
       aria-expanded={expanded}
       onClick={onClick}

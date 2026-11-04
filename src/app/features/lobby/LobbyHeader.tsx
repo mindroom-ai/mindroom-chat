@@ -151,7 +151,7 @@ export function LobbyHeader({
             onClick={onBack}
             aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
           >
-            <Icon size="400" src={Icons.ArrowLeft} />
+            <Icon size="400" src={Icons.ArrowLeft} data-directional />
           </IconButton>
         )}
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
@@ -236,7 +236,7 @@ export function LobbyHeader({
                     radii="300"
                     variant="Critical"
                     fill="None"
-                    after={<Icon size="100" src={Icons.ArrowGoLeft} />}
+                    after={<Icon size="100" src={Icons.ArrowGoLeft} data-directional />}
                     onClick={() => {
                       closeMenu();
                       setLeaving(true);
