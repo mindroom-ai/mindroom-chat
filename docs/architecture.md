@@ -9,7 +9,7 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 ## How the app starts
 
 1. `index.html` loads `runtime-config.js` (`src/runtimeConfig.ts`: base path, service worker switch, sign-in recovery settings) and `authentication-recovery.js` (`src/authenticationRecovery.ts`), then the module `src/index.tsx`.
-2. `src/index.tsx` starts diagnostics, applies the stored theme, loads i18n, registers the service worker (`src/sw.ts`, which serves the cached app shell, precaches only what a signed-in start needs (`scripts/precache-plan.mjs`) and keeps the build's other files on first use (`src/swRuntimeAssets.ts`), and fetches authenticated media) unless it is switched off, and renders `App`.
+2. `src/index.tsx` starts diagnostics, applies the stored theme, loads i18n, registers the service worker (`src/sw.ts`, which serves the cached app shell, precaches only what a signed-in start needs (`scripts/precache-plan.mjs`), keeps the build's other files on first use (`src/swRuntimeAssets.ts`) and the language catalogs with their overlays (`src/swLanguageFiles.ts`), and fetches authenticated media) unless it is switched off, watches for parts that cannot load after a deployment (`src/appUpdate.ts`), and renders `App`, whose root error boundary (`AppErrorBoundary`) shows a failed screen with Reload.
 3. `src/app/pages/App.tsx` sets up jotai, the theme and TanStack Query, loads `config.json` (`src/app/components/ClientConfigLoader.tsx`; see `docs/configuration.md`), and creates the router (`src/app/pages/Router.tsx`).
 4. Sign-in pages live under `src/app/pages/auth/`. Every signed-in route renders `ClientRoot` (`src/app/pages/client/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/client/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
 5. Accounts are kept in a session registry (`src/app/state/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
@@ -18,7 +18,7 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 
 | Path | What is there |
 |---|---|
-| `src/index.tsx`, `src/runtimeConfig.ts`, `src/authenticationRecovery.ts`, `src/sw*.ts`, `src/appVersion.ts` | Entry point, deployment bootstrap, service worker, check for new deployments |
+| `src/index.tsx`, `src/runtimeConfig.ts`, `src/authenticationRecovery.ts`, `src/sw*.ts`, `src/appVersion.ts`, `src/appUpdate.ts` | Entry point, deployment bootstrap, service worker, check for new deployments, the reload into a new one |
 | `src/client/` | Creating, starting and signing out the Matrix client; access token refresh |
 | `src/app/pages/` | Router, sign-in pages (`auth/`), and the signed-in pages (`client/`: home, direct messages, threads, explore, inbox, spaces, canvases, connections) |
 | `src/app/features/` | Larger screens: the room (header, timeline, composer, members), room navigation, settings, room and space settings, creating rooms and spaces, calls |
