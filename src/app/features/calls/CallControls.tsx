@@ -1,4 +1,11 @@
-import React, { forwardRef, useCallback, useEffect, useState, type MouseEvent } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -134,7 +141,13 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
   const devices = useMediaDevices(true);
   const kinds = DEVICE_KINDS.filter((kind) => devices[kind].length > 0);
   return (
-    <Menu ref={ref} className={css.DeviceMenu} aria-label={t('featureUi.calls.devices.title')}>
+    // Focusable itself, so the focus trap has a place while the browser still lists the devices.
+    <Menu
+      ref={ref}
+      tabIndex={-1}
+      className={css.DeviceMenu}
+      aria-label={t('featureUi.calls.devices.title')}
+    >
       {kinds.map((kind, kindIndex) => {
         // The system default comes first; a device not chosen yet follows it.
         const selected = chosen[kind] ?? devices[kind][0]?.deviceId;
@@ -199,6 +212,7 @@ export function DeviceControl({
 }) {
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
+  const menuRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setAnchor(undefined), []);
   return (
     <>
@@ -220,6 +234,7 @@ export function DeviceControl({
           <FocusTrap
             focusTrapOptions={{
               initialFocus: false,
+              fallbackFocus: () => menuRef.current ?? document.body,
               returnFocusOnDeactivate: true,
               clickOutsideDeactivates: () => {
                 close();
@@ -231,7 +246,7 @@ export function DeviceControl({
               },
             }}
           >
-            <DeviceMenu chosen={chosen} onChoose={onChoose} requestClose={close} />
+            <DeviceMenu ref={menuRef} chosen={chosen} onChoose={onChoose} requestClose={close} />
           </FocusTrap>
         }
       />
