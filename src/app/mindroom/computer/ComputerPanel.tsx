@@ -1,6 +1,5 @@
 import React, {
   ComponentType,
-  lazy,
   RefAttributes,
   Suspense,
   useCallback,
@@ -19,9 +18,11 @@ import { sendComputerContinuation } from './continuation';
 import { hasCoarsePointer } from './computerFocus';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ExpandIcon, ShrinkIcon } from '../sidebar/panelIcons';
+import { lazyPart } from '../../utils/lazyPart';
+import { ComputerScreenUnavailable } from './ComputerScreenUnavailable';
 import * as css from './ComputerPanel.css';
 
-const LazyComputerScreen = lazy(() => import('./ComputerScreen'));
+const LazyComputerScreen = lazyPart(() => import('./ComputerScreen'), ComputerScreenUnavailable);
 
 // Soft, outlined actions read as controls without a bright solid fill in dark themes.
 const actionButtonProps = { size: '300', fill: 'Soft', outlined: true, radii: '300' } as const;
