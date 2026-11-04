@@ -1,0 +1,228 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Scorrimento"
+    },
+    "passwordInput": {
+      "show": "Mostra password",
+      "hide": "Nascondi password"
+    },
+    "pdfViewer": {
+      "close": "Chiudi"
+    },
+    "urlPreviewHolder": {
+      "previous": "Anteprime dei link precedenti",
+      "next": "Altre anteprime dei link"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Nome",
+      "cancel": "Annulla",
+      "skinTone": "Tonalità della pelle",
+      "skinTones": {
+        "default": "Tonalità della pelle predefinita",
+        "light": "Carnagione chiara",
+        "mediumLight": "Carnagione medio-chiara",
+        "medium": "Carnagione media",
+        "mediumDark": "Carnagione medio-scura",
+        "dark": "Carnagione scura"
+      }
+    },
+    "eventReaders": {
+      "close": "Chiudi"
+    },
+    "imagePackContent": {
+      "uploadFailed": "Impossibile caricare le immagini. Riprova.",
+      "noImages": "Ancora nessuna immagine."
+    },
+    "imagePackView": {
+      "close": "Chiudi",
+      "back": "Indietro"
+    },
+    "imageTile": {
+      "remove": "Rimuovi",
+      "editImage": "Modifica :{{shortcode}}:",
+      "removeImage": "Rimuovi :{{shortcode}}:",
+      "keepImage": "Mantieni :{{shortcode}}:",
+      "removedOnApply": "Verrà rimossa quando applichi le modifiche",
+      "usage": "Usata come",
+      "shortcodeTaken": "Un’altra immagine ha già questo codice breve.",
+      "shortcodeInvalid": "Un codice breve non può contenere spazi o due punti."
+    },
+    "imageUsageOption": {
+      "pack": "Come il pacchetto"
+    },
+    "imageViewer": {
+      "close": "Chiudi"
+    },
+    "inviteUserPrompt": {
+      "close": "Chiudi"
+    },
+    "joinAddressPrompt": {
+      "close": "Chiudi"
+    },
+    "textViewer": {
+      "close": "Chiudi"
+    },
+    "invites": {
+      "actionFailed": "Qualcosa è andato storto. Riprova."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Cerca utenti o inserisci un ID utente"
+    },
+    "leaveRoomPrompt": {
+      "close": "Chiudi",
+      "forget": "Dimentica questa stanza",
+      "forgetDescription": "La rimuove anche dal tuo account, cronologia compresa. Potrai rientrare più tardi se la stanza lo consente."
+    },
+    "memberFilters": {
+      "label": "Mostra membri"
+    },
+    "memberSort": {
+      "label": "Ordina membri"
+    },
+    "a11y": {
+      "mainNavigation": "Navigazione principale",
+      "skipToContent": "Vai al contenuto",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "Dimentica stanza"
+    },
+    "userRoomProfile": {
+      "editProfile": "Modifica profilo"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "Elimina {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Dai all’evento un tipo e un contenuto che sia un oggetto JSON."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Pacchetto personale",
+          "imageCount_one": "{{count}} immagine, tua in ogni stanza",
+          "imageCount_many": "{{count}} immagini, tue in ogni stanza",
+          "imageCount_other": "{{count}} immagini, tue in ogni stanza"
+        }
+      },
+      "devices": {
+        "loadFailed": "Impossibile caricare i tuoi dispositivi."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Sblocca"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Rimuovi"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "Impossibile avviare la chat. Riprova."
+    },
+    "homeNav": {
+      "options": "Opzioni della Home"
+    },
+    "directNav": {
+      "options": "Opzioni dei messaggi diretti"
+    },
+    "spaceNav": {
+      "options": "Opzioni dello spazio"
+    },
+    "calls": {
+      "panel": {
+        "title": "Chiamata",
+        "close": "Chiudi il pannello della chiamata",
+        "participants": "Persone nella chiamata",
+        "connecting": "Connessione in corso…",
+        "reconnecting": "Riconnessione in corso…",
+        "ended": "La chiamata è terminata.",
+        "waitingFor": "In attesa di {{name}}…",
+        "you": "{{name}} (tu)",
+        "microphoneOff": "Microfono disattivato",
+        "inCall_one": "{{count}} persona nella chiamata",
+        "inCall_many": "{{count}} persone nella chiamata",
+        "inCall_other": "{{count}} persone nella chiamata",
+        "startCall": "Avvia chiamata",
+        "startVideoCall": "Avvia videochiamata",
+        "dismiss": "Chiudi",
+        "audioBlocked": "Il browser ha messo in pausa l’audio della chiamata.",
+        "playSound": "Riproduci audio",
+        "resize": "Ridimensiona il pannello della chiamata"
+      },
+      "problems": {
+        "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
+        "connection": "La connessione della chiamata si è interrotta.",
+        "device": "Impossibile usare il microfono o la fotocamera."
+      },
+      "devices": {
+        "title": "Dispositivi",
+        "microphone": "Microfono",
+        "camera": "Fotocamera",
+        "speaker": "Altoparlante",
+        "systemDefault": "Predefinito di sistema",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Avvia una chiamata",
+        "joinCall": "Partecipa alla chiamata",
+        "joinCallCount_one": "Partecipa alla chiamata, c’è {{count}} persona",
+        "joinCallCount_many": "Partecipa alla chiamata, ci sono {{count}} persone",
+        "joinCallCount_other": "Partecipa alla chiamata, ci sono {{count}} persone",
+        "showCall": "Mostra la chiamata",
+        "hideCall": "Nascondi la chiamata"
+      },
+      "rail": {
+        "returnToCall": "Torna alla chiamata in {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} ti sta chiamando",
+        "callingIn": "{{name}} sta chiamando in {{room}}",
+        "videoCall": "Videochiamata",
+        "voiceCall": "Chiamata vocale"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "Ha pensato"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "Ricerca non riuscita. Riprova."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Invito",
+        "body_one": "Hai {{count}} nuovo invito.",
+        "body_many": "Hai {{count}} nuovi inviti.",
+        "body_other": "Hai {{count}} nuovi inviti."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Vista compatta"
+      }
+    },
+    "computer": {
+      "resize": "Ridimensiona il pannello del computer",
+      "close": "Chiudi il computer"
+    }
+  },
+  "composer": {
+    "emoji": "Emoji",
+    "cancelReply": "Annulla risposta"
+  }
+}
