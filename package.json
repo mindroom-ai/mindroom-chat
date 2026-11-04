@@ -69,6 +69,7 @@
     "katex": "0.16.44",
     "linkify-react": "4.3.2",
     "linkifyjs": "4.3.2",
+    "livekit-client": "2.23.0",
     "markdown-it": "14.3.3",
     "matrix-js-sdk": "41.7.0",
     "prismjs": "1.30.0",
