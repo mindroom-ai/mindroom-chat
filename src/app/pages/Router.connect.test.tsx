@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+import { transferableAbortController } from 'node:util';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { RouterProvider } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../hooks/useClientConfig';
 import { deleteAfterLoginRedirectPath, getAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { createRouter } from './Router';
@@ -17,6 +18,29 @@ vi.mock('./auth/reset-password/ResetPassword', () => ({ ResetPassword: () => nul
 vi.mock('./client/ClientRoot', () => ({ ClientRoot: () => <p>signed-in app</p> }));
 
 const PAIRING_LINKS = ['/connect/?code=ABCD-EFGH', '/connect?code=ABCD-EFGH', '/connect/'];
+
+// Each navigation of a data router builds a Request with an AbortController's signal. Under
+// jsdom the controller is jsdom's and Request is Node's, and Node 24 rejects the foreign signal
+// ("Expected signal to be an instance of AbortSignal"), so every redirect failed there. A browser
+// has one of each. This Request follows the given signal with a Node one instead.
+const NodeRequest = globalThis.Request;
+const followWithNodeSignal = (signal: AbortSignal): AbortSignal => {
+  const controller = transferableAbortController();
+  if (signal.aborted) controller.abort(signal.reason);
+  else signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  return controller.signal;
+};
+class SameRealmSignalRequest extends NodeRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    super(input, init?.signal ? { ...init, signal: followWithNodeSignal(init.signal) } : init);
+  }
+}
+beforeAll(() => {
+  globalThis.Request = SameRealmSignalRequest;
+});
+afterAll(() => {
+  globalThis.Request = NodeRequest;
+});
 
 /** Opens `url` in the app's router under `config`; returns where it ends up. */
 const open = async (url: string, config: ClientConfig): Promise<string> => {
