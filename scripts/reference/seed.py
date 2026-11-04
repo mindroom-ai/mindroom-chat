@@ -5,60 +5,38 @@ Prints the signed-in user, password, room, thread roots (r1..r4) and the direct 
 The screenshots in docs/design/reference/ show this data in MindRoom Chat; compare against them.
 """
 
+import functools
 import json
 import sys
 import time
-import urllib.parse
-import urllib.request
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
-import os
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from matrix_http import call as matrix_call, homeserver_url, quote as q, register as register_account, send as send_event
 
-# The homeserver to seed: E2E_HOMESERVER, else the port of an e2e slot (scripts/e2e-slot.sh), else 28009.
-HS = os.environ.get("E2E_HOMESERVER") or f"http://127.0.0.1:{os.environ.get('E2E_MATRIX_PORT', '28009')}"
+HS = homeserver_url()
 SERVER = "matrix.localhost"
 PW = "reference-pass-1"
 AGENTS = "/home/basnijholt/Work/dev/assets/avatars/painted/agents"
 PEOPLE = "/home/basnijholt/Work/dev/demo/world/avatars/people"
 
-
-def call(method, path, token=None, body=None, raw=None, ctype="application/json"):
-    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
-    req = urllib.request.Request(HS + path, data=data, method=method)
-    if data is not None:
-        req.add_header("Content-Type", ctype)
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    try:
-        with urllib.request.urlopen(req) as r:
-            return json.loads(r.read() or b"{}")
-    except urllib.error.HTTPError as e:
-        payload = json.loads(e.read() or b"{}")
-        if e.code == 401 and "session" in payload:
-            return payload
-        raise RuntimeError(f"{method} {path}: {e.code} {payload}") from None
+call = functools.partial(matrix_call, HS)
 
 
 def register(username, display, avatar):
-    first = call("POST", "/_matrix/client/v3/register", body={"username": username, "password": PW})
-    if "access_token" not in first:
-        first = call("POST", "/_matrix/client/v3/register", body={
-            "username": username, "password": PW, "auth": {"type": "m.login.dummy", "session": first["session"]}})
-    tok, uid = first["access_token"], first["user_id"]
+    account = register_account(HS, username, PW)
+    tok, uid = account["access_token"], account["user_id"]
     call("PUT", f"/_matrix/client/v3/profile/{q(uid)}/displayname", tok, {"displayname": display})
     with open(avatar, "rb") as f:
-        mxc = call("POST", "/_matrix/media/v3/upload?filename=a.png", tok, raw=f.read(), ctype="image/png")["content_uri"]
+        mxc = call("POST", "/_matrix/media/v3/upload?filename=a.png", tok, raw=f.read(), content_type="image/png")["content_uri"]
     call("PUT", f"/_matrix/client/v3/profile/{q(uid)}/avatar_url", tok, {"avatar_url": mxc})
     return {"id": uid, "tok": tok, "name": display}
 
 
-def q(s):
-    return urllib.parse.quote(s, safe="")
-
-
 def send(user, room, content, etype="m.room.message"):
-    return call("PUT", f"/_matrix/client/v3/rooms/{q(room)}/send/{etype}/{uuid.uuid4().hex}", user["tok"], content)["event_id"]
+    return send_event(HS, user["tok"], room, content, etype)
 
 
 def mention(user):

@@ -107,6 +107,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs), with Node's test runner.
+# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs with Node's test runner, scripts/test_matrix_http.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs
+    python3 -m unittest scripts/test_matrix_http.py

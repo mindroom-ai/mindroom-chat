@@ -34,9 +34,11 @@ import subprocess
 import sys
 import tarfile
 import time
-import urllib.error
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from matrix_http import http_json, register
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_CHECKOUT = "/home/basnijholt/Work/dev/mindroom"
@@ -87,28 +89,6 @@ def locked(path: Path):
 
 
 # Matrix and HTTP helpers
-
-
-def http_json(
-    method: str, url: str, body: object | None = None, token: str | None = None, timeout: float = 10.0
-):
-    data = None if body is None else json.dumps(body).encode()
-    request = urllib.request.Request(url, data=data, method=method)
-    request.add_header("Content-Type", "application/json")
-    if token:
-        request.add_header("Authorization", f"Bearer {token}")
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
-            return response.status, json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as error:
-        raw = error.read()
-        try:
-            return error.code, json.loads(raw) if raw else {}
-        except json.JSONDecodeError:
-            return error.code, {"error": raw.decode(errors="replace")}
-    except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as error:
-        return 0, {"error": str(error)}
 
 
 def matrix(homeserver: str, method: str, path: str, body: object | None = None, token: str | None = None):
@@ -417,16 +397,12 @@ def start(
     slot_dir.mkdir(parents=True)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
-    status, body = matrix(
-        homeserver,
-        "POST",
-        "/register",
-        {"username": tester, "password": TESTER_PASSWORD, "auth": {"type": "m.login.dummy"}},
-    )
-    if status != 200:
-        raise StackError(f"registering {tester} failed: {status} {body}")
-    tester_id = body["user_id"]
-    tester_token = body["access_token"]
+    try:
+        account = register(homeserver, tester, TESTER_PASSWORD)
+    except RuntimeError as error:
+        raise StackError(f"registering {tester} failed: {error}") from error
+    tester_id = account["user_id"]
+    tester_token = account["access_token"]
     matrix(homeserver, "PUT", f"/profile/{tester_id}/displayname", {"displayname": "Tester"}, tester_token)
 
     (slot_dir / "approval_scripts").mkdir()
