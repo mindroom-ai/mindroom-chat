@@ -3,17 +3,14 @@ import { useShowLocalMindroom } from '../../../mindroom/local-mindroom/useShowLo
 import type { MindroomAccountSettings } from '../../../mindroom/settings/mindroomAccountSettings';
 import { useMindroomAccountSettings } from '../../../mindroom/settings/useMindroomAccountSettings';
 
-/** The icon rail buttons each person can hide in Settings, in their order on the rail. */
-export const RAIL_BUTTONS = [
-  'threads',
-  'canvases',
-  'explore',
-  'createSpace',
-  'search',
-  'localMindroom',
-] as const;
-
-export type RailButton = (typeof RAIL_BUTTONS)[number];
+/** The icon rail buttons each person can hide in Settings. */
+export type RailButton =
+  | 'threads'
+  | 'canvases'
+  | 'explore'
+  | 'createSpace'
+  | 'search'
+  | 'localMindroom';
 
 export type RailButtons = Record<RailButton, boolean>;
 
