@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Box, Spinner } from 'folds';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../hooks/router/useResolvedRoomIdOrAlias';
@@ -9,7 +9,7 @@ import { mDirectAtom } from '../../state/mDirectList';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { JoinBeforeNavigate } from '../../features/join-before-navigate/JoinBeforeNavigate';
 import { getRoomSearchParams } from '../pathSearchParam';
-import { decodeRouteParam } from '../pathUtils';
+import { decodeRouteParam, getSpacePath } from '../pathUtils';
 import { useClientStartupContext } from './ClientStartupContext';
 import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from './routeVisibility';
 
@@ -64,6 +64,8 @@ export function RoomRoute({ children }: { children: ReactNode }) {
     );
   }
 
+  // A joined space opened by a room address (a link, Join with Address) shows as a space.
+  if (room.isSpaceRoom()) return <Navigate to={getSpacePath(roomIdOrAlias)} replace />;
   const isDirect = directs.has(room.roomId);
   return (
     <RoomProvider value={room}>

@@ -1,13 +1,13 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';
 import { allRoomsAtom } from '../../state/room-list/roomList';
-import { HOME_ROOM_PATH } from '../paths';
+import { HOME_ROOM_PATH, SPACE_PATH } from '../paths';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { RoomRoute } from './RoomRoute';
 
@@ -26,6 +26,7 @@ const makeRoom = (canonicalAlias?: string, membership = (): string => KnownMembe
     getMyMembership: membership,
     getCanonicalAlias: () => canonicalAlias ?? null,
     getAltAliases: () => [],
+    isSpaceRoom: () => false,
   } as unknown as Room);
 
 const makeClient = (rooms: Room[], getRoomIdForAlias = vi.fn()): MatrixClient =>
@@ -37,6 +38,10 @@ const makeClient = (rooms: Room[], getRoomIdForAlias = vi.fn()): MatrixClient =>
 
 function ShownRoom() {
   return <div data-shown-room={useRoom().roomId} />;
+}
+
+function SpaceLanding() {
+  return <div data-space-path={useLocation().pathname} />;
 }
 
 const renderRoute = (
@@ -60,6 +65,7 @@ const renderRoute = (
                     </RoomRoute>
                   }
                 />
+                <Route path={SPACE_PATH} element={<SpaceLanding />} />
               </Routes>
             </MemoryRouter>
           </ClientStartupProvider>
@@ -81,6 +87,17 @@ const shownRoom = (renderer: ReactTestRenderer) =>
   ];
 
 describe('RoomRoute', () => {
+  it('sends a joined space opened by a room address to its space page', () => {
+    const space = { ...makeRoom(), isSpaceRoom: () => true } as unknown as Room;
+    const renderer = renderRoute(makeClient([space]), `/home/${encodeURIComponent(ROOM_ID)}/`);
+    expect(shownRoom(renderer)).toBeUndefined();
+    expect(
+      renderer.root.findAll((node) => node.props['data-space-path'] !== undefined)[0]?.props[
+        'data-space-path'
+      ]
+    ).toMatch(new RegExp(`^/${encodeURIComponent(ROOM_ID)}/?$`));
+  });
+
   it('opens a joined room from its known canonical alias', () => {
     const renderer = renderRoute(
       makeClient([makeRoom(ALIAS)]),
