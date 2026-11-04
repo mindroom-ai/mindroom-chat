@@ -1,4 +1,3 @@
-import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box } from 'folds';
 import 'folds/dist/style.css';

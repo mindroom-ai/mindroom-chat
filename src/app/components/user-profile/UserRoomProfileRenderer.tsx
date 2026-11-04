@@ -1,4 +1,3 @@
-import React from 'react';
 import FocusTrap from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { useMatrixClient } from '../../hooks/useMatrixClient';

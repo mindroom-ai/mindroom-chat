@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Avatar, Badge, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';

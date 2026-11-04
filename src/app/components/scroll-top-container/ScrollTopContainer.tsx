@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactNode, RefObject, useEffect, useState } from 'react';
+import { CSSProperties, ReactNode, RefObject, useEffect, useState } from 'react';
 import classNames from 'classnames';
 import * as css from './ScrollTopContainer.css';
 

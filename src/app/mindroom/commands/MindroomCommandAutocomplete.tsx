@@ -1,4 +1,4 @@
-import React, { KeyboardEvent as ReactKeyboardEvent, useCallback, useMemo } from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from 'slate';
 import { Text } from 'folds';

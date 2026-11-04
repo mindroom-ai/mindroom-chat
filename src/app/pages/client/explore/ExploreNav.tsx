@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Box, Icons, Text } from 'folds';
 import { useMatch } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

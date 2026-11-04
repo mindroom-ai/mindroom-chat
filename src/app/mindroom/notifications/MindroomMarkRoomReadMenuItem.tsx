@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';

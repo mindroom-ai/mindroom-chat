@@ -1,4 +1,4 @@
-import React, { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Relations, Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';

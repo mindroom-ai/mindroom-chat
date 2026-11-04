@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';

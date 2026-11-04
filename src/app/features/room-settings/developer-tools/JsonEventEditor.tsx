@@ -1,4 +1,4 @@
-import React, { type FormEvent, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, TextArea, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAlive } from '../../../hooks/useAlive';

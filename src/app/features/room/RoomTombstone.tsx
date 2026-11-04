@@ -1,4 +1,4 @@
-import React, { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useState } from 'react';
 import { Box, Button, Spinner, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { KnownMembership, type MatrixEvent } from 'matrix-js-sdk';

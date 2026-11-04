@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Chip, Icon, Icons, Text } from 'folds';
 import { useMarkRoomsRead } from './useMarkRoomsRead';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room, RoomMember } from 'matrix-js-sdk';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, color } from 'folds';
 import { getEmojiByUnicode, SKIN_TONES, type SkinTone, withSkinTone } from '../../../plugins/emoji';

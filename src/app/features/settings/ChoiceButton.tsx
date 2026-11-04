@@ -1,4 +1,4 @@
-import React, { MouseEvent, useState } from 'react';
+import { MouseEvent, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Box, Button, Icon, Icons, Text, config, type RectCords } from 'folds';
 import { PopOut } from '../../components/directional';

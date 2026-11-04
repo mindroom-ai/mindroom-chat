@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Icon, Icons, Text, as } from 'folds';
 
 type RoomNavCategoryButtonProps = {

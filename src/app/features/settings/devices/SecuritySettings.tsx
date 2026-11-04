@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Spinner, Text, color } from 'folds';
 import { SettingTile } from '../../../components/setting-tile';

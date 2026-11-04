@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { useActiveCall } from './callStore';
 
 // The tab's look loads with the first call, like the rest of the call UI.

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
 import {

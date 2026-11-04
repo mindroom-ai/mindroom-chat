@@ -1,4 +1,4 @@
-import React, { ReactNode, RefCallback, createContext, useContext } from 'react';
+import { ReactNode, RefCallback, createContext, useContext } from 'react';
 import classNames from 'classnames';
 import { Text, Tooltip, as } from 'folds';
 import { TooltipProvider } from '../directional';

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { render } from '@testing-library/react';
 import { atom, createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';

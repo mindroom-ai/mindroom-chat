@@ -1,4 +1,4 @@
-import React, { ReactNode, RefObject } from 'react';
+import { ReactNode, RefObject } from 'react';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../components/page';

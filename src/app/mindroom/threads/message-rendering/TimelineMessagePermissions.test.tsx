@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
 import { act } from 'react-test-renderer';

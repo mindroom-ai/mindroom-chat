@@ -1,4 +1,4 @@
-import React, { ReactNode, useRef } from 'react';
+import { ReactNode, useRef } from 'react';
 import { Scroll } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {

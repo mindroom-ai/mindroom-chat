@@ -1,4 +1,4 @@
-import React, { HTMLAttributes, ReactNode, RefObject, useLayoutEffect, useRef } from 'react';
+import { HTMLAttributes, ReactNode, RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { ScrollHeaderProvider } from '../glass/SurfaceContext';

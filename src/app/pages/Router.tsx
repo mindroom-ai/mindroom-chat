@@ -1,4 +1,4 @@
-import React, { type ComponentType, lazy, useState } from 'react';
+import { type ComponentType, lazy, useState } from 'react';
 import {
   Navigate,
   Route,

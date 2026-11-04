@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';

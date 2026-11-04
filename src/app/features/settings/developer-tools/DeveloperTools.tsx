@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, Chip, Icon, Icons, Switch, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';

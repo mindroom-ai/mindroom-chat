@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, color } from 'folds';

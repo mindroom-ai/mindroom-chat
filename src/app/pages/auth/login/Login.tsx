@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Box, Text } from 'folds';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';

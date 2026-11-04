@@ -1,6 +1,5 @@
 // First: it must change the SDK's logger before any other SDK module loads.
 import './app/mindroom/matrix/sdkDebugLogging';
-import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App as NativeApp } from '@capacitor/app';
 import 'folds/dist/style.css';

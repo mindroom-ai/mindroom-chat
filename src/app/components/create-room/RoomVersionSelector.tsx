@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useState } from 'react';
+import { MouseEventHandler, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Button, Chip, config, Icon, Icons, type RectCords, Text, toRem } from 'folds';

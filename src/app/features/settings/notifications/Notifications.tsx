@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SystemNotification } from './SystemNotification';

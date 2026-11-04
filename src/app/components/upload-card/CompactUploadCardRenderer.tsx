@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text, color } from 'folds';
 import { UploadCard, UploadCardCancel } from './UploadCard';

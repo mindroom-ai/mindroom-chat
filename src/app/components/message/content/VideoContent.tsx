@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactNode, useCallback, useEffect, useState } from 'react';
+import { CSSProperties, ReactNode, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Box, Button, Chip, Icon, Icons, Spinner, Text } from 'folds';

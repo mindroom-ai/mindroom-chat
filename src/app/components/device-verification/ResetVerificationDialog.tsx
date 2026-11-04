@@ -1,4 +1,3 @@
-import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button, Text, color } from 'folds';
 import { SecurityDialog } from './SecurityDialog';

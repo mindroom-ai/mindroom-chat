@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useMemo, useState } from 'react';
+import { FormEventHandler, useMemo, useState } from 'react';
 import { Box, Button, Chip, Icon, IconButton, Icons, Input, Spinner, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';

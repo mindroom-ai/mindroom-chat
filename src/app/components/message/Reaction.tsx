@@ -1,4 +1,3 @@
-import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';

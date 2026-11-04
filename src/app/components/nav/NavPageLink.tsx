@@ -1,4 +1,3 @@
-import React from 'react';
 import { Avatar, Box, Icon, Text, type IconSrc } from 'folds';
 import { NavItem, NavItemContent, NavLink } from './NavItem';
 

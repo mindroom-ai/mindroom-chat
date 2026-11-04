@@ -1,4 +1,4 @@
-import React, { type FormEvent, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Box, Button, Icon, Icons, Input, Spinner, Text, color } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Room, RoomMember } from 'matrix-js-sdk';

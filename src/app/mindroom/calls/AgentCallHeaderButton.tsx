@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo, useState, type MouseEvent } from 'react';
+import { forwardRef, useMemo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';

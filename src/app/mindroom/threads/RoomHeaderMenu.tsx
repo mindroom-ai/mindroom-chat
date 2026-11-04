@@ -1,4 +1,4 @@
-import React, { forwardRef, type ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Line, Spinner, Text, config, toRem, type IconSrc } from 'folds';

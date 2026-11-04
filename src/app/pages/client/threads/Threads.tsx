@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,4 @@
-import React, { useCallback, type ComponentProps } from 'react';
+import { useCallback, type ComponentProps } from 'react';
 import type { IContent } from 'matrix-js-sdk';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';

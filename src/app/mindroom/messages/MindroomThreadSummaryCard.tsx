@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, Icons, Text } from 'folds';
 import { MessageEditedContent } from '../../components/message/content';

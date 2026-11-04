@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback } from 'react';
+import { ReactNode, useCallback } from 'react';
 import { IconSrc, Icons } from 'folds';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';

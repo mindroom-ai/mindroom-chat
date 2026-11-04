@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventType, type MatrixClient } from 'matrix-js-sdk';

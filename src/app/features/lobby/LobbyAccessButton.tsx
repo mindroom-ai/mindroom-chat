@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { RoomAccessControl } from '../../components/room-access';

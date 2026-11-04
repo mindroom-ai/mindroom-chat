@@ -1,4 +1,4 @@
-import React, { ImgHTMLAttributes, ReactNode } from 'react';
+import { ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
 import { Icon } from 'folds';
 import { AvatarFallbackTone, AvatarPicture } from '../user-avatar/UserAvatar';

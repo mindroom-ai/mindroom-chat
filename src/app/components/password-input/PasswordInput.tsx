@@ -1,4 +1,4 @@
-import React, { ComponentProps, forwardRef, useState } from 'react';
+import { ComponentProps, forwardRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Input } from 'folds';
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Switch, Text, config, toRem } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';

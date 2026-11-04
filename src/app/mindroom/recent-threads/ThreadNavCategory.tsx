@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

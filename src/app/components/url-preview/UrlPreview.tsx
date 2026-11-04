@@ -1,4 +1,3 @@
-import React from 'react';
 import classNames from 'classnames';
 import { Box, Text, as } from 'folds';
 import { useGlassHighlight } from '../glass/liquid/useLiquidGlass';

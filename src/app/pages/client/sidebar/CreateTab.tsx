@@ -1,4 +1,3 @@
-import React from 'react';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';

@@ -1,4 +1,4 @@
-import React, { ComponentProps } from 'react';
+import { ComponentProps } from 'react';
 import { Box, Button, Text, color, config } from 'folds';
 import { Dialog } from '../components/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';

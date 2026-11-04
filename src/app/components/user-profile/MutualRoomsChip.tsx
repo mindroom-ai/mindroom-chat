@@ -1,4 +1,4 @@
-import React, { type MouseEvent, useMemo, useState } from 'react';
+import { type MouseEvent, useMemo, useState } from 'react';
 import { Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
 import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';

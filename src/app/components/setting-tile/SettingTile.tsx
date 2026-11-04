@@ -1,4 +1,4 @@
-import React, { ReactNode, forwardRef, useId, useLayoutEffect, useRef } from 'react';
+import { ReactNode, forwardRef, useId, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 
 type SettingTileProps = {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Badge, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';

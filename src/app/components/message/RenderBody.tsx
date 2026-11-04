@@ -1,4 +1,4 @@
-import React, { ReactNode, memo, useMemo } from 'react';
+import { ReactNode, memo, useMemo } from 'react';
 import parse, { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { color } from 'folds';

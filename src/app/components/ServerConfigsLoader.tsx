@@ -1,4 +1,4 @@
-import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 
 /** `GET /media/config`; the SDK does not export its type. */

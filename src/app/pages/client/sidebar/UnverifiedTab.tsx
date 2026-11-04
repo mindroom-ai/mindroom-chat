@@ -1,4 +1,3 @@
-import React from 'react';
 import { Icon, Icons, color } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';

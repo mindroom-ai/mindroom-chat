@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Badge, Box, Text, toRem } from 'folds';
 
 type UnreadBadgeProps = {

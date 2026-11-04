@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import {

@@ -1,4 +1,4 @@
-import React, { FormEventHandler, RefObject, useId, useRef, useState } from 'react';
+import { FormEventHandler, RefObject, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {

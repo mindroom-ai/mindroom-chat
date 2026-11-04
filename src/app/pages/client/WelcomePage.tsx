@@ -1,4 +1,4 @@
-import React, { Fragment, ReactNode, useEffect, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useState } from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import type { IconSrc } from 'folds';
 import { useSetAtom } from 'jotai';

@@ -1,4 +1,4 @@
-import React, { CSSProperties, useEffect, useRef } from 'react';
+import { CSSProperties, useEffect, useRef } from 'react';
 import { decode, isBlurhashValid } from 'blurhash';
 
 // The hash describes a few colour components, so a small canvas holds all of its detail;

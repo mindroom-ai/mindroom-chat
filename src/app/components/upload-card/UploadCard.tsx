@@ -1,4 +1,4 @@
-import React, { HTMLAttributes, ReactNode, forwardRef } from 'react';
+import { HTMLAttributes, ReactNode, forwardRef } from 'react';
 import classNames from 'classnames';
 import { Box, Icon, IconButton, Icons, ProgressBar, Text, percent } from 'folds';
 import { bytesToSize } from '../../utils/common';

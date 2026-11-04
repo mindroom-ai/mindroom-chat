@@ -1,4 +1,3 @@
-import React from 'react';
 import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
 
 type ComputerHeaderButtonProps = {

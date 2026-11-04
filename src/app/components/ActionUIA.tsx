@@ -1,4 +1,4 @@
-import React, { FormEventHandler, ReactNode, useEffect, useState } from 'react';
+import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthDict, AuthType, IAuthData, UIAFlow } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Input, Text, color, config } from 'folds';

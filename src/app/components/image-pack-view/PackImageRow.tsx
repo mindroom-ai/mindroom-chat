@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Input, Text, color, config, toRem } from 'folds';
 import { IconButton } from '../glass/GlassPrimitives';

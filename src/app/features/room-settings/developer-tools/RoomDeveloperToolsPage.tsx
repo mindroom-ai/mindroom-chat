@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Chip, Icon, Icons, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventTimeline, type MatrixEvent, type Room, RoomEvent } from 'matrix-js-sdk';

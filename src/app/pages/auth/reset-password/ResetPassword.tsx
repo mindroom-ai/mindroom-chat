@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Text } from 'folds';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';

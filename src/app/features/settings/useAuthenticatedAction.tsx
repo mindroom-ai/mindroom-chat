@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, config } from 'folds';
 import type { AuthDict, IAuthData, MatrixError } from 'matrix-js-sdk';

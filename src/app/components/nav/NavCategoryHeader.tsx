@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, as, config, toRem } from 'folds';
 
 /**

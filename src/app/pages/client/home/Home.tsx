@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useMemo, useRef, useState } from 'react';
+import { MouseEventHandler, useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
 import { Menu } from '../../../components/glass/GlassPrimitives';
 import type { IconSrc, RectCords } from 'folds';

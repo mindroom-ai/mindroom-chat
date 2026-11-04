@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useEffect, useState } from 'react';
+import { FormEventHandler, useEffect, useState } from 'react';
 import { Box, Button, Spinner, Switch, Text, color, config } from 'folds';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,4 @@
-import React, { ChangeEvent, FormEvent, ReactNode, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
 import FileSaver from 'file-saver';

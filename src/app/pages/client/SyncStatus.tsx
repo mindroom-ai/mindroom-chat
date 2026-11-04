@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient, type SyncStateData } from 'matrix-js-sdk';

@@ -1,4 +1,4 @@
-import React, { type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { type RectCords } from 'folds';
 import { PopOut } from '../directional';

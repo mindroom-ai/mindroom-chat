@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useMemo } from 'react';
+import { ReactNode, useEffect, useMemo } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

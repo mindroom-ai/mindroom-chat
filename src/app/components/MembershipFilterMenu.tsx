@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MembershipFilter, type MembershipFilterItem } from '../hooks/useMemberFilter';
 import { ChoiceMenu } from './ChoiceMenu';

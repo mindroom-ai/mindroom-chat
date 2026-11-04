@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { SequenceCard } from '../../components/sequence-card';
 import { SequenceCardStyle } from './styles.css';
 

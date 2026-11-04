@@ -1,4 +1,4 @@
-import React, { FormEvent, MouseEvent, useState } from 'react';
+import { FormEvent, MouseEvent, useState } from 'react';
 import dayjs from 'dayjs';
 import FocusTrap from 'focus-trap-react';
 import {

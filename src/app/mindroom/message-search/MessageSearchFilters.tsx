@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useMemo, useState } from 'react';
+import { ChangeEvent, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';

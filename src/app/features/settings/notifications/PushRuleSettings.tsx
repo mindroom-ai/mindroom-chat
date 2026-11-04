@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type IPushRule, type IPushRules, PushRuleKind } from 'matrix-js-sdk';

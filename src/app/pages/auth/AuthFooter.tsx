@@ -1,4 +1,4 @@
-import React, { Fragment, ReactNode } from 'react';
+import { Fragment, ReactNode } from 'react';
 import { Box, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { useClientConfig } from '../../hooks/useClientConfig';

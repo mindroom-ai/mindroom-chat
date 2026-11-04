@@ -1,4 +1,3 @@
-import React from 'react';
 import { Modal500 } from '../../components/Modal500';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCloseRoomSettings, useRoomSettingsState } from '../../state/hooks/roomSettings';

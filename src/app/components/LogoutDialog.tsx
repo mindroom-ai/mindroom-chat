@@ -1,4 +1,4 @@
-import React, { CSSProperties, forwardRef, useEffect, useState } from 'react';
+import { CSSProperties, forwardRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import type { MatrixClient } from 'matrix-js-sdk';

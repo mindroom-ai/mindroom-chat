@@ -1,4 +1,4 @@
-import React, { RefCallback, useEffect, useMemo, useState } from 'react';
+import { RefCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

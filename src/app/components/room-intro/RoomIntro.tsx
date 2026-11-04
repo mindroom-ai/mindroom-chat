@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Box, Text, config } from 'folds';
 import { RoomAvatar, RoomIcon } from '../room-avatar';

@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode, useId, useLayoutEffect, useRef } from 'react';
+import { ComponentProps, ReactNode, useId, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';

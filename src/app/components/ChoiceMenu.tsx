@@ -1,4 +1,3 @@
-import React from 'react';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
 import { Box, Icon, Icons, Text, config } from 'folds';

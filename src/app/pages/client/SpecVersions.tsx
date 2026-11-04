@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Spinner, Text, config } from 'folds';
 import { Dialog } from '../../components/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';

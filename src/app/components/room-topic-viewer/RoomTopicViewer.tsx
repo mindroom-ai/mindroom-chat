@@ -1,4 +1,4 @@
-import React, { type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';

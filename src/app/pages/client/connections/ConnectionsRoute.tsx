@@ -1,4 +1,3 @@
-import React from 'react';
 import { ConnectionsPage } from '../../../mindroom/connections/ConnectionsPage';
 import * as css from './ConnectionsRoute.css';
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Icon, Icons } from 'folds';
 import type { RectCords } from 'folds';
 import { useAtomValue } from 'jotai';

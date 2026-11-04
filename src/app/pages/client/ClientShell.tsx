@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';

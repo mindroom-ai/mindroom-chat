@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CryptoEvent, type VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { SecurityOverlay } from './SecurityOverlay';

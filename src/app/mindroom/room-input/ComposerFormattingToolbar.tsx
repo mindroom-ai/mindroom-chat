@@ -1,4 +1,4 @@
-import React, { MouseEvent } from 'react';
+import { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSlate } from 'slate-react';
 import { Box, Icon, Icons, IconSrc, Line, config } from 'folds';

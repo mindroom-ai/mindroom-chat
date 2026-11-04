@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';

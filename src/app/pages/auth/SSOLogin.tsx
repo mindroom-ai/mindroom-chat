@@ -1,4 +1,4 @@
-import React, { MouseEvent, useMemo } from 'react';
+import { MouseEvent, useMemo } from 'react';
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Capacitor } from '@capacitor/core';

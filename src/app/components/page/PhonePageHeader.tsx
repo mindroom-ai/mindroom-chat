@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { PageHeader } from './Page';

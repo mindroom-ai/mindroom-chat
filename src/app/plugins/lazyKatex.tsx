@@ -1,4 +1,4 @@
-import React, { type ReactNode, useSyncExternalStore } from 'react';
+import { type ReactNode, useSyncExternalStore } from 'react';
 import type { KatexOptions } from 'katex';
 
 // KaTeX (about 270 kB) loads with the first message that has math, not with the app: the notice

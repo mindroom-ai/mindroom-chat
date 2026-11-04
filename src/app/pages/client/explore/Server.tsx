@@ -1,4 +1,4 @@
-import React, { FormEventHandler } from 'react';
+import { FormEventHandler } from 'react';
 import { Box, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useParams, useSearchParams } from 'react-router-dom';

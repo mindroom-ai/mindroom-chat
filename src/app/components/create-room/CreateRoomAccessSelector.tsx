@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconSrc, Icons, Text, color, config } from 'folds';
 import { CreateRoomAccess } from './types';

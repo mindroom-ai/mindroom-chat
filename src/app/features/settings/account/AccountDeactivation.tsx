@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Header, IconButton } from '../../../components/glass/GlassPrimitives';

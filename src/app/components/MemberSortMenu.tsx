@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MemberSortItem } from '../hooks/useMemberSort';
 import { ChoiceMenu } from './ChoiceMenu';

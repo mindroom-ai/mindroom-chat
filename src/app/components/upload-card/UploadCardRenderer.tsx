@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
 import type { MatrixError } from 'matrix-js-sdk';

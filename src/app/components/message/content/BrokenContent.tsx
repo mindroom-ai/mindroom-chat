@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text } from 'folds';
 import { MessageBrokenContent } from './FallbackContent';
 

@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, useCallback, useEffect, useState } from 'react';
+import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';

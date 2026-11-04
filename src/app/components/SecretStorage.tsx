@@ -1,4 +1,4 @@
-import React, { FormEventHandler, useCallback } from 'react';
+import { FormEventHandler, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Spinner, Text, color } from 'folds';
 import type { SecretStorageKeyDescriptionAesV1 } from 'matrix-js-sdk/lib/secret-storage';

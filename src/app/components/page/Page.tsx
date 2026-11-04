@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode, RefObject } from 'react';
+import { ComponentProps, ReactNode, RefObject } from 'react';
 import classNames from 'classnames';
 import { Box, Line, Text, as, color, config } from 'folds';
 import { Header } from '../glass/GlassPrimitives';

@@ -1,4 +1,4 @@
-import React, { type ComponentProps, type ReactNode } from 'react';
+import { type ComponentProps, type ReactNode } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';

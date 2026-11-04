@@ -1,4 +1,4 @@
-import React, { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';

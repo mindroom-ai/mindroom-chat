@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Input, Text, color } from 'folds';
 import { normalizePairCode } from './devicePairing';

@@ -1,4 +1,4 @@
-import React, { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
 import { Box, Button, Input, Scroll, Spinner, Text, color } from 'folds';
 import { Header } from '../../components/glass/GlassPrimitives';
 import {

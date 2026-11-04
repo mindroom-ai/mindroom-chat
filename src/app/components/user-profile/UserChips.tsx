@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, ReactNode, useEffect, useState } from 'react';
+import { MouseEventHandler, ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';

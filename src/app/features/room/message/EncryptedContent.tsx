@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 
 type EncryptedContentProps = {

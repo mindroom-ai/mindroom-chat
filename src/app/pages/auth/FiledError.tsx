@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Icon, Icons, Text, color } from 'folds';
 
 /** An error under a form field, announced to screen readers. */

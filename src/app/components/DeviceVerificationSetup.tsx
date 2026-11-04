@@ -1,4 +1,4 @@
-import React, { CSSProperties, FormEventHandler, ReactNode, useCallback, useState } from 'react';
+import { CSSProperties, FormEventHandler, ReactNode, useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
 import type { MatrixError, UIAuthCallback } from 'matrix-js-sdk';

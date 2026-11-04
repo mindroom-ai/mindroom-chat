@@ -1,4 +1,3 @@
-import React from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { StoredSession } from '../../../state/sessions';

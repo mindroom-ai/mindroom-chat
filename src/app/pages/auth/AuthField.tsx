@@ -1,4 +1,4 @@
-import React, { Children, ReactNode, cloneElement, isValidElement, useId } from 'react';
+import { Children, ReactNode, cloneElement, isValidElement, useId } from 'react';
 import { Box, Text } from 'folds';
 
 /**

@@ -1,4 +1,3 @@
-import React from 'react';
 import parse from 'html-react-parser';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';

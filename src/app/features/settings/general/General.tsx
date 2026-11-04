@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Box, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';

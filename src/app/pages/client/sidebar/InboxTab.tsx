@@ -1,4 +1,4 @@
-import React, { RefCallback } from 'react';
+import { RefCallback } from 'react';
 import { Icon, Icons } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';

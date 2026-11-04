@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { CrossRoomThreadIndexEntry } from '../../../mindroom/cross-room-threads/crossRoomThreadIndex';

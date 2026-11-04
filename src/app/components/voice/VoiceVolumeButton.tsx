@@ -1,4 +1,4 @@
-import React, { MouseEvent, useRef, useState } from 'react';
+import { MouseEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';

@@ -1,4 +1,4 @@
-import React, { CSSProperties, ReactNode, forwardRef } from 'react';
+import { CSSProperties, ReactNode, forwardRef } from 'react';
 import classNames from 'classnames';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import * as css from './style.css';

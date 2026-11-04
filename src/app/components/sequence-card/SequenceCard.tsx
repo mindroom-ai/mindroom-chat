@@ -1,4 +1,4 @@
-import React, { ComponentProps } from 'react';
+import { ComponentProps } from 'react';
 import classNames from 'classnames';
 import { Box, ContainerColor as ContainerColorName, as } from 'folds';
 import { ContainerColor } from '../../styles/ContainerColor.css';

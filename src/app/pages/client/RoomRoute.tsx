@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Box, Spinner } from 'folds';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';

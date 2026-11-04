@@ -1,4 +1,4 @@
-import React, { ReactNode, useId } from 'react';
+import { ReactNode, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, Icons, Text, config } from 'folds';
 import { Dialog, Header, IconButton } from '../glass/GlassPrimitives';

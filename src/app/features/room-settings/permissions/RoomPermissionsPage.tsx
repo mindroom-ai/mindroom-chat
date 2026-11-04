@@ -1,4 +1,4 @@
-import React, { type MouseEvent, useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
 import { Box, Button, Chip, Icon, Icons, Text, color, config } from 'folds';

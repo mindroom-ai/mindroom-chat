@@ -1,4 +1,4 @@
-import React, { CSSProperties, ImgHTMLAttributes, ReactNode } from 'react';
+import { CSSProperties, ImgHTMLAttributes, ReactNode } from 'react';
 import classNames from 'classnames';
 import { AvatarFallback, AvatarImage } from 'folds';
 import { AVATAR_SWATCH_INK, avatarSwatchIndex, avatarSwatchVar } from './avatarSwatches';
