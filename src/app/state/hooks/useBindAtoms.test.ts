@@ -5,6 +5,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../../mindroom/live/bindLiveReplyFrames';
 import { useModelControllerLifetime } from '../../mindroom/models/useModelPicker';
+import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
 
 vi.mock('../mDirectList', () => ({ mDirectAtom: {}, useBindMDirectAtom: vi.fn() }));
 vi.mock('../room-list/inviteList', () => ({ allInvitesAtom: {}, useBindAllInvitesAtom: vi.fn() }));
@@ -20,6 +21,7 @@ vi.mock('../typingMembers', () => ({
 }));
 vi.mock('../../mindroom/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
 vi.mock('../../mindroom/models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
+vi.mock('../../mindroom/rooms/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
 
 describe('useBindAtoms', () => {
   it("feeds the account's live reply frames to its store, so streamed replies update live", () => {
@@ -35,6 +37,22 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindLiveReplyFrames).toHaveBeenCalledWith(client);
+    act(() => renderer?.unmount());
+  });
+
+  it("seeds the account's archived rooms behind the same gate as its room lists", () => {
+    const client = { id: 'account' } as unknown as MatrixClient;
+    function Probe() {
+      useBindAtoms(client);
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+
+    expect(useBindArchivedRoomsAtom).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

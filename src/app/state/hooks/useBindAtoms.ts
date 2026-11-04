@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindLiveReplyFrames } from '../../mindroom/live/bindLiveReplyFrames';
+import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
 import { useModelControllerLifetime } from '../../mindroom/models/useModelPicker';
 import { mDirectAtom, useBindMDirectAtom } from '../mDirectList';
 import { allInvitesAtom, useBindAllInvitesAtom } from '../room-list/inviteList';
@@ -16,6 +17,8 @@ export function useBindAtoms(client: MatrixClient): void {
   // Direct chats and the space tree decide where each room is listed.
   useBindMDirectAtom(client, mDirectAtom);
   useBindRoomToParentsAtom(client, roomToParentsAtom);
+  // Archived rooms are left out of every list, so they are seeded behind the same gate.
+  useBindArchivedRoomsAtom(client);
   // Live per-room state.
   useBindRoomIdToTypingMembersAtom(client, roomIdToTypingMembersAtom);
   useBindRoomToUnreadAtom(client, roomToUnreadAtom);

@@ -1,6 +1,4 @@
 import React from 'react';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useBindArchivedRoomsAtom } from '../../mindroom/rooms/archivedRooms';
 import {
   CanvasIndexFeature,
   CrossRoomThreadIndexFeature,
@@ -16,12 +14,6 @@ import { MessageNotificationsFeature } from '../../mindroom/notifications/Messag
 import { UnreadTitleFeature } from '../../mindroom/notifications/UnreadTitle';
 import { JoinedRoomThreadListsFeature } from './threads/JoinedRoomThreadListsFeature';
 
-/** The archived rooms list, kept for the whole session. */
-function ArchivedRoomsIndex() {
-  useBindArchivedRoomsAtom(useMatrixClient());
-  return null;
-}
-
 /**
  * Account-wide work without UI: indexes and the joined rooms' thread lists that fill them,
  * account settings, invites, message notifications and the count in the page title, push, the
@@ -33,7 +25,6 @@ export function ClientNonUIFeatures() {
     <>
       <CrossRoomThreadIndexFeature />
       <JoinedRoomThreadListsFeature />
-      <ArchivedRoomsIndex />
       <MindroomAccountSettingsFeature />
       <MindroomInviteNotifications />
       <MessageNotificationsFeature />
