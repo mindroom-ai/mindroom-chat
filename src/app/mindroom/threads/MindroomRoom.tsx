@@ -55,6 +55,11 @@ const CallPanel = lazy(() =>
 const HeaderCallButtons = lazy(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
+const HeaderCallMenuEntries = lazy(() =>
+  import('../calls/HeaderCallButtons').then((module) => ({
+    default: module.HeaderCallMenuEntries,
+  }))
+);
 
 /** The call panel fits two tiles side by side; wider, it fits more. */
 const CALL_DEFAULT_WIDTH = 400;
@@ -371,9 +376,13 @@ export function Room() {
     openCanvasId,
     onCanvasOpen,
     onCanvasClose: closeCanvas,
-    calls: (
+    calls: (placement) => (
       <Suspense fallback={null}>
-        <HeaderCallButtons threadId={threadId} />
+        {placement.at === 'menu' ? (
+          <HeaderCallMenuEntries threadId={threadId} requestClose={placement.requestClose} />
+        ) : (
+          <HeaderCallButtons threadId={threadId} phone={placement.phone} />
+        )}
       </Suspense>
     ),
   };

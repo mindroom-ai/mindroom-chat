@@ -79,9 +79,17 @@ export type RoomViewHeaderProps = {
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
-  /** The call buttons, which the room provides (`HeaderCallButtons`). */
-  calls?: ReactNode;
+  /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
+  calls?: (placement: HeaderCallPlacement) => ReactNode;
 };
+
+/**
+ * Where the header puts the call controls: its row of buttons, or on phones also the room menu,
+ * since a phone's header has no room for them beside the name.
+ */
+export type HeaderCallPlacement =
+  | { at: 'header'; phone: boolean }
+  | { at: 'menu'; requestClose: () => void };
 
 type HeaderActionProps = {
   label: string;
@@ -170,7 +178,7 @@ const useViewSwitch = (room: Room) => {
 /**
  * The room header: avatar (a back button on phones), name and topic, then the Compact and Full
  * switch, scheduled tasks, canvases, the computer, calls, pinned messages, members and the room
- * menu.
+ * menu. Phones show a call button only while a call is on and offer the rest in the room menu.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -353,7 +361,7 @@ export function RoomViewHeader({
             onClick={() => onComputerToggle?.()}
           />
         )}
-        {calls}
+        {calls?.({ at: 'header', phone: mobile })}
         {pinnedCount > 0 && (
           <HeaderAction
             label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
@@ -453,6 +461,11 @@ export function RoomViewHeader({
                   ? () => {
                       if (!computerOpen) onComputerToggle?.();
                     }
+                  : undefined
+              }
+              calls={
+                mobile
+                  ? calls?.({ at: 'menu', requestClose: () => setMenuAnchor(undefined) })
                   : undefined
               }
               onLeave={() => setPrompt('leave')}

@@ -21,6 +21,8 @@ export type RoomHeaderMenuActions = {
   onSearchMessages?: () => void;
   /** Present only while the header has no Computer button of its own. */
   onShowComputer?: () => void;
+  /** Entries for calls, on phones, whose header shows no call button while none is on. */
+  calls?: ReactNode;
   onLeave: () => void;
 };
 
@@ -39,7 +41,7 @@ type EntryProps = {
 const entryLabelStyle = { flexGrow: 1 } as const;
 
 /** One menu row: the label, its icon at the end, and the menu closes before the action runs. */
-function HeaderMenuEntry({ icon, label, onSelect, critical }: EntryProps) {
+export function HeaderMenuEntry({ icon, label, onSelect, critical }: EntryProps) {
   return (
     <MenuItem
       size="300"
@@ -97,9 +99,9 @@ function MenuGroup({ children }: { children: ReactNode }) {
 
 /**
  * The room header's options menu: read state, notification mode, sharing, settings, search, the
- * computer when the header does not show it, then archiving and leaving the room. The ref
- * reaches the menu element, which the focus trap around it needs to close on Escape and outside
- * clicks.
+ * computer and calls when the header does not show them, then archiving and leaving the room.
+ * The ref reaches the menu element, which the focus trap around it needs to close on Escape and
+ * outside clicks.
  */
 export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
   function RoomHeaderMenu(
@@ -111,6 +113,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
       onOpenSettings,
       onSearchMessages,
       onShowComputer,
+      calls,
       onLeave,
     },
     ref
@@ -157,6 +160,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
               onSelect={closeThen(onShowComputer)}
             />
           )}
+          {calls}
         </MenuGroup>
         <Line variant="Surface" size="300" />
         <MenuGroup>
