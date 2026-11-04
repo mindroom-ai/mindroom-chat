@@ -40,6 +40,8 @@ export type AgentStack = {
   agents: { router: string; helper: string; scout?: string };
   rooms: { lobby: string; space: string };
   approvalExpirySeconds: number;
+  /** The helper's voice calls (`--calls`), or null. */
+  calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
 };
 
 export type MatrixEvent = {
@@ -61,8 +63,8 @@ const slotNumber = (): number => {
 };
 
 /** Starts the slot's stack, or finds it running; a string is the reason to skip. */
-const startAgentStack = (): AgentStack | string => {
-  const result = spawnSync('python3', [STACK_SCRIPT, String(slotNumber()), 'up'], {
+const startAgentStack = (args: string[]): AgentStack | string => {
+  const result = spawnSync('python3', [STACK_SCRIPT, String(slotNumber()), 'up', ...args], {
     encoding: 'utf8',
     timeout: 20 * 60_000,
   });
@@ -114,15 +116,17 @@ const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
 };
 
 type WorkerFixtures = {
+  /** More options for `stack.py up`, such as `['--calls', <service URL>]`; another set restarts the stack. */
+  agentStackArgs: string[];
   agentStackOrSkip: AgentStack | string;
   testerStorageState: string | undefined;
 };
 
 export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
+  agentStackArgs: [[], { scope: 'worker', option: true }],
   agentStackOrSkip: [
-    // eslint-disable-next-line no-empty-pattern
-    async ({}, use) => {
-      await use(startAgentStack());
+    async ({ agentStackArgs }, use) => {
+      await use(startAgentStack(agentStackArgs));
     },
     { scope: 'worker', timeout: 20 * 60_000 },
   ],
