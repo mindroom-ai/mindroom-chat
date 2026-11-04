@@ -1,14 +1,7 @@
 import React, { FormEvent, useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
-import {
-  type IPushRule,
-  type IPushRules,
-  type PushRuleAction,
-  PushRuleActionName,
-  PushRuleKind,
-  TweakName,
-} from 'matrix-js-sdk';
+import { type IPushRule, type IPushRules, PushRuleKind } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAccountData } from '../../../hooks/useAccountData';
 import { useAlive } from '../../../hooks/useAlive';
@@ -17,28 +10,9 @@ import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { getMxIdLocalPart } from '../../../utils/matrix';
 import { ChoiceButton } from '../ChoiceButton';
 import { SettingsCard } from '../SettingsCard';
+import { actionsFor, loudnessOf, type Loudness } from './pushRuleLoudness';
 
 const NOTIFY = 'featureUi.settings.notifications';
-
-/** How a rule notifies: not at all, without sound, or with the default sound. */
-type Loudness = 'off' | 'silent' | 'loud';
-
-const loudnessOf = (rule: IPushRule): Loudness => {
-  if (!rule.enabled || !rule.actions.includes(PushRuleActionName.Notify)) return 'off';
-  const sounds = rule.actions.some(
-    (action) => typeof action === 'object' && action.set_tweak === TweakName.Sound
-  );
-  return sounds ? 'loud' : 'silent';
-};
-
-/** Push actions for a loudness (client-server API, "Push Rules: Actions"); mentions highlight. */
-const actionsFor = (loudness: Loudness, highlight: boolean): PushRuleAction[] => {
-  if (loudness === 'off') return [];
-  const actions: PushRuleAction[] = [PushRuleActionName.Notify];
-  if (loudness === 'loud') actions.push({ set_tweak: TweakName.Sound, value: 'default' });
-  if (highlight) actions.push({ set_tweak: TweakName.Highlight });
-  return actions;
-};
 
 /** The account's global push rules as the server stores them, following changes. */
 const useGlobalPushRules = (): IPushRules['global'] | undefined =>
