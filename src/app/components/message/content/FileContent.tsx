@@ -52,6 +52,12 @@ export const isTextFileMimeType = (mimeType: unknown): boolean => {
 export const isPdfFileMimeType = (mimeType: unknown): boolean =>
   typeof mimeType === 'string' && getMimeTypeBase(mimeType) === 'application/pdf';
 
+// The PDF viewer hands the file to the browser's own PDF display. Browsers without one (Android's
+// WebView, Chrome on Android) report `navigator.pdfViewerEnabled` as false and would show an empty
+// viewer, so there a PDF offers only its download. Browsers that predate the flag keep the viewer.
+const browserShowsPdfInline = (): boolean =>
+  typeof navigator === 'undefined' || navigator.pdfViewerEnabled !== false;
+
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   json: 'json',
   js: 'javascript',
@@ -386,7 +392,7 @@ export function FileContent({
   children,
 }: FileActionsProps) {
   const opensAsText = isTextFileMimeType(mimeType);
-  const opensAsPdf = isPdfFileMimeType(mimeType);
+  const opensAsPdf = isPdfFileMimeType(mimeType) && browserShowsPdfInline();
   return (
     <Box alignItems="Center" gap="100" shrink="No">
       {opensAsText && renderAsTextFile()}
