@@ -1,19 +1,8 @@
 import React, { forwardRef, useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Icon,
-  IconButton,
-  type IconSrc,
-  Icons,
-  Line,
-  Spinner,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Line, Spinner, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine } from '../../components/directional';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu } from '../../components/glass/GlassPrimitives';
+import { MenuEntry } from '../../components/MenuEntry';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
@@ -109,95 +98,50 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
             side="Right"
           >
             {(handleOpen, opened, changing) => (
-              <RoomMenuEntry
+              <MenuEntry
                 icon={getRoomNotificationModeIcon(notificationMode)}
                 label={t('featureUi.roomNav.roomNavItem.notifications')}
-                onClick={handleOpen}
-                busy={changing}
-                expanded={opened}
+                onSelect={handleOpen}
+                after={changing ? <Spinner size="100" variant="Secondary" /> : undefined}
+                fill={opened ? 'Soft' : 'None'}
+                aria-haspopup="menu"
+                aria-expanded={opened}
               />
             )}
           </RoomNotificationModeSwitcher>
         )}
         {canInvite && (
-          <RoomMenuEntry
+          <MenuEntry
             icon={Icons.UserPlus}
             label={t('featureUi.roomNav.roomNavItem.invite')}
-            onClick={closeThen(() => onPrompt('invite'))}
+            onSelect={closeThen(() => onPrompt('invite'))}
           />
         )}
-        <RoomMenuEntry
+        <MenuEntry
           icon={Icons.Link}
           label={t('featureUi.roomNav.roomNavItem.copyLink')}
-          onClick={closeThen(() => void copyToClipboard(shareableLink))}
+          onSelect={closeThen(() => void copyToClipboard(shareableLink))}
         />
-        <RoomMenuEntry
+        <MenuEntry
           icon={Icons.Setting}
           label={t('featureUi.roomNav.roomNavItem.roomSettings')}
-          onClick={closeThen(() => openRoomSettings(room.roomId))}
+          onSelect={closeThen(() => openRoomSettings(room.roomId))}
         />
       </Box>
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={menuGroupStyle}>
         <ArchiveRoomMenuItem room={room} onClose={requestClose} />
-        <RoomMenuEntry
+        <MenuEntry
           critical
           directional
           icon={Icons.ArrowGoLeft}
           label={t('featureUi.roomNav.roomNavItem.leaveRoom')}
-          onClick={closeThen(() => onPrompt('leave'))}
+          onSelect={closeThen(() => onPrompt('leave'))}
         />
       </Box>
     </Menu>
   );
 });
-
-type RoomMenuEntryProps = {
-  icon: IconSrc;
-  label: string;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  /** Leaving is styled as a destructive action. */
-  critical?: boolean;
-  /** A spinner replaces the icon while the entry's change is stored. */
-  busy?: boolean;
-  /** For an entry that opens a menu of its own: whether that menu is open. */
-  expanded?: boolean;
-  /** The icon points along the reading direction, so right-to-left languages mirror it. */
-  directional?: boolean;
-};
-
-function RoomMenuEntry({
-  icon,
-  label,
-  onClick,
-  critical,
-  busy,
-  expanded,
-  directional,
-}: RoomMenuEntryProps) {
-  return (
-    <MenuItem
-      size="300"
-      radii="300"
-      variant={critical ? 'Critical' : 'Surface'}
-      fill={expanded ? 'Soft' : 'None'}
-      after={
-        busy ? (
-          <Spinner size="100" variant="Secondary" />
-        ) : (
-          <Icon size="100" src={icon} data-directional={directional || undefined} />
-        )
-      }
-      aria-haspopup={expanded === undefined ? undefined : 'menu'}
-      aria-expanded={expanded}
-      onClick={onClick}
-    >
-      <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
-        {label}
-      </Text>
-    </MenuItem>
-  );
-}
 
 /**
  * Whether the pointer is over the row or focus is inside it; the row swaps its badge for the
