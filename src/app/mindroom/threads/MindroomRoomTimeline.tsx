@@ -102,7 +102,6 @@ import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useFollowContentGrowth } from './useFollowContentGrowth';
-import { useFollowLateGrowth } from './useFollowLateGrowth';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
@@ -1434,9 +1433,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     getLiveReplyStore(mx),
     room.roomId
   );
-  // A row that grows by itself later, such as a link preview that loads, keeps a reader at the
-  // bottom there too.
-  useFollowLateGrowth(scrollElement, contentRef, atLiveEndRef);
 
   // The compact overview: older history until zero-reply roots show up, root edits it lacks,
   // and a refresh of its threads when the page comes back.
