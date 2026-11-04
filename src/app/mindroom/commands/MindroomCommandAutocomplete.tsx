@@ -77,7 +77,12 @@ export function MindroomCommandAutocomplete({
             </Text>
           }
         >
-          <Text style={{ flexGrow: 1, fontFamily: 'var(--font-mono)' }} size="B400" truncate>
+          {/* A button centers its text; the syntax starts at the reading edge like other menus. */}
+          <Text
+            style={{ flexGrow: 1, fontFamily: 'var(--font-mono)', textAlign: 'start' }}
+            size="B400"
+            truncate
+          >
             {command.syntax}
           </Text>
         </MenuItem>
