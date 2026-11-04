@@ -1,7 +1,8 @@
 import React, { MouseEventHandler, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Chip, Icon, Icons, PopOut, type RectCords, Text, config } from 'folds';
+import { Box, Chip, Icon, Icons, type RectCords, Text, config } from 'folds';
+import { PopOut } from '../directional';
 import { Menu, MenuItem } from '../glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import type { UsageOption } from './packDraft';

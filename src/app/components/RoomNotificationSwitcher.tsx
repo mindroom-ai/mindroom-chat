@@ -1,5 +1,6 @@
 import React, { type MouseEvent, type ReactNode, useState } from 'react';
-import { PopOut, type RectCords } from 'folds';
+import { type RectCords } from 'folds';
+import { PopOut } from './directional';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';

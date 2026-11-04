@@ -8,13 +8,12 @@ import {
   IconButton,
   Icons,
   Line,
-  PopOut,
   Text,
   Tooltip,
-  TooltipProvider,
   config,
   toRem,
 } from 'folds';
+import { PopOut, TooltipProvider } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';

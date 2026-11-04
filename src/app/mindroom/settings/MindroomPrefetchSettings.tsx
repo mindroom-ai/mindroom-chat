@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
-import { Box, Button, Icon, Icons, PopOut, Text, config, type RectCords } from 'folds';
+import { Box, Button, Icon, Icons, Text, config, type RectCords } from 'folds';
+import { PopOut } from '../../components/directional';
 import type { PrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from './mindroomSettings';
 import { useSetting } from '../../state/hooks/settings';

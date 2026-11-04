@@ -1,7 +1,8 @@
 import React, { MouseEventHandler, ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Chip, Icon, Icons, PopOut, RectCords, Spinner, Text, color, config } from 'folds';
+import { Box, Chip, Icon, Icons, RectCords, Spinner, Text, color, config } from 'folds';
+import { PopOut } from './directional';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { SettingTile } from './setting-tile';
 import {
@@ -9,13 +10,14 @@ import {
   SecretStorageRecoveryKey,
   SecretStorageRecoveryPassphrase,
 } from './SecretStorage';
-import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
-import { storePrivateKey } from '../../client/secretStorageKeys';
+import {
+  CRYPTO_NOT_FOUND,
+  NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE,
+  unlockWithRecoveryKey,
+} from './unlockWithRecoveryKey';
 
-// Thrown in English and translated when shown, so a retained error follows language changes.
-const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto object not found.';
 const INTERNAL_ERRORS: ReadonlySet<string> = new Set([CRYPTO_NOT_FOUND]);
 
 enum VerificationMethod {
@@ -117,22 +119,6 @@ function VerificationStatus({ tone, children }: VerificationStatusProps) {
   );
 }
 
-/** Caches the recovery key, then lets the SDK unlock cross-signing and key backup with it. */
-async function unlockWithRecoveryKey(
-  client: MatrixClient,
-  keyId: string,
-  recoveryKey: Uint8Array
-): Promise<void> {
-  const crypto = client.getCrypto();
-  if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
-  storePrivateKey(keyId, recoveryKey);
-  // With the key cached, bootstrapping imports the account's cross-signing keys from
-  // secret storage and signs this device with them.
-  await crypto.bootstrapCrossSigning({});
-  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
-  await crypto.checkKeyBackupAndEnable();
-}
-
 type TileProps = {
   secretStorageKeyId: string;
   secretStorageKeyContent: SecretStorageKeyContent;
@@ -159,6 +145,9 @@ export function ManualVerificationTile(props: TileProps) {
 
   const errorMessage = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
+    if (message === NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE) {
+      return t('sharedUi.manualVerification.noCrossSigningKeys');
+    }
     return INTERNAL_ERRORS.has(message)
       ? t('sharedUi.deviceVerificationSetup.unexpectedError')
       : message;

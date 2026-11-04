@@ -2,7 +2,8 @@ import React, { MouseEventHandler, ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
-import { Chip, Icon, Icons, PopOut, type RectCords, Text, config } from 'folds';
+import { Chip, Icon, Icons, type RectCords, Text, config } from 'folds';
+import { PopOut } from '../directional';
 import { Menu, MenuItem } from '../glass/GlassPrimitives';
 import { copyToClipboard } from '../../utils/dom';
 import { stopPropagation } from '../../utils/keyboard';

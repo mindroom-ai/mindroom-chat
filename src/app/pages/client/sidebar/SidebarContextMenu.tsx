@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
-import { Box, PopOut, config, toRem } from 'folds';
+import { Box, config, toRem } from 'folds';
+import { PopOut } from '../../../components/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../../components/glass/GlassPrimitives';

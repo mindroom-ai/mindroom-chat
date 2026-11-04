@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Icon, IconButton, Icons, Line, PopOut, Text, config, toRem } from 'folds';
+import { Box, Icon, IconButton, Icons, Line, Text, config, toRem } from 'folds';
+import { PopOut } from '../../components/directional';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';

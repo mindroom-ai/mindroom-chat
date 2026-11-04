@@ -7,12 +7,12 @@ import {
   type IconSrc,
   Icons,
   Line,
-  PopOut,
   Spinner,
   Text,
   config,
   toRem,
 } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';

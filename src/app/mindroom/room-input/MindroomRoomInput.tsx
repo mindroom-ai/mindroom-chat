@@ -13,7 +13,8 @@ import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, MsgType, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import { Box, Icon, Icons, IconSrc, PopOut, RectCords, Text, color, config } from 'folds';
+import { Box, Icon, Icons, IconSrc, RectCords, Text, color, config } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Editor as SlateEditor } from 'slate';
 import {
   AUTOCOMPLETE_PREFIXES,

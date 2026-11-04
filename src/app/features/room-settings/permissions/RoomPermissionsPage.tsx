@@ -1,7 +1,8 @@
 import React, { type MouseEvent, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
-import { Box, Button, Chip, Icon, Icons, PopOut, Text, color, config } from 'folds';
+import { Box, Button, Chip, Icon, Icons, Text, color, config } from 'folds';
+import { PopOut } from '../../../components/directional';
 import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventTimeline, type Room } from 'matrix-js-sdk';

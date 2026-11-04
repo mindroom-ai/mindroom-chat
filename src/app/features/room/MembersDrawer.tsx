@@ -16,12 +16,12 @@ import {
   IconButton,
   Icons,
   Input,
-  PopOut,
   type RectCords,
   Text,
   config,
   toRem,
 } from 'folds';
+import { PopOut } from '../../components/directional';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';

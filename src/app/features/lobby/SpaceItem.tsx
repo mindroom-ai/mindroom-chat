@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Avatar, Box, Chip, Icon, Icons, PopOut, Text, config, toRem } from 'folds';
+import { Avatar, Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';

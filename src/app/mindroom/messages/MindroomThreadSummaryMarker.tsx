@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { PopOut, Text, Tooltip, type RectCords } from 'folds';
+import { Text, Tooltip, type RectCords } from 'folds';
+import { PopOut } from '../../components/directional';
 import { IconSparkles } from '@tabler/icons-react';
 import type { MindroomThreadSummaryInfo } from './threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../threads/threadSummaryTimeline';

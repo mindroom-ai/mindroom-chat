@@ -1,5 +1,6 @@
 import FocusTrap from 'focus-trap-react';
-import { Overlay, OverlayBackdrop, PopOut, Spinner } from 'folds';
+import { Overlay, OverlayBackdrop, Spinner } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Room } from 'matrix-js-sdk';
 import {
   IconCheck,

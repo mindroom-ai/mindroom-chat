@@ -1,7 +1,8 @@
 import React, { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, PopOut, Text, config, type RectCords } from 'folds';
+import { Box, Text, config, type RectCords } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { isValidTagName, normalizeTagName } from './threadTags';
 import * as css from './ThreadContextBanner.css';

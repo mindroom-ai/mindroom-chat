@@ -2,16 +2,8 @@ import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'rea
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Box,
-  Button,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  PopOut,
-  Text,
-  type RectCords,
-} from 'folds';
+import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, type RectCords } from 'folds';
+import { PopOut } from '../../components/directional';
 import {
   getThreadSummaryActionError,
   requestThreadSummary,

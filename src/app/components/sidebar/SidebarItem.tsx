@@ -1,6 +1,7 @@
 import React, { ReactNode, RefCallback, createContext, useContext } from 'react';
 import classNames from 'classnames';
-import { Text, Tooltip, TooltipProvider, as } from 'folds';
+import { Text, Tooltip, as } from 'folds';
+import { TooltipProvider } from '../directional';
 import { glassSurface } from '../../styles/Glass.css';
 import * as css from './SidebarItem.css';
 

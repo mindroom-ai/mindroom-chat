@@ -1,7 +1,8 @@
 import React, { MouseEventHandler, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Button, Chip, config, Icon, Icons, PopOut, type RectCords, Text, toRem } from 'folds';
+import { Box, Button, Chip, config, Icon, Icons, type RectCords, Text, toRem } from 'folds';
+import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
 import { SettingTile } from '../setting-tile';
 import { SequenceCard } from '../sequence-card';

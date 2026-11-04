@@ -14,13 +14,12 @@ import {
   IconButton,
   Icons,
   Line,
-  PopOut,
   Text,
   Tooltip,
-  TooltipProvider,
   type IconSrc,
   type RectCords,
 } from 'folds';
+import { PopOut, TooltipProvider } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { CallDeviceKind, CallDevices } from './RoomCall';
 import * as css from './CallPanel.css';

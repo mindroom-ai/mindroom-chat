@@ -1,5 +1,6 @@
 import React, { MouseEventHandler, useMemo, useRef, useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
+import { PopOut } from '../../../components/directional';
 import { Menu } from '../../../components/glass/GlassPrimitives';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -267,7 +268,8 @@ export function Home() {
                   if (!room) return null;
                   return (
                     <VirtualTile
-                      key={item.index}
+                      // By room, so a row's open prompt stays with its room when the list shifts.
+                      key={roomId}
                       virtualItem={item}
                       ref={virtualizer.measureElement}
                     >

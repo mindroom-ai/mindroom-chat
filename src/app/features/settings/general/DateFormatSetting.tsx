@@ -8,12 +8,12 @@ import {
   IconButton,
   Icons,
   Input,
-  PopOut,
   Text,
   config,
   toRem,
   type RectCords,
 } from 'folds';
+import { PopOut } from '../../../components/directional';
 import { useTranslation } from 'react-i18next';
 import { Header, Menu } from '../../../components/glass/GlassPrimitives';
 import { PageScroll } from '../../../components/page';

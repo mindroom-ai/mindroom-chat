@@ -1,7 +1,8 @@
 import React, { ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
-import { PopOut, config, type RectCords } from 'folds';
+import { config, type RectCords } from 'folds';
+import { PopOut } from '../directional';
 import { PageScroll } from '../page';
 import { Menu, Header } from '../glass/GlassPrimitives';
 import { glassDenseOverBackdrop } from '../../styles/Glass.css';

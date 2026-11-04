@@ -2,19 +2,8 @@ import React, { forwardRef, useMemo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  PopOut,
-  Spinner,
-  Text,
-  Tooltip,
-  TooltipProvider,
-  toRem,
-  type RectCords,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem, type RectCords } from 'folds';
+import { PopOut, TooltipProvider } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';

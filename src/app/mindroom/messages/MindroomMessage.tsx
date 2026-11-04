@@ -25,11 +25,11 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  PopOut,
   Text,
   color,
   type RectCords,
 } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { EmojiBoard } from '../../components/emoji-board';

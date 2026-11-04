@@ -1,5 +1,6 @@
 import React, { MouseEventHandler, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, Line, PopOut, Text, config, toRem } from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Line, Text, config, toRem } from 'folds';
+import { PopOut } from '../../../components/directional';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';

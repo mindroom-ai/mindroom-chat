@@ -8,7 +8,8 @@ import React, {
   useState,
 } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Box, Chip, Icon, Icons, Input, PopOut, Text, config, toRem } from 'folds';
+import { Box, Chip, Icon, Icons, Input, Text, config, toRem } from 'folds';
+import { PopOut } from '../../../components/directional';
 import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';

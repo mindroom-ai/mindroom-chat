@@ -21,13 +21,13 @@ import {
   IconButton,
   Icons,
   Input,
-  PopOut,
   type RectCords,
   Spinner,
   Text,
   color,
   config,
 } from 'folds';
+import { PopOut } from '../../components/directional';
 import { ChoiceMenu } from '../../components/ChoiceMenu';
 import { RoomAvatar } from '../../components/room-avatar';
 import { ScrollTopContainer } from '../../components/scroll-top-container';

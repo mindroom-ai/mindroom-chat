@@ -11,13 +11,12 @@ import {
   Icon,
   IconButton,
   Icons,
-  PopOut,
   Text,
   Tooltip,
-  TooltipProvider,
   type IconSrc,
   type RectCords,
 } from 'folds';
+import { PopOut, TooltipProvider } from '../../components/directional';
 import { PageHeader } from '../../components/page';
 import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';

@@ -1,19 +1,8 @@
 import React, { MouseEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  PopOut,
-  RectCords,
-  Scroll,
-  Text,
-  Tooltip,
-  TooltipProvider,
-  config,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, RectCords, Scroll, Text, Tooltip, config } from 'folds';
+import { PopOut, TooltipProvider } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import type { CanvasListEntry } from './canvasIndexStore';
