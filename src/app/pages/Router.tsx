@@ -21,7 +21,7 @@ import {
 import { MindroomPageNav } from '../mindroom/sidebar/ResizablePageNav';
 import { HomeSearchPage, SpaceSearchPage } from '../mindroom/message-search/MessageSearchPage';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
-import { ConnectionsPage } from '../mindroom/connections/ConnectionsPage';
+import { ConnectionsRoute } from './client/connections/ConnectionsRoute';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
 import { JoinAddressForm } from '../components/join-address-prompt';
 import { Page } from '../components/page';
@@ -215,7 +215,7 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
       </Route>
       <Route element={<ProtectedRoutes hashRouter={hashRouter} />}>
         {/* The portal hand-off asks the signed-in client for an OpenID token. */}
-        <Route path={CONNECTIONS_PATH} element={<ConnectionsPage />} />
+        <Route path={CONNECTIONS_PATH} element={<ConnectionsRoute />} />
         <Route
           path={HOME_PATH}
           element={<SectionPage path={HOME_PATH} navId="home" nav={<Home />} />}
