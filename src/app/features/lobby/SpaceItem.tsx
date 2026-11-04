@@ -10,6 +10,7 @@ import { RoomAvatar } from '../../components/room-avatar';
 import { LocalRoomSummaryLoader } from '../../components/RoomSummaryLoader';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import type { LocalRoomSummary } from '../../hooks/useLocalRoomSummary';
 import { useOpenCreateRoomModal } from '../../state/hooks/createRoomModal';
@@ -57,8 +58,15 @@ type SpaceItemCardProps = SpaceItemHeadingProps &
 
 type AddChoice = { label: string; pick: () => void };
 
+type AddChoiceChipProps = {
+  label: string;
+  choices: AddChoice[];
+  /** Only the plus shows, for narrow headings; the label still names it. */
+  compact?: boolean;
+};
+
 /** A chip that opens a short menu of ways to add something to a space. */
-function AddChoiceChip({ label, choices }: { label: string; choices: AddChoice[] }) {
+function AddChoiceChip({ label, choices, compact = false }: AddChoiceChipProps) {
   const [anchor, setAnchor] = useState<RectCords>();
   // Also the trap's answer to Escape and outside clicks: dismiss, and let them through.
   const dismiss = () => {
@@ -102,12 +110,13 @@ function AddChoiceChip({ label, choices }: { label: string; choices: AddChoice[]
         radii="Pill"
         aria-haspopup="menu"
         aria-expanded={!!anchor}
-        before={<Icon size="50" src={Icons.Plus} />}
+        aria-label={compact ? label : undefined}
+        before={compact ? undefined : <Icon size="50" src={Icons.Plus} />}
         onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
           setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
         }
       >
-        <Text size="T200">{label}</Text>
+        {compact ? <Icon size="50" src={Icons.Plus} /> : <Text size="T200">{label}</Text>}
       </Chip>
     </PopOut>
   );
@@ -122,26 +131,32 @@ export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
   const openCreateRoom = useOpenCreateRoomModal();
   const openCreateSpace = useOpenCreateSpaceModal();
   const [picking, setPicking] = useState<'rooms' | 'spaces'>();
+  // Phones keep the heading's name readable: one plus holds all four ways in.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+
+  const roomChoices: AddChoice[] = [
+    { label: t('featureUi.lobby.spaceItem.chatRoom'), pick: () => openCreateRoom(spaceId) },
+    { label: t('featureUi.lobby.spaceItem.existingRoom'), pick: () => setPicking('rooms') },
+  ];
+  const spaceChoices: AddChoice[] = [
+    { label: t('featureUi.lobby.spaceItem.newSpace'), pick: () => openCreateSpace(spaceId) },
+    { label: t('featureUi.lobby.spaceItem.existingSpace'), pick: () => setPicking('spaces') },
+  ];
 
   return (
     <Box gap="200" alignItems="Center" shrink="No">
-      <AddChoiceChip
-        label={t('featureUi.lobby.spaceItem.addRoom')}
-        choices={[
-          { label: t('featureUi.lobby.spaceItem.chatRoom'), pick: () => openCreateRoom(spaceId) },
-          { label: t('featureUi.lobby.spaceItem.existingRoom'), pick: () => setPicking('rooms') },
-        ]}
-      />
-      <AddChoiceChip
-        label={t('featureUi.lobby.spaceItem.addSpace')}
-        choices={[
-          { label: t('featureUi.lobby.spaceItem.newSpace'), pick: () => openCreateSpace(spaceId) },
-          {
-            label: t('featureUi.lobby.spaceItem.existingSpace'),
-            pick: () => setPicking('spaces'),
-          },
-        ]}
-      />
+      {phone ? (
+        <AddChoiceChip
+          compact
+          label={t('featureUi.lobby.spaceItem.addRoom')}
+          choices={[...roomChoices, ...spaceChoices]}
+        />
+      ) : (
+        <>
+          <AddChoiceChip label={t('featureUi.lobby.spaceItem.addRoom')} choices={roomChoices} />
+          <AddChoiceChip label={t('featureUi.lobby.spaceItem.addSpace')} choices={spaceChoices} />
+        </>
+      )}
       {picking && (
         <AddExistingModal
           kind={picking}

@@ -108,11 +108,6 @@ export function RoomItemCard({
             {error && !summary && (
               <Icon size="50" src={Icons.Warning} style={{ color: color.Warning.Main }} />
             )}
-            {item.content.suggested === true && (
-              <Badge variant="Success" fill="Soft" radii="Pill" outlined>
-                <Text size="L400">{t('featureUi.lobby.roomItem.suggested')}</Text>
-              </Badge>
-            )}
           </Box>
         )}
         {topic && (
@@ -120,14 +115,21 @@ export function RoomItemCard({
             {topic}
           </Text>
         )}
-        {summary?.num_joined_members !== undefined && (
-          <Text size="T200" priority="300">
-            {t('featureUi.lobby.roomItem.memberCount', {
-              count: summary.num_joined_members,
-              formattedCount: summary.num_joined_members.toLocaleString(),
-            })}
-          </Text>
-        )}
+        <Box alignItems="Center" gap="200">
+          {summary?.num_joined_members !== undefined && (
+            <Text size="T200" priority="300">
+              {t('featureUi.lobby.roomItem.memberCount', {
+                count: summary.num_joined_members,
+                formattedCount: summary.num_joined_members.toLocaleString(),
+              })}
+            </Text>
+          )}
+          {item.content.suggested === true && (
+            <Badge variant="Success" fill="Soft" radii="Pill" outlined>
+              <Text size="L400">{t('featureUi.lobby.roomItem.suggested')}</Text>
+            </Badge>
+          )}
+        </Box>
       </Box>
       {!loading && (
         <Box shrink="No" gap="200" alignItems="Center">
