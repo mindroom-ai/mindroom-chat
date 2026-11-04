@@ -188,7 +188,7 @@ export function LobbyHeader({
                   fill="Solid"
                   radii="Pill"
                   size="400"
-                  style={{ position: 'absolute', top: 0, right: 0, minWidth: toRem(16) }}
+                  style={{ position: 'absolute', top: 0, insetInlineEnd: 0, minWidth: toRem(16) }}
                 >
                   <Text size="L400">{pendingRequests}</Text>
                 </Badge>

@@ -70,7 +70,7 @@ export const ThreadParticipant = style({
   boxShadow: `0 0 0 ${toRem(2)} ${color.SurfaceVariant.Container}`,
   selectors: {
     '& + &': {
-      marginLeft: participantOverlap,
+      marginInlineStart: participantOverlap,
     },
     // On a Compact thread bar the faces are a full 24 px tile whose outer pixel is a hairline
     // ring in the surface color, so the overlap reads as a cut-out rather than a shadow.

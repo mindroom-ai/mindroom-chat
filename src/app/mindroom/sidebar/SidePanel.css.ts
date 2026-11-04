@@ -15,7 +15,7 @@ export const Panel = style({
   borderInlineStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
 });
 
-// Title on the left, controls pushed to the right edge.
+// Title at the start, controls pushed to the end edge.
 export const Header = style({
   flex: '0 0 auto',
   display: 'flex',
@@ -23,7 +23,8 @@ export const Header = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   minHeight: toRem(56),
-  padding: `${config.space.S200} ${config.space.S200} ${config.space.S200} ${config.space.S400}`,
+  paddingBlock: config.space.S200,
+  paddingInline: `${config.space.S400} ${config.space.S200}`,
   borderBottom: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
 });
 
