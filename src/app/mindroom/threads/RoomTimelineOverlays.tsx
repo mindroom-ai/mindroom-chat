@@ -154,7 +154,7 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   );
 }
 
-/** In the room, and in a thread without a banner, the toggle takes a line of its own above the rows. */
+/** In the room, and in a thread without a banner, the toggle takes a line above the rows. */
 export function ExpandAllLine(props: ExpandAllProps) {
   return (
     <div
