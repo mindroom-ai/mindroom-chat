@@ -19,8 +19,9 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useImagePackRooms } from '../../../hooks/useImagePackRooms';
 import { useKeyDown } from '../../../hooks/useKeyDown';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { usePowerLevelsContext } from '../../../hooks/usePowerLevels';
@@ -45,6 +46,7 @@ import { useMentionClickHandler } from '../../../hooks/useMentionClickHandler';
 import { useSettingValue } from '../../../state/hooks/useSettingValue';
 import { settingsAtom, type Settings } from '../../../state/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../../state/room/roomInputDrafts';
+import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import {
   canEditEvent,
   getEditedEvent,
@@ -306,6 +308,8 @@ export const useTimelineMessageFeature = ({
   messageSpacing,
 }: UseTimelineMessageFeatureOptions) => {
   const client = useMatrixClient();
+  // Reaction pickers offer the emoji of the room, its spaces and the homeserver's emoji room.
+  const imagePackRooms = useImagePackRooms(room.roomId, useAtomValue(roomToParentsAtom));
   const [editingEventId, setEditingEventId] = useState<string>();
   const liveExpansion = useLiveExpansion();
   const { mark: markLiveExpansionCandidate, consume: consumeLiveExpansion } = liveExpansion;
@@ -430,7 +434,8 @@ export const useTimelineMessageFeature = ({
       const senderId = evt.currentTarget.getAttribute('data-user-id');
       if (!senderId) return;
       evt.stopPropagation();
-      openUserProfile(room.roomId, spaceRoomId, senderId, evt.currentTarget.getBoundingClientRect());
+      const cardAnchor = evt.currentTarget.getBoundingClientRect();
+      openUserProfile(room.roomId, spaceRoomId, senderId, cardAnchor);
     },
     [openUserProfile, room.roomId, spaceRoomId]
   );
@@ -546,6 +551,7 @@ export const useTimelineMessageFeature = ({
             canDelete={canDelete}
             canSendReaction={kind !== 'sticker'}
             canPinEvent={canPinEvent}
+            imagePackRooms={imagePackRooms}
             relations={relations}
             reply={
               replyEventId ? (
@@ -632,6 +638,7 @@ export const useTimelineMessageFeature = ({
       hideActivity,
       hour24Clock,
       htmlReactParserOptions,
+      imagePackRooms,
       linkifyOpts,
       liveExpansionIds,
       mediaAutoLoad,
