@@ -44,6 +44,7 @@ import {
 } from '../../mindroom/settings/useLivePrefetchConfig';
 import type { StoredSession } from '../../state/sessions';
 import { forgetComposerStateOfSession } from '../../state/room/roomInputDrafts';
+import { closeClient } from '../../mindroom/matrix/closeClient';
 import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 import {
   clearAllCacheAndReload,
@@ -415,7 +416,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     initClient(toBootstrapSession(latestSession.current)).then(
       (client) => {
         if (abandoned) {
-          client.stopClient();
+          closeClient(client);
           return;
         }
         opened = client;
@@ -427,7 +428,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     );
     return () => {
       abandoned = true;
-      opened?.stopClient();
+      if (opened) closeClient(opened);
     };
   }, [session.sessionId, attempt]);
 
