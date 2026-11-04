@@ -12,6 +12,8 @@ import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewport
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { applyThemeToDom } from '../theme/themeBootstrap';
 import { NoticeLayout } from '../mindroom/notices/NoticeBanners';
+import { NewVersionNotice } from '../components/app-update/NewVersionNotice';
+import { AppErrorBoundary } from '../components/app-error/AppErrorBoundary';
 import { installOverlayFocus } from '../utils/overlayFocus';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
@@ -59,25 +61,30 @@ function App() {
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>
         <QueryClientProvider client={queryClient}>
+          {/* After a deployment, above every screen: a new version is available. */}
+          <NewVersionNotice />
           {/* Operator notices sit above every screen, sign-in and config loading included. */}
           <NoticeLayout>
-            <ClientConfigLoader
-              fallback={() => <ConfigConfigLoading />}
-              error={(error, retry, ignore, authenticate) => (
-                <ConfigConfigError
-                  error={error}
-                  retry={retry}
-                  ignore={ignore}
-                  authenticate={authenticate}
-                />
-              )}
-            >
-              {(clientConfig) => (
-                <ClientConfigProvider value={clientConfig}>
-                  <AppRouter clientConfig={clientConfig} />
-                </ClientConfigProvider>
-              )}
-            </ClientConfigLoader>
+            {/* A screen that fails to render shows what happened and Reload, never a blank page. */}
+            <AppErrorBoundary>
+              <ClientConfigLoader
+                fallback={() => <ConfigConfigLoading />}
+                error={(error, retry, ignore, authenticate) => (
+                  <ConfigConfigError
+                    error={error}
+                    retry={retry}
+                    ignore={ignore}
+                    authenticate={authenticate}
+                  />
+                )}
+              >
+                {(clientConfig) => (
+                  <ClientConfigProvider value={clientConfig}>
+                    <AppRouter clientConfig={clientConfig} />
+                  </ClientConfigProvider>
+                )}
+              </ClientConfigLoader>
+            </AppErrorBoundary>
           </NoticeLayout>
         </QueryClientProvider>
       </AppTheme>

@@ -141,6 +141,16 @@
       "onlyIfTrusted": "このアプリが提供するサーバーではありません。{{server}} を信頼できる場合にのみ続行してください。",
       "cancel": "キャンセル",
       "continue": "続行"
+    },
+    "appUpdate": {
+      "available": "MindRoom の新しいバージョンがあります。",
+      "reload": "再読み込み",
+      "dismiss": "閉じる",
+      "reloadToUse": "使うには再読み込みしてください。"
+    },
+    "appError": {
+      "title": "問題が発生しました。",
+      "description": "MindRoom で問題が発生し、この画面を表示できませんでした。続けるには再読み込みしてください。"
     }
   },
   "featureUi": {

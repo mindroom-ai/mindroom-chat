@@ -33,6 +33,7 @@ import {
   waitForServiceWorkerControl,
 } from './sw-session';
 import { APP_BUILD_VERSION, startAppVersionMonitor } from './appVersion';
+import { watchForNewVersion } from './appUpdate';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
@@ -205,6 +206,10 @@ const startServiceWorker = (): void => {
 
 startDiagnostics();
 prepareDocument();
+runSafely('new version watch', () => {
+  // A part that cannot load after a deployment offers the new version (src/appUpdate.ts).
+  watchForNewVersion();
+});
 runSafely('recovery marker', () => {
   // Reading sessionStorage throws where site data is blocked; startup must go on.
   if (window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') clearRecoveryMarker();

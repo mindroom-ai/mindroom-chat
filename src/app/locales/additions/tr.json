@@ -144,6 +144,16 @@
       "onlyIfTrusted": "Bu sunucu, uygulamanın sunduğu sunuculardan biri değil. Yalnızca {{server}} sunucusuna güveniyorsanız devam edin.",
       "cancel": "İptal",
       "continue": "Devam et"
+    },
+    "appUpdate": {
+      "available": "MindRoom'un yeni bir sürümü kullanılabilir.",
+      "reload": "Yeniden yükle",
+      "dismiss": "Kapat",
+      "reloadToUse": "Kullanmak için yeniden yükleyin."
+    },
+    "appError": {
+      "title": "Bir şeyler ters gitti.",
+      "description": "MindRoom bir sorunla karşılaştı ve bu ekranı gösteremedi. Devam etmek için yeniden yükleyin."
     }
   },
   "featureUi": {

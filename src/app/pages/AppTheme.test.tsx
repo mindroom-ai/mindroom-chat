@@ -33,6 +33,14 @@ vi.mock('../mindroom/notices/NoticeBanners', () => ({
   NoticeLayout: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+vi.mock('../components/app-update/NewVersionNotice', () => ({
+  NewVersionNotice: () => null,
+}));
+
+vi.mock('../components/app-error/AppErrorBoundary', () => ({
+  AppErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('./ConfigConfig', () => ({
   ConfigConfigError: () => null,
   ConfigConfigLoading: () => null,

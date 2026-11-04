@@ -5,6 +5,7 @@ import {
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
+  useRouteError,
 } from 'react-router-dom';
 import type { ClientConfig } from '../hooks/useClientConfig';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
@@ -135,6 +136,14 @@ function RoomPage() {
   );
 }
 
+/**
+ * A route that failed to render passes its error on to the app's root error boundary
+ * (AppErrorBoundary), so every failure gets the same screen, with Reload.
+ */
+function RethrowRouteError(): never {
+  throw useRouteError();
+}
+
 /** `/`: the last route of the active account, or login. */
 function RootRedirect() {
   const decision = resolveRootRouteRedirect(currentHref());
@@ -163,7 +172,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
   // route, which sends it to `/`: without one it would open as a space named "connect".
   const localMindroomOffered = sidebar?.showMindRoom ?? true;
   const routes = createRoutesFromElements(
-    <Route>
+    <Route errorElement={<RethrowRouteError />}>
       <Route path={ROOT_PATH} element={<RootRedirect />} />
       <Route
         path={CONNECT_PATH}

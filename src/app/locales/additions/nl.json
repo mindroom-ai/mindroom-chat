@@ -144,6 +144,16 @@
       "onlyIfTrusted": "Deze server hoort niet bij de servers die deze app aanbiedt. Ga alleen verder als je {{server}} vertrouwt.",
       "cancel": "Annuleren",
       "continue": "Doorgaan"
+    },
+    "appUpdate": {
+      "available": "Er is een nieuwe versie van MindRoom beschikbaar.",
+      "reload": "Opnieuw laden",
+      "dismiss": "Sluiten",
+      "reloadToUse": "Laad opnieuw om die te gebruiken."
+    },
+    "appError": {
+      "title": "Er is iets misgegaan.",
+      "description": "MindRoom liep tegen een probleem aan en kon dit scherm niet tonen. Laad opnieuw om verder te gaan."
     }
   },
   "featureUi": {

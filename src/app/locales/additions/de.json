@@ -144,6 +144,16 @@
       "onlyIfTrusted": "Er gehört nicht zu den Servern, die diese App anbietet. Fahre nur fort, wenn du {{server}} vertraust.",
       "cancel": "Abbrechen",
       "continue": "Fortfahren"
+    },
+    "appUpdate": {
+      "available": "Eine neue Version von MindRoom ist verfügbar.",
+      "reload": "Neu laden",
+      "dismiss": "Ausblenden",
+      "reloadToUse": "Lade neu, um sie zu verwenden."
+    },
+    "appError": {
+      "title": "Etwas ist schiefgelaufen.",
+      "description": "MindRoom ist auf ein Problem gestoßen und konnte diese Ansicht nicht anzeigen. Lade neu, um fortzufahren."
     }
   },
   "featureUi": {

@@ -141,6 +141,16 @@
       "onlyIfTrusted": "它不是此应用提供的服务器。仅当您信任 {{server}} 时才继续。",
       "cancel": "取消",
       "continue": "继续"
+    },
+    "appUpdate": {
+      "available": "MindRoom 有新版本可用。",
+      "reload": "重新加载",
+      "dismiss": "关闭",
+      "reloadToUse": "重新加载即可使用。"
+    },
+    "appError": {
+      "title": "出了点问题。",
+      "description": "MindRoom 遇到问题，无法显示此页面。请重新加载以继续。"
     }
   },
   "featureUi": {

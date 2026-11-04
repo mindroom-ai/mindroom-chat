@@ -141,6 +141,16 @@
       "onlyIfTrusted": "Server ini bukan salah satu server yang ditawarkan aplikasi ini. Lanjutkan hanya jika Anda memercayai {{server}}.",
       "cancel": "Batal",
       "continue": "Lanjutkan"
+    },
+    "appUpdate": {
+      "available": "Versi baru MindRoom tersedia.",
+      "reload": "Muat ulang",
+      "dismiss": "Tutup",
+      "reloadToUse": "Muat ulang untuk menggunakannya."
+    },
+    "appError": {
+      "title": "Terjadi kesalahan.",
+      "description": "MindRoom mengalami masalah dan tidak dapat menampilkan layar ini. Muat ulang untuk melanjutkan."
     }
   },
   "featureUi": {

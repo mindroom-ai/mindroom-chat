@@ -147,6 +147,16 @@
       "onlyIfTrusted": "Não é um dos servidores que esta aplicação oferece. Continue apenas se confiar em {{server}}.",
       "cancel": "Cancelar",
       "continue": "Continuar"
+    },
+    "appUpdate": {
+      "available": "Está disponível uma nova versão do MindRoom.",
+      "reload": "Recarregar",
+      "dismiss": "Ignorar",
+      "reloadToUse": "Recarregue para a utilizar."
+    },
+    "appError": {
+      "title": "Algo correu mal.",
+      "description": "O MindRoom encontrou um problema e não conseguiu mostrar este ecrã. Recarregue para continuar."
     }
   },
   "featureUi": {

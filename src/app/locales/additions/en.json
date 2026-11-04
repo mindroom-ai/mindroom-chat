@@ -144,6 +144,16 @@
       "onlyIfTrusted": "It is not one of the servers this app offers. Only continue if you trust {{server}}.",
       "cancel": "Cancel",
       "continue": "Continue"
+    },
+    "appUpdate": {
+      "available": "A new version of MindRoom is available.",
+      "reload": "Reload",
+      "dismiss": "Dismiss",
+      "reloadToUse": "Reload to use it."
+    },
+    "appError": {
+      "title": "Something went wrong.",
+      "description": "MindRoom ran into a problem and couldn't show this screen. Reload to continue."
     }
   },
   "featureUi": {
