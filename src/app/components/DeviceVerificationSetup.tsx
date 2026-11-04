@@ -1,33 +1,20 @@
 import React, { CSSProperties, FormEventHandler, ReactNode, useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
-import FocusTrap from 'focus-trap-react';
-import { AuthDict, IAuthData, MatrixError, UIAuthCallback } from 'matrix-js-sdk';
-import {
-  Box,
-  Button,
-  Chip,
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Spinner,
-  Text,
-  color,
-  config,
-} from 'folds';
+import type { MatrixError, UIAuthCallback } from 'matrix-js-sdk';
+import { Box, Button, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { Dialog, Header } from './glass/GlassPrimitives';
 import { PasswordInput } from './password-input';
-import { ActionUIA, ActionUIAFlowsLoader } from './ActionUIA';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { clearSecretStorageKeys } from '../../client/secretStorageKeys';
 import { copyToClipboard } from '../utils/dom';
-import { stopPropagation } from '../utils/keyboard';
 import { ContainerColor } from '../styles/ContainerColor.css';
+import {
+  AuthenticationCancelled,
+  useAuthenticatedAction,
+} from '../features/settings/useAuthenticatedAction';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 const UIA_WITHOUT_DATA = 'Unexpected Error! UIA action is perform without data.';
@@ -42,7 +29,7 @@ const INTERNAL_ERRORS: ReadonlySet<string> = new Set([
 ]);
 
 /** Shows the setup's own failures as one localized message and any other error as sent. */
-export const useDeviceVerificationErrorText = () => {
+const useDeviceVerificationErrorText = () => {
   const { t } = useTranslation();
   return (error: unknown): string => {
     const message = error instanceof Error ? error.message : String(error);
@@ -52,15 +39,12 @@ export const useDeviceVerificationErrorText = () => {
   };
 };
 
-type UIARequest = {
-  authData: IAuthData;
-  resolve: (authDict: AuthDict) => void;
-  reject: (error: Error) => void;
-};
-
-const getUIAData = (error: unknown): IAuthData | undefined => {
-  const data = (error as MatrixError | undefined)?.data as IAuthData | undefined;
-  return data?.flows ? data : undefined;
+/** The setup's own failure for an authentication that did not go through. */
+const toSetupAuthError = (error: unknown): unknown => {
+  if (error instanceof AuthenticationCancelled) return new Error(SETUP_AUTH_FAILED);
+  // Refused without flows: the server did not say how to authenticate.
+  if ((error as MatrixError | undefined)?.httpStatus === 401) return new Error(UIA_WITHOUT_DATA);
+  return error;
 };
 
 const TITLE_BAR_PADDING = `0 ${config.space.S200} 0 ${config.space.S400}`;
@@ -88,123 +72,6 @@ function DialogTitleBar({ onClose, children }: DialogTitleBarProps) {
   );
 }
 
-type UnsupportedUIAProps = {
-  onClose: () => void;
-};
-
-/** Says the server asks for auth stages this client cannot complete, and lets the user back out. */
-function UnsupportedUIA({ onClose }: UnsupportedUIAProps) {
-  const { t } = useTranslation();
-  return (
-    <Dialog variant="Surface" role="dialog" aria-modal="true">
-      <DialogTitleBar onClose={onClose} />
-      <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
-        <Text size="T300">
-          {t(
-            'sharedUi.deviceVerificationSetup.authenticationStepsToPerformThisActionAreNotSupportedByClient'
-          )}
-        </Text>
-        <Button variant="Secondary" fill="Soft" onClick={onClose}>
-          <Text size="B400">{t('sharedUi.deviceVerification.close')}</Text>
-        </Button>
-      </Box>
-    </Dialog>
-  );
-}
-
-/**
- * Bridges the SDK's user-interactive auth callback to a prompt: `authUploadDeviceSigningKeys`
- * first tries without auth, and each time the server answers with UIA flows it publishes a
- * `pending` request and waits until the user completes or cancels it.
- */
-const useCrossSigningAuthPrompt = () => {
-  const [pending, setPending] = useState<UIARequest>();
-
-  const askForAuth = useCallback(
-    (authData: IAuthData) =>
-      new Promise<AuthDict>((resolve, reject) => {
-        // Only this request may clear itself; a stale close must not hide a newer prompt.
-        const dismiss = () => setPending((current) => (current === request ? undefined : current));
-        const request: UIARequest = {
-          authData,
-          resolve: (authDict) => {
-            dismiss();
-            resolve(authDict);
-          },
-          reject: (error) => {
-            dismiss();
-            reject(error);
-          },
-        };
-        setPending(request);
-      }),
-    []
-  );
-
-  const authUploadDeviceSigningKeys = useCallback<UIAuthCallback<void>>(
-    async (makeRequest) => {
-      let auth: AuthDict | null = null;
-      // The server may want several stages; every answer without flows ends the loop.
-      for (;;) {
-        try {
-          await makeRequest(auth);
-          return;
-        } catch (error) {
-          const authData = getUIAData(error);
-          if (!authData) {
-            const unauthorized = (error as MatrixError | undefined)?.httpStatus === 401;
-            throw unauthorized ? new Error(UIA_WITHOUT_DATA) : error;
-          }
-          auth = await askForAuth(authData);
-        }
-      }
-    },
-    [askForAuth]
-  );
-
-  const cancel = () => pending?.reject(new Error(SETUP_AUTH_FAILED));
-
-  return { pending, cancel, authUploadDeviceSigningKeys };
-};
-
-type UIAPromptOverlayProps = {
-  request: UIARequest;
-  onCancel: () => void;
-};
-
-/** The auth prompt over the setup dialog; Escape or Close cancels the whole setup. */
-function UIAPromptOverlay({ request, onCancel }: UIAPromptOverlayProps) {
-  const { authData, resolve } = request;
-  const renderUnsupported = () => <UnsupportedUIA onClose={onCancel} />;
-  const trapOptions = {
-    escapeDeactivates: stopPropagation,
-    onDeactivate: onCancel,
-    clickOutsideDeactivates: false,
-    initialFocus: false as const,
-  };
-
-  return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter>
-        <FocusTrap focusTrapOptions={trapOptions}>
-          <div>
-            <ActionUIAFlowsLoader authData={authData} unsupported={renderUnsupported}>
-              {(flow) => (
-                <ActionUIA
-                  ongoingFlow={flow}
-                  authData={authData}
-                  onCancel={onCancel}
-                  action={resolve}
-                />
-              )}
-            </ActionUIAFlowsLoader>
-          </div>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
-  );
-}
-
 const RECOVERY_DESCRIPTION_TAGS = { b: <b /> };
 
 // Both the secret storage and its key backup are created anew, never merged into existing ones.
@@ -213,7 +80,16 @@ const FRESH_SECRET_STORAGE = { setupNewSecretStorage: true, setupNewKeyBackup: t
 function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) => void }) {
   const mx = useMatrixClient();
   const alive = useAlive();
-  const { pending, cancel, authUploadDeviceSigningKeys } = useCrossSigningAuthPrompt();
+  // The SDK first tries the upload without auth; each stage the server then asks for is
+  // prompted for, and closing the prompt stops the setup.
+  const { run, prompt } = useAuthenticatedAction();
+  const authUploadDeviceSigningKeys = useCallback<UIAuthCallback<void>>(
+    (makeRequest) =>
+      run((auth) => makeRequest(auth ?? null)).catch((error: unknown) => {
+        throw toSetupAuthError(error);
+      }),
+    [run]
+  );
   const { t } = useTranslation();
   const describeError = useDeviceVerificationErrorText();
 
@@ -288,7 +164,7 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
           </Text>
         )}
       </Box>
-      {pending && <UIAPromptOverlay request={pending} onCancel={cancel} />}
+      {prompt}
     </>
   );
 }

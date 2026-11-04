@@ -130,10 +130,10 @@ const expectSetupStopped = (renderer: ReactTestRenderer) => {
 };
 
 describe('DeviceVerificationSetup unsupported auth flow', () => {
-  it('closes from the Close button and stops the setup', async () => {
+  it('closes from the Cancel button and stops the setup', async () => {
     const renderer = await startSetupWithUnsupportedFlow();
     const overlay = renderer.root.findByProps({ 'data-overlay': true });
-    const close = overlay.findByProps({ 'aria-label': 'Close' });
+    const close = overlay.find((node) => node.type === 'button' && textOf(node) === 'Cancel');
 
     act(() => {
       close.props.onClick();
