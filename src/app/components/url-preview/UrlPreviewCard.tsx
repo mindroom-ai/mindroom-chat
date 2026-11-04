@@ -8,6 +8,8 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
+import { useAvatarImage } from '../user-avatar/useAvatarImage';
+import { ImageOverlay } from '../ImageOverlay';
 
 const linkStyles = { color: color.Success.Main };
 
@@ -33,27 +35,54 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
   const [previewState, loadPreview] = useAsyncCallback(
     useCallback(() => mx.getUrlPreview(url, ts), [mx, url, ts])
   );
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => {
     loadPreview().catch(() => undefined);
   }, [loadPreview]);
 
+  // The preview's picture is homeserver media: the card shows a thumbnail and a click opens the
+  // whole picture. Both load with the access token when no service worker adds it.
+  const preview = previewState.status === AsyncStatus.Success ? previewState.data : undefined;
+  const imageMxc = typeof preview?.['og:image'] === 'string' ? preview['og:image'] : undefined;
+  const thumbnail = useAvatarImage(
+    imageMxc
+      ? mxcUrlToHttp(mx, imageMxc, useAuthentication, 256, 256, 'scale', false) ?? undefined
+      : undefined
+  );
+  const original = useAvatarImage(
+    imageMxc && viewerOpen ? mxcUrlToHttp(mx, imageMxc, useAuthentication) ?? undefined : undefined
+  );
+
   if (previewState.status === AsyncStatus.Error) return null;
 
   let content: ReactNode;
-  if (previewState.status === AsyncStatus.Success) {
-    const preview = previewState.data;
+  if (preview) {
     const title = preview['og:title'];
     const description = preview['og:description'];
-    const image = preview['og:image'];
-    const imageSrc =
-      typeof image === 'string'
-        ? mxcUrlToHttp(mx, image, useAuthentication, 256, 256, 'scale', false) ?? undefined
-        : undefined;
+    const imageAlt = typeof title === 'string' ? title : '';
     content = (
       <>
-        {imageSrc && (
-          <UrlPreviewImg src={imageSrc} alt={typeof title === 'string' ? title : ''} title={url} />
+        {thumbnail.imageSrc && (
+          <button
+            type="button"
+            className={css.UrlPreviewImageButton}
+            onClick={() => setViewerOpen(true)}
+          >
+            <UrlPreviewImg
+              src={thumbnail.imageSrc}
+              alt={imageAlt}
+              title={url}
+              onError={thumbnail.onImageError}
+            />
+          </button>
+        )}
+        {viewerOpen && (
+          <ImageOverlay
+            src={original.imageSrc}
+            alt={imageAlt || url}
+            requestClose={() => setViewerOpen(false)}
+          />
         )}
         <UrlPreviewContent>
           <Text

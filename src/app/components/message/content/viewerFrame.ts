@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react';
+import type FocusTrap from 'focus-trap-react';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
+import { stopPropagation } from '../../../utils/keyboard';
 
 // Attachment viewers (image, text, PDF) get most of the window, past the modal's usual size cap.
 const WINDOW_BOX: CSSProperties = {
@@ -42,3 +44,15 @@ export const useViewerFrame = (): ViewerFrame =>
   useScreenSizeContext() === ScreenSize.Mobile
     ? { centerStyle: PHONE_CENTER, modalStyle: PHONE_BOX }
     : { modalStyle: WINDOW_BOX };
+
+type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+
+// Escape closes the viewer and goes no further; so does a click outside it.
+const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
+
+/** Focus trap options for a viewer that closes however focus leaves it. */
+export const viewerTrapOptions = (close: () => void): TrapOptions => ({
+  ...DISMISSIBLE,
+  initialFocus: false,
+  onDeactivate: close,
+});

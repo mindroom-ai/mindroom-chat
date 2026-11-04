@@ -1,3 +1,4 @@
+import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
 
@@ -48,3 +49,22 @@ export const UrlPreviewHolderBtn = recipe({
     },
   },
 });
+
+/** The preview's picture is a button that opens it in the image viewer. */
+export const UrlPreviewImageButton = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    flex: 'none',
+    padding: 0,
+    border: 'none',
+    background: 'none',
+    cursor: 'zoom-in',
+    selectors: {
+      '&:focus-visible': {
+        outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+        outlineOffset: `calc(-1 * ${config.borderWidth.B600})`,
+      },
+    },
+  },
+]);
