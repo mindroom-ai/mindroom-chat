@@ -12775,6 +12775,12 @@ bf0baca196c4ec898f4272e6ce5ca6818a21d8a0	src/app/pages/client/RoomRoute.tsx	72
 bf237f08eb505db77e2a67924d087a8d45165ce0	src/app/pages/client/sidebar/CanvasesTab.tsx	51
 bf237f08eb505db77e2a67924d087a8d45165ce0	src/app/pages/client/sidebar/CanvasesTab.tsx	52
 bf237f08eb505db77e2a67924d087a8d45165ce0	src/app/pages/client/sidebar/CanvasesTab.tsx	53
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	65
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	66
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	67
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	68
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	69
+bf635bb9ee17bbc8f8b3c77aef83bc5cdcd1cf38	src/app/pages/client/sidebar/SpaceTabs.tsx	70
 bf71ca7fea218941641c63f7e1658d65f40fbf3a	src/app/components/MembershipFilterMenu.tsx	31
 bf71ca7fea218941641c63f7e1658d65f40fbf3a	src/app/components/MembershipFilterMenu.tsx	32
 bf71ca7fea218941641c63f7e1658d65f40fbf3a	src/app/components/MembershipFilterMenu.tsx	33
@@ -13656,6 +13662,13 @@ cdd0238f4c0a9e39dd5e197fc94e180c35615694	src/app/pages/client/inbox/Invites.tsx	
 cdd0238f4c0a9e39dd5e197fc94e180c35615694	src/app/pages/client/inbox/Invites.tsx	51
 cdd0238f4c0a9e39dd5e197fc94e180c35615694	src/app/pages/client/inbox/Invites.tsx	52
 cdd0238f4c0a9e39dd5e197fc94e180c35615694	src/app/pages/client/inbox/Invites.tsx	53
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	414
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	415
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	416
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	417
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	418
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	419
+ce27906dc4be1e8116e2474de3ed3c3fb588916e	src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx	420
 ce2edd9d72e67d3be0b505ded798ab6c953f8b77	src/app/mindroom/messages/pinnedMessageExtensions.ts	22
 ce2edd9d72e67d3be0b505ded798ab6c953f8b77	src/app/mindroom/messages/pinnedMessageExtensions.ts	23
 ce2edd9d72e67d3be0b505ded798ab6c953f8b77	src/app/mindroom/messages/pinnedMessageExtensions.ts	24
@@ -16184,6 +16197,10 @@ f7cd861fc0b3a3c909e15562dbf15055a35c2ca8	src/app/pages/client/home/Home.tsx	92
 f7cd861fc0b3a3c909e15562dbf15055a35c2ca8	src/app/pages/client/home/Home.tsx	93
 f7cd861fc0b3a3c909e15562dbf15055a35c2ca8	src/app/pages/client/home/Home.tsx	96
 f7cd861fc0b3a3c909e15562dbf15055a35c2ca8	src/app/pages/client/home/Home.tsx	97
+f7df708966130ca400510436c9a2362299c632f2	src/app/pages/client/sidebar/SpaceTabs.tsx	116
+f7df708966130ca400510436c9a2362299c632f2	src/app/pages/client/sidebar/SpaceTabs.tsx	117
+f7df708966130ca400510436c9a2362299c632f2	src/app/pages/client/sidebar/SpaceTabs.tsx	118
+f7df708966130ca400510436c9a2362299c632f2	src/app/pages/client/sidebar/SpaceTabs.tsx	119
 f83302d659a323f6917d6422238a6204183e4669	src/app/components/editor/input.ts	45
 f83302d659a323f6917d6422238a6204183e4669	src/app/components/editor/input.ts	46
 f83302d659a323f6917d6422238a6204183e4669	src/app/components/editor/input.ts	47
