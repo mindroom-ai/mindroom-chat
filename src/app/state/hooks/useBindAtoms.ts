@@ -1,4 +1,5 @@
 import type { MatrixClient } from 'matrix-js-sdk';
+import { useBindLiveReplyFrames } from '../../mindroom/live/bindLiveReplyFrames';
 import { mDirectAtom, useBindMDirectAtom } from '../mDirectList';
 import { allInvitesAtom, useBindAllInvitesAtom } from '../room-list/inviteList';
 import { allRoomsAtom, useBindAllRoomsAtom } from '../room-list/roomList';
@@ -17,4 +18,6 @@ export function useBindAtoms(client: MatrixClient): void {
   // Live per-room state.
   useBindRoomIdToTypingMembersAtom(client, roomIdToTypingMembersAtom);
   useBindRoomToUnreadAtom(client, roomToUnreadAtom);
+  // Agents' live reply frames, kept for any room, so a reply streams wherever it is opened.
+  useBindLiveReplyFrames(client);
 }
