@@ -58,9 +58,17 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   }),
 }));
 
-vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
-  useShowCanvasesInSidebar: () => mocks.showCanvases,
-}));
+vi.mock('../../mindroom/settings/useMindroomAccountSettings', async () => {
+  const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import(
+    '../../mindroom/settings/mindroomAccountSettings'
+  );
+  return {
+    useMindroomAccountSettings: () => ({
+      ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
+      showCanvasesInSidebar: mocks.showCanvases,
+    }),
+  };
+});
 
 const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
   create(

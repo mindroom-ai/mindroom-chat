@@ -7,9 +7,6 @@ import {
   SidebarStack,
   SidebarStackSeparator,
 } from '../../components/sidebar';
-import { useClientConfig } from '../../hooks/useClientConfig';
-import { useShowCanvasesInSidebar } from '../../mindroom/settings/useMindroomAccountSettings';
-import { useShowLocalMindroom } from '../../mindroom/local-mindroom/useShowLocalMindroom';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 import {
   CanvasesTab,
@@ -24,6 +21,7 @@ import {
   UnverifiedTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
+import { useRailButtons } from './sidebar/railButtons';
 import { CallTab } from '../../features/calls/CallTab';
 
 type SidebarNavProps = {
@@ -38,21 +36,16 @@ type SidebarNavProps = {
 };
 
 /**
- * The icon rail. On top: Home, Direct Messages and the optional sections, then the joined spaces
- * and, where communities are on, Explore and Create Space. Pinned to the foot: the call this device
- * is in, the command palette, device and Local MindRoom notices when they apply, the Inbox, the
- * account, and the footer.
+ * The icon rail. On top: Home, Direct Messages, Threads and Canvases, then the joined spaces,
+ * Explore and Create Space. Pinned to the foot: the call this device is in, the command palette,
+ * device and Local MindRoom notices when they apply, the Inbox, the account, and the footer.
+ * Threads, Canvases, Explore, Create Space, the command palette and Local MindRoom show where the
+ * deployment offers them and the person has not hidden them in Settings (`useRailButtons`).
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { sidebar, mindroom } = useClientConfig();
-  const showCanvasesSetting = useShowCanvasesInSidebar();
-  const showLocalMindroom = useShowLocalMindroom();
-
-  const showThreads = sidebar?.showThreads ?? true;
-  const showCanvases = !!mindroom?.canvas?.enabled && showCanvasesSetting;
-  const showCommunities = sidebar?.showExploreCommunity ?? true;
+  const shown = useRailButtons();
 
   return (
     <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')}>
@@ -62,16 +55,16 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             <SidebarStack>
               <HomeTab onSelect={onPageNavSelect} />
               <DirectTab onSelect={onPageNavSelect} />
-              {showThreads && <ThreadsTab onSelect={onPageNavSelect} />}
-              {showCanvases && <CanvasesTab />}
+              {shown.threads && <ThreadsTab onSelect={onPageNavSelect} />}
+              {shown.canvases && <CanvasesTab />}
             </SidebarStack>
             <SpaceTabs onSelect={onPageNavSelect} />
-            {showCommunities && (
+            {(shown.explore || shown.createSpace) && (
               <>
                 <SidebarStackSeparator />
                 <SidebarStack>
-                  <ExploreTab onSelect={onPageNavSelect} />
-                  <CreateTab />
+                  {shown.explore && <ExploreTab onSelect={onPageNavSelect} />}
+                  {shown.createSpace && <CreateTab />}
                 </SidebarStack>
               </>
             )}
@@ -82,9 +75,9 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             <SidebarStackSeparator />
             <SidebarStack>
               <CallTab />
-              <SearchTab />
+              {shown.search && <SearchTab />}
               <UnverifiedTab />
-              {showLocalMindroom && <MindroomTab />}
+              {shown.localMindroom && <MindroomTab />}
               <InboxTab />
               <SettingsTab />
             </SidebarStack>

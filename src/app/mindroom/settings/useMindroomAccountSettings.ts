@@ -80,9 +80,3 @@ export function useSetMindroomAccountSettings(): AccountSettingsWriter {
     [mx]
   );
 }
-
-/** Whether the account lets the sidebar list canvases; on unless the user turned it off. */
-export function useShowCanvasesInSidebar(): boolean {
-  const { showCanvasesInSidebar } = useMindroomAccountSettings();
-  return showCanvasesInSidebar;
-}

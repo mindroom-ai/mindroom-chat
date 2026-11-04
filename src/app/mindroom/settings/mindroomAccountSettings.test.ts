@@ -31,9 +31,7 @@ describe('sanitizeMindroomAccountSettings', () => {
         futureKey: 'x',
         expandLongMessagesByDefault: true,
       })
-    ).toEqual({
-      showCanvasesInSidebar: true,
-    });
+    ).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
   });
 });
 
