@@ -29,15 +29,21 @@ const statusOf = (fields: ErrorFields): number | undefined =>
 const FETCH_FAILURE =
   /failed to fetch|networkerror|load failed|network request failed|fetch failed/i;
 
-const NO_CONNECTION_NAMES: ReadonlySet<string> = new Set(['ConnectionError', 'TokenRefreshError']);
 const UNFINISHED_NAMES: ReadonlySet<string> = new Set(['AbortError', 'TimeoutError']);
 
 /** A request that never got an answer: no network, a refused connection, or a blocked fetch. */
 const isNoConnection = (fields: ErrorFields): boolean => {
   const name = text(fields.name);
-  if (name !== undefined && NO_CONNECTION_NAMES.has(name)) return true;
+  if (name === 'ConnectionError') return true;
   return name === 'TypeError' && FETCH_FAILURE.test(text(fields.message) ?? '');
 };
+
+/**
+ * A token refresh that failed without ending the session keeps only its cause's text: a dropped
+ * connection, but also a server error or a rate limit at the token endpoint.
+ */
+const isRefreshWithoutConnection = (fields: ErrorFields): boolean =>
+  text(fields.name) === 'TokenRefreshError' && FETCH_FAILURE.test(text(fields.message) ?? '');
 
 const isUnfinished = (fields: ErrorFields): boolean => {
   const name = text(fields.name);
@@ -48,6 +54,10 @@ type MessageKey =
   | 'forbidden'
   | 'signedOut'
   | 'accountDeactivated'
+  | 'accountSuspended'
+  | 'accountLocked'
+  | 'weakPassword'
+  | 'cannotLeaveNoticeRoom'
   | 'notFound'
   | 'unsupported'
   | 'tooLarge'
@@ -66,12 +76,20 @@ const BY_ERRCODE: Readonly<Record<string, MessageKey>> = {
   M_UNKNOWN_TOKEN: 'signedOut',
   M_MISSING_TOKEN: 'signedOut',
   M_USER_DEACTIVATED: 'accountDeactivated',
+  M_USER_SUSPENDED: 'accountSuspended',
+  M_USER_LOCKED: 'accountLocked',
+  M_WEAK_PASSWORD: 'weakPassword',
+  M_CANNOT_LEAVE_SERVER_NOTICE_ROOM: 'cannotLeaveNoticeRoom',
   M_NOT_FOUND: 'notFound',
   M_UNRECOGNIZED: 'unsupported',
   M_TOO_LARGE: 'tooLarge',
   M_UNSUPPORTED_ROOM_VERSION: 'unsupportedRoomVersion',
   M_INCOMPATIBLE_ROOM_VERSION: 'unsupportedRoomVersion',
   M_ROOM_IN_USE: 'addressTaken',
+  M_USER_IN_USE: 'addressTaken',
+  M_THREEPID_IN_USE: 'addressTaken',
+  // An application service reserved the room address or user ID.
+  M_EXCLUSIVE: 'addressTaken',
   M_BAD_JSON: 'invalidRequest',
   M_NOT_JSON: 'invalidRequest',
   M_INVALID_PARAM: 'invalidRequest',
@@ -129,7 +147,9 @@ const rateLimitMessage = (t: TFunction, waitMs: number | undefined): string => {
 export const describeKnownError = (t: TFunction, error: unknown): string | undefined => {
   const fields = fieldsOf(error);
   if (fields === undefined) return undefined;
-  if (isNoConnection(fields)) return t('errors.noConnection');
+  if (isNoConnection(fields) || isRefreshWithoutConnection(fields)) {
+    return t('errors.noConnection');
+  }
   if (text(fields.name) === 'TokenRefreshLogoutError') return t('errors.signedOut');
   if (isUnfinished(fields)) return t('errors.timedOut');
   if (text(fields.name) === 'SessionStoreWriteError') return t('errors.storageBlocked');

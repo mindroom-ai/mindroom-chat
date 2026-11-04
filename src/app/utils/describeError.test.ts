@@ -39,12 +39,27 @@ describe('describeError', () => {
     ['M_UNKNOWN_TOKEN', 401, 'Your session has ended. Sign in again.'],
     ['M_MISSING_TOKEN', 401, 'Your session has ended. Sign in again.'],
     ['M_USER_DEACTIVATED', 403, 'This account has been deactivated.'],
+    [
+      'M_USER_SUSPENDED',
+      403,
+      "This account has been suspended. Contact the server's administrator.",
+    ],
+    ['M_USER_LOCKED', 401, "This account has been locked. Contact the server's administrator."],
+    ['M_WEAK_PASSWORD', 400, 'This password is too weak. Choose a longer or less common one.'],
+    [
+      'M_CANNOT_LEAVE_SERVER_NOTICE_ROOM',
+      403,
+      "You can't leave the room where the server sends its notices.",
+    ],
     ['M_NOT_FOUND', 404, "The server couldn't find this. It may have been removed."],
     ['M_UNRECOGNIZED', 404, "This server doesn't support this."],
     ['M_TOO_LARGE', 413, 'This is too large for the server.'],
     ['M_UNSUPPORTED_ROOM_VERSION', 400, "The server doesn't support this room version."],
     ['M_INCOMPATIBLE_ROOM_VERSION', 400, "The server doesn't support this room version."],
     ['M_ROOM_IN_USE', 400, 'This address is already in use. Choose another one.'],
+    ['M_USER_IN_USE', 400, 'This address is already in use. Choose another one.'],
+    ['M_THREEPID_IN_USE', 400, 'This address is already in use. Choose another one.'],
+    ['M_EXCLUSIVE', 400, 'This address is already in use. Choose another one.'],
     ['M_BAD_JSON', 400, "The server didn't accept this request."],
     ['M_INVALID_PARAM', 400, "The server didn't accept this request."],
     [
@@ -112,9 +127,9 @@ describe('describeError', () => {
     expect(describeError(t, new ConnectionError('fetch failed', new TypeError('x')))).toBe(
       "Couldn't reach the server. Check your connection and try again."
     );
-    expect(describeError(t, new TokenRefreshError(new Error('x')))).toBe(
-      "Couldn't reach the server. Check your connection and try again."
-    );
+    expect(
+      describeError(t, new TokenRefreshError(new ConnectionError('fetch failed', new TypeError())))
+    ).toBe("Couldn't reach the server. Check your connection and try again.");
     for (const message of [
       'Failed to fetch',
       'NetworkError when attempting to fetch resource.',
@@ -127,6 +142,17 @@ describe('describeError', () => {
     expect(describeError(t, domError('AbortError'))).toBe("The request didn't finish. Try again.");
     expect(describeError(t, domError('TimeoutError'))).toBe(
       "The request didn't finish. Try again."
+    );
+  });
+
+  it('reads a failed token refresh by its cause, which is not always the connection', () => {
+    // The SDK keeps only the cause's text: here a server error at the token endpoint.
+    const refresh = new TokenRefreshError(new HTTPError('Server returned 502 error', 502));
+
+    expect(describeError(t, refresh)).toBe('Something went wrong.');
+    expect(errorDetail(refresh)).toBe('Server returned 502 error');
+    expect(errorDetail(new TokenRefreshError(new ConnectionError('fetch failed')))).toBe(
+      'fetch failed'
     );
   });
 
