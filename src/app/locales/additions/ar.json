@@ -210,6 +210,19 @@
         "keywordMessages": {
           "remove": "إزالة"
         }
+      },
+      "sidebar": {
+        "title": "الشريط الجانبي",
+        "threads": "إظهار سلاسل المحادثات في الشريط الجانبي",
+        "threadsDescription": "سلاسل المحادثات من كل الغرف في قائمة واحدة. عند إخفائها، افتحها من القائمة ⋮ في الرئيسية.",
+        "explore": "إظهار استكشاف المجتمع في الشريط الجانبي",
+        "exploreDescription": "غرف ومساحات عامة للانضمام إليها. عند إخفائه، افتحه من القائمة ⋮ في الرئيسية.",
+        "createSpace": "إظهار إنشاء مساحة في الشريط الجانبي",
+        "createSpaceDescription": "عند إخفائه، أنشئ مساحة من لوحة الأوامر (⁨{{shortcut}}⁩).",
+        "search": "إظهار البحث في الشريط الجانبي",
+        "searchDescription": "الزر الذي يفتح لوحة الأوامر. عند إخفائه، يظل ⁨{{shortcut}}⁩ يفتحها.",
+        "localMindroom": "إظهار Local MindRoom في الشريط الجانبي",
+        "localMindroomDescription": "يقرن MindRoom الذي يعمل على حاسوبك. عند إخفائه، يبقى هنا في الإعدادات ضمن Local MindRoom."
       }
     },
     "createChat": {
@@ -302,6 +315,10 @@
         "failed": "تعذّر الانتقال إلى ذلك الوقت: ⁨{{reason}}⁩",
         "close": "إغلاق"
       }
+    },
+    "accountMenu": {
+      "open": "فتح قائمة حساب ⁨{{name}}⁩",
+      "manageAccounts": "إدارة الحسابات"
     }
   },
   "mindroomUi": {

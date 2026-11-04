@@ -194,6 +194,19 @@
         "keywordMessages": {
           "remove": "Verwijderen"
         }
+      },
+      "sidebar": {
+        "title": "Zijbalk",
+        "threads": "Threads in de zijbalk tonen",
+        "threadsDescription": "Threads uit alle kamers in één lijst. Verborgen open je ze via het ⋮-menu in Home.",
+        "explore": "Community verkennen in de zijbalk tonen",
+        "exploreDescription": "Openbare kamers en spaces om lid van te worden. Verborgen open je het via het ⋮-menu in Home.",
+        "createSpace": "Space aanmaken in de zijbalk tonen",
+        "createSpaceDescription": "Verborgen maak je een space aan via het commandopalet ({{shortcut}}).",
+        "search": "Zoeken in de zijbalk tonen",
+        "searchDescription": "De knop die het commandopalet opent. Verborgen opent {{shortcut}} het nog steeds.",
+        "localMindroom": "Lokale MindRoom in de zijbalk tonen",
+        "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom."
       }
     },
     "createChat": {
@@ -278,6 +291,10 @@
         "failed": "Kon niet naar dat moment springen: {{reason}}",
         "close": "Sluiten"
       }
+    },
+    "accountMenu": {
+      "open": "Accountmenu voor {{name}} openen",
+      "manageAccounts": "Accounts beheren"
     }
   },
   "mindroomUi": {

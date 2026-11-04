@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('../../hooks/useClientConfig', () => ({ useClientConfig: () => state.clientConfig }));
+vi.mock('../local-mindroom/useShowLocalMindroom', () => ({ useShowLocalMindroom: () => false }));
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');

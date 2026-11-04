@@ -1,0 +1,129 @@
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ClientConfig } from '../../hooks/useClientConfig';
+import { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } from './mindroomAccountSettings';
+import { MindroomInterfaceSettings } from './MindroomInterfaceSettings';
+
+const state = vi.hoisted(() => ({
+  config: {} as ClientConfig,
+  localMindroom: true,
+  write: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../hooks/useClientConfig', () => ({ useClientConfig: () => state.config }));
+vi.mock('../local-mindroom/useShowLocalMindroom', () => ({
+  useShowLocalMindroom: () => state.localMindroom,
+}));
+vi.mock('./useMindroomAccountSettings', () => ({
+  useMindroomAccountSettings: () => ({
+    ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
+    showSearchInSidebar: false,
+  }),
+  useSetMindroomAccountSettings: () => state.write,
+}));
+vi.mock('../command-palette/commandPaletteShortcut', () => ({
+  getCommandPaletteShortcutLabel: () => 'Ctrl + K',
+}));
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return { useTranslation: () => ({ t: translateFromEn }) };
+});
+vi.mock('folds', () => ({
+  Box: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  Switch: ({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) =>
+    React.createElement('button', {
+      role: 'switch',
+      'aria-checked': value,
+      onClick: () => onChange(!value),
+    }),
+  Text: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('span', null, children),
+  color: { Critical: { Main: 'red' } },
+}));
+vi.mock('../../components/sequence-card', () => ({
+  SequenceCard: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('section', null, children),
+}));
+vi.mock('../../components/setting-tile', () => ({
+  SettingTile: ({
+    title,
+    description,
+    after,
+  }: {
+    title: string;
+    description: string;
+    after: React.ReactNode;
+  }) => React.createElement('div', { 'data-title': title, 'data-description': description }, after),
+}));
+
+const render = (config: ClientConfig = {}) => {
+  state.config = config;
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(<MindroomInterfaceSettings />);
+  });
+  return renderer;
+};
+
+const titles = (renderer: ReactTestRenderer) =>
+  renderer.root
+    .findAll((node) => typeof node.props['data-title'] === 'string')
+    .map((node) => node.props['data-title'] as string);
+
+const tile = (renderer: ReactTestRenderer, title: string) =>
+  renderer.root.find((node) => node.props['data-title'] === title);
+
+describe('Settings > General > Sidebar', () => {
+  afterEach(() => {
+    state.localMindroom = true;
+    state.write.mockClear();
+  });
+
+  it('lists a switch for each rail button the deployment offers, in rail order', () => {
+    const renderer = render({ mindroom: { canvas: { enabled: true } } });
+    expect(renderer.root.findAllByType('span').map((node) => node.children[0])[0]).toBe('Sidebar');
+    expect(titles(renderer)).toEqual([
+      'Show Threads in the sidebar',
+      'Show Canvases in the sidebar',
+      'Show Explore Community in the sidebar',
+      'Show Create Space in the sidebar',
+      'Show Search in the sidebar',
+      'Show Local MindRoom in the sidebar',
+    ]);
+  });
+
+  it('leaves out the switches of buttons the deployment or the account cannot show', () => {
+    state.localMindroom = false;
+    const renderer = render({ sidebar: { showThreads: false, showExploreCommunity: false } });
+    expect(titles(renderer)).toEqual(['Show Search in the sidebar']);
+  });
+
+  it('says where each hidden page stays reachable', () => {
+    const renderer = render();
+    const description = (title: string) => tile(renderer, title).props['data-description'];
+    expect(description('Show Threads in the sidebar')).toContain('⋮ menu in Home');
+    expect(description('Show Explore Community in the sidebar')).toContain('⋮ menu in Home');
+    expect(description('Show Create Space in the sidebar')).toContain('command palette (Ctrl + K)');
+    expect(description('Show Search in the sidebar')).toContain('Ctrl + K still opens it');
+    expect(description('Show Local MindRoom in the sidebar')).toContain(
+      'Settings under Local MindRoom'
+    );
+  });
+
+  it('shows each stored value and writes the switch that was turned', async () => {
+    const renderer = render();
+    const toggle = (title: string) => tile(renderer, title).findByType('button');
+    expect(toggle('Show Threads in the sidebar').props['aria-checked']).toBe(true);
+    expect(toggle('Show Search in the sidebar').props['aria-checked']).toBe(false);
+
+    await act(async () => {
+      toggle('Show Create Space in the sidebar').props.onClick();
+    });
+    expect(state.write).toHaveBeenCalledWith({ showCreateSpaceInSidebar: false });
+    await act(async () => {
+      toggle('Show Search in the sidebar').props.onClick();
+    });
+    expect(state.write).toHaveBeenLastCalledWith({ showSearchInSidebar: true });
+  });
+});

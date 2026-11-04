@@ -198,6 +198,19 @@
         "keywordMessages": {
           "remove": "Supprimer"
         }
+      },
+      "sidebar": {
+        "title": "Barre latérale",
+        "threads": "Afficher Fils dans la barre latérale",
+        "threadsDescription": "Les fils de toutes les salles dans une seule liste. Masqués, ouvrez-les depuis le menu ⋮ de l’accueil.",
+        "explore": "Afficher Explorer la communauté dans la barre latérale",
+        "exploreDescription": "Des salles et espaces publics à rejoindre. Masqué, ouvrez-le depuis le menu ⋮ de l’accueil.",
+        "createSpace": "Afficher Créer un espace dans la barre latérale",
+        "createSpaceDescription": "Masqué, créez un espace depuis la palette de commandes ({{shortcut}}).",
+        "search": "Afficher Rechercher dans la barre latérale",
+        "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, {{shortcut}} l’ouvre toujours.",
+        "localMindroom": "Afficher MindRoom local dans la barre latérale",
+        "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
       }
     },
     "createChat": {
@@ -284,6 +297,10 @@
         "failed": "Impossible d’aller à ce moment : {{reason}}",
         "close": "Fermer"
       }
+    },
+    "accountMenu": {
+      "open": "Ouvrir le menu du compte de {{name}}",
+      "manageAccounts": "Gérer les comptes"
     }
   },
   "mindroomUi": {

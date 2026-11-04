@@ -198,6 +198,19 @@
         "keywordMessages": {
           "remove": "Rimuovi"
         }
+      },
+      "sidebar": {
+        "title": "Barra laterale",
+        "threads": "Mostra Thread nella barra laterale",
+        "threadsDescription": "I thread di tutte le stanze in un unico elenco. Se nascosti, aprili dal menu ⋮ della Home.",
+        "explore": "Mostra Esplora la comunità nella barra laterale",
+        "exploreDescription": "Stanze e spazi pubblici a cui unirti. Se nascosto, aprilo dal menu ⋮ della Home.",
+        "createSpace": "Mostra Crea spazio nella barra laterale",
+        "createSpaceDescription": "Se nascosto, crea uno spazio dalla tavolozza dei comandi ({{shortcut}}).",
+        "search": "Mostra Cerca nella barra laterale",
+        "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, {{shortcut}} la apre comunque.",
+        "localMindroom": "Mostra MindRoom locale nella barra laterale",
+        "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
       }
     },
     "createChat": {
@@ -284,6 +297,10 @@
         "failed": "Impossibile andare a quel momento: {{reason}}",
         "close": "Chiudi"
       }
+    },
+    "accountMenu": {
+      "open": "Apri il menu dell'account di {{name}}",
+      "manageAccounts": "Gestisci account"
     }
   },
   "mindroomUi": {

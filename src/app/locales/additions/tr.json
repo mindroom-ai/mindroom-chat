@@ -194,6 +194,19 @@
         "keywordMessages": {
           "remove": "Kaldır"
         }
+      },
+      "sidebar": {
+        "title": "Kenar çubuğu",
+        "threads": "Konuları kenar çubuğunda göster",
+        "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
+        "explore": "Toplulukları keşfet düğmesini kenar çubuğunda göster",
+        "exploreDescription": "Katılabileceğiniz herkese açık odalar ve alanlar. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
+        "createSpace": "Alan oluştur düğmesini kenar çubuğunda göster",
+        "createSpaceDescription": "Gizlendiğinde, komut paletinden ({{shortcut}}) alan oluşturun.",
+        "search": "Aramayı kenar çubuğunda göster",
+        "searchDescription": "Komut paletini açan düğme. Gizlendiğinde de {{shortcut}} paleti açar.",
+        "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
+        "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
       }
     },
     "createChat": {
@@ -278,6 +291,10 @@
         "failed": "O zamana gidilemedi: {{reason}}",
         "close": "Kapat"
       }
+    },
+    "accountMenu": {
+      "open": "{{name}} için hesap menüsünü aç",
+      "manageAccounts": "Hesapları yönet"
     }
   },
   "mindroomUi": {

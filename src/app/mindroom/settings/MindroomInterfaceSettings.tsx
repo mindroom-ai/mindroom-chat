@@ -3,7 +3,12 @@ import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
-import { useClientConfig } from '../../hooks/useClientConfig';
+import {
+  RAIL_BUTTON_SETTING,
+  type RailButton,
+  useOfferedRailButtons,
+} from '../../pages/client/sidebar/railButtons';
+import { getCommandPaletteShortcutLabel } from '../command-palette/commandPaletteShortcut';
 import {
   useMindroomAccountSettings,
   useSetMindroomAccountSettings,
@@ -14,7 +19,7 @@ type MindroomInterfaceSettingsProps = {
   className?: string;
 };
 
-type MindroomBooleanSetting = keyof Pick<MindroomAccountSettings, 'showCanvasesInSidebar'>;
+type MindroomBooleanSetting = keyof MindroomAccountSettings;
 
 type MindroomAccountSwitchProps = {
   setting: MindroomBooleanSetting;
@@ -67,23 +72,61 @@ function MindroomAccountSwitch({ setting, title, description }: MindroomAccountS
 }
 
 /**
- * The "Interface" group at the top of Settings → General. Its switches are
- * backed by `io.mindroom.settings` account data.
+ * The "Sidebar" group at the top of Settings → General: a switch for each icon rail button the
+ * deployment offers, in rail order, backed by `io.mindroom.settings` account data. Each
+ * description says where the button's page stays reachable while it is hidden.
  */
 export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
   const { t } = useTranslation();
-  const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  if (!canvasesEnabled) return null;
+  const offered = useOfferedRailButtons();
+  const shortcut = getCommandPaletteShortcutLabel();
+  const switches: Array<[RailButton, string, string]> = [
+    [
+      'threads',
+      t('featureUi.settings.sidebar.threads'),
+      t('featureUi.settings.sidebar.threadsDescription'),
+    ],
+    [
+      'canvases',
+      t('settings.general.interface.showCanvasesInSidebar'),
+      t('settings.general.interface.showCanvasesInSidebarDescription'),
+    ],
+    [
+      'explore',
+      t('featureUi.settings.sidebar.explore'),
+      t('featureUi.settings.sidebar.exploreDescription'),
+    ],
+    [
+      'createSpace',
+      t('featureUi.settings.sidebar.createSpace'),
+      t('featureUi.settings.sidebar.createSpaceDescription', { shortcut }),
+    ],
+    [
+      'search',
+      t('featureUi.settings.sidebar.search'),
+      t('featureUi.settings.sidebar.searchDescription', { shortcut }),
+    ],
+    [
+      'localMindroom',
+      t('featureUi.settings.sidebar.localMindroom'),
+      t('featureUi.settings.sidebar.localMindroomDescription'),
+    ],
+  ];
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('settings.general.interface.sectionTitle')}</Text>
+      <Text size="L400">{t('featureUi.settings.sidebar.title')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
-        <MindroomAccountSwitch
-          setting="showCanvasesInSidebar"
-          title={t('settings.general.interface.showCanvasesInSidebar')}
-          description={t('settings.general.interface.showCanvasesInSidebarDescription')}
-        />
+        {switches
+          .filter(([button]) => offered[button])
+          .map(([button, title, description]) => (
+            <MindroomAccountSwitch
+              key={button}
+              setting={RAIL_BUTTON_SETTING[button]}
+              title={title}
+              description={description}
+            />
+          ))}
       </SequenceCard>
     </Box>
   );

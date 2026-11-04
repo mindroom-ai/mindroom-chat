@@ -198,6 +198,19 @@
         "keywordMessages": {
           "remove": "Eliminar"
         }
+      },
+      "sidebar": {
+        "title": "Barra lateral",
+        "threads": "Mostrar Hilos en la barra lateral",
+        "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
+        "explore": "Mostrar Explorar la comunidad en la barra lateral",
+        "exploreDescription": "Salas y espacios públicos a los que unirte. Si lo ocultas, ábrelo desde el menú ⋮ de Inicio.",
+        "createSpace": "Mostrar Crear espacio en la barra lateral",
+        "createSpaceDescription": "Si lo ocultas, crea un espacio desde la paleta de comandos ({{shortcut}}).",
+        "search": "Mostrar Buscar en la barra lateral",
+        "searchDescription": "El botón que abre la paleta de comandos. Si lo ocultas, {{shortcut}} la sigue abriendo.",
+        "localMindroom": "Mostrar MindRoom local en la barra lateral",
+        "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local."
       }
     },
     "createChat": {
@@ -284,6 +297,10 @@
         "failed": "No se pudo saltar a ese momento: {{reason}}",
         "close": "Cerrar"
       }
+    },
+    "accountMenu": {
+      "open": "Abrir el menú de la cuenta de {{name}}",
+      "manageAccounts": "Gestionar cuentas"
     }
   },
   "mindroomUi": {

@@ -190,6 +190,19 @@
         "keywordMessages": {
           "remove": "移除"
         }
+      },
+      "sidebar": {
+        "title": "侧边栏",
+        "threads": "在侧边栏显示讨论串",
+        "threadsDescription": "所有房间的讨论串集中在一个列表中。隐藏后，可从首页的 ⋮ 菜单打开。",
+        "explore": "在侧边栏显示“探索社区”",
+        "exploreDescription": "可加入的公开房间和空间。隐藏后，可从首页的 ⋮ 菜单打开。",
+        "createSpace": "在侧边栏显示“创建空间”",
+        "createSpaceDescription": "隐藏后，可在命令面板（{{shortcut}}）中创建空间。",
+        "search": "在侧边栏显示搜索",
+        "searchDescription": "用于打开命令面板的按钮。隐藏后，仍可按 {{shortcut}} 打开。",
+        "localMindroom": "在侧边栏显示 Local MindRoom",
+        "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
       }
     },
     "createChat": {
@@ -272,6 +285,10 @@
         "failed": "无法跳转到该时间：{{reason}}",
         "close": "关闭"
       }
+    },
+    "accountMenu": {
+      "open": "打开 {{name}} 的账户菜单",
+      "manageAccounts": "管理账户"
     }
   },
   "mindroomUi": {
