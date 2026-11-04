@@ -81,6 +81,9 @@ function Fixture() {
         boxSizing: 'border-box',
         width: '100%',
         minHeight: '100vh',
+        // The app's stylesheet keeps the document from scrolling, so the page scrolls itself.
+        maxHeight: '100vh',
+        overflowY: 'auto',
         padding: 20,
         color: color.Surface.OnContainer,
         background: color.Surface.Container,
