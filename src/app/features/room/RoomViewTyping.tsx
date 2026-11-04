@@ -1,6 +1,5 @@
-import React from 'react';
 import { Icon, IconButton, Icons, Text } from 'folds';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -9,13 +8,21 @@ import { IconTooltip } from '../../mindroom/tooltip/IconTooltip';
 import { roomIdToTypingMembersAtom } from '../../state/typingMembers';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
+import { NamesSentence } from './NamesSentence';
 import * as css from './RoomViewTyping.css';
 
 type RoomViewTypingProps = {
   room: Room;
 };
 
-const NAME = <b />;
+// Sentences for one to four typing members; five and more share the last one.
+const TYPING_KEYS = [
+  'featureUi.room.typing.one',
+  'featureUi.room.typing.two',
+  'featureUi.room.typing.three',
+  'featureUi.room.typing.four',
+  'featureUi.room.typing.many',
+] as const;
 
 /** Three dots that take turns rising, the usual sign that someone is writing. */
 function TypingDots() {
@@ -46,38 +53,7 @@ export function RoomViewTyping({ room }: RoomViewTypingProps) {
   const names = typing.map(
     ({ userId }) => getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId
   );
-  const [first, second, third] = names;
-  const components = { name: NAME, first: NAME, second: NAME, third: NAME, others: NAME };
-  let message: React.ReactNode;
-  if (names.length === 1) {
-    message = (
-      <Trans i18nKey="featureUi.room.typing.one" values={{ name: first }} components={components} />
-    );
-  } else if (names.length === 2) {
-    message = (
-      <Trans
-        i18nKey="featureUi.room.typing.two"
-        values={{ first, second }}
-        components={components}
-      />
-    );
-  } else if (names.length === 3) {
-    message = (
-      <Trans
-        i18nKey="featureUi.room.typing.three"
-        values={{ first, second, third }}
-        components={components}
-      />
-    );
-  } else {
-    message = (
-      <Trans
-        i18nKey={names.length === 4 ? 'featureUi.room.typing.four' : 'featureUi.room.typing.many'}
-        values={{ first, second, third, count: names.length - 3 }}
-        components={components}
-      />
-    );
-  }
+  const message = <NamesSentence keys={TYPING_KEYS} names={names} />;
 
   const dropLabel = t('featureUi.room.typing.dropTypingStatus');
   const dropTyping = () =>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Trans } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
 import { type MatrixEvent, type Room, RoomEvent, RoomStateEvent, ThreadEvent } from 'matrix-js-sdk';
 import { EventReaders } from '../../components/event-readers';
@@ -10,6 +9,7 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import * as css from './RoomViewFollowing.css';
+import { NamesSentence } from './NamesSentence';
 
 /** The newest event the server knows, in the thread when one is open, else in the room. */
 const latestSyncedEvent = (room: Room, threadId?: string): MatrixEvent | undefined => {
@@ -65,28 +65,14 @@ const useFollowers = (room: Room, threadId: string | undefined, myUserId: string
   return following;
 };
 
-const NAME = <b />;
-const NAMES = { name: NAME, first: NAME, second: NAME, third: NAME, others: NAME };
-
 // Sentences for one to four followers; five and more share the last one.
-const SENTENCE_KEYS = [
+const FOLLOWING_KEYS = [
   'featureUi.room.following.one',
   'featureUi.room.following.two',
   'featureUi.room.following.three',
   'featureUi.room.following.four',
   'featureUi.room.following.many',
 ] as const;
-
-/** "Avery is following the conversation.", with up to three names and a count of the rest. */
-function FollowersSentence({ names }: { names: string[] }) {
-  const [first, second, third] = names;
-  const key = SENTENCE_KEYS[Math.min(names.length, SENTENCE_KEYS.length) - 1];
-  const values =
-    names.length === 1
-      ? { name: first }
-      : { first, second, third, count: Math.max(0, names.length - 3) };
-  return <Trans i18nKey={key} values={values} components={NAMES} />;
-}
 
 /** The empty row under the composer: it reserves the space the followers line uses. */
 export function RoomViewFollowingPlaceholder() {
@@ -125,7 +111,7 @@ export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
       >
         <Icon size="50" src={Icons.CheckTwice} aria-hidden />
         <Text as="span" size="T200" truncate>
-          <FollowersSentence names={names} />
+          <NamesSentence keys={FOLLOWING_KEYS} names={names} />
         </Text>
       </button>
       {readersOf && (

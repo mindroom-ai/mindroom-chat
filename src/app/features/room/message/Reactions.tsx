@@ -12,6 +12,7 @@ import {
   isAgentStopButton,
 } from '../../../mindroom/messages/stopReaction';
 import * as css from './styles.css';
+import { isConfirmedMatrixEventId } from '../../../mindroom/threads/threadRouteUtils';
 
 type ReactionsProps = {
   room: Room;
@@ -27,9 +28,6 @@ type ReactionsProps = {
     relations: Relations
   ) => void;
 };
-
-/** Local echoes carry a transaction ID until the server confirms them; they cannot be reacted to. */
-const isConfirmedEventId = (eventId: string): boolean => eventId.startsWith('$');
 
 const reactionShortcode = (events: MatrixEvent[]): string | undefined => {
   const content = events[0]?.getContent?.<Record<string, unknown>>();
@@ -72,7 +70,8 @@ export function Reactions({
 
   const myUserId = client.getUserId();
   const annotations = getRenderableAnnotationsByKey(relations, targetEvent);
-  const canToggle = !!canSendReaction && isConfirmedEventId(mEventId);
+  // Local echoes carry a transaction ID until the server confirms them; they cannot be reacted to.
+  const canToggle = !!canSendReaction && isConfirmedMatrixEventId(mEventId);
 
   if (annotations.length === 0) return null;
 
