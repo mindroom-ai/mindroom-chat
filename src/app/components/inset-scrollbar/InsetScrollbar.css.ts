@@ -12,10 +12,13 @@ export const Viewport = style({
   },
 });
 
-/** Vertical track; the caller's class places it (top, bottom, z-index) beside the viewport. */
+/**
+ * Vertical track at the viewport's end edge, where the platform puts a scrollbar (the left in a
+ * right-to-left language); the caller's class places it (top, bottom, z-index) beside it.
+ */
 export const Track = style({
   position: 'absolute',
-  right: toRem(2),
+  insetInlineEnd: toRem(2),
   width: toRem(12),
   display: 'flex',
   // The thumb is absolutely positioned; centering puts its static position mid-track.

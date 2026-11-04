@@ -10,14 +10,15 @@ export const SafeOverlayCenter = style({
 
 // A phone dialog that keeps its margin floats like the larger screens' one, a little in from every
 // edge and from the notch and the home indicator; its height stays at the dialog's own maximum.
-const phoneMargin = (side: 'top' | 'right' | 'bottom' | 'left') =>
-  `calc(env(safe-area-inset-${side}, 0px) + ${config.space.S400})`;
+// Safe-area insets are physical edges of the screen, so these sides stay physical in every
+// language.
+const phoneMargin = (safeAreaInset: string) => `calc(${safeAreaInset} + ${config.space.S400})`;
 
 export const PhoneInsetOverlayCenter = style({
-  paddingTop: phoneMargin('top'),
-  paddingRight: phoneMargin('right'),
-  paddingBottom: phoneMargin('bottom'),
-  paddingLeft: phoneMargin('left'),
+  paddingTop: phoneMargin('env(safe-area-inset-top, 0px)'),
+  paddingRight: phoneMargin('env(safe-area-inset-right, 0px)'),
+  paddingBottom: phoneMargin('env(safe-area-inset-bottom, 0px)'),
+  paddingLeft: phoneMargin('env(safe-area-inset-left, 0px)'),
 });
 
 // On phones a dialog that fills the screen is a screen of its own: no margin, rounded corners or

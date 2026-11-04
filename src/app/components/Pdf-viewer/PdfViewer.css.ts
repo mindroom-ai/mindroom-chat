@@ -13,8 +13,7 @@ export const PdfViewer = style([
 ]);
 
 export const PdfViewerHeader = style({
-  paddingLeft: config.space.S200,
-  paddingRight: config.space.S200,
+  paddingInline: config.space.S200,
   borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   flexShrink: 0,
   gap: config.space.S200,

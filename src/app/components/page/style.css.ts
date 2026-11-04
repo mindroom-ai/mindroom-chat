@@ -10,7 +10,7 @@ import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeade
 // (S200) and are 36 px apart (the row component). Everything else uses folds spacing tokens.
 
 /**
- * How far list rows stop short of the column's right edge, leaving the inset scrollbar its lane:
+ * How far list rows stop short of the column's end edge, leaving the inset scrollbar its lane:
  * 28 px in the room lists (the selected room of room-light.png spans 74 to 294 in a column that
  * ends at 322). Dense columns, the settings dialogs, keep 8 px and inset their menu themselves.
  */
@@ -34,7 +34,8 @@ export const PageNav = recipe({
 });
 
 export const PageNavHeader = style({
-  padding: `0 ${config.space.S400} 0 ${config.space.S300}`,
+  paddingBlock: 0,
+  paddingInline: `${config.space.S300} ${config.space.S400}`,
   flexShrink: 0,
   selectors: {
     'button&': { cursor: 'pointer' },
@@ -53,7 +54,7 @@ export const PageNavHeaderScroll = style({ position: 'sticky', top: 0, zIndex: 1
  */
 export const PageNavTrack = style({});
 globalStyle(`:has(> [role="separator"][aria-orientation="vertical"]) > * ${PageNavTrack}`, {
-  right: `calc(var(--mr-panel-handle-inset, 0px) + ${toRem(2)})`,
+  insetInlineEnd: `calc(var(--mr-panel-handle-inset, 0px) + ${toRem(2)})`,
 });
 
 /** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
@@ -62,22 +63,25 @@ export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex
 /** A dense navigation column (settings.png: menu rows end 20 px before the divider). */
 export const PageNavDense = style({ vars: { [pageNavRowInset]: config.space.S200 } });
 
-// Top S200, room at the bottom, rows S200 from the rail and short of the scrollbar on the right.
+// Top S200, room at the bottom, rows S200 from the rail and short of the scrollbar at the end.
 export const PageNavContent = style({
   display: 'flex',
   flexDirection: 'column',
   paddingBlock: `${config.space.S200} ${config.space.S700}`,
-  paddingLeft: config.space.S200,
-  paddingRight: fallbackVar(pageNavRowInset, `calc(${config.space.S500} + ${config.space.S200})`),
+  paddingInlineStart: config.space.S200,
+  paddingInlineEnd: fallbackVar(
+    pageNavRowInset,
+    `calc(${config.space.S500} + ${config.space.S200})`
+  ),
 });
 
 /** Page headers sit S400 in on the title side and S200 at the actions; `balance` evens both. */
 export const PageHeader = recipe({
-  base: { flexShrink: 0, paddingRight: config.space.S200 },
+  base: { flexShrink: 0, paddingInlineEnd: config.space.S200 },
   variants: {
     balance: {
-      false: { paddingLeft: config.space.S400 },
-      true: { paddingLeft: config.space.S200 },
+      false: { paddingInlineStart: config.space.S400 },
+      true: { paddingInlineStart: config.space.S200 },
     },
     outlined: {
       true: { borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}` },

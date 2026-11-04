@@ -16,8 +16,7 @@ export const AutocompleteMenuBase = style({
 export const AutocompleteMenuContainer = style({
   position: 'absolute',
   bottom: config.space.S200,
-  left: 0,
-  right: 0,
+  insetInline: 0,
   zIndex: 1,
 });
 
