@@ -70,7 +70,11 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
-const mx = {} as MatrixClient;
+const mx = {
+  getRoom: () => null,
+  on: () => undefined,
+  removeListener: () => undefined,
+} as unknown as MatrixClient;
 
 const renderJoined = (props: React.ComponentProps<typeof JoinBeforeNavigate>) => {
   act(() => {

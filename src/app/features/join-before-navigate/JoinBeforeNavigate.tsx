@@ -1,7 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
-import { useTranslation } from 'react-i18next';
-import { JoinRule, RoomType, type RoomSummary } from 'matrix-js-sdk';
+import { Trans, useTranslation } from 'react-i18next';
+import {
+  ClientEvent,
+  JoinRule,
+  type Room,
+  RoomEvent,
+  RoomType,
+  type RoomSummary,
+} from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../components/page';
 import { RoomAvatar } from '../../components/room-avatar';
 import { RoomSummaryLoader } from '../../components/RoomSummaryLoader';
@@ -14,6 +21,8 @@ import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { nameInitials } from '../../utils/common';
 import { Membership } from '../../../types/matrix/room';
+import { getHomePath } from '../../pages/pathUtils';
+import { useAlive } from '../../hooks/useAlive';
 
 type JoinBeforeNavigateProps = {
   roomIdOrAlias: string;
@@ -49,6 +58,190 @@ function JoinedNavigation({
     else navigateRoom(roomId, eventId, { replace: true });
   }, [navigateRoom, navigateRoomThreadDirect, navigateSpace, roomId, eventId, threadId, isSpace]);
   return null;
+}
+
+/** This account's membership of a room it knows, following changes from sync. */
+const useMyMembership = (roomId: string): { room: Room | null; membership?: string } => {
+  const client = useMatrixClient();
+  const [, setVersion] = useState(0);
+  useEffect(() => {
+    const refresh = (room: Room) => {
+      if (room.roomId === roomId) setVersion((version) => version + 1);
+    };
+    const dropped = (droppedId: string) => {
+      if (droppedId === roomId) setVersion((version) => version + 1);
+    };
+    client.on(RoomEvent.MyMembership, refresh);
+    client.on(ClientEvent.DeleteRoom, dropped);
+    return () => {
+      client.removeListener(RoomEvent.MyMembership, refresh);
+      client.removeListener(ClientEvent.DeleteRoom, dropped);
+    };
+  }, [client, roomId]);
+  const room = client.getRoom(roomId);
+  return { room, membership: room?.getMyMembership() };
+};
+
+/** Who invited this account, above the way in, when the room's invite is pending. */
+function InvitedBy({ roomId }: { roomId: string }) {
+  const client = useMatrixClient();
+  const { room, membership } = useMyMembership(roomId);
+  if (!room || membership !== Membership.Invite) return null;
+  const sender = room.getMember(client.getSafeUserId())?.events.member?.getSender();
+  const senderName = (sender && room.getMember(sender)?.name) || sender;
+  if (!senderName) return null;
+  return (
+    <Text size="T200">
+      <Trans
+        i18nKey="sharedUi.invites.from"
+        values={{ sender: senderName }}
+        components={{ b: <b title={sender} /> }}
+      />
+    </Text>
+  );
+}
+
+/**
+ * Where this account stands with a room it knows but has not joined: an invite it may turn down,
+ * or a room it left or was removed from, which it may forget. Forgetting leads home, since the
+ * room is gone from the account.
+ */
+function KnownRoomActions({ roomId }: { roomId: string }) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { navigatePath } = useRoomNavigate();
+  const alive = useAlive();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const { membership } = useMyMembership(roomId);
+
+  const run = (request: () => Promise<unknown>, after?: () => void) => {
+    setBusy(true);
+    setFailed(false);
+    request()
+      .then(() => alive() && after?.())
+      .catch(() => alive() && setFailed(true))
+      .finally(() => alive() && setBusy(false));
+  };
+
+  let action: { label: string; critical: boolean; onClick: () => void } | undefined;
+  if (membership === Membership.Invite) {
+    action = {
+      label: t('sharedUi.invites.decline'),
+      critical: true,
+      // A declined invite leaves nothing to show; the client drops the room.
+      onClick: () =>
+        run(
+          () => client.leave(roomId),
+          () => navigatePath(getHomePath())
+        ),
+    };
+  } else if (membership === Membership.Leave || membership === Membership.Ban) {
+    action = {
+      label: t('sharedUi.roomCard.forget'),
+      critical: false,
+      onClick: () =>
+        run(
+          () => client.forget(roomId),
+          () => navigatePath(getHomePath())
+        ),
+    };
+  }
+  if (!action) return null;
+
+  return (
+    <Box direction="Column" gap="200">
+      <Button
+        className={roomCardCss.ActionButton}
+        variant={action.critical ? 'Critical' : 'Secondary'}
+        fill="Soft"
+        radii="300"
+        size="400"
+        disabled={busy}
+        onClick={action.onClick}
+      >
+        <Text size="B400">{action.label}</Text>
+      </Button>
+      {failed && (
+        <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+          {t('sharedUi.invites.actionFailed')}
+        </Text>
+      )}
+    </Box>
+  );
+}
+
+/** Who removed this account from the room, and why, from its own member event. */
+function RemovalNote({ room }: { room: Room }) {
+  const own = room.getMember(room.myUserId);
+  const event = own?.events.member;
+  const sender = event?.getSender();
+  if (!own || !event || !sender || sender === own.userId) return null;
+  const reason = event.getContent().reason;
+  const by = own.membership === Membership.Ban ? 'bannedBy' : 'kickedBy';
+  const bold = { b: <b /> };
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="T200">
+        <Trans
+          i18nKey={`sharedUi.userModeration.${by}` as const}
+          values={{ name: room.getMember(sender)?.name ?? sender }}
+          components={bold}
+        />
+      </Text>
+      {typeof reason === 'string' && reason.trim() && (
+        <Text size="T200">
+          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
+        </Text>
+      )}
+    </Box>
+  );
+}
+
+/**
+ * A room whose summary the server would not give: one this account left or was removed from
+ * shows its name, who removed it and why, and Forget (asking again would fail the same way);
+ * anything else offers to try again.
+ */
+function UnreachableRoom({ roomIdOrAlias, retry }: { roomIdOrAlias: string; retry: () => void }) {
+  const { t } = useTranslation();
+  const { room, membership } = useMyMembership(roomIdOrAlias);
+  const retryButton = (
+    <Button variant="Secondary" fill="Soft" radii="300" size="300" onClick={retry}>
+      <Text size="B300">{t('sharedUi.roomCard.retryRoomInfo')}</Text>
+    </Button>
+  );
+  const left = membership === Membership.Leave || membership === Membership.Ban;
+  if (!room || !left) {
+    return (
+      <Box direction="Column" alignItems="Center" gap="300">
+        {retryButton}
+      </Box>
+    );
+  }
+  return (
+    <Box
+      className={roomCardCss.RoomCardBase}
+      direction="Column"
+      gap="300"
+      style={{ maxWidth: '28rem', margin: '0 auto' }}
+    >
+      <Box gap="300" alignItems="Center">
+        <Avatar size="500" radii="400">
+          <RoomAvatar
+            roomId={room.roomId}
+            alt={room.name}
+            renderFallback={() => <Icon size="300" src={Icons.Hash} />}
+          />
+        </Avatar>
+        <Text size="H4" truncate>
+          {room.name}
+        </Text>
+      </Box>
+      <RemovalNote room={room} />
+      <KnownRoomActions roomId={room.roomId} />
+    </Box>
+  );
 }
 
 /** What the link points at, plus the summary the server gave for it. */
@@ -123,6 +316,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
           {summary.topic}
         </Text>
       )}
+      <InvitedBy roomId={roomId} />
       {blocked ? (
         <Text size="T300" style={{ color: color.Critical.Main }}>
           {t('sharedUi.roomCard.accessUnavailable')}
@@ -167,6 +361,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
           )}
         </RoomAccessControl>
       )}
+      <KnownRoomActions roomId={roomId} />
     </Box>
   );
 }
@@ -215,13 +410,7 @@ export function JoinBeforeNavigate(props: JoinBeforeNavigateProps) {
               );
             }
             if (state.status === AsyncStatus.Error) {
-              return (
-                <Box direction="Column" alignItems="Center" gap="300">
-                  <Button variant="Secondary" fill="Soft" radii="300" size="300" onClick={retry}>
-                    <Text size="B300">{t('sharedUi.roomCard.retryRoomInfo')}</Text>
-                  </Button>
-                </Box>
-              );
+              return <UnreachableRoom roomIdOrAlias={roomIdOrAlias} retry={retry} />;
             }
             return (
               <Box direction="Column" alignItems="Center" gap="300">
