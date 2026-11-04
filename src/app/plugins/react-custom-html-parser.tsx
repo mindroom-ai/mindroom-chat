@@ -2,6 +2,7 @@ import React, {
   ComponentPropsWithoutRef,
   KeyboardEvent,
   MouseEventHandler,
+  ReactElement,
   ReactNode,
   SyntheticEvent,
   useEffect,
@@ -40,6 +41,7 @@ import { mxcUrlToHttp } from '../utils/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../utils/regex';
 import { getMemberDisplayName } from '../utils/room';
 import { PrismCode } from './react-prism/ReactPrism';
+import { WithKatex } from './lazyKatex';
 import {
   parseMatrixToRoom,
   parseMatrixToRoomEvent,
@@ -125,7 +127,11 @@ export const renderTextWithLatex = (
     highlightRegex?: RegExp;
     keyPrefix?: string;
   }
-): ReactNode => renderTextWithMatrixMath(text, { ...params, renderStyledText });
+): ReactNode => {
+  const render = () => renderTextWithMatrixMath(text, { ...params, renderStyledText });
+  // Only text with a dollar sign can hold math, which typesets once KaTeX has loaded.
+  return text.includes('$') ? <WithKatex render={render} /> : render();
+};
 
 /** Props for a mention link: it opens in a new tab unless the click handler handles it. */
 export const makeMentionCustomProps = (
@@ -487,6 +493,25 @@ export type ReactCustomHtmlParserParams = {
 };
 
 /** Parser options that render message HTML in a room (`roomId`, for member names). */
+/** A `<span>` or `<div>` with `data-mx-maths`, which the MindRoom renderers typeset with KaTeX. */
+const isMatrixMath = (name: string, attribs: Record<string, string>): boolean =>
+  (name === 'span' || name === 'div') && typeof attribs['data-mx-maths'] === 'string';
+
+/** The MindRoom rendering of an element, if it has one; Matrix math typesets once KaTeX loads. */
+const renderCustomElement = (
+  name: string,
+  attribs: Record<string, string>,
+  children: ChildNode[],
+  options: HTMLReactParserOptions
+): ReactElement | undefined =>
+  isMatrixMath(name, attribs) ? (
+    <WithKatex
+      render={() => renderMindroomCustomHtmlElement(name, attribs, children, options) ?? null}
+    />
+  ) : (
+    renderMindroomCustomHtmlElement(name, attribs, children, options)
+  );
+
 export const getReactCustomHtmlParser = (
   mx: MatrixClient,
   roomId: string | undefined,
@@ -516,18 +541,13 @@ export const getReactCustomHtmlParser = (
         const inner = withoutAttribute(attribs, 'data-mx-spoiler');
         return (
           <Spoiler reason={attribs['data-mx-spoiler'] || undefined}>
-            {renderMindroomCustomHtmlElement(name, inner, children, parserOptions) ??
+            {renderCustomElement(name, inner, children, parserOptions) ??
               domToReact(children, parserOptions)}
           </Spoiler>
         );
       }
 
-      const mindroomElement = renderMindroomCustomHtmlElement(
-        name,
-        attribs,
-        children,
-        parserOptions
-      );
+      const mindroomElement = renderCustomElement(name, attribs, children, parserOptions);
       if (mindroomElement) return mindroomElement;
 
       const props = attributesToProps(attribs);

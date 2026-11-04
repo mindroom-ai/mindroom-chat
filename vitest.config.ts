@@ -8,6 +8,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
-    setupFiles: ['./src/vitest.setup.ts'],
+    setupFiles: ['./src/vitest.setup.ts', './src/vitest.katex.setup.ts'],
   },
 });

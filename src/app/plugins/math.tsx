@@ -1,4 +1,4 @@
-import katex from 'katex';
+import katex from './lazyKatex';
 import { Opts as LinkifyOpts, find as findLinks } from 'linkifyjs';
 
 export type LatexMatch = {
