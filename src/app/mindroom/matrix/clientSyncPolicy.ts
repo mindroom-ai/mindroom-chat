@@ -1,6 +1,7 @@
 import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
+import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 
@@ -62,11 +63,13 @@ export const startClient = async (
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
   // Before the saved sync is replayed, which brings thread roots together with their replies
-  // and edits. Only an SDK client has rooms whose threads count replies and hold edits.
+  // and edits. Only an SDK client has rooms whose threads count replies and hold edits. A deleted
+  // message is saved at once, so the next replay does not bring it back.
   if (mx instanceof MatrixClient && !countedClients.has(mx)) {
     countedClients.add(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
+    keepRedactionsInSavedSync(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
