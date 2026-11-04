@@ -121,7 +121,9 @@ describe('useAuthenticatedAction', () => {
     answerStage();
 
     await expect(result).resolves.toBe('signed out');
-    expect(request.mock.calls.map(([auth]) => auth?.session)).toEqual([
+    const sessionOf = (auth?: AuthDict) =>
+      auth && 'session' in auth ? (auth.session as string) : undefined;
+    expect(request.mock.calls.map(([auth]) => sessionOf(auth))).toEqual([
       undefined,
       'first',
       'second',

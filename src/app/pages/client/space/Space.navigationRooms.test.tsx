@@ -125,7 +125,7 @@ describe('Space navigation', () => {
     const { space, joined, invited, left } = rooms.ids;
     const store = createStore();
     store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [space, joined] });
-    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set() });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
     store.set(roomToParentsAtom, {
       type: 'INITIALIZE',
       roomToParents: new Map([joined, invited, left].map((roomId) => [roomId, new Set([space])])),
