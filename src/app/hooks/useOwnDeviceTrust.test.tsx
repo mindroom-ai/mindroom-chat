@@ -22,7 +22,7 @@ const fakeClient = (fixture: Fixture) => {
     getUserId: () => USER,
     getDeviceId: () => 'LAPTOP',
     getCrypto: () => ({
-      userHasCrossSigningKeys: async () => fixture.crossSigning,
+      getCrossSigningStatus: async () => ({ publicKeysOnDevice: fixture.crossSigning }),
       getDeviceVerificationStatus: async (_user: string, deviceId: string) =>
         deviceId in fixture.verified ? { crossSigningVerified: fixture.verified[deviceId] } : null,
       getUserDeviceInfo: async () =>

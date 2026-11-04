@@ -29,8 +29,11 @@ const readOwnDeviceTrust = async (client: MatrixClient): Promise<OwnDeviceTrust 
   const thisDeviceId = client.getDeviceId();
   if (!crypto || !userId || !thisDeviceId) return undefined;
 
-  const [crossSigning, thisStatus, deviceMap] = await Promise.all([
-    crypto.userHasCrossSigningKeys(userId),
+  // Not `userHasCrossSigningKeys`: for our own account it queries the server on every call, and
+  // its answer fires the device events this hook listens to, so it would never stop asking. It
+  // would also race a cross-signing reset that is waiting for the password.
+  const [status, thisStatus, deviceMap] = await Promise.all([
+    crypto.getCrossSigningStatus(),
     crypto.getDeviceVerificationStatus(userId, thisDeviceId),
     crypto.getUserDeviceInfo([userId]),
   ]);
@@ -44,7 +47,7 @@ const readOwnDeviceTrust = async (client: MatrixClient): Promise<OwnDeviceTrust 
     others.map((device, index) => [device.deviceId, statuses[index]?.crossSigningVerified === true])
   );
   return {
-    crossSigning,
+    crossSigning: status.publicKeysOnDevice,
     thisDeviceVerified: thisStatus?.crossSigningVerified === true,
     otherDevices,
   };

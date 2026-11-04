@@ -2,7 +2,7 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { IMyDevice } from 'matrix-js-sdk';
-import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
+import { CryptoEvent, type VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
@@ -51,6 +51,18 @@ const useDeviceList = () => {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // A session signed in or out elsewhere shows up in the account's device list updates.
+  useEffect(() => {
+    const ownUserId = client.getUserId();
+    const onDevicesUpdated = (userIds: string[]) => {
+      if (ownUserId && userIds.includes(ownUserId)) void reload();
+    };
+    client.on(CryptoEvent.DevicesUpdated, onDevicesUpdated);
+    return () => {
+      client.off(CryptoEvent.DevicesUpdated, onDevicesUpdated);
+    };
+  }, [client, reload]);
 
   return { devices, reload, setDevices };
 };
