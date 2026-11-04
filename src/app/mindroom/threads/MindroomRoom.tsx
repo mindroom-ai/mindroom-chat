@@ -41,6 +41,7 @@ import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomViewMode } from './useRoomViewMode';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { useInitializeOpenThread } from './useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../../features/room/RoomMessageAnnouncer';
 import { useCallPanel } from '../../features/calls/callStore';
 
@@ -167,6 +168,7 @@ export function Room() {
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
   const threadId = useThreadRootEvent(room, routedThreadId);
+  useInitializeOpenThread(room, threadId);
   const routeReady = isThreadRouteReady(room, routedThreadId);
   const conversation = `${roomId}\n${routedThreadId ?? ''}`;
 
