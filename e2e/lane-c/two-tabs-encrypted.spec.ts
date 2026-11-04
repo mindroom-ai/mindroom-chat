@@ -206,7 +206,7 @@ test('two tabs of one session read every message of an encrypted room', async ({
 
   /** One message from the reader, then every reader must show it before the next one. */
   const say = async (from: Reader, phase: string) => {
-    const text = `${phase} from ${from.name} ${run}`;
+    const text = `${phase} ${messages.length + 1} from ${from.name} ${run}`;
     const composer = from.page.locator('[data-editable-name="RoomInput"]');
     await composer.click();
     await from.page.keyboard.type(text);
