@@ -1,4 +1,4 @@
-# Every recipe expects the `nix develop` shell (Node 22, npm, Chromium, Python 3, just).
+# Every recipe expects the `nix develop` shell (Node 24, npm, Chromium, Python 3, just).
 
 default:
     @just --list

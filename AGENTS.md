@@ -30,7 +30,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 ## Commands
 
-Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`).
+Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`).
 
 | Recipe | What it does |
 |---|---|
@@ -54,12 +54,14 @@ Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, 
 | `just e2e-slot <n> [--snapshot[=<rev>]] [--preview] <command>` | `scripts/e2e-slot.sh`: runs the command with slot n's own Tuwunel (port 28100+n) and app port (4300+n). `--snapshot` runs it in a clean copy of a commit (default HEAD) with an empty homeserver, so uncommitted edits in the checkout cannot break the run; `--preview` serves that commit's production build through `vite preview` |
 | `just e2e-suite [--slots 25-28] [--out <tsv>] [specs] [-- <playwright options>]` | `scripts/e2e-suite.sh`: every spec file (or the given ones) of one commit in its own `--preview` snapshot run, spread over the slots, then one TSV row per spec (`scripts/e2e-results-tsv.mjs`) |
 | `just agent-stack <n> up\|down\|status [--checkout <dir>] [--ref <rev>]` | `scripts/agent-stack/stack.py`: a real MindRoom backend from a checkout (default `/home/basnijholt/Work/dev/mindroom` at its `origin/main`, copied with `git archive`, never edited) with the stub model `scripts/agent-stack/stub_model.py` (no model is called) against slot n's homeserver; API on 29600+n, stub on 29700+n. The `e2e/lane-c/agent-*.spec.ts` specs start it themselves and skip without a checkout; `e2e-slot <n> down` stops it |
-| `just check` | `typecheck`, `lint`, `test`, `license-check`, `verify-ported`, `check-holes` |
+| `just script-tests` | tests of the e2e tooling: `scripts/e2e-results-tsv.test.mjs` (Node's test runner) and `scripts/test_matrix_http.py` (unittest) |
+| `just upstream-overlap [<upstream clone>] [--history]` | `scripts/upstream-overlap/check.py`: no run of 3+ shared lines or 30+ shared tokens with any upstream version, in every tracked file at HEAD or (`--history`) in every commit; prints a notice and passes without a clone |
+| `just check` | everything CI runs: `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, `verify-ported`, `check-holes`, `upstream-overlap`; `just check` passes no checkout or clone, so `verify-ported` and `upstream-overlap` print their notices |
 
 `docs/provenance/m1-baseline.txt` records the starting error counts for the M1 compile and the current `just typecheck-tests` total.
 
 ## Commits
 
-- Unsigned (`git -c commit.gpgsign=false commit`), on branch `build/core-chat`; never push.
+- Unsigned (`git -c commit.gpgsign=false commit`), on branch `main`; never push.
 - No em dashes in docs, comments, or commit messages.
 - Add files by explicit path; never `git add -A`.
