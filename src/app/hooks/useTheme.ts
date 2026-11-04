@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useSetting } from '../state/hooks/settings';
 import { settingsAtom } from '../state/settings';
 import * as palettes from '../../colors.css';
+import { roundedRadii } from '../../config.css';
 
 /** Whether a theme is a light or a dark one; picks the system default and the code colors. */
 export const ThemeKind = {
@@ -13,7 +14,10 @@ export type ThemeKind = (typeof ThemeKind)[keyof typeof ThemeKind];
 export interface Theme {
   id: string;
   kind: ThemeKind;
-  /** Classes for `<body>`: the theme ID, its palette, and the code highlighting scheme. */
+  /**
+   * Classes for `<body>`: the theme ID, its palette, the code highlighting scheme, and the corner
+   * radii every theme shares.
+   */
   classNames: string[];
 }
 
@@ -21,7 +25,7 @@ export interface Theme {
 const defineTheme = (name: string, kind: ThemeKind, paletteClass: string): Theme => {
   const id = `${name}-theme`;
   const prismScheme = kind === ThemeKind.Dark ? 'prism-dark' : 'prism-light';
-  return { id, kind, classNames: [id, paletteClass, prismScheme] };
+  return { id, kind, classNames: [id, paletteClass, prismScheme, roundedRadii] };
 };
 
 export const LightTheme = defineTheme('light', ThemeKind.Light, palettes.lightTheme);
