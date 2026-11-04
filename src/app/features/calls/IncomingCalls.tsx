@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -7,9 +7,13 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRoomName } from '../../hooks/useRoomMeta';
 import { mDirectAtom } from '../../state/mDirectList';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 import { Surface } from '../../components/glass/GlassPrimitives';
+import { MINDROOM_FAVICON_SRC } from '../../mindroom/branding/branding';
 import { activeMemberships } from './callMemberships';
-import { declineRing, readRing, type IncomingRing } from './callRings';
+import { declineRing, declinedRingId, readRing, type IncomingRing } from './callRings';
+import { startRingtone } from './ringtone';
 import { useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import * as css from './IncomingCalls.css';
@@ -21,16 +25,72 @@ type RingCardProps = {
   onAnswer: () => void;
   onDecline: () => void;
   onIgnore: () => void;
+  /** Shows the ring's room, from its system notification. */
+  onOpen: () => void;
 };
 
-function RingCard({ room, ring, onAnswer, onDecline, onIgnore }: RingCardProps) {
+/** "Maya is calling", or "Maya is calling in Planning" outside a direct chat. */
+const useRingLine = (room: Room, ring: IncomingRing): string => {
   const { t } = useTranslation();
   const { name } = useCallMemberProfile(room, ring.sender);
   const roomName = useRoomName(room);
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
-  const line = direct
+  return direct
     ? t('featureUi.calls.incoming.calling', { name })
     : t('featureUi.calls.incoming.callingIn', { name, room: roomName });
+};
+
+const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
+
+/**
+ * While a ring shows: the ringtone (when notification sounds are on) and, when the window is in
+ * the background, a system notification (when desktop notifications are on and allowed) that
+ * brings the window and the ring forward. Both stop with the ring.
+ */
+function RingAlerts({
+  ring,
+  line,
+  onOpen,
+}: {
+  ring: IncomingRing;
+  line: string;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
+  const [desktop] = useSetting(settingsAtom, 'showNotifications');
+  const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
+  latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
+
+  useEffect(() => (sound ? startRingtone() : undefined), [sound, ring.eventId]);
+
+  useEffect(() => {
+    const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
+    if (!desktop || SystemNotification?.permission !== 'granted' || windowHasFocus()) {
+      return undefined;
+    }
+    const note = new SystemNotification(latest.current.title, {
+      body: latest.current.line,
+      icon: MINDROOM_FAVICON_SRC,
+      tag: `call-ring-${ring.roomId}`,
+      requireInteraction: true,
+      // The ringtone is the sound; the system adds none of its own.
+      silent: true,
+    });
+    note.onclick = () => {
+      window.focus();
+      note.close();
+      latest.current.onOpen();
+    };
+    return () => note.close();
+  }, [desktop, ring.eventId, ring.roomId]);
+
+  return null;
+}
+
+function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
+  const { t } = useTranslation();
+  const line = useRingLine(room, ring);
   return (
     <Surface
       className={css.Card}
@@ -39,6 +99,7 @@ function RingCard({ room, ring, onAnswer, onDecline, onIgnore }: RingCardProps) 
       aria-describedby={`incoming-call-${ring.eventId}`}
       data-incoming-call={room.roomId}
     >
+      <RingAlerts ring={ring} line={line} onOpen={onOpen} />
       <Box alignItems="Center" gap="300">
         <CallMemberAvatar room={room} userId={ring.sender} size="400" />
         <Box direction="Column" style={{ minWidth: 0 }}>
@@ -97,6 +158,12 @@ export function IncomingCalls() {
     const myUserId = mx.getSafeUserId();
     const consider = async (event: MatrixEvent) => {
       await mx.decryptEventIfNeeded(event).catch(() => undefined);
+      // Rejected on another of this account's devices: this one stops ringing too.
+      const declined = declinedRingId(event, myUserId);
+      if (declined) {
+        setRing((current) => (current?.eventId === declined ? undefined : current));
+        return;
+      }
       const found = readRing(event, myUserId);
       if (found) setRing(found);
     };
@@ -116,13 +183,16 @@ export function IncomingCalls() {
     };
   }, [mx]);
 
-  // Stops ringing when the ring expires or the call it rang for has nobody left in it.
+  // Stops ringing when the ring expires, the call it rang for has nobody left in it, or this
+  // account answered on another device.
   useEffect(() => {
     if (!ring) return undefined;
     const room = mx.getRoom(ring.roomId);
+    const myUserId = mx.getSafeUserId();
     const check = () => {
-      const ended = !room || activeMemberships(mx.matrixRTC.getRoomSession(room)).length === 0;
-      if (ended || Date.now() >= ring.expiresAt) setRing(undefined);
+      const members = room ? activeMemberships(mx.matrixRTC.getRoomSession(room)) : [];
+      const answered = members.some((member) => member.userId === myUserId);
+      if (members.length === 0 || answered || Date.now() >= ring.expiresAt) setRing(undefined);
     };
     const timer = window.setInterval(check, 1000);
     return () => window.clearInterval(timer);
@@ -152,6 +222,7 @@ export function IncomingCalls() {
         ring={ring}
         onAnswer={answer}
         onDecline={decline}
+        onOpen={() => navigateRoom(room.roomId)}
         onIgnore={() => setRing(undefined)}
       />
     </div>

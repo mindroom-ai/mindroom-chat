@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventType, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
-import { declineRing, readRing } from './callRings';
+import { declineRing, declinedRingId, readRing } from './callRings';
 
 const ME = '@me:example.org';
 const NOW = 1_000_000;
@@ -69,5 +69,29 @@ describe('declineRing', () => {
         'm.relates_to': { rel_type: 'm.reference', event_id: '$ring' },
       }
     );
+  });
+});
+
+describe('declinedRingId', () => {
+  const decline = (sender: string, relation: Record<string, unknown>) =>
+    new MatrixEvent({
+      type: EventType.RTCDecline,
+      room_id: '!direct:example.org',
+      event_id: '$decline',
+      sender,
+      content: { 'm.relates_to': relation },
+    });
+
+  it('names the ring this account declined on another device', () => {
+    expect(declinedRingId(decline(ME, { rel_type: 'm.reference', event_id: '$ring' }), ME)).toBe(
+      '$ring'
+    );
+  });
+
+  it("ignores other people's declines and other events", () => {
+    const relation = { rel_type: 'm.reference', event_id: '$ring' };
+    expect(declinedRingId(decline('@caller:example.org', relation), ME)).toBeUndefined();
+    expect(declinedRingId(decline(ME, { event_id: '$ring' }), ME)).toBeUndefined();
+    expect(declinedRingId(notification({}, ME), ME)).toBeUndefined();
   });
 });

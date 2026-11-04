@@ -55,3 +55,16 @@ export const declineRing = (mx: MatrixClient, ring: IncomingRing) =>
       'm.relates_to': { rel_type: RelationType.Reference, event_id: ring.eventId },
     } as never
   );
+
+/**
+ * The ring an `org.matrix.msc4310.rtc.decline` event says no to, when this account sent it (from
+ * any of its devices), so every device stops ringing.
+ */
+export const declinedRingId = (event: MatrixEvent, myUserId: string): string | undefined => {
+  if (event.getType() !== EventType.RTCDecline || event.getSender() !== myUserId) return undefined;
+  const relation = event.getContent()['m.relates_to'] as
+    | { rel_type?: unknown; event_id?: unknown }
+    | undefined;
+  if (relation?.rel_type !== RelationType.Reference) return undefined;
+  return typeof relation.event_id === 'string' ? relation.event_id : undefined;
+};
