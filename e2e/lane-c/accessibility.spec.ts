@@ -237,8 +237,8 @@ test.describe.serial('keyboard and accessibility', () => {
 
   /**
    * axe-core over the main screens in the page's language: home, a room beside its members, a
-   * thread, the inbox, message search and the settings dialog. Each opens inside the running
-   * app; the findings come back as `screen rule: element` lines.
+   * thread, the inbox, message search, the account menu and the settings dialog. Each opens
+   * inside the running app; the findings come back as `screen rule: element` lines.
    */
   const axeMainScreens = async (code: string): Promise<string[]> => {
     const known = knownPortedFindings(code);
@@ -278,6 +278,13 @@ test.describe.serial('keyboard and accessibility', () => {
     await expect(page.getByRole('main').getByText(THREAD_ROOT)).toBeVisible({ timeout: 30_000 });
     await check('search');
     await accountButton(page, code).click();
+    const settingsEntry = page.getByRole('menuitem', {
+      name: label(code, 'settings.title'),
+      exact: true,
+    });
+    await expect(settingsEntry).toBeVisible();
+    await check('account menu');
+    await settingsEntry.click();
     const settings = page.getByRole('dialog', { name: label(code, 'settings.title') });
     await expect(settings).toBeVisible();
     await check('settings');
