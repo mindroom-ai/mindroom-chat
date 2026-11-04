@@ -14,7 +14,13 @@ const ROUNDS_BYTES = 4;
 const MAC_BYTES = 32;
 const HEADER_BYTES = 1 + SALT_BYTES + IV_BYTES + ROUNDS_BYTES;
 /** The spec asks for at least 100,000 rounds. */
-export const DEFAULT_EXPORT_ROUNDS = 500_000;
+const DEFAULT_EXPORT_ROUNDS = 500_000;
+/**
+ * The most rounds a file may ask for. The count is read from the file before the passphrase can
+ * be checked, and up to 2^32 - 1 would keep PBKDF2 busy for hours with no way to stop it. Files
+ * from Matrix clients use far fewer.
+ */
+const MAX_IMPORT_ROUNDS = 10_000_000;
 const LINE_LENGTH = 76;
 
 /** Thrown when a file is not a key export or its passphrase is wrong. */
@@ -122,6 +128,7 @@ export const decryptRoomKeyExport = async (file: string, passphrase: string): Pr
   const salt = body.slice(1, 1 + SALT_BYTES);
   const iv = body.slice(1 + SALT_BYTES, 1 + SALT_BYTES + IV_BYTES);
   const rounds = new DataView(body.buffer, body.byteOffset).getUint32(1 + SALT_BYTES + IV_BYTES);
+  if (rounds < 1 || rounds > MAX_IMPORT_ROUNDS) throw new RoomKeyExportError('format');
   const macStart = body.length - MAC_BYTES;
   const { aesKey, macKey } = await deriveKeys(passphrase, salt, rounds);
 

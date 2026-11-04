@@ -70,6 +70,23 @@ describe('room key export files', () => {
     await expect(decryptRoomKeyExport(tampered, 'pass')).rejects.toBeInstanceOf(RoomKeyExportError);
   });
 
+  it('rejects a file that asks for no rounds or for more than ten million', async () => {
+    const file = await encryptRoomKeyExport(SESSIONS, 'pass', ROUNDS);
+    const lines = file.trim().split('\n');
+    const body = Buffer.from(lines.slice(1, -1).join(''), 'base64');
+    const withRounds = (rounds: number) => {
+      const copy = Buffer.from(body);
+      copy.writeUInt32BE(rounds, 33);
+      return [lines[0], copy.toString('base64'), lines[lines.length - 1]].join('\n');
+    };
+    // Read before the passphrase can be checked: deriving 2^32 - 1 rounds would take hours.
+    for (const rounds of [0, 10_000_001, 0xffffffff]) {
+      await expect(decryptRoomKeyExport(withRounds(rounds), 'pass')).rejects.toEqual(
+        new RoomKeyExportError('format')
+      );
+    }
+  });
+
   it('rejects text that is not a key export', async () => {
     await expect(decryptRoomKeyExport('hello', 'pass')).rejects.toEqual(
       new RoomKeyExportError('format')
