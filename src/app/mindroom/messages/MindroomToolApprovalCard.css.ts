@@ -1,6 +1,7 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { glassSurface } from '../../styles/Glass.css';
+import { SectionBody, SectionMeta } from './ThreadApprovals.css';
 
 /**
  * An `io.mindroom.tool_approval` request rendered in the timeline: the same glass card as
@@ -28,6 +29,12 @@ export const MetaDot = style({
     },
   },
 });
+
+// The card's details stack in a column; the request time continues the metadata's line instead of
+// starting one of its own, and every other detail still takes a full line.
+const detailsWithTime = `${SectionBody}:has(> ${MetaDot})`;
+globalStyle(detailsWithTime, { flexDirection: 'row', flexWrap: 'wrap', columnGap: 0 });
+globalStyle(`${detailsWithTime} > :not(${SectionMeta}):not(${MetaDot})`, { flexBasis: '100%' });
 
 /** Explains what a timed auto-approval would cover. */
 export const Scope = style({
