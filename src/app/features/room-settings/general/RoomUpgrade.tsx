@@ -144,42 +144,42 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
             )}
           </Box>
         }
-      >
-        {confirming && (
-          <Box direction="Column" gap="200">
-            <Text size="T200" style={{ color: color.Critical.Main }}>
-              {t(`${KEY}.thisActionIsIrreversible`)}
-            </Text>
-            <Box gap="200">
-              <Button
-                size="300"
-                radii="300"
-                variant="Critical"
-                disabled={busy}
-                before={busy ? <Spinner size="50" variant="Critical" fill="Solid" /> : undefined}
-                onClick={upgrade}
-              >
-                <Text size="B300">{t(`${KEY}.upgrade${noun}` as never)}</Text>
-              </Button>
-              <Button
-                size="300"
-                radii="300"
-                variant="Secondary"
-                fill="Soft"
-                disabled={busy}
-                onClick={() => setConfirming(false)}
-              >
-                <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.cancel')}</Text>
-              </Button>
-            </Box>
-          </Box>
-        )}
-        {failed && (
-          <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-            {failed}
+      />
+      {/* The warning sits under the row, so the version picker stays beside the title. */}
+      {confirming && (
+        <Box direction="Column" gap="200">
+          <Text size="T200" style={{ color: color.Critical.Main }}>
+            {t(`${KEY}.thisActionIsIrreversible`)}
           </Text>
-        )}
-      </SettingTile>
+          <Box gap="200">
+            <Button
+              size="300"
+              radii="300"
+              variant="Critical"
+              disabled={busy}
+              before={busy ? <Spinner size="50" variant="Critical" fill="Solid" /> : undefined}
+              onClick={upgrade}
+            >
+              <Text size="B300">{t(`${KEY}.upgrade${noun}` as never)}</Text>
+            </Button>
+            <Button
+              size="300"
+              radii="300"
+              variant="Secondary"
+              fill="Soft"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.cancel')}</Text>
+            </Button>
+          </Box>
+        </Box>
+      )}
+      {failed && (
+        <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+          {failed}
+        </Text>
+      )}
       {oldRoom}
     </>
   );

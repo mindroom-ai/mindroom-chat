@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -16,6 +17,8 @@ import { useStateEvent } from '../../hooks/useStateEvent';
 import { getDirectCreatePath, withSearchParam } from '../../pages/pathUtils';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { RoomSettingsPage } from '../../state/roomSettings';
+import { settingsModalAtom } from '../../state/settingsModal';
+import { SettingsPages } from '../../features/settings/settingsPages';
 import { nameInitials } from '../../utils/common';
 import { getMxIdLocalPart, getMxIdServer } from '../../utils/matrix';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
@@ -108,6 +111,7 @@ export function UserRoomProfile({
   const client = useMatrixClient();
   const navigate = useNavigate();
   const openRoomSettings = useOpenRoomSettings();
+  const openSettings = useSetAtom(settingsModalAtom);
   const authenticatedMedia = useMediaAuthentication();
   const creators = useRoomCreators(room);
   const levels = usePowerLevels(room);
@@ -205,6 +209,21 @@ export function UserRoomProfile({
           onClick={openDirectRoom}
         >
           <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
+        </Button>
+      )}
+      {isMe && (
+        <Button
+          size="300"
+          radii="300"
+          variant="Secondary"
+          fill="Soft"
+          before={<Icon size="100" src={Icons.Pencil} />}
+          onClick={() => {
+            onDone();
+            openSettings({ initialPage: SettingsPages.AccountPage });
+          }}
+        >
+          <Text size="B300">{t('sharedUi.userRoomProfile.editProfile')}</Text>
         </Button>
       )}
       {!isMe && <UserModeration room={room} userId={userId} abilities={abilities} />}
