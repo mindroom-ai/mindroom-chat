@@ -25,6 +25,9 @@ services:
       TUWUNEL_ALLOW_FEDERATION: 'false'
       # Clients that start from the server name find the homeserver here.
       TUWUNEL_WELL_KNOWN__CLIENT: http://127.0.0.1:${E2E_MATRIX_PORT:-28008}
+      # The MatrixRTC authorization service the call specs start (scripts/e2e-rtc.sh); the server
+      # announces it as `org.matrix.msc4143.rtc_foci` and in `/rtc/transports`. Empty: no calls.
+      TUWUNEL_WELL_KNOWN__LIVEKIT_URL: ${E2E_LIVEKIT_SERVICE_URL:-}
       # Specs show display names, so skip the default suffix added at registration.
       TUWUNEL_NEW_USER_DISPLAYNAME_SUFFIX: ''
       # Specs sign the same accounts in again and again; a 0 rate turns a login limit off.
