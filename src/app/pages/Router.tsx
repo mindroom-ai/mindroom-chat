@@ -155,6 +155,7 @@ function SectionIndex({ page }: { page: ReactNode }) {
 function CreateRoomPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   return (
     <Page>
       <PhonePageHeader to={HOME_PATH} title={t('nav.createRoom')} />
@@ -169,6 +170,12 @@ function CreateRoomPage() {
           minHeight: 0,
         }}
       >
+        {/* On phones the title bar names the page. */}
+        {!phone && (
+          <Text as="h2" size="H4" style={{ marginBottom: '16px' }}>
+            {t('nav.createRoom')}
+          </Text>
+        )}
         <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
       </div>
     </Page>

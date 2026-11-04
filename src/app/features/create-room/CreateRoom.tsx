@@ -217,8 +217,11 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
             visible ? <OptionToggle key={id} disabled={creating} {...toggle} /> : null
           )}
           <Box>
+            {/* A button in a form submits it unless told otherwise. */}
             <Chip
+              type="button"
               radii="Pill"
+              aria-expanded={advanced}
               variant={advanced ? 'Success' : 'SurfaceVariant'}
               before={<Icon size="50" src={chevron} />}
               onClick={() => setAdvanced((open) => !open)}
