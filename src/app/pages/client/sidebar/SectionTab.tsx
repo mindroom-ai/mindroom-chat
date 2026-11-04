@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Icon, type IconSrc, type RectCords } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +13,6 @@ import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
-import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { joinPathComponent } from '../../pathUtils';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 
@@ -26,8 +25,10 @@ type SectionTabProps = {
   icon: IconSrc;
   label: string;
   selected: boolean;
-  /** The rooms its unread badge counts and its Mark as Read reads. */
+  /** The rooms its unread badge counts. */
   rooms: string[];
+  /** The right-click menu's entries (Mark as Read for the same rooms); `close` dismisses it. */
+  menu: (close: () => void) => ReactNode;
   /** Direct messages are personal, so any unread one stands out like a mention. */
   personal?: boolean;
   /** Lets the navigation panel take the click, given whether the section is shown; true when it did. */
@@ -36,7 +37,7 @@ type SectionTabProps = {
 
 /**
  * A section button of the icon rail (Home, Direct Messages): returns to the last place opened in
- * the section, shows its unread count, and offers Mark as Read on right click.
+ * the section, shows its unread count, and opens its menu on right click.
  */
 export function SectionTab({
   section,
@@ -45,6 +46,7 @@ export function SectionTab({
   label,
   selected,
   rooms,
+  menu,
   personal,
   onSelect,
 }: SectionTabProps) {
@@ -88,7 +90,7 @@ export function SectionTab({
         </SidebarItemBadge>
       )}
       <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-        <MindroomMarkRoomsReadMenuItem roomIds={rooms} onClose={closeMenu} />
+        {menu(closeMenu)}
       </SidebarContextMenu>
     </SidebarItem>
   );
