@@ -117,10 +117,13 @@ function TextMessage({
 
   return (
     <>
+      {/* The body reads in its own direction, so an English message keeps its punctuation at
+          the end in a right-to-left interface, and an Arabic one in a left-to-right one. */}
       <Text
         as="div"
         size="T400"
         priority={notice ? '300' : undefined}
+        dir="auto"
         style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
       >
         {prefix}
