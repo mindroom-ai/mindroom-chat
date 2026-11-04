@@ -10,7 +10,13 @@ import React, {
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
+import {
+  EventStatus,
+  MatrixEventEvent,
+  RoomEvent,
+  type Room,
+  type RoomEventHandlerMap,
+} from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box, Text, color, config } from 'folds';
 import { useEditor } from '../../components/editor';
@@ -63,8 +69,18 @@ const useThreadBannerTitle = (
   const rootEvent = threadId
     ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
     : undefined;
+  // A root whose key arrives late decrypts after the banner rendered; its title follows it, and
+  // until then the banner keeps its generic label instead of the SDK's "Unable to decrypt" body.
+  const [, repaintOnDecrypt] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (!rootEvent) return undefined;
+    rootEvent.on(MatrixEventEvent.Decrypted, repaintOnDecrypt);
+    return () => {
+      rootEvent.off(MatrixEventEvent.Decrypted, repaintOnDecrypt);
+    };
+  }, [rootEvent]);
   const rootText =
-    threadId && !summary?.summaryText
+    threadId && !summary?.summaryText && !rootEvent?.isDecryptionFailure()
       ? resolveThreadRootPreviewText({ room, threadRootId: threadId, rootEvent })
       : undefined;
   return useMemo(() => (rootText ? { summaryText: rootText } : summary), [rootText, summary]);
