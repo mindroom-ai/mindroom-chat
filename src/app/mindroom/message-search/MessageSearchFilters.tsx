@@ -7,10 +7,9 @@ import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { RoomIcon } from '../../components/room-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { isMindroomEmojiRoom } from '../../utils/room';
+import { compareNames } from '../../utils/nameOrder';
 import * as css from './MessageSearch.css';
 import { matchesEnum } from '../../utils/matchesEnum';
-
-const nameOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /**
  * The rooms a search can be narrowed to, sorted by name: every joined room that holds messages
@@ -38,7 +37,7 @@ const pickableRooms = (
     const room = client.getRoom(roomId);
     if (room) rooms.set(roomId, room);
   });
-  return [...rooms.values()].sort((a, b) => nameOrder.compare(a.name, b.name));
+  return [...rooms.values()].sort((a, b) => compareNames(a.name, b.name));
 };
 
 type SearchRoomPickerProps = {

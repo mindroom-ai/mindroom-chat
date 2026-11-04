@@ -1,15 +1,13 @@
 import { useMemo } from 'react';
 import type { RoomMember } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { compareNames } from '../utils/nameOrder';
 
 /** Compares two members: negative puts `a` first. */
 type MemberOrder = (a: RoomMember, b: RoomMember) => number;
 
 /** One way to order the member list, named as the sort menu shows it. */
 export type MemberSortItem = { name: string; sortFn: MemberOrder };
-
-// Compare names the way people read them: case and accents aside, "user 2" before "user 10".
-const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /** The name a member is listed under: the display name, else the user ID without its `@`. */
 const listedName = (member: RoomMember): string =>
@@ -19,8 +17,8 @@ const listedName = (member: RoomMember): string =>
 const membershipSince = (member: RoomMember): number => member.events?.member?.getTs() ?? 0;
 
 export const MemberSort: Record<'AtoZ' | 'ZtoA' | 'NewestFirst' | 'OldestFirst', MemberOrder> = {
-  AtoZ: (a, b) => nameCollator.compare(listedName(a), listedName(b)),
-  ZtoA: (a, b) => nameCollator.compare(listedName(b), listedName(a)),
+  AtoZ: (a, b) => compareNames(listedName(a), listedName(b)),
+  ZtoA: (a, b) => compareNames(listedName(b), listedName(a)),
   NewestFirst: (a, b) => membershipSince(b) - membershipSince(a),
   OldestFirst: (a, b) => membershipSince(a) - membershipSince(b),
 };

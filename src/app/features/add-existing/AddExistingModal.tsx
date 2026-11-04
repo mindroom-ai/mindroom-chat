@@ -26,6 +26,7 @@ import { getSpaceChildIds, roomToParentsAtom } from '../../state/room/roomToPare
 import { getAncestorSpaceIds } from '../../state/room/spaceAncestors';
 import { getRoomAvatarUrl, isMindroomEmojiRoom } from '../../utils/room';
 import { nameInitials } from '../../utils/common';
+import { compareNames } from '../../utils/nameOrder';
 import { CreateDialogFrame } from '../create-space/CreateDialogFrame';
 import { addSpaceChild } from '../lobby/spaceChildren';
 
@@ -38,8 +39,6 @@ type AddExistingModalProps = {
   into: string;
   requestClose: () => void;
 };
-
-const byName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /** Joined rooms (or spaces) that can still become children of `parent`, by name. */
 const useCandidates = (client: MatrixClient, parent: Room | null, spaces: boolean): Room[] => {
@@ -59,7 +58,7 @@ const useCandidates = (client: MatrixClient, parent: Room | null, spaces: boolea
         if (spaces) return !above.has(room.roomId);
         return !directs.has(room.roomId) && !isMindroomEmojiRoom(room);
       })
-      .sort((a, b) => byName.compare(a.name, b.name));
+      .sort((a, b) => compareNames(a.name, b.name));
   }, [client, parent, spaces, joined, directs, roomToParents]);
 };
 

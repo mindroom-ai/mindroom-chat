@@ -4,7 +4,6 @@ import type { IconSrc } from 'folds';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import type { MatrixClient } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
   NavCategory,
@@ -56,10 +55,7 @@ import { RouteResolving } from '../RoomRoute';
 import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../routeVisibility';
 import { useSpaceNavigationRooms } from './useSpaceSearchRooms';
 import { getSpaceShareLink } from './spaceLink';
-
-// Like Home: by name, A to Z, ignoring case and accents, with numbers in numeric order.
-const byRoomName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-const roomName = (mx: MatrixClient, roomId: string): string => mx.getRoom(roomId)?.name ?? roomId;
+import { sortRoomIdsByName } from '../../../utils/nameOrder';
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
 const readViaServers = (searchParams: URLSearchParams): string[] | undefined => {
@@ -282,9 +278,8 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
 
   const sortedRooms = useMemo(() => {
-    const items = [...spaceRooms].sort((a, b) =>
-      byRoomName.compare(roomName(client, a), roomName(client, b))
-    );
+    // Like Home: by name.
+    const items = sortRoomIdsByName(client, spaceRooms);
     // A collapsed category still shows the selected room.
     return roomsClosed ? items.filter((roomId) => roomId === selectedRoomId) : items;
   }, [client, spaceRooms, roomsClosed, selectedRoomId]);

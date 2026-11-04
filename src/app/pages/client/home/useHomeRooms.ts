@@ -7,12 +7,11 @@ import { mDirectAtom } from '../../../state/mDirectList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { isMindroomEmojiRoom, isSpace } from '../../../utils/room';
-
-type RoomToParents = Map<string, Set<string>>;
+import type { RoomToParents } from '../../../../types/matrix/room';
+import { mergeSearchRoomSources } from '../space/useSpaceSearchRooms';
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
-export const mergeHomeSearchRoomSources = (...sources: string[][]): string[] =>
-  Array.from(new Set(sources.flat()));
+export const mergeHomeSearchRoomSources = mergeSearchRoomSources;
 
 const isHomeRoom = (
   client: MatrixClient,

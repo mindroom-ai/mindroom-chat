@@ -4,7 +4,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { mDirectAtom } from '../../../state/mDirectList';
-import { roomToParentsAtom } from '../../../state/room/roomToParents';
+import { getSpaceChildIds, roomToParentsAtom } from '../../../state/room/roomToParents';
 import { isInSpace } from '../../../state/room/spaceAncestors';
 import type { RoomToParents } from '../../../../types/matrix/room';
 import { isMindroomEmojiRoom, isSpace } from '../../../utils/room';
@@ -46,10 +46,7 @@ const getSdkRoomToParents = (mx: MatrixClient): RoomToParents => {
   const map: RoomToParents = new Map();
   mx.getRooms().forEach((room) => {
     if (!room.isSpaceRoom()) return;
-    room.currentState.getStateEvents('m.space.child').forEach((event) => {
-      const childId = event.getStateKey();
-      const { via } = event.getContent();
-      if (!childId || !Array.isArray(via) || via.length === 0) return;
+    getSpaceChildIds(room).forEach((childId) => {
       const parents = map.get(childId) ?? new Set<string>();
       parents.add(room.roomId);
       map.set(childId, parents);

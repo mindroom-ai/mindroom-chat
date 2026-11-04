@@ -4,7 +4,6 @@ import type { IconSrc } from 'folds';
 import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { MatrixClient } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
   NavButton,
@@ -49,17 +48,10 @@ import {
   withSearchParam,
 } from '../../pathUtils';
 import { NavOptionsMenu } from '../NavOptionsMenu';
+import { sortRoomIdsByName } from '../../../utils/nameOrder';
 import { useHomeRooms } from './useHomeRooms';
 
 const ROOM_ROW_HEIGHT = 36;
-
-const roomNameOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-
-/** Rooms by name, A to Z, ignoring case and accents, as in the reference sidebar. */
-const sortRooms = (mx: MatrixClient, roomIds: string[]): string[] => {
-  const nameOf = (roomId: string): string => mx.getRoom(roomId)?.name ?? roomId;
-  return [...roomIds].sort((a, b) => roomNameOrder.compare(nameOf(a), nameOf(b)));
-};
 
 function HomeHeader({ roomIds }: { roomIds: string[] }) {
   const { t } = useTranslation();
@@ -146,7 +138,7 @@ export function Home() {
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
   const listedRoomIds = useMemo(() => {
-    const items = sortRooms(client, homeRooms);
+    const items = sortRoomIdsByName(client, homeRooms);
     if (!roomsClosed) return items;
     // A collapsed category still shows the selected room.
     return items.filter((roomId) => roomId === selectedRoomId);
