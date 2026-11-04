@@ -11,6 +11,8 @@ import {
 import { SettingsModalRenderer } from '../../features/settings/SettingsModalRenderer';
 import { RoomSettingsRenderer } from '../../features/room-settings/RoomSettingsRenderer';
 import { SpaceSettingsRenderer } from '../../features/space-settings/SpaceSettingsRenderer';
+import { CreateRoomModalRenderer } from '../../features/create-room/CreateRoomModal';
+import { CreateSpaceModalRenderer } from '../../features/create-space/CreateSpaceModal';
 import { UserRoomProfileRenderer } from '../../components/user-profile/UserRoomProfileRenderer';
 import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPaletteRenderer';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
@@ -56,6 +58,8 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <SettingsModalRenderer />
           <RoomSettingsRenderer />
           <SpaceSettingsRenderer />
+          <CreateRoomModalRenderer />
+          <CreateSpaceModalRenderer />
           <CommandPaletteRenderer />
           <UserRoomProfileRenderer />
         </RoomsNotificationPreferencesProvider>
