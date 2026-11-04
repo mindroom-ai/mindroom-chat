@@ -234,7 +234,6 @@ src/app/mindroom/bug-reports/MessageBugReportItem.tsx	1	bas=87%	MessageBugReport
 src/app/plugins/via-servers.ts	1	bas=0%	getViaServers
 src/app/mindroom/calls/AgentCallButton.tsx	1	bas=93%	AgentCallButton
 src/app/mindroom/calls/AgentCallHeaderButton.tsx	1	bas=83%	AgentCallHeaderButton
-src/app/utils/rtc.ts	1	bas=0%	webRTCSupported
 src/app/mindroom/canvas/CanvasHeaderButton.tsx	1	bas=84%	CanvasHeaderButton
 public/sound/invite.ogg	1	bas=-1%	InviteSound
 src/app/components/unread-badge/index.ts	1	bas=0%	UnreadBadge
