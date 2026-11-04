@@ -14,9 +14,9 @@
 # `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv) is printed at the start; --out copies results.tsv there too.
-# --resume finishes an interrupted run in its directory: the same commit, every spec it has no
-# result for yet, including runs that left no report (pass the Playwright options again if the
-# run had its own).
+# --resume finishes an interrupted run in its directory: the same commit and spec list, every spec
+# it has no result for yet, including runs that left no report (pass the Playwright options again
+# if the run had its own).
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next.
@@ -85,6 +85,10 @@ main() {
     echo "e2e-suite: $rev is not a commit" >&2
     exit 2
   }
+  # A resumed run keeps the spec list it started with (runs from before specs.txt ran them all).
+  if [ ${#specs[@]} -eq 0 ] && [ -n "$resume" ] && [ -f "$resume/specs.txt" ]; then
+    mapfile -t specs <"$resume/specs.txt"
+  fi
   if [ ${#specs[@]} -eq 0 ]; then
     mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | sort)
   fi
@@ -102,6 +106,7 @@ main() {
     run="$snapshots/suite-${sha:0:12}-$(date +%Y%m%dT%H%M%S)"
     mkdir -p "$run/logs" "$run/json" "$run/output"
     : >"$run/manifest.tsv"
+    printf '%s\n' "${specs[@]}" >"$run/specs.txt"
   fi
   echo "$sha" >"$run/commit"
   echo "e2e-suite: ${#specs[@]} spec files of ${sha:0:12} on slots ${slots[*]}; run directory $run" >&2

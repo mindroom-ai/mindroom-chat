@@ -59,7 +59,10 @@ main() {
   if [ "$preview" = 1 ] && [ -z "$snapshot_rev" ]; then snapshot_rev=HEAD; fi
   if [ -n "$snapshot_rev" ]; then fresh=1; fi
 
-  compose() { docker compose -f "$repo/e2e/docker-compose.yaml" "$@"; }
+  # The homeserver definition: the checkout's, or after `cd "$tree"` below the snapshot's own, so
+  # uncommitted edits to it never reach a snapshot run either.
+  compose_file="$repo/e2e/docker-compose.yaml"
+  compose() { docker compose -f "$compose_file" "$@"; }
 
   # The slot's MindRoom stack of the agent specs (scripts/agent-stack/stack.py) has its accounts on
   # the homeserver, so it stops with it.
@@ -118,11 +121,12 @@ main() {
       export E2E_SERVER_COMMAND="npx vite preview --host 127.0.0.1 --port $E2E_APP_PORT --strictPort --outDir $build"
     fi
     cd "$tree"
+    compose_file="$tree/e2e/docker-compose.yaml"
   fi
 
   # The imported scripts start their homeserver from E2E_MATRIX_COMPOSE_FILE (scripts/e2e-matrix-up.sh,
   # which scripts/appstore-fixture-up.sh calls); point them at this slot's server.
-  export E2E_MATRIX_COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-$PWD/e2e/docker-compose.yaml}"
+  export E2E_MATRIX_COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-$compose_file}"
   if [ "$fresh" = 1 ]; then
     # Quiet, not silenced: a Docker failure here must say why the run stopped.
     compose --progress quiet down --volumes --remove-orphans
