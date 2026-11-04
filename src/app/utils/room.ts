@@ -13,6 +13,7 @@ import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBacken
 import { MessageEvent, MsgType, RoomType, StateEvent } from '../../types/matrix/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editResolution';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../mindroom/messages/toolApproval';
 import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from './matchesEnum';
@@ -255,8 +256,6 @@ export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent): boolean => 
     isLongTextFile(content)
   );
 };
-
-const MINDROOM_TOOL_APPROVAL_EVENT = 'io.mindroom.tool_approval';
 
 // Event types that carry a message (Matrix Client-Server API modules: End-to-End Encryption for
 // m.room.encrypted, Instant Messaging for m.room.message, Stickers for m.sticker), plus MindRoom's

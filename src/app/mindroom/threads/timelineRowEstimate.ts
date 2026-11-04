@@ -5,6 +5,11 @@ import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import { inSameDay } from '../../utils/time';
 import { estimateThreadEventRowHeight } from './threadRenderUtils';
 import { startsAuthorGroup } from './timelineRowFold';
+import {
+  getTimelineMessageKind,
+  MEDIA_MAX_SIZE,
+  NOTICE_STATE_EVENT_TYPES,
+} from './timelineRowTypes';
 
 /*
  * Heights a timeline row is given before it is measured. A row priced far from its real height
@@ -43,24 +48,6 @@ const THREAD_BADGE_PX = 31;
 /** Media without size information, and file or audio cards. */
 const MEDIA_FALLBACK_PX = 240;
 const FILE_CARD_PX = 56;
-/** Images and videos show at most this tall and this wide. */
-const MEDIA_MAX_PX = { height: 300, width: 400 } as const;
-
-/** The room renders these state events as a line of text and the others as nothing. */
-const STATE_ROW_TYPES: ReadonlySet<string> = new Set([
-  'm.room.member',
-  'm.room.name',
-  'm.room.topic',
-  'm.room.avatar',
-]);
-/** Event types the room shows as messages; anything else that is not state shows nothing. */
-const MESSAGE_ROW_TYPES: ReadonlySet<string> = new Set([
-  'm.room.message',
-  'm.room.encrypted',
-  'm.sticker',
-  'io.mindroom.tool_approval',
-]);
-
 const BLOCK_MARKUP = /<(pre|ul|ol|table|blockquote|h[1-6])\b/i;
 const CODE_BLOCK = /<pre\b[^>]*>([\s\S]*?)<\/pre>/gi;
 const BLOCK_END = /<\/(p|li|h[1-6]|blockquote|div|dt|dd)>|<br\s*\/?>/gi;
@@ -119,7 +106,7 @@ const estimateMediaPx = (content: Record<string, unknown>, type: string): number
   const width = typeof info?.w === 'number' && info.w > 0 ? info.w : undefined;
   const height = typeof info?.h === 'number' && info.h > 0 ? info.h : undefined;
   if (!width || !height) return MEDIA_FALLBACK_PX;
-  const scale = Math.min(1, MEDIA_MAX_PX.width / width, MEDIA_MAX_PX.height / height);
+  const scale = Math.min(1, MEDIA_MAX_SIZE.width / width, MEDIA_MAX_SIZE.height / height);
   return Math.round(height * scale);
 };
 
@@ -162,8 +149,9 @@ export const estimateRoomRowHeight = (
   { threadBadge = false }: { threadBadge?: boolean } = {}
 ): number => {
   const type = event.getType();
-  if (event.getStateKey() !== undefined) return STATE_ROW_TYPES.has(type) ? STATE_ROW_PX : 0;
-  if (!MESSAGE_ROW_TYPES.has(type)) return 0;
+  if (event.getStateKey() !== undefined)
+    return NOTICE_STATE_EVENT_TYPES.has(type) ? STATE_ROW_PX : 0;
+  if (!getTimelineMessageKind(type)) return 0;
   const bodyPx = estimateMessageRowHeight(event, { compact: false });
   if (bodyPx === 0) return 0;
   const rowPx = startsAuthorGroup(above, event)

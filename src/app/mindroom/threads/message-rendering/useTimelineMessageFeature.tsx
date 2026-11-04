@@ -73,16 +73,19 @@ import { getMindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { shouldShowLinkFavicons } from '../../messages/linkFaviconPolicy';
 import {
   getMindroomRoomTimelineApprovalContent,
-  MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
   renderMindroomRoomTimelineThreadBadge,
 } from '../roomTimelineMessageExtensions';
 import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { canPinRoomEvents } from '../threadPinning';
 import { getLinkedTimelines } from '../linkedTimelines';
+import {
+  getTimelineMessageKind,
+  NOTICE_STATE_EVENT_TYPES,
+  TEXT_MSGTYPES,
+} from '../timelineRowTypes';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
-import type { TimelineMessageData, TimelineMessageKind, TimelineMessageRow } from './types';
-import { matchesEnum } from '../../../utils/matchesEnum';
+import type { TimelineMessageData, TimelineMessageRow } from './types';
 
 /**
  * The settings below come from the user's preferences; `hideActivity` keeps read receipts
@@ -106,22 +109,6 @@ export type UseTimelineMessageFeatureOptions = TimelineSettings & {
   showThreadRepliesInRoom: boolean;
 };
 
-/** State events the timeline shows as a one-line notice. */
-const RENDERED_STATE_EVENTS = new Set([
-  'm.room.member',
-  'm.room.name',
-  'm.room.topic',
-  'm.room.avatar',
-]);
-
-const getMessageKind = (eventType: string): TimelineMessageKind | undefined => {
-  if (matchesEnum(eventType, MessageEvent.RoomMessage)) return 'message';
-  if (eventType === MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT) return 'approval';
-  if (matchesEnum(eventType, MessageEvent.Sticker)) return 'sticker';
-  if (matchesEnum(eventType, MessageEvent.RoomMessageEncrypted)) return 'encrypted';
-  return undefined;
-};
-
 /** The user's own confirmed text message, a long text sent as a file included. */
 const isEditableOwnMessage = (client: MatrixClient, event: MatrixEvent): boolean =>
   isConfirmedMatrixEventId(event.getId()) && canEditEvent(client, event);
@@ -137,9 +124,6 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
   if (relation?.rel_type === RelationType.Thread && relation.is_falling_back) return false;
   return replyEventId !== previousEventId;
 };
-
-/** Text messages; their body is only as wide as their text (`data-message-fold`, layout.css.ts). */
-const TEXT_MSGTYPES: ReadonlySet<string> = new Set(['m.text', 'm.notice', 'm.emote']);
 
 /**
  * Pictures and videos sit in a box of at most 400 by 300 pixels (MsgTypeRenderers) and open a
@@ -477,7 +461,7 @@ export const useTimelineMessageFeature = ({
   const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
       const { event, eventId, collapse, highlighted } = row;
-      const kind = getMessageKind(event.getType());
+      const kind = getTimelineMessageKind(event.getType());
       if (!kind) return null;
 
       const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
@@ -633,6 +617,7 @@ export const useTimelineMessageFeature = ({
             dateFormatString={dateFormatString}
           >
             <div
+              // Text bodies are only as wide as their text (`data-message-fold`, layout.css.ts).
               data-message-fold={
                 collapseMode !== 'always-expanded' && TEXT_MSGTYPES.has(msgType) ? 'text' : 'block'
               }
@@ -701,7 +686,7 @@ export const useTimelineMessageFeature = ({
       void decryptions;
       const { event, eventId, highlighted } = row;
       if (event.getStateKey?.() !== undefined) {
-        if (!RENDERED_STATE_EVENTS.has(event.getType())) return null;
+        if (!NOTICE_STATE_EVENT_TYPES.has(event.getType())) return null;
         return (
           <Event
             key={eventId}

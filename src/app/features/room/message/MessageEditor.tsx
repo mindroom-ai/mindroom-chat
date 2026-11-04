@@ -32,11 +32,9 @@ import { mobileOrTablet } from '../../../utils/user-agent';
 import { trimReplyFromBody } from '../../../utils/room';
 import { buildMindroomEditContent } from '../../../mindroom/messages/longEdit';
 import { useMindroomEditableContent } from '../../../mindroom/messages/useMindroomEditableContent';
+import { TEXT_MSGTYPES } from '../../../mindroom/threads/timelineRowTypes';
 
 const CUSTOM_HTML = 'org.matrix.custom.html';
-
-/** Message types an edit keeps; anything else (a long text sent as a file) is edited as text. */
-const TEXT_MSGTYPES: ReadonlySet<string> = new Set(['m.text', 'm.notice', 'm.emote']);
 
 const isPlainEnter = isKeyHotkey('enter');
 const isModEnter = isKeyHotkey('mod+enter');

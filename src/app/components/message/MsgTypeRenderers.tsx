@@ -29,6 +29,7 @@ import {
   MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
+import { MEDIA_MAX_SIZE } from '../../mindroom/threads/timelineRowTypes';
 import { trimReplyFromBody } from '../../utils/room';
 import { bytesToSize } from '../../utils/common';
 import {
@@ -179,9 +180,6 @@ export type RenderImageContentArgs = {
   encInfo?: EncryptedAttachmentInfo;
 };
 
-const MEDIA_MAX_WIDTH = 400;
-const MEDIA_MAX_HEIGHT = 300;
-
 /**
  * Box for a picture or video that keeps the media's aspect ratio inside the size limits. When the
  * message is narrower than that (phones), the box narrows and its height follows the ratio.
@@ -190,12 +188,14 @@ const mediaBoxStyle = (info: { w?: number; h?: number }): CSSProperties => {
   const width = typeof info.w === 'number' && info.w > 0 ? info.w : undefined;
   const height = typeof info.h === 'number' && info.h > 0 ? info.h : undefined;
   const sized = width !== undefined && height !== undefined;
-  const scale = sized ? Math.min(1, MEDIA_MAX_WIDTH / width, MEDIA_MAX_HEIGHT / height) : 1;
+  const scale = sized
+    ? Math.min(1, MEDIA_MAX_SIZE.width / width, MEDIA_MAX_SIZE.height / height)
+    : 1;
   return {
-    width: width ? toRem(Math.round(width * scale)) : toRem(MEDIA_MAX_WIDTH),
+    width: width ? toRem(Math.round(width * scale)) : toRem(MEDIA_MAX_SIZE.width),
     ...(sized
       ? { aspectRatio: `${Math.round(width * scale)} / ${Math.round(height * scale)}` }
-      : { height: toRem(MEDIA_MAX_HEIGHT * 0.75) }),
+      : { height: toRem(MEDIA_MAX_SIZE.height * 0.75) }),
     maxWidth: '100%',
     overflow: 'hidden',
     borderRadius: toRem(12),

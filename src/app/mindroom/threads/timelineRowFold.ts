@@ -3,6 +3,7 @@ import { reactionOrEditEvent } from '../../utils/room';
 import { inSameDay, minuteDifference } from '../../utils/time';
 import { shouldRenderUnreadDividerAt } from './timelineScrollUtils';
 import { primeTimelineRenderContextBefore } from './threadRenderUtils';
+import { getTimelineMessageKind } from './timelineRowTypes';
 
 /** How one mounted row relates to the rows before it. */
 export type TimelineRowContext = {
@@ -20,20 +21,13 @@ export type TimelineRowContext = {
 const GROUP_MINUTES = 2;
 
 /**
- * Event types that are parts of one turn: an agent's reply, the tool approval card it sends
- * between the reply's parts, and the summary notice after it all sit under one author line.
- * Other events group only with events of their own type.
+ * Message rows are parts of one turn: an agent's reply, the tool approval card it sends between
+ * the reply's parts, and the summary notice after it all sit under one author line. Other events
+ * group only with events of their own type.
  */
-const TURN_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'm.room.message',
-  'm.room.encrypted',
-  'm.sticker',
-  'io.mindroom.tool_approval',
-]);
-
 const groupKind = (event: MatrixEvent): string => {
   const type = event.getType();
-  return TURN_EVENT_TYPES.has(type) ? 'turn' : type;
+  return getTimelineMessageKind(type) ? 'turn' : type;
 };
 
 /** Edits, reactions and redactions change other rows and have no row of their own. */
