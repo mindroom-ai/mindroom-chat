@@ -7,6 +7,7 @@ import { PasswordInput } from './password-input';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
+import { errorMessage } from '../utils/errorMessage';
 
 /** `m.secret_storage.key.*` passphrase info (PBKDF2 settings). */
 export type SecretStoragePassphraseContent = {
@@ -36,7 +37,7 @@ const INVALID_KEY = 'Invalid recovery key.';
 const useRecoveryErrorText = () => {
   const { t } = useTranslation();
   return (error: unknown): string => {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     if (message === INVALID_PASSPHRASE)
       return t('sharedUi.secretStorage.invalidRecoveryPassphrase');
     if (message === INVALID_KEY) return t('sharedUi.secretStorage.invalidRecoveryKey');

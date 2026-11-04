@@ -24,6 +24,7 @@ import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { ActionDialog } from '../../components/ActionDialog';
+import { errorMessage } from '../../utils/errorMessage';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -39,9 +40,6 @@ export type ThreadActionsMenuProps = {
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
-
-const errorText = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -130,7 +128,7 @@ export function ThreadActionsMenu({
       onDone();
     } catch (error) {
       setBusy(false);
-      setRequestError(errorText(error));
+      setRequestError(errorMessage(error));
     }
   };
 

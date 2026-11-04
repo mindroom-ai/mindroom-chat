@@ -13,6 +13,7 @@ import {
   encryptRoomKeyExport,
 } from '../../../utils/roomKeyExport';
 import { SettingsCard } from '../SettingsCard';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const KEY = 'featureUi.settings.devices.localBackup';
 const EXPORT_FILE_NAME = 'mindroom-room-keys.txt';
@@ -105,7 +106,7 @@ function ExportKeys() {
       if (alive()) {
         setOutcome({
           ok: false,
-          text: failure instanceof Error ? failure.message : String(failure),
+          text: errorMessage(failure),
         });
       }
     } finally {
@@ -200,7 +201,7 @@ function ImportKeys() {
     if (failure instanceof RoomKeyExportError && failure.reason === 'passphrase') {
       return t('sharedUi.passwordStage.invalidPassword');
     }
-    return failure instanceof Error ? failure.message : String(failure);
+    return errorMessage(failure);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {

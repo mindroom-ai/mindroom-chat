@@ -28,6 +28,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { RoomType } from '../../../types/matrix/room';
+import { errorMessage } from '../../utils/errorMessage';
 
 type CreateSpaceFormProps = {
   /** The space the new one is created in, as a subspace. */
@@ -93,7 +94,7 @@ const explainFailure = (failure: unknown, t: TFunction): string => {
       count: Math.max(1, Math.ceil(waitMs / MINUTE_MS)),
     });
   }
-  return failure instanceof Error ? failure.message : String(failure);
+  return errorMessage(failure);
 };
 
 /**

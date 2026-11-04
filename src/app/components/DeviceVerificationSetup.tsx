@@ -15,6 +15,7 @@ import {
   AuthenticationCancelled,
   useAuthenticatedAction,
 } from '../features/settings/useAuthenticatedAction';
+import { errorMessage } from '../utils/errorMessage';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 const UIA_WITHOUT_DATA = 'Unexpected Error! UIA action is perform without data.';
@@ -32,7 +33,7 @@ const INTERNAL_ERRORS: ReadonlySet<string> = new Set([
 const useDeviceVerificationErrorText = () => {
   const { t } = useTranslation();
   return (error: unknown): string => {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     return INTERNAL_ERRORS.has(message)
       ? t('sharedUi.deviceVerificationSetup.unexpectedError')
       : message;

@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, TextArea, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAlive } from '../../../hooks/useAlive';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const SEND = 'featureUi.commonSettings.developerTools.sendRoomEvent';
 const EDITOR = 'featureUi.commonSettings.developerTools.stateEventEditor';
@@ -64,7 +65,7 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
       .then(() => alive() && onDone())
       .catch((error: unknown) => {
         if (!alive()) return;
-        setProblem(error instanceof Error && error.message ? error.message : String(error));
+        setProblem(errorMessage(error));
       })
       .finally(() => alive() && setBusy(false));
   };

@@ -20,6 +20,7 @@ import {
 import { SecuritySettings } from './SecuritySettings';
 import { ThisDeviceVerification } from './ThisDeviceVerification';
 import { LocalKeyBackup } from './LocalKeyBackup';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const TILE = 'featureUi.settings.devices.deviceTile';
 const OTHERS = 'featureUi.settings.devices.otherDevices';
@@ -299,7 +300,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
       .requestDeviceVerification(userId, deviceId)
       .then((request) => alive() && setVerification(request))
       .catch((failure: unknown) => {
-        if (alive()) setError(failure instanceof Error ? failure.message : String(failure));
+        if (alive()) setError(errorMessage(failure));
       })
       .finally(() => alive() && setRequestingFor(undefined));
   };
@@ -311,7 +312,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
       .then(() => reload())
       .catch((failure: unknown) => {
         if (!alive() || failure instanceof AuthenticationCancelled) return;
-        const message = failure instanceof Error ? failure.message : String(failure);
+        const message = errorMessage(failure);
         setError(t(`${OTHERS}.logoutFailed`, { error: message }));
       })
       .finally(() => alive() && setSigningOut(undefined));

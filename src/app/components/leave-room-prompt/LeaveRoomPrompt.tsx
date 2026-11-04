@@ -22,6 +22,7 @@ import { SettingTile } from '../setting-tile';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { stopPropagation } from '../../utils/keyboard';
+import { errorMessage } from '../../utils/errorMessage';
 
 type LeaveRoomPromptProps = {
   roomId: string;
@@ -43,9 +44,6 @@ const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
   onDeactivate: dismiss,
   clickOutsideDeactivates: true,
 });
-
-const reasonOf = (failure: unknown): string =>
-  failure instanceof Error && failure.message ? failure.message : String(failure);
 
 /**
  * Asks before leaving a room; a failed leave stays in the dialog with the server's reason. The
@@ -69,7 +67,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
         if (isMounted()) onLeft();
       },
       (failure: unknown) => {
-        if (isMounted()) setLeaveState({ kind: 'failed', reason: reasonOf(failure) });
+        if (isMounted()) setLeaveState({ kind: 'failed', reason: errorMessage(failure) });
       }
     );
   };

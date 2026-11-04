@@ -12,6 +12,7 @@ import { removeCurrentClientSessionAndReload } from '../../../../client/initMatr
 import { SettingsCard } from '../SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../useAuthenticatedAction';
 import { SettingsOverlay } from '../SettingsOverlay';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const KEY = 'featureUi.settings.account.accountDeactivation';
 
@@ -108,7 +109,7 @@ export function AccountDeactivation() {
         if (!alive()) return;
         setBusy(false);
         if (failure instanceof AuthenticationCancelled) return;
-        const message = failure instanceof Error ? failure.message : String(failure);
+        const message = errorMessage(failure);
         setError(t(`${KEY}.deactivationFailed`, { error: message }));
       });
   };

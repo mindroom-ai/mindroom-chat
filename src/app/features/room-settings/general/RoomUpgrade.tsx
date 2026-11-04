@@ -16,6 +16,7 @@ import { StateEvent } from '../../../../types/matrix/room';
 import { ChoiceButton } from '../../settings/ChoiceButton';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { moveSpaceLinks } from './moveSpaceLinks';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const KEY = 'featureUi.commonSettings.general.roomUpgrade';
 
@@ -83,7 +84,7 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
       })
       .catch((error: unknown) => {
         if (!alive()) return;
-        setFailed(error instanceof Error && error.message ? error.message : String(error));
+        setFailed(errorMessage(error));
       })
       .finally(() => alive() && setBusy(false));
   };

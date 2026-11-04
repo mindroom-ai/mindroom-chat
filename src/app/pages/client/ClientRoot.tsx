@@ -58,6 +58,7 @@ import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
 import { SyncStatus } from './SyncStatus';
+import { errorMessage } from '../../utils/errorMessage';
 
 type ClientBootstrapSession = Parameters<typeof initClient>[0];
 
@@ -117,9 +118,6 @@ const noteStoreRestored = (known: SyncProgress, hasRooms: boolean): SyncProgress
   known.reported || known.restoredRooms === hasRooms
     ? known
     : { ...known, restoredRooms: hasRooms };
-
-const describeStartupError = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 type RecoveryAction = 'logout' | 'remove-account' | 'clear-cache';
 
@@ -274,7 +272,7 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
             <Text role="alert" size="T300">
               {t('sharedUi.clientRoot.failedToStartAccountValue1Value2', {
                 value1: session.userId,
-                value2: describeStartupError(error),
+                value2: errorMessage(error),
               })}
             </Text>
             <Button variant="Primary" disabled={busy} onClick={onRetry}>

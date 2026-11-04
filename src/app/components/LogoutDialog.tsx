@@ -7,6 +7,7 @@ import { useMatrixClient } from '../hooks/useMatrixClient';
 import { useAlive } from '../hooks/useAlive';
 import { logoutClient } from '../../client/initMatrix';
 import { ContainerColor } from '../styles/ContainerColor.css';
+import { errorMessage } from '../utils/errorMessage';
 
 type EncryptionRisk = 'none' | 'unverified-device' | 'no-verification';
 
@@ -67,7 +68,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
       await logoutClient(client);
     } catch (logoutError) {
       if (!alive()) return;
-      const message = logoutError instanceof Error ? logoutError.message : String(logoutError);
+      const message = errorMessage(logoutError);
       setError(t('sharedUi.logoutDialog.logoutFailed', { error: message }));
       setLoggingOut(false);
     }

@@ -17,6 +17,7 @@ import {
   NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE,
   unlockWithRecoveryKey,
 } from './unlockWithRecoveryKey';
+import { errorMessage } from '../utils/errorMessage';
 
 const INTERNAL_ERRORS: ReadonlySet<string> = new Set([CRYPTO_NOT_FOUND]);
 
@@ -143,8 +144,8 @@ export function ManualVerificationTile(props: TileProps) {
     verify(recoveryKey).catch(() => undefined);
   };
 
-  const errorMessage = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
+  const describeError = (error: unknown) => {
+    const message = errorMessage(error);
     if (message === NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE) {
       return t('sharedUi.manualVerification.noCrossSigningKeys');
     }
@@ -197,7 +198,7 @@ export function ManualVerificationTile(props: TileProps) {
           )}
           {verifyState.status === AsyncStatus.Error && (
             <VerificationStatus tone="Critical">
-              {errorMessage(verifyState.error)}
+              {describeError(verifyState.error)}
             </VerificationStatus>
           )}
         </>

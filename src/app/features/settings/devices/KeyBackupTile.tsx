@@ -13,6 +13,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { SettingTile } from '../../../components/setting-tile';
 import { fetchKeyBackupVersion } from '../../../utils/keyBackupVersion';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const KEY = 'sharedUi.backupRestore';
 
@@ -191,7 +192,7 @@ export function KeyBackupTile() {
         progressCallback: (progress) => alive() && setRestoring(progress),
       });
     } catch (failure) {
-      if (alive()) setError(failure instanceof Error ? failure.message : String(failure));
+      if (alive()) setError(errorMessage(failure));
     } finally {
       if (alive()) {
         setRestoring(undefined);

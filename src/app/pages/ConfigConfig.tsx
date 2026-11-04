@@ -4,6 +4,7 @@ import { Dialog } from '../components/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';
 import { ClientConfigAuthenticationError } from '../components/ClientConfigLoader';
 import { MindRoomSplashScreen, SplashScreen } from '../components/splash-screen';
+import { errorMessage } from '../utils/errorMessage';
 
 /** Shown while the deployment's client configuration loads. */
 export function ConfigConfigLoading() {
@@ -52,7 +53,7 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
     <Text size="T300">{t('sharedUi.configConfig.signInAgainToReconnect')}</Text>
   ) : (
     <Text size="T300" style={{ color: color.Critical.Main }}>
-      {error instanceof Error ? error.message : String(error)}
+      {errorMessage(error)}
     </Text>
   );
   const recovery = sessionExpired ? (

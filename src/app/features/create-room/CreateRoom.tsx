@@ -26,6 +26,7 @@ import {
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { errorMessage } from '../../utils/errorMessage';
 
 type RoomCreatedHandler = (roomId: string) => void;
 
@@ -98,9 +99,6 @@ function OptionToggle({ title, description, value, onChange, disabled }: OptionT
 const optionalValue = (field?: HTMLInputElement | HTMLTextAreaElement): string | undefined =>
   field?.value.trim() || undefined;
 
-const describeError = (reason: unknown): string =>
-  reason instanceof Error ? reason.message : String(reason);
-
 /**
  * The create room form. Deployments can hide the encryption and federation
  * choices and preset them; public rooms are never encrypted, since anyone can
@@ -151,7 +149,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       });
       onCreate?.(createdRoomId);
     } catch (reason) {
-      setError(describeError(reason));
+      setError(errorMessage(reason));
     } finally {
       setCreating(false);
     }

@@ -9,6 +9,7 @@ import { useAlive } from '../../../hooks/useAlive';
 import { ManualVerificationTile } from '../../../components/ManualVerification';
 import type { SecretStorageKeyContent } from '../../../components/SecretStorage';
 import { ContainerColor } from '../../../styles/ContainerColor.css';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const KEY = 'featureUi.settings.devices.verification';
 
@@ -144,7 +145,7 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
       .requestOwnUserVerification()
       .then((request) => alive() && onRequest(request))
       .catch((failure: unknown) => {
-        if (alive()) setError(failure instanceof Error ? failure.message : String(failure));
+        if (alive()) setError(errorMessage(failure));
       })
       .finally(() => alive() && setRequesting(false));
   };

@@ -21,15 +21,12 @@ import {
 import { SecurityDialog } from './SecurityDialog';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { errorMessage } from '../../utils/errorMessage';
 
 /** Short authentication strings: the seven emoji (spec: "Short Authentication String (SAS) verification"). */
 const SAS_VERIFICATION = 'm.sas.v1';
 
 const KEY = 'sharedUi.deviceVerification';
-
-/** The text shown for a rejected verification step. */
-const describeFailure = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 // Requests whose emoji comparison this client already started, and verifiers it already runs:
 // both must happen once per request, however often the dialog mounts.
@@ -181,7 +178,7 @@ function VerificationStep({ request, onClose }: StepProps) {
   const { t } = useTranslation();
   const [failure, setFailure] = useState<string>();
   const [accepting, setAccepting] = useState(false);
-  const fail = useCallback((error: unknown) => setFailure(describeFailure(error)), []);
+  const fail = useCallback((error: unknown) => setFailure(errorMessage(error)), []);
   const { phase, verifier } = request;
   const sas = useShortAuthString(phase === VerificationPhase.Started ? verifier : undefined, fail);
 

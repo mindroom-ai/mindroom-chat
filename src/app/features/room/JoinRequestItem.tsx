@@ -11,6 +11,7 @@ import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMemberDisplayName } from '../../utils/room';
 import { BreakWord } from '../../styles/Text.css';
 import * as css from './MembersDrawer.css';
+import { errorMessage } from '../../utils/errorMessage';
 
 type JoinRequestItemProps = {
   room: Room;
@@ -63,7 +64,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
       setState({
         status: 'error',
         action,
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage(error),
       });
     }
   };

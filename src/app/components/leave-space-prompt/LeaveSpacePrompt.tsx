@@ -20,6 +20,7 @@ import { Dialog, Header, IconButton } from '../glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { stopPropagation } from '../../utils/keyboard';
+import { errorMessage } from '../../utils/errorMessage';
 
 type LeaveSpacePromptProps = {
   roomId: string;
@@ -60,7 +61,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
     } catch (failure) {
       if (!alive()) return;
       setPending(false);
-      setRefusal(failure instanceof Error && failure.message ? failure.message : String(failure));
+      setRefusal(errorMessage(failure));
     }
   };
 

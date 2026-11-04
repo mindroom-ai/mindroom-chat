@@ -7,6 +7,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { Membership } from '../../../types/matrix/room';
 import type { ModerationAbilities } from './profileModeration';
 import * as css from './UserRoomProfile.css';
+import { errorMessage } from '../../utils/errorMessage';
 
 const KEY = 'sharedUi.userModeration';
 
@@ -76,7 +77,7 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
       })
       .catch((error: unknown) => {
         if (!alive()) return;
-        setFailed(error instanceof Error && error.message ? error.message : String(error));
+        setFailed(errorMessage(error));
       })
       .finally(() => alive() && setBusy(undefined));
   };
