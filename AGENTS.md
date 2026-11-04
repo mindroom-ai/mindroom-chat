@@ -4,7 +4,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 ## The two lanes
 
-- **Lane P (ported):** files listed in `docs/provenance/portable.tsv` (first import) and `docs/provenance/portable-wave2.tsv` (second import), copied from MindRoom Chat `fc3a5905` at their original paths. Bas authored at least 95% of each file's lines; every other line was blanked (`docs/provenance/holes.tsv`, `docs/provenance/holes-wave2.tsv`). `docs/provenance/import.txt` names each wave's import commit, one line per wave. Per Bas Nijholt's instruction of 2026-11-02, he licenses the lines he wrote in the files of both imports under Apache-2.0 for this project (`NOTICE`).
+- **Lane P (ported):** files listed in `docs/provenance/portable.tsv` (first import), `docs/provenance/portable-wave2.tsv` (second import) and `docs/provenance/portable-wave3.tsv` (third import: binary assets, verified by blob hash), copied from MindRoom Chat `fc3a5905` at their original paths. Bas authored at least 95% of each text file's lines; every other line was blanked (`docs/provenance/holes.tsv`, `docs/provenance/holes-wave2.tsv`). `docs/provenance/import.txt` names each wave's import commit, one line per wave. Per Bas Nijholt's instruction of 2026-11-02, he licenses the lines he wrote in the files of both imports under Apache-2.0 for this project (`NOTICE`).
 - **Dropped:** `docs/provenance/dropped.tsv` lists Lane P files deleted with a dropped feature. MindRoom Chat repository tooling and `FORK_CHANGES.md` were removed from every commit; `FORK_CHANGES.md` is not an input, and no session may read it from any copy.
 - **No upstream code, in any commit:** `scripts/upstream-overlap/check.py` (`just upstream-overlap <upstream clone>`) must report 0 findings for every new commit before it is pushed (`--history` checks all of them). Only the orchestrator holds the upstream clone; other sessions may run the check on their own files when told the corpus path, and may never open the corpus.
 - **Lane C (clean):** everything else, including the seams (modules that Lane P files import but that are not ported; `docs/provenance/seams.tsv`) and the app shell.
@@ -19,7 +19,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 ### Lane P edit rules
 
-- **Lane P files** (listed in `docs/provenance/portable.tsv` and `portable-wave2.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, or delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons). Never rewrite their logic.
+- **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, or delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons). Never rewrite their logic.
 - Do not run Prettier or any other formatter over a Lane P file.
 - **Seams:** a seam keeps its path and exports every name listed for it in `seams.tsv` with types that satisfy all Lane P call sites. Its implementation is new code. A seam may export more than listed when Lane C needs it.
 
@@ -30,7 +30,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 ## Commands
 
-Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`).
+Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`). Outside it, use Node 24 or newer (`package.json` `engines`): some unit tests fail on Node 22.
 
 | Recipe | What it does |
 |---|---|
@@ -51,12 +51,12 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just hs-up` | starts the disposable Tuwunel test homeserver (`e2e/docker-compose.yaml`, `http://127.0.0.1:28008`) and waits until it is healthy |
 | `just hs-down` | stops the test homeserver and deletes its data |
 | `just e2e [args]` | Playwright in the Chromium from `CHROMIUM_PATH` against the dev server, which it starts when nothing listens on port 4200; run `just hs-up` first for specs that need the homeserver |
-| `just e2e-slot <n> [--snapshot[=<rev>]] [--preview] <command>` | `scripts/e2e-slot.sh`: runs the command with slot n's own Tuwunel (port 28100+n) and app port (4300+n). `--snapshot` runs it in a clean copy of a commit (default HEAD) with an empty homeserver, so uncommitted edits in the checkout cannot break the run; `--preview` serves that commit's production build through `vite preview` |
-| `just e2e-suite [--slots 25-28] [--out <tsv>] [specs] [-- <playwright options>]` | `scripts/e2e-suite.sh`: every spec file (or the given ones) of one commit in its own `--preview` snapshot run, spread over the slots, then one TSV row per spec (`scripts/e2e-results-tsv.mjs`) |
-| `just agent-stack <n> up\|down\|status [--checkout <dir>] [--ref <rev>]` | `scripts/agent-stack/stack.py`: a real MindRoom backend from a checkout (default `/home/basnijholt/Work/dev/mindroom` at its `origin/main`, copied with `git archive`, never edited) with the stub model `scripts/agent-stack/stub_model.py` (no model is called) against slot n's homeserver; API on 29600+n, stub on 29700+n. The `e2e/lane-c/agent-*.spec.ts` specs start it themselves and skip without a checkout; `e2e-slot <n> down` stops it |
-| `just script-tests` | tests of the e2e tooling: `scripts/e2e-results-tsv.test.mjs` (Node's test runner) and `scripts/test_matrix_http.py` (unittest) |
+| `just e2e-slot <n> [--snapshot[=<rev>]] [--preview] [--rtc] <command>` | `scripts/e2e-slot.sh`: runs the command with slot n's own Tuwunel (port 28100+n) and app port (4300+n). `--snapshot` runs it in a clean copy of a commit (default HEAD) with an empty homeserver, so uncommitted edits in the checkout cannot break the run; `--preview` serves that commit's production build through `vite preview`; `--rtc` starts the slot's call service (`scripts/e2e-rtc.sh`) for the call specs, which skip without it |
+| `just e2e-suite [--slots 25-28] [--out <tsv>] [specs] [-- <playwright options>]` | `scripts/e2e-suite.sh`: every spec file (or the given ones) of one commit in its own `--preview` snapshot run, spread over the slots (the call specs with `--rtc`), then one TSV row per spec (`scripts/e2e-results-tsv.mjs`); tests skipped for a missing service, fixture, account or setting have their own column, `skipped (no service)`, and the summary names their specs |
+| `just agent-stack <n> up\|down\|status [--checkout <dir>] [--ref <rev>]` | `scripts/agent-stack/stack.py`: a real MindRoom backend from a checkout (`--checkout`, else `$E2E_MINDROOM_CHECKOUT`, else `/home/basnijholt/Work/dev/mindroom`; at its `origin/main`, copied with `git archive`, never edited) with the stub model `scripts/agent-stack/stub_model.py` (no model is called) against slot n's homeserver; API on 29600+n, stub on 29700+n. The `e2e/lane-c/agent-*.spec.ts` specs start it themselves and skip without a checkout; `e2e-slot <n> down` stops it |
+| `just script-tests` | tests of the e2e tooling: `scripts/e2e-results-tsv.test.mjs` (Node's test runner), `scripts/test_matrix_http.py` and `scripts/reference/test_seed.py` (unittest) |
 | `just upstream-overlap [<upstream clone>] [--history]` | `scripts/upstream-overlap/check.py`: no run of 3+ shared lines or 30+ shared tokens with any upstream version, in every tracked file at HEAD or (`--history`) in every commit; prints a notice and passes without a clone |
-| `just check` | everything CI runs: `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, `verify-ported`, `check-holes`, `upstream-overlap`; `just check` passes no checkout or clone, so `verify-ported` and `upstream-overlap` print their notices |
+| `just check` | the full local check (the repository has no CI): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, `verify-ported`, `check-holes`, `upstream-overlap`; `just check` passes no checkout or clone, so `verify-ported` and `upstream-overlap` print their notices |
 
 `docs/provenance/m1-baseline.txt` records the starting error counts for the M1 compile and the current `just typecheck-tests` total.
 

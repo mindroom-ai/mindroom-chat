@@ -26,7 +26,7 @@ just install   # npm ci; applies patches/ with patch-package
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 22 or newer (`package.json` `engines`), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
+Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
 
 The dev server answers `/config.json` with `config.mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
 
@@ -46,7 +46,7 @@ Every `config.json` key, its default and its effect: [`docs/configuration.md`](d
 
 | Command | What it does |
 |---|---|
-| `just check` | Everything CI runs: `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
+| `just check` | The full local check (the repository has no CI): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
 | `just typecheck` | `tsc` over the app sources without tests; must report 0 errors |
 | `just strict` | `tsc` with `tsconfig.strict.json`; fails on errors in Lane C files only |
 | `just lint` | ESLint, with type-aware rules for Lane C TypeScript |
@@ -69,13 +69,14 @@ Several runs can share a machine through slots. Slot `n` has its own homeserver 
 just e2e-slot 3 npx playwright test e2e/password-login.spec.ts             # dev server on the working tree
 just e2e-slot 3 --snapshot npx playwright test e2e/password-login.spec.ts  # dev server on a clean copy of HEAD
 just e2e-slot 3 --preview npx playwright test e2e/password-login.spec.ts   # production build of HEAD
+just e2e-slot 3 --rtc --preview npx playwright test e2e/lane-c/calls.spec.ts  # with the slot's call service
 just e2e-slot 3 down                                                        # stop the slot, delete its data
 ```
 
 - `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
 - `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once, over every shell that uses the same `E2E_SNAPSHOT_ROOT` (default `/tmp/mindroom-client-e2e`).
-- `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average). `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Playwright options default to `--retries 1`.
-- `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs.
+- `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average, and the tests skipped for a missing service, fixture, account or setting, which the summary names). The call specs get their slot's call service. `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Playwright options default to `--retries 1`.
+- `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs; `e2e-slot --rtc` starts it before the slot's homeserver, which announces it, and stops it after the command.
 
 ## Build and deploy
 

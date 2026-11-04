@@ -48,7 +48,7 @@ dev *args:
 build:
     npx vite build
 
-# Everything CI runs.
+# The full local check. The repository has no CI, so nothing else runs it.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
@@ -95,19 +95,19 @@ e2e *args:
     fi
     exec npx playwright test {{args}}
 
-# Run a command on e2e slot N (homeserver port 28100+N, app port 4300+N; `just e2e-slot N down` stops it). Options before the command: --snapshot[=<rev>] runs it in a clean copy of a commit (default HEAD) with an empty homeserver; --preview serves that commit's production build. Example: `just e2e-slot 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts`.
+# Run a command on e2e slot N (homeserver port 28100+N, app port 4300+N; `just e2e-slot N down` stops it). Options before the command: --snapshot[=<rev>] runs it in a clean copy of a commit (default HEAD) with an empty homeserver; --preview serves that commit's production build; --rtc starts the slot's call service (scripts/e2e-rtc.sh) for the call specs. Example: `just e2e-slot 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts`.
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
-# Start (`up`, which prints its state as JSON), stop (`down`) or show (`status`) slot N's MindRoom backend with the stub model for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --checkout <MindRoom checkout> (default /home/basnijholt/Work/dev/mindroom, only read), --ref <commit> (default its origin/main). Example: `just agent-stack 16 up`.
+# Start (`up`, which prints its state as JSON), stop (`down`) or show (`status`) slot N's MindRoom backend with the stub model for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 
-# Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run, spread over slots; writes one TSV row per spec. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
+# Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run (the call specs with --rtc), spread over slots; writes one TSV row per spec, with tests skipped for a missing service in their own column. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs with Node's test runner, scripts/test_matrix_http.py with unittest).
+# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs with Node's test runner, scripts/test_matrix_http.py and scripts/reference/test_seed.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py
