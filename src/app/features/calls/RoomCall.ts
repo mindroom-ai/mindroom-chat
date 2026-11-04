@@ -365,6 +365,9 @@ export class RoomCall {
       media = new MediaRoom({
         adaptiveStream: true,
         dynacast: true,
+        // The call's lifetime leaves on `pagehide` after remembering the call for a reload; left to
+        // itself, LiveKit drops the call already on `beforeunload`, and the reload finds it failed.
+        disconnectOnPageLeave: false,
         audioCaptureDefaults: { deviceId: this.state.devices.audioinput },
         videoCaptureDefaults: { deviceId: this.state.devices.videoinput },
         audioOutput: { deviceId: this.state.devices.audiooutput },
