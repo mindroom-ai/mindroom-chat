@@ -618,6 +618,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     ) => void,
   });
 
+  const threadRecordMapRef = useLatestRef(threadIndex.threadRecordMap);
+
   const windowState = useRoomTimelineWindowController({
     canPaginateThreadBack: threadState.canPaginateThreadBack,
     effectiveViewMode,
@@ -935,16 +937,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The virtual list and its offset ledger.
   const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
   // Room indexes count from the window's first row; a fold prices rows above it (negative).
+  // They read the newest rows and window through refs: the paginator folds a widened window
+  // in its layout effect, before the ledger hands over this render's pricing, and a fold
+  // priced apart from the rows the virtual list then lays out moves the reader.
   const estimateSize = (index?: number): number => {
     if (!threadId) {
       if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact;
-      const position = index === undefined ? undefined : activeTimelineRange.start + index;
-      const event = position === undefined ? undefined : roomRows[position];
+      const rows = roomRowsRef.current;
+      const position = index === undefined ? undefined : activeRangeRef.current.start + index;
+      const event = position === undefined ? undefined : rows[position];
       if (!event || position === undefined) return ROOM_ROW_ESTIMATE_PX.comfortable;
       // The threaded view shows a badge under each message that has a thread record.
       const threadBadge =
-        !showThreadRepliesInRoom && threadIndex.threadRecordMap.has(event.getId() ?? '');
-      return estimateRoomRowHeight(event, roomRows[position - 1], { threadBadge });
+        !showThreadRepliesInRoom && threadRecordMapRef.current.has(event.getId() ?? '');
+      return estimateRoomRowHeight(event, rows[position - 1], { threadBadge });
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {
