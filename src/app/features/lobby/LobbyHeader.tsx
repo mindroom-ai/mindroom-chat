@@ -7,6 +7,7 @@ import {
   Icon,
   IconButton,
   Icons,
+  Line,
   PopOut,
   Text,
   Tooltip,
@@ -21,6 +22,9 @@ import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar } from '../../components/room-avatar';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
+import { useNavigate } from 'react-router-dom';
+import { getHomePath } from '../../pages/pathUtils';
 import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
 import { useSpace } from '../../hooks/useSpace';
@@ -69,6 +73,21 @@ export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarPro
   );
 }
 
+/** Asks before leaving the space, then goes Home, since the space's pages close with it. */
+function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <LeaveSpacePrompt
+      roomId={spaceId}
+      requestClose={onClose}
+      onLeft={() => {
+        onClose();
+        navigate(getHomePath());
+      }}
+    />
+  );
+}
+
 /** The header of a space's lobby: back on mobile, the space, members with join requests, options. */
 export function LobbyHeader({
   powerLevels,
@@ -94,6 +113,7 @@ export function LobbyHeader({
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   // Also the focus trap's outside-click and Escape handler, so it returns true to let those through.
   const closeMenu = () => {
     setMenuAnchor(undefined);
@@ -207,6 +227,22 @@ export function LobbyHeader({
                     </MenuItem>
                   ))}
                 </Box>
+                <Line size="300" />
+                <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                  <MenuItem
+                    size="300"
+                    radii="300"
+                    variant="Critical"
+                    fill="None"
+                    before={<Icon size="100" src={Icons.ArrowGoLeft} />}
+                    onClick={() => {
+                      closeMenu();
+                      setLeaving(true);
+                    }}
+                  >
+                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.leaveSpace')}</Text>
+                  </MenuItem>
+                </Box>
               </Menu>
             </FocusTrap>
           }
@@ -223,6 +259,7 @@ export function LobbyHeader({
         </PopOut>
       </Box>
       {inviteOpen && <InviteUserPrompt room={space} requestClose={() => setInviteOpen(false)} />}
+      {leaving && <LeaveSpaceDialog spaceId={space.roomId} onClose={() => setLeaving(false)} />}
     </PageHeader>
   );
 }

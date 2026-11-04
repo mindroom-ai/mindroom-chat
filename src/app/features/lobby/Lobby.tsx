@@ -1,8 +1,9 @@
 import React, { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Icon, IconButton, Icons, config, toRem } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { Page, PageHero, PageHeroSection, PageScroll } from '../../components/page';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
@@ -14,7 +15,7 @@ import { useRoomName, useRoomTopic } from '../../hooks/useRoomMeta';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useSpace } from '../../hooks/useSpace';
-import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
+import { type HierarchyItem, useSpaceHierarchy } from '../../hooks/useSpaceHierarchy';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getSpacePath, getSpaceRoomPath } from '../../pages/pathUtils';
 import { MembersDrawer } from '../room/MembersDrawer';
@@ -22,7 +23,13 @@ import { ResizableMembersPanel } from '../../mindroom/sidebar/ResizableMembersPa
 import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { LobbyHeader, SpaceAvatar, useSpaceAvatarSrc } from './LobbyHeader';
 import { RoomItemCard } from './RoomItem';
-import { SpaceItemCard } from './SpaceItem';
+import { AddToSpaceChips, SpaceItemCard } from './SpaceItem';
+import { HierarchyItemMenu } from './HierarchyItemMenu';
+import { canSendState } from './spaceChildren';
+import { useRoomCreators } from '../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../hooks/useRoomPermissions';
+import { allRoomsAtom } from '../../state/room-list/roomList';
+import { StateEvent } from '../../../types/matrix/room';
 
 type CardSummary = (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
 
@@ -39,38 +46,6 @@ const toCardSummary = (summary: LocalRoomSummary): CardSummary => ({
   join_rule: summary.joinRule,
   children_state: [],
 });
-
-/** The `m.space.child` entries of a space, ordered by `order`, then by when they were added. */
-const getChildItems = (space: Room, depth: number, parentId: string): HierarchyItem[] =>
-  space.currentState
-    .getStateEvents('m.space.child')
-    .flatMap((event): HierarchyItem[] => {
-      const roomId = event.getStateKey();
-      const content = event.getContent() as HierarchyItem['content'];
-      if (!roomId || !Array.isArray(content.via) || content.via.length === 0) return [];
-      const base = { roomId, content, ts: event.getTs(), depth };
-      const child = space.client.getRoom(roomId);
-      const isSpaceChild = child?.isSpaceRoom() ?? false;
-      return [isSpaceChild ? { ...base, space: true, parentId } : { ...base, parentId }];
-    })
-    .sort((a, b) => {
-      const orderA = typeof a.content.order === 'string' ? a.content.order : undefined;
-      const orderB = typeof b.content.order === 'string' ? b.content.order : undefined;
-      if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
-        return orderA < orderB ? -1 : 1;
-      }
-      if (orderA !== undefined && orderB === undefined) return -1;
-      if (orderA === undefined && orderB !== undefined) return 1;
-      return a.ts - b.ts;
-    });
-
-/** The space's rooms and subspaces, one level of each joined subspace below it. */
-const getLobbyItems = (client: MatrixClient, space: Room): HierarchyItem[] =>
-  getChildItems(space, 1, space.roomId).flatMap((item) => {
-    if (!item.space) return [item];
-    const subspace = client.getRoom(item.roomId);
-    return subspace ? [item, ...getChildItems(subspace, 2, item.roomId)] : [item];
-  });
 
 const noop = () => undefined;
 
@@ -126,6 +101,52 @@ function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement> }) {
   );
 }
 
+/** Entries whose space (or a space above it) is collapsed; their headings stay visible. */
+const getHiddenEntries = (
+  items: HierarchyItem[],
+  closed: ReadonlySet<string>
+): Set<HierarchyItem> => {
+  const hidden = new Set<HierarchyItem>();
+  const hiddenSpaces = new Set<string>();
+  items.forEach((item) => {
+    const parentId = item.parentId ?? '';
+    if (!closed.has(parentId) && !hiddenSpaces.has(parentId)) return;
+    hidden.add(item);
+    if (item.space) hiddenSpaces.add(item.roomId);
+  });
+  return hidden;
+};
+
+/** Nested entries step in from the lobby's edge, one step per level below the first. */
+const nestingInset = (depth = 1) =>
+  depth > 1 ? { marginInlineStart: `calc(${config.space.S400} * ${depth - 1})` } : undefined;
+
+/** The top space's own heading: its rooms' title and, for those allowed, ways to add more. */
+function LobbyRootHeading({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
+  const space = useSpace();
+  return (
+    <Box alignItems="Center" gap="200" style={{ paddingBlock: config.space.S200 }}>
+      <Box grow="Yes">
+        <Text size="H4">{t('featureUi.lobby.spaceItem.rooms')}</Text>
+      </Box>
+      {canEdit && <AddToSpaceChips spaceId={space.roomId} />}
+    </Box>
+  );
+}
+
+function EmptyLobby() {
+  const { t } = useTranslation();
+  return (
+    <Box direction="Column" alignItems="Center" gap="100" style={{ padding: config.space.S700 }}>
+      <Text size="H5">{t('featureUi.lobby.spaceHierarchy.noRooms')}</Text>
+      <Text size="T300" priority="300" align="Center">
+        {t('featureUi.lobby.spaceHierarchy.thisSpaceDoesNotContainsRoomsYet')}
+      </Text>
+    </Box>
+  );
+}
+
 /** A space's lobby: its header, the rooms and subspaces it lists, and the space's members. */
 export function Lobby() {
   const space = useSpace();
@@ -136,12 +157,26 @@ export function Lobby() {
   const members = useRoomMembers(client, space.roomId);
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [closedCategories, setClosedCategories] = useState<Set<string>>(() => new Set());
-  const items = useMemo(() => getLobbyItems(client, space), [client, space]);
-  const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
+  // Joins and leaves change which cards open a room and which offer a way in.
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const { items, summaries, loading } = useSpaceHierarchy(space);
+  const getRoom = useCallback(
+    (roomId: string) => client.getRoom(roomId) ?? undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [client, joinedRoomIds]
+  );
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const heroPassed = useScrolledPast(scrollRef, heroRef);
+  const canEditRoot = useRoomPermissions(useRoomCreators(space), powerLevels).stateEvent(
+    StateEvent.SpaceChild,
+    client.getSafeUserId()
+  );
+  const hidden = useMemo(
+    () => getHiddenEntries(items, closedCategories),
+    [items, closedCategories]
+  );
 
   const toggleCategory = (categoryId: string) =>
     setClosedCategories((current) => {
@@ -153,19 +188,34 @@ export function Lobby() {
 
   const openRoom = (roomId: string) => navigate(getSpaceRoomPath(space.roomId, roomId));
 
+  /** The joined copy of a lobby entry, if the user is in it. */
+  const joinedCopy = (roomId: string): Room | undefined => {
+    const room = getRoom(roomId);
+    return room?.getMyMembership() === 'join' ? room : undefined;
+  };
+
+  const optionsFor = (item: HierarchyItem) => (
+    <HierarchyItemMenu
+      item={item}
+      parent={item.parentId ? joinedCopy(item.parentId) : undefined}
+      joinedRoom={joinedCopy(item.roomId)}
+    />
+  );
+
   const renderRoom = (item: HierarchyItem) => {
     const local = getRoom(item.roomId);
-    const card = (summary: CardSummary, loading: boolean, error: Error | null) => (
+    const card = (summary: CardSummary, cardLoading: boolean, error: Error | null) => (
       <RoomItemCard
         key={item.roomId}
         item={item}
-        loading={loading}
+        loading={cardLoading}
         error={error}
         summary={summary}
         onOpen={openRoom}
         onDragging={noop}
         canReorder={false}
         getRoom={getRoom}
+        options={optionsFor(item)}
       />
     );
     if (local) {
@@ -175,6 +225,9 @@ export function Lobby() {
         </LocalRoomSummaryLoader>
       );
     }
+    const known = summaries.get(item.roomId);
+    if (known) return card(known, false, null);
+    if (loading) return card(undefined, true, null);
     return (
       <RoomSummaryLoader
         key={item.roomId}
@@ -191,6 +244,27 @@ export function Lobby() {
           )
         }
       </RoomSummaryLoader>
+    );
+  };
+
+  const renderSpace = (item: HierarchyItem) => {
+    const joinedSpace = joinedCopy(item.roomId);
+    return (
+      <SpaceItemCard
+        key={`${item.parentId}/${item.roomId}`}
+        item={item}
+        summary={summaries.get(item.roomId)}
+        loading={!joinedSpace && loading}
+        joined={!!joinedSpace}
+        categoryId={item.roomId}
+        closed={closedCategories.has(item.roomId)}
+        handleClose={toggleCategory}
+        canEditChild={!!joinedSpace && canSendState(client, joinedSpace, StateEvent.SpaceChild)}
+        canReorder={false}
+        onDragging={noop}
+        getRoom={getRoom}
+        options={optionsFor(item)}
+      />
     );
   };
 
@@ -211,27 +285,20 @@ export function Lobby() {
           <PageScroll scrollRef={scrollRef} header={lobbyHeader}>
             <Box direction="Column" gap="200" style={LOBBY_COLUMN}>
               <LobbyHero heroRef={heroRef} />
+              <LobbyRootHeading canEdit={canEditRoot} />
+              {items.length === 0 && !loading && <EmptyLobby />}
               {items.map((item) => {
-                if (item.space) {
-                  const joined = !!getRoom(item.roomId);
-                  return (
-                    <SpaceItemCard
-                      key={item.roomId}
-                      item={item}
-                      summary={undefined}
-                      joined={joined}
-                      categoryId={item.roomId}
-                      closed={closedCategories.has(item.roomId)}
-                      handleClose={toggleCategory}
-                      canEditChild={false}
-                      canReorder={false}
-                      onDragging={noop}
-                      getRoom={getRoom}
-                    />
-                  );
-                }
-                if (item.depth === 2 && closedCategories.has(item.parentId)) return null;
-                return renderRoom(item);
+                if (hidden.has(item)) return null;
+                return (
+                  <Box
+                    key={`${item.parentId}/${item.roomId}`}
+                    direction="Column"
+                    style={nestingInset(item.depth)}
+                    data-lobby-entry={item.roomId}
+                  >
+                    {item.space ? renderSpace(item) : renderRoom(item)}
+                  </Box>
+                );
               })}
             </Box>
           </PageScroll>

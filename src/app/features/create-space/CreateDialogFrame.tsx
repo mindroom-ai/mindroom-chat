@@ -8,16 +8,23 @@ type CreateDialogFrameProps = {
   title: string;
   requestClose: () => void;
   children: ReactNode;
+  /** Stays below the scrolling content, such as the bar that applies a selection. */
+  footer?: ReactNode;
 };
 
 // The form keeps the same inset from the close button side as from the title side.
 const FORM_INSET = { paddingInline: '1.5rem', paddingBottom: '1.5rem' };
 
 /**
- * The dialog that creation forms (a room, a space) open in: their title and a close button stay
- * on top while the form scrolls beneath them.
+ * The dialog that creation forms (a room, a space) and pickers open in: their title and a close
+ * button stay on top while the content scrolls beneath them.
  */
-export function CreateDialogFrame({ title, requestClose, children }: CreateDialogFrameProps) {
+export function CreateDialogFrame({
+  title,
+  requestClose,
+  children,
+  footer,
+}: CreateDialogFrameProps) {
   const { t } = useTranslation();
   const heading = (
     <PageHeader outlined={false}>
@@ -42,6 +49,7 @@ export function CreateDialogFrame({ title, requestClose, children }: CreateDialo
         <PageScroll header={heading}>
           <PageContent style={FORM_INSET}>{children}</PageContent>
         </PageScroll>
+        {footer}
       </Page>
     </Modal500>
   );

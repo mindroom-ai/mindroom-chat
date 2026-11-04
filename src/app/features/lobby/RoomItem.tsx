@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Avatar, Box, Button, Icon, Icons, Text, color } from 'folds';
+import { Avatar, Badge, Box, Button, Icon, Icons, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
@@ -107,6 +107,11 @@ export function RoomItemCard({
             </Text>
             {error && !summary && (
               <Icon size="50" src={Icons.Warning} style={{ color: color.Warning.Main }} />
+            )}
+            {item.content.suggested === true && (
+              <Badge variant="Success" fill="Soft" radii="Pill" outlined>
+                <Text size="L400">{t('featureUi.lobby.roomItem.suggested')}</Text>
+              </Badge>
             )}
           </Box>
         )}

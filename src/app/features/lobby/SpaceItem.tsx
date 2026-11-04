@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Avatar, Box, Chip, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
+import { Avatar, Box, Chip, Icon, Icons, PopOut, Text, config, toRem } from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -19,6 +19,7 @@ import { nameInitials } from '../../utils/common';
 import { Membership } from '../../../types/matrix/room';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
+import { AddExistingModal } from '../add-existing';
 import { useDraggableItem } from './DnD';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
@@ -54,66 +55,101 @@ type SpaceItemCardProps = SpaceItemHeadingProps &
     options?: React.ReactNode;
   };
 
-/** The plus button of a joined space: create a room or a subspace inside it. */
-function AddChildMenu({ spaceId }: { spaceId: string }) {
-  const { t } = useTranslation();
-  const [anchor, setAnchor] = useState<RectCords>();
-  const openCreateRoom = useOpenCreateRoomModal();
-  const openCreateSpace = useOpenCreateSpaceModal();
+type AddChoice = { label: string; pick: () => void };
 
-  // Closing is also the focus trap's outside-click and Escape answer, so it lets both through.
-  const close = () => {
+/** A chip that opens a short menu of ways to add something to a space. */
+function AddChoiceChip({ label, choices }: { label: string; choices: AddChoice[] }) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  // Also the trap's answer to Escape and outside clicks: dismiss, and let them through.
+  const dismiss = () => {
     setAnchor(undefined);
     return true;
   };
-  const choices = [
-    { label: t('featureUi.lobby.spaceItem.addRoom'), create: openCreateRoom },
-    { label: t('featureUi.lobby.spaceItem.newSpace'), create: openCreateSpace },
-  ];
-
-  return (
-    <PopOut
-      anchor={anchor}
-      align="End"
-      position="Bottom"
-      content={
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: false,
-            clickOutsideDeactivates: close,
-            escapeDeactivates: close,
-          }}
-        >
-          <Menu style={{ padding: config.space.S100, minWidth: toRem(160) }}>
-            {choices.map(({ label, create }) => (
-              <MenuItem
-                key={label}
-                size="300"
-                radii="300"
-                onClick={() => {
-                  close();
-                  create(spaceId);
-                }}
-              >
-                <Text size="T300">{label}</Text>
-              </MenuItem>
-            ))}
-          </Menu>
-        </FocusTrap>
-      }
+  const menu = (
+    <FocusTrap
+      focusTrapOptions={{
+        initialFocus: false,
+        returnFocusOnDeactivate: false,
+        clickOutsideDeactivates: dismiss,
+        escapeDeactivates: dismiss,
+      }}
     >
-      <IconButton
-        size="300"
+      <Menu style={{ padding: config.space.S100, minWidth: toRem(168) }}>
+        <Box direction="Column" gap="100">
+          {choices.map((choice) => (
+            <MenuItem
+              key={choice.label}
+              size="300"
+              radii="300"
+              onClick={() => {
+                dismiss();
+                choice.pick();
+              }}
+            >
+              <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
+                {choice.label}
+              </Text>
+            </MenuItem>
+          ))}
+        </Box>
+      </Menu>
+    </FocusTrap>
+  );
+  return (
+    <PopOut anchor={anchor} align="End" position="Bottom" offset={4} content={menu}>
+      <Chip
+        variant="SurfaceVariant"
         radii="Pill"
-        aria-label={t('featureUi.lobby.spaceItem.addRoom')}
+        aria-haspopup="menu"
+        aria-expanded={!!anchor}
+        before={<Icon size="50" src={Icons.Plus} />}
         onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-          setAnchor(event.currentTarget.getBoundingClientRect())
+          setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
         }
       >
-        <Icon size="50" src={Icons.Plus} />
-      </IconButton>
+        <Text size="T200">{label}</Text>
+      </Chip>
     </PopOut>
+  );
+}
+
+/**
+ * Ways to fill a joined space the user may edit: a new chat room or one of theirs, a new
+ * subspace or one of their spaces.
+ */
+export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
+  const { t } = useTranslation();
+  const openCreateRoom = useOpenCreateRoomModal();
+  const openCreateSpace = useOpenCreateSpaceModal();
+  const [picking, setPicking] = useState<'rooms' | 'spaces'>();
+
+  return (
+    <Box gap="200" alignItems="Center" shrink="No">
+      <AddChoiceChip
+        label={t('featureUi.lobby.spaceItem.addRoom')}
+        choices={[
+          { label: t('featureUi.lobby.spaceItem.chatRoom'), pick: () => openCreateRoom(spaceId) },
+          { label: t('featureUi.lobby.spaceItem.existingRoom'), pick: () => setPicking('rooms') },
+        ]}
+      />
+      <AddChoiceChip
+        label={t('featureUi.lobby.spaceItem.addSpace')}
+        choices={[
+          { label: t('featureUi.lobby.spaceItem.newSpace'), pick: () => openCreateSpace(spaceId) },
+          {
+            label: t('featureUi.lobby.spaceItem.existingSpace'),
+            pick: () => setPicking('spaces'),
+          },
+        ]}
+      />
+      {picking && (
+        <AddExistingModal
+          kind={picking}
+          into={spaceId}
+          requestClose={() => setPicking(undefined)}
+        />
+      )}
+    </Box>
   );
 }
 
@@ -167,7 +203,7 @@ export function SpaceItemCard({
           )}
         </LocalRoomSummaryLoader>
         <Box grow="Yes" />
-        {canEditChild && <AddChildMenu spaceId={roomId} />}
+        {canEditChild && <AddToSpaceChips spaceId={roomId} />}
         {options}
       </Box>
     );
