@@ -95,13 +95,6 @@ const railButtonFill = (tone: string, percent: number) =>
 /** The theme classes whose palettes are dark. */
 const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
 
-/** The quiet grey of the corner action, with a hairline ring outside its edge. */
-const secondaryCornerTone = {
-  background: color.Secondary.Container,
-  color: color.Secondary.OnContainer,
-  boxShadow: `0 0 0 1px ${color.Secondary.ContainerLine}`,
-};
-
 /** The 42 px rounded square that a rail entry's icon or avatar fills. */
 export const SidebarAvatar = recipe({
   base: [
@@ -160,33 +153,8 @@ export const SidebarAvatar = recipe({
         },
       },
     },
-    // A small round action pinned to the bottom-end corner (bottom-right, or bottom-left in a
-    // right-to-left language) of the entry it shares a SidebarItem with. It fades in while that entry is hovered or holds focus, and stays
-    // visible where nothing can hover.
-    corner: {
-      true: {
-        position: 'absolute',
-        insetInlineEnd: toRem(-5),
-        bottom: toRem(-5),
-        zIndex: 1,
-        inlineSize: toRem(20),
-        blockSize: toRem(20),
-        borderRadius: '50%',
-        ...secondaryCornerTone,
-        opacity: 0,
-        transition: 'opacity 120ms ease',
-        selectors: {
-          '*:hover > &, *:focus-within > &': { opacity: 1 },
-          '&:hover': { backgroundColor: color.Secondary.ContainerHover },
-        },
-        '@media': {
-          '(hover: none)': { opacity: 1 },
-          '(prefers-reduced-motion: reduce)': { transition: 'none' },
-        },
-      },
-    },
   },
-  defaultVariants: { size: '400', outlined: false, corner: false },
+  defaultVariants: { size: '400', outlined: false },
 });
 
 /**

@@ -132,6 +132,40 @@ vi.mock('../../../../client/initMatrix', () => ({
   removeStoredSession: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./AccountMenu', () => ({
+  AccountMenu: ({
+    others,
+    onOpenSettings,
+    onSwitchAccount,
+    onAddAccount,
+    onManageAccounts,
+  }: {
+    others: Array<{ session: StoredSession; displayName: string }>;
+    onOpenSettings: () => void;
+    onSwitchAccount: (session: StoredSession) => void;
+    onAddAccount: () => void;
+    onManageAccounts?: () => void;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'account-menu' },
+      React.createElement('button', { 'aria-label': 'Settings', onClick: onOpenSettings }),
+      others.map((account) =>
+        React.createElement('button', {
+          key: account.session.sessionId,
+          'aria-label': `Switch to account ${account.displayName} (${account.session.userId})`,
+          onClick: () => onSwitchAccount(account.session),
+        })
+      ),
+      React.createElement('button', { 'aria-label': 'Add account', onClick: onAddAccount }),
+      onManageAccounts &&
+        React.createElement('button', {
+          'aria-label': 'Manage accounts',
+          onClick: onManageAccounts,
+        })
+    ),
+}));
+
 vi.mock('./AccountSwitcher', () => ({
   AccountSwitcher: ({
     accounts,
@@ -181,6 +215,15 @@ const inactiveSession = {
 const findButtonByAriaLabel = (renderer: ReturnType<typeof create>, label: string) =>
   renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label)[0];
 
+// The rail's account button opens the account menu, which holds Settings and the accounts.
+const openAccountMenu = (renderer: ReturnType<typeof create>, name = 'Alice') => {
+  act(() => {
+    findButtonByAriaLabel(renderer, `Open account menu for ${name}`).props.onClick({
+      currentTarget: {},
+    });
+  });
+};
+
 const renderSettingsTab = (sessions = [activeSession, inactiveSession]) => {
   vi.mocked(useActiveSession).mockReturnValue(activeSession);
   vi.mocked(useStoredSessions).mockReturnValue(sessions);
@@ -207,9 +250,10 @@ describe('SettingsTab', () => {
 
   it('opens settings from the active avatar instead of the account switcher', async () => {
     const { renderer, store } = renderSettingsTab();
+    openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Open settings for Alice').props.onClick();
+      findButtonByAriaLabel(renderer, 'Settings').props.onClick();
     });
 
     expect(store.get(settingsModalAtom)).toEqual({});
@@ -222,14 +266,17 @@ describe('SettingsTab', () => {
 
   it('shows the manage accounts trigger only when multiple sessions exist', () => {
     const { renderer: multiSessionRenderer } = renderSettingsTab();
+    openAccountMenu(multiSessionRenderer);
     expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage accounts')).toBeDefined();
 
     const { renderer: singleSessionRenderer } = renderSettingsTab([activeSession]);
+    openAccountMenu(singleSessionRenderer);
     expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage accounts')).toBeUndefined();
   });
 
   it('opens the account switcher from the manage accounts trigger', async () => {
     const { renderer, store } = renderSettingsTab();
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
@@ -243,6 +290,7 @@ describe('SettingsTab', () => {
 
   it('restores the stored last route when switching to another account', async () => {
     const { renderer } = renderSettingsTab();
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -255,6 +303,7 @@ describe('SettingsTab', () => {
   it('keeps the account switcher open when the selected account disappeared', async () => {
     vi.mocked(setActiveSession).mockReturnValueOnce(undefined);
     const { renderer } = renderSettingsTab();
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -274,6 +323,7 @@ describe('SettingsTab', () => {
       throw new Error('blocked write');
     });
     const { renderer } = renderSettingsTab();
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -288,6 +338,7 @@ describe('SettingsTab', () => {
   it('reports a failed inactive-account removal without closing the switcher', async () => {
     vi.mocked(removeStoredSession).mockRejectedValueOnce(new Error('blocked write'));
     const { renderer } = renderSettingsTab();
+    openAccountMenu(renderer);
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
     });
@@ -312,6 +363,7 @@ describe('SettingsTab', () => {
       { ...activeSession },
       { ...inactiveSession, lastKnownPath: 'https://matrix.org/outside' },
     ]);
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -335,6 +387,7 @@ describe('SettingsTab', () => {
     const renderer = create(
       React.createElement(Provider, { store }, React.createElement(SettingsTab))
     );
+    openAccountMenu(renderer);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Add account').props.onClick();
@@ -431,7 +484,7 @@ describe('SettingsTab', () => {
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0];
     expect(activeAvatar.props['data-src']).toBe('data:image/png;base64,cached');
-    expect(findButtonByAriaLabel(renderer, 'Open settings for Stored Alice')).toBeDefined();
+    expect(findButtonByAriaLabel(renderer, 'Open account menu for Stored Alice')).toBeDefined();
     vi.mocked(updateSessionProfile).mock.calls.forEach(([, update]) => {
       expect(update).not.toHaveProperty('lastKnownDisplayName');
       expect(update).not.toHaveProperty('lastKnownAvatarUrl');

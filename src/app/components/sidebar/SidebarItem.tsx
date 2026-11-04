@@ -69,18 +69,16 @@ export function SidebarItemTooltip({ tooltip, children }: SidebarItemTooltipProp
 type SidebarAvatarProps = {
   size?: '400' | '300' | '200';
   outlined?: boolean;
-  /** A small action on the corner of the entry beside it, shown while that entry is engaged. */
-  corner?: boolean;
 };
 
 /** The rounded square holding a rail entry's icon or avatar. */
 export const SidebarAvatar = as<'div', SidebarAvatarProps>((props, ref) => {
-  const { as: Square = 'div', size, outlined, corner, className, ...rest } = props;
+  const { as: Square = 'div', size, outlined, className, ...rest } = props;
   const active = useContext(SidebarItemActiveContext);
-  const variantClass = css.SidebarAvatar({ size, outlined, corner });
+  const variantClass = css.SidebarAvatar({ size, outlined });
   const material = outlined && glassSurface({ level: 'control', variant: 'Secondary' });
-  // The entry's own button is the open section; a corner action beside it is not.
-  const current = active && (Square as string) === 'button' && !corner ? 'page' : undefined;
+  // The entry's own button is the open section.
+  const current = active && (Square as string) === 'button' ? 'page' : undefined;
   return (
     <Square
       ref={ref}

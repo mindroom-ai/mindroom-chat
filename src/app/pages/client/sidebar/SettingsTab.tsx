@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Icons, Text } from 'folds';
+import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +22,7 @@ import { nameInitials } from '../../../utils/common';
 import { getLoginPath } from '../../pathUtils';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { resolveSessionRestorePath } from '../sessionRouteRestore';
+import { AccountMenu } from './AccountMenu';
 import { AccountSwitcher } from './AccountSwitcher';
 import { useAccountRemoval } from './useAccountRemoval';
 
@@ -107,7 +108,10 @@ const useCachedActiveAvatar = (
   return undefined;
 };
 
-/** The account area at the bottom of the icon rail: settings, add account, and other accounts. */
+/**
+ * The account button at the foot of the icon rail: the active account's avatar, which opens the
+ * account menu (Settings, the other accounts, Add Account, Manage Accounts).
+ */
 export function SettingsTab() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -115,6 +119,7 @@ export function SettingsTab() {
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const activeSessionHook = useActiveSession();
   const sessions = useStoredSessions();
+  const [menuButton, setMenuButton] = useState<HTMLElement>();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -141,12 +146,22 @@ export function SettingsTab() {
     profile.isAvatarResolved
   );
 
-  const otherSessions = useMemo(
-    () => sessions.filter((session) => session.sessionId !== activeSession?.sessionId),
+  const otherAccounts = useMemo(
+    () =>
+      sessions
+        .filter((session) => session.sessionId !== activeSession?.sessionId)
+        .map((session) => ({
+          session,
+          displayName: sessionName(session),
+          avatarUrl: session.lastKnownAvatarDataUrl,
+        })),
     [sessions, activeSession?.sessionId]
   );
 
+  const closeMenu = useCallback(() => setMenuButton(undefined), []);
+
   const failed = useCallback(() => {
+    setMenuButton(undefined);
     setError(t('accountSwitcher.actionError'));
     setSwitcherOpen(true);
   }, [t]);
@@ -181,19 +196,29 @@ export function SettingsTab() {
     setSettingsModal({});
   };
 
-  // The active account carries the rail's selection mark, with Add account on its corner.
+  // Pressing the avatar while its menu is open closes the menu.
+  const toggleAccountMenu = (event: MouseEvent<HTMLElement>) => {
+    const button = event.currentTarget;
+    setMenuButton((open) => (open ? undefined : button));
+  };
+
+  const label = t('featureUi.accountMenu.open', { name: displayName });
+
+  // The active account carries the rail's selection mark; its menu opens beside it.
   return (
     <>
       <SidebarItem active>
-        <SidebarItemTooltip tooltip={t('accountsRail.openSettingsAria', { name: displayName })}>
+        <SidebarItemTooltip tooltip={label}>
           {(triggerRef) => (
             <SidebarAvatar
               as="button"
               ref={triggerRef}
-              aria-label={t('accountsRail.openSettingsAria', { name: displayName })}
-              // The signed-in account among the rail's accounts, not an open page.
+              aria-label={label}
+              aria-haspopup="menu"
+              aria-expanded={!!menuButton}
+              // The signed-in account, not an open page.
               aria-current="true"
-              onClick={openSettings}
+              onClick={toggleAccountMenu}
             >
               <UserAvatar
                 userId={userId}
@@ -204,63 +229,19 @@ export function SettingsTab() {
             </SidebarAvatar>
           )}
         </SidebarItemTooltip>
-        <SidebarItemTooltip tooltip={t('accountsRail.addAccountAria')}>
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              corner
-              ref={triggerRef}
-              aria-label={t('accountsRail.addAccountAria')}
-              onClick={handleAddAccount}
-            >
-              <Icon size="50" src={Icons.Plus} />
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
+        {menuButton && (
+          <AccountMenu
+            anchor={menuButton}
+            active={{ userId, displayName, avatarUrl: avatarSrc }}
+            others={otherAccounts}
+            onOpenSettings={openSettings}
+            onSwitchAccount={handleSwitch}
+            onAddAccount={handleAddAccount}
+            onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
+            onClose={closeMenu}
+          />
+        )}
       </SidebarItem>
-      {otherSessions.map((session) => {
-        const name = sessionName(session);
-        const label = t('accountsRail.switchAria', { name, userId: session.userId });
-        return (
-          <SidebarItem key={session.sessionId}>
-            <SidebarItemTooltip tooltip={label}>
-              {(triggerRef) => (
-                <SidebarAvatar
-                  as="button"
-                  size="300"
-                  ref={triggerRef}
-                  aria-label={label}
-                  onClick={() => handleSwitch(session)}
-                >
-                  <UserAvatar
-                    userId={session.userId}
-                    src={session.lastKnownAvatarDataUrl}
-                    alt={name}
-                    renderFallback={() => <Text size="H6">{nameInitials(name)}</Text>}
-                  />
-                </SidebarAvatar>
-              )}
-            </SidebarItemTooltip>
-          </SidebarItem>
-        );
-      })}
-      {sessions.length > 1 && (
-        <SidebarItem>
-          <SidebarItemTooltip tooltip={t('accountsRail.manageAccounts')}>
-            {(triggerRef) => (
-              <SidebarAvatar
-                as="button"
-                size="300"
-                ref={triggerRef}
-                aria-label={t('accountsRail.manageAccounts')}
-                onClick={() => setSwitcherOpen(true)}
-              >
-                <Text size="L400">{sessions.length}</Text>
-              </SidebarAvatar>
-            )}
-          </SidebarItemTooltip>
-        </SidebarItem>
-      )}
       {switcherOpen && (
         <Modal500 requestClose={() => setSwitcherOpen(false)} fillPhoneScreen>
           <AccountSwitcher
