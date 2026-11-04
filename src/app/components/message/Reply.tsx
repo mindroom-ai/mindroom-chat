@@ -114,8 +114,13 @@ export const Reply = as<'div', ReplyProps>(
       threadRootId
     );
 
+    // The quote itself carries the replied-to event's ID; the wrapper around it and the thread
+    // indicator is wider than the quote, so a click on its middle would miss the quote.
+    const wrapperProps: Record<string, unknown> = { ...props };
+    delete wrapperProps['data-event-id'];
+
     return (
-      <Box direction="Column" alignItems="Start" {...props} ref={ref}>
+      <Box direction="Column" alignItems="Start" {...wrapperProps} ref={ref}>
         <MindroomReplyThreadIndicator
           room={room}
           threadRootId={threadRootId}
