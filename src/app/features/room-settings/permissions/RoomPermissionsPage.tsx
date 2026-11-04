@@ -50,6 +50,11 @@ const PERMISSION_GROUPS: Array<{ group: string; items: Permission[] }> = [
     ],
   },
   {
+    // MatrixRTC call membership: who may start the room's call or join it.
+    group: 'calls',
+    items: [named('startOrJoinCall', state(StateEvent.GroupCallMemberPrefix))],
+  },
+  {
     group: 'moderation',
     items: [
       named('invite', { kind: 'action', action: 'invite' }),
