@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { isDeepStrictEqual } from 'node:util';
 import { setFileScope } from '@vanilla-extract/css/fileScope';
 import type { createStore as CreateStore } from 'jotai';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -114,6 +115,37 @@ const keptAtoms = (): Map<object, string> =>
 const isKept = ({ atom, module }: { atom: object; module: string }) =>
   module in KEPT_MODULES || keptAtoms().has(atom);
 
+const describeAtom = ({ atom, module }: { atom: PrimitiveAtom; module: string }) =>
+  `${module} (${atom.toString()})`;
+
+/**
+ * A value of the same kind as `init` with something of the last account in it: an entry more in
+ * a list, set, map or object, the other boolean, a marker in place of nothing.
+ */
+const leftBehind = (init: unknown, module: string): unknown => {
+  const marker = `left by ${module}`;
+  if (Array.isArray(init)) return [...(init as unknown[]), marker];
+  if (init instanceof Set) return new Set([...init, marker]);
+  if (init instanceof Map) return new Map([...init, [marker, marker]]);
+  if (typeof init === 'boolean') return !init;
+  if (typeof init === 'number') return init + 1;
+  if (typeof init === 'string') return `${init}${marker}`;
+  if (init && typeof init === 'object') return { ...init, [marker]: marker };
+  return { leftBy: module };
+};
+
+/** Puts a value straight into a primitive atom, past the reducer its own write may be. */
+const putValue = (store: ReturnType<typeof CreateStore>, atom: PrimitiveAtom, value: unknown) => {
+  const { write } = atom;
+  // The store writes an atom's own value when its write sets the atom itself.
+  atom.write = (_get: unknown, set: (target: unknown, next: unknown) => void) => set(atom, value);
+  try {
+    store.set(atom as never, undefined as never);
+  } finally {
+    atom.write = write;
+  }
+};
+
 const runningCall = () => {
   const leave = vi.fn(async () => undefined);
   const onEnded = vi.fn(async () => undefined);
@@ -134,10 +166,13 @@ describe('forgetAccountState', () => {
     expect(modules).toContain('src/app/pages/client/sidebar/SpaceTabs.tsx');
   });
 
-  it('writes every module-level atom an account leaves behind, back to where it started', () => {
+  it('puts every module-level atom an account leaves behind back to where it started', () => {
     const { primitives, createStore, state, typing, calls } = loaded;
     const store = createStore();
-    // Values whose reset skips a write when there is nothing to clear.
+    const forgotten = primitives.filter((entry) => !isKept(entry));
+    // Each atom first holds something of the last account, so a forget that writes back what it
+    // finds, or a reset that keeps old entries, leaves it there. The two whose forget reads them
+    // hold a value of the shape it reads; every other one gets an entry of its own.
     store.set(typing.roomIdToTypingMembersAtom, {
       type: 'PUT',
       roomId: '!room:example.org',
@@ -146,34 +181,21 @@ describe('forgetAccountState', () => {
       isTyping: () => true,
     });
     store.set(calls.activeCallAtom, runningCall().active);
-
-    const written = new Set<object>();
-    const restore = primitives.map(({ atom }) => {
-      const { write } = atom;
-      atom.write = function recordWrite(this: unknown, ...args: unknown[]) {
-        written.add(atom);
-        return write.apply(this, args);
-      };
-      return () => {
-        atom.write = write;
-      };
+    forgotten.forEach(({ atom, module }) => {
+      if (isDeepStrictEqual(store.get(atom as never), atom.init)) {
+        putValue(store, atom, leftBehind(atom.init, module));
+      }
     });
-    try {
-      state.forgetAccountState(store);
-    } finally {
-      restore.forEach((undo) => undo());
-    }
+    const left = (entry: (typeof forgotten)[number]) =>
+      !isDeepStrictEqual(store.get(entry.atom as never), entry.atom.init);
+    // Every atom must hold something else now, or the check below proves nothing for it.
+    expect(forgotten.filter((entry) => !left(entry)).map(describeAtom)).toEqual([]);
 
-    const forgotten = primitives.filter((entry) => !isKept(entry));
-    const notForgotten = forgotten
-      .filter(({ atom }) => !written.has(atom))
-      .map(({ module, atom }) => `${module} (${atom.toString()})`);
+    state.forgetAccountState(store);
+
     // Each one is account state that the next account would see: list it in accountState.ts,
     // or add its module to KEPT_MODULES above with the reason it may outlive the account.
-    expect(notForgotten).toEqual([]);
-    forgotten.forEach(({ atom, module }) => {
-      expect(store.get(atom as never), module).toEqual(atom.init);
-    });
+    expect(forgotten.filter(left).map(describeAtom)).toEqual([]);
   });
 
   it('leaves the call and runs what follows its end', () => {
