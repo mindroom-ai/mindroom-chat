@@ -42,7 +42,7 @@ const explanationOf = (error: unknown) => {
     (node) => node.type === 'span' && node.props.style?.color === 'red'
   );
   const own = explanation.children.filter((child) => typeof child === 'string').join('');
-  const detail = explanation.findAll((node) => node.props.dir === 'auto' && node.type === 'span');
+  const detail = explanation.findAllByType('bdi');
   return { own, detail: detail[0]?.children.join('') };
 };
 

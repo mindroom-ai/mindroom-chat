@@ -86,7 +86,7 @@ const outcomeOf = (root: ReactTestInstance) => {
   const alert = root.findByProps({ role: 'alert' });
   const line = alert.findByType('span');
   const sentence = line.children.filter((child) => typeof child === 'string').join('');
-  const detail = line.findAll((node) => node.type === 'span' && node.props.dir === 'auto');
+  const detail = line.findAllByType('bdi');
   return { sentence, detail: detail[0]?.children.join('') };
 };
 

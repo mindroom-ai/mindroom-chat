@@ -57,9 +57,7 @@ const renderFailure = (error: unknown) => {
     );
   });
   const status = renderer.root.findByType('b');
-  const details = renderer.root.findAll(
-    (node) => node.props.dir === 'auto' && node.type === 'span'
-  );
+  const details = renderer.root.findAllByType('bdi');
   return { text: status.children.join(''), detail: details[0]?.children.join('') };
 };
 

@@ -52,7 +52,7 @@ describe('JsonEventEditor failures', () => {
     );
 
     expect(alert?.firstChild?.textContent).toBe("You don't have permission to do this.");
-    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe(
+    expect(alert?.querySelector('bdi')?.textContent).toBe(
       'M_FORBIDDEN: You don’t have permission to post that to the room.'
     );
     expect(alert?.textContent).not.toContain('https://');
@@ -62,6 +62,6 @@ describe('JsonEventEditor failures', () => {
     const alert = await submitRejectedWith(new Error('Event too old to replace'));
 
     expect(alert?.firstChild?.textContent).toBe('Something went wrong.');
-    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe('Event too old to replace');
+    expect(alert?.querySelector('bdi')?.textContent).toBe('Event too old to replace');
   });
 });

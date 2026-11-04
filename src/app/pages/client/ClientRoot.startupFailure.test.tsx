@@ -105,7 +105,7 @@ describe('ClientRoot when an account cannot start', () => {
     });
     const alert = renderer?.root.findByProps({ role: 'alert' });
     const parts = (alert?.children ?? []).map((child) =>
-      typeof child === 'string' ? child : child.findAllByType('span').at(-1)?.children.join('')
+      typeof child === 'string' ? child : child.findAllByType('bdi')[0]?.children.join('')
     );
     return { sentence: parts[0], detail: parts[1] };
   };

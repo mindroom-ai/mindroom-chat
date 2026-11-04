@@ -86,7 +86,7 @@ describe('LeaveRoomPrompt', () => {
     expect(alert?.firstChild?.textContent).toBe(
       "Failed to leave room! You don't have permission to do this."
     );
-    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe(
+    expect(alert?.querySelector('bdi')?.textContent).toBe(
       'M_FORBIDDEN: You are not in this room.'
     );
     expect(leaveButton.disabled).toBe(false);
@@ -100,7 +100,7 @@ describe('LeaveRoomPrompt', () => {
 
     const alert = document.querySelector('[role="alert"]');
     expect(alert?.firstChild?.textContent?.trim()).toBe('Failed to leave room!');
-    expect(alert?.querySelector('[dir="auto"]')?.textContent).toBe('Olm machine not ready');
+    expect(alert?.querySelector('bdi')?.textContent).toBe('Olm machine not ready');
   });
 
   it('closes from its close button without leaving', () => {
