@@ -105,8 +105,17 @@ const fetchThreadTail = async (
 };
 
 /**
+ * Whether the user has no thread receipt in the room yet. Until they do, the SDK counts every
+ * loaded reply as read (its rule for accounts from before thread receipts), so no reply could
+ * ever show as unread there.
+ */
+const lacksThreadReceipt = (room: Room): boolean =>
+  room.getOldestThreadedReceiptTs?.() === Number.POSITIVE_INFINITY;
+
+/**
  * Reads one thread: a receipt scoped to the thread on its newest reply. Without the SDK's thread
- * model, the server's latest reply is fetched. A reply the user already read gets no new receipt.
+ * model, the server's latest reply is fetched. A reply the user already read gets no new receipt,
+ * except the room's first thread receipt, which lets later replies show as unread.
  */
 export const markThreadAsRead = async (
   mx: MatrixClient,
@@ -124,7 +133,9 @@ export const markThreadAsRead = async (
     target = latestThreadReply(thread);
     const userId = mx.getUserId() ?? undefined;
     const targetId = target?.getId();
-    if (targetId && getThreadReadState(thread, userId)?.readEventIds.has(targetId)) return;
+    const alreadyRead =
+      !!targetId && !!getThreadReadState(thread, userId)?.readEventIds.has(targetId);
+    if (alreadyRead && !lacksThreadReceipt(room)) return;
   } else {
     target =
       (await fetchThreadTail(mx, roomId, threadId)) ??
