@@ -156,7 +156,9 @@
         "dismiss": "關閉",
         "audioBlocked": "瀏覽器暫停了通話的聲音。",
         "playSound": "播放聲音",
-        "resize": "調整通話面板大小"
+        "resize": "調整通話面板大小",
+        "screenOf": "{{name}} 的螢幕",
+        "fullScreen": "全螢幕"
       },
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",

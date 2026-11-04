@@ -162,7 +162,9 @@
         "dismiss": "Fechar",
         "audioBlocked": "O seu navegador colocou o som da chamada em pausa.",
         "playSound": "Reproduzir som",
-        "resize": "Redimensionar o painel da chamada"
+        "resize": "Redimensionar o painel da chamada",
+        "screenOf": "Tela de {{name}}",
+        "fullScreen": "Tela cheia"
       },
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",

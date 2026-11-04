@@ -159,7 +159,9 @@
         "dismiss": "Close",
         "audioBlocked": "Your browser paused the call's sound.",
         "playSound": "Play sound",
-        "resize": "Resize the call panel"
+        "resize": "Resize the call panel",
+        "screenOf": "{{name}}'s screen",
+        "fullScreen": "Full screen"
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",

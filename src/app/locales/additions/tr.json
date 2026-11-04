@@ -159,7 +159,9 @@
         "dismiss": "Kapat",
         "audioBlocked": "Tarayıcınız aramanın sesini duraklattı.",
         "playSound": "Sesi çal",
-        "resize": "Arama panelini yeniden boyutlandır"
+        "resize": "Arama panelini yeniden boyutlandır",
+        "screenOf": "{{name}} adlı kişinin ekranı",
+        "fullScreen": "Tam ekran"
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",

@@ -162,7 +162,9 @@
         "dismiss": "Cerrar",
         "audioBlocked": "Tu navegador pausó el sonido de la llamada.",
         "playSound": "Reproducir sonido",
-        "resize": "Cambiar el tamaño del panel de la llamada"
+        "resize": "Cambiar el tamaño del panel de la llamada",
+        "screenOf": "Pantalla de {{name}}",
+        "fullScreen": "Pantalla completa"
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",

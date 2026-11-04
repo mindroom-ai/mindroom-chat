@@ -20,10 +20,10 @@ import {
   type ActiveCall,
 } from './callStore';
 import { callUserIds } from './callMemberships';
-import { browserSupportsCalls, useCallSupport } from './callSupport';
+import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { CallMemberAvatar, CallTile } from './CallTile';
+import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
 import * as css from './CallPanel.css';
 
 /** Members need power to publish their call membership (`org.matrix.msc3401.call.member`). */
@@ -205,6 +205,18 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           onClick={() => call.setCamera(!state.camera)}
         />
       )}
+      {!agentCall && browserSharesScreens() && (
+        <CallControl
+          label={
+            state.screenShare
+              ? t('featureUi.call.controls.stopScreenshare')
+              : t('featureUi.call.controls.startScreenshare')
+          }
+          icon={Icons.ScreenShare}
+          pressed={state.screenShare}
+          onClick={() => call.setScreenShare(!state.screenShare)}
+        />
+      )}
       <CallControl
         label={
           state.sound
@@ -274,6 +286,15 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       )}
       {!finished && (
         <ul className={css.Tiles} aria-label={t('featureUi.calls.panel.participants')}>
+          {state.participants
+            .filter((participant) => participant.screen)
+            .map((participant) => (
+              <ScreenTile
+                key={`${participant.key}:screen`}
+                room={call.room}
+                participant={participant}
+              />
+            ))}
           {state.participants.map((participant) => (
             <CallTile key={participant.key} room={call.room} participant={participant} />
           ))}

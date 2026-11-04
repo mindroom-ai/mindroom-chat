@@ -162,7 +162,9 @@
         "dismiss": "Chiudi",
         "audioBlocked": "Il browser ha messo in pausa l’audio della chiamata.",
         "playSound": "Riproduci audio",
-        "resize": "Ridimensiona il pannello della chiamata"
+        "resize": "Ridimensiona il pannello della chiamata",
+        "screenOf": "Schermo di {{name}}",
+        "fullScreen": "Schermo intero"
       },
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",

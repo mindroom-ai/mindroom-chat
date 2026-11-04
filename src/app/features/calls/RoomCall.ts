@@ -50,6 +50,8 @@ export type CallParticipant = {
   speaking: boolean;
   microphone: boolean;
   video?: CallVideoTrack;
+  /** The screen (or window, or tab) this device shares. */
+  screen?: CallVideoTrack;
 };
 
 export type CallState = {
@@ -57,6 +59,8 @@ export type CallState = {
   problem?: CallProblem;
   microphone: boolean;
   camera: boolean;
+  /** This device shares its screen. */
+  screenShare: boolean;
   /** Whether others are heard; off mutes every remote voice on this device. */
   sound: boolean;
   /** The browser blocked playback until the next click. */
@@ -88,7 +92,8 @@ const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
       item.connected === other.connected &&
       item.speaking === other.speaking &&
       item.microphone === other.microphone &&
-      item.video === other.video
+      item.video === other.video &&
+      item.screen === other.screen
     );
   });
 
@@ -136,6 +141,7 @@ export class RoomCall {
       phase: 'connecting',
       microphone: options.microphone ?? true,
       camera: options.video ?? false,
+      screenShare: false,
       sound: true,
       audioBlocked: false,
       devices: options.devices ?? {},
@@ -167,13 +173,16 @@ export class RoomCall {
     const media = this.media;
     const audioBlocked =
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
+    // Sharing also ends from the browser's own "Stop sharing" control.
+    const screenShare = !!media?.localParticipant.isScreenShareEnabled;
     if (
       sameParticipants(participants, this.state.participants) &&
-      audioBlocked === this.state.audioBlocked
+      audioBlocked === this.state.audioBlocked &&
+      screenShare === this.state.screenShare
     ) {
       return;
     }
-    this.update({ participants, audioBlocked });
+    this.update({ participants, audioBlocked, screenShare });
   };
 
   private mediaParticipant(identity: string): Participant | undefined {
@@ -188,9 +197,12 @@ export class RoomCall {
     const describe = (userId: string, deviceId: string, key: string): CallParticipant => {
       const local = key === this.identity;
       const participant = this.mediaParticipant(key);
-      const camera = participant?.getTrackPublication(Track.Source.Camera);
-      const video =
-        camera && !camera.isMuted ? (camera.track as CallVideoTrack | undefined) : undefined;
+      const shown = (source: Track.Source) => {
+        const publication = participant?.getTrackPublication(source);
+        return publication && !publication.isMuted
+          ? (publication.track as CallVideoTrack | undefined)
+          : undefined;
+      };
       return {
         key,
         userId,
@@ -199,7 +211,8 @@ export class RoomCall {
         connected: local ? this.media?.state === ConnectionState.Connected : !!participant,
         speaking: !!participant?.isSpeaking,
         microphone: local ? this.state.microphone : !!participant?.isMicrophoneEnabled,
-        video,
+        video: shown(Track.Source.Camera),
+        screen: shown(Track.Source.ScreenShare),
       };
     };
     const others = activeMemberships(this.session)
@@ -379,6 +392,26 @@ export class RoomCall {
     await participant.setCameraEnabled(on).catch(() => {
       this.update({ camera: false, problem: 'device' });
     });
+    this.refresh();
+  }
+
+  /**
+   * Starts or stops sharing a screen, window or tab the person picks (with the tab's sound where
+   * the browser offers it). Closing the browser's picker leaves sharing off without a problem.
+   */
+  async setScreenShare(on: boolean) {
+    const participant = this.media?.localParticipant;
+    if (!participant || this.state.phase === 'connecting') return;
+    await participant
+      .setScreenShareEnabled(on, {
+        audio: true,
+        // The system's sound would carry the call back to the others, and this tab its own panel.
+        systemAudio: 'exclude',
+        selfBrowserSurface: 'exclude',
+        surfaceSwitching: 'include',
+        contentHint: 'detail',
+      })
+      .catch(() => undefined);
     this.refresh();
   }
 

@@ -92,6 +92,30 @@ export const TileAvatar = style({
   },
 });
 
+// A shared screen takes the whole row, at the usual screen shape, letterboxed rather than cropped.
+export const ScreenTile = style([
+  Tile,
+  {
+    gridColumn: '1 / -1',
+    aspectRatio: '16 / 9',
+    background: color.Other.Shadow,
+  },
+]);
+
+export const ScreenVideo = style({
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+});
+
+export const ScreenFullScreen = style({
+  position: 'absolute',
+  insetBlockStart: space.S100,
+  insetInlineEnd: space.S100,
+});
+
 export const TileVideo = style({
   position: 'absolute',
   inset: 0,

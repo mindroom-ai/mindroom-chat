@@ -156,7 +156,9 @@
         "dismiss": "閉じる",
         "audioBlocked": "ブラウザーが通話の音声を一時停止しました。",
         "playSound": "音声を再生",
-        "resize": "通話パネルのサイズを変更"
+        "resize": "通話パネルのサイズを変更",
+        "screenOf": "{{name}}さんの画面",
+        "fullScreen": "全画面表示"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",

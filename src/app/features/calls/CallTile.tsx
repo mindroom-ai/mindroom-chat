@@ -1,13 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Icon, Icons, Text } from 'folds';
+import { Avatar, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
 import { UserAvatar } from '../../components/user-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
+import { ExpandIcon } from '../../mindroom/sidebar/panelIcons';
 import type { CallParticipant, CallVideoTrack } from './RoomCall';
 import * as css from './CallPanel.css';
 
@@ -59,8 +60,17 @@ export function CallMemberAvatar({
   );
 }
 
-function TileVideo({ track, mirrored }: { track: CallVideoTrack; mirrored: boolean }) {
-  const ref = useRef<HTMLVideoElement>(null);
+type TileVideoProps = {
+  track: CallVideoTrack;
+  /** A camera seen by its own person shows as in a mirror. */
+  mirrored?: boolean;
+  className?: string;
+  videoRef?: React.RefObject<HTMLVideoElement>;
+};
+
+function TileVideo({ track, mirrored, className = css.TileVideo, videoRef }: TileVideoProps) {
+  const ownRef = useRef<HTMLVideoElement>(null);
+  const ref = videoRef ?? ownRef;
   useEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
@@ -68,16 +78,82 @@ function TileVideo({ track, mirrored }: { track: CallVideoTrack; mirrored: boole
     return () => {
       track.detach(element);
     };
-  }, [track]);
+  }, [ref, track]);
   return (
     <video
       ref={ref}
-      className={css.TileVideo}
+      className={className}
       style={mirrored ? { transform: 'scaleX(-1)' } : undefined}
       autoPlay
       playsInline
       muted
     />
+  );
+}
+
+/** Shows a video on the whole screen, or leaves full screen when it is there already. */
+const toggleFullScreen = (video: HTMLVideoElement | null) => {
+  if (!video) return;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => undefined);
+    return;
+  }
+  video.requestFullscreen?.().catch(() => undefined);
+};
+
+/**
+ * A screen someone shares: across the panel's width and whole rather than cropped, with its
+ * sharer's name and a way to see it on the whole screen (also by double-clicking it).
+ */
+export function ScreenTile({ room, participant }: { room: Room; participant: CallParticipant }) {
+  const { t } = useTranslation();
+  const { name } = useCallMemberProfile(room, participant.userId);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  if (!participant.screen) return null;
+  const label = t('featureUi.calls.panel.screenOf', { name });
+  const fullScreenLabel = t('featureUi.calls.panel.fullScreen');
+  return (
+    <li
+      className={css.ScreenTile}
+      data-call-screen={participant.userId}
+      aria-label={label}
+      onDoubleClick={() => toggleFullScreen(videoRef.current)}
+    >
+      <TileVideo track={participant.screen} className={css.ScreenVideo} videoRef={videoRef} />
+      <span className={css.TileLabel}>
+        <Icon size="50" src={Icons.ScreenShare} />
+        <Text as="span" size="T200" truncate>
+          {label}
+        </Text>
+      </span>
+      {typeof document !== 'undefined' && document.fullscreenEnabled && (
+        <TooltipProvider
+          position="Bottom"
+          align="End"
+          offset={4}
+          tooltip={
+            <Tooltip>
+              <Text size="T200">{fullScreenLabel}</Text>
+            </Tooltip>
+          }
+        >
+          {(anchorRef) => (
+            <IconButton
+              ref={anchorRef}
+              className={css.ScreenFullScreen}
+              size="300"
+              radii="300"
+              variant="Surface"
+              fill="Soft"
+              aria-label={fullScreenLabel}
+              onClick={() => toggleFullScreen(videoRef.current)}
+            >
+              <Icon size="100" src={ExpandIcon} />
+            </IconButton>
+          )}
+        </TooltipProvider>
+      )}
+    </li>
   );
 }
 

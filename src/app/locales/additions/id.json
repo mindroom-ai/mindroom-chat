@@ -156,7 +156,9 @@
         "dismiss": "Tutup",
         "audioBlocked": "Browser Anda menjeda suara panggilan.",
         "playSound": "Putar suara",
-        "resize": "Ubah ukuran panel panggilan"
+        "resize": "Ubah ukuran panel panggilan",
+        "screenOf": "Layar {{name}}",
+        "fullScreen": "Layar penuh"
       },
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",

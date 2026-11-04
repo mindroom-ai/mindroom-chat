@@ -35,6 +35,7 @@ const IDLE_STATE: CallState = {
   phase: 'ended',
   microphone: false,
   camera: false,
+  screenShare: false,
   sound: true,
   audioBlocked: false,
   devices: {},

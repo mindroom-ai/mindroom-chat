@@ -162,7 +162,9 @@
         "dismiss": "Fermer",
         "audioBlocked": "Votre navigateur a mis en pause le son de l’appel.",
         "playSound": "Lire le son",
-        "resize": "Redimensionner le panneau d’appel"
+        "resize": "Redimensionner le panneau d’appel",
+        "screenOf": "Écran de {{name}}",
+        "fullScreen": "Plein écran"
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",

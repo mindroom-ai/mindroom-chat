@@ -156,7 +156,9 @@
         "dismiss": "닫기",
         "audioBlocked": "브라우저가 통화 소리를 일시 중지했습니다.",
         "playSound": "소리 재생",
-        "resize": "통화 패널 크기 조절"
+        "resize": "통화 패널 크기 조절",
+        "screenOf": "{{name}}님의 화면",
+        "fullScreen": "전체 화면"
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",

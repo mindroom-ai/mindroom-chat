@@ -159,7 +159,9 @@
         "dismiss": "Schließen",
         "audioBlocked": "Dein Browser hat den Ton des Anrufs angehalten.",
         "playSound": "Ton abspielen",
-        "resize": "Größe der Anrufansicht ändern"
+        "resize": "Größe der Anrufansicht ändern",
+        "screenOf": "Bildschirm von {{name}}",
+        "fullScreen": "Vollbild"
       },
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",

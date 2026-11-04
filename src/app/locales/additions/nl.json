@@ -159,7 +159,9 @@
         "dismiss": "Sluiten",
         "audioBlocked": "Je browser heeft het geluid van de oproep gepauzeerd.",
         "playSound": "Geluid afspelen",
-        "resize": "Grootte van het oproepvenster wijzigen"
+        "resize": "Grootte van het oproepvenster wijzigen",
+        "screenOf": "Scherm van {{name}}",
+        "fullScreen": "Volledig scherm"
       },
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
