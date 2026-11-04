@@ -2,16 +2,28 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Lane P TypeScript files: the first column of every docs/provenance/portable*.tsv list. The
-// type-aware rules below skip them, because Lane P code keeps its ported logic.
-function lanePTypeScriptFiles() {
+// Lane C TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and two configs)
+// minus Lane P, the first column of every docs/provenance/portable*.tsv list, whose code keeps
+// its ported logic. The list holds only files that exist, because the type-aware rules need each
+// file in the TypeScript program; text linted under a made-up path (as surfaceImports.test.ts
+// does) gets the other rules only.
+function laneCTypeScriptFiles() {
   const provenance = path.join(__dirname, 'docs', 'provenance');
-  return fs
-    .readdirSync(provenance)
-    .filter((name) => /^portable.*\.tsv$/.test(name))
-    .flatMap((name) => fs.readFileSync(path.join(provenance, name), 'utf8').split('\n'))
-    .map((row) => row.split('\t')[0])
-    .filter((file) => /\.tsx?$/.test(file));
+  const laneP = new Set(
+    fs
+      .readdirSync(provenance)
+      .filter((name) => /^portable.*\.tsv$/.test(name))
+      .flatMap((name) => fs.readFileSync(path.join(provenance, name), 'utf8').split('\n'))
+      .map((row) => row.split('\t')[0])
+  );
+  const sources = ['src', 'e2e'].flatMap((dir) =>
+    fs
+      .readdirSync(path.join(__dirname, dir), { recursive: true })
+      .map((file) => path.posix.join(dir, String(file).split(path.sep).join('/')))
+  );
+  return [...sources, 'vitest.config.ts', 'playwright.config.ts'].filter(
+    (file) => /\.tsx?$/.test(file) && !laneP.has(file)
+  );
 }
 
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
@@ -113,8 +125,7 @@ module.exports = {
     {
       // Type-aware rules for Lane C TypeScript: the files tsconfig.json compiles, minus Lane P.
       // Types come from tsconfig.strict.json, whose unchecked index access `just strict` enforces.
-      files: ['src/**/*.{ts,tsx}', 'e2e/**/*.{ts,tsx}', 'vitest.config.ts', 'playwright.config.ts'],
-      excludedFiles: lanePTypeScriptFiles(),
+      files: laneCTypeScriptFiles(),
       parserOptions: { project: './tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: {
         // react-test-renderer's synchronous `act` answers a `DebugPromiseLike`, a thenable its
