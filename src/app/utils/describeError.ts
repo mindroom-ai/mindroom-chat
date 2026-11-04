@@ -164,6 +164,9 @@ export const errorDetail = (error: unknown): string | undefined => {
   if (isNoConnection(fields) || isUnfinished(fields)) return undefined;
   const errcode = errcodeOf(fields);
   const explanation = text(fields.data?.error);
-  if (errcode !== undefined && explanation !== undefined) return `${errcode}: ${explanation}`;
+  // Some servers (Tuwunel) already begin the explanation with the code.
+  if (errcode !== undefined && explanation !== undefined && !explanation.startsWith(errcode)) {
+    return `${errcode}: ${explanation}`;
+  }
   return explanation ?? errcode ?? text(fields.message);
 };

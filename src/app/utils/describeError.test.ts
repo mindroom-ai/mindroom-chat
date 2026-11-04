@@ -175,6 +175,10 @@ describe('errorDetail', () => {
     expect(errorDetail(failure)).toBe('M_FORBIDDEN: You are not invited to this room.');
     expect(errorDetail(matrixError('M_FORBIDDEN', undefined, 403))).toBe('M_FORBIDDEN');
     expect(errorDetail(matrixError(undefined, 'Only text', 400))).toBe('Only text');
+    // Tuwunel starts its explanation with the code; it is not repeated.
+    expect(
+      errorDetail(matrixError('M_ROOM_IN_USE', 'M_ROOM_IN_USE: Room alias already exists.', 400))
+    ).toBe('M_ROOM_IN_USE: Room alias already exists.');
   });
 
   it('keeps the message of other errors and the text of a thrown string', () => {

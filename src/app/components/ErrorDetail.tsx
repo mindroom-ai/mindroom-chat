@@ -9,7 +9,9 @@ type ErrorDetailProps = {
  * The error's own text in a smaller, quieter line under the translated sentence that
  * `describeError` gives, so a server's explanation or an exception's message stays readable for
  * whoever reports or debugs it. It is usually English, so it takes its direction from its own
- * text. A span, so it fits inside the sentence's `Text`; renders nothing when there is no text.
+ * text, while it lines up with the sentence above it (`match-parent`: on the right in a
+ * right-to-left language). A span, so it fits inside the sentence's `Text`; renders nothing
+ * when there is no text.
  */
 export function ErrorDetail({ error }: ErrorDetailProps) {
   const detail = errorDetail(error);
@@ -20,7 +22,7 @@ export function ErrorDetail({ error }: ErrorDetailProps) {
       size="T200"
       priority="300"
       dir="auto"
-      style={{ display: 'block', overflowWrap: 'anywhere' }}
+      style={{ display: 'block', overflowWrap: 'anywhere', textAlign: 'match-parent' }}
     >
       {detail}
     </Text>
