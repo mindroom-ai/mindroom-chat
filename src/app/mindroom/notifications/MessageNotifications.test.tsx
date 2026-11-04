@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent, RoomEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { ClientStartupProvider } from '../../pages/client/ClientStartupContext';
 import { MessageNotificationsFeature } from './MessageNotifications';
@@ -72,6 +74,37 @@ const message = (content: IContent) =>
     origin_server_ts: Date.now(),
     content,
   });
+
+const encryptedMessage = (ts = Date.now()) =>
+  new MatrixEvent({
+    type: 'm.room.encrypted',
+    room_id: ROOM,
+    sender: '@maya:example.org',
+    event_id: `$enc${Math.random()}`,
+    origin_server_ts: ts,
+    content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'opaque', session_id: 'S' },
+  });
+
+/** A crypto backend that fails until the room key "arrives", then decrypts to `content`. */
+const keysArriveLater = (content: IContent) => {
+  let haveKey = false;
+  return {
+    receiveKey: () => {
+      haveKey = true;
+    },
+    backend: {
+      decryptEvent: async () => {
+        if (!haveKey) {
+          throw new DecryptionError(
+            DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID,
+            'no key'
+          );
+        }
+        return { clearEvent: { type: 'm.room.message', content } };
+      },
+    },
+  };
+};
 
 const arrive = (event: MatrixEvent, liveEvent = true) =>
   act(() => {
@@ -170,6 +203,68 @@ describe('MessageNotificationsFeature', () => {
     render(`/home/${encodeURIComponent(ROOM)}/`);
     arrive(message({ msgtype: 'm.text', body: 'while away' }));
     expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it('notifies for an encrypted message whose key arrives after a first failed decryption', async () => {
+    render('/home/');
+    const event = encryptedMessage();
+    const keys = keysArriveLater({ msgtype: 'm.text', body: 'Key came late' });
+    const firstTry = event.attemptDecryption(keys.backend as never);
+    arrive(event);
+    await act(() => firstTry);
+    expect(event.isDecryptionFailure()).toBe(true);
+    expect(FakeNotification.shown).toHaveLength(0);
+
+    keys.receiveKey();
+    await act(() => event.attemptDecryption(keys.backend as never, { isRetry: true }));
+
+    expect(FakeNotification.shown).toHaveLength(1);
+    expect(FakeNotification.shown[0].options.body).toBe('Maya Chen: Key came late');
+  });
+
+  it('waits for the key of a message that arrives after it failed to decrypt', async () => {
+    render('/home/');
+    const event = encryptedMessage();
+    const keys = keysArriveLater({
+      msgtype: 'm.text',
+      body: 'Failed before the sync handed it over',
+    });
+    await event.attemptDecryption(keys.backend as never);
+    arrive(event);
+
+    keys.receiveKey();
+    await act(() => event.attemptDecryption(keys.backend as never, { isRetry: true }));
+
+    expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it('stops waiting once the message is too old to notify, and on unmount', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      render('/home/');
+      const event = encryptedMessage();
+      const keys = keysArriveLater({ msgtype: 'm.text', body: 'Too late' });
+      const firstTry = event.attemptDecryption(keys.backend as never);
+      arrive(event);
+      await act(() => firstTry);
+      expect(event.listenerCount('Event.decrypted')).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(2 * 60 * 1000 + 1);
+      });
+      expect(event.listenerCount('Event.decrypted')).toBe(0);
+
+      const other = encryptedMessage();
+      const otherTry = other.attemptDecryption(keys.backend as never);
+      arrive(other);
+      await act(() => otherTry);
+      expect(other.listenerCount('Event.decrypted')).toBe(1);
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      expect(other.listenerCount('Event.decrypted')).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('chimes only when the push actions ask for a sound, and respects the settings', () => {
