@@ -323,7 +323,12 @@ test('a call about an encrypted conversation is encrypted end to end', async ({ 
     .toContain(stack.agents.helper);
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+  // The message starts a thread, which opens once the agent answered in it; the call is about it.
   await sendFromComposer(page, 'Quick question about our plans');
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText('You said: Quick question about our plans')).toBeVisible({
+    timeout: 90_000,
+  });
 
   const { callRoomId, answer } = await callAndAsk(page, stack);
   expect(answer).toMatch(/paris/i);
@@ -336,6 +341,6 @@ test('a call about an encrypted conversation is encrypted end to end', async ({ 
     .filter((line) => line.includes(callRoomId));
   expect(log.some((line) => line.includes('call_frame_key_installed'))).toBe(true);
   expect(log.some((line) => line.includes('call_key_sent'))).toBe(true);
-  // Its call notice in the encrypted room decrypts here.
+  // Its call notice in the encrypted thread decrypts here.
   await expect(page.getByText(/Voice call · \d+ min/).first()).toBeVisible({ timeout: 60_000 });
 });
