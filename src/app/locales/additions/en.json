@@ -133,6 +133,56 @@
     },
     "spaceNav": {
       "options": "Space Options"
+    },
+    "calls": {
+      "panel": {
+        "title": "Call",
+        "close": "Close call",
+        "participants": "People in the call",
+        "connecting": "Connecting…",
+        "reconnecting": "Reconnecting…",
+        "ended": "The call ended.",
+        "waitingFor": "Waiting for {{name}}…",
+        "you": "{{name}} (you)",
+        "microphoneOff": "Microphone off",
+        "inCall_one": "{{count}} person in the call",
+        "inCall_other": "{{count}} people in the call",
+        "startCall": "Start call",
+        "startVideoCall": "Start video call",
+        "dismiss": "Close",
+        "audioBlocked": "Your browser paused the call's sound.",
+        "playSound": "Play sound"
+      },
+      "problems": {
+        "service": "The call service could not be reached. Try again later.",
+        "connection": "The call's connection was lost.",
+        "device": "Your microphone or camera could not be used."
+      },
+      "devices": {
+        "title": "Devices",
+        "microphone": "Microphone",
+        "camera": "Camera",
+        "speaker": "Speaker",
+        "systemDefault": "System default",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Start a call",
+        "joinCall": "Join the call",
+        "joinCallCount_one": "Join the call, {{count}} person in it",
+        "joinCallCount_other": "Join the call, {{count}} people in it",
+        "showCall": "Show the call",
+        "hideCall": "Hide the call"
+      },
+      "rail": {
+        "returnToCall": "Return to the call in {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} is calling",
+        "callingIn": "{{name}} is calling in {{room}}",
+        "videoCall": "Video call",
+        "voiceCall": "Voice call"
+      }
     }
   },
   "mindroomUi": {
