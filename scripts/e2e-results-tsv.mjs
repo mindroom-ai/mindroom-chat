@@ -43,14 +43,29 @@ const oneLine = (text) =>
 /** @param {string} file */
 const specName = (file) => file.replace(/^(\.\/)?e2e\//, '');
 
+/** @param {{ file: string; line: number }} location */
+const describeLocation = (location) =>
+  `${specName(location.file.replace(/^.*?\/e2e\//, 'e2e/'))}:${location.line}`;
+
 /** @param {ReportError | undefined} error */
 const describeError = (error) => {
   if (!error) return '';
   const message = oneLine(error.message ?? '');
-  const where = error.location
-    ? ` (${specName(error.location.file.replace(/^.*?\/e2e\//, 'e2e/'))}:${error.location.line})`
-    : '';
-  return `${message}${where}`;
+  return error.location ? `${message} (${describeLocation(error.location)})` : message;
+};
+
+/**
+ * A test timeout has no location of its own; the action it interrupted comes as a later error.
+ * @param {ReportError[]} errors
+ */
+const describeErrors = (errors) => {
+  const [first, ...rest] = errors;
+  const interrupted = first && !first.location && rest.find((error) => error.location);
+  if (!interrupted || !interrupted.location) return describeError(first);
+  const action = oneLine(interrupted.message ?? '')
+    .replace(/^Error: /, '')
+    .split(':')[0];
+  return `${oneLine(first.message ?? '')} in ${action} (${describeLocation(interrupted.location)})`;
 };
 
 /** @returns {Row} */
@@ -106,8 +121,9 @@ const addReport = (report, expectedSpec, server) => {
         else row.failed += 1;
         if (test.status === 'unexpected' && !row.error) {
           const failure = test.results.find((result) => result.error || result.errors?.length);
-          row.error =
-            describeError(failure?.error ?? failure?.errors?.[0]) || failure?.status || '';
+          const errors = failure?.errors?.length ? failure.errors : [failure?.error];
+          row.error = describeErrors(errors.filter((error) => error !== undefined));
+          row.error ||= failure?.status ?? '';
         }
       });
     })
