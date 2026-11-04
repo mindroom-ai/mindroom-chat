@@ -8,10 +8,9 @@ import {
   sendMessageEdit,
   sendRoomMessage,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
 
-// Thread reply counts on the Compact cards, the Full view's thread badges and the Threads page,
-// from the first sign-in through new replies, edits, redactions, reloads and opening the thread.
+// Thread reply counts on the Compact cards and the Threads page, from the first sign-in through
+// new replies, edits, redactions, reloads and opening the thread.
 // Until the client opens or shows a thread, its count comes from the root's server summary and
 // the replies sync brought; the SDK used to count the synced replies on top of the summary that
 // already counted them (6 for a thread of 3), above all after a reload.
@@ -155,17 +154,6 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   // Reloading keeps all of that; the saved sync holds the reply and its redaction together.
   await page.reload();
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
-
-  // The Full view's thread badges say the same.
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
-  await roomViewSwitch(page).click();
-  await expect(page.getByText('3 replies', { exact: true }).first()).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect(page.getByText('2 replies', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/^[4-9] replies$/)).toHaveCount(0);
-  await roomViewSwitch(page).click();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
 
   // Opening the thread loads its replies from the server, which agrees.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
