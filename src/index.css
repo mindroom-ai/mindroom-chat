@@ -86,6 +86,18 @@ samp {
   font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
 }
 
+/* Code reads left to right in every app language; inline code keeps its own direction without
+   reordering the right-to-left sentence around it. */
+code,
+pre {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+pre {
+  text-align: left;
+}
+
 /*
  * Links in running text, such as the welcome page credits: each theme's Primary.Main from
  * src/colors.css.ts, for markup that cannot import the folds colour contract.
