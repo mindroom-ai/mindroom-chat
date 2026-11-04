@@ -12,6 +12,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
+import { nameInitials } from '../../utils/common';
 import { Membership } from '../../../types/matrix/room';
 
 type JoinBeforeNavigateProps = {
@@ -74,6 +75,8 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   const blocked = !invited && (joinRule === JoinRule.Invite || joinRule === JoinRule.Private);
   const knock =
     !invited && (joinRule === JoinRule.Knock || joinRule === ('knock_restricted' as JoinRule));
+  // A space reads as one: its initials on a rounded square and "Space" beside the member count.
+  const isSpace = summary.room_type === RoomType.Space;
 
   return (
     <Box
@@ -83,21 +86,34 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
       style={{ maxWidth: '28rem', margin: '0 auto' }}
     >
       <Box gap="300" alignItems="Center">
-        <Avatar size="500" radii="400">
+        <Avatar size="500" radii={isSpace ? '500' : '400'}>
           <RoomAvatar
             roomId={roomId}
             alt={name}
             src={avatarUrl}
-            renderFallback={() => <Icon size="300" src={Icons.Hash} />}
+            renderFallback={() =>
+              isSpace ? (
+                <Text size="H3">{nameInitials(name)}</Text>
+              ) : (
+                <Icon size="300" src={Icons.Hash} />
+              )
+            }
           />
         </Avatar>
         <Box direction="Column" style={{ minWidth: 0 }}>
           <Text size="H4" truncate>
             {name}
           </Text>
-          {summary.num_joined_members !== undefined && (
+          {(isSpace || summary.num_joined_members !== undefined) && (
             <Text size="T200" priority="300">
-              {t('sharedUi.roomCard.members', { count: summary.num_joined_members })}
+              {[
+                isSpace ? t('sharedUi.roomCard.space') : undefined,
+                summary.num_joined_members !== undefined
+                  ? t('sharedUi.roomCard.members', { count: summary.num_joined_members })
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           )}
         </Box>
