@@ -1,7 +1,8 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Box, Button, Input, Spinner, Text, color } from 'folds';
+import { Badge, Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { IMyDevice } from 'matrix-js-sdk';
+import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
@@ -10,9 +11,18 @@ import { SettingTile } from '../../../components/setting-tile';
 import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SettingsCard } from '../SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../useAuthenticatedAction';
+import { countUnverifiedOtherDevices, useOwnDeviceTrust } from '../../../hooks/useOwnDeviceTrust';
+import { SecurityOverlay } from '../../../components/device-verification/SecurityOverlay';
+import {
+  VerificationRequestDialog,
+  cancelPendingVerification,
+} from '../../../components/device-verification/VerificationRequestDialog';
+import { SecuritySettings } from './SecuritySettings';
+import { ThisDeviceVerification } from './ThisDeviceVerification';
 
 const TILE = 'featureUi.settings.devices.deviceTile';
 const OTHERS = 'featureUi.settings.devices.otherDevices';
+const TRUST = 'featureUi.settings.devices.verification';
 
 const formatLastSeen = (device: IMyDevice, language: string): string | undefined => {
   if (!device.last_seen_ts) return undefined;
@@ -129,6 +139,23 @@ function RenameForm({ device, onDone }: RenameFormProps) {
   );
 }
 
+/** Whether cross-signing vouches for a session, as a badge after its name. */
+function TrustBadge({ verified }: { verified: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <Badge
+      variant={verified ? 'Success' : 'Warning'}
+      fill="Soft"
+      radii="Pill"
+      style={{ marginInlineStart: '0.5em', verticalAlign: 'middle' }}
+    >
+      <Text as="span" size="L400">
+        {verified ? t(`${TRUST}.verified`) : t(`${TRUST}.unverified`)}
+      </Text>
+    </Badge>
+  );
+}
+
 type DeviceRowProps = {
   device: IMyDevice;
   current: boolean;
@@ -136,9 +163,16 @@ type DeviceRowProps = {
   onSignOut?: () => void;
   signingOut?: boolean;
   onRenamed: () => void;
+  /** Whether the session is verified; no badge while that cannot be told. */
+  verified?: boolean;
+  /** Starts an interactive verification with the session. */
+  onVerify?: () => void;
+  verifying?: boolean;
 };
 
-function DeviceRow({ device, current, onSignOut, signingOut, onRenamed }: DeviceRowProps) {
+function DeviceRow(props: DeviceRowProps) {
+  const { device, current, onSignOut, signingOut, onRenamed, verified, onVerify, verifying } =
+    props;
   const { t, i18n } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const lastSeen = formatLastSeen(device, i18n.language);
@@ -151,6 +185,20 @@ function DeviceRow({ device, current, onSignOut, signingOut, onRenamed }: Device
 
   const actions = (
     <Box gap="200" alignItems="Center">
+      {onVerify && (
+        <Button
+          size="300"
+          radii="300"
+          variant="Primary"
+          fill="Soft"
+          disabled={verifying}
+          aria-label={`${t(`${TRUST}.verify`)} ${name}`}
+          before={verifying ? <Spinner size="50" variant="Primary" /> : undefined}
+          onClick={onVerify}
+        >
+          <Text size="B300">{t(`${TRUST}.verify`)}</Text>
+        </Button>
+      )}
       <Button
         size="300"
         radii="300"
@@ -180,7 +228,16 @@ function DeviceRow({ device, current, onSignOut, signingOut, onRenamed }: Device
   );
 
   return (
-    <SettingTile title={name} description={details.join(' · ')} after={actions}>
+    <SettingTile
+      title={
+        <>
+          {name}
+          {verified !== undefined && <TrustBadge verified={verified} />}
+        </>
+      }
+      description={details.join(' · ')}
+      after={actions}
+    >
       {renaming && (
         <RenameForm
           device={device}
@@ -207,9 +264,32 @@ export function Devices({ requestClose }: SettingsPageProps) {
   const { run, prompt } = useAuthenticatedAction();
   const [signingOut, setSigningOut] = useState<string>();
   const [error, setError] = useState<string>();
+  const trust = useOwnDeviceTrust();
+  const [verification, setVerification] = useState<VerificationRequest>();
+  const [requestingFor, setRequestingFor] = useState<string>();
   const currentId = client.getDeviceId();
   const thisDevice = devices?.find((device) => device.device_id === currentId);
   const others = devices?.filter((device) => device.device_id !== currentId) ?? [];
+  const unverifiedOthers = countUnverifiedOtherDevices(trust);
+
+  /** Another session's badge: only a verified session can tell, and only for sessions with keys. */
+  const otherTrust = (deviceId: string): boolean | undefined =>
+    trust?.thisDeviceVerified ? trust.otherDevices.get(deviceId) : undefined;
+
+  const verifyDevice = (deviceId: string) => {
+    const crypto = client.getCrypto();
+    const userId = client.getUserId();
+    if (!crypto || !userId) return;
+    setRequestingFor(deviceId);
+    setError(undefined);
+    crypto
+      .requestDeviceVerification(userId, deviceId)
+      .then((request) => alive() && setVerification(request))
+      .catch((failure: unknown) => {
+        if (alive()) setError(failure instanceof Error ? failure.message : String(failure));
+      })
+      .finally(() => alive() && setRequestingFor(undefined));
+  };
 
   const signOut = (deviceId: string) => {
     setSigningOut(deviceId);
@@ -251,25 +331,48 @@ export function Devices({ requestClose }: SettingsPageProps) {
           <Box direction="Column" gap="100">
             <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
             <SettingsCard>
-              <DeviceRow device={thisDevice} current onRenamed={() => void reload()} />
+              <DeviceRow
+                device={thisDevice}
+                current
+                onRenamed={() => void reload()}
+                verified={trust?.crossSigning ? trust.thisDeviceVerified : undefined}
+              />
+              {trust?.crossSigning && !trust.thisDeviceVerified && (
+                <ThisDeviceVerification onRequest={setVerification} />
+              )}
             </SettingsCard>
           </Box>
         )}
         {others.length > 0 && (
           <Box direction="Column" gap="100">
-            <Text size="L400">{t(`${OTHERS}.others`)}</Text>
+            <Box alignItems="Center" gap="200">
+              <Text size="L400">{t(`${OTHERS}.others`)}</Text>
+              {unverifiedOthers > 0 && (
+                <Badge variant="Warning" fill="Soft" radii="Pill">
+                  <Text as="span" size="L400">
+                    {t(`${TRUST}.unverifiedCount`, { count: unverifiedOthers })}
+                  </Text>
+                </Badge>
+              )}
+            </Box>
             <SettingsCard>
-              {others.map((device) => (
-                <DeviceRow
-                  key={device.device_id}
-                  device={device}
-                  current={false}
-                  // Delegated accounts sign devices out at their identity provider.
-                  onSignOut={dashboardUrl ? undefined : () => signOut(device.device_id)}
-                  signingOut={signingOut === device.device_id}
-                  onRenamed={() => void reload()}
-                />
-              ))}
+              {others.map((device) => {
+                const verified = otherTrust(device.device_id);
+                return (
+                  <DeviceRow
+                    key={device.device_id}
+                    device={device}
+                    current={false}
+                    // Delegated accounts sign devices out at their identity provider.
+                    onSignOut={dashboardUrl ? undefined : () => signOut(device.device_id)}
+                    signingOut={signingOut === device.device_id}
+                    onRenamed={() => void reload()}
+                    verified={verified}
+                    onVerify={verified === false ? () => verifyDevice(device.device_id) : undefined}
+                    verifying={requestingFor === device.device_id}
+                  />
+                );
+              })}
               {error && (
                 <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
                   {error}
@@ -284,6 +387,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
 
   return (
     <SettingsPageFrame title={t('settings.nav.devices')} requestClose={requestClose}>
+      {trust && <SecuritySettings trust={trust} />}
       {dashboardUrl && (
         <Box direction="Column" gap="100">
           <Text size="L400">{t(`${OTHERS}.deviceDashboard`)}</Text>
@@ -311,6 +415,19 @@ export function Devices({ requestClose }: SettingsPageProps) {
       )}
       {body}
       {prompt}
+      {verification && (
+        <SecurityOverlay
+          onClose={() => {
+            cancelPendingVerification(verification);
+            setVerification(undefined);
+          }}
+        >
+          <VerificationRequestDialog
+            request={verification}
+            onClose={() => setVerification(undefined)}
+          />
+        </SecurityOverlay>
+      )}
     </SettingsPageFrame>
   );
 }
