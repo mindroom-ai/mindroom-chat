@@ -1,13 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Text, config, toRem } from 'folds';
 import { PopOut } from '../../../components/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../../components/glass/GlassPrimitives';
-import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { Room } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { NavCategory, NavEmptyLayout } from '../../../components/nav';
 import { RoomNavItem } from '../../../features/room-nav';
@@ -18,13 +16,12 @@ import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
-import { mDirectAtom } from '../../../state/mDirectList';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
-import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { stopPropagation } from '../../../utils/keyboard';
 import { getDirectCreatePath, getDirectRoomPath } from '../../pathUtils';
+import { useDirectRooms } from './useDirectRooms';
 
 // Pressing Escape or clicking elsewhere closes a menu without moving focus around.
 const LIGHT_DISMISS = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
@@ -61,25 +58,6 @@ function DirectOptionsMenu({ label, roomIds }: { label: string; roomIds: string[
       <PopOut anchor={anchor} position="Bottom" align="End" offset={4} content={menu} />
     </>
   );
-}
-
-const byLatestActivity = (a: Room, b: Room): number =>
-  b.getLastActiveTimestamp() - a.getLastActiveTimestamp();
-
-/** The joined direct rooms the user has not archived, by latest activity. */
-function useDirectRooms(): Room[] {
-  const client = useMatrixClient();
-  const roomIds = useAtomValue(navigationRoomsAtom);
-  const directIds = useAtomValue(mDirectAtom);
-
-  return useMemo(() => {
-    const joinedDirects: Room[] = [];
-    roomIds.forEach((roomId) => {
-      const room = directIds.has(roomId) ? client.getRoom(roomId) : null;
-      if (room) joinedDirects.push(room);
-    });
-    return joinedDirects.sort(byLatestActivity);
-  }, [client, roomIds, directIds]);
 }
 
 /** The Direct Messages navigation: joined direct rooms by latest activity. */
