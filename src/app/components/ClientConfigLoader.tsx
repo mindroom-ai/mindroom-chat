@@ -16,6 +16,14 @@ export class ClientConfigAuthenticationError extends Error {
   }
 }
 
+/** The server answered `config.json` with another error status, which `httpStatus` keeps. */
+class ClientConfigHttpError extends Error {
+  constructor(readonly httpStatus: number) {
+    super(`Failed to load client configuration (HTTP ${httpStatus}).`);
+    this.name = 'ClientConfigHttpError';
+  }
+}
+
 const RECOVERY_BLOCKED_MESSAGE =
   'Sign-in recovery could not complete. Try again, or reload the page to sign in.';
 
@@ -67,9 +75,7 @@ export const fetchClientConfig = async (
     redirect: 'manual',
   });
   if (isAuthenticationResponse(response)) throw new ClientConfigAuthenticationError();
-  if (!response.ok) {
-    throw new Error(`Failed to load client configuration (HTTP ${response.status}).`);
-  }
+  if (!response.ok) throw new ClientConfigHttpError(response.status);
   const config: unknown = await response.json();
   if (!isConfigObject(config)) throw new Error('Client configuration must be a JSON object.');
   writeCachedClientConfig(basePath, config);

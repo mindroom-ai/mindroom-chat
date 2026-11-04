@@ -4,7 +4,8 @@ import { Dialog } from '../components/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';
 import { ClientConfigAuthenticationError } from '../components/ClientConfigLoader';
 import { MindRoomSplashScreen, SplashScreen } from '../components/splash-screen';
-import { errorMessage } from '../utils/errorMessage';
+import { describeKnownError } from '../utils/describeError';
+import { ErrorDetail } from '../components/ErrorDetail';
 
 /** Shown while the deployment's client configuration loads. */
 export function ConfigConfigLoading() {
@@ -52,8 +53,10 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
   const detail = sessionExpired ? (
     <Text size="T300">{t('sharedUi.configConfig.signInAgainToReconnect')}</Text>
   ) : (
+    // The title already says what failed; this says why where it can, then the error's own text.
     <Text size="T300" style={{ color: color.Critical.Main }}>
-      {errorMessage(error)}
+      {describeKnownError(t, error)}
+      <ErrorDetail error={error} />
     </Text>
   );
   const recovery = sessionExpired ? (

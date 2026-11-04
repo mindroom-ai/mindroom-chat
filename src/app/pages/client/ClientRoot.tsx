@@ -56,7 +56,13 @@ import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
 import { SyncStatus } from './SyncStatus';
-import { errorMessage } from '../../utils/errorMessage';
+import type { TFunction } from 'i18next';
+import { describeKnownError } from '../../utils/describeError';
+import { ErrorDetail } from '../../components/ErrorDetail';
+import {
+  DeviceIdentityVerificationError,
+  MissingCryptoStoreError,
+} from '../../mindroom/matrix/cryptoStoreContinuity';
 
 type ClientBootstrapSession = Parameters<typeof initClient>[0];
 
@@ -246,11 +252,29 @@ function StartupSplash({ session, mx }: StartupScreenProps) {
 
 type StartupFailureProps = StartupScreenProps & { error: unknown; onRetry: () => void };
 
+/**
+ * Why startup failed, translated: the two encryption storage checks say what to do (their own
+ * text is English and says the same, so it is not repeated), anything else what it can.
+ */
+const startupFailureReason = (
+  t: TFunction,
+  error: unknown
+): { reason: string; showDetail: boolean } => {
+  if (error instanceof MissingCryptoStoreError) {
+    return { reason: t('errors.cryptoStoreMissing'), showDetail: false };
+  }
+  if (error instanceof DeviceIdentityVerificationError) {
+    return { reason: t('errors.deviceIdentityUnverified'), showDetail: false };
+  }
+  return { reason: describeKnownError(t, error) ?? '', showDetail: true };
+};
+
 /** Startup threw: say why, and offer another try or a way out. */
 function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
   const { t } = useTranslation();
   const recovery = useRecoveryActions(session, mx);
   const { busy } = recovery;
+  const { reason, showDetail } = startupFailureReason(t, error);
 
   return (
     <SplashScreen>
@@ -270,8 +294,9 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
             <Text role="alert" size="T300">
               {t('sharedUi.clientRoot.failedToStartAccountValue1Value2', {
                 value1: session.userId,
-                value2: errorMessage(error),
+                value2: reason,
               })}
+              {showDetail && <ErrorDetail error={error} />}
             </Text>
             <Button variant="Primary" disabled={busy} onClick={onRetry}>
               <Text as="span" size="B400">
