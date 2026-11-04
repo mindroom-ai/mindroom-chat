@@ -1,21 +1,10 @@
 import { AuthType } from 'matrix-js-sdk';
+import { toHttpUrl } from './httpUrl';
+import { isRecord } from './isRecord';
 
 // The terms link of the `m.login.terms` stage of user-interactive authentication.
 
 type TermsPolicy = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-const toHttpUrl = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? value : undefined;
-  } catch {
-    return undefined;
-  }
-};
 
 /** The URL of the policy's English text, or of its first language. */
 const getPolicyUrl = (policy: TermsPolicy): string | undefined => {

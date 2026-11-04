@@ -1,4 +1,5 @@
 import type { ValidatedAuthMetadata } from 'matrix-js-sdk';
+import { parseHttpUrl } from '../utils/httpUrl';
 
 /** Account management actions from MSC4191. */
 type AccountManagementAction =
@@ -12,16 +13,6 @@ type AccountManagementAction =
 type AccountManagementParams = {
   action: AccountManagementAction | string;
   device_id?: string;
-};
-
-const parseHttpUrl = (url: string | undefined): URL | undefined => {
-  if (!url) return undefined;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
 };
 
 /**

@@ -63,6 +63,28 @@ describe('planSignUp', () => {
       { id: 'terms', name: 'Terms', url: 'https://example.org/terms' },
     ]);
   });
+
+  it('drops a policy whose link is not http or https, so the form never links a script', () => {
+    const authData: IAuthData = {
+      ...flows([TERMS]),
+      params: {
+        [TERMS]: {
+          policies: {
+            script: {
+              version: '1',
+              en: { name: 'Terms', url: 'javascript:alert(document.cookie)' },
+            },
+            data: { version: '1', en: { name: 'Rules', url: 'data:text/html,<script>1</script>' } },
+            relative: { version: '1', en: { name: 'House rules', url: '/rules' } },
+            privacy: { version: '1', en: { name: 'Privacy', url: 'http://example.org/privacy' } },
+          },
+        },
+      },
+    };
+    expect(planSignUp(authData)?.terms).toEqual([
+      { id: 'privacy', name: 'Privacy', url: 'http://example.org/privacy' },
+    ]);
+  });
 });
 
 describe('chooseSignUpFlow', () => {

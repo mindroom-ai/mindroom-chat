@@ -5,6 +5,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
 } from 'matrix-js-sdk';
+import { toHttpUrl } from '../../../utils/httpUrl';
 import { CompletedAuth, useCompleteSession } from '../completeSession';
 
 /** A finished registration: the new account's credentials and its homeserver URL. */
@@ -134,8 +135,10 @@ const readPolicies = (authData: IAuthData, language: string): TermsPolicy[] => {
       pick(language.split('-')[0]) ??
       pick('en') ??
       translations[0]?.[1]) as { name?: unknown; url?: unknown } | undefined;
-    if (!chosen || typeof chosen.url !== 'string') return [];
-    return [{ id, name: typeof chosen.name === 'string' ? chosen.name : id, url: chosen.url }];
+    // The URL becomes a link on the sign-up page, so it must be http or https.
+    const url = toHttpUrl(chosen?.url);
+    if (!chosen || !url) return [];
+    return [{ id, name: typeof chosen.name === 'string' ? chosen.name : id, url }];
   });
 };
 
