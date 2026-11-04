@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { motion } from '../../styles/Motion.css';
 
 // Measured from docs/design/reference/home.png (1440x900 at 1x): the rail is 66 px wide and
 // holds 42 px avatars (folds Avatar size 400 is 2.625rem) at 12 px from the edge (S300), 12 px
@@ -48,9 +49,16 @@ export const SidebarStackSeparator = style({
   flex: 'none',
 });
 
+/** Marks the rail entry, so its avatar can react to the entry being hovered or pressed. */
+const sidebarItemRoot = style({});
+
+/** How far a hovered rail button lifts. */
+const hoverLift = toRem(-2);
+
 /** A rail entry: the avatar button with its selection pill and unread badge. */
 export const SidebarItem = recipe({
   base: [
+    sidebarItemRoot,
     DefaultReset,
     // Centring also places the absolutely positioned pill vertically.
     Centered,
@@ -111,7 +119,22 @@ export const SidebarAvatar = recipe({
       background: 'none',
       cursor: 'pointer',
       outline: 'none',
+      // The lift follows the entry, not the button: the entry keeps the pointer when the button
+      // has risen out from under it. Reduced motion keeps the indicator and drops the lift.
+      '@media': {
+        '(prefers-reduced-motion: reduce)': {
+          selectors: { [`${sidebarItemRoot}:hover &`]: { translate: 'none' } },
+        },
+      },
       selectors: {
+        // Doubled to outrank the glass material's `button&` transition, which only names `scale`
+        // (its hover grow); both properties ease.
+        '&&': {
+          transition: `scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1), translate ${motion.duration.Normal} ease-out`,
+        },
+        [`${sidebarItemRoot}:hover &`]: { translate: `0 ${hoverLift}` },
+        // Pressing settles the button back down.
+        [`${sidebarItemRoot}:hover &:active`]: { translate: 'none' },
         '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
         '&:active': { backgroundColor: color.SurfaceVariant.ContainerActive },
         // An outline, not a ring shadow: the glass material of raised buttons owns box-shadow.
