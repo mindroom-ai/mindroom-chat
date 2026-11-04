@@ -211,6 +211,8 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
     <Editable
       className={css.EditorTextarea}
       data-editable-name={editableName}
+      // The text runs in the direction of the language it starts in, whatever the app language.
+      dir="auto"
       aria-label={ariaLabel}
       readOnly={readOnly}
       placeholder={placeholder}
