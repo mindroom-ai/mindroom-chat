@@ -17,7 +17,7 @@ const whenCompact = (compact: CSSProperties) => ({
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
-  padding: `${config.space.S200} ${config.space.S300}`,
+  padding: config.space.S300,
   borderRadius: config.radii.R500,
   position: 'relative',
   pointerEvents: 'auto',
