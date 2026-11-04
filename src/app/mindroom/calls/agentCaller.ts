@@ -5,8 +5,10 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
   activeCallAtom,
   useCallActions,
+  type CallOrigin,
   type StartCallResult,
 } from '../../features/calls/callStore';
+import type { CallDevices } from '../../features/calls/RoomCall';
 import { browserSupportsCalls } from '../../features/calls/callSupport';
 import { getLivekitServiceUrl } from '../../features/calls/rtcFocus';
 import {
@@ -67,6 +69,44 @@ export type AgentCallTarget = {
 
 export type AgentCallError = 'browser' | 'homeserver' | 'busy' | 'failed';
 
+type StartCall = ReturnType<typeof useCallActions>['startCall'];
+
+export type AgentCallStart = {
+  /** This account's call room with the agent. */
+  room: Room;
+  agentUserId: string;
+  origin: CallOrigin;
+  microphone?: boolean;
+  devices?: CallDevices;
+};
+
+/**
+ * Writes which conversation the call is about into the agent call room, then joins its call;
+ * ending the call clears that again. Also takes an agent call up again after a reload.
+ */
+export const startAgentCall = async (
+  mx: MatrixClient,
+  startCall: StartCall,
+  { room, agentUserId, origin, microphone = true, devices }: AgentCallStart
+): Promise<StartCallResult> => {
+  await prepareAgentCallRoom(
+    mx,
+    room,
+    agentUserId,
+    toAgentCallOrigin(origin.roomId, origin.threadId)
+  );
+  return startCall({
+    room,
+    kind: 'agent',
+    agentUserId,
+    origin,
+    microphone,
+    video: false,
+    devices,
+    onEnded: () => cleanupMindroomAgentCall(mx, room),
+  });
+};
+
 /**
  * Calls a MindRoom agent: in this account's permanent call room with the agent (made on the
  * first call, encrypted when the conversation is), after writing which conversation the call is
@@ -103,16 +143,10 @@ export const useAgentCaller = () => {
           const created = await createAgentVoiceRoom(mx, agentUserId, displayName, encrypted);
           callRoom = await waitForJoinedRoom(mx, created);
         }
-        await prepareAgentCallRoom(mx, callRoom, agentUserId, toAgentCallOrigin(roomId, threadId));
-        const room = callRoom;
-        const result: StartCallResult = await startCall({
-          room,
-          kind: 'agent',
+        const result = await startAgentCall(mx, startCall, {
+          room: callRoom,
           agentUserId,
           origin: { roomId, threadId },
-          microphone: true,
-          video: false,
-          onEnded: () => cleanupMindroomAgentCall(mx, room),
         });
         if (result === 'busy') setError('busy');
         return result === 'started';

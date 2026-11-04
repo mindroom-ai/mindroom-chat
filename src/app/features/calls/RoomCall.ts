@@ -16,6 +16,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRtcKeyProvider } from './callKeyProvider';
 import { firstLivekitServiceUrl, getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
+import { holdDeviceCallLock } from './callResume';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -121,6 +122,9 @@ export class RoomCall {
   private audioHost?: HTMLElement;
 
   private leaving?: Promise<void>;
+
+  /** Releases the lock that tells this device's other tabs it is in a call. */
+  private releaseDeviceLock?: () => void;
 
   constructor(options: RoomCallOptions) {
     this.options = options;
@@ -292,6 +296,7 @@ export class RoomCall {
     this.session.on(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.on(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
+    this.releaseDeviceLock = holdDeviceCallLock(mx);
 
     const serviceUrl = await this.findService();
     if (this.leaving) return;
@@ -412,6 +417,8 @@ export class RoomCall {
     await Promise.all([media?.disconnect(true), membership]);
     this.worker?.terminate();
     this.worker = undefined;
+    this.releaseDeviceLock?.();
+    this.releaseDeviceLock = undefined;
   }
 
   /** Leaves the call; resolves once the membership is withdrawn (or the wait timed out). */
