@@ -30,7 +30,7 @@ export function Threads() {
       <PageHeader balance>
         <Box alignItems="Center" justifyContent="Center" grow="Yes" gap="200">
           <Icon src={Icons.Thread} size="400" />
-          <Text size="H4" truncate>
+          <Text as="h1" size="H4" truncate>
             {t('nav.threads')}
           </Text>
         </Box>

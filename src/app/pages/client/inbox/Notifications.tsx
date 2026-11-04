@@ -386,7 +386,7 @@ export function Notifications() {
       <PageHeader balance>
         <PhoneBackButton to={INBOX_PATH} />
         <Box grow="Yes" alignItems="Center" justifyContent="SpaceBetween" gap="200">
-          <Text size="H4" truncate>
+          <Text as="h1" size="H4" truncate>
             {t('sharedUi.notifications.notificationMessages')}
           </Text>
           {!phone && filterChips}

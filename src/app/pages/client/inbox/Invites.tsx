@@ -368,7 +368,7 @@ export function Invites() {
       <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
         <Box alignItems="Center" gap="200">
           <PhoneBackButton to={INBOX_PATH} />
-          <Text size="H4" style={{ flexGrow: 1 }}>
+          <Text as="h1" size="H4" style={{ flexGrow: 1 }}>
             {t('sharedUi.invites.invites')}
           </Text>
           {category !== 'spam' && shownInvites.length > 1 && (

@@ -75,7 +75,7 @@ export function PublicRooms() {
               gap="200"
             >
               <Icon size="400" src={Icons.Server} />
-              <Text size="H3" truncate>
+              <Text as="h1" size="H3" truncate>
                 {server}
               </Text>
             </Box>
