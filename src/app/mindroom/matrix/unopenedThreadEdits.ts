@@ -1,14 +1,13 @@
 import {
-  ClientEvent,
   MatrixEventEvent,
   RelationType,
   ThreadEvent,
   type MatrixClient,
   type MatrixEvent,
-  type Room,
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../../utils/room';
+import { watchRoomThreads } from './watchRoomThreads';
 
 // The MindRoom SDK patch leaves a thread unopened (summary only) until the app shows or opens it.
 // Its replies still join the thread as they arrive, but their edits wait in `replayEvents` (the
@@ -153,31 +152,16 @@ const createEditWatcher = (): EditWatcher => {
  */
 export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => {
   const watcher = createEditWatcher();
-  const stops = new Map<Room, () => void>();
-
-  const watchRoom = (room: Room) => {
-    if (stops.has(room)) return;
-    // The SDK updates a thread after each batch it adds, also one that only brings edits. The
-    // listeners that rebuild the thread cards come later in the same update, so they see the edit.
-    const onThread = (thread: Thread) => {
+  // The SDK updates a thread after each batch it adds, also one that only brings edits. The
+  // listeners that rebuild the thread cards come later in the same update, so they see the edit.
+  const stopRooms = watchRoomThreads(mx, {
+    onThread: (_room, thread) => {
       watcher.showThreadEdits(thread);
-    };
-    room.on(ThreadEvent.New, onThread);
-    room.on(ThreadEvent.Update, onThread);
-    stops.set(room, () => {
-      room.removeListener(ThreadEvent.New, onThread);
-      room.removeListener(ThreadEvent.Update, onThread);
-    });
-    room.getThreads().forEach(onThread);
-  };
-
-  mx.on(ClientEvent.Room, watchRoom);
-  mx.getRooms().forEach(watchRoom);
+    },
+  });
 
   return () => {
-    mx.removeListener(ClientEvent.Room, watchRoom);
-    stops.forEach((stop) => stop());
-    stops.clear();
+    stopRooms();
     watcher.stop();
   };
 };

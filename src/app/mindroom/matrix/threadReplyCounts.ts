@@ -1,5 +1,4 @@
 import {
-  ClientEvent,
   MatrixEventEvent,
   RoomEvent,
   THREAD_RELATION_TYPE,
@@ -11,6 +10,7 @@ import {
   type Room,
   type Thread,
 } from 'matrix-js-sdk';
+import { watchRoomThreads } from './watchRoomThreads';
 
 // The MindRoom SDK patch leaves a thread unopened (summary only) until the app shows or opens it.
 // Its reply count starts at the root's server summary (the `m.thread` count) and grows by one for
@@ -116,16 +116,14 @@ const applyLateRedactions = (room: Room, thread: Thread): void => {
  * so it sees the saved sync. Returns a function that stops it.
  */
 export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
-  const stops = new Map<Room, () => void>();
+  // The SDK announces a thread once its first batch is in, and updates it once each later batch
+  // is counted, also when it read the summary again.
+  const onThread = (room: Room, thread: Thread) => {
+    applyLateRedactions(room, thread);
+    settleThreadReplyCount(thread);
+  };
 
-  const watchRoom = (room: Room) => {
-    if (stops.has(room)) return;
-    // The SDK announces a thread once its first batch is in, and updates it once each later batch
-    // is counted, also when it read the summary again.
-    const onThread = (thread: Thread) => {
-      applyLateRedactions(room, thread);
-      settleThreadReplyCount(thread);
-    };
+  const onRoom = (room: Room) => {
     // The same test as the SDK's, which lowers the thread's own count before the redaction.
     const onBeforeRedaction = (event: MatrixEvent, redaction: MatrixEvent) => {
       if (redaction.status || !event.isRelation(THREAD_RELATION_TYPE.name)) return;
@@ -135,19 +133,12 @@ export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
         (root) => root && removeRedactedReplyFromSummary(root, event)
       );
     };
-    room.on(ThreadEvent.New, onThread);
-    room.on(ThreadEvent.Update, onThread);
     room.on(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
-    stops.set(room, () => {
-      room.removeListener(ThreadEvent.New, onThread);
-      room.removeListener(ThreadEvent.Update, onThread);
-      room.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
-    });
-    // The saved sync announces a room after its threads are in.
+    // Redactions saved with the threads, before the threads are counted.
     room.getThreads().forEach((thread) => {
       thread.events.forEach((event) => forwardRedactions(room, event));
-      onThread(thread);
     });
+    return () => room.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
   };
 
   const onTimeline = (
@@ -161,25 +152,11 @@ export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
     forwardRedactions(room, event);
   };
 
-  // A forgotten room leaves the store; its listeners go with it, so the room can be freed.
-  const forgetRoom = (deletedRoomId: string) => {
-    stops.forEach((stop, room) => {
-      if (room.roomId !== deletedRoomId) return;
-      stop();
-      stops.delete(room);
-    });
-  };
-
   mx.on(RoomEvent.Timeline, onTimeline);
-  mx.on(ClientEvent.Room, watchRoom);
-  mx.on(ClientEvent.DeleteRoom, forgetRoom);
-  mx.getRooms().forEach(watchRoom);
+  const stopRooms = watchRoomThreads(mx, { onThread, onRoom });
 
   return () => {
     mx.removeListener(RoomEvent.Timeline, onTimeline);
-    mx.removeListener(ClientEvent.Room, watchRoom);
-    mx.removeListener(ClientEvent.DeleteRoom, forgetRoom);
-    stops.forEach((stop) => stop());
-    stops.clear();
+    stopRooms();
   };
 };

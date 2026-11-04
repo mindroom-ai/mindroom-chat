@@ -1,4 +1,11 @@
-import { createClient, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  ThreadEvent,
+  type IEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import {
@@ -299,6 +306,18 @@ describe('edits of unopened threads', () => {
     await held.attemptDecryption(crypto as never);
     await settle();
     expect(f.card()).toEqual({ preview: 'Decrypted once the key came', streaming: false });
+  });
+
+  it('lets go of a room the account forgets', async () => {
+    const f = await streamingThread(false);
+    const room = f.room();
+    const before = room.listenerCount(ThreadEvent.Update);
+    keepUnopenedThreadEditsShown(f.mx);
+    expect(room.listenerCount(ThreadEvent.Update)).toBe(before + 1);
+
+    // What the SDK announces once `forget` takes the room out of the store.
+    f.mx.emit(ClientEvent.DeleteRoom, roomId);
+    expect(room.listenerCount(ThreadEvent.Update)).toBe(before);
   });
 
   it('shows the same edit once the thread opens', async () => {
