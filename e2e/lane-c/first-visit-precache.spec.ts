@@ -4,9 +4,10 @@ import { buildLoginPath } from '../env';
 
 // What a first visit downloads for offline use, on a production build (`scripts/e2e-slot.sh
 // --preview`; the dev server's worker precaches nothing and the spec skips there). The worker
-// precaches the shell and the signed-in start only (scripts/precache-plan.mjs); chunks loaded on
-// demand are kept the first time a page loads them (src/swRuntimeAssets.ts). A part whose chunk is
-// missing offline renders nothing and loads on its next open (src/app/utils/lazyPart.tsx).
+// precaches the shell and the signed-in start only, with the images its chunks import
+// (scripts/precache-plan.mjs); chunks loaded on demand are kept the first time a page loads them
+// (src/swRuntimeAssets.ts). A part whose chunk is missing offline renders nothing and loads on its
+// next open (src/app/utils/lazyPart.tsx).
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'first-visit-precache-password';
 const GREETING = 'Offline starts need no more than this';
@@ -120,14 +121,16 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
     'Needs a production build: scripts/e2e-slot.sh <n> --preview'
   );
 
-  // The precache holds the crypto wasm, and no on-demand chunk, image or sound.
+  // The precache holds the crypto wasm and the startup images (the logo), and no on-demand chunk or
+  // sound.
   expect(shell.some((path) => path.endsWith('.wasm'))).toBe(true);
+  expect(shell.some((path) => /^\/assets\/mindroom-logo-[^/]+\.png$/.test(path))).toBe(true);
   expect(
     shell.filter((path) =>
       /^\/assets\/(?:emoji|EmojiBoard|katex|KaTeX_|RoomCall|ComputerScreen)/.test(path)
     )
   ).toEqual([]);
-  expect(shell.filter((path) => /\.(?:png|svg|ico|ogg|mp3)$/.test(path))).toEqual([]);
+  expect(shell.filter((path) => /\.(?:ogg|mp3)$/.test(path))).toEqual([]);
 
   await page.locator('input[name="usernameInput"]').fill(username);
   await page.locator('input[name="passwordInput"]').fill(PASSWORD);
