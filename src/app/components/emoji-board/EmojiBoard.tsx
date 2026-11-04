@@ -4,6 +4,7 @@ import React, {
   MouseEvent as ReactMouseEvent,
   ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -219,6 +220,8 @@ export function EmojiBoard(props: EmojiBoardProps) {
   const recentEmoji = useRecentEmoji(client, 21, packs);
   const [query, setQuery] = useState('');
   const [hovered, setHovered] = useState<BoardItem>();
+  // The preview belongs to the board it was hovered on.
+  useEffect(() => setHovered(undefined), [tab]);
   const [addFile, setAddFile] = useState<File>();
   const [tone, setTone] = useAtom(emojiSkinToneAtom);
   const [choosingTone, setChoosingTone] = useState(false);
@@ -277,10 +280,21 @@ export function EmojiBoard(props: EmojiBoardProps) {
     return [{ id: 'search', label: t('sharedUi.emojiBoard.searchResults'), items: results }];
   }, [groups, query, t]);
 
+  // A pack is a group on both boards with other images and another height, so measured heights
+  // are kept per board: by index they would place the sticker board's groups at the emoji
+  // board's offsets after a switch.
+  const groupKey = (group: BoardGroup) => `${tab}:${group.id}`;
   const virtualizer = useVirtualizer({
     count: visibleGroups.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => 40 + Math.ceil(visibleGroups[index].items.length / 8) * 44,
+    getItemKey: (index) => groupKey(visibleGroups[index]),
+    estimateSize: (index) => {
+      const { items } = visibleGroups[index];
+      // Stickers take four 88 px cells to a row, emoji eight 44 px ones.
+      return stickerTab
+        ? 40 + Math.ceil(items.length / 4) * 88
+        : 40 + Math.ceil(items.length / 8) * 44;
+    },
     overscan: 2,
   });
 
@@ -419,7 +433,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
               const group = visibleGroups[virtualItem.index];
               return (
                 <VirtualTile
-                  key={group.id}
+                  key={groupKey(group)}
                   virtualItem={virtualItem}
                   ref={virtualizer.measureElement}
                 >
