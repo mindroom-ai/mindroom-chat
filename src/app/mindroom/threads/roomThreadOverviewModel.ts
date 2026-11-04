@@ -186,6 +186,12 @@ export type VisibleThreadRootData = {
 
 // ─── Tri-state helpers ───────────────────────────────────────────────────────
 
+export const cycleTriState = (state: TriState): TriState => {
+  if (state === 'any') return 'include';
+  if (state === 'include') return 'exclude';
+  return 'any';
+};
+
 export const matchesTriState = (value: boolean, state: TriState): boolean => {
   if (state === 'any') return true;
   return state === 'include' ? value : !value;
@@ -201,6 +207,9 @@ export const matchesTagFilters = (
   return true;
 };
 
+export const isOrModeStatusChip = (state: ThreadFilterState, key: ThreadFilterKey): boolean =>
+  state.statusMode === 'or' && state[key] === 'include';
+
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
@@ -214,6 +223,23 @@ export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
   state: ThreadFilterState
 ): boolean => !threadId && (hasActiveThreadFilters(state) || state.sortBy !== 'natural');
+
+export const updateThreadFilterKey = (
+  state: ThreadFilterState,
+  key: ThreadFilterKey
+): ThreadFilterState => ({
+  ...state,
+  [key]: cycleTriState(state[key]),
+  statusMode: 'and',
+});
+
+export const cycleSortMode = (
+  state: ThreadFilterState
+): Pick<ThreadFilterState, 'sortBy' | 'sortDirection'> => {
+  if (state.sortBy === 'natural') return { sortBy: 'lastReply', sortDirection: 'desc' };
+  if (state.sortDirection === 'desc') return { sortBy: 'lastReply', sortDirection: 'asc' };
+  return { sortBy: 'natural', sortDirection: 'desc' };
+};
 
 export const createThreadSortControlSignature = ({
   state,
@@ -255,10 +281,55 @@ export const applyFrozenThreadOrder = (
   return resolvedOrderedIds;
 };
 
+export const resetThreadFilterState = (): ThreadFilterState => createDefaultThreadFilterState();
+
 export const normalizeThreadSearchText = (query: string): string =>
   query.trim().split(/\s+/).filter(Boolean).join(' ');
 
+/**
+ * Project a persisted filter state onto the controls that remain available in
+ * an agentless room. Agent status and tag filters must not keep affecting the
+ * thread list after their controls disappear, while ordinary text search and
+ * sorting remain usable. The stored state is left untouched so adding an agent
+ * restores the room's previous agent-workflow setup.
+ */
+export const simplifyAgentlessThreadFilterState = (
+  state: ThreadFilterState
+): ThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  sortBy: state.sortBy,
+  sortDirection: state.sortDirection,
+  freeText: state.freeText,
+  unsupportedQuery: state.unsupportedQuery,
+});
+
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
+
+export const cycleTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
+  const newTags = new Map(state.tags);
+  const current = newTags.get(tagName) ?? 'any';
+  const next = cycleTriState(current);
+  if (next === 'any') {
+    newTags.delete(tagName);
+  } else {
+    newTags.set(tagName, next);
+  }
+  return { ...state, tags: newTags };
+};
+
+export const addTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
+  if (state.tags.has(tagName)) return state;
+  const newTags = new Map(state.tags);
+  newTags.set(tagName, 'include');
+  return { ...state, tags: newTags };
+};
+
+export const removeTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
+  if (!state.tags.has(tagName)) return state;
+  const newTags = new Map(state.tags);
+  newTags.delete(tagName);
+  return { ...state, tags: newTags };
+};
 
 export const collectAvailableRoomTags = (
   tagsMap: Map<string, { tags: Record<string, unknown> | null }>
@@ -277,3 +348,68 @@ export const collectAvailableRoomTags = (
 // ─── Status counts ─────────────────────────────────────────────────────────
 
 export type StatusCounts = Record<ThreadFilterKey, number>;
+
+// ─── Filter presets ─────────────────────────────────────────────────────────
+
+export type FilterPreset = {
+  id: string;
+  label: string;
+  description: string;
+  apply: Partial<Record<ThreadFilterKey, TriState>> & { statusMode?: 'and' | 'or' };
+};
+
+export const FILTER_PRESETS: FilterPreset[] = [
+  {
+    id: 'needs-attention',
+    label: 'Needs attention',
+    description: 'Unresolved, non-streaming, non-scheduled threads',
+    apply: { resolved: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
+  },
+  {
+    id: 'working',
+    label: 'Working',
+    description: "Streaming or scheduled — what you're working on right now",
+    apply: { streaming: 'include', scheduled: 'include', statusMode: 'or' },
+  },
+  {
+    id: 'review-queue',
+    label: 'Review queue',
+    description: 'Unresolved threads with unread replies',
+    apply: { resolved: 'exclude', unread: 'include' },
+  },
+  {
+    id: 'archived',
+    label: 'Archived',
+    description: 'Resolved threads only',
+    apply: { resolved: 'include' },
+  },
+  {
+    id: 'all',
+    label: 'All',
+    description: 'Reset all filters',
+    apply: {},
+  },
+];
+
+export const applyPreset = (state: ThreadFilterState, preset: FilterPreset): ThreadFilterState => {
+  const { statusMode, ...statusOverrides } = preset.apply;
+  const nextState: ThreadFilterState = {
+    ...state,
+    resolved: 'any',
+    streaming: 'any',
+    scheduled: 'any',
+    unread: 'any',
+    idle: 'any',
+    statusMode: statusMode ?? 'and',
+    ...statusOverrides,
+  };
+  if (preset.id === 'all') {
+    return {
+      ...nextState,
+      tags: new Map(),
+      freeText: '',
+      unsupportedQuery: '',
+    };
+  }
+  return nextState;
+};
