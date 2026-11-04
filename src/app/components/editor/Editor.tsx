@@ -24,6 +24,9 @@ import type { BlockElement, CustomElement, HeadingElement, InlineElement } from 
 import { withWordUndo } from './history';
 import { createParagraphElement, withInlineElements } from './utils';
 import * as css from './Editor.css';
+import { useOptionalMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { mxcUrlToHttp } from '../../utils/mediaUrl';
 
 const emptyDocument: Descendant[] = [createParagraphElement()];
 
@@ -34,6 +37,40 @@ export const useEditor = (): Editor => {
   );
   return editor;
 };
+
+/**
+ * A custom emoji in the text box: its image at text height, or its `:shortcode:` as a chip where
+ * no client can resolve the image.
+ */
+function EditorCustomEmoji({
+  mxc,
+  shortcode,
+  active,
+}: {
+  mxc: string;
+  shortcode: string;
+  active: boolean;
+}) {
+  const client = useOptionalMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const src = client ? mxcUrlToHttp(client, mxc, authenticated, 64, 64, 'scale') : undefined;
+  if (!src) {
+    return (
+      <span className={classNames(css.InlineChip, active && css.InlineChipSelected)}>
+        :{shortcode}:
+      </span>
+    );
+  }
+  return (
+    <img
+      className={classNames(css.Emoticon, active && css.InlineChipSelected)}
+      src={src}
+      alt={`:${shortcode}:`}
+      title={`:${shortcode}:`}
+      draggable={false}
+    />
+  );
+}
 
 function InlineAtom({
   attributes,
@@ -48,9 +85,7 @@ function InlineAtom({
     return (
       <span {...attributes} contentEditable={false}>
         {element.key.startsWith('mxc://') ? (
-          <span className={classNames(css.InlineChip, active && css.InlineChipSelected)}>
-            :{element.shortcode}:
-          </span>
+          <EditorCustomEmoji mxc={element.key} shortcode={element.shortcode} active={active} />
         ) : (
           element.key
         )}

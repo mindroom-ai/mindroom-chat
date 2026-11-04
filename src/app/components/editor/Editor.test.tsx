@@ -15,6 +15,7 @@ vi.mock('./Editor.css', () =>
       'EditorPlaceholder',
       'EditorTextarea',
       'EditorTextareaScroll',
+      'Emoticon',
       'InlineChip',
       'InlineChipHighlight',
       'InlineChipSelected',
