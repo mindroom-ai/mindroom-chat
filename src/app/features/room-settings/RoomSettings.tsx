@@ -13,6 +13,10 @@ import { SettingsCard } from '../settings/SettingsCard';
 import { SettingsPageFrame } from '../settings/SettingsPageFrame';
 import { OfflineRoomSettings } from './general/OfflineRoomSettings';
 import { RoomProfileEditor } from './general/RoomProfileEditor';
+import { RoomAvatarTile } from './general/RoomAvatarTile';
+import { RoomAccessOptions } from './general/RoomAccessOptions';
+import { RoomAddresses } from './general/RoomAddresses';
+import { RoomUpgrade } from './general/RoomUpgrade';
 import { RoomMembersPage } from './members/RoomMembersPage';
 import { RoomPermissionsPage } from './permissions/RoomPermissionsPage';
 import { RoomPacksPage } from './emojis-stickers/RoomPacksPage';
@@ -41,24 +45,48 @@ const firstPage = (
   return screen === ScreenSize.Mobile ? undefined : RoomSettingsPage.GeneralPage;
 };
 
-type PageProps = { room: Room; space: boolean; requestClose: () => void };
+type PageProps = {
+  room: Room;
+  space: boolean;
+  requestClose: () => void;
+  /** Closes the whole dialog, such as when another room opens from it. */
+  closeDialog: () => void;
+};
 
-/** The name and topic, and for a room what this device keeps of it offline. */
-function General({ room, space, requestClose }: PageProps) {
+/** A titled group of tiles on the General page. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">{title}</Text>
+      <SettingsCard>{children}</SettingsCard>
+    </Box>
+  );
+}
+
+/**
+ * The picture, name and topic; who may join and see history; the addresses; for a room what this
+ * device keeps of it offline; and the room version with its upgrade.
+ */
+function General({ room, space, requestClose, closeDialog }: PageProps) {
   const { t } = useTranslation();
   return (
     <SettingsPageFrame title={t(`${NAVIGATION}.general`)} requestClose={requestClose}>
-      <Box direction="Column" gap="100">
-        <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.profile')}</Text>
-        <SettingsCard>
-          <RoomProfileEditor room={room} />
-        </SettingsCard>
-      </Box>
+      <Section title={t('featureUi.commonSettings.general.roomProfile.profile')}>
+        <RoomAvatarTile room={room} space={space} />
+        <RoomProfileEditor room={room} />
+      </Section>
+      <Section title={t('featureUi.roomSettings.general.options')}>
+        <RoomAccessOptions room={room} space={space} />
+      </Section>
+      <RoomAddresses room={room} />
       {!space && (
         <SettingsCard>
           <OfflineRoomSettings roomId={room.roomId} />
         </SettingsCard>
       )}
+      <Section title={t('featureUi.roomSettings.general.advancedOptions')}>
+        <RoomUpgrade room={room} space={space} onOpened={closeDialog} />
+      </Section>
     </SettingsPageFrame>
   );
 }
@@ -155,7 +183,14 @@ export function RoomSettings(props: {
   return (
     <PageRoot nav={(!phone || page === undefined) && nav}>
       {page !== undefined && (
-        <SelectedPage key={page} page={page} room={room} space={space} requestClose={closePage} />
+        <SelectedPage
+          key={page}
+          page={page}
+          room={room}
+          space={space}
+          requestClose={closePage}
+          closeDialog={requestClose}
+        />
       )}
     </PageRoot>
   );
