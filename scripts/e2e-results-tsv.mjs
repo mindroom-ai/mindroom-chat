@@ -156,8 +156,17 @@ if (args[0] === '--manifest') {
   );
 }
 
-const header = ['spec', 'passed', 'failed', 'skipped', 'first error', 'flaky', 'seconds', 'server'];
-header.push('load');
+const header = [
+  'spec',
+  'passed',
+  'failed',
+  'skipped',
+  'first error',
+  'flaky',
+  'seconds',
+  'server',
+  'load',
+];
 const lines = [...rows.entries()]
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([spec, row]) =>
