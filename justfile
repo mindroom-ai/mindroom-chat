@@ -44,7 +44,7 @@ build:
     npx vite build
 
 # Everything CI runs.
-check: typecheck lint test license-check verify-ported check-holes upstream-overlap
+check: typecheck lint test script-tests license-check verify-ported check-holes upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
@@ -101,3 +101,7 @@ agent-stack slot *args:
 # Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run, spread over slots; writes one TSV row per spec. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
+
+# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs), with Node's test runner.
+script-tests:
+    node --test scripts/e2e-results-tsv.test.mjs

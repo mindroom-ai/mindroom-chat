@@ -145,15 +145,29 @@ const lastLogError = (logPath) => {
   return `no Playwright report: ${oneLine(line ?? lines.find((entry) => entry.trim()) ?? '')}`;
 };
 
+/**
+ * A report a killed run cut short is not JSON; it counts as one failure instead of ending the table.
+ * @param {string} reportPath
+ * @param {string | undefined} expectedSpec
+ * @param {string} server
+ */
+const readReport = (reportPath, expectedSpec, server) => {
+  try {
+    addReport(JSON.parse(readFileSync(reportPath, 'utf8')), expectedSpec, server);
+  } catch (error) {
+    const row = rowFor(expectedSpec ?? reportPath, server);
+    row.failed += 1;
+    row.error ||= `invalid Playwright report: ${oneLine(String(error))}`;
+  }
+};
+
 const args = process.argv.slice(2);
 if (args[0] === '--manifest') {
   const manifest = readFileSync(args[1], 'utf8').split('\n').filter(Boolean);
   manifest.forEach((line) => {
     const [spec, reportPath, logPath, server = '', exitCode = '', load = ''] = line.split('\t');
     const name = specName(spec);
-    if (reportPath && existsSync(reportPath)) {
-      addReport(JSON.parse(readFileSync(reportPath, 'utf8')), name, server);
-    }
+    if (reportPath && existsSync(reportPath)) readReport(reportPath, name, server);
     const row = rowFor(name, server);
     row.load = load;
     if (row.passed + row.failed + row.flaky + row.skipped === 0) {
@@ -167,9 +181,7 @@ if (args[0] === '--manifest') {
     }
   });
 } else {
-  args.forEach((reportPath) =>
-    addReport(JSON.parse(readFileSync(reportPath, 'utf8')), undefined, '')
-  );
+  args.forEach((reportPath) => readReport(reportPath, undefined, ''));
 }
 
 const header = [
