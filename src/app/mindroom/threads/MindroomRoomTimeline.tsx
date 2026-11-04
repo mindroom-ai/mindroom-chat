@@ -1,4 +1,4 @@
-import React, {
+import {
   type Dispatch,
   type SetStateAction,
   useCallback,
@@ -13,9 +13,8 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
-import { Box, Scroll, Spinner, Text, color, config } from 'folds';
+import { Box, Scroll, Spinner, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
@@ -25,10 +24,8 @@ import { useSettingValue } from '../../state/hooks/useSettingValue';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { MessageLayout, settingsAtom } from '../../state/settings';
-import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../utils/room';
-import { today, timeDayMonthYear, yesterday } from '../../utils/time';
+import { getEditedEvent, getLatestMessageContent } from '../../utils/room';
 import { RoomIntro } from '../../components/room-intro';
-import { VirtualTile } from '../../components/virtualizer';
 import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { sanitizePrefetchDepth } from '../engine/prefetchPolicy';
@@ -41,9 +38,7 @@ import * as overlay from './RoomOverlay.css';
 import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
-import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
-import { getRenderableEventEntries, type TimelineEventEntry } from './roomTimelineEvents';
-import { buildClassicRoomRowEntries } from './roomTimelineClassicRows';
+import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from './roomViewMode';
 import type {
   FilterPreset,
@@ -118,10 +113,8 @@ import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from './useThreadApprovalTimeline';
-import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { isTimelineAtLiveEnd } from './timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
-import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 import type { ThreadSummaryWriter } from './threadSummaryState';
 import { useLatestRef, useViewScopedFlag } from './roomTimelineViewScope';
@@ -146,6 +139,7 @@ import {
   useRoomUnreadInfo,
   useShownInScrollArea,
 } from './roomTimelineUnread';
+import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
 import {
   BannerExpandAllToggle,
   ExpandAllLine,
@@ -196,26 +190,11 @@ export type RoomTimelineProps = {
 type ScrollToBottomState = { count: number; smooth: boolean };
 
 const EMPTY_EVENTS: MatrixEvent[] = [];
-const EMPTY_ENTRIES: TimelineEventEntry[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 /** Stand-ins for filter bar handlers a caller leaves out. */
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
   undefined;
-
-/**
- * Rows are priced by their content until measured (timelineRowEstimate). The Compact layout
- * prices room rows at one height, and a row the window does not know takes the comfortable one.
- */
-const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
-/**
- * Added to content-based room estimates, which are whole pixels and often exact. virtual-core
- * records a measured size only when it differs from the estimate, and the automatic fill reveals
- * the rows only once every mounted row is recorded; a row of zero estimated height would not
- * even mount to be measured.
- */
-const ROOM_ROW_UNMEASURED_PX = 0.5;
-const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 
 /** The display settings the timeline follows, each read on its own so a change re-renders. */
 const useTimelineDisplaySettings = () => ({
@@ -227,44 +206,6 @@ const useTimelineDisplaySettings = () => ({
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(mindroomSettingsAtom, 'prefetchDepth')),
 });
-
-const dividerStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr auto 1fr',
-  alignItems: 'center',
-  columnGap: config.space.S200,
-  padding: `${config.space.S200} ${config.space.S400}`,
-};
-
-/** A date or unread separator: a label between two hairlines. */
-function DividerLabel({
-  label,
-  unread = false,
-  separatorRef,
-}: {
-  label: string;
-  unread?: boolean;
-  separatorRef?: React.Ref<HTMLDivElement>;
-}) {
-  const lineColor = unread ? color.Success.ContainerLine : color.SurfaceVariant.ContainerLine;
-  const rule = <span style={{ height: 1, background: lineColor }} />;
-  const labelColor = unread ? color.Success.Main : color.SurfaceVariant.OnContainer;
-  return (
-    <div ref={separatorRef} role="separator" style={{ ...dividerStyle, color: labelColor }}>
-      {rule}
-      <Text size="L400">{label}</Text>
-      {rule}
-    </div>
-  );
-}
-
-function DayDivider({ ts }: { ts: number }) {
-  const { t } = useTranslation();
-  let label = timeDayMonthYear(ts);
-  if (today(ts)) label = t('mindroomUi.threads.mindroomRoomTimeline.today');
-  else if (yesterday(ts)) label = t('mindroomUi.threads.mindroomRoomTimeline.yesterday');
-  return <DividerLabel label={label} />;
-}
 
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
@@ -441,53 +382,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
 
   // Room rows: the room timeline's own, plus in the classic view the threads' replies.
-  const { roomEntries, renderableEventEntries } = useMemo(() => {
-    if (threadId) return { roomEntries: EMPTY_ENTRIES, renderableEventEntries: EMPTY_ENTRIES };
-    const entries = getRenderableEventEntries(
-      timeline.linkedTimelines,
-      room,
-      undefined,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      showThreadRepliesInRoom
-    );
-    if (!showThreadRepliesInRoom) return { roomEntries: entries, renderableEventEntries: entries };
-    const merged = buildClassicRoomRowEntries(room, entries, {
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-    });
-    return { roomEntries: entries, renderableEventEntries: merged };
-  }, [
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    ignoredUsersSet,
+  const { renderableEventEntries, renderableEvents, windowTimeline } = useRoomRowEntries({
     room,
-    showHiddenEvents,
-    showThreadRepliesInRoom,
     threadId,
     timeline,
-  ]);
-  // The newest window counts the room timeline's rows; with merged replies the same window ends
-  // at the newest merged row.
-  const roomEntryCount = roomEntries.length;
-  const mergedEntryCount = renderableEventEntries.length;
-  const windowTimeline = useMemo(() => {
-    const { start, end } = timeline.range;
-    if (mergedEntryCount === roomEntryCount || end !== roomEntryCount) return timeline;
-    const size = end - start;
-    return {
-      ...timeline,
-      range: { start: Math.max(mergedEntryCount - size, 0), end: mergedEntryCount },
-    };
-  }, [mergedEntryCount, roomEntryCount, timeline]);
-  const renderableEvents = useMemo(
-    () => renderableEventEntries.map(({ event }) => event),
-    [renderableEventEntries]
-  );
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    showThreadRepliesInRoom,
+  });
 
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   const threadIndex = useMindroomThreadIndex({
@@ -808,38 +712,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // The virtual list and its offset ledger.
   const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
-  // Room indexes count from the window's first row; a fold prices rows above it (negative).
-  // They read the newest rows and window through refs: the paginator folds a widened window
-  // in its layout effect, before the ledger hands over this render's pricing, and a fold
-  // priced apart from the rows the virtual list then lays out moves the reader.
-  const estimateSize = (index?: number): number => {
-    if (!threadId) {
-      if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact;
-      const rows = roomRowsRef.current;
-      const position = index === undefined ? undefined : activeRangeRef.current.start + index;
-      const event = position === undefined ? undefined : rows[position];
-      if (!event || position === undefined) {
-        return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
-      }
-      // The threaded view shows a badge under each message that has a thread record.
-      const threadBadge =
-        !showThreadRepliesInRoom && threadRecordMapRef.current.has(event.getId() ?? '');
-      return (
-        estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) + ROOM_ROW_UNMEASURED_PX
-      );
-    }
-    const event = index === undefined ? undefined : threadEvents[index];
-    if (!event) {
-      return compactLayout
-        ? THREAD_ONE_LINE_ESTIMATE_PX.compact
-        : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
-    }
-    return estimateMessageRowHeight(event, { compact: compactLayout });
-  };
-  const getItemKey = (index: number): string | number => {
-    const event = threadId ? threadEvents[index] : roomWindowRows[index];
-    return event?.getId() ?? (threadId ? index : activeTimelineRange.start + index);
-  };
+  const { estimateSize, getItemKey } = timelineRowSizing({
+    threadId,
+    compactLayout,
+    showThreadRepliesInRoom,
+    threadEvents,
+    roomWindowRows,
+    windowStart: activeTimelineRange.start,
+    roomRowsRef,
+    activeRangeRef,
+    threadRecordMapRef,
+  });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
@@ -1345,76 +1228,24 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadSummaryTimeline,
     handleOpenReply,
   };
-  const rowTimelineSet =
-    (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
-  const getRowEvent = (index: number): MatrixEvent | undefined =>
-    threadId ? threadEvents[index] : roomWindowRows[index];
-  const isRowHidden = (event: MatrixEvent): boolean => {
-    const id = event.getId() ?? '';
-    if (approvalTimeline.hiddenEventIds.has(id) || threadSummaryTimeline.hiddenEventIds.has(id)) {
-      return true;
-    }
-    const sender = event.getSender();
-    if (sender && ignoredUsersSet.has(sender)) return true;
-    return event.isRedacted() && !showHiddenEvents;
-  };
-  const rowContexts = foldTimelineRowContexts({
-    indexes: virtualItems.map((item) => item.index),
-    getEvent: getRowEvent,
-    isSkipped: isRowHidden,
-    getAbsoluteIndex: threadId
-      ? undefined
-      : (index) => roomRowEntries[activeTimelineRange.start + index]?.absoluteIndex,
-    readUptoAbsoluteIndex: threadId ? undefined : windowState.readUptoAbsoluteIndex,
+  const tiles = renderTimelineTiles({
+    virtualItems,
+    threadId,
+    threadEvents,
+    roomWindowRows,
+    roomRowEntries,
+    windowStart: activeTimelineRange.start,
+    readUptoAbsoluteIndex: windowState.readUptoAbsoluteIndex,
+    ignoredUsersSet,
+    showHiddenEvents,
+    timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
+    focusItem,
+    messageData,
+    renderEvent: feature.renderEvent,
+    unreadMarkerRef: setUnreadMarker,
+    measureElement: ledger.measureElement,
+    ledgerPxAtRender: ledger.ledgerPxAtRender,
   });
-
-  const renderTile = (item: VirtualItem): ReactNode => {
-    const event = getRowEvent(item.index);
-    if (!event) return null;
-    // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
-    // its tile mounted until measuring corrects it.
-    if (item.size === 0 && reactionOrEditEvent(event)) return null;
-    const id = event.getId() ?? '';
-    const context = rowContexts.get(item.index);
-    let content: ReactNode = null;
-    if (context && !isRowlessTimelineEvent(event)) {
-      const row: TimelineMessageRow = {
-        eventId: id,
-        event,
-        index: item.index,
-        timelineSet: rowTimelineSet,
-        collapse: context.collapse,
-        highlighted: focusItem?.eventId === id && focusItem.highlight,
-        previousEventId: context.previousEventId,
-      };
-      const rendered = feature.renderEvent(row, messageData);
-      if (rendered !== null) {
-        content = (
-          <>
-            {context.unreadDivider && (
-              <DividerLabel
-                unread
-                separatorRef={setUnreadMarker}
-                label={t('mindroomUi.threads.mindroomRoomTimeline.newMessages')}
-              />
-            )}
-            {context.dayDivider && <DayDivider ts={event.getTs()} />}
-            {rendered}
-          </>
-        );
-      }
-    }
-    return (
-      <VirtualTile
-        key={item.key as React.Key}
-        ref={ledger.measureElement}
-        virtualItem={item}
-        style={{ top: item.start + ledger.ledgerPxAtRender }}
-      >
-        <div data-room-row-index={threadId ? undefined : item.index}>{content}</div>
-      </VirtualTile>
-    );
-  };
 
   const showRoomIntro =
     !threadId &&
@@ -1503,7 +1334,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   visibility: automaticFill.hideInitialRows ? 'hidden' : undefined,
                 }}
               >
-                {virtualItems.map(renderTile)}
+                {tiles}
               </div>
             )}
           </ThreadConversationCostProvider>
