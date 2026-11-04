@@ -25,9 +25,10 @@ export function NewVersionNotice() {
     reloadForNewVersion().catch(() => setReloading(false));
   };
 
-  // The live region stays in the page, so the notice is announced when it appears.
+  // The live region stays in the page, so the notice is announced when it appears. It has no
+  // status role: the operator notices' stack is the page's status region.
   return (
-    <div role="status" className={noticeCss.NoticeStack}>
+    <div aria-live="polite" className={noticeCss.NoticeStack} data-new-version-notice>
       {shown && (
         <div className={noticeCss.Notice({ level: 'info' })} data-notice-level="info">
           <span className={noticeCss.NoticeIcon} aria-hidden>

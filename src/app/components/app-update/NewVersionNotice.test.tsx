@@ -30,6 +30,13 @@ vi.mock('../../mindroom/notices/NoticeBanners.css', () => ({
   NoticeAction: 'notice-action',
 }));
 
+/** The notice's live region, which the page has from the start. */
+const liveRegion = (container: HTMLElement): HTMLElement => {
+  const region = container.querySelector<HTMLElement>('[data-new-version-notice]');
+  if (!region) throw new Error('no live region');
+  return region;
+};
+
 describe('NewVersionNotice', () => {
   afterEach(() => {
     cleanup();
@@ -38,8 +45,11 @@ describe('NewVersionNotice', () => {
   });
 
   it('stays empty until a new version is known, in a live region that is already there', () => {
-    render(<NewVersionNotice />);
-    const region = screen.getByRole('status');
+    const { container } = render(<NewVersionNotice />);
+    const region = liveRegion(container);
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    // The operator notices' stack is the page's status region; this one is not a second.
+    expect(screen.queryByRole('status')).toBeNull();
     expect(region.textContent).toBe('');
 
     act(() => update.publish('build-2'));
@@ -60,12 +70,12 @@ describe('NewVersionNotice', () => {
 
   it('goes away for the life of the page when dismissed', () => {
     update.state.version = 'build-2';
-    render(<NewVersionNotice />);
+    const { container } = render(<NewVersionNotice />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
-    expect(screen.getByRole('status').textContent).toBe('');
+    expect(liveRegion(container).textContent).toBe('');
 
     act(() => update.publish('build-3'));
-    expect(screen.getByRole('status').textContent).toBe('');
+    expect(liveRegion(container).textContent).toBe('');
   });
 });
