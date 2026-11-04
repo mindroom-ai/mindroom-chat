@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, ReactNode, useMemo, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, PopOut, Text, config, toRem } from 'folds';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -21,6 +21,9 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../../hooks/router/useResolvedRoomIdOrAlias';
 import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
+import { usePowerLevels } from '../../../hooks/usePowerLevels';
+import { useRoomCreators } from '../../../hooks/useRoomCreators';
+import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
@@ -135,18 +138,30 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
 }
 
 /** The space's title bar: its name, and a menu for its rooms and its settings. */
+// The invite dialog loads the first time someone opens it.
+const InviteUserPrompt = lazy(() =>
+  import('../../../components/invite-user-prompt').then((module) => ({
+    default: module.InviteUserPrompt,
+  }))
+);
+
 type SpaceHeaderProps = { spaceId: string; name: string; roomIds: string[] };
 
 function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
+  const space = useSpace();
+  const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
+  const canInvite = permissions.action('invite', client.getUserId() ?? '');
   const openSpaceSettings = useOpenSpaceSettings();
+  const [inviting, setInviting] = useState(false);
   const [menuAt, setMenuAt] = useState<RectCords>();
   const dismiss = () => setMenuAt(undefined);
   const showMenu: MouseEventHandler<HTMLButtonElement> = (event) => {
     setMenuAt(event.currentTarget.getBoundingClientRect());
   };
 
-  // Mark the space's rooms read, or open the space's settings.
+  // Mark the space's rooms read, invite people where allowed, or open the space's settings.
   const menuContent = (
     <FocusTrap
       focusTrapOptions={{
@@ -160,6 +175,21 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
       <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
           <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={dismiss} />
+          {canInvite && (
+            <MenuItem
+              size="300"
+              radii="300"
+              after={<Icon size="100" src={Icons.UserPlus} />}
+              onClick={() => {
+                dismiss();
+                setInviting(true);
+              }}
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
+                {t('sharedUi.space.invite')}
+              </Text>
+            </MenuItem>
+          )}
           <MenuItem
             size="300"
             radii="300"
@@ -169,7 +199,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
               openSpaceSettings(spaceId);
             }}
           >
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
               {t('featureUi.lobby.lobbyHeader.spaceSettings')}
             </Text>
           </MenuItem>
@@ -195,6 +225,11 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
         </IconButton>
         <PopOut anchor={menuAt} align="End" position="Bottom" offset={6} content={menuContent} />
       </Box>
+      {inviting && (
+        <Suspense fallback={null}>
+          <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />
+        </Suspense>
+      )}
     </PageNavHeader>
   );
 }
