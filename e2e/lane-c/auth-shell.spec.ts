@@ -193,7 +193,10 @@ test('resets a password through the email the server sends', async ({ page }) =>
     timeout: 30_000,
   });
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByRole('status')).toContainText('Password has been reset successfully.');
+  // The operator notice stack above every screen is a status region as well, empty here.
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Password has been reset successfully.' })
+  ).toBeVisible();
   expect(requests).toEqual(['/account/password/email/requestToken', '/account/password']);
 
   await page.getByRole('button', { name: 'Login' }).click();
