@@ -107,17 +107,16 @@ MESSAGE_BLOCK = re.compile(r"<msg\b[^>]*?from=\"([^\"]*)\"[^>]*><!\[CDATA\[(.*?)
 
 
 def person_said(messages: list[dict]) -> str:
-    """The latest words of a person, not an agent: MindRoom wraps each message as <msg from=...><![CDATA[...]]>."""
+    """The person's latest words. MindRoom wraps each message as <msg from=...><![CDATA[...]]>, older ones with a
+    time prefix; the router's handoff to an agent ("@mindroom_helper... could you help with this?") arrives in
+    the person's name, so it is skipped."""
     for message in reversed(messages):
         if not is_person_message(message):
             continue
-        blocks = [
-            text
-            for sender, text in MESSAGE_BLOCK.findall(text_of(message.get("content")))
-            if "mindroom_" not in sender
-        ]
-        if blocks:
-            return blocks[-1].strip()
+        for sender, text in reversed(MESSAGE_BLOCK.findall(text_of(message.get("content")))):
+            text = re.sub(r"^\[\d{4}-\d\d-\d\d \d\d:\d\d UTC\] ", "", text.strip())
+            if "mindroom_" not in sender and not text.startswith("@mindroom_"):
+                return text
     index = latest_person_index(messages)
     return text_of(messages[index].get("content")).strip() if index >= 0 else ""
 
@@ -284,6 +283,8 @@ class Stub:
             "structured": bool(body.get("response_format")),
             "tools": [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []],
             "user": person_text[-400:],
+            # The tail of the conversation as the model saw it, for debugging a scenario.
+            "messages": [[m.get("role"), text_of(m.get("content"))[-600:]] for m in messages[-4:]],
         }
         if body.get("response_format"):
             schema = (body["response_format"].get("json_schema") or {}).get("schema") or {}
