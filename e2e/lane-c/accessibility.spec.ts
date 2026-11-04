@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import {
   createPrivateRoom,
@@ -13,11 +13,16 @@ import {
 // Keyboard and screen reader basics against the disposable homeserver of `just hs-up` (or a slot
 // of scripts/e2e-slot.sh): the skip link and landmarks, focus that menus and dialogs take and
 // give back, the command palette shortcut, the live log of new messages, and axe-core over the
-// main screens. One account signs in once; the tests share its page.
+// main screens in English, in Arabic (where the chrome mirrors) and in the dark theme. One account
+// signs in once; the tests share its page.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'a11y-spec-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = `Keyboard Lab ${RUN}`;
+const ROOM_TOPIC = 'Where the keyboard gets tried';
+const THREAD_ROOM_NAME = `Release Desk ${RUN}`;
+const THREAD_ROOT = 'Is the release checklist done?';
+const THREAD_REPLY = 'Every item on the checklist is ticked.';
 // axe-core comes with eslint-plugin-jsx-a11y; the axe test is skipped if it is ever gone.
 const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
 
@@ -48,15 +53,78 @@ const register = async (name: string): Promise<MatrixSession & { username: strin
   return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
 };
 
+// The app's message catalogs (src/app/locales/<code>.json and its additions), flattened, so the
+// passes in other languages find controls by the names they have there. A key a language lacks
+// falls back to English, as in the app.
+type Catalog = Map<string, string>;
+const flatten = (tree: Record<string, unknown>, prefix = ''): [string, string][] =>
+  Object.entries(tree).flatMap(([key, value]): [string, string][] => {
+    const name = prefix ? `${prefix}.${key}` : key;
+    return typeof value === 'string'
+      ? [[name, value]]
+      : flatten(value as Record<string, unknown>, name);
+  });
+const catalogs = new Map<string, Catalog>();
+const catalog = (code: string): Catalog => {
+  const cached = catalogs.get(code);
+  if (cached) return cached;
+  const locales = path.join(process.cwd(), 'src/app/locales');
+  const loaded: Catalog = new Map(
+    [path.join(locales, `${code}.json`), path.join(locales, 'additions', `${code}.json`)]
+      .filter((file) => fs.existsSync(file))
+      .flatMap((file) =>
+        flatten(JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>)
+      )
+  );
+  catalogs.set(code, loaded);
+  return loaded;
+};
+const label = (code: string, key: string): string => {
+  const text = catalog(code).get(key) ?? catalog('en').get(key);
+  if (text === undefined) throw new Error(`No message ${key}`);
+  return text;
+};
+/**
+ * The text of a message before its first `{{value}}`, without the spaces and bidirectional
+ * isolates in front of the value (axe-core shortens long attributes there).
+ */
+const textBefore = (text: string) =>
+  (text.split('{{')[0] ?? text).replace(/[\s\u2066-\u2069]+$/u, '');
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // A loaded machine can take minutes to start the client; the signed-in shell is the signal.
 const STARTUP_MS = 180_000;
-const accountButton = (page: Page) => page.getByRole('button', { name: /^Open settings for / });
+const accountButton = (page: Page, code = 'en') =>
+  page.getByRole('button', {
+    name: new RegExp(`^${escapeRegExp(textBefore(label(code, 'accountsRail.openSettingsAria')))}`),
+  });
 
 /** Opens a signed-in route and waits for the shell, which reloads the client. */
-const gotoSignedIn = async (page: Page, route: string) => {
+const gotoSignedIn = async (page: Page, route: string, code = 'en') => {
   await page.goto(route);
-  await expect(accountButton(page)).toBeVisible({ timeout: STARTUP_MS });
+  await expect(accountButton(page, code)).toBeVisible({ timeout: STARTUP_MS });
 };
+
+/** Opens a route inside the running app, without reloading the client. */
+const openInApp = (page: Page, route: string) =>
+  page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, route);
+
+/** Writes the stored language and theme, which the app reads when it starts. */
+const storeLook = (page: Page, code: string, themeId: string) =>
+  page.evaluate(
+    ([language, theme]) => {
+      localStorage.setItem('i18nextLng', language);
+      const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+      localStorage.setItem(
+        'settings',
+        JSON.stringify({ ...settings, useSystemTheme: false, themeId: theme })
+      );
+    },
+    [code, themeId] as const
+  );
 
 const signIn = async (page: Page, username: string) => {
   await page.goto(buildLoginPath(HOMESERVER));
@@ -86,17 +154,28 @@ const openRoom = async (page: Page) => {
 
 /**
  * Findings in ported (Lane P) code, which may not be rewritten here: each control's `aria-label`
- * leaves out its visible text. Matched by rule and element, so any other finding still fails.
+ * leaves out its visible text. Matched by rule and element, with the label in the page's
+ * language, so any other finding still fails.
  */
-const KNOWN_PORTED_FINDINGS = [
+const knownPortedFindings = (code: string) => [
   // KeyBackupNudge: its "Set up backup" button reads as "Set up secure key backup".
-  /^label-content-name-mismatch: <button [^>]*aria-label="Set up secure key backup"/,
+  new RegExp(
+    `^label-content-name-mismatch: <button [^>]*aria-label="${escapeRegExp(
+      label(code, 'mindroomUi.onboarding.keyBackupNudge.setUpSecureKeyBackup')
+    )}"`
+  ),
+  // CollapsibleMessage: each message body in a thread or the Full view says whether it is
+  // expanded, which a plain div may not; the toggle button that controls it says so as well. The
+  // body is the div with a React id (`:r1:`) and `aria-expanded`.
+  /^aria-allowed-attr: <div id=":[^"]+:" class="[^"]*" aria-expanded="(true|false)"/,
   // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
   // Matched by its attributes: production builds shorten the class names the dev server spells out.
-  /^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"[^>]*aria-label="Open thread: /,
+  new RegExp(
+    `^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"[^>]*aria-label="${escapeRegExp(
+      textBefore(label(code, 'thread.aria.openThread'))
+    )}`
+  ),
 ];
-const isKnownPortedFinding = (finding: string) =>
-  KNOWN_PORTED_FINDINGS.some((pattern) => pattern.test(finding));
 
 /** Critical and serious axe-core findings on the page, as `rule: element` lines. */
 const axeFindings = async (page: Page): Promise<string[]> => {
@@ -121,11 +200,89 @@ const axeFindings = async (page: Page): Promise<string[]> => {
   });
 };
 
+/** Horizontal paddings of an element, in pixels. */
+const sidePaddings = (locator: Locator) =>
+  locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight) };
+  });
+
+/**
+ * How far the first element inside `outer` that matches `selector` sits from the inside of the
+ * left and right borders of `outer`, in whole pixels. Measures an element that is hidden but laid
+ * out too, such as an inset scrollbar with nothing to scroll.
+ */
+const insetWithin = (outer: Locator, selector: string) =>
+  outer.evaluate((frame, innerSelector) => {
+    const inner = frame.querySelector(innerSelector);
+    if (!inner) throw new Error(`No ${innerSelector}`);
+    const box = inner.getBoundingClientRect();
+    const edges = frame.getBoundingClientRect();
+    const style = getComputedStyle(frame);
+    return {
+      left: Math.round(box.left - edges.left - parseFloat(style.borderLeftWidth)),
+      right: Math.round(edges.right - parseFloat(style.borderRightWidth) - box.right),
+    };
+  }, selector);
+
 test.describe.serial('keyboard and accessibility', () => {
-  test.describe.configure({ timeout: 2 * STARTUP_MS });
+  test.describe.configure({ timeout: 3 * STARTUP_MS });
   let page: Page;
   let guest: MatrixSession & { username: string };
   let roomId: string;
+  let threadRoomId: string;
+  let threadRootId: string;
+
+  /**
+   * axe-core over the main screens in the page's language: home, a room beside its members, a
+   * thread, the inbox, message search and the settings dialog. Each opens inside the running
+   * app; the findings come back as `screen rule: element` lines.
+   */
+  const axeMainScreens = async (code: string): Promise<string[]> => {
+    const known = knownPortedFindings(code);
+    const findings: string[] = [];
+    const check = async (screen: string) => {
+      const found = (await axeFindings(page)).filter(
+        (finding) => !known.some((pattern) => pattern.test(finding))
+      );
+      findings.push(...found.map((finding) => `${screen} ${finding}`));
+    };
+
+    await openInApp(page, '/home/');
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
+    await check('home');
+    await openInApp(page, `/home/${encodeURIComponent(roomId)}/`);
+    await expect(page.getByRole('heading', { level: 1, name: ROOM_NAME })).toBeVisible();
+    // A wide screen lists the room's members beside it.
+    await expect(
+      page.getByRole('textbox', { name: label(code, 'featureUi.room.membersDrawer.typeName') })
+    ).toBeVisible();
+    await check('room and members');
+    await openInApp(
+      page,
+      `/home/${encodeURIComponent(threadRoomId)}/?threadId=${encodeURIComponent(threadRootId)}`
+    );
+    await expect(page.getByText(THREAD_REPLY)).toBeVisible();
+    await check('thread');
+    await openInApp(page, '/inbox/notifications/');
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: label(code, 'sharedUi.notifications.notificationMessages'),
+      })
+    ).toBeVisible();
+    await check('inbox');
+    await openInApp(page, '/home/search/?term=checklist');
+    await expect(page.getByRole('main').getByText(THREAD_ROOT)).toBeVisible({ timeout: 30_000 });
+    await check('search');
+    await accountButton(page, code).click();
+    const settings = page.getByRole('dialog', { name: label(code, 'settings.title') });
+    await expect(settings).toBeVisible();
+    await check('settings');
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
+    return findings;
+  };
 
   test.beforeAll(async ({ browser }: { browser: Browser }) => {
     test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
@@ -134,7 +291,7 @@ test.describe.serial('keyboard and accessibility', () => {
     guest = await register('guest');
     roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
       name: ROOM_NAME,
-      topic: 'Where the keyboard gets tried',
+      topic: ROOM_TOPIC,
       invite: [guest.userId],
     });
     await joinRoom(HOMESERVER, guest.accessToken, roomId);
@@ -143,6 +300,36 @@ test.describe.serial('keyboard and accessibility', () => {
       guest.accessToken,
       roomId,
       { msgtype: 'm.text', body: 'First message' },
+      'a11y-spec'
+    );
+    // A second room holds a thread the two accounts wrote, which the passes below open.
+    threadRoomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
+      name: THREAD_ROOM_NAME,
+      topic: 'Ship it when the list is done',
+      invite: [guest.userId],
+    });
+    await joinRoom(HOMESERVER, guest.accessToken, threadRoomId);
+    threadRootId = await sendRoomMessage(
+      HOMESERVER,
+      owner.accessToken,
+      threadRoomId,
+      { msgtype: 'm.text', body: THREAD_ROOT },
+      'a11y-spec'
+    );
+    await sendRoomMessage(
+      HOMESERVER,
+      guest.accessToken,
+      threadRoomId,
+      {
+        msgtype: 'm.text',
+        body: THREAD_REPLY,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: threadRootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: threadRootId },
+        },
+      },
       'a11y-spec'
     );
     page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -237,24 +424,60 @@ test.describe.serial('keyboard and accessibility', () => {
 
   test('the main screens have no critical or serious axe-core findings', async () => {
     test.skip(!fs.existsSync(AXE_PATH), 'axe-core is not installed');
-    const findings: string[] = [];
-    const check = async (screen: string) => {
-      const found = (await axeFindings(page)).filter((finding) => !isKnownPortedFinding(finding));
-      findings.push(...found.map((finding) => `${screen} ${finding}`));
-    };
-
     await gotoSignedIn(page, '/home/');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await check('home');
-    await openRoom(page);
-    await check('room');
-    await gotoSignedIn(page, '/home/create/');
+    const findings = await axeMainScreens('en');
+    await openInApp(page, '/home/create/');
     await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
-    await check('create room');
-    await accountButton(page).click();
-    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
-    await check('settings');
+    const known = knownPortedFindings('en');
+    findings.push(
+      ...(await axeFindings(page))
+        .filter((finding) => !known.some((pattern) => pattern.test(finding)))
+        .map((finding) => `create room ${finding}`)
+    );
 
     expect(findings).toEqual([]);
+  });
+
+  test('in Arabic the main screens mirror and have no critical or serious axe-core findings', async () => {
+    test.skip(!fs.existsSync(AXE_PATH), 'axe-core is not installed');
+    await storeLook(page, 'ar', 'light-theme');
+    await gotoSignedIn(page, '/home/', 'ar');
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    expect(await axeMainScreens('ar')).toEqual([]);
+
+    // The chrome is mirrored, not only its text: the navigation header keeps its title 12 px from
+    // the start (the right) and its menu 16 px from the end, and the list's inset scrollbar runs
+    // at the end edge, as a platform scrollbar does in right-to-left languages.
+    await openInApp(page, `/home/${encodeURIComponent(roomId)}/`);
+    const homeNav = page.getByRole('navigation', { name: label('ar', 'nav.home') });
+    expect(await sidePaddings(homeNav.locator('header').first())).toEqual({ left: 16, right: 12 });
+    const navTrack = await insetWithin(homeNav, '[role="scrollbar"]');
+    expect(navTrack.left).toBeLessThan(navTrack.right);
+    // The room header puts its wider inset on the title side.
+    const header = page.getByRole('banner').filter({ hasText: ROOM_NAME });
+    expect(await sidePaddings(header)).toEqual({ left: 8, right: 16 });
+    // A dialog's title bar: the title S400 from the start, the close button S200 from the end.
+    await header.getByRole('button', { name: ROOM_TOPIC }).click();
+    const topic = page.getByRole('dialog', { name: ROOM_NAME });
+    expect(await sidePaddings(topic.locator('header').first())).toEqual({ left: 8, right: 16 });
+    await page.keyboard.press('Escape');
+    await expect(topic).toHaveCount(0);
+    // Settings keep the close button 24 px from the dialog's end edge, as settings.png does at
+    // the right in English.
+    await accountButton(page, 'ar').click();
+    const settings = page.getByRole('dialog', { name: label('ar', 'settings.title') });
+    await expect(settings).toBeVisible();
+    const closeLabel = label('ar', 'featureUi.settings.emojisStickers.globalPacks.close');
+    expect((await insetWithin(settings, `button[aria-label="${closeLabel}"]`)).left).toBe(24);
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
+  });
+
+  test('in the dark theme the main screens have no critical or serious axe-core findings', async () => {
+    test.skip(!fs.existsSync(AXE_PATH), 'axe-core is not installed');
+    await storeLook(page, 'en', 'dark-theme');
+    await gotoSignedIn(page, '/home/');
+    await expect(page.locator('body')).toHaveClass(/(^|\s)dark-theme(\s|$)/);
+    expect(await axeMainScreens('en')).toEqual([]);
   });
 });
