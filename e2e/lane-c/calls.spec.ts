@@ -3,9 +3,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 
 // Calls over MatrixRTC and LiveKit between real browser sessions with fake microphones and
-// cameras: a direct chat call that rings, is answered, carries sound both ways (encrypted too),
-// mutes and shows video; and a call to a MindRoom agent, which runs in the agent call room with
-// the conversation as its origin. Needs the slot's LiveKit server and authorization service:
+// cameras: a direct chat call that rings (card, ringtone, system notification), is answered,
+// carries sound both ways (encrypted too), mutes, shows video and survives a reload; a group
+// room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
+// start; and a call to a MindRoom agent, which runs in the agent call room with the conversation
+// as its origin. Needs the slot's LiveKit server and authorization service:
 //   eval "$(scripts/e2e-rtc.sh <slot> env)"; scripts/e2e-slot.sh <slot> down
 //   scripts/e2e-rtc.sh <slot> up; scripts/e2e-slot.sh <slot> npx playwright test e2e/lane-c/calls.spec.ts
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -106,8 +108,53 @@ const createDirectChat = async (owner: Session, guest: Session, encrypted: boole
   return roomId;
 };
 
-const signIn = async (browser: Browser, username: string): Promise<Page> => {
+/**
+ * Records what a ring does on a page whose window is in the background: the system
+ * notifications it shows (and closes) and the notes its ringtone starts.
+ */
+const recordRingAlerts = () => {
+  const record = {
+    notes: 0,
+    notifications: [] as { title: string; body: string; closed: boolean }[],
+  };
+  (window as unknown as { ringAlerts: typeof record }).ringAlerts = record;
+  document.hasFocus = () => false;
+  class RecordedNotification {
+    static permission = 'granted';
+
+    static requestPermission = async () => 'granted';
+
+    onclick: (() => void) | null = null;
+
+    private entry: { title: string; body: string; closed: boolean };
+
+    constructor(title: string, options?: { body?: string }) {
+      this.entry = { title, body: options?.body ?? '', closed: false };
+      record.notifications.push(this.entry);
+    }
+
+    close() {
+      this.entry.closed = true;
+    }
+  }
+  Object.defineProperty(window, 'Notification', { value: RecordedNotification, writable: true });
+  const createOscillator = AudioContext.prototype.createOscillator;
+  AudioContext.prototype.createOscillator = function recordedOscillator(this: AudioContext) {
+    record.notes += 1;
+    return createOscillator.call(this);
+  };
+};
+
+type RingAlerts = {
+  notes: number;
+  notifications: { title: string; body: string; closed: boolean }[];
+};
+const ringAlerts = (page: Page) =>
+  page.evaluate(() => (window as unknown as { ringAlerts: RingAlerts }).ringAlerts);
+
+const signIn = async (browser: Browser, username: string, init?: () => void): Promise<Page> => {
   const context = await browser.newContext({ permissions: ['microphone', 'camera'] });
+  if (init) await context.addInitScript(init);
   const page = await context.newPage();
   await page.goto(buildLoginPath(HOMESERVER));
   await expect(page.locator('input[name="serverInput"]')).toBeVisible({ timeout: 90_000 });
@@ -182,7 +229,7 @@ test.describe('calls', () => {
       const roomId = await createDirectChat(alice, bob, encrypted);
 
       const alicePage = await signIn(browser, `alice${suffix}`);
-      const bobPage = await signIn(browser, `bob${suffix}`);
+      const bobPage = await signIn(browser, `bob${suffix}`, recordRingAlerts);
       await openRoom(alicePage, roomId);
       await bobPage.goto('/home/');
 
@@ -199,7 +246,17 @@ test.describe('calls', () => {
       const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
       await expect(ring).toBeVisible({ timeout: 60_000 });
       await expect(ring).toContainText('Alice Call is calling');
+      // Bob's window is in the background: the ring also rings and shows a system notification.
+      await expect.poll(async () => (await ringAlerts(bobPage)).notes).toBeGreaterThan(0);
+      expect((await ringAlerts(bobPage)).notifications).toEqual([
+        { title: 'Incoming Call', body: 'Alice Call is calling', closed: false },
+      ]);
       await ring.getByRole('button', { name: 'Answer' }).click();
+      await expect.poll(async () => (await ringAlerts(bobPage)).notifications[0].closed).toBe(true);
+      // Answering stops the ringtone: no more notes are scheduled.
+      const notesAtAnswer = (await ringAlerts(bobPage)).notes;
+      await bobPage.waitForTimeout(3_000);
+      expect((await ringAlerts(bobPage)).notes).toBe(notesAtAnswer);
 
       // Both see both, connected, and hear each other.
       for (const page of [alicePage, bobPage]) {
@@ -235,6 +292,25 @@ test.describe('calls', () => {
       await expect(devices.getByRole('menuitemradio').first()).toBeVisible();
       await bobPage.keyboard.press('Escape');
 
+      // Alice reloads: her page takes the call up again, still muted, and Bob hears her again
+      // once she unmutes.
+      await alicePage.reload();
+      await expect(tileOf(alicePage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+        timeout: 90_000,
+      });
+      await expect(alicePage.locator('[data-call-tab]')).toBeVisible();
+      await expect(
+        callPanel(alicePage).locator('[data-call-tile][data-connected="true"]')
+      ).toHaveCount(2, { timeout: 60_000 });
+      await expect(tileOf(bobPage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+        timeout: 60_000,
+      });
+      await expect(
+        tileOf(bobPage, alice.userId).getByRole('img', { name: 'Microphone off' })
+      ).toBeVisible({ timeout: 30_000 });
+      await callPanel(alicePage).getByRole('button', { name: 'Turn On Microphone' }).click();
+      await expect.poll(() => remoteSoundLevel(bobPage), { timeout: 60_000 }).toBeGreaterThan(0.05);
+
       // Alice hangs up: Bob is alone, and the room shows one person in the call.
       await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
       await expect(tileOf(bobPage, alice.userId)).toHaveCount(0, { timeout: 30_000 });
@@ -246,6 +322,128 @@ test.describe('calls', () => {
       });
     });
   }
+
+  test('members join a group room call once its admin lets them, and see a shared screen', async ({
+    browser,
+  }) => {
+    const alice = await register(`aliceg${RUN}`, 'Alice Admin');
+    const bob = await register(`bobg${RUN}`, 'Bob Member');
+    // A room as other clients make it: private_chat keeps call membership at the moderator level.
+    const { room_id: roomId } = await matrix<{ room_id: string }>('/createRoom', {
+      token: alice.token,
+      body: { name: 'Standup', preset: 'private_chat', invite: [bob.userId] },
+    });
+    await matrix(`/join/${encodeURIComponent(roomId)}`, { token: bob.token, body: {} });
+
+    const bobPage = await signIn(browser, `bobg${RUN}`);
+    await openRoom(bobPage, roomId);
+    await bobPage.locator('[data-room-call-button]').click();
+    await expect(callPanel(bobPage)).toContainText("You don't have permission to join!", {
+      timeout: 30_000,
+    });
+
+    // Alice, the room's admin, is told and fixes it in the room's settings.
+    const alicePage = await signIn(browser, `aliceg${RUN}`);
+    await openRoom(alicePage, roomId);
+    await alicePage.locator('[data-room-call-button]').click();
+    const notice = callPanel(alicePage).getByText("Members of this room can't join its calls.");
+    await expect(notice).toBeVisible({ timeout: 30_000 });
+    await expect(
+      callPanel(alicePage).getByRole('button', { name: 'Let members join' })
+    ).toBeVisible();
+    await alicePage
+      .locator('header')
+      .filter({ hasText: 'Standup' })
+      .getByRole('button')
+      .last()
+      .click();
+    await alicePage.getByRole('button', { name: 'Room Settings', exact: true }).click();
+    await alicePage.getByRole('button', { name: 'Permissions', exact: true }).click();
+    await alicePage.getByRole('button', { name: 'Start or Join Call: Moderator' }).click();
+    await alicePage.getByRole('menu', { name: 'Start or Join Call' }).getByText('Member').click();
+    await expect(alicePage.getByRole('button', { name: 'Start or Join Call: Member' })).toBeVisible(
+      { timeout: 30_000 }
+    );
+    await alicePage.keyboard.press('Escape');
+    await expect(notice).toHaveCount(0, { timeout: 30_000 });
+
+    // Bob can join now; Alice joins too and shares her screen, which Bob sees across his panel.
+    await callPanel(bobPage).getByRole('button', { name: 'Join', exact: true }).click({
+      timeout: 30_000,
+    });
+    await callPanel(alicePage).getByRole('button', { name: 'Join', exact: true }).click();
+    for (const page of [alicePage, bobPage]) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(callPanel(page).locator('[data-call-tile][data-connected="true"]')).toHaveCount(
+        2,
+        { timeout: 60_000 }
+      );
+    }
+    await callPanel(alicePage).getByRole('button', { name: 'Start Screenshare' }).click();
+    const shared = callPanel(bobPage).locator(`[data-call-screen="${alice.userId}"]`);
+    await expect(shared).toHaveAccessibleName("Alice Admin's screen", { timeout: 30_000 });
+    await expect(shared.locator('video')).toBeVisible();
+    await expect
+      .poll(() => shared.locator('video').evaluate((video: HTMLVideoElement) => video.videoWidth))
+      .toBeGreaterThan(0);
+    await expect(
+      callPanel(alicePage).locator(`[data-call-screen="${alice.userId}"]`)
+    ).toBeVisible();
+    await callPanel(alicePage).getByRole('button', { name: 'Stop Screenshare' }).click();
+    await expect(shared).toHaveCount(0, { timeout: 30_000 });
+
+    await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
+    await callPanel(bobPage).getByRole('button', { name: 'End' }).click();
+  });
+
+  test('a membership this device left behind is withdrawn when the app starts', async ({
+    browser,
+  }) => {
+    const alice = await register(`alicel${RUN}`, 'Alice Leftover');
+    const bob = await register(`bobl${RUN}`, 'Bob Leftover');
+    const roomId = await createDirectChat(alice, bob, false);
+    const alicePage = await signIn(browser, `alicel${RUN}`);
+    await openRoom(alicePage, roomId);
+
+    // A crashed tab's membership: the browser session's device, in the call, never withdrawn.
+    const { devices } = await matrix<{ devices: { device_id: string }[] }>('/devices', {
+      token: alice.token,
+    });
+    const { device_id: apiDevice } = await matrix<{ device_id: string }>('/account/whoami', {
+      token: alice.token,
+    });
+    const browserDevice = devices.find((device) => device.device_id !== apiDevice)?.device_id;
+    expect(browserDevice).toBeTruthy();
+    const stateKey = `_${alice.userId}_${browserDevice}_m.call`;
+    const statePath = `/rooms/${encodeURIComponent(
+      roomId
+    )}/state/org.matrix.msc3401.call.member/${encodeURIComponent(stateKey)}`;
+    await matrix(statePath, {
+      token: alice.token,
+      method: 'PUT',
+      body: {
+        application: 'm.call',
+        call_id: '',
+        scope: 'm.room',
+        device_id: browserDevice,
+        expires: 14_400_000,
+        focus_active: { type: 'livekit', focus_selection: 'oldest_membership' },
+        foci_preferred: [],
+      },
+    });
+    await expect(alicePage.locator('[data-room-call-button]')).toHaveAttribute(
+      'aria-label',
+      /1 person/,
+      { timeout: 30_000 }
+    );
+
+    await alicePage.reload();
+    await expect
+      .poll(async () => matrix<Record<string, unknown>>(statePath, { token: alice.token }), {
+        timeout: 90_000,
+      })
+      .toEqual({});
+  });
 
   test('calling an agent uses its call room with the conversation as origin', async ({
     browser,
