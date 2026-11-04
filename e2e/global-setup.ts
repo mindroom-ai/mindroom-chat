@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
  * | `E2E_AGENT_USERNAME`, `E2E_AGENT_PASSWORD`, `E2E_AGENT_USER_ID` | An agent account (a `mindroom_` user) |
  * | `E2E_UI_ACTIONS_HOMESERVER` | Disposable homeserver with open registration; those specs register their own users |
  * | `E2E_FIXTURE_ROOM_ALIAS`, `E2E_FIXTURE_ROOM_ID` | Fixture room made by `e2e/live/seed-fixture-room.mjs` |
- * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `live/` specs |
+ * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `live/` specs; locally a room shared with the agent account |
  * | `E2E_DEPLOYED_BASE_URL`, `E2E_DEPLOYED_HOMESERVER`, `E2E_DEPLOYED_USERNAME`, `E2E_DEPLOYED_PASSWORD` | Specs against a deployed client |
  * | `E2E_COMPUTER_FIXTURE` | Path of the gateway fixture JSON for the worker-computer spec |
  * | `E2E_SCREENSHOT_VARIANT`, `SHOT_PREFIX` | App Store screenshot spec output |
@@ -78,6 +78,62 @@ const seedFixtureRoom = (): void => {
   process.env.E2E_FIXTURE_ROOM_ID ??= roomId;
 };
 
+const AGENT_ROOM_ALIAS_NAME = 'mindroom-e2e-agent-room';
+
+/**
+ * A room the primary account shares with the agent account, so the room shows its agent
+ * controls (the thread filter bar's status toggles). Specs that take `E2E_ROOM_ID` open it.
+ */
+const seedAgentRoom = async (username: string, agentUserId: string): Promise<void> => {
+  const api = `${LOCAL_HOMESERVER}/_matrix/client/v3`;
+  const json = { 'Content-Type': 'application/json' };
+  const login = await fetch(`${api}/login`, {
+    method: 'POST',
+    headers: json,
+    body: JSON.stringify({
+      type: 'm.login.password',
+      identifier: { type: 'm.id.user', user: username },
+      password: LOCAL_PASSWORD,
+    }),
+  });
+  if (!login.ok) {
+    console.warn(`Agent room was not seeded: login returned ${login.status}`);
+    return;
+  }
+  const { access_token: token } = (await login.json()) as { access_token: string };
+  const headers = { ...json, Authorization: `Bearer ${token}` };
+  try {
+    const alias = `#${AGENT_ROOM_ALIAS_NAME}:${LOCAL_SERVER_NAME}`;
+    const found = await fetch(`${api}/directory/room/${encodeURIComponent(alias)}`, { headers });
+    let roomId = found.ok ? ((await found.json()) as { room_id: string }).room_id : undefined;
+    if (!roomId) {
+      const created = await fetch(`${api}/createRoom`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: 'E2E Agent Room',
+          preset: 'private_chat',
+          room_alias_name: AGENT_ROOM_ALIAS_NAME,
+          invite: [agentUserId],
+        }),
+      });
+      if (!created.ok) {
+        console.warn(`Agent room was not seeded: createRoom returned ${created.status}`);
+        return;
+      }
+      roomId = ((await created.json()) as { room_id: string }).room_id;
+      await fetch(`${api}/rooms/${encodeURIComponent(roomId)}/send/m.room.message/agent-room-1`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ msgtype: 'm.text', body: 'Agent room thread' }),
+      });
+    }
+    process.env.E2E_ROOM_ID ??= roomId;
+  } finally {
+    await fetch(`${api}/logout`, { method: 'POST', headers }).catch(() => undefined);
+  }
+};
+
 const globalSetup = async (): Promise<void> => {
   // Credentials from the caller mean a homeserver of the caller's choosing.
   if (process.env.E2E_USERNAME) return;
@@ -115,6 +171,7 @@ const globalSetup = async (): Promise<void> => {
   process.env.E2E_AGENT_USER_ID ??= `@${accounts.agent}:${LOCAL_SERVER_NAME}`;
 
   seedFixtureRoom();
+  await seedAgentRoom(accounts.primary, process.env.E2E_AGENT_USER_ID);
 };
 
 export default globalSetup;

@@ -678,3 +678,42 @@ test('nested page layouts share the outer material while portal menus own a surf
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 });
+
+test('custom thread popups receive shared material and retain keyboard actions', async ({
+  page,
+}) => {
+  await page.goto('/e2e/fixtures/glass-surfaces.html');
+  const overview = page.getByTestId('thread-overview');
+  await overview.locator('[data-info-button]').click();
+  const stats = overview.getByRole('dialog');
+  await expect(stats).toBeVisible();
+  expect(await stats.evaluate((element) => getComputedStyle(element).backdropFilter)).not.toBe(
+    'none'
+  );
+  await overview.locator('[data-info-button]').click();
+  await expect(stats).toHaveCount(0);
+
+  await overview.locator('[data-add-tag-button]').click();
+  expect(
+    await overview
+      .getByRole('listbox')
+      .evaluate((element) => getComputedStyle(element).backdropFilter)
+  ).not.toBe('none');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(overview.locator('output')).toHaveText('Tag: priority');
+  await expect(overview.getByRole('listbox')).toHaveCount(0);
+
+  await overview.locator('[data-preset-button]').click();
+  expect(
+    await overview
+      .getByRole('listbox')
+      .evaluate((element) => getComputedStyle(element).backdropFilter)
+  ).not.toBe('none');
+  await expect(overview.locator('[data-preset-option="needs-attention"]')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(overview.locator('[data-preset-option="working"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(overview.locator('output')).toHaveText('Preset: working');
+  await expect(overview.getByRole('listbox')).toHaveCount(0);
+});

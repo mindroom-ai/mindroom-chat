@@ -26,6 +26,8 @@ import { glassShadow } from '../../src/app/styles/Glass.css';
 import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/components/page/Page';
 import { NavCategoryHeader } from '../../src/app/components/nav/NavCategoryHeader';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
+import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
+import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThreadOverviewModel';
 import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
 import { Modal500 } from '../../src/app/components/Modal500';
 import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
@@ -57,6 +59,20 @@ function Fixture() {
   const screenSize = useScreenSize();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [threadAction, setThreadAction] = useState('No filter selected');
+  const threadState: ThreadFilterState = {
+    resolved: 'any',
+    streaming: 'any',
+    scheduled: 'any',
+    unread: 'any',
+    idle: 'any',
+    sortBy: 'natural',
+    sortDirection: 'desc',
+    tags: new Map(),
+    freeText: '',
+    unsupportedQuery: '',
+    statusMode: 'and',
+  };
 
   return (
     <main
@@ -184,6 +200,26 @@ function Fixture() {
           </PageRoot>
         </ScreenSizeProvider>
 
+        <section data-testid="thread-overview">
+          <RoomThreadOverview
+            hasMindroomAgents
+            threadCount={5}
+            totalThreadCount={5}
+            state={threadState}
+            availableTags={['priority']}
+            isThreadSortFrozen={false}
+            onToggle={() => {}}
+            onSortDirectionChange={() => {}}
+            onToggleThreadSortFreeze={() => {}}
+            onReset={() => {}}
+            onCycleTag={() => {}}
+            onRemoveTag={() => {}}
+            onAddTag={(tag) => setThreadAction(`Tag: ${tag}`)}
+            onApplyPreset={(preset) => setThreadAction(`Preset: ${preset.id}`)}
+            onSearchQueryChange={() => {}}
+          />
+          <output>{threadAction}</output>
+        </section>
         <section data-testid="thread-banner" className={threadBannerCss.Banner}>
           <Text size="L400">THREAD VIEW</Text>
           <Text>Review the glass surfaces</Text>
