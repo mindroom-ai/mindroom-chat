@@ -22,6 +22,9 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { editableActiveElement } from '../../utils/dom';
 import { RoomViewFollowing } from '../../features/room/RoomViewFollowing';
 import { RoomViewTyping } from '../../features/room/RoomViewTyping';
+import { RoomTombstone } from '../../features/room/RoomTombstone';
+import { useStateEvent } from '../../hooks/useStateEvent';
+import { StateEvent } from '../../../types/matrix/room';
 import { RoomInput } from '../room-input/MindroomRoomInput';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
@@ -209,7 +212,9 @@ export function RoomView({
     effectiveThreadId,
     threadState.handleThreadRootDeleted ?? ignore
   );
-  const composerShown = !localRoot.pending && canMessage;
+  // An upgraded room takes no more messages; its notice leads to the replacement.
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const composerShown = !localRoot.pending && canMessage && !tombstone;
   useTypeToCompose(editor, composerShown);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
@@ -264,6 +269,8 @@ export function RoomView({
           </Text>
         </Box>
       );
+  } else if (tombstone) {
+    composerNotice = <RoomTombstone tombstone={tombstone} style={NOTICE_STYLE} />;
   } else if (!canMessage) {
     composerNotice = (
       <Box justifyContent="Center" style={NOTICE_STYLE}>
