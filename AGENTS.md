@@ -15,6 +15,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 - **Lane C rules (spec section 2).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), MindRoom Chat (`mindroom-ai/mindroom-chat`, `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
 - Allowed inputs: this repository (including Lane P files, but not `FORK_CHANGES.md`), `docs/provenance/seams.tsv`, `docs/design/reference/`, the Matrix specification, library documentation and type definitions, `/home/basnijholt/Work/dev/mindroom/docs/` (other pages) and `/home/basnijholt/Work/dev/mindroom/src/`.
+- Lane C code must pass `just strict` (`tsconfig.strict.json`) and the type-aware ESLint rules that `just lint` applies to Lane C TypeScript.
 
 ### Lane P edit rules
 
@@ -37,6 +38,7 @@ Every command runs in `nix develop` (Node 22, npm, Chromium as `CHROMIUM_PATH`, 
 | `just typecheck` | `tsc --noEmit -p tsconfig.app.json`: the app sources under `src/` without tests; must report 0 errors |
 | `just typecheck-tests` | `tsc --noEmit -p .`: everything, tests and `e2e/` included; reports its errors without failing |
 | `just typecheck-all` | `scripts/typecheck-all.mjs`: syntax and semantic errors together over `tsconfig.json` |
+| `just strict` | `scripts/strict-check.mjs`: `tsc` over `tsconfig.strict.json` (unused names, implicit returns, switch fallthrough, `override`, unchecked index access); fails on Lane C errors only and prints the count of Lane P errors it ignores |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
 | `just lint` | ESLint over `src`, `e2e`, `scripts`, and the config files |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on Lane C files you wrote |
