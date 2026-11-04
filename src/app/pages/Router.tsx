@@ -1,31 +1,14 @@
-import React, { ReactNode } from 'react';
-import { Text } from 'folds';
-import { useTranslation } from 'react-i18next';
+import React, { type ComponentType, lazy, useState } from 'react';
 import {
   Navigate,
-  Outlet,
   Route,
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
-  useNavigate,
 } from 'react-router-dom';
 import type { ClientConfig } from '../hooks/useClientConfig';
-import { ScreenSize, useScreenSizeContext } from '../hooks/useScreenSize';
-import {
-  MindroomNavigationProvider,
-  MindroomPageRoot,
-  MindroomSidebarNav,
-  MindroomSpacePageRoot,
-} from '../mindroom/sidebar/MindroomNavigation';
-import { MindroomPageNav } from '../mindroom/sidebar/ResizablePageNav';
-import { HomeSearchPage, SpaceSearchPage } from '../mindroom/message-search/MessageSearchPage';
+import type { ScreenSize } from '../hooks/useScreenSize';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
-import { ConnectionsRoute } from './client/connections/ConnectionsRoute';
-import { CreateRoomForm } from '../features/create-room/CreateRoom';
-import { JoinAddressForm } from '../components/join-address-prompt';
-import { Page, PageMain } from '../components/page';
-import { PhonePageHeader } from '../components/page/PhonePageHeader';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
 import {
@@ -56,32 +39,91 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
 } from './paths';
-import { getHomeRoomPath, withSearchParam } from './pathUtils';
 import { getAppBasePath } from '../utils/basePath';
 import { AuthLayout } from './auth/AuthLayout';
 import { Login } from './auth/login/Login';
 import { Register } from './auth/register/Register';
 import { ResetPassword } from './auth/reset-password/ResetPassword';
 import { ClientRoot } from './client/ClientRoot';
-import { ClientBindAtoms } from './client/ClientBindAtoms';
-import { ClientLayout } from './client/ClientLayout';
-import { ClientShell } from './client/ClientShell';
-import { WelcomePage } from './client/WelcomePage';
-import { RoomRoute } from './client/RoomRoute';
-import { Room } from '../mindroom/threads/MindroomRoom';
-import { Home } from './client/home/Home';
-import { Direct } from './client/direct/Direct';
-import { DirectCreate } from './client/direct/DirectCreate';
-import { Space, SpaceRouteProvider } from './client/space/Space';
-import { Lobby } from '../features/lobby/Lobby';
-import { Threads } from './client/threads';
-import { Canvases } from './client/canvases';
-import { FeaturedRooms } from './client/explore/Featured';
-import { PublicRooms } from './client/explore/Server';
-import { Invites } from './client/inbox/Invites';
-import { InboxNav } from './client/inbox/InboxNav';
-import { ExploreNav } from './client/explore/ExploreNav';
-import { Notifications } from './client/inbox/Notifications';
+
+// The signed-in pages load as their own chunks, so the sign-in pages start without them.
+// ProtectedRoutes asks for them as soon as a signed-in route renders: they load while ClientRoot
+// starts the account, which takes longer, so its splash never waits for them.
+type ClientPages = typeof import('./client/clientPages');
+type RoomModule = typeof import('../mindroom/threads/MindroomRoom');
+let clientPages: ClientPages | undefined;
+let roomModule: RoomModule | undefined;
+const loadClientPages = () =>
+  import('./client/clientPages').then((pages) => {
+    clientPages = pages;
+    return pages;
+  });
+const loadRoom = () =>
+  import('../mindroom/threads/MindroomRoom').then((room) => {
+    roomModule = room;
+    return room;
+  });
+
+const preloadSignedInPages = (): void => {
+  loadClientPages().catch(() => undefined);
+  loadRoom().catch(() => undefined);
+};
+
+/**
+ * A component from a lazily loaded module. Once the module is in, it renders directly: a
+ * React.lazy component suspends on its first render even then, and the nested pages would each
+ * suspend in turn, leaving the page empty for a few renders.
+ */
+const fromModule = <M, P extends object>(
+  loaded: () => M | undefined,
+  load: () => Promise<M>,
+  pick: (module: M) => ComponentType<P>
+): ComponentType<P> => {
+  // React.lazy's exotic component renders like the component it loads.
+  const Lazy = lazy(async () => ({ default: pick(await load()) })) as unknown as ComponentType<P>;
+  function LazyPage(props: P) {
+    const [Component] = useState(() => {
+      const module = loaded();
+      return module ? pick(module) : Lazy;
+    });
+    return <Component {...props} />;
+  }
+  return LazyPage;
+};
+
+const fromPages = <P extends object>(pick: (pages: ClientPages) => ComponentType<P>) =>
+  fromModule(() => clientPages, loadClientPages, pick);
+
+const SignedInChrome = fromPages((pages) => pages.SignedInChrome);
+const SectionPage = fromPages((pages) => pages.SectionPage);
+const SpaceSectionPage = fromPages((pages) => pages.SpaceSectionPage);
+const SectionIndex = fromPages((pages) => pages.SectionIndex);
+const CreateRoomPage = fromPages((pages) => pages.CreateRoomPage);
+const JoinAddressPage = fromPages((pages) => pages.JoinAddressPage);
+const PageMain = fromPages((pages) => pages.PageMain);
+const ConnectionsRoute = fromPages((pages) => pages.ConnectionsRoute);
+const HomeSearchPage = fromPages((pages) => pages.HomeSearchPage);
+const SpaceSearchPage = fromPages((pages) => pages.SpaceSearchPage);
+const WelcomePage = fromPages((pages) => pages.WelcomePage);
+const RoomRoute = fromPages((pages) => pages.RoomRoute);
+const Home = fromPages((pages) => pages.Home);
+const Direct = fromPages((pages) => pages.Direct);
+const DirectCreate = fromPages((pages) => pages.DirectCreate);
+const SpaceRouteProvider = fromPages((pages) => pages.SpaceRouteProvider);
+const Lobby = fromPages((pages) => pages.Lobby);
+const Threads = fromPages((pages) => pages.Threads);
+const Canvases = fromPages((pages) => pages.Canvases);
+const FeaturedRooms = fromPages((pages) => pages.FeaturedRooms);
+const PublicRooms = fromPages((pages) => pages.PublicRooms);
+const Invites = fromPages((pages) => pages.Invites);
+const InboxNav = fromPages((pages) => pages.InboxNav);
+const ExploreNav = fromPages((pages) => pages.ExploreNav);
+const Notifications = fromPages((pages) => pages.Notifications);
+const Room = fromModule(
+  () => roomModule,
+  loadRoom,
+  (room) => room.Room
+);
 
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
 
@@ -108,104 +150,11 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
     if (decision.afterLoginPath) setAfterLoginRedirectPath(decision.afterLoginPath);
     return <Navigate to={decision.redirectTo} replace />;
   }
+  preloadSignedInPages();
   return (
     <ClientRoot>
-      <ClientBindAtoms>
-        <ClientShell>
-          <MindroomNavigationProvider>
-            <ClientLayout nav={<MindroomSidebarNav />}>
-              <Outlet />
-            </ClientLayout>
-          </MindroomNavigationProvider>
-        </ClientShell>
-      </ClientBindAtoms>
+      <SignedInChrome />
     </ClientRoot>
-  );
-}
-
-/** A section with its navigation; `navId` names the section whose open page is remembered. */
-function SectionPage({ path, nav, navId }: { path: string; nav: ReactNode; navId?: string }) {
-  return (
-    <MindroomPageRoot navId={navId} nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
-      <Outlet />
-    </MindroomPageRoot>
-  );
-}
-
-/** A space with its navigation; it remembers the page open in that space. */
-function SpaceSectionPage({ path }: { path: string }) {
-  return (
-    <MindroomSpacePageRoot
-      nav={
-        <MindroomPageNav path={path}>
-          <Space />
-        </MindroomPageNav>
-      }
-    >
-      <Outlet />
-    </MindroomSpacePageRoot>
-  );
-}
-
-/** A section's own page: on phones its navigation list fills the screen there instead. */
-function SectionIndex({ page }: { page: ReactNode }) {
-  return useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>;
-}
-
-function CreateRoomPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  return (
-    <Page>
-      <PhonePageHeader to={HOME_PATH} title={t('nav.createRoom')} />
-      <div
-        style={{
-          padding: '24px',
-          width: '100%',
-          maxWidth: '640px',
-          margin: '0 auto',
-          overflowY: 'auto',
-          flexGrow: 1,
-          minHeight: 0,
-        }}
-      >
-        {/* On phones the title bar names the page. */}
-        {!phone && (
-          <Text as="h1" size="H4" style={{ marginBottom: '16px' }}>
-            {t('nav.createRoom')}
-          </Text>
-        )}
-        <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
-      </div>
-    </Page>
-  );
-}
-
-/** `/home/join/`: the join-by-address form as a page, the way `/home/create/` holds room creation. */
-function JoinAddressPage() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const title = t('sharedUi.joinAddressPrompt.joinWithAddress');
-  const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
-    navigate(
-      withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
-        viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
-      })
-    );
-  return (
-    <Page>
-      <PhonePageHeader to={HOME_PATH} title={title} />
-      <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
-        {!phone && (
-          <Text as="h1" size="H4" style={{ marginBottom: '16px' }}>
-            {title}
-          </Text>
-        )}
-        <JoinAddressForm onOpen={openRoom} style={{}} />
-      </div>
-    </Page>
   );
 }
 

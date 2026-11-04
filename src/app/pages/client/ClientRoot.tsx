@@ -1,4 +1,12 @@
-import React, { CSSProperties, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  CSSProperties,
+  ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Box,
   Button,
@@ -480,9 +488,12 @@ function ClientSession({ session, children }: ClientSessionProps) {
     <QueryClientProvider client={queryClient}>
       <SpecVersions baseUrl={session.baseUrl} allowCachedContent={sync.restoredRooms}>
         {mx && shellEngine && shellReady ? (
-          <AccountProviders mx={mx} engine={shellEngine} sync={sync}>
-            {children}
-          </AccountProviders>
+          // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
+          <Suspense fallback={<StartupSplash mx={mx} />}>
+            <AccountProviders mx={mx} engine={shellEngine} sync={sync}>
+              {children}
+            </AccountProviders>
+          </Suspense>
         ) : (
           <StartupSplash mx={mx} />
         )}
