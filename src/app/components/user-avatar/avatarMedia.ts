@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { authenticatedMediaRequestInit, supportsAuthenticatedMedia } from '../../utils/mediaUrl';
+import { getBlobSafeMimeType } from '../../utils/mimeTypes';
 
 // Avatar images normally load straight from their media URL: on the web the service worker adds
 // the access token to authenticated media requests (Matrix 1.11, MSC3916). A page without a
@@ -152,12 +153,14 @@ export const peekFetchedAvatar = (mx: AvatarMediaClient, src: string): string | 
   return entry.objectUrl;
 };
 
+// The object URL belongs to the app's origin, where "Open image in new tab" would run an SVG or
+// HTML body's script, so the blob gets one of the safe image types or a plain download type.
 const download = async (target: string, init: RequestInit): Promise<string | undefined> => {
   const response = await fetch(target, init);
   if (!response.ok) return undefined;
   const blob = await response.blob();
   if (blob.size === 0) return undefined;
-  return URL.createObjectURL(blob);
+  return URL.createObjectURL(new Blob([blob], { type: getBlobSafeMimeType(blob.type) }));
 };
 
 /**

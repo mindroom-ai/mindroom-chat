@@ -131,6 +131,25 @@ describe('fetchAvatar', () => {
     expect(peekFetchedAvatar(client(), AUTHED)).toBe('blob:avatar-1');
   });
 
+  it('gives the object URL a safe type, never one that runs script in the app origin', async () => {
+    const types: string[] = [];
+    vi.mocked(URL.createObjectURL).mockImplementation((blob) => {
+      types.push((blob as Blob).type);
+      return `blob:avatar-${types.length}`;
+    });
+    const served = (type: string) => async () =>
+      new Response(new Blob(['<svg onload="alert(1)"/>'], { type }), { status: 200 });
+
+    fetchMock.mockImplementationOnce(served('image/svg+xml'));
+    await fetchAvatar(client('@a:hs.test'), AUTHED);
+    fetchMock.mockImplementationOnce(served('text/html'));
+    await fetchAvatar(client('@b:hs.test'), AUTHED);
+    fetchMock.mockImplementationOnce(served('image/png'));
+    await fetchAvatar(client('@c:hs.test'), AUTHED);
+
+    expect(types).toEqual(['application/octet-stream', 'application/octet-stream', 'image/png']);
+  });
+
   it('shares one download between concurrent requests of one account', async () => {
     const [first, second] = await Promise.all([
       fetchAvatar(client(), LEGACY),
