@@ -1,0 +1,220 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "스크롤"
+    },
+    "passwordInput": {
+      "show": "비밀번호 표시",
+      "hide": "비밀번호 숨기기"
+    },
+    "pdfViewer": {
+      "close": "닫기"
+    },
+    "urlPreviewHolder": {
+      "previous": "이전 링크 미리보기",
+      "next": "링크 미리보기 더 보기"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "이름",
+      "cancel": "취소",
+      "skinTone": "피부색",
+      "skinTones": {
+        "default": "기본 피부색",
+        "light": "밝은 피부색",
+        "mediumLight": "약간 밝은 피부색",
+        "medium": "중간 피부색",
+        "mediumDark": "약간 어두운 피부색",
+        "dark": "어두운 피부색"
+      }
+    },
+    "eventReaders": {
+      "close": "닫기"
+    },
+    "imagePackContent": {
+      "uploadFailed": "이미지를 업로드하지 못했습니다. 다시 시도하세요.",
+      "noImages": "아직 이미지가 없습니다."
+    },
+    "imagePackView": {
+      "close": "닫기",
+      "back": "뒤로"
+    },
+    "imageTile": {
+      "remove": "제거",
+      "editImage": ":{{shortcode}}: 편집",
+      "removeImage": ":{{shortcode}}: 제거",
+      "keepImage": ":{{shortcode}}: 유지",
+      "removedOnApply": "변경 사항을 적용하면 제거됩니다",
+      "usage": "사용 용도",
+      "shortcodeTaken": "다른 이미지가 이미 이 단축 코드를 사용하고 있습니다.",
+      "shortcodeInvalid": "단축 코드에는 공백이나 콜론을 쓸 수 없습니다."
+    },
+    "imageUsageOption": {
+      "pack": "팩과 동일"
+    },
+    "imageViewer": {
+      "close": "닫기"
+    },
+    "inviteUserPrompt": {
+      "close": "닫기"
+    },
+    "joinAddressPrompt": {
+      "close": "닫기"
+    },
+    "textViewer": {
+      "close": "닫기"
+    },
+    "invites": {
+      "actionFailed": "문제가 발생했습니다. 다시 시도하세요."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "사용자를 검색하거나 사용자 ID를 입력하세요"
+    },
+    "leaveRoomPrompt": {
+      "close": "닫기",
+      "forget": "이 방 잊기",
+      "forgetDescription": "기록을 포함해 계정에서도 제거합니다. 방에서 허용하면 나중에 다시 참여할 수 있습니다."
+    },
+    "memberFilters": {
+      "label": "멤버 표시"
+    },
+    "memberSort": {
+      "label": "멤버 정렬"
+    },
+    "a11y": {
+      "mainNavigation": "주 탐색",
+      "skipToContent": "본문으로 건너뛰기",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "방 잊기"
+    },
+    "userRoomProfile": {
+      "editProfile": "프로필 편집"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} 삭제"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "이벤트에 유형을 지정하고 내용은 JSON 객체로 입력하세요."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "개인 팩",
+          "imageCount_other": "이미지 {{count}}개, 모든 방에서 사용 가능"
+        }
+      },
+      "devices": {
+        "loadFailed": "기기를 불러오지 못했습니다."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "차단 해제"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "제거"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "채팅을 시작하지 못했습니다. 다시 시도하세요."
+    },
+    "homeNav": {
+      "options": "홈 옵션"
+    },
+    "directNav": {
+      "options": "다이렉트 메시지 옵션"
+    },
+    "spaceNav": {
+      "options": "스페이스 옵션"
+    },
+    "calls": {
+      "panel": {
+        "title": "통화",
+        "close": "통화 패널 닫기",
+        "participants": "통화 참여자",
+        "connecting": "연결 중…",
+        "reconnecting": "다시 연결하는 중…",
+        "ended": "통화가 종료되었습니다.",
+        "waitingFor": "{{name}} 님을 기다리는 중…",
+        "you": "{{name}}(나)",
+        "microphoneOff": "마이크 꺼짐",
+        "inCall_other": "통화 중 {{count}}명",
+        "startCall": "통화 시작",
+        "startVideoCall": "영상 통화 시작",
+        "dismiss": "닫기",
+        "audioBlocked": "브라우저가 통화 소리를 일시 중지했습니다.",
+        "playSound": "소리 재생",
+        "resize": "통화 패널 크기 조절"
+      },
+      "problems": {
+        "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
+        "connection": "통화 연결이 끊어졌습니다.",
+        "device": "마이크 또는 카메라를 사용할 수 없습니다."
+      },
+      "devices": {
+        "title": "기기",
+        "microphone": "마이크",
+        "camera": "카메라",
+        "speaker": "스피커",
+        "systemDefault": "시스템 기본값",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "통화 시작",
+        "joinCall": "통화 참여",
+        "joinCallCount_other": "통화 참여, 현재 {{count}}명 참여 중",
+        "showCall": "통화 표시",
+        "hideCall": "통화 숨기기"
+      },
+      "rail": {
+        "returnToCall": "{{room}}의 통화로 돌아가기"
+      },
+      "incoming": {
+        "calling": "{{name}} 님의 전화",
+        "callingIn": "{{room}}에서 {{name}} 님의 전화",
+        "videoCall": "영상 통화",
+        "voiceCall": "음성 통화"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "생각함"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "검색하지 못했습니다. 다시 시도하세요."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "초대",
+        "body_other": "새 초대가 {{count}}개 있습니다."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "간결 보기"
+      }
+    },
+    "computer": {
+      "resize": "컴퓨터 패널 크기 조절",
+      "close": "컴퓨터 닫기"
+    }
+  },
+  "composer": {
+    "emoji": "이모지",
+    "cancelReply": "답장 취소"
+  }
+}
