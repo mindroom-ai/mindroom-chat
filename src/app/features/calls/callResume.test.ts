@@ -217,7 +217,7 @@ describe('whenServerSynced', () => {
   it('waits past a start from the cache for a sync from the server', async () => {
     const { mx, emitter } = syncingClient(SyncState.Prepared);
     let synced = false;
-    whenServerSynced(mx).then(() => {
+    void whenServerSynced(mx).then(() => {
       synced = true;
     });
     emitter.emit(ClientEvent.Sync, SyncState.Prepared);

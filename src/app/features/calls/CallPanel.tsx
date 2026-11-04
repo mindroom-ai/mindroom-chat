@@ -192,7 +192,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         }
         icon={state.microphone ? Icons.Mic : Icons.MicMute}
         off={!state.microphone}
-        onClick={() => call.setMicrophone(!state.microphone)}
+        onClick={() => void call.setMicrophone(!state.microphone)}
       />
       {!agentCall && (
         <CallControl
@@ -202,7 +202,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
               : t('featureUi.call.controls.startCamera')
           }
           icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-          onClick={() => call.setCamera(!state.camera)}
+          onClick={() => void call.setCamera(!state.camera)}
         />
       )}
       {!agentCall && browserSharesScreens() && (
@@ -214,7 +214,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           }
           icon={Icons.ScreenShare}
           pressed={state.screenShare}
-          onClick={() => call.setScreenShare(!state.screenShare)}
+          onClick={() => void call.setScreenShare(!state.screenShare)}
         />
       )}
       <CallControl
@@ -227,7 +227,10 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         off={!state.sound}
         onClick={() => call.setSound(!state.sound)}
       />
-      <DeviceControl chosen={state.devices} onChoose={(kind, id) => call.setDevice(kind, id)} />
+      <DeviceControl
+        chosen={state.devices}
+        onChoose={(kind, id) => void call.setDevice(kind, id)}
+      />
       <CallControl
         label={t('featureUi.call.callControls.end')}
         icon={Icons.PhoneDown}
@@ -273,7 +276,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
               radii="300"
               variant="Warning"
               fill="Solid"
-              onClick={() => call.resumeAudio()}
+              onClick={() => void call.resumeAudio()}
             >
               <Text size="B300">{t('featureUi.calls.panel.playSound')}</Text>
             </Button>
@@ -334,7 +337,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 
   const join = () => {
     setJoining(true);
-    startCall({
+    void startCall({
       room,
       kind: 'room',
       microphone,

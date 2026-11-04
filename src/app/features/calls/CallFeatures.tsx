@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -99,7 +99,7 @@ function CallResume() {
     // The shell can mount again before the first sync, or the account sign out or switch; the
     // run that gets past the sync takes the record, so a cancelled one leaves it to the next.
     let cancelled = false;
-    (async () => {
+    void (async () => {
       await whenServerSynced(mx);
       if (cancelled) return;
       // Read only now: a shell that went away before acting leaves the record to the next one.

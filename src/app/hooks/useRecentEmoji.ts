@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClientEvent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../../types/matrix/accountData';
+import { matchesEnum } from '../utils/matchesEnum';
 import type { ImagePack } from '../plugins/custom-emoji';
 import type { IEmoji } from '../plugins/emoji';
 import { useEmojiData } from '../plugins/emojiData';
@@ -29,7 +30,7 @@ export const useRecentEmoji = (
   useEffect(() => {
     // The list is read from the account data, so a new version is all a reader needs.
     const bumpOnRecentEmoji = (event: MatrixEvent) => {
-      if (event.getType() !== AccountDataEvent.ElementRecentEmoji) return;
+      if (!matchesEnum(event.getType(), AccountDataEvent.ElementRecentEmoji)) return;
       setVersion((count) => count + 1);
     };
     client.on(ClientEvent.AccountData, bumpOnRecentEmoji);

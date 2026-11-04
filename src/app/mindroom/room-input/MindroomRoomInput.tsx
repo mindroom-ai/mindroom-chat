@@ -142,7 +142,8 @@ type ComposerIconButtonProps = {
   variant?: 'Primary' | 'SurfaceVariant';
   /** The icon points along the reading direction, so right-to-left languages mirror it. */
   directional?: boolean;
-  onPress: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  /** The send button answers its send's promise, which the composer tests await. */
+  onPress: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<unknown>;
 };
 
 /** An icon-only composer button, named by its tooltip and its aria-label alike. */
@@ -159,6 +160,10 @@ function ComposerIconButton({
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
+          // The click handler keeps the send's promise as its result: callers that await a send
+          // (the Lane P composer tests) read it there; a click ignores it, and the send handles
+          // its own failure.
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onClick={onPress}
           aria-label={label}
           aria-pressed={pressed}
@@ -440,7 +445,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const sendKey = enterForNewline || mobileOrTablet() ? isModEnter : isEnter;
         if (sendKey(keyEvent)) {
           event.preventDefault();
-          handleSend();
+          void handleSend();
         }
       },
       [autocompleteMenuOpen, editor, enterForNewline, handleSend, isComposing]
@@ -563,7 +568,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             {commandProblem}
           </Text>
         )}
-        {voice.renderRecorder(handleSend)}
+        {voice.renderRecorder(() => void handleSend())}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
