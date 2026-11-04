@@ -78,7 +78,7 @@ export const Detail = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  opacity: 0.72,
+  opacity: 0.9,
 });
 
 export const Chevron = style({
