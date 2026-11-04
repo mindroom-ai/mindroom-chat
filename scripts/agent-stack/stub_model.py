@@ -38,6 +38,7 @@ from pathlib import Path
 from aiohttp import web
 
 TRANSIENT_PREFIX = "<mindroom_transient_context>"
+JOBS_ENDED = "background jobs you started earlier in this conversation have ended"
 
 CANVAS_PAGE = (
     "<!doctype html><html><body style='font-family:sans-serif;padding:16px'>"
@@ -50,7 +51,7 @@ TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
     "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
     "#multi": [
         ("run_shell_command", {"args": "echo step one"}),
-        ("run_shell_command", {"args": "sleep 2; echo step two"}),
+        ("run_shell_command", {"args": "sleep 10; echo step two"}),
         ("run_shell_command", {"args": "echo step three"}),
     ],
     "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
@@ -181,12 +182,17 @@ def plan(body: dict) -> tuple:
         text = latest
     results = [m for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
     last_result = text_of(results[-1].get("content"))[:400] if results else ""
+    available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
+    # When background jobs end, MindRoom asks the agent to collect their results and report them.
+    if JOBS_ENDED in latest and "job" in available:
+        if not results:
+            return ("tool", "job", {"action": "collect"})
+        return ("text", f"The background job ended:\n\n```\n{last_result}\n```")
     for tag, steps in TOOL_SCENARIOS.items():
         if not has_tag(text, tag):
             continue
         if len(results) < len(steps):
             name, args = steps[len(results)]
-            available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
             if name not in available:
                 return (
                     "text",
