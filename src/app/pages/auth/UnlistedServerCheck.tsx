@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useRef, useState } from 'react';
-import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
+import { Box, Button, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Header, IconButton } from '../../components/glass/GlassPrimitives';
+import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { ModalLayer } from '../../components/ModalLayer';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import {
@@ -34,18 +34,10 @@ export function UnlistedServerPrompt({ host, onCancel, onContinue }: UnlistedSer
         aria-describedby={DESCRIPTION_ID}
         style={{ width: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(420)})` }}
       >
-        <Header size="500" style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}>
+        <Header size="500" style={{ paddingInline: config.space.S400 }}>
           <Text id={HEADING_ID} size="H4" style={{ flexGrow: 1 }}>
             {t('sharedUi.unlistedServer.title')}
           </Text>
-          <IconButton
-            aria-label={t('sharedUi.unlistedServer.cancel')}
-            size="300"
-            radii="300"
-            onClick={onCancel}
-          >
-            <Icon src={Icons.Cross} size="200" />
-          </IconButton>
         </Header>
         <Box
           id={DESCRIPTION_ID}
