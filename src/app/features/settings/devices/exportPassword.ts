@@ -4,6 +4,12 @@
  */
 export const MIN_EXPORT_PASSWORD_LENGTH = 12;
 
-/** Whether `password` is long enough to protect a key export, counted in characters. */
+/** Spaces of any kind and invisible format characters (zero-width spaces and joiners, marks). */
+const BLANK = /[\s\p{Cf}]/u;
+
+/**
+ * Whether `password` is long enough to protect a key export: counted in characters, leaving out
+ * spaces and invisible characters, so twelve spaces are not a password.
+ */
 export const isExportPasswordLongEnough = (password: string): boolean =>
-  [...password].length >= MIN_EXPORT_PASSWORD_LENGTH;
+  [...password].filter((character) => !BLANK.test(character)).length >= MIN_EXPORT_PASSWORD_LENGTH;

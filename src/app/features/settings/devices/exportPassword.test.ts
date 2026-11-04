@@ -7,11 +7,22 @@ describe('isExportPasswordLongEnough', () => {
     expect(isExportPasswordLongEnough('')).toBe(false);
     expect(isExportPasswordLongEnough('a')).toBe(false);
     expect(isExportPasswordLongEnough('elevenchars')).toBe(false);
-    expect(isExportPasswordLongEnough('twelve chars')).toBe(true);
+    expect(isExportPasswordLongEnough('twelvechars!')).toBe(true);
   });
 
   it('counts characters, not UTF-16 units', () => {
     expect(isExportPasswordLongEnough('🔑'.repeat(6))).toBe(false);
     expect(isExportPasswordLongEnough('🔑'.repeat(12))).toBe(true);
+  });
+
+  it('leaves out spaces and invisible characters', () => {
+    expect(isExportPasswordLongEnough(' '.repeat(12))).toBe(false);
+    expect(isExportPasswordLongEnough(' '.repeat(40))).toBe(false);
+    // Eleven letters padded with spaces, tabs, a no-break space and an ideographic space.
+    expect(isExportPasswordLongEnough(' eleven\tchars 　 ')).toBe(false);
+    // Zero-width space, zero-width joiner, word joiner, byte order mark.
+    expect(isExportPasswordLongEnough('elevenchars​‍⁠﻿')).toBe(false);
+    expect(isExportPasswordLongEnough('twelve chars')).toBe(false);
+    expect(isExportPasswordLongEnough('twelve chars!')).toBe(true);
   });
 });
