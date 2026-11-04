@@ -16,36 +16,56 @@ export type TimelineArriveMeta = {
   timeline?: EventTimeline;
 };
 
+type TimelineListener = RoomEventHandlerMap[RoomEvent.Timeline];
+
 /**
- * Call `onArrive` for every event added to a timeline of `room`, including its threads (the
- * room re-emits their timeline events). Removals are ignored.
+ * Hands every timeline event of `room`, including its threads' (the room re-emits their timeline
+ * events), to the newest `listener`. The room listener itself stays registered until the room
+ * changes, so it keeps its place among the room's listeners.
  */
-export const useLiveEventArrive = (
-  room: Room,
-  onArrive: (mEvent: MatrixEvent, meta: TimelineArriveMeta) => void
-): void => {
-  const onArriveRef = useRef(onArrive);
-  onArriveRef.current = onArrive;
+const useRoomTimelineListener = (room: Room, listener: TimelineListener): void => {
+  const listenerRef = useRef(listener);
+  listenerRef.current = listener;
 
   useEffect(() => {
-    const handleTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
-      mEvent,
-      eventRoom,
-      toStartOfTimeline,
-      removed,
-      data
-    ) => {
-      if (removed) return;
+    const handleTimeline: TimelineListener = (mEvent, eventRoom, ...rest) => {
       if (eventRoom && eventRoom.roomId !== room.roomId) return;
-      onArriveRef.current(mEvent, {
-        liveEvent: !!data?.liveEvent,
-        toStartOfTimeline: !!toStartOfTimeline,
-        timeline: data?.timeline,
-      });
+      listenerRef.current(mEvent, eventRoom, ...rest);
     };
     room.on(RoomEvent.Timeline, handleTimeline);
     return () => {
       room.removeListener(RoomEvent.Timeline, handleTimeline);
     };
   }, [room]);
+};
+
+/**
+ * Call `onArrive` for every event added to a timeline of `room`, including its threads.
+ * Removals go to `useLiveEventRemove`.
+ */
+export const useLiveEventArrive = (
+  room: Room,
+  onArrive: (mEvent: MatrixEvent, meta: TimelineArriveMeta) => void
+): void => {
+  useRoomTimelineListener(room, (mEvent, _eventRoom, toStartOfTimeline, removed, data) => {
+    if (removed) return;
+    onArrive(mEvent, {
+      liveEvent: !!data?.liveEvent,
+      toStartOfTimeline: !!toStartOfTimeline,
+      timeline: data?.timeline,
+    });
+  });
+};
+
+/**
+ * Call `onRemove` for every event taken out of a timeline of `room` (a cancelled send, say), with
+ * the timeline it left. Thread timelines and the room's thread lists report here too.
+ */
+export const useLiveEventRemove = (
+  room: Room,
+  onRemove: (mEvent: MatrixEvent, timeline: EventTimeline | undefined) => void
+): void => {
+  useRoomTimelineListener(room, (mEvent, _eventRoom, _toStartOfTimeline, removed, data) => {
+    if (removed) onRemove(mEvent, data?.timeline);
+  });
 };
