@@ -3,6 +3,10 @@
     "pageScroll": {
       "scrollbar": "स्क्रॉल करें"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} फ़ाइल",
+      "fileCount_other": "{{count}} फ़ाइलें"
+    },
     "passwordInput": {
       "show": "पासवर्ड दिखाएँ",
       "hide": "पासवर्ड छिपाएँ"

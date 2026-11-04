@@ -3,6 +3,11 @@
     "pageScroll": {
       "scrollbar": "Scorrimento"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} file",
+      "fileCount_many": "{{count}} file",
+      "fileCount_other": "{{count}} file"
+    },
     "passwordInput": {
       "show": "Mostra password",
       "hide": "Nascondi password"

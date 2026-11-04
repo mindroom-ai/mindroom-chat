@@ -3,6 +3,9 @@
     "pageScroll": {
       "scrollbar": "スクロール"
     },
+    "uploadBoard": {
+      "fileCount_other": "{{count}} 個のファイル"
+    },
     "passwordInput": {
       "show": "パスワードを表示",
       "hide": "パスワードを隠す"

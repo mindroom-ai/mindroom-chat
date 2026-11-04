@@ -3,6 +3,10 @@
     "pageScroll": {
       "scrollbar": "Kaydırma"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} dosya",
+      "fileCount_other": "{{count}} dosya"
+    },
     "passwordInput": {
       "show": "Parolayı göster",
       "hide": "Parolayı gizle"

@@ -3,6 +3,14 @@
     "pageScroll": {
       "scrollbar": "تمرير"
     },
+    "uploadBoard": {
+      "fileCount_zero": "⁨{{count}}⁩ ملف",
+      "fileCount_one": "⁨{{count}}⁩ ملف",
+      "fileCount_two": "⁨{{count}}⁩ ملفان",
+      "fileCount_few": "⁨{{count}}⁩ ملفات",
+      "fileCount_many": "⁨{{count}}⁩ ملفًا",
+      "fileCount_other": "⁨{{count}}⁩ ملف"
+    },
     "passwordInput": {
       "show": "إظهار كلمة المرور",
       "hide": "إخفاء كلمة المرور"

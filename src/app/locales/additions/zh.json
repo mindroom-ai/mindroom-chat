@@ -3,6 +3,9 @@
     "pageScroll": {
       "scrollbar": "滚动"
     },
+    "uploadBoard": {
+      "fileCount_other": "{{count}} 个文件"
+    },
     "passwordInput": {
       "show": "显示密码",
       "hide": "隐藏密码"

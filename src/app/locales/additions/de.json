@@ -3,6 +3,10 @@
     "pageScroll": {
       "scrollbar": "Scrollen"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} Datei",
+      "fileCount_other": "{{count}} Dateien"
+    },
     "passwordInput": {
       "show": "Passwort anzeigen",
       "hide": "Passwort verbergen"

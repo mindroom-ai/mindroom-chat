@@ -67,7 +67,7 @@ export function UploadBoardHeader(props: UploadBoardHeaderProps) {
         >
           <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronRight} />
           <Text as="span" size="H6">
-            {`${uploads.length} ${t('sharedUi.uploadBoard.files')}`}
+            {t('sharedUi.uploadBoard.fileCount', { count: uploads.length })}
           </Text>
           {loading > 0 && <Spinner size="100" variant="Secondary" />}
           {failed > 0 && (

@@ -3,6 +3,9 @@
     "pageScroll": {
       "scrollbar": "스크롤"
     },
+    "uploadBoard": {
+      "fileCount_other": "파일 {{count}}개"
+    },
     "passwordInput": {
       "show": "비밀번호 표시",
       "hide": "비밀번호 숨기기"

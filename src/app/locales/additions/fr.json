@@ -3,6 +3,11 @@
     "pageScroll": {
       "scrollbar": "Défilement"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} fichier",
+      "fileCount_many": "{{count}} fichiers",
+      "fileCount_other": "{{count}} fichiers"
+    },
     "passwordInput": {
       "show": "Afficher le mot de passe",
       "hide": "Masquer le mot de passe"

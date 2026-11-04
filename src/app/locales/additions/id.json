@@ -3,6 +3,9 @@
     "pageScroll": {
       "scrollbar": "Gulir"
     },
+    "uploadBoard": {
+      "fileCount_other": "{{count}} file"
+    },
     "passwordInput": {
       "show": "Tampilkan kata sandi",
       "hide": "Sembunyikan kata sandi"

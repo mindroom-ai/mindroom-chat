@@ -3,6 +3,9 @@
     "pageScroll": {
       "scrollbar": "捲動"
     },
+    "uploadBoard": {
+      "fileCount_other": "{{count}} 個檔案"
+    },
     "passwordInput": {
       "show": "顯示密碼",
       "hide": "隱藏密碼"

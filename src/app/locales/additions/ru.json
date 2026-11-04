@@ -3,6 +3,12 @@
     "pageScroll": {
       "scrollbar": "Прокрутка"
     },
+    "uploadBoard": {
+      "fileCount_one": "{{count}} файл",
+      "fileCount_few": "{{count}} файла",
+      "fileCount_many": "{{count}} файлов",
+      "fileCount_other": "{{count}} файла"
+    },
     "passwordInput": {
       "show": "Показать пароль",
       "hide": "Скрыть пароль"
