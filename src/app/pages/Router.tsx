@@ -1,4 +1,4 @@
-import React, { ReactNode, useRef } from 'react';
+import React, { ReactNode } from 'react';
 import { Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
@@ -19,10 +19,7 @@ import {
   MindroomSpacePageRoot,
 } from '../mindroom/sidebar/MindroomNavigation';
 import { MindroomPageNav } from '../mindroom/sidebar/ResizablePageNav';
-import {
-  MindroomMessageSearch,
-  type MindroomMessageSearchProps,
-} from '../mindroom/message-search/MindroomMessageSearch';
+import { HomeSearchPage, SpaceSearchPage } from '../mindroom/message-search/MessageSearchPage';
 import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { ConnectionsPage } from '../mindroom/connections/ConnectionsPage';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
@@ -59,7 +56,7 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
 } from './paths';
-import { getHomeRoomPath, getSpacePath, withSearchParam } from './pathUtils';
+import { getHomeRoomPath, withSearchParam } from './pathUtils';
 import { getAppBasePath } from '../utils/basePath';
 import { AuthLayout } from './auth/AuthLayout';
 import { Login } from './auth/login/Login';
@@ -73,14 +70,10 @@ import { WelcomePage } from './client/WelcomePage';
 import { RoomRoute } from './client/RoomRoute';
 import { Room } from '../mindroom/threads/MindroomRoom';
 import { Home } from './client/home/Home';
-import { useHomeSearchRooms } from './client/home/useHomeRooms';
 import { Direct } from './client/direct/Direct';
 import { DirectCreate } from './client/direct/DirectCreate';
 import { Space, SpaceRouteProvider } from './client/space/Space';
-import { useSpaceSearchRooms } from './client/space/useSpaceSearchRooms';
 import { Lobby } from '../features/lobby/Lobby';
-import { useSpace } from '../hooks/useSpace';
-import { useRoomName } from '../hooks/useRoomMeta';
 import { Threads } from './client/threads';
 import { Canvases } from './client/canvases';
 import { FeaturedRooms } from './client/explore/Featured';
@@ -179,45 +172,6 @@ function CreateRoomPage() {
         <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
       </div>
     </Page>
-  );
-}
-
-// The search field and results keep off the edges of the content area.
-const SEARCH_SCROLL = { flexGrow: 1, minHeight: 0, overflowY: 'auto', padding: '16px' } as const;
-
-type SearchPageProps = Omit<MindroomMessageSearchProps, 'scrollRef'> & {
-  /** Where the phone title bar leads back to: the section the search belongs to. */
-  backTo: string;
-};
-
-/** Message search over a section's rooms, scrolling under a phone title bar. */
-function SearchPage({ backTo, ...searchProps }: SearchPageProps) {
-  const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  return (
-    <Page>
-      <PhonePageHeader to={backTo} title={t('nav.messageSearch')} />
-      <div ref={scrollRef} style={SEARCH_SCROLL}>
-        <MindroomMessageSearch {...searchProps} scrollRef={scrollRef} />
-      </div>
-    </Page>
-  );
-}
-
-function HomeSearchPage() {
-  const { t } = useTranslation();
-  const rooms = useHomeSearchRooms();
-  return (
-    <SearchPage backTo={HOME_PATH} defaultRooms={rooms} scopeName={t('nav.home')} allowGlobal />
-  );
-}
-
-function SpaceSearchPage() {
-  const space = useSpace();
-  const rooms = useSpaceSearchRooms(space.roomId);
-  const spaceName = useRoomName(space);
-  return (
-    <SearchPage backTo={getSpacePath(space.roomId)} defaultRooms={rooms} scopeName={spaceName} />
   );
 }
 
