@@ -84,12 +84,13 @@ function CallResume() {
   useEffect(() => {
     if (done.current) return undefined;
     done.current = true;
-    const record = takeCallResume(mx);
-    // The account signed out or switched before its first sync.
+    // The shell can mount again before the first sync, or the account sign out or switch.
     let cancelled = false;
     (async () => {
       await whenServerSynced(mx);
       if (cancelled) return;
+      // Read only now: a shell that went away before acting leaves the record to the next one.
+      const record = takeCallResume(mx);
       await withdrawLeftoverMemberships(mx, record?.roomId);
       if (!record) return;
       await resumeCall(mx, startCall, record).catch(() => undefined);
