@@ -22,6 +22,7 @@ import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { MINDROOM_FAVICON_SRC } from '../branding/branding';
 import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
+import { isThreadListTimeline } from '../threads/roomLiveEventArrive';
 import {
   getLocalizedThreadMessagePreviewText,
   replaceMatrixUserIdsWithDisplayNames,
@@ -144,8 +145,10 @@ export function MessageNotificationsFeature() {
     // decryption works or the message is too old to notify anyway.
     const decryptions = createDecryptionWaits();
     const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, room, older, gone, at) => {
-      // Back-pagination and removals are history; only events the sync just delivered are news.
-      if (!room || older || gone || !at.liveEvent) return;
+      // Back-pagination and removals are history; only events the sync just delivered are news,
+      // not a root a thread list adds again (at a reload, or at each reply to its thread).
+      if (!room || older || gone || !at.liveEvent || isThreadListTimeline(room, at.timeline))
+        return;
       if (isAwaitingDecryption(event)) {
         const left = MESSAGE_NOTIFY_MAX_AGE_MS - (Date.now() - event.getTs());
         decryptions.wait(event, left, () => consider(event, room));

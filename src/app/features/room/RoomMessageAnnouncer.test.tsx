@@ -35,15 +35,25 @@ const message = (
 
 const createRoom = () => {
   const emitter = new EventEmitter();
+  const threadList = {};
   const room = Object.assign(emitter, {
     roomId: ROOM_ID,
     getMember: (userId: string) => (userId === AGENT ? { name: 'Code' } : null),
+    threadsTimelineSets: [threadList],
   }) as unknown as Room;
   const receive = (event: MatrixEvent, live = true) =>
     act(() => {
       emitter.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent: live });
     });
-  return { room, receive };
+  /** What the SDK does when it lists a thread, and at each reply to it: adds its root again. */
+  const relist = (root: MatrixEvent) =>
+    act(() => {
+      emitter.emit(RoomEvent.Timeline, root, room, false, false, {
+        liveEvent: true,
+        timeline: { getTimelineSet: () => threadList },
+      });
+    });
+  return { room, receive, relist };
 };
 
 /**
@@ -254,6 +264,17 @@ describe('RoomMessageAnnouncer', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not read a root that a thread list adds again', () => {
+    const { room, receive, relist } = createRoom();
+    const view = render(room);
+
+    relist(message(AGENT, { msgtype: 'm.text', body: 'Can someone review the deck?' }));
+    expect(logLines(view)).toEqual([]);
+
+    receive(message(AGENT, { msgtype: 'm.text', body: 'Reviewed.' }));
+    expect(logLines(view)).toEqual(['Code: Reviewed.']);
   });
 
   it('cuts long messages', () => {

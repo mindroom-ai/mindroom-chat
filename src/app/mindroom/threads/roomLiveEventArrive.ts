@@ -8,7 +8,10 @@ import {
 } from 'matrix-js-sdk';
 
 export type TimelineArriveMeta = {
-  /** Appended to the live end of a live timeline by sync, as opposed to backfill or a cache restore. */
+  /**
+   * Appended to the live end of a live timeline by sync, as opposed to backfill, a cache restore,
+   * or a root that one of the room's thread lists adds again (`isThreadListTimeline`).
+   */
   liveEvent: boolean;
   /** Added at the start of its timeline (back pagination). */
   toStartOfTimeline: boolean;
@@ -17,6 +20,18 @@ export type TimelineArriveMeta = {
 };
 
 type TimelineListener = RoomEventHandlerMap[RoomEvent.Timeline];
+
+/**
+ * Whether `timeline` belongs to one of the room's thread lists (the SDK's All and My threads). The
+ * SDK adds a root to them as a live event each time it lists the thread and again at each reply
+ * to it, though the root is no new message: listeners that act on new room events skip these.
+ */
+export const isThreadListTimeline = (room: Room, timeline: EventTimeline | undefined): boolean => {
+  const timelineSet = timeline?.getTimelineSet();
+  if (!timelineSet) return false;
+  // A room stand-in (unit tests) may have no thread lists at all.
+  return !!room.threadsTimelineSets?.some((set) => set === timelineSet);
+};
 
 /**
  * Hands every timeline event of `room`, including its threads' (the room re-emits their timeline
@@ -40,8 +55,8 @@ const useRoomTimelineListener = (room: Room, listener: TimelineListener): void =
 };
 
 /**
- * Call `onArrive` for every event added to a timeline of `room`, including its threads.
- * Removals go to `useLiveEventRemove`.
+ * Call `onArrive` for every event added to a timeline of `room`, including its threads and thread
+ * lists; a root a thread list adds is not live. Removals go to `useLiveEventRemove`.
  */
 export const useLiveEventArrive = (
   room: Room,
@@ -50,7 +65,7 @@ export const useLiveEventArrive = (
   useRoomTimelineListener(room, (mEvent, _eventRoom, toStartOfTimeline, removed, data) => {
     if (removed) return;
     onArrive(mEvent, {
-      liveEvent: !!data?.liveEvent,
+      liveEvent: !!data?.liveEvent && !isThreadListTimeline(room, data.timeline),
       toStartOfTimeline: !!toStartOfTimeline,
       timeline: data?.timeline,
     });

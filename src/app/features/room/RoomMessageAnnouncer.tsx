@@ -10,6 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { createDecryptionWaits, isAwaitingDecryption } from '../../mindroom/matrix/decryptionWaits';
 import { isMindroomAiRunStreaming } from '../../mindroom/messages/aiRun';
+import { isThreadListTimeline } from '../../mindroom/threads/roomLiveEventArrive';
 import { readCanvasNoticeTitle } from '../../mindroom/ui-actions/chatUiProtocol';
 import { matchesEnum } from '../../utils/matchesEnum';
 
@@ -145,7 +146,9 @@ export function RoomMessageAnnouncer({
       _removed: boolean,
       data: IRoomTimelineData
     ) => {
-      if (toStartOfTimeline || !data?.liveEvent) return;
+      // A root that a thread list adds again is no new message.
+      if (toStartOfTimeline || !data?.liveEvent || isThreadListTimeline(room, data.timeline))
+        return;
       if (isAwaitingDecryption(event)) {
         decryptions.wait(event, KEY_WAIT_MS - (Date.now() - event.getTs()), () => consider(event));
         return;

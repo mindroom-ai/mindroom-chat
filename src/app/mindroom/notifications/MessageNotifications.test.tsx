@@ -52,9 +52,11 @@ class FakeNotification {
   }
 }
 
+const threadList = {};
 const room = {
   roomId: ROOM,
   name: 'Launch War Room',
+  threadsTimelineSets: [threadList],
   getMyMembership: () => 'join',
   getMember: (userId: string) =>
     userId === '@maya:example.org' ? { name: 'Maya Chen', rawDisplayName: 'Maya Chen' } : null,
@@ -115,6 +117,15 @@ const keysArriveLater = (content: IContent) => {
 const arrive = (event: MatrixEvent, liveEvent = true) =>
   act(() => {
     emitter.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent });
+  });
+
+/** What the SDK does when it lists a thread, and at each reply to it: adds its root again. */
+const relist = (root: MatrixEvent) =>
+  act(() => {
+    emitter.emit(RoomEvent.Timeline, root, room, false, false, {
+      liveEvent: true,
+      timeline: { getTimelineSet: () => threadList },
+    });
   });
 
 let renderer: ReactTestRenderer | undefined;
@@ -202,6 +213,15 @@ describe('MessageNotificationsFeature', () => {
     arrive(message({ msgtype: 'm.text', body: 'paginated' }), false);
     expect(FakeNotification.shown).toHaveLength(0);
     expect(playChime).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet for a recent root that a thread list adds again', () => {
+    render('/home/');
+    relist(message({ msgtype: 'm.text', body: 'Who owns the launch checklist?' }));
+    expect(FakeNotification.shown).toHaveLength(0);
+
+    arrive(message({ msgtype: 'm.text', body: 'I do.' }));
+    expect(FakeNotification.shown).toHaveLength(1);
   });
 
   it('notifies for the room on screen when the window has no focus', () => {
