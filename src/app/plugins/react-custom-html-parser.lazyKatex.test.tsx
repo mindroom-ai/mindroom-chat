@@ -5,6 +5,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 
+// A loaded machine can take seconds to load a lazy module's code.
+const LOAD_WAIT = { timeout: 60_000, interval: 20 };
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
+
 vi.mock('../styles/CustomHtml.css', () => ({
   Mention: () => 'Mention',
   Spoiler: () => 'Spoiler',
@@ -28,7 +32,7 @@ beforeAll(async () => {
   vi.resetModules();
   parser = await import('./react-custom-html-parser');
   katex = await import('./lazyKatex');
-}, 120_000);
+});
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -46,12 +50,7 @@ it('typesets math of a message rendered before KaTeX loaded once KaTeX arrives',
 
   act(() => {
     renderer = create(
-      <>
-        {parse(
-          'Area $\\pi r^2$ and <span data-mx-maths="x^2">x^2</span>, for $5 USD.',
-          options
-        )}
-      </>
+      <>{parse('Area $\\pi r^2$ and <span data-mx-maths="x^2">x^2</span>, for $5 USD.', options)}</>
     );
   });
   const before = JSON.stringify(renderer!.toJSON());
@@ -61,7 +60,7 @@ it('typesets math of a message rendered before KaTeX loaded once KaTeX arrives',
   expect(before).not.toContain('katex');
 
   await act(async () => {
-    await vi.waitFor(() => expect(isKatexLoaded()).toBe(true));
+    await vi.waitFor(() => expect(isKatexLoaded()).toBe(true), LOAD_WAIT);
   });
   const after = JSON.stringify(renderer!.toJSON());
   // Both the dollar math of the text and the Matrix math element are typeset now.

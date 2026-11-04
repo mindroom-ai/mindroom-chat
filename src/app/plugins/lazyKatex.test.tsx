@@ -2,6 +2,10 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+// A loaded machine can take seconds to load a lazy module's code.
+const LOAD_WAIT = { timeout: 60_000, interval: 20 };
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
+
 // The test setup loads KaTeX for every test file; fresh modules start without it, as the app does.
 beforeEach(() => {
   vi.resetModules();
@@ -26,7 +30,7 @@ it('shows the TeX source until KaTeX has loaded, which rendering math starts, th
   expect(renderer!.toJSON()).toBe('x^2');
 
   await act(async () => {
-    await vi.waitFor(() => expect(isKatexLoaded()).toBe(true));
+    await vi.waitFor(() => expect(isKatexLoaded()).toBe(true), LOAD_WAIT);
   });
   expect(renderer!.toJSON()).toContain('class="katex"');
 });
