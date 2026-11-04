@@ -6,6 +6,7 @@ import type { IVideoInfo } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { getBlobSafeMimeType } from '../../../utils/mimeTypes';
 import { useAttachmentAction } from '../attachmentDownload';
+import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
 
 export type RenderVideoProps = {
   src: string;
@@ -37,6 +38,7 @@ export function VideoContent({
   body,
   mimeType,
   url,
+  info,
   encInfo,
   owner,
   autoPlay = false,
@@ -73,6 +75,8 @@ export function VideoContent({
     [src]
   );
 
+  const blurHash = getInfoBlurHash(info);
+
   if (src) return <>{renderVideo({ src, title: body, autoPlay: playRequested, controls: true })}</>;
 
   return (
@@ -81,6 +85,7 @@ export function VideoContent({
       justifyContent="Center"
       style={{ position: 'relative', width: '100%', height: '100%', minHeight: '8rem' }}
     >
+      {blurHash && <BlurHash hash={blurHash} />}
       {renderThumbnail?.()}
       <Box style={{ position: 'absolute' }} direction="Column" alignItems="Center" gap="200">
         {status === 'loading' ? (

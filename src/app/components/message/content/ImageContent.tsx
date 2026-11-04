@@ -20,6 +20,7 @@ import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { IImageInfo } from '../../../../types/matrix/common';
 import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Modal } from '../../glass/GlassPrimitives';
+import { BlurHash, getInfoBlurHash } from '../../media/BlurHash';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
@@ -196,6 +197,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     }, [viewerOpen, setImageViewerOpen]);
 
     const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+    const blurHash = getInfoBlurHash(info);
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
     const caption = { alt: body, title: body };
     const showViewer = () => setViewerOpen(true);
@@ -212,6 +214,7 @@ export const ImageContent = as<'div', ImageContentProps>(
         {...props}
         ref={ref}
       >
+        {blurHash && !loaded && <BlurHash hash={blurHash} />}
         {src && (
           <Overlay open={viewerOpen} backdrop={<OverlayBackdrop />}>
             <OverlayCenter>
