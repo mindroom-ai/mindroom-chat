@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'rea
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Icons, Text, toRem, type IconSrc, type RectCords } from 'folds';
+import { Box, Button, Icons, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../../components/directional';
 import {
   getThreadSummaryActionError,
@@ -42,6 +42,9 @@ export type ThreadActionsMenuProps = {
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
+
+// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners.
+const menuStyle: React.CSSProperties = { minWidth: toRem(220), borderRadius: config.radii.R500 };
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -439,7 +442,7 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu role="menu" aria-label={t('threadActions.more')} style={{ minWidth: toRem(220) }}>
+          <Menu role="menu" aria-label={t('threadActions.more')} style={menuStyle}>
             <MenuGroup>
               {items.map((item) => (
                 <MenuEntry

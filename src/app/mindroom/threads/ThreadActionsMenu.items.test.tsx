@@ -4,7 +4,7 @@ import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
-import { Icons, type IconSrc } from 'folds';
+import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
 
@@ -141,9 +141,11 @@ describe('ThreadActionsMenu rows', () => {
     });
   });
 
-  it('opens at least 220px wide, so the icons line up at the end of the longest labels', () => {
+  it('opens at least 220px wide with the large corner radius, as the original menu measures', () => {
     renderMenu();
+    const menu = host.querySelector<HTMLElement>('[role="menu"]');
 
-    expect(host.querySelector<HTMLElement>('[role="menu"]')?.style.minWidth).toBe('13.75rem');
+    expect(menu?.style.minWidth).toBe('13.75rem');
+    expect(menu?.style.borderRadius).toBe(config.radii.R500);
   });
 });
