@@ -97,7 +97,7 @@ const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
 };
 
 /** Folders open in the rail in this session, by folder ID. */
-const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
+export const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
 
 /** "Invite" in a space's rail menu, for members allowed to invite. */
 function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => void }) {

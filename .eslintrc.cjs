@@ -55,8 +55,27 @@ const GLASS_RESTRICTIONS = {
 // uses folds' own components. ESLint keys `paths` by module name, so this second restriction on
 // `folds` is a pattern.
 const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
+// Lane C makes its module-level atoms with jotai's own `atom`, which the account state test
+// follows to find account state an account would leave behind (pages/client/accountState.test.ts);
+// these entry points and factories make atoms past it.
+const FOLLOWED_ATOM_MESSAGE =
+  "Make the atom with `atom` from 'jotai', which the account state test follows (src/app/pages/client/accountState.test.ts).";
+const ATOM_FACTORIES = [
+  'atomWithDefault',
+  'atomWithLazy',
+  'atomWithObservable',
+  'atomWithReducer',
+  'atomWithRefresh',
+  'atomWithReset',
+  'atomWithStorage',
+];
 const DIRECTIONAL_RESTRICTIONS = {
-  paths: GLASS_RESTRICTIONS.paths,
+  paths: [
+    ...GLASS_RESTRICTIONS.paths,
+    { name: 'jotai/vanilla', message: FOLLOWED_ATOM_MESSAGE },
+    { name: 'jotai/vanilla/utils', message: FOLLOWED_ATOM_MESSAGE },
+    { name: 'jotai/utils', importNames: ATOM_FACTORIES, message: FOLLOWED_ATOM_MESSAGE },
+  ],
   patterns: [
     ...GLASS_RESTRICTIONS.patterns,
     {

@@ -20,8 +20,10 @@ vi.mock('jotai', async (importOriginal) => {
 });
 
 /**
- * Module-level atoms that outlive an account on purpose, by the module that makes them, and why.
- * A module listed here keeps every atom it makes.
+ * Modules of device-wide settings, whose atoms all outlive an account, and why. A module that
+ * holds anything else lists its kept atoms one by one in `keptAtoms` below. Lane C makes its
+ * module-level atoms with jotai's `atom` alone (the lint rule bans the factories this recording
+ * would miss); atoms made later by families and per-account factories are keyed and not followed.
  */
 const KEPT_MODULES: Record<string, string> = {
   'src/app/state/settings.ts': "this device's app settings, saved in localStorage",
@@ -32,9 +34,6 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's voice message speed and volume, saved in localStorage",
   'src/app/mindroom/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
-  'src/app/mindroom/sidebar/useMembersDrawer.ts': "keyed by user ID: each account's own drawer",
-  'src/app/pages/client/sidebar/SpaceTabs.tsx':
-    "keyed by folder ID, random for each folder of one account's rail",
 };
 
 // The importer of the app: the glob runs from this file, so its keys start at `src/app/`.
@@ -70,6 +69,8 @@ type Loaded = {
   calls: typeof import('../../features/calls/callStore');
   agentCaller: typeof import('../../mindroom/calls/agentCaller');
   settings: typeof import('../../state/settings');
+  membersDrawer: typeof import('../../mindroom/sidebar/useMembersDrawer');
+  spaceTabs: typeof import('./sidebar/SpaceTabs');
 };
 
 let loaded: Loaded;
@@ -101,15 +102,25 @@ beforeAll(async () => {
     calls: await import('../../features/calls/callStore'),
     agentCaller: await import('../../mindroom/calls/agentCaller'),
     settings: await import('../../state/settings'),
+    membersDrawer: await import('../../mindroom/sidebar/useMembersDrawer'),
+    spaceTabs: await import('./sidebar/SpaceTabs'),
   };
 }, 120_000);
 
-/** Atoms of a module that also holds account state, kept on purpose, and why. */
+/**
+ * Atoms of a module that holds account state too, kept on purpose one by one, and why; any other
+ * atom of the module is checked.
+ */
 const keptAtoms = (): Map<object, string> =>
-  new Map([
+  new Map<object, string>([
     [
       loaded.drafts.pendingVoiceSendDraftAtom,
       'names the account that recorded it: no other account sends it, its own can retry',
+    ],
+    [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
+    [
+      loaded.spaceTabs.openFoldersAtom,
+      "keyed by folder ID, random for each folder of one account's rail",
     ],
   ]);
 

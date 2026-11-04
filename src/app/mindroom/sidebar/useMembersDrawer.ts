@@ -7,7 +7,7 @@ import { settingsAtom } from '../../state/settings';
 
 // On phones the members drawer covers the room, so it opens only when asked and is not saved;
 // this is that per-account, in-memory state.
-const phoneDrawerOpenAtom = atom<Record<string, boolean>>({});
+export const phoneDrawerOpenAtom = atom<Record<string, boolean>>({});
 
 const isPhoneViewport = (): boolean =>
   typeof document !== 'undefined' && getScreenSize(document.body.clientWidth) === ScreenSize.Mobile;
