@@ -10,16 +10,16 @@ name: mindroom-client-e2e
 services:
   tuwunel:
     image: ghcr.io/mindroom-ai/mindroom-tuwunel:latest
-    ports:
-      - '127.0.0.1:${E2E_MATRIX_PORT:-28008}:8008'
+    # Host networking: starting and stopping a slot creates no Docker bridge or veth interface, which
+    # would otherwise make Chromium abort in-flight requests with ERR_NETWORK_CHANGED.
+    network_mode: host
     volumes:
       - tuwunel-data:/var/lib/tuwunel
     environment:
       TUWUNEL_SERVER_NAME: matrix.localhost
       TUWUNEL_DATABASE_PATH: /var/lib/tuwunel
-      # Inside the container network namespace the published port must reach the listener.
-      TUWUNEL_ADDRESS: 0.0.0.0
-      TUWUNEL_PORT: '8008'
+      TUWUNEL_ADDRESS: 127.0.0.1
+      TUWUNEL_PORT: '${E2E_MATRIX_PORT:-28008}'
       TUWUNEL_ALLOW_REGISTRATION: 'true'
       TUWUNEL_YES_I_AM_VERY_VERY_SURE_I_WANT_AN_OPEN_REGISTRATION_SERVER_PRONE_TO_ABUSE: 'true'
       TUWUNEL_ALLOW_FEDERATION: 'false'
