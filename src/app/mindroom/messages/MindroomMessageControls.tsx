@@ -155,7 +155,8 @@ export function MindroomAiRunControls({
               role="dialog"
               aria-modal="true"
               aria-label={title}
-              style={{ width: '28rem', maxWidth: 'calc(100vw - 24px)' }}
+              // As wide as the details, which set their own width for desktop and phone.
+              style={{ width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }}
             >
               <PageScroll
                 header={
