@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode } from 'react';
+import React, { ComponentProps, ReactNode, useId, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
@@ -26,18 +26,39 @@ const closingTrap = (onClose: () => void): TrapOptions => ({
 });
 
 /**
+ * Names the dialog after the first heading inside it (the settings title, a room's name), which
+ * changes as its pages do.
+ */
+const useNamedByHeading = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const fallbackId = useId();
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    const heading = dialog?.querySelector?.<HTMLElement>('h1, h2, h3, [role="heading"]');
+    if (!dialog || !heading) return;
+    if (!heading.id) heading.id = `${fallbackId}-title`;
+    dialog.setAttribute('aria-labelledby', heading.id);
+  });
+  return ref;
+};
+
+/**
  * The large centered dialog that settings and the account switcher open in; on phones it fills
  * the screen. Keyboard focus is held inside while it is open and goes back to where it was once it
  * closes.
  */
 export function Modal500({ requestClose, children }: Modal500Props) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const modalRef = useNamedByHeading();
   // The backdrop already dims the page, so the glass takes a lighter tint over it.
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter className={phone ? css.PhoneOverlayCenter : css.SafeOverlayCenter}>
         <FocusTrap focusTrapOptions={closingTrap(requestClose)}>
           <Modal
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
             variant="Background"
             size="500"
             className={classNames(glassOverBackdrop, phone && css.PhoneModal)}

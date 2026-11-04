@@ -1,4 +1,4 @@
-import React, { FormEventHandler, RefObject, useRef, useState } from 'react';
+import React, { FormEventHandler, RefObject, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -73,6 +73,7 @@ const dialogTrapOptions = (
 /** Dialog to invite someone to a room by user ID, with directory suggestions and a reason. */
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
   const { t } = useTranslation();
+  const reasonId = useId();
   const client = useMatrixClient();
   const alive = useAlive();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -145,8 +146,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   />
                 </Box>
                 <Box direction="Column" gap="100">
-                  <Text size="L400">{t('sharedUi.inviteUserPrompt.reasonOptional')}</Text>
+                  <Text as="label" htmlFor={reasonId} size="L400">
+                    {t('sharedUi.inviteUserPrompt.reasonOptional')}
+                  </Text>
                   <Input
+                    id={reasonId}
                     name="reasonInput"
                     size="500"
                     variant="Background"
