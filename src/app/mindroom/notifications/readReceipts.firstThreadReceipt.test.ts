@@ -40,7 +40,7 @@ const setupRoom = async () => {
   return { mx, room, thread, requests };
 };
 
-const receiptRequests = (requests: ReturnType<typeof vi.spyOn>) =>
+const receiptRequests = (requests: { mock: { calls: unknown[][] } }) =>
   requests.mock.calls.filter(([, path]) => String(path).includes('/receipt/'));
 
 describe('the first thread receipt in a room', () => {
