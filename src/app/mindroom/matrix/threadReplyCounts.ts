@@ -1,0 +1,155 @@
+import {
+  ClientEvent,
+  MatrixEventEvent,
+  RoomEvent,
+  THREAD_RELATION_TYPE,
+  ThreadEvent,
+  type IRoomTimelineData,
+  type IThreadBundledRelationship,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
+
+// The MindRoom SDK patch leaves a thread unopened (summary only) until the app shows or opens it.
+// Its reply count starts at the root's server summary (the `m.thread` count) and grows by one for
+// every reply added after the SDK read that summary. A batch that brings the root together with
+// replies its summary already counts (the first sync, the saved sync replayed after a reload, a
+// limited sync, the event cache) counted those replies twice: 4, 6 and 8 for threads of 2, 3 and
+// 4. This module keeps the count of an unopened thread at what its summary and the replies the
+// client holds imply. An opened thread counts from the server's root and first page, and is left
+// to the SDK.
+
+type ThreadSummary = IThreadBundledRelationship;
+
+/** The SDK thread's own reply counter; `Thread.length` adds the replies still being sent. */
+type ThreadReplyCounter = { replyCount: number };
+
+const readSummary = (event: MatrixEvent | null | undefined): ThreadSummary | undefined => {
+  const summary = event?.getServerAggregatedRelation<ThreadSummary>(THREAD_RELATION_TYPE.name);
+  return typeof summary?.count === 'number' && summary.latest_event ? summary : undefined;
+};
+
+const isReplyOf = (thread: Thread, event: MatrixEvent): boolean =>
+  event.getId() !== thread.id && event.isRelation(THREAD_RELATION_TYPE.name);
+
+/** How many replies the thread holds that came after the summary's latest reply. */
+const countRepliesAfterSummary = (thread: Thread, summary: ThreadSummary): number => {
+  const sent = thread.events.filter((event) => isReplyOf(thread, event) && event.status === null);
+  const latestIndex = sent.findIndex((event) => event.getId() === summary.latest_event.event_id);
+  if (latestIndex !== -1) return sent.length - latestIndex - 1;
+  // The latest reply is not held (a sync gap moved it out of the live timeline): go by time.
+  return sent.filter((event) => event.getTs() > summary.latest_event.origin_server_ts).length;
+};
+
+/**
+ * Corrects the reply count of an unopened thread to its root's summary count plus the replies the
+ * client holds that the summary does not cover yet. A count below that stays, since redactions
+ * lower it; a count equal to the summary's means the SDK read the summary again (it does once
+ * server discovery ends) and dropped the newer replies. Returns whether the count changed.
+ */
+export const settleThreadReplyCount = (thread: Thread): boolean => {
+  if (thread.initialEventsFetched) return false;
+  const summary = readSummary(thread.rootEvent);
+  if (!summary) return false;
+  const counter = thread as unknown as ThreadReplyCounter;
+  const implied = summary.count + countRepliesAfterSummary(thread, summary);
+  const settled =
+    counter.replyCount === summary.count ? implied : Math.min(counter.replyCount, implied);
+  if (settled === counter.replyCount) return false;
+  counter.replyCount = settled;
+  thread.emit(ThreadEvent.Update, thread);
+  return true;
+};
+
+/**
+ * A summary is a snapshot: once a reply it counts is redacted, it counts one reply too many, and
+ * the thread cards and badges, which show the larger of the thread's count and the summary's, kept
+ * showing the old number.
+ */
+const removeRedactedReplyFromSummary = (root: MatrixEvent, reply: MatrixEvent): void => {
+  const summary = readSummary(root);
+  if (!summary) return;
+  const latest = summary.latest_event;
+  if (reply.getId() !== latest.event_id && reply.getTs() > latest.origin_server_ts) return;
+  const unsigned = root.getUnsigned();
+  root.setUnsigned({
+    ...unsigned,
+    'm.relations': {
+      ...unsigned['m.relations'],
+      [THREAD_RELATION_TYPE.name]: { ...summary, count: Math.max(0, summary.count - 1) },
+    },
+  });
+};
+
+/**
+ * A thread lowers its count when its room forwards a reply's BeforeRedaction. The SDK maps the
+ * events of a room's first sync (also the saved sync after a reload) before it stores the room, so
+ * those events never forwarded it, and redacting them left every count as it was. Forwarding
+ * twice is a no-op.
+ */
+const forwardRedactions = (room: Room, event: MatrixEvent): void => {
+  room.reEmitter.reEmit(event, [MatrixEventEvent.BeforeRedaction]);
+};
+
+/**
+ * Keeps thread reply counts right for the client's whole life; call it before the client starts,
+ * so it sees the saved sync. Returns a function that stops it.
+ */
+export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
+  const stops = new Map<Room, () => void>();
+
+  const watchRoom = (room: Room) => {
+    if (stops.has(room)) return;
+    // The SDK announces a thread once its first batch is in, and updates it once each later batch
+    // is counted, also when it read the summary again.
+    const onThread = (thread: Thread) => {
+      settleThreadReplyCount(thread);
+    };
+    // The same test as the SDK's, which lowers the thread's own count before the redaction.
+    const onBeforeRedaction = (event: MatrixEvent, redaction: MatrixEvent) => {
+      if (redaction.status || !event.isRelation(THREAD_RELATION_TYPE.name)) return;
+      const thread = event.threadRootId ? room.getThread(event.threadRootId) : null;
+      if (!thread || event.getId() === thread.id) return;
+      new Set([thread.rootEvent, room.findEventById(thread.id)]).forEach(
+        (root) => root && removeRedactedReplyFromSummary(root, event)
+      );
+    };
+    room.on(ThreadEvent.New, onThread);
+    room.on(ThreadEvent.Update, onThread);
+    room.on(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+    stops.set(room, () => {
+      room.removeListener(ThreadEvent.New, onThread);
+      room.removeListener(ThreadEvent.Update, onThread);
+      room.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+    });
+    // The saved sync announces a room after its threads are in.
+    room.getThreads().forEach((thread) => {
+      thread.events.forEach((event) => forwardRedactions(room, event));
+      onThread(thread);
+    });
+  };
+
+  const onTimeline = (
+    event: MatrixEvent,
+    room: Room | undefined,
+    _toStartOfTimeline: boolean | undefined,
+    removed: boolean,
+    data: IRoomTimelineData
+  ) => {
+    if (removed || !room || !data.timeline?.getTimelineSet().thread) return;
+    forwardRedactions(room, event);
+  };
+
+  mx.on(RoomEvent.Timeline, onTimeline);
+  mx.on(ClientEvent.Room, watchRoom);
+  mx.getRooms().forEach(watchRoom);
+
+  return () => {
+    mx.removeListener(RoomEvent.Timeline, onTimeline);
+    mx.removeListener(ClientEvent.Room, watchRoom);
+    stops.forEach((stop) => stop());
+    stops.clear();
+  };
+};

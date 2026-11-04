@@ -1,6 +1,7 @@
-import { Filter, type IStartClientOpts, type MatrixClient } from 'matrix-js-sdk';
+import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
+import { keepThreadReplyCounts } from './threadReplyCounts';
 
 // How the client syncs. The startup orchestrator (src/client/initMatrix.ts) creates the client
 // and its stores and then calls `startClient` here; this module does not import it.
@@ -51,12 +52,20 @@ export const buildSyncFilter = (mx: MatrixClient): Filter => {
   return filter;
 };
 
+const countedClients = new WeakSet<MatrixClient>();
+
 /** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
 export const startClient = async (
   mx: MatrixClient,
   options: Partial<IStartClientOpts> = {}
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
+  // Before the saved sync is replayed, which brings thread roots together with their replies.
+  // Only an SDK client has rooms whose threads count replies.
+  if (mx instanceof MatrixClient && !countedClients.has(mx)) {
+    countedClients.add(mx);
+    keepThreadReplyCounts(mx);
+  }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
     lazyLoadMembers: true,
