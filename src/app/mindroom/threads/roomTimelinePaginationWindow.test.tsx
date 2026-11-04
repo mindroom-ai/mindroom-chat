@@ -1,0 +1,201 @@
+import { createElement, useLayoutEffect, useRef, useState } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { describe, expect, it } from 'vitest';
+import type { EventTimeline, MatrixEvent } from 'matrix-js-sdk';
+import type { ItemRange } from '../../hooks/useVirtualPaginator';
+import { useLatestRef } from '../../hooks/useLatestRef';
+import { useRoomWindowPaginator, useWindowKeepsNewestRow } from './roomTimelinePaginationWindow';
+import { getVisibleTimelineRange, type Timeline } from './timelinePagination';
+
+const ROW_PX = 40;
+const VIEW_PX = 720;
+
+const rectAt = (top: number, height: number) => ({ top, bottom: top + height, height });
+
+type Shown = { range: ItemRange; count: number };
+
+/**
+ * The room's scroll area as the browser lays it out, with the reader at the bottom: the back
+ * sentinel (1 px) and then the window's rows from the top of the content, and the front sentinel
+ * below the last row while newer rows wait outside the window. Each row's `data-room-row-index`
+ * element sits inside its absolutely placed tile, so its `offsetTop` is 0.
+ */
+const fakeRoomScroller = () => {
+  const shown: { current: Shown } = { current: { range: { start: 0, end: 0 }, count: 0 } };
+  const contentPx = () => 1 + (shown.current.range.end - shown.current.range.start) * ROW_PX;
+  const scrollTop = () => Math.max(0, contentPx() - VIEW_PX);
+  const scroller = {
+    get scrollTop() {
+      return scrollTop();
+    },
+    offsetHeight: VIEW_PX,
+    getBoundingClientRect: () => rectAt(0, VIEW_PX),
+    scrollBy: () => undefined,
+    querySelector: (selector: string) => {
+      const { range, count } = shown.current;
+      const contentTop = -scrollTop();
+      if (selector.includes('data-paginator-anchor="B"')) {
+        return range.start > 0 ? { getBoundingClientRect: () => rectAt(contentTop, 1) } : null;
+      }
+      if (selector.includes('data-paginator-anchor="F"')) {
+        const bottom = contentTop + contentPx();
+        return range.end < count ? { getBoundingClientRect: () => rectAt(bottom - 1, 1) } : null;
+      }
+      const offset = Number(/data-room-row-index="(\d+)"/.exec(selector)?.[1]);
+      if (!Number.isInteger(offset) || offset >= range.end - range.start) return null;
+      return {
+        offsetParent: {},
+        offsetTop: 0,
+        clientHeight: ROW_PX,
+        getBoundingClientRect: () => rectAt(contentTop + 1 + offset * ROW_PX, ROW_PX),
+      };
+    },
+  };
+  return { shown, element: scroller as unknown as HTMLElement };
+};
+
+const makeRows = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ getId: () => `$row${index}` } as MatrixEvent));
+
+type Committed = [start: number, end: number, count: number];
+
+type Handles = {
+  setTimeline?: (update: (current: Timeline) => Timeline) => void;
+  paginator?: ReturnType<typeof useRoomWindowPaginator>['paginator'];
+};
+
+type RoomWindowProps = {
+  rows: MatrixEvent[];
+  initialRange: ItemRange;
+  windowLimit: number;
+  scroller: ReturnType<typeof fakeRoomScroller>;
+  commits: Committed[];
+  handles: Handles;
+};
+
+/** The room view's window as the room timeline wires it: kept at the newest row, and paged. */
+function RoomWindow({
+  rows,
+  initialRange,
+  windowLimit,
+  scroller,
+  commits,
+  handles,
+}: RoomWindowProps) {
+  const [timeline, setTimeline] = useState<Timeline>({
+    linkedTimelines: [],
+    range: initialRange,
+  });
+  const activeTimelineRange = getVisibleTimelineRange(timeline.range, rows.length, windowLimit);
+  const roomRowsRef = useLatestRef(rows);
+  const activeRangeRef = useLatestRef(activeTimelineRange);
+  const threadIdRef = useRef<string>();
+  const firstRoomTimelineRef = useRef<EventTimeline>();
+  const scrollRef = useRef<HTMLElement | null>(scroller.element);
+  const suppressFocusPaginationRef = useRef(false);
+  useLayoutEffect(() => {
+    scroller.shown.current = { range: activeTimelineRange, count: rows.length };
+    commits.push([activeTimelineRange.start, activeTimelineRange.end, rows.length]);
+  });
+  useWindowKeepsNewestRow({
+    activeTimelineRange,
+    eventId: undefined,
+    roomRowCount: rows.length,
+    threadId: undefined,
+    setTimeline,
+  });
+  const { paginator } = useRoomWindowPaginator({
+    alive: () => true,
+    roomRows: rows,
+    roomRowsRef,
+    activeTimelineRange,
+    activeRangeRef,
+    threadIdRef,
+    firstRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom: () => Promise.resolve(),
+    suppressFocusPaginationRef,
+    windowLimit,
+    getScrollElement: () => scroller.element,
+    deferAutomaticPagination: () => false,
+  });
+  handles.setTimeline = setTimeline;
+  handles.paginator = paginator;
+  return null;
+}
+
+/** What the live handler does for a row the sync appends: the window's end grows by one. */
+const growByLiveRow = (current: Timeline): Timeline => ({
+  ...current,
+  range: { start: current.range.start, end: current.range.end + 1 },
+});
+
+const mountRoomWindow = (rowCount: number, initialRange: ItemRange, windowLimit = 200) => {
+  const scroller = fakeRoomScroller();
+  const commits: Committed[] = [];
+  const handles: Handles = {};
+  let renderer: ReactTestRenderer | undefined;
+  const element = (count: number) =>
+    createElement(RoomWindow, {
+      rows: makeRows(count),
+      initialRange,
+      windowLimit,
+      scroller,
+      commits,
+      handles,
+    });
+  act(() => {
+    renderer = create(element(rowCount));
+  });
+  /** One render with `count` rows and whatever `during` queues before it. */
+  const renderWith = (count: number, during: () => void) =>
+    act(() => {
+      renderer?.update(element(count));
+      during();
+    });
+  return { commits, handles, renderWith };
+};
+
+describe('the room window paginator', () => {
+  it('drops a page towards newer rows measured before the window was kept at the newest row', () => {
+    // A Full view window of rows 30 to 51 that reaches the newest row, the reader at the bottom.
+    const { commits, handles, renderWith } = mountRoomWindow(51, { start: 30, end: 51 });
+    // In one render, a thread's older reply joins the rows above the window and a live row
+    // arrives: the live handler grows the window's end by one, which leaves it a row short.
+    renderWith(53, () => handles.setTimeline?.(growByLiveRow));
+    // The window is kept at the newest row. The paginator's page from the short window keeps
+    // only its last row ([51, 53], half the view blank), and the back page that follows mounts
+    // the room's start ([0, 53]); neither may land.
+    expect(commits).toEqual([
+      [30, 51, 51],
+      [30, 52, 53],
+      [30, 53, 53],
+    ]);
+  });
+
+  it('applies a page towards newer rows when no other window was set after its render', () => {
+    // A window that stops short of the newest rows, its front sentinel in view.
+    const { commits, handles, renderWith } = mountRoomWindow(60, { start: 30, end: 50 });
+    renderWith(60, () => {
+      // A repaint that keeps the window (a new range object with the same rows) is no newer.
+      handles.setTimeline?.((current) => ({ ...current, range: { ...current.range } }));
+      handles.paginator?.retryPagination();
+    });
+    // The page lands: the next window reaches the newest row.
+    expect(commits[0]).toEqual([30, 50, 60]);
+    expect(commits[1]?.slice(1)).toEqual([60, 60]);
+  });
+
+  it('applies a jump to a row outside the window over a window set after its render', () => {
+    const { commits, handles, renderWith } = mountRoomWindow(60, { start: 40, end: 60 }, 20);
+    renderWith(61, () => {
+      handles.setTimeline?.(growByLiveRow);
+      handles.paginator?.scrollToItem(5);
+    });
+    expect(commits).toEqual([
+      [40, 60, 60],
+      [0, 20, 61],
+    ]);
+  });
+});

@@ -184,7 +184,7 @@ export const useRoomWindowPaginator = ({
   const pendingRoomFoldPxRef = useRef(0);
   const roomFoldPriceRef = useRef<RoomRowFoldPrice>(() => 0);
   const handleRoomRangeChange = useCallback(
-    (next: ItemRange) => {
+    (next: ItemRange, pagedFrom?: ItemRange) => {
       const current = activeRangeRef.current;
       if (!threadIdRef.current && next.start < current.start) {
         // Rows mounted above the reader: their height goes into the ledger, so the rows on
@@ -197,7 +197,17 @@ export const useRoomWindowPaginator = ({
         }
         pendingRoomFoldPxRef.current += foldPx;
       }
-      setTimeline((currentTimeline) => ({ ...currentTimeline, range: next }));
+      // A page towards newer rows keeps only the rows it measured on screen in the window it
+      // widened. When another window was set after that render (the newest row kept, a live row
+      // grown in), the page would undo it and drop rows the reader sees: it is dropped, and the
+      // paginator looks at the sentinels again once that window renders.
+      const widened = pagedFrom && next.end > pagedFrom.end ? pagedFrom : undefined;
+      setTimeline((currentTimeline) =>
+        widened &&
+        (currentTimeline.range.start !== widened.start || currentTimeline.range.end !== widened.end)
+          ? currentTimeline
+          : { ...currentTimeline, range: next }
+      );
     },
     [activeRangeRef, roomRowsRef, setTimeline, threadIdRef]
   );

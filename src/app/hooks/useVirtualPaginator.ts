@@ -43,7 +43,11 @@ type PaginatorDom = {
 /** The window of items in the DOM now and the source of items behind it. */
 type PaginatorWindow = {
   range: ItemRange;
-  onRangeChange: (range: ItemRange) => void;
+  /**
+   * Moves the window. A pagination step passes the window it widened (`range` of the render it
+   * measured); a jump to an item passes none.
+   */
+  onRangeChange: (range: ItemRange, pagedFrom?: ItemRange) => void;
   /** How many items the source holds. */
   count: number;
   /** How far one pagination step widens the window. */
@@ -238,7 +242,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       if (nextRange.start === currentRange.start && nextRange.end === currentRange.end) return;
       if (externalBackwardScrollRestore && nextRange.start < currentRange.start) {
         anchorRef.current = undefined;
-        onRangeChange(nextRange);
+        onRangeChange(nextRange, currentRange);
         return;
       }
       const anchorIndex = preserveAnchorIndex ?? findVisibleIndex(currentRange);
@@ -247,7 +251,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
         anchorIndex !== undefined && anchorElement
           ? { index: anchorIndex, top: anchorElement.getBoundingClientRect().top }
           : undefined;
-      onRangeChange(nextRange);
+      onRangeChange(nextRange, currentRange);
     },
     [findVisibleIndex]
   );
