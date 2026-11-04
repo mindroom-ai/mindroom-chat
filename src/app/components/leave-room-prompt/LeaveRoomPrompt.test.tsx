@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LeaveRoomPrompt } from './LeaveRoomPrompt';
 
 const leave = vi.fn();
-vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => ({ leave }) }));
+const forget = vi.fn();
+vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => ({ leave, forget }) }));
 // jsdom has no layout, so focus-trap finds nothing tabbable; the trap itself is not under test.
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -27,6 +28,7 @@ describe('LeaveRoomPrompt', () => {
     act(() => root.unmount());
     host.remove();
     leave.mockReset();
+    forget.mockReset();
   });
 
   const show = (onLeft = vi.fn(), requestClose = vi.fn()) => {
@@ -50,6 +52,24 @@ describe('LeaveRoomPrompt', () => {
 
     expect(leave).toHaveBeenCalledWith('!r:test');
     expect(onLeft).toHaveBeenCalledOnce();
+  });
+
+  it('leaves without forgetting unless asked, and forgets after leaving when asked', async () => {
+    leave.mockResolvedValue({});
+    forget.mockResolvedValue({});
+    const first = show();
+    await act(async () => first.leaveButton.click());
+    expect(forget).not.toHaveBeenCalled();
+
+    act(() => root.render(<span />));
+    const second = show();
+    act(() =>
+      document.querySelector<HTMLButtonElement>('[aria-label="Forget this room"]')?.click()
+    );
+    await act(async () => second.leaveButton.click());
+
+    expect(forget).toHaveBeenCalledWith('!r:test');
+    expect(second.onLeft).toHaveBeenCalledOnce();
   });
 
   it('keeps the prompt open with the reason when leaving fails', async () => {

@@ -11,12 +11,14 @@ import {
   OverlayBackdrop,
   OverlayCenter,
   Spinner,
+  Switch,
   Text,
   color,
   config,
   toRem,
 } from 'folds';
 import { Dialog, Header, IconButton } from '../glass/GlassPrimitives';
+import { SettingTile } from '../setting-tile';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { stopPropagation } from '../../utils/keyboard';
@@ -45,18 +47,24 @@ const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
 const reasonOf = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : String(failure);
 
-/** Asks before leaving a room; a failed leave stays in the dialog with the server's reason. */
+/**
+ * Asks before leaving a room; a failed leave stays in the dialog with the server's reason. The
+ * room can be forgotten too (Matrix spec, `/forget`): it then leaves the account's room list and
+ * history for good, though the person may join again later where the room allows it.
+ */
 export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromptProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const isMounted = useAlive();
   const [leaveState, setLeaveState] = useState<LeaveState>({ kind: 'idle' });
+  const [forget, setForget] = useState(false);
   const leaving = leaveState.kind === 'leaving';
 
   const confirmLeave = () => {
     if (leaving) return;
     setLeaveState({ kind: 'leaving' });
-    client.leave(roomId).then(
+    const done = client.leave(roomId);
+    (forget ? done.then(() => client.forget(roomId)) : done).then(
       () => {
         if (isMounted()) onLeft();
       },
@@ -95,6 +103,19 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
               <Text size="T300" priority="400">
                 {t('sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom')}
               </Text>
+              <SettingTile
+                title={t('sharedUi.leaveRoomPrompt.forget')}
+                description={t('sharedUi.leaveRoomPrompt.forgetDescription')}
+                after={
+                  <Switch
+                    variant="Critical"
+                    aria-label={t('sharedUi.leaveRoomPrompt.forget')}
+                    value={forget}
+                    disabled={leaving}
+                    onChange={setForget}
+                  />
+                }
+              />
               {leaveState.kind === 'failed' && (
                 <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
                   {t('sharedUi.leaveRoomPrompt.leaveFailed', { error: leaveState.reason })}
