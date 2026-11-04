@@ -132,6 +132,9 @@
         "loadFailed": "Could not load your devices.",
         "verification": {
           "checkFailed": "Could not check your account's encryption setup on the server. Try again."
+        },
+        "localBackup": {
+          "passwordTooShort": "Use at least 12 characters: the file holds the keys to all your encrypted messages."
         }
       },
       "account": {

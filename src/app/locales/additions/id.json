@@ -130,6 +130,9 @@
         "loadFailed": "Perangkat Anda tidak dapat dimuat.",
         "verification": {
           "checkFailed": "Penyiapan enkripsi akun Anda di server tidak dapat diperiksa. Coba lagi."
+        },
+        "localBackup": {
+          "passwordTooShort": "Gunakan setidaknya 12 karakter: file ini berisi kunci untuk semua pesan terenkripsi Anda."
         }
       },
       "account": {

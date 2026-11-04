@@ -134,6 +134,9 @@
         "loadFailed": "Impossibile caricare i tuoi dispositivi.",
         "verification": {
           "checkFailed": "Impossibile controllare la configurazione della crittografia del tuo account sul server. Riprova."
+        },
+        "localBackup": {
+          "passwordTooShort": "Usa almeno 12 caratteri: il file contiene le chiavi di tutti i tuoi messaggi cifrati."
         }
       },
       "account": {

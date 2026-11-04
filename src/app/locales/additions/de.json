@@ -132,6 +132,9 @@
         "loadFailed": "Deine Geräte konnten nicht geladen werden.",
         "verification": {
           "checkFailed": "Die Verschlüsselung deines Kontos konnte auf dem Server nicht geprüft werden. Versuche es erneut."
+        },
+        "localBackup": {
+          "passwordTooShort": "Verwende mindestens 12 Zeichen: Die Datei enthält die Schlüssel zu all deinen verschlüsselten Nachrichten."
         }
       },
       "account": {

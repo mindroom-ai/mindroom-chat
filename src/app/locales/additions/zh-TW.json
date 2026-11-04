@@ -130,6 +130,9 @@
         "loadFailed": "無法載入您的裝置。",
         "verification": {
           "checkFailed": "無法在伺服器上檢查您帳號的加密設定，請再試一次。"
+        },
+        "localBackup": {
+          "passwordTooShort": "請至少使用 12 個字元：此檔案包含您所有加密訊息的金鑰。"
         }
       },
       "account": {

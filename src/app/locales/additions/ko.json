@@ -130,6 +130,9 @@
         "loadFailed": "기기를 불러오지 못했습니다.",
         "verification": {
           "checkFailed": "서버에서 계정의 암호화 설정을 확인하지 못했습니다. 다시 시도하세요."
+        },
+        "localBackup": {
+          "passwordTooShort": "12자 이상 입력하세요. 이 파일에는 암호화된 모든 메시지의 키가 들어 있습니다."
         }
       },
       "account": {

@@ -132,6 +132,9 @@
         "loadFailed": "Cihazlarınız yüklenemedi.",
         "verification": {
           "checkFailed": "Hesabınızın şifreleme kurulumu sunucuda denetlenemedi. Tekrar deneyin."
+        },
+        "localBackup": {
+          "passwordTooShort": "En az 12 karakter kullanın: dosya, tüm şifreli mesajlarınızın anahtarlarını içerir."
         }
       },
       "account": {

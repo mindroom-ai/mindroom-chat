@@ -134,6 +134,9 @@
         "loadFailed": "Não foi possível carregar os seus dispositivos.",
         "verification": {
           "checkFailed": "Não foi possível verificar a configuração de encriptação da sua conta no servidor. Tente novamente."
+        },
+        "localBackup": {
+          "passwordTooShort": "Utilize pelo menos 12 caracteres: o ficheiro contém as chaves de todas as suas mensagens encriptadas."
         }
       },
       "account": {
