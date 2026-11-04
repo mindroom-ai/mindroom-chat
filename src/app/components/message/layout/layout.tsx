@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ComponentProps, ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, Text, as } from 'folds';
 import type { MessageSpacing } from '../../../state/settings';
@@ -83,20 +83,22 @@ export const UsernameBold = as<'b'>(({ as: AsBold = 'b', className, ...props }, 
 
 type MessageTextBodyProps = {
   preWrap?: boolean;
+  /** A body of only emoji: they show large. */
   jumboEmoji?: boolean;
   emote?: boolean;
   notice?: boolean;
+  priority?: ComponentProps<typeof Text>['priority'];
 };
 
 /** Text block of a message body. */
 export const MessageTextBody = as<'div', MessageTextBodyProps>(
-  ({ className, preWrap, jumboEmoji, emote, notice, ...props }, ref) => {
+  ({ className, preWrap, jumboEmoji, emote, notice, priority = '400', ...props }, ref) => {
     const variant = css.MessageTextBody({ preWrap, jumboEmoji, emote, notice });
     return (
       <Text
         as="div"
         size="T400"
-        priority="400"
+        priority={priority}
         {...props}
         ref={ref}
         className={classNames(variant, className)}

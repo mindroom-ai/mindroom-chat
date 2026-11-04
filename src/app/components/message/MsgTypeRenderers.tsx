@@ -11,6 +11,8 @@ import {
   MessageUnsupportedContent,
 } from './content';
 import { VoiceAudioContent } from './content/VoiceAudioContent';
+import { MessageTextBody } from './layout';
+import { isJumboEmojiBody } from './jumboEmoji';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../glass/liquid/useLiquidGlass';
 import {
@@ -114,22 +116,23 @@ function TextMessage({
   // A plain body keeps its line breaks. An HTML body lays out by its markup: the newlines between
   // its paragraphs, list items and tables would otherwise show as blank lines.
   const whiteSpace = customBody ? 'normal' : 'pre-wrap';
+  // A message of only emoji shows them large; an emote keeps them at the size of its sender name.
+  const jumboEmoji = prefix === undefined && isJumboEmojiBody(trimmedBody, customBody);
 
   return (
     <>
       {/* The body reads in its own direction, so an English message keeps its punctuation at
           the end in a right-to-left interface, and an Arabic one in a left-to-right one. */}
-      <Text
-        as="div"
-        size="T400"
-        priority={notice ? '300' : undefined}
+      <MessageTextBody
+        priority={notice ? '300' : 'Inherit'}
+        jumboEmoji={jumboEmoji}
         dir="auto"
         style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
       >
         {prefix}
         {renderBody({ body: trimmedBody, customBody })}
         {renderStateSuffix ? renderStateSuffix() : edited && <MessageEditedContent />}
-      </Text>
+      </MessageTextBody>
       {renderAfterBody}
       {renderUrlsPreview && urls.length > 0 && renderUrlsPreview(urls)}
     </>
