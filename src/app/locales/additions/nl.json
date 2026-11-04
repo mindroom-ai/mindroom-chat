@@ -141,7 +141,7 @@
           "checkFailed": "De versleuteling van je account kon niet op de server worden gecontroleerd. Probeer het opnieuw."
         },
         "localBackup": {
-          "passwordTooShort": "Gebruik minstens 12 tekens: het bestand bevat de sleutels van al je versleutelde berichten."
+          "passwordTooShort": "Gebruik minstens 12 tekens, spaties niet meegerekend: het bestand bevat de sleutels van al je versleutelde berichten."
         }
       },
       "account": {

@@ -139,7 +139,7 @@
           "checkFailed": "无法在服务器上检查您账户的加密设置，请重试。"
         },
         "localBackup": {
-          "passwordTooShort": "请至少使用 12 个字符：此文件包含您所有加密消息的密钥。"
+          "passwordTooShort": "请至少使用 12 个字符（不含空格）：此文件包含您所有加密消息的密钥。"
         }
       },
       "account": {

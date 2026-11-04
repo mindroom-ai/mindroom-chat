@@ -143,7 +143,7 @@
           "checkFailed": "Impossible de vérifier la configuration du chiffrement de votre compte sur le serveur. Réessayez."
         },
         "localBackup": {
-          "passwordTooShort": "Utilisez au moins 12 caractères : le fichier contient les clés de tous vos messages chiffrés."
+          "passwordTooShort": "Utilisez au moins 12 caractères, sans compter les espaces : le fichier contient les clés de tous vos messages chiffrés."
         }
       },
       "account": {

@@ -143,7 +143,7 @@
           "checkFailed": "No se pudo comprobar la configuración de cifrado de tu cuenta en el servidor. Inténtalo de nuevo."
         },
         "localBackup": {
-          "passwordTooShort": "Usa al menos 12 caracteres: el archivo contiene las claves de todos tus mensajes cifrados."
+          "passwordTooShort": "Usa al menos 12 caracteres sin contar los espacios: el archivo contiene las claves de todos tus mensajes cifrados."
         }
       },
       "account": {
