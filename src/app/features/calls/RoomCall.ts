@@ -482,20 +482,26 @@ export class RoomCall {
     this.media = undefined;
     this.audioHost?.remove();
     this.audioHost = undefined;
-    const membership = this.session.isJoined()
-      ? this.session.leaveRoomSession(LEAVE_TIMEOUT_MS).catch(() => false)
-      : Promise.resolve(false);
-    await Promise.all([media?.disconnect(true), membership]);
-    this.worker?.terminate();
-    this.worker = undefined;
-    this.releaseDeviceLock?.();
-    this.releaseDeviceLock = undefined;
+    try {
+      const membership = this.session.isJoined()
+        ? this.session.leaveRoomSession(LEAVE_TIMEOUT_MS)
+        : undefined;
+      // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
+      await Promise.allSettled([media?.disconnect(true), membership]);
+    } finally {
+      // Kept past a failed disconnect: a lock left held would tell this device's other tabs for
+      // the rest of the page's life that it is still in a call.
+      this.worker?.terminate();
+      this.worker = undefined;
+      this.releaseDeviceLock?.();
+      this.releaseDeviceLock = undefined;
+    }
   }
 
   /** Leaves the call; resolves once the membership is withdrawn (or the wait timed out). */
   leave(): Promise<void> {
     if (!this.leaving) {
-      this.leaving = this.teardown().then(() => {
+      this.leaving = this.teardown().finally(() => {
         if (this.state.phase !== 'failed') this.update({ phase: 'ended' });
       });
     }
