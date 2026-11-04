@@ -84,9 +84,15 @@ def reply(user, room, root_id, last_id, body, html=None, extra=None, msgtype="m.
 
 
 def trace(*calls):
-    return {"version": 1, "events": [
-        {"type": "tool_call_completed" if done else "tool_call_started", "tool_name": n, "args_preview": a, "result_preview": r if done else None}
-        for n, a, r, done in calls]}
+    # Version 2, as MindRoom sends it (tool_system/events.py): this client shows a call's arguments and result only
+    # from a version 2 trace. Arguments read `name=value, ...` like MindRoom's previews; a running call has no result.
+    events = []
+    for n, a, r, done in calls:
+        event = {"type": "tool_call_completed" if done else "tool_call_started", "tool_name": n, "args_preview": a}
+        if done:
+            event["result_preview"] = r
+        events.append(event)
+    return {"version": 2, "events": events}
 
 
 def run(display, config, model_id, provider, status="completed"):
@@ -132,7 +138,7 @@ def main():
     # Thread 4 (oldest): resolved
     r4 = root(jonas, room, code, "is staging ready for the load test before go-live?")
     a = reply(code, room, r4, r4, "🔧 `run_shell_command` [1]\n\nLoad test passed at 2.1k rps with p99 at 180 ms. Closing LAUNCH-88.",
-              extra={"io.mindroom.stream_status": "completed", "io.mindroom.tool_trace": trace(("run_shell_command", "k6 run load.js", "ok", True)),
+              extra={"io.mindroom.stream_status": "completed", "io.mindroom.tool_trace": trace(("run_shell_command", "command=k6 run load.js", "ok", True)),
                      "io.mindroom.ai_run": run("GPT-6.1 Sol", "sol", "gpt-6.1-sol", "openai")})
     summary(code, room, r4, a, "🧪 Staging load test before go-live")
     for t in ("launch", "infra", "resolved"):
@@ -142,29 +148,29 @@ def main():
 
     # Thread 1: completed, with table
     r1 = root(maya, room, research, "can you compare our Q3 churn against SaaS benchmarks and draft a short summary for the board deck?")
-    body = ("🔧 `web_search` [1]\n🔧 `run_python_code` [2]\n\nQ3 monthly churn came in at **2.9%**, down from 3.4% in Q2.\n\n"
+    body = ("🔧 `web_search` [1]\n\n🔧 `run_python_code` [2]\n\nQ3 monthly churn came in at **2.9%**, down from 3.4% in Q2.\n\n"
             "| Metric | Acme Q3 | Segment median | Top quartile |\n|---|---|---|---|\n| Monthly logo churn | 2.9% | 3.5% | 1.8% |\n| Net revenue retention | 108% | 102% | 115% |")
-    html = ("<p>🔧 <code>web_search</code> [1]<br>🔧 <code>run_python_code</code> [2]</p><p>Q3 monthly churn came in at <strong>2.9%</strong>, down from 3.4% in Q2.</p>"
+    html = ("<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>Q3 monthly churn came in at <strong>2.9%</strong>, down from 3.4% in Q2.</p>"
             "<table><thead><tr><th>Metric</th><th>Acme Q3</th><th>Segment median</th><th>Top quartile</th></tr></thead><tbody>"
             "<tr><td>Monthly logo churn</td><td>2.9%</td><td>3.5%</td><td>1.8%</td></tr><tr><td>Net revenue retention</td><td>108%</td><td>102%</td><td>115%</td></tr></tbody></table>")
     a = reply(research, room, r1, r1, body, html, {
         "io.mindroom.stream_status": "completed",
-        "io.mindroom.tool_trace": trace(("web_search", 'query="SaaS logo churn benchmarks 2026"', "8 results", True),
-                                        ("run_python_code", "churn = cancelled / start_of_month", "q3_churn=0.029", True)),
+        "io.mindroom.tool_trace": trace(("web_search", "query=SaaS logo churn benchmarks 2026", "8 results", True),
+                                        ("run_python_code", "code=churn = cancelled / start_of_month", "q3_churn=0.029", True)),
         "io.mindroom.ai_run": run("Claude Sonnet 5.5", "sonnet", "claude-sonnet-5-5", "anthropic")})
     s = summary(research, room, r1, a, "📊 Q3 churn vs. SaaS benchmarks")
     b = reply(maya, room, r1, s, "Great. Can you double-check where the top-quartile number comes from?")
     reply(research, room, r1, b, "🔧 `web_search` [1]\n\nIt's from the 2026 SaaS Benchmarks report (1,200 companies, $10-50M ARR). Top quartile is 1.8% monthly logo churn.",
-          extra={"io.mindroom.stream_status": "completed", "io.mindroom.tool_trace": trace(("web_search", 'query="2026 SaaS Benchmarks report"', "1 result", True)),
+          extra={"io.mindroom.stream_status": "completed", "io.mindroom.tool_trace": trace(("web_search", "query=2026 SaaS Benchmarks report", "1 result", True)),
                  "io.mindroom.ai_run": run("Claude Sonnet 5.5", "sonnet", "claude-sonnet-5-5", "anthropic")})
     for t in ("board-deck", "metrics"):
         tag(priya, room, r1, t)
 
     # Thread 2: approval pending
     r2 = root(jonas, room, code, "can you turn the cohort numbers into a chart for slide 6?")
-    a = reply(code, room, r2, r2, "🔧 `read_file` [1]\n🔧 `run_shell_command` [2] ⏳\n\nLoaded 12 monthly cohorts from `cohorts_q3.csv`.", extra={
+    a = reply(code, room, r2, r2, "🔧 `read_file` [1]\n\n🔧 `run_shell_command` [2] ⏳\n\nLoaded 12 monthly cohorts from `cohorts_q3.csv`.", extra={
         "io.mindroom.stream_status": "approval_pending",
-        "io.mindroom.tool_trace": trace(("read_file", "cohorts_q3.csv", "12 rows", True), ("run_shell_command", "python export_chart.py --slide 6", None, False)),
+        "io.mindroom.tool_trace": trace(("read_file", "path=cohorts_q3.csv", "12 rows", True), ("run_shell_command", "command=python export_chart.py --slide 6", None, False)),
         "io.mindroom.ai_run": run("GPT-6.1 Sol", "sol", "gpt-6.1-sol", "openai", "running")})
     now = datetime.now(UTC)
     send(code, room, {
@@ -179,7 +185,7 @@ def main():
     # Thread 3: streaming
     r3 = root(priya, room, mind, "draft the launch email for existing customers, friendly but short.")
     a = reply(mind, room, r3, r3, "🔧 `web_search` [1] ⏳\n\nSubject: Your workspace just got agents. Hi {first_name}, starting today every room can", extra={
-        "io.mindroom.stream_status": "streaming", "io.mindroom.tool_trace": trace(("web_search", 'query="launch email examples"', None, False)),
+        "io.mindroom.stream_status": "streaming", "io.mindroom.tool_trace": trace(("web_search", "query=launch email examples", None, False)),
         "io.mindroom.ai_run": run("Claude Opus 5.5", "opus", "claude-opus-5-5", "anthropic", "running")})
     summary(mind, room, r3, a, "✉️ Launch email draft")
     tag(priya, room, r3, "launch")
