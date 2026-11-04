@@ -104,8 +104,8 @@ const actionsForFinishedReply = (
 
 /**
  * Whether a live event should notify, and how. Own messages, rooms the account is not in,
- * redacted or undecryptable events, and old events (after `now - MESSAGE_NOTIFY_MAX_AGE_MS`)
- * never do; the rest follow the push rules.
+ * redacted or undecryptable events, messages read already, and old events (before
+ * `now - MESSAGE_NOTIFY_MAX_AGE_MS`) never do; the rest follow the push rules.
  */
 export const readMessageNotice = (
   client: MatrixClient,
@@ -115,7 +115,8 @@ export const readMessageNotice = (
 ): MessageNotice | undefined => {
   const sender = event.getSender();
   const eventId = event.getId();
-  if (!sender || !eventId || sender === client.getUserId()) return undefined;
+  const me = client.getUserId();
+  if (!sender || !eventId || !me || sender === me) return undefined;
   if (room.getMyMembership() !== KnownMembership.Join) return undefined;
   if (event.isRedacted() || event.isDecryptionFailure()) return undefined;
   if (!NOTIFYING_TYPES.has(event.getType())) return undefined;
@@ -130,6 +131,9 @@ export const readMessageNotice = (
   if (!actions?.notify) return undefined;
 
   const source = completed?.reply ?? event;
+  // Read already, here or on another device, before this client heard of it.
+  const thread = source.getThread();
+  if ((thread ?? room).hasUserReadEvent(me, source.getId() ?? eventId)) return undefined;
   return {
     roomId: room.roomId,
     eventId: source.getId() ?? eventId,

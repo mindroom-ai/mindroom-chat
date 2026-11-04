@@ -30,7 +30,7 @@ const makeEvent = (content: IContent, extra: Partial<Record<string, unknown>> = 
 
 type Actions = { notify: boolean; tweaks?: { sound?: string; highlight?: boolean } };
 
-const setup = (actions: Actions | null, known: MatrixEvent[] = []) => {
+const setup = (actions: Actions | null, known: MatrixEvent[] = [], read: string[] = []) => {
   const getPushActionsForEvent = vi.fn<(event: MatrixEvent) => Actions | null>(() => actions);
   const client = {
     getUserId: () => ME,
@@ -41,6 +41,7 @@ const setup = (actions: Actions | null, known: MatrixEvent[] = []) => {
     roomId: ROOM,
     getMyMembership: () => 'join',
     findEventById: (id: string) => known.find((event) => event.getId() === id),
+    hasUserReadEvent: (userId: string, id: string) => userId === ME && read.includes(id),
   } as unknown as Room;
   return { client, room, getPushActionsForEvent };
 };
@@ -78,6 +79,12 @@ describe('readMessageNotice', () => {
     expect(readMessageNotice(client, room, reaction, NOW)).toBeUndefined();
     const left = { ...room, getMyMembership: () => 'leave' } as unknown as Room;
     expect(readMessageNotice(client, left, makeEvent({ body: 'x' }), NOW)).toBeUndefined();
+  });
+
+  it('stays quiet for a message read already, on this device or another', () => {
+    const event = makeEvent({ msgtype: 'm.text', body: 'seen elsewhere' });
+    const { client, room } = setup(loud, [], [event.getId() as string]);
+    expect(readMessageNotice(client, room, event, NOW)).toBeUndefined();
   });
 
   it('names the thread of a thread reply', () => {

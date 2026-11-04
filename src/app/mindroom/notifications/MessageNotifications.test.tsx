@@ -51,6 +51,7 @@ const room = {
   getMember: (userId: string) =>
     userId === '@maya:example.org' ? { name: 'Maya Chen', rawDisplayName: 'Maya Chen' } : null,
   findEventById: () => undefined,
+  hasUserReadEvent: () => false,
 };
 
 let actions: Actions = { notify: true, tweaks: { sound: 'default' } };
