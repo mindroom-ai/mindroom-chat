@@ -371,6 +371,9 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
 
 type ClientSessionProps = { session: StoredSession; children: ReactNode };
 
+/** Clients whose account is being removed after the server ended its session. */
+const clientsLeavingAfterLogout = new WeakSet<MatrixClient>();
+
 /**
  * One account's client, from opening its stores to a running sync. Mounted
  * with the session ID as key, so switching accounts unmounts the previous
@@ -447,8 +450,14 @@ function ClientSession({ session, children }: ClientSessionProps) {
       const hasRooms = state !== null && hasCachedClientShell(mx);
       setSync((known) => noteSyncReport(known, state, hasRooms));
     };
+    // Every request the server refuses after a logout reports it; the account is removed once.
     const leaveAfterServerLogout = () => {
-      void removeCurrentClientSessionAndReload(mx, latestSession.current);
+      if (clientsLeavingAfterLogout.has(mx)) return;
+      clientsLeavingAfterLogout.add(mx);
+      // A failure that throws before its promise exists is shown the same way.
+      Promise.resolve()
+        .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
+        .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
     };
     noteSyncState(mx.getSyncState());
     mx.on(ClientEvent.Sync, noteSyncState);
