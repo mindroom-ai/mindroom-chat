@@ -15,6 +15,7 @@ import { CreateRoomModalRenderer } from '../../features/create-room/CreateRoomMo
 import { CreateSpaceModalRenderer } from '../../features/create-space/CreateSpaceModal';
 import { UserRoomProfileRenderer } from '../../components/user-profile/UserRoomProfileRenderer';
 import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPaletteRenderer';
+import { IncomingVerificationRequests } from '../../components/device-verification/IncomingVerificationRequests';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 
@@ -62,6 +63,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <CreateSpaceModalRenderer />
           <CommandPaletteRenderer />
           <UserRoomProfileRenderer />
+          <IncomingVerificationRequests />
         </RoomsNotificationPreferencesProvider>
       </ClientInitStorageAtom>
     </AutoDiscoveryInfoProvider>
