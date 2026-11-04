@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { putSession } from '../../state/sessions';
+import {
+  createSessionId,
+  listSessions,
+  putSession,
+  setActiveSession,
+  type StoredSession,
+} from '../../state/sessions';
+import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
 import {
   deleteAfterLoginRedirectPath,
   getAfterLoginRedirectPath,
@@ -22,10 +29,36 @@ export type CompletedAuth<T extends SessionCredentials> = {
   response: T;
 };
 
+/** The stored account a login belongs to, when this browser has it on another device. */
+const storedOnOtherDevice = (
+  baseUrl: string,
+  userId: string,
+  deviceId: string
+): StoredSession | undefined => {
+  const sessionId = createSessionId(baseUrl, userId);
+  const stored = listSessions().find((session) => session.sessionId === sessionId);
+  return stored && stored.deviceId !== deviceId ? stored : undefined;
+};
+
+/** Signs a login's new device out again; best effort, since nothing here depends on it. */
+const discardLogin = (baseUrl: string, userId: string, deviceId: string, accessToken: string) => {
+  createMatrixClient({ baseUrl, userId, deviceId, accessToken })
+    .logout()
+    .catch((error: unknown) => {
+      // eslint-disable-next-line no-console
+      console.warn('[auth] could not sign out the duplicate login', deviceId, error);
+    });
+};
+
 /**
  * Stores the new session, makes it active, and opens the page saved before
  * sign-in (or home). Returns true when the browser refused to store the
  * credentials, so the page can tell the user instead of looping.
+ *
+ * Signing in again to an account this browser has already (Add account, a second login tab)
+ * keeps the stored session and its device, with its keys and verification, and signs the new
+ * device out. Replacing it would leave the old device on the account, where other people keep
+ * encrypting to it, and its key database in the browser.
  */
 export const useCompleteSession = <T extends SessionCredentials>(
   data: CompletedAuth<T> | undefined
@@ -44,14 +77,20 @@ export const useCompleteSession = <T extends SessionCredentials>(
     if (!accessToken || !deviceId) return;
 
     try {
-      putSession({
-        baseUrl,
-        userId,
-        deviceId,
-        accessToken,
-        refreshToken: response.refresh_token,
-        expiresInMs: response.expires_in_ms,
-      });
+      const stored = storedOnOtherDevice(baseUrl, userId, deviceId);
+      if (stored) {
+        discardLogin(baseUrl, userId, deviceId, accessToken);
+        setActiveSession(stored.sessionId);
+      } else {
+        putSession({
+          baseUrl,
+          userId,
+          deviceId,
+          accessToken,
+          refreshToken: response.refresh_token,
+          expiresInMs: response.expires_in_ms,
+        });
+      }
     } catch {
       setStoreFailed(true);
       return;
