@@ -173,15 +173,20 @@ export type RenderImageContentArgs = {
 const MEDIA_MAX_WIDTH = 400;
 const MEDIA_MAX_HEIGHT = 300;
 
-/** Box for a picture or video that keeps the media's aspect ratio inside the size limits. */
+/**
+ * Box for a picture or video that keeps the media's aspect ratio inside the size limits. When the
+ * message is narrower than that (phones), the box narrows and its height follows the ratio.
+ */
 const mediaBoxStyle = (info: { w?: number; h?: number }): CSSProperties => {
   const width = typeof info.w === 'number' && info.w > 0 ? info.w : undefined;
   const height = typeof info.h === 'number' && info.h > 0 ? info.h : undefined;
-  const scale =
-    width && height ? Math.min(1, MEDIA_MAX_WIDTH / width, MEDIA_MAX_HEIGHT / height) : 1;
+  const sized = width !== undefined && height !== undefined;
+  const scale = sized ? Math.min(1, MEDIA_MAX_WIDTH / width, MEDIA_MAX_HEIGHT / height) : 1;
   return {
     width: width ? toRem(Math.round(width * scale)) : toRem(MEDIA_MAX_WIDTH),
-    height: height ? toRem(Math.round(height * scale)) : toRem(MEDIA_MAX_HEIGHT * 0.75),
+    ...(sized
+      ? { aspectRatio: `${Math.round(width * scale)} / ${Math.round(height * scale)}` }
+      : { height: toRem(MEDIA_MAX_HEIGHT * 0.75) }),
     maxWidth: '100%',
     overflow: 'hidden',
     borderRadius: toRem(12),
@@ -369,10 +374,7 @@ export function MFile(props: MFileProps) {
       : typeLabel(mimeType);
 
   return (
-    <div
-      ref={cardRef}
-      className={classNames(fileCss.FileRow, outlined && fileCss.FileRowOutlined)}
-    >
+    <div ref={cardRef} className={classNames(fileCss.FileRow, outlined && fileCss.FileRowOutlined)}>
       <div className={fileCss.FileTile} aria-hidden="true">
         {extension || <Icon size="100" src={Icons.File} />}
       </div>
