@@ -78,4 +78,18 @@ describe('time formatters', () => {
       }).format(ts)
     );
   });
+
+  it('formats in the zone the device is in now, not the one a cached formatter was built in', () => {
+    const zone = process.env.TZ;
+    const ts = Date.UTC(2025, 0, 2, 9, 5);
+    try {
+      process.env.TZ = 'UTC';
+      expect(timeHourMinute(ts, true, 'en-GB')).toBe('09:05');
+      process.env.TZ = 'Asia/Tokyo';
+      expect(timeHourMinute(ts, true, 'en-GB')).toBe('18:05');
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
 });

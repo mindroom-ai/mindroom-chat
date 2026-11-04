@@ -24,8 +24,16 @@ const cachedFormatter = <T>(
   return created;
 };
 
+// A date formatter keeps the time zone it was built in, so its key carries the current UTC offset:
+// after the device moves to another zone, times format in the new one. (Reading the offset is cheap;
+// reading the zone's name would mean building a formatter.)
 const dateTimeFormat = (language: string | undefined, options: Intl.DateTimeFormatOptions) =>
-  cachedFormatter('date', language, options, () => new Intl.DateTimeFormat(language, options));
+  cachedFormatter(
+    `date${options.timeZone ? '' : new Date().getTimezoneOffset()}`,
+    language,
+    options,
+    () => new Intl.DateTimeFormat(language, options)
+  );
 
 const relativeTimeFormat = (language: string, options: Intl.RelativeTimeFormatOptions) =>
   cachedFormatter(
