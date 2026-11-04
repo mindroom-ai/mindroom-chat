@@ -37,13 +37,21 @@ function Broken(): ReactNode {
   throw new TypeError("Cannot read properties of undefined (reading 'ComputerScreen')");
 }
 
-const renderBroken = () => {
+const MISSING_CHUNK =
+  'Failed to fetch dynamically imported module: https://chat.example.org/assets/RoomCall-a1.js';
+
+/** A page whose chunk a deployment removed, loaded with a plain `lazy`. */
+function GoneAfterDeploy(): ReactNode {
+  throw new TypeError(MISSING_CHUNK);
+}
+
+const renderBroken = (Failing: () => ReactNode = Broken) => {
   // React reports the caught error on the console; the screen is what is under test.
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   return render(
     <AppErrorBoundary>
       <p>the app</p>
-      <Broken />
+      <Failing />
     </AppErrorBoundary>
   );
 };
@@ -80,6 +88,17 @@ describe('AppErrorBoundary', () => {
       'A new version of MindRoom is available.'
     );
     expect(screen.getByText(/Reload to use it\./)).toBeTruthy();
+  });
+
+  it('says a new version is available for a file the server no longer has, before it answers', () => {
+    renderBroken(GoneAfterDeploy);
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'A new version of MindRoom is available.'
+    );
+    expect(screen.getByText(/Reload to use it\./)).toBeTruthy();
+    expect(screen.queryByText(/Couldn't reach the server/)).toBeNull();
+    expect(screen.getByText(MISSING_CHUNK)).toBeTruthy();
   });
 
   it('renders its children while nothing fails', () => {

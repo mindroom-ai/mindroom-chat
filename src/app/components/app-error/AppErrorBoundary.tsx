@@ -7,16 +7,18 @@ import { SplashScreen } from '../splash-screen';
 import { ErrorDetail } from '../ErrorDetail';
 import { useNewVersion } from '../app-update/NewVersionNotice';
 import { checkForNewVersion, reloadForNewVersion } from '../../../appUpdate';
+import { isMissingBuildFile } from '../../utils/describeError';
 
 /**
  * What the app shows when a screen fails to render, in place of a blank page: what happened, the
  * error's own text, and Reload. A part that cannot load because a deployment removed this build's
- * files (a plain `lazy` without a fallback, such as the computer screen) ends up here too; then it
- * says a new version is available, and Reload starts it.
+ * files (a plain `lazy` without a fallback, such as a route's page) ends up here too; then it says
+ * a new version is available, and Reload starts it. It says so from the failure itself, before
+ * the server's version is known, and also when the server publishes no version.
  */
 export function AppCrashScreen({ error }: { error: unknown }) {
   const { t } = useTranslation();
-  const newVersion = useNewVersion() !== undefined;
+  const newVersion = useNewVersion() !== undefined || isMissingBuildFile(error);
   const [reloading, setReloading] = useState(false);
 
   const reload = () => {
