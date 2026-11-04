@@ -13,13 +13,6 @@ import {
  * that view and starts over in the render that shows another one.
  */
 
-/** A value read by callbacks that must keep their identity when it changes. */
-export const useLatestRef = <T>(value: T): MutableRefObject<T> => {
-  const ref = useRef(value);
-  ref.current = value;
-  return ref;
-};
-
 export type ViewScopedFlag = { viewKey: string; value: boolean };
 
 /**

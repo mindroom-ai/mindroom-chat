@@ -23,7 +23,7 @@ import { getRangeWithoutRow, type Timeline } from './timelinePagination';
 import { shouldAutoPaginateThreadBack } from './threadRenderUtils';
 import { countCacheProbe } from './cacheProbe';
 import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from './preloadSettings';
-import { useLatestRef } from './roomTimelineViewScope';
+import { useLatestRef } from '../../hooks/useLatestRef';
 
 /**
  * The window of room rows the timeline mounts and how it moves: widened and paged by the reader's

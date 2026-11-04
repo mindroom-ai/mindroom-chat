@@ -6,6 +6,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import InviteSound from '../../../../public/sound/invite.ogg';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { useLatestRef } from '../../hooks/useLatestRef';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useActiveSession } from '../../hooks/useSessionStore';
@@ -113,14 +114,6 @@ export function CrossRoomThreadIndexFeature() {
   return null;
 }
 
-type Latest<T> = { current: T };
-
-const useLatest = <T,>(value: T): Latest<T> => {
-  const ref = useRef(value);
-  ref.current = value;
-  return ref;
-};
-
 /**
  * On the iOS app, registers for APNs while push is on and sends the device token to the
  * homeserver as a pusher. A private server behind Cloudflare Access waits for its sign-in; a
@@ -144,7 +137,7 @@ export function MindroomNativeIOSPushFeature() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [configKey]
   );
-  const latest = useLatest({ enabled, signInRequired, pushAllowed });
+  const latest = useLatestRef({ enabled, signInRequired, pushAllowed });
   const native = isNativeIOSPlatform();
 
   // Tokens can arrive from a registration started earlier, so the listener lives as long as the client.
