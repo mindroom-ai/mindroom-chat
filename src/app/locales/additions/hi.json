@@ -1,0 +1,224 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "स्क्रॉल करें"
+    },
+    "passwordInput": {
+      "show": "पासवर्ड दिखाएँ",
+      "hide": "पासवर्ड छिपाएँ"
+    },
+    "pdfViewer": {
+      "close": "बंद करें"
+    },
+    "urlPreviewHolder": {
+      "previous": "पिछले लिंक पूर्वावलोकन",
+      "next": "और लिंक पूर्वावलोकन"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "नाम",
+      "cancel": "रद्द करें",
+      "skinTone": "त्वचा का रंग",
+      "skinTones": {
+        "default": "डिफ़ॉल्ट त्वचा का रंग",
+        "light": "हल्का त्वचा का रंग",
+        "mediumLight": "मध्यम-हल्का त्वचा का रंग",
+        "medium": "मध्यम त्वचा का रंग",
+        "mediumDark": "मध्यम-गहरा त्वचा का रंग",
+        "dark": "गहरा त्वचा का रंग"
+      }
+    },
+    "eventReaders": {
+      "close": "बंद करें"
+    },
+    "imagePackContent": {
+      "uploadFailed": "चित्र अपलोड नहीं हो सके। फिर से कोशिश करें।",
+      "noImages": "अभी कोई चित्र नहीं है।"
+    },
+    "imagePackView": {
+      "close": "बंद करें",
+      "back": "वापस"
+    },
+    "imageTile": {
+      "remove": "हटाएँ",
+      "editImage": ":{{shortcode}}: संपादित करें",
+      "removeImage": ":{{shortcode}}: हटाएँ",
+      "keepImage": ":{{shortcode}}: रखें",
+      "removedOnApply": "बदलाव लागू करने पर हटा दिया जाएगा",
+      "usage": "इस रूप में इस्तेमाल",
+      "shortcodeTaken": "किसी दूसरे चित्र का यही शॉर्टकोड है।",
+      "shortcodeInvalid": "शॉर्टकोड में स्पेस या कोलन नहीं हो सकते।"
+    },
+    "imageUsageOption": {
+      "pack": "पैक के समान"
+    },
+    "imageViewer": {
+      "close": "बंद करें"
+    },
+    "inviteUserPrompt": {
+      "close": "बंद करें"
+    },
+    "joinAddressPrompt": {
+      "close": "बंद करें"
+    },
+    "textViewer": {
+      "close": "बंद करें"
+    },
+    "invites": {
+      "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।"
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "उपयोगकर्ता खोजें या उपयोगकर्ता ID दर्ज करें"
+    },
+    "leaveRoomPrompt": {
+      "close": "बंद करें",
+      "forget": "यह रूम भूल जाएँ",
+      "forgetDescription": "इसे इतिहास सहित आपके खाते से भी हटा देता है। रूम अनुमति दे तो आप बाद में फिर से जुड़ सकते हैं।"
+    },
+    "memberFilters": {
+      "label": "सदस्यों को दिखाएँ"
+    },
+    "memberSort": {
+      "label": "सदस्यों को क्रमबद्ध करें"
+    },
+    "a11y": {
+      "mainNavigation": "मुख्य नेविगेशन",
+      "skipToContent": "सामग्री पर जाएँ",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "रूम भूल जाएँ"
+    },
+    "userRoomProfile": {
+      "editProfile": "प्रोफ़ाइल संपादित करें"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} हटाएँ"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "इवेंट को एक प्रकार दें और ऐसी सामग्री दें जो JSON ऑब्जेक्ट हो।"
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "व्यक्तिगत पैक",
+          "imageCount_one": "{{count}} चित्र, हर रूम में आपका",
+          "imageCount_other": "{{count}} चित्र, हर रूम में आपके"
+        }
+      },
+      "devices": {
+        "loadFailed": "आपके डिवाइस लोड नहीं हो सके।"
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "अनब्लॉक करें"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "हटाएँ"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "चैट शुरू नहीं हो सकी। फिर से कोशिश करें।"
+    },
+    "homeNav": {
+      "options": "होम विकल्प"
+    },
+    "directNav": {
+      "options": "सीधे संदेश विकल्प"
+    },
+    "spaceNav": {
+      "options": "स्पेस विकल्प"
+    },
+    "calls": {
+      "panel": {
+        "title": "कॉल",
+        "close": "कॉल पैनल बंद करें",
+        "participants": "कॉल में मौजूद लोग",
+        "connecting": "कनेक्ट हो रहा है…",
+        "reconnecting": "फिर से कनेक्ट हो रहा है…",
+        "ended": "कॉल समाप्त हो गई।",
+        "waitingFor": "{{name}} की प्रतीक्षा की जा रही है…",
+        "you": "{{name}} (आप)",
+        "microphoneOff": "माइक्रोफ़ोन बंद",
+        "inCall_one": "कॉल में {{count}} व्यक्ति",
+        "inCall_other": "कॉल में {{count}} लोग",
+        "startCall": "कॉल शुरू करें",
+        "startVideoCall": "वीडियो कॉल शुरू करें",
+        "dismiss": "बंद करें",
+        "audioBlocked": "आपके ब्राउज़र ने कॉल की आवाज़ रोक दी है।",
+        "playSound": "आवाज़ चलाएँ",
+        "resize": "कॉल पैनल का आकार बदलें"
+      },
+      "problems": {
+        "service": "कॉल सेवा तक नहीं पहुँचा जा सका। बाद में फिर से कोशिश करें।",
+        "connection": "कॉल का कनेक्शन टूट गया।",
+        "device": "आपके माइक्रोफ़ोन या कैमरे का उपयोग नहीं किया जा सका।"
+      },
+      "devices": {
+        "title": "डिवाइस",
+        "microphone": "माइक्रोफ़ोन",
+        "camera": "कैमरा",
+        "speaker": "स्पीकर",
+        "systemDefault": "सिस्टम डिफ़ॉल्ट",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "कॉल शुरू करें",
+        "joinCall": "कॉल में शामिल हों",
+        "joinCallCount_one": "कॉल में शामिल हों, इसमें {{count}} व्यक्ति है",
+        "joinCallCount_other": "कॉल में शामिल हों, इसमें {{count}} लोग हैं",
+        "showCall": "कॉल दिखाएँ",
+        "hideCall": "कॉल छिपाएँ"
+      },
+      "rail": {
+        "returnToCall": "{{room}} की कॉल पर वापस जाएँ"
+      },
+      "incoming": {
+        "calling": "{{name}} कॉल कर रहे हैं",
+        "callingIn": "{{name}} {{room}} में कॉल कर रहे हैं",
+        "videoCall": "वीडियो कॉल",
+        "voiceCall": "वॉइस कॉल"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "सोचा"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "खोज विफल रही। फिर से कोशिश करें।"
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "आमंत्रण",
+        "body_one": "आपके पास {{count}} नया आमंत्रण है।",
+        "body_other": "आपके पास {{count}} नए आमंत्रण हैं।"
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "सघन दृश्य"
+      }
+    },
+    "computer": {
+      "resize": "कंप्यूटर पैनल का आकार बदलें",
+      "close": "कंप्यूटर बंद करें"
+    }
+  },
+  "composer": {
+    "emoji": "इमोजी",
+    "cancelReply": "जवाब रद्द करें"
+  }
+}
