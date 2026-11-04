@@ -360,14 +360,16 @@ const footerProbeStyle: React.CSSProperties = {
 };
 
 /**
- * The room timeline's rows begin the gap below the floating header that the Compact cards and
- * the thread banner keep, where the thread filter bar this client leaves out used to sit. The
- * gap joins the band the header covers, so a row scrolled into it counts as out of sight.
+ * The room timeline's rows begin a gap below the floating header, where the thread filter bar
+ * this client leaves out used to sit. The gap joins the band the header covers, so a row
+ * scrolled into it counts as out of sight; it is twice the Compact cards' gap so that a short
+ * room overflows by more than a small wheel turn and loads its older rows only when the reader
+ * reaches its top (live/room-load-older-keeps-reader).
  */
 const roomViewStyle = {
   minHeight: 0,
   position: 'relative',
-  '--room-overview-height': config.space.S200,
+  '--room-overview-height': config.space.S400,
 } as React.CSSProperties;
 const threadViewStyle: React.CSSProperties = { minHeight: 0, position: 'relative' };
 
