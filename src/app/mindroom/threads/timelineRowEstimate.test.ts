@@ -116,6 +116,10 @@ describe('estimateRoomRowHeight', () => {
     expect(estimateRoomRowHeight(other, first)).toBe(68);
   });
 
+  it('adds the thread badge the threaded view shows under a message', () => {
+    expect(estimateRoomRowHeight(first, undefined, { threadBadge: true })).toBe(68 + 31);
+  });
+
   it('adds the date separator above the first message of a new day', () => {
     const tomorrow = makeEvent({ id: '$tomorrow', ts: first.getTs() + 24 * 60 * MINUTE });
     expect(estimateRoomRowHeight(tomorrow, first)).toBe(68 + 34);

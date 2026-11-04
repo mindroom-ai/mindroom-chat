@@ -941,7 +941,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
       const position = index === undefined ? undefined : activeTimelineRange.start + index;
       const event = position === undefined ? undefined : roomRows[position];
       if (!event || position === undefined) return ROOM_ROW_ESTIMATE_PX.comfortable;
-      return estimateRoomRowHeight(event, roomRows[position - 1]);
+      // The threaded view shows a badge under each message that has a thread record.
+      const threadBadge =
+        !showThreadRepliesInRoom && threadIndex.threadRecordMap.has(event.getId() ?? '');
+      return estimateRoomRowHeight(event, roomRows[position - 1], { threadBadge });
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {

@@ -38,6 +38,8 @@ const AUTHOR_LINE_PX = 22;
 const STATE_ROW_PX = 28;
 /** A date separator above the first message of a day. */
 const DAY_DIVIDER_PX = 34;
+/** The thread badge under a message of the threaded room view. */
+const THREAD_BADGE_PX = 31;
 /** Media without size information, and file or audio cards. */
 const MEDIA_FALLBACK_PX = 240;
 const FILE_CARD_PX = 56;
@@ -151,11 +153,13 @@ export const estimateMessageRowHeight = (
 
 /**
  * A room row in the Modern or Bubble layout: state changes as a line or nothing, messages with
- * the author line that starts a group, and the date separator above a new day.
+ * the author line that starts a group and the thread badge the threaded view puts under them,
+ * and the date separator above a new day.
  */
 export const estimateRoomRowHeight = (
   event: MatrixEvent,
-  above: MatrixEvent | undefined
+  above: MatrixEvent | undefined,
+  { threadBadge = false }: { threadBadge?: boolean } = {}
 ): number => {
   const type = event.getType();
   if (event.getStateKey() !== undefined) return STATE_ROW_TYPES.has(type) ? STATE_ROW_PX : 0;
@@ -166,5 +170,5 @@ export const estimateRoomRowHeight = (
     ? Math.max(AUTHOR_ROW_MIN_PX, bodyPx + AUTHOR_LINE_PX)
     : bodyPx;
   const newDay = !!above && !inSameDay(above.getTs(), event.getTs());
-  return rowPx + (newDay ? DAY_DIVIDER_PX : 0);
+  return rowPx + (threadBadge ? THREAD_BADGE_PX : 0) + (newDay ? DAY_DIVIDER_PX : 0);
 };
