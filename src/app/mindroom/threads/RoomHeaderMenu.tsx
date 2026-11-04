@@ -1,8 +1,14 @@
 import React, { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Icon, Icons, Line, Text, config, toRem, type IconSrc } from 'folds';
+import { Box, Icon, Icons, Line, Spinner, Text, config, toRem, type IconSrc } from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
+import {
+  getRoomNotificationMode,
+  getRoomNotificationModeIcon,
+  useRoomsNotificationPreferencesContext,
+} from '../../hooks/useRoomsNotificationPreferences';
 import { MindroomMarkRoomReadMenuItem } from '../notifications/MindroomMarkRoomReadMenuItem';
 import { ArchiveRoomMenuItem } from '../rooms/ArchiveRoomMenuItem';
 
@@ -49,6 +55,37 @@ function HeaderMenuEntry({ icon, label, onSelect, critical }: EntryProps) {
   );
 }
 
+/** The room's notification mode, with its bell; it opens the mode menu beside the entry. */
+function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () => void }) {
+  const { t } = useTranslation();
+  const mode = getRoomNotificationMode(useRoomsNotificationPreferencesContext(), room.roomId);
+  return (
+    <RoomNotificationModeSwitcher roomId={room.roomId} value={mode} onChange={onChosen}>
+      {(handleOpen, opened, changing) => (
+        <MenuItem
+          size="300"
+          radii="300"
+          variant="Surface"
+          aria-haspopup="menu"
+          aria-expanded={opened}
+          after={
+            changing ? (
+              <Spinner size="100" variant="Secondary" />
+            ) : (
+              <Icon size="100" src={getRoomNotificationModeIcon(mode)} />
+            )
+          }
+          onClick={handleOpen}
+        >
+          <Text as="span" size="T300" align="Left" truncate style={entryLabelStyle}>
+            {t('mindroomUi.threads.mindroomRoomViewHeader.notifications')}
+          </Text>
+        </MenuItem>
+      )}
+    </RoomNotificationModeSwitcher>
+  );
+}
+
 function MenuGroup({ children }: { children: ReactNode }) {
   return (
     <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
@@ -58,9 +95,10 @@ function MenuGroup({ children }: { children: ReactNode }) {
 }
 
 /**
- * The room header's options menu: read state, sharing, settings, search, the computer when the
- * header does not show it, then archiving and leaving the room. The ref reaches the menu element,
- * which the focus trap around it needs to close on Escape and outside clicks.
+ * The room header's options menu: read state, notification mode, sharing, settings, search, the
+ * computer when the header does not show it, then archiving and leaving the room. The ref
+ * reaches the menu element, which the focus trap around it needs to close on Escape and outside
+ * clicks.
  */
 export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
   function RoomHeaderMenu(
@@ -86,6 +124,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
       <Menu ref={ref} style={{ minWidth: toRem(200), maxWidth: toRem(280) }}>
         <MenuGroup>
           <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+          <NotificationModeEntry room={room} onChosen={requestClose} />
           {onInvite && (
             <HeaderMenuEntry
               icon={Icons.UserPlus}

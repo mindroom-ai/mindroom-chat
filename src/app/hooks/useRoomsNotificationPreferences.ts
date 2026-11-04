@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo } from 'react';
+import { Icons, type IconSrc } from 'folds';
 import {
   ConditionKind,
   IPushRule,
@@ -60,6 +61,17 @@ export const getRoomNotificationMode = (
   preferences: RoomToNotificationMode,
   roomId: string
 ): RoomNotificationMode => preferences.get(roomId) ?? RoomNotificationMode.Unset;
+
+const MODE_ICONS: Record<RoomNotificationMode, IconSrc> = {
+  [RoomNotificationMode.Unset]: Icons.Bell,
+  [RoomNotificationMode.AllMessages]: Icons.BellRing,
+  [RoomNotificationMode.SpecialMessages]: Icons.BellPing,
+  [RoomNotificationMode.Mute]: Icons.BellMute,
+};
+
+/** The bell that stands for a mode in menus: plain, ringing, pinged (mentions) or crossed out. */
+export const getRoomNotificationModeIcon = (mode: RoomNotificationMode): IconSrc =>
+  MODE_ICONS[mode] ?? Icons.Bell;
 
 /** Deletes the room's own rule of `kind`; a rule that is already gone counts as deleted. */
 const removeRule = async (mx: MatrixClient, kind: PushRuleKind, roomId: string): Promise<void> => {

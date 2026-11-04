@@ -8,6 +8,7 @@ import {
   Icons,
   Line,
   PopOut,
+  Spinner,
   Text,
   config,
   toRem,
@@ -24,7 +25,11 @@ import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
-import { RoomNotificationMode } from '../../hooks/useRoomsNotificationPreferences';
+import {
+  RoomNotificationMode,
+  getRoomNotificationModeIcon,
+} from '../../hooks/useRoomsNotificationPreferences';
+import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
@@ -65,6 +70,8 @@ type RoomNavItemMenuProps = {
   room: Room;
   requestClose: () => void;
   onPrompt: (prompt: RoomNavPrompt) => void;
+  /** The room's notification mode; rows without one offer no mode switch. */
+  notificationMode?: RoomNotificationMode;
 };
 
 const menuGroupStyle = { padding: config.space.S100 } as const;
@@ -73,7 +80,7 @@ const roomMenuStyle = { minWidth: toRem(200) } as const;
 // The focus trap around the menu finds its container through this ref, so Escape and a click
 // outside close the menu.
 const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(function RoomNavItemMenu(
-  { room, requestClose, onPrompt },
+  { room, requestClose, onPrompt, notificationMode },
   ref
 ) {
   const { t } = useTranslation();
@@ -94,6 +101,24 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
     <Menu style={roomMenuStyle} ref={ref}>
       <Box direction="Column" gap="100" style={menuGroupStyle}>
         <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+        {notificationMode && (
+          <RoomNotificationModeSwitcher
+            roomId={room.roomId}
+            value={notificationMode}
+            onChange={requestClose}
+            side="Right"
+          >
+            {(handleOpen, opened, changing) => (
+              <RoomMenuEntry
+                icon={getRoomNotificationModeIcon(notificationMode)}
+                label={t('featureUi.roomNav.roomNavItem.notifications')}
+                onClick={handleOpen}
+                busy={changing}
+                expanded={opened}
+              />
+            )}
+          </RoomNotificationModeSwitcher>
+        )}
         {canInvite && (
           <RoomMenuEntry
             icon={Icons.UserPlus}
@@ -129,18 +154,24 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
 type RoomMenuEntryProps = {
   icon: IconSrc;
   label: string;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   /** Leaving is styled as a destructive action. */
   critical?: boolean;
+  /** A spinner replaces the icon while the entry's change is stored. */
+  busy?: boolean;
+  /** For an entry that opens a menu of its own: whether that menu is open. */
+  expanded?: boolean;
 };
 
-function RoomMenuEntry({ icon, label, onClick, critical }: RoomMenuEntryProps) {
+function RoomMenuEntry({ icon, label, onClick, critical, busy, expanded }: RoomMenuEntryProps) {
   return (
     <MenuItem
       size="300"
       radii="300"
       variant={critical ? 'Critical' : 'Surface'}
-      after={<Icon size="100" src={icon} />}
+      after={busy ? <Spinner size="100" variant="Secondary" /> : <Icon size="100" src={icon} />}
+      aria-haspopup={expanded === undefined ? undefined : 'menu'}
+      aria-expanded={expanded}
       onClick={onClick}
     >
       <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
@@ -227,9 +258,16 @@ type RoomNavOptionsProps = {
   anchor: RectCords | undefined;
   onAnchorChange: (anchor: RectCords | undefined) => void;
   onPrompt: (prompt: RoomNavPrompt) => void;
+  notificationMode?: RoomNotificationMode;
 };
 
-function RoomNavOptions({ room, anchor, onAnchorChange, onPrompt }: RoomNavOptionsProps) {
+function RoomNavOptions({
+  room,
+  anchor,
+  onAnchorChange,
+  onPrompt,
+  notificationMode,
+}: RoomNavOptionsProps) {
   const { t } = useTranslation();
   const menuOpen = anchor !== undefined;
   const closeMenu = () => onAnchorChange(undefined);
@@ -245,7 +283,12 @@ function RoomNavOptions({ room, anchor, onAnchorChange, onPrompt }: RoomNavOptio
         onDeactivate: closeMenu,
       }}
     >
-      <RoomNavItemMenu room={room} requestClose={closeMenu} onPrompt={onPrompt} />
+      <RoomNavItemMenu
+        room={room}
+        requestClose={closeMenu}
+        onPrompt={onPrompt}
+        notificationMode={notificationMode}
+      />
     </FocusTrap>
   );
 
@@ -402,6 +445,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
           anchor={optionsAnchor}
           onAnchorChange={setOptionsAnchor}
           onPrompt={setPrompt}
+          notificationMode={notificationMode}
         />
       ) : null}
     </NavItem>
