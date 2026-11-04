@@ -1,10 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Avatar, Box, Button, Chip, Spinner, Text, color, config } from 'folds';
+import React, {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Avatar, Box, Button, Chip, Spinner, Text, color, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import {
+  MatrixEventEvent,
   Method,
+  type IRoomEvent,
   type INotification,
+  type MatrixEvent,
   type INotificationsResponse,
   type MatrixClient,
   type Room,
@@ -27,6 +38,14 @@ import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { getMemberDisplayName, getRoomAvatarUrl } from '../../../utils/room';
 import { getMxIdLocalPart } from '../../../utils/matrix';
+import { RenderMessageContent } from '../../../components/RenderMessageContent';
+import {
+  MessageBadEncryptedContent,
+  MessageDeletedContent,
+} from '../../../components/message/content/FallbackContent';
+import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../../plugins/react-custom-html-parser';
+import { useSettingValue } from '../../../state/hooks/useSettingValue';
+import { settingsAtom } from '../../../state/settings';
 import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
 import {
   resolveNotificationEvent,
@@ -115,10 +134,74 @@ const groupByRoom = (mx: MatrixClient, notifications: INotification[]): RoomNoti
     return groups;
   }, []);
 
-const PREVIEW_LENGTH = 280;
-/** Long messages show their start; Open shows the rest in the room. */
-const previewText = (text: string): string =>
-  text.length > PREVIEW_LENGTH ? `${text.slice(0, PREVIEW_LENGTH).trimEnd()}…` : text;
+// Long messages show their start; Open shows the rest in the room.
+const PREVIEW_MAX_HEIGHT = toRem(240);
+const PREVIEW_FADE = 'linear-gradient(to bottom, black 75%, transparent)';
+
+/**
+ * The event a notification points at, as the room shows it: its latest edit, decrypted. The
+ * notifications API returns events as the server stored them, so an encrypted one is decrypted
+ * here when the room timeline does not hold it yet.
+ */
+const useNotificationEvent = (mx: MatrixClient, room: Room, raw: IRoomEvent): MatrixEvent => {
+  const event = useMemo(() => resolveNotificationEvent(room, raw), [room, raw]);
+  const [, setDecrypted] = useState(0);
+  useEffect(() => {
+    if (!event.isEncrypted() || (!event.isBeingDecrypted() && event.getClearContent())) {
+      return undefined;
+    }
+    const redraw = () => setDecrypted((count) => count + 1);
+    event.on(MatrixEventEvent.Decrypted, redraw);
+    mx.decryptEventIfNeeded(event).catch(() => undefined);
+    return () => {
+      event.off(MatrixEventEvent.Decrypted, redraw);
+    };
+  }, [mx, event]);
+  return event;
+};
+
+/** Message content cut at a fixed height, fading out when it continues below. */
+function NotificationPreview({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    Array.from(element.children).forEach((child) => observer.observe(child));
+    return () => observer.disconnect();
+  }, [children]);
+  return (
+    <div
+      ref={ref}
+      style={{
+        maxHeight: PREVIEW_MAX_HEIGHT,
+        overflow: 'hidden',
+        overflowWrap: 'anywhere',
+        maskImage: cut ? PREVIEW_FADE : undefined,
+        WebkitMaskImage: cut ? PREVIEW_FADE : undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** How message HTML in this room's rows is turned into React, with authenticated media. */
+const useBodyParserOptions = (client: MatrixClient, roomId: string) => {
+  const authenticatedMedia = useMediaAuthentication();
+  return useMemo(
+    () =>
+      getReactCustomHtmlParser(client, roomId, {
+        linkifyOpts: LINKIFY_OPTS,
+        useAuthentication: authenticatedMedia,
+      }),
+    [client, roomId, authenticatedMedia]
+  );
+};
 
 function NotificationRow({
   room,
@@ -130,12 +213,39 @@ function NotificationRow({
   onOpen: (eventId: string) => void;
 }) {
   const { t } = useTranslation();
-  const event = resolveNotificationEvent(room, notification.event);
+  const client = useMatrixClient();
+  const event = useNotificationEvent(client, room, notification.event);
+  const parserOptions = useBodyParserOptions(client, room.roomId);
+  const autoLoadMedia = useSettingValue(settingsAtom, 'mediaAutoLoad');
   const sender = event.getSender() ?? '';
   const senderName = getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender;
-  const { body } = event.getContent();
-  const text = typeof body === 'string' && body.trim() ? body : t('sharedUi.notifications.event');
   const eventId = event.getId() ?? notification.event.event_id;
+  const content = event.getContent();
+
+  let body: ReactNode;
+  if (event.isRedacted()) body = <MessageDeletedContent />;
+  else if (event.isDecryptionFailure()) body = <MessageBadEncryptedContent />;
+  else if (event.isEncrypted() && !event.getClearContent()) body = <Spinner size="100" />;
+  else {
+    body = (
+      <RenderMessageContent
+        mEvent={event}
+        eventId={eventId}
+        roomId={room.roomId}
+        eventType={event.getType()}
+        msgType={typeof content.msgtype === 'string' ? content.msgtype : ''}
+        displayName={senderName}
+        ts={event.getTs()}
+        edited={!!event.replacingEvent()}
+        getContent={(() => content) as <T>() => T}
+        mediaAutoLoad={!!autoLoadMedia}
+        urlPreview={false}
+        outlineAttachment
+        htmlReactParserOptions={parserOptions}
+        linkifyOpts={LINKIFY_OPTS}
+      />
+    );
+  }
 
   return (
     <Box gap="300" alignItems="Start" style={{ padding: config.space.S300 }}>
@@ -148,9 +258,7 @@ function NotificationRow({
             {dayjs(notification.ts).format('MMM D, HH:mm')}
           </Text>
         </Box>
-        <Text size="T300" style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
-          {previewText(text)}
-        </Text>
+        <NotificationPreview>{body}</NotificationPreview>
       </Box>
       <Chip variant="Secondary" radii="Pill" onClick={() => onOpen(eventId)}>
         <Text size="T200">{t('sharedUi.notifications.open')}</Text>
