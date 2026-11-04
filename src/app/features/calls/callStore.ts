@@ -128,20 +128,28 @@ export const useCallActions = (mx: MatrixClient) => {
   }, [store]);
 
   const startCall = useCallback(
-    async ({ room, video, microphone, devices, notify, ...meta }: StartCallOptions) => {
-      if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
-      const { RoomCall } = await import('./RoomCall');
+    async ({
+      room,
+      video,
+      microphone,
+      devices,
+      notify,
+      ...meta
+    }: StartCallOptions): Promise<StartCallResult> => {
+      if (store.get(activeCallAtom)) return 'busy';
+      // The engine is a chunk of its own; after a deploy the server may no longer have the one
+      // this page asks for.
+      const engine = await import('./RoomCall').catch(() => undefined);
+      if (!engine) return 'failed';
       // Another tab of this session shares the device: joining here would withdraw and replace
       // that tab's membership, and the two would keep replacing each other.
-      if (store.get(activeCallAtom) || (await deviceInCallElsewhere(mx))) {
-        return 'busy' as StartCallResult;
-      }
+      if (store.get(activeCallAtom) || (await deviceInCallElsewhere(mx))) return 'busy';
       await room.loadMembersIfNeeded().catch(() => undefined);
       // The store is app-wide: a call whose account went away while this waited would become
       // the next account's call.
-      if (!mx.clientRunning) return 'failed' as StartCallResult;
-      if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
-      const call = new RoomCall({ mx, room, video, microphone, devices, notify });
+      if (!mx.clientRunning) return 'failed';
+      if (store.get(activeCallAtom)) return 'busy';
+      const call = new engine.RoomCall({ mx, room, video, microphone, devices, notify });
       const active: ActiveCall = {
         ...meta,
         call,
@@ -150,7 +158,7 @@ export const useCallActions = (mx: MatrixClient) => {
       store.set(activeCallAtom, active);
       store.set(callPanelRoomAtom, callHomeRoomId(active));
       await call.join();
-      return 'started' as StartCallResult;
+      return 'started';
     },
     [mx, store]
   );

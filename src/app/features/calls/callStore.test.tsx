@@ -4,17 +4,25 @@ import { createStore, Provider } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { activeCallAtom, useCallActions, type ActiveCall } from './callStore';
 
-vi.mock('./RoomCall', () => ({
-  RoomCall: class {
-    join = vi.fn(async () => undefined);
+// Until a test lets it load, the call engine's chunk is missing, as after a deploy replaced it.
+const engine = vi.hoisted(() => ({ missing: true }));
+vi.mock('./RoomCall', () => {
+  if (engine.missing) throw new Error('Failed to fetch dynamically imported module');
+  return { RoomCall: FakeRoomCall };
+});
 
-    room: Room;
+const FakeRoomCall = vi.hoisted(
+  () =>
+    class {
+      join = vi.fn(async () => undefined);
 
-    constructor({ room }: { room: Room }) {
-      this.room = room;
+      room: Room;
+
+      constructor({ room }: { room: Room }) {
+        this.room = room;
+      }
     }
-  },
-}));
+);
 
 const actionsIn = (store: ReturnType<typeof createStore>, mx = {} as MatrixClient) => {
   let actions!: ReturnType<typeof useCallActions>;
@@ -59,6 +67,18 @@ const runningClient = () =>
   } as unknown as MatrixClient);
 
 describe('useCallActions startCall', () => {
+  // First in this block: a module that failed to load is loaded again on the next import.
+  it('answers failed, without an unhandled rejection, when the call engine cannot load', async () => {
+    const store = createStore();
+    const { room } = slowRoom();
+
+    await expect(actionsIn(store, runningClient()).startCall({ room, kind: 'room' })).resolves.toBe(
+      'failed'
+    );
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    engine.missing = false;
+  });
+
   /** A room whose members load when the test says so. */
   const slowRoom = () => {
     let loaded: (() => void) | undefined;

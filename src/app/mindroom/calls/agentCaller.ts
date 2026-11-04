@@ -185,7 +185,7 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
           agentUserId,
           origin: { roomId, threadId },
         });
-        if (result === 'busy') setError('busy');
+        if (result !== 'started') setError(result);
         return result === 'started';
       } catch {
         setError('failed');

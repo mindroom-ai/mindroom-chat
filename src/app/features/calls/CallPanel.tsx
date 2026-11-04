@@ -18,6 +18,7 @@ import {
   useCallState,
   useRoomCallMembers,
   type ActiveCall,
+  type StartCallResult,
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
@@ -325,22 +326,23 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const [camera, setCamera] = useState(false);
   const [devices, setDevices] = useState<CallDevices>({});
   const [joining, setJoining] = useState(false);
-  // This session's other tab is in a call: it shares this device, so this one cannot join.
-  const [busyElsewhere, setBusyElsewhere] = useState(false);
+  // Why the last Join did not start the call: this session's other tab is in a call (it shares
+  // this device), or the call could not start at all.
+  const [startProblem, setStartProblem] = useState<Exclude<StartCallResult, 'started'>>();
 
-  // A call running elsewhere is joined through the backend it already uses.
-  const supported = people.length > 0 || support === 'supported';
   let blocker: string | undefined;
   if (!browserSupportsCalls())
     blocker = t('featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich');
-  else if (!supported && support === 'unsupported') {
+  // Calls run only on this deployment's own backend, also one someone else started there
+  // (RoomCall.join refuses a backend a room member named).
+  else if (support === 'unsupported') {
     blocker = t('featureUi.call.callView.yourHomeserverDoesNotSupportCalling');
   } else if (active) blocker = t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent');
   else if (!access.canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
 
   const join = () => {
     setJoining(true);
-    setBusyElsewhere(false);
+    setStartProblem(undefined);
     void startCall({
       room,
       kind: 'room',
@@ -350,7 +352,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       // Starting a call rings the other person of a direct chat and notifies a group.
       notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
     })
-      .then((result) => setBusyElsewhere(result === 'busy'))
+      .then((result) => setStartProblem(result === 'started' ? undefined : result))
       .finally(() => setJoining(false));
   };
 
@@ -390,8 +392,12 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
           <Notice>{blocker}</Notice>
         ) : (
           <>
-            {busyElsewhere && (
-              <Notice>{t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent')}</Notice>
+            {startProblem && (
+              <Notice>
+                {startProblem === 'busy'
+                  ? t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent')
+                  : t(PROBLEM_KEYS.service)}
+              </Notice>
             )}
             <Box gap="200" alignItems="Center" justifyContent="Center" wrap="Wrap">
               <CallControl
