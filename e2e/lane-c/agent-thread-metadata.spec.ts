@@ -6,7 +6,9 @@ import {
   startThread,
   test,
   uniqueWord,
+  waitForThreadEvent,
   type AgentStack,
+  type MatrixEvent,
 } from './agentStack';
 import { matrixFetch } from '../helpers/matrix';
 
@@ -16,6 +18,9 @@ import { matrixFetch } from '../helpers/matrix';
 test.describe.configure({ timeout: 300_000 });
 
 const TAGS_EVENT = 'com.mindroom.thread.tags';
+
+const summaryOf = (event: MatrixEvent): unknown =>
+  (event.content['io.mindroom.thread_summary'] as { summary?: unknown } | undefined)?.summary;
 
 const threadTags = async (stack: AgentStack, rootId: string): Promise<string[]> => {
   const state = await matrixFetch<
@@ -38,7 +43,9 @@ test('a thread gets its summary title, then the title the agent sets', async ({ 
   await showThread(page, stack, rootId);
 
   const banner = page.locator('[data-thread-context-banner]');
-  await expect(banner).toContainText('Stub picked this title from a tool call', { timeout: 120_000 });
+  await expect(banner).toContainText('Stub picked this title from a tool call', {
+    timeout: 120_000,
+  });
   await expect(page.getByRole('button', { name: /^Ran 1 tool call/ })).toContainText(
     'set_thread_summary'
   );
@@ -57,7 +64,16 @@ test('a thread gets its summary title, then the title the agent sets', async ({ 
   // A thread without the tool call keeps the automatic summary as its title.
   const plainRoot = await startThread(stack, `${word} plain`);
   await showThread(page, stack, plainRoot);
-  await expect(banner).toContainText(`Stub title: ${word} plain`, { timeout: 120_000 });
+  const summary = await waitForThreadEvent(
+    stack,
+    plainRoot,
+    (event) => typeof summaryOf(event) === 'string',
+    { timeout: 120_000, description: 'the automatic summary' }
+  );
+  // The stub titles a thread with its first words; a real model writes its own title.
+  if (stack.model === 'stub')
+    expect(String(summaryOf(summary))).toContain(`Stub title: ${word} plain`);
+  await expect(banner).toContainText(String(summaryOf(summary)), { timeout: 60_000 });
   await expect(page.getByText('AI titled this thread').first()).toBeVisible();
 });
 

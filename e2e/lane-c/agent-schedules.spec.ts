@@ -29,8 +29,13 @@ test('a reminder the agent schedules is listed, counted down and posted on time'
   await clock.click();
   const dialog = page.getByRole('dialog', { name: 'Scheduled tasks' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText('Stretch reminder', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('@helper remind me to stretch', { exact: true })).toBeVisible();
+  if (stack.model === 'stub') {
+    await expect(dialog.getByText('Stretch reminder', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('@helper remind me to stretch', { exact: true })).toBeVisible();
+  } else {
+    // A real model words the task's title and prompt itself.
+    await expect(dialog).toContainText(/stretch/i);
+  }
   await expect(dialog).toContainText('One-time');
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
@@ -44,7 +49,7 @@ test('a reminder the agent schedules is listed, counted down and posted on time'
     { timeout: 120_000, description: 'the automated task' }
   );
   await expect(page.locator(`[data-message-id="${fired.event_id}"]`)).toContainText(
-    'remind me to stretch',
+    stack.model === 'stub' ? 'remind me to stretch' : /stretch/i,
     { timeout: 30_000 }
   );
   await expect(page.getByRole('button', { name: 'Scheduled tasks (0)' })).toBeVisible({

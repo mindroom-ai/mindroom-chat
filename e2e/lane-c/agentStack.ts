@@ -9,6 +9,9 @@ import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 /**
  * Fixtures for the agent specs (`e2e/lane-c/agent-*.spec.ts`): a real MindRoom backend with the stub model of
  * scripts/agent-stack/stack.py, run against this slot's homeserver, and a browser signed in as its test account.
+ * With E2E_AGENT_MODEL=real the backend runs Claude Haiku 5.5 and GPT-6 Luna instead, following a script that
+ * gives the stub's hashtags the same meaning; the provider keys must then be in the environment (stack.py's
+ * docstring), and the specs skip without them.
  *
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
@@ -16,8 +19,15 @@ import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
  * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port.
  */
 
+/** One of the thread's two models: its config key, provider model ID and the name clients show. */
+export type AgentModel = { key: string; id: string; displayName: string };
+
 export type AgentStack = {
   slot: number;
+  /** `stub`: the stub model of scripts/agent-stack/stub_model.py; `real`: provider models. */
+  model: 'stub' | 'real';
+  /** The room's default model and the one the model picker switches a thread to. */
+  models: { first: AgentModel; second: AgentModel };
   sha: string;
   namespace: string;
   homeserver: string;
@@ -26,7 +36,8 @@ export type AgentStack = {
   stubRequests: string;
   logs: { backend: string; stub: string };
   tester: { userId: string; username: string; password: string; accessToken: string };
-  agents: { router: string; helper: string; scout: string };
+  /** A real-model stack runs only the helper. */
+  agents: { router: string; helper: string; scout?: string };
   rooms: { lobby: string; space: string };
   approvalExpirySeconds: number;
 };
@@ -42,6 +53,7 @@ export type MatrixEvent = {
 const STACK_SCRIPT = fileURLToPath(new URL('../../scripts/agent-stack/stack.py', import.meta.url));
 const EXIT_NO_CHECKOUT = 3;
 const EXIT_NO_HOMESERVER = 4;
+const EXIT_NO_KEYS = 5;
 
 const slotNumber = (): number => {
   const port = Number(process.env.E2E_MATRIX_PORT ?? '28008');
@@ -56,8 +68,11 @@ const startAgentStack = (): AgentStack | string => {
   });
   if (result.status === 0) return JSON.parse(result.stdout) as AgentStack;
   const message = (result.stderr || String(result.error ?? '')).trim();
-  if (result.status === EXIT_NO_CHECKOUT || result.status === EXIT_NO_HOMESERVER) return message;
-  throw new Error(`The agent stack did not start (exit ${result.status}):\n${message.slice(-4000)}`);
+  if ([EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS].includes(result.status ?? -1))
+    return message;
+  throw new Error(
+    `The agent stack did not start (exit ${result.status}):\n${message.slice(-4000)}`
+  );
 };
 
 /** The client config the specs need: the slot's homeserver, and canvases on. */
@@ -92,9 +107,9 @@ const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
   await page.locator('input[name="passwordInput"]').fill(stack.tester.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
   // The first start of an account sets up its encryption, which takes long on a loaded machine.
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern }).first()).toBeVisible(
-    { timeout: 240_000 }
-  );
+  await expect(
+    page.getByRole('button', { name: activeAccountButtonNamePattern }).first()
+  ).toBeVisible({ timeout: 240_000 });
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
@@ -207,7 +222,9 @@ const latestContent = (events: MatrixEvent[]): Map<string, MatrixEvent> => {
   const originals = new Map<string, MatrixEvent>();
   const edits = new Map<string, Record<string, unknown>>();
   events.forEach((event) => {
-    const relation = event.content['m.relates_to'] as { rel_type?: string; event_id?: string } | undefined;
+    const relation = event.content['m.relates_to'] as
+      | { rel_type?: string; event_id?: string }
+      | undefined;
     if (relation?.rel_type === 'm.replace' && relation.event_id) {
       if (!edits.has(relation.event_id)) {
         edits.set(relation.event_id, {
@@ -243,7 +260,9 @@ export const lobbyEvents = async (stack: AgentStack, limit = 200): Promise<Matri
 };
 
 export const inThread = (event: MatrixEvent, rootId: string): boolean => {
-  const relation = event.content['m.relates_to'] as { rel_type?: string; event_id?: string } | undefined;
+  const relation = event.content['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
   return relation?.rel_type === 'm.thread' && relation.event_id === rootId;
 };
 
@@ -261,7 +280,9 @@ export const waitForThreadEvent = async (
   await expect
     .poll(
       async () => {
-        found = (await lobbyEvents(stack)).find((event) => inThread(event, rootId) && matches(event));
+        found = (await lobbyEvents(stack)).find(
+          (event) => inThread(event, rootId) && matches(event)
+        );
         return !!found;
       },
       { timeout, intervals: [500, 1000], message: `waiting for ${description}` }
@@ -273,14 +294,28 @@ export const waitForThreadEvent = async (
 export const bodyOf = (event: MatrixEvent): string =>
   typeof event.content.body === 'string' ? event.content.body : '';
 
-export const streamStatus = (event: MatrixEvent): unknown => event.content['io.mindroom.stream_status'];
+export const streamStatus = (event: MatrixEvent): unknown =>
+  event.content['io.mindroom.stream_status'];
+
+/** The provider model ID the backend says answered, from the reply's `io.mindroom.ai_run` metadata. */
+export const answeringModelId = (event: MatrixEvent): unknown => {
+  const run = event.content['io.mindroom.ai_run'] as { model?: { id?: unknown } } | undefined;
+  return run?.model?.id;
+};
+
+type AgentReplyOptions = {
+  agent?: string;
+  timeout?: number;
+  /** The provider model ID the reply must have been written by. */
+  modelId?: string;
+};
 
 /** The agent's reply in the thread once its stream completed and its body matches. */
 export const waitForAgentReply = (
   stack: AgentStack,
   rootId: string,
   matches: (body: string) => boolean,
-  { agent = stack.agents.helper, timeout = 90_000 } = {}
+  { agent = stack.agents.helper, timeout = 90_000, modelId }: AgentReplyOptions = {}
 ): Promise<MatrixEvent> =>
   waitForThreadEvent(
     stack,
@@ -289,6 +324,12 @@ export const waitForAgentReply = (
       event.sender === agent &&
       event.type === 'm.room.message' &&
       streamStatus(event) === 'completed' &&
+      (modelId === undefined || answeringModelId(event) === modelId) &&
       matches(bodyOf(event)),
-    { timeout, description: `a completed reply from ${agent}` }
+    {
+      timeout,
+      description: `a completed reply from ${agent}${
+        modelId === undefined ? '' : ` on ${modelId}`
+      }`,
+    }
   );
