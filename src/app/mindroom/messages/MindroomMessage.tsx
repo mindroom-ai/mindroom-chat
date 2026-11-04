@@ -7,6 +7,7 @@ import React, {
   type FocusEvent,
   type MouseEvent,
   type MouseEventHandler,
+  type PointerEvent,
   type ReactNode,
 } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -635,8 +636,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // Anchors of the context menu and of the emoji board while they are open.
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
-    // The hover toolbar shows while the pointer or the keyboard focus is inside the row. A click
-    // also focuses the row, but that focus does not keep the toolbar once the pointer leaves.
+    // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
+    // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
+    // a tap does, since touch screens have no hover.
     const [pointerInside, setPointerInside] = useState(false);
     const [focusInside, setFocusInside] = useState(false);
     const { hoverProps } = useHover({ onHoverChange: setPointerInside });
@@ -645,8 +647,15 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         if (!inside) setFocusInside(false);
       },
     });
-    const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) =>
-      setFocusInside(isKeyboardFocus(evt.target));
+    const mousePressed = useRef(false);
+    const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
+      mousePressed.current = evt.pointerType === 'mouse';
+    };
+    const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
+      const fromMouse = mousePressed.current;
+      mousePressed.current = false;
+      setFocusInside(!fromMouse || isKeyboardFocus(evt.target));
+    };
     const toolbarRef = useRef<HTMLDivElement>(null);
     // The inline editor has its own buttons, so the toolbar stays away while it is open.
     const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
@@ -964,6 +973,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           space={messageSpacing}
           selected={!!menuAnchor || edit}
           onContextMenu={openMenuAtPointer}
+          onPointerDownCapture={noteRowPointer}
           onFocusCapture={noteRowFocus}
           {...hoverProps}
           {...focusWithinProps}
